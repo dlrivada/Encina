@@ -56,8 +56,8 @@ public interface IDeadLetterManager
     /// <param name="skip">Number of records to skip.</param>
     /// <param name="take">Maximum number of records to return.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of dead letter messages.</returns>
-    Task<IEnumerable<IDeadLetterMessage>> GetMessagesAsync(
+    /// <returns>A collection of dead letter messages, or an error.</returns>
+    Task<Either<EncinaError, IEnumerable<IDeadLetterMessage>>> GetMessagesAsync(
         DeadLetterFilter? filter = null,
         int skip = 0,
         int take = 100,
@@ -68,8 +68,8 @@ public interface IDeadLetterManager
     /// </summary>
     /// <param name="filter">Optional filter criteria.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The count of matching messages.</returns>
-    Task<int> GetCountAsync(
+    /// <returns>The count of matching messages, or an error.</returns>
+    Task<Either<EncinaError, int>> GetCountAsync(
         DeadLetterFilter? filter = null,
         CancellationToken cancellationToken = default);
 
@@ -77,8 +77,8 @@ public interface IDeadLetterManager
     /// Gets statistics about the Dead Letter Queue.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>DLQ statistics.</returns>
-    Task<DeadLetterStatistics> GetStatisticsAsync(
+    /// <returns>DLQ statistics, or an error.</returns>
+    Task<Either<EncinaError, DeadLetterStatistics>> GetStatisticsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -86,8 +86,8 @@ public interface IDeadLetterManager
     /// </summary>
     /// <param name="messageId">The message ID to delete.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>True if the message was found and deleted.</returns>
-    Task<bool> DeleteAsync(
+    /// <returns>Unit on success, or an error if deletion failed.</returns>
+    Task<Either<EncinaError, Unit>> DeleteAsync(
         Guid messageId,
         CancellationToken cancellationToken = default);
 
@@ -96,8 +96,8 @@ public interface IDeadLetterManager
     /// </summary>
     /// <param name="filter">Filter criteria for messages to delete.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of messages deleted.</returns>
-    Task<int> DeleteAllAsync(
+    /// <returns>The number of messages deleted, or an error.</returns>
+    Task<Either<EncinaError, int>> DeleteAllAsync(
         DeadLetterFilter filter,
         CancellationToken cancellationToken = default);
 
@@ -105,8 +105,8 @@ public interface IDeadLetterManager
     /// Cleans up expired messages.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of messages cleaned up.</returns>
-    Task<int> CleanupExpiredAsync(
+    /// <returns>The number of messages cleaned up, or an error.</returns>
+    Task<Either<EncinaError, int>> CleanupExpiredAsync(
         CancellationToken cancellationToken = default);
 }
 

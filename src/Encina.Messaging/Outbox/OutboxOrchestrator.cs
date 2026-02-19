@@ -70,8 +70,8 @@ public sealed class OutboxOrchestrator
     /// <typeparam name="TNotification">The notification type.</typeparam>
     /// <param name="notification">The notification to add.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the operation.</returns>
-    public async Task AddAsync<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+    /// <returns>Unit on success, or an error if the message could not be added.</returns>
+    public async Task<Either<EncinaError, Unit>> AddAsync<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : class
     {
         ArgumentNullException.ThrowIfNull(notification);
@@ -91,6 +91,8 @@ public sealed class OutboxOrchestrator
         await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
 
         Log.MessageAddedToOutbox(_logger, message.Id, notificationType);
+
+        return Unit.Default;
     }
 
     /// <summary>
@@ -98,8 +100,8 @@ public sealed class OutboxOrchestrator
     /// </summary>
     /// <param name="publishCallback">The callback to publish each message.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of messages processed successfully.</returns>
-    public async Task<int> ProcessPendingMessagesAsync(
+    /// <returns>The number of messages processed successfully, or an error.</returns>
+    public async Task<Either<EncinaError, int>> ProcessPendingMessagesAsync(
         Func<IOutboxMessage, Type, object, Task> publishCallback,
         CancellationToken cancellationToken = default)
     {
@@ -156,8 +158,8 @@ public sealed class OutboxOrchestrator
     /// Gets the count of pending messages.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The count of pending messages.</returns>
-    public async Task<int> GetPendingCountAsync(CancellationToken cancellationToken = default)
+    /// <returns>The count of pending messages, or an error.</returns>
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
     {
         var messages = await _store.GetPendingMessagesAsync(
             int.MaxValue,
@@ -228,6 +230,11 @@ public static class OutboxErrorCodes
     /// Maximum retries exceeded.
     /// </summary>
     public const string MaxRetriesExceeded = "outbox.max_retries_exceeded";
+
+    /// <summary>
+    /// Failed to add message to outbox.
+    /// </summary>
+    public const string AddFailed = "outbox.add_failed";
 }
 
 /// <summary>

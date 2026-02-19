@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Encina.Messaging.DeadLetter;
+using Encina.Testing.Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
@@ -96,7 +97,7 @@ public sealed class DeadLetterOrchestratorTests
         var result = await _orchestrator.AddAsync(request, context);
 
         // Assert
-        result.ShouldBe(expectedMessage);
+        result.ShouldBeRight().ShouldBe(expectedMessage);
         await _store.Received(1).AddAsync(expectedMessage, Arg.Any<CancellationToken>());
         await _store.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -201,7 +202,7 @@ public sealed class DeadLetterOrchestratorTests
         var context = new DeadLetterContext(error, null, DeadLetterSourcePatterns.Recoverability, 3, FixedUtcNow);
         var result = await orchestrator.AddAsync(request, context);
 
-        result.ShouldBe(expectedMessage);
+        result.ShouldBeRight().ShouldBe(expectedMessage);
     }
 
     [Fact]
@@ -301,7 +302,7 @@ public sealed class DeadLetterOrchestratorTests
         var result = await _orchestrator.GetPendingCountAsync();
 
         // Assert
-        result.ShouldBe(5);
+        result.ShouldBeRight().ShouldBe(5);
     }
 
     #endregion
@@ -319,7 +320,7 @@ public sealed class DeadLetterOrchestratorTests
         var result = await _orchestrator.CleanupExpiredAsync();
 
         // Assert
-        result.ShouldBe(10);
+        result.ShouldBeRight().ShouldBe(10);
         await _store.Received(1).DeleteExpiredAsync(Arg.Any<CancellationToken>());
     }
 
@@ -334,7 +335,7 @@ public sealed class DeadLetterOrchestratorTests
         var result = await _orchestrator.CleanupExpiredAsync();
 
         // Assert
-        result.ShouldBe(0);
+        result.ShouldBeRight().ShouldBe(0);
     }
 
     #endregion
@@ -366,9 +367,10 @@ public sealed class DeadLetterOrchestratorTests
         var result = await _orchestrator.GetStatisticsAsync();
 
         // Assert
-        result.TotalCount.ShouldBe(100);
-        result.PendingCount.ShouldBe(80);
-        result.ReplayedCount.ShouldBe(20);
+        var statistics = result.ShouldBeRight();
+        statistics.TotalCount.ShouldBe(100);
+        statistics.PendingCount.ShouldBe(80);
+        statistics.ReplayedCount.ShouldBe(20);
     }
 
     #endregion

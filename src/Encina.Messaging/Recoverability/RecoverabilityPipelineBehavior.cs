@@ -117,12 +117,19 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
                 _options.DelayedRetries.Length,
                 firstDelayedRetryDelay);
 
-            await _delayedRetryScheduler.ScheduleRetryAsync(
+            var scheduleResult = await _delayedRetryScheduler.ScheduleRetryAsync(
                 request,
                 recoverabilityContext,
                 firstDelayedRetryDelay,
                 0,
                 cancellationToken).ConfigureAwait(false);
+
+            scheduleResult.IfLeft(error =>
+                RecoverabilityLog.SchedulingDelayedRetryFailed(
+                    _logger,
+                    recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
+                    typeof(TRequest).Name,
+                    error.Message));
 
             // Return error but note that delayed retry is scheduled
             return Either<EncinaError, TResponse>.Left(
@@ -407,6 +414,16 @@ public static class RecoverabilityErrorCodes
     /// Unknown error during recoverability processing.
     /// </summary>
     public const string Unknown = "recoverability.unknown";
+
+    /// <summary>
+    /// Failed to schedule delayed retry.
+    /// </summary>
+    public const string ScheduleRetryFailed = "recoverability.schedule_retry_failed";
+
+    /// <summary>
+    /// Failed to cancel scheduled retry.
+    /// </summary>
+    public const string CancelRetryFailed = "recoverability.cancel_retry_failed";
 }
 
 /// <summary>
@@ -484,4 +501,11 @@ internal static partial class RecoverabilityLog
         Message = "[{CorrelationId}] {RequestType} OnPermanentFailure callback failed")]
     public static partial void OnPermanentFailureCallbackFailed(
         ILogger logger, Exception ex, string correlationId, string requestType);
+
+    [LoggerMessage(
+        EventId = 211,
+        Level = LogLevel.Error,
+        Message = "[{CorrelationId}] {RequestType} failed to schedule delayed retry: {ErrorMessage}")]
+    public static partial void SchedulingDelayedRetryFailed(
+        ILogger logger, string correlationId, string requestType, string errorMessage);
 }

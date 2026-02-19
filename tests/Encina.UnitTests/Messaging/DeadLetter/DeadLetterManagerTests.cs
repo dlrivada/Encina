@@ -208,7 +208,10 @@ public sealed class DeadLetterManagerTests
         var result = await manager.GetMessagesAsync(filter, 0, 100);
 
         // Assert
-        result.ShouldBe(messages);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r => r.ShouldBe(messages),
+            Left: _ => Assert.Fail("Expected Right"));
         await store.Received(1).GetMessagesAsync(filter, 0, 100, Arg.Any<CancellationToken>());
     }
 
@@ -230,7 +233,10 @@ public sealed class DeadLetterManagerTests
         var result = await manager.GetCountAsync(filter);
 
         // Assert
-        result.ShouldBe(42);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r => r.ShouldBe(42),
+            Left: _ => Assert.Fail("Expected Right"));
         await store.Received(1).GetCountAsync(filter, Arg.Any<CancellationToken>());
     }
 
@@ -252,7 +258,7 @@ public sealed class DeadLetterManagerTests
         var result = await manager.DeleteAsync(messageId);
 
         // Assert
-        result.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
         await store.Received(1).DeleteAsync(messageId, Arg.Any<CancellationToken>());
     }
 
@@ -293,7 +299,10 @@ public sealed class DeadLetterManagerTests
         var result = await manager.DeleteAllAsync(filter);
 
         // Assert
-        result.ShouldBe(2);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r => r.ShouldBe(2),
+            Left: _ => Assert.Fail("Expected Right"));
         await store.Received(2).DeleteAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await store.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -312,7 +321,10 @@ public sealed class DeadLetterManagerTests
         var result = await manager.DeleteAllAsync(filter);
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r => r.ShouldBe(0),
+            Left: _ => Assert.Fail("Expected Right"));
         await store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -339,7 +351,10 @@ public sealed class DeadLetterManagerTests
         var result = await manager.CleanupExpiredAsync();
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r => r.ShouldBe(0),
+            Left: _ => Assert.Fail("Expected Right"));
     }
 
     #endregion
@@ -365,8 +380,10 @@ public sealed class DeadLetterManagerTests
         var result = await manager.GetStatisticsAsync();
 
         // Assert
-        result.ShouldNotBeNull();
-        result.TotalCount.ShouldBe(10);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r => r.TotalCount.ShouldBe(10),
+            Left: _ => Assert.Fail("Expected Right"));
     }
 
     #endregion

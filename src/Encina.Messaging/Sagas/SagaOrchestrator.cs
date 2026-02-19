@@ -72,8 +72,8 @@ public sealed class SagaOrchestrator
     /// <param name="sagaType">The saga type name.</param>
     /// <param name="data">The initial saga data.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The saga ID.</returns>
-    public Task<Guid> StartAsync<TSagaData>(
+    /// <returns>The saga ID, or an error if the saga could not be started.</returns>
+    public Task<Either<EncinaError, Guid>> StartAsync<TSagaData>(
         string sagaType,
         TSagaData data,
         CancellationToken cancellationToken = default)
@@ -88,8 +88,8 @@ public sealed class SagaOrchestrator
     /// <param name="data">The initial saga data.</param>
     /// <param name="timeout">The timeout for this saga. Null means use default or no timeout.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The saga ID.</returns>
-    public async Task<Guid> StartAsync<TSagaData>(
+    /// <returns>The saga ID, or an error if the saga could not be started.</returns>
+    public async Task<Either<EncinaError, Guid>> StartAsync<TSagaData>(
         string sagaType,
         TSagaData data,
         TimeSpan? timeout,
@@ -361,13 +361,15 @@ public sealed class SagaOrchestrator
     /// Gets stuck sagas that may need intervention.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of stuck sagas.</returns>
-    public async Task<IEnumerable<ISagaState>> GetStuckSagasAsync(CancellationToken cancellationToken = default)
+    /// <returns>A collection of stuck sagas, or an error if retrieval failed.</returns>
+    public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetStuckSagasAsync(CancellationToken cancellationToken = default)
     {
-        return await _store.GetStuckSagasAsync(
+        var result = await _store.GetStuckSagasAsync(
             _options.StuckSagaThreshold,
             _options.StuckSagaBatchSize,
             cancellationToken).ConfigureAwait(false);
+
+        return Either<EncinaError, IEnumerable<ISagaState>>.Right(result);
     }
 
     /// <summary>
@@ -409,12 +411,14 @@ public sealed class SagaOrchestrator
     /// Gets sagas that have exceeded their timeout.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of expired sagas.</returns>
-    public async Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(CancellationToken cancellationToken = default)
+    /// <returns>A collection of expired sagas, or an error if retrieval failed.</returns>
+    public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetExpiredSagasAsync(CancellationToken cancellationToken = default)
     {
-        return await _store.GetExpiredSagasAsync(
+        var result = await _store.GetExpiredSagasAsync(
             _options.ExpiredSagaBatchSize,
             cancellationToken).ConfigureAwait(false);
+
+        return Either<EncinaError, IEnumerable<ISagaState>>.Right(result);
     }
 }
 
@@ -550,6 +554,11 @@ public static class SagaErrorCodes
     /// Saga not found handler failed with an exception.
     /// </summary>
     public const string HandlerFailed = "saga.handler.failed";
+
+    /// <summary>
+    /// Failed to start saga.
+    /// </summary>
+    public const string StartFailed = "saga.start_failed";
 }
 
 /// <summary>

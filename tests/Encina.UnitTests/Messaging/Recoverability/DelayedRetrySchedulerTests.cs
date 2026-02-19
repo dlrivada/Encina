@@ -228,7 +228,7 @@ public sealed class DelayedRetrySchedulerTests
     #region CancelScheduledRetryAsync
 
     [Fact]
-    public async Task CancelScheduledRetryAsync_WhenRetryExists_ReturnsTrue()
+    public async Task CancelScheduledRetryAsync_WhenRetryExists_ReturnsRight()
     {
         // Arrange
         var (scheduler, store, _) = CreateSchedulerWithDependencies();
@@ -241,12 +241,12 @@ public sealed class DelayedRetrySchedulerTests
         var result = await scheduler.CancelScheduledRetryAsync(contextId);
 
         // Assert
-        result.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
         await store.Received(1).DeleteByContextIdAsync(contextId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task CancelScheduledRetryAsync_WhenRetryDoesNotExist_ReturnsFalse()
+    public async Task CancelScheduledRetryAsync_WhenRetryDoesNotExist_ReturnsRight()
     {
         // Arrange
         var (scheduler, store, _) = CreateSchedulerWithDependencies();
@@ -259,7 +259,7 @@ public sealed class DelayedRetrySchedulerTests
         var result = await scheduler.CancelScheduledRetryAsync(contextId);
 
         // Assert
-        result.ShouldBeFalse();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion

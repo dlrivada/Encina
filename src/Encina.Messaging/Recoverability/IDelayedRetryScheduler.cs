@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Messaging.Recoverability;
 
 /// <summary>
@@ -28,8 +30,8 @@ public interface IDelayedRetryScheduler
     /// <param name="delay">The delay before the retry should be executed.</param>
     /// <param name="delayedRetryAttempt">The current delayed retry attempt (0-based).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the scheduling operation.</returns>
-    Task ScheduleRetryAsync<TRequest>(
+    /// <returns>Unit on success, or an error if scheduling failed.</returns>
+    Task<Either<EncinaError, Unit>> ScheduleRetryAsync<TRequest>(
         TRequest request,
         RecoverabilityContext context,
         TimeSpan delay,
@@ -42,8 +44,8 @@ public interface IDelayedRetryScheduler
     /// </summary>
     /// <param name="recoverabilityContextId">The ID of the recoverability context.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>True if the retry was found and cancelled, false otherwise.</returns>
-    Task<bool> CancelScheduledRetryAsync(
+    /// <returns>Unit on success, or an error if cancellation failed.</returns>
+    Task<Either<EncinaError, Unit>> CancelScheduledRetryAsync(
         Guid recoverabilityContextId,
         CancellationToken cancellationToken = default);
 }

@@ -34,4 +34,19 @@ public static class DeadLetterErrorCodes
     /// Failed to store message in DLQ.
     /// </summary>
     public const string StoreFailed = "dlq.store_failed";
+
+    /// <summary>
+    /// Failed to retrieve DLQ statistics.
+    /// </summary>
+    public const string StatisticsError = "dlq.statistics_error";
+
+    /// <summary>
+    /// Failed to clean up expired messages.
+    /// </summary>
+    public const string CleanupFailed = "dlq.cleanup_failed";
+
+    /// <summary>
+    /// Failed to delete DLQ message(s).
+    /// </summary>
+    public const string DeleteFailed = "dlq.delete_failed";
 }

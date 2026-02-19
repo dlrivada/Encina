@@ -60,11 +60,22 @@ public sealed class SagaRunner : ISagaRunner
         ArgumentNullException.ThrowIfNull(initialData);
 
         // Start the saga
-        var sagaId = await _orchestrator.StartAsync(
+        var startResult = await _orchestrator.StartAsync(
             definition.SagaType,
             initialData,
             definition.Timeout,
             cancellationToken).ConfigureAwait(false);
+
+        Guid sagaId = default;
+        EncinaError? startError = null;
+        startResult.Match(
+            Right: id => sagaId = id,
+            Left: error => startError = error);
+
+        if (startError is not null)
+        {
+            return startError.Value;
+        }
 
         Log.SagaStarted(_logger, sagaId, definition.SagaType, definition.StepCount);
 

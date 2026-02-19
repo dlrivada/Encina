@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Messaging.Recoverability;
@@ -47,7 +48,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
     }
 
     /// <inheritdoc />
-    public async Task ScheduleRetryAsync<TRequest>(
+    public async Task<Either<EncinaError, Unit>> ScheduleRetryAsync<TRequest>(
         TRequest request,
         RecoverabilityContext context,
         TimeSpan delay,
@@ -89,10 +90,12 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
             requestType,
             delayedRetryAttempt + 1,
             executeAt);
+
+        return Unit.Default;
     }
 
     /// <inheritdoc />
-    public async Task<bool> CancelScheduledRetryAsync(
+    public async Task<Either<EncinaError, Unit>> CancelScheduledRetryAsync(
         Guid recoverabilityContextId,
         CancellationToken cancellationToken = default)
     {
@@ -103,7 +106,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
             DelayedRetryLog.RetryCancelled(_logger, recoverabilityContextId);
         }
 
-        return deleted;
+        return Unit.Default;
     }
 
     private static string SerializeContext(RecoverabilityContext context)

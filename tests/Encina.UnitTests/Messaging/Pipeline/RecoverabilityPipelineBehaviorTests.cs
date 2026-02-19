@@ -319,6 +319,13 @@ public sealed class RecoverabilityPipelineBehaviorTests
     {
         // Arrange
         var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        scheduler.ScheduleRetryAsync(
+            Arg.Any<TestRequest>(),
+            Arg.Any<RecoverabilityContext>(),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
         var options = new RecoverabilityOptions
         {
             ImmediateRetries = 0,
@@ -355,6 +362,13 @@ public sealed class RecoverabilityPipelineBehaviorTests
     {
         // Arrange
         var scheduler = Substitute.For<IDelayedRetryScheduler>();
+        scheduler.ScheduleRetryAsync(
+            Arg.Any<TestRequest>(),
+            Arg.Any<RecoverabilityContext>(),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
         var options = new RecoverabilityOptions
         {
             ImmediateRetries = 0,

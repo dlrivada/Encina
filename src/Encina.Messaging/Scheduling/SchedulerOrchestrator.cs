@@ -77,8 +77,8 @@ public sealed class SchedulerOrchestrator
     /// <param name="request">The request to schedule.</param>
     /// <param name="executeAt">When to execute the request.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The scheduled message ID.</returns>
-    public async Task<Guid> ScheduleAsync<TRequest>(
+    /// <returns>The scheduled message ID, or an error if scheduling failed.</returns>
+    public async Task<Either<EncinaError, Guid>> ScheduleAsync<TRequest>(
         TRequest request,
         DateTime executeAt,
         CancellationToken cancellationToken = default)
@@ -88,7 +88,9 @@ public sealed class SchedulerOrchestrator
 
         if (executeAt < _timeProvider.GetUtcNow().UtcDateTime)
         {
-            throw new ArgumentException("Scheduled time must be in the future.", nameof(executeAt));
+            return EncinaErrors.Create(
+                SchedulingErrorCodes.InvalidScheduleTime,
+                "Scheduled time must be in the future.");
         }
 
         var requestType = typeof(TRequest).AssemblyQualifiedName
@@ -120,8 +122,8 @@ public sealed class SchedulerOrchestrator
     /// <param name="request">The request to schedule.</param>
     /// <param name="delay">The delay before execution.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The scheduled message ID.</returns>
-    public Task<Guid> ScheduleAsync<TRequest>(
+    /// <returns>The scheduled message ID, or an error if scheduling failed.</returns>
+    public Task<Either<EncinaError, Guid>> ScheduleAsync<TRequest>(
         TRequest request,
         TimeSpan delay,
         CancellationToken cancellationToken = default)
@@ -129,7 +131,10 @@ public sealed class SchedulerOrchestrator
     {
         if (delay <= TimeSpan.Zero)
         {
-            throw new ArgumentException("Delay must be positive.", nameof(delay));
+            return Task.FromResult<Either<EncinaError, Guid>>(
+                EncinaErrors.Create(
+                    SchedulingErrorCodes.InvalidDelay,
+                    "Delay must be positive."));
         }
 
         return ScheduleAsync(request, _timeProvider.GetUtcNow().UtcDateTime.Add(delay), cancellationToken);
@@ -167,37 +172,32 @@ public sealed class SchedulerOrchestrator
         }
 
         var nextExecutionResult = _cronParser.GetNextOccurrence(cronExpression, _timeProvider.GetUtcNow().UtcDateTime);
-        if (nextExecutionResult.IsLeft)
-        {
-            return nextExecutionResult.Match(
-                Right: _ => throw new InvalidOperationException(),
-                Left: error => error);
-        }
 
-        var nextExecution = nextExecutionResult.Match(
-            Right: dt => dt,
-            Left: _ => throw new InvalidOperationException());
+        return await nextExecutionResult.MatchAsync(
+            RightAsync: async nextExecution =>
+            {
+                var requestType = typeof(TRequest).AssemblyQualifiedName
+                    ?? typeof(TRequest).FullName
+                    ?? typeof(TRequest).Name;
 
-        var requestType = typeof(TRequest).AssemblyQualifiedName
-            ?? typeof(TRequest).FullName
-            ?? typeof(TRequest).Name;
+                var content = JsonSerializer.Serialize(request, JsonOptions);
 
-        var content = JsonSerializer.Serialize(request, JsonOptions);
+                var message = _messageFactory.Create(
+                    Guid.NewGuid(),
+                    requestType,
+                    content,
+                    nextExecution,
+                    _timeProvider.GetUtcNow().UtcDateTime,
+                    isRecurring: true,
+                    cronExpression: cronExpression);
 
-        var message = _messageFactory.Create(
-            Guid.NewGuid(),
-            requestType,
-            content,
-            nextExecution,
-            _timeProvider.GetUtcNow().UtcDateTime,
-            isRecurring: true,
-            cronExpression: cronExpression);
+                await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
 
-        await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+                Log.RecurringMessageScheduled(_logger, message.Id, requestType, cronExpression, nextExecution);
 
-        Log.RecurringMessageScheduled(_logger, message.Id, requestType, cronExpression, nextExecution);
-
-        return message.Id;
+                return (Either<EncinaError, Guid>)message.Id;
+            },
+            Left: error => (Either<EncinaError, Guid>)error).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -205,11 +205,13 @@ public sealed class SchedulerOrchestrator
     /// </summary>
     /// <param name="messageId">The message ID to cancel.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the operation.</returns>
-    public async Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
+    /// <returns>Unit on success, or an error if cancellation failed.</returns>
+    public async Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         await _store.CancelAsync(messageId, cancellationToken).ConfigureAwait(false);
         Log.MessageCancelled(_logger, messageId);
+
+        return Unit.Default;
     }
 
     /// <summary>
@@ -217,8 +219,8 @@ public sealed class SchedulerOrchestrator
     /// </summary>
     /// <param name="executeCallback">The callback to execute each message.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of messages processed successfully.</returns>
-    public async Task<int> ProcessDueMessagesAsync(
+    /// <returns>The number of messages processed successfully, or an error.</returns>
+    public async Task<Either<EncinaError, int>> ProcessDueMessagesAsync(
         Func<IScheduledMessage, Type, object, Task> executeCallback,
         CancellationToken cancellationToken = default)
     {
@@ -282,8 +284,8 @@ public sealed class SchedulerOrchestrator
     /// Gets the count of pending scheduled messages.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The count of pending messages.</returns>
-    public async Task<int> GetPendingCountAsync(CancellationToken cancellationToken = default)
+    /// <returns>The count of pending messages, or an error.</returns>
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
     {
         var messages = await _store.GetDueMessagesAsync(
             int.MaxValue,
@@ -303,12 +305,12 @@ public sealed class SchedulerOrchestrator
 
         var nextExecutionResult = _cronParser.GetNextOccurrence(message.CronExpression, _timeProvider.GetUtcNow().UtcDateTime);
 
-        if (nextExecutionResult.IsRight)
-        {
-            var nextExecution = nextExecutionResult.Match(
-                Right: dt => dt,
-                Left: _ => throw new InvalidOperationException());
+        var nextExecutionOption = nextExecutionResult.Match(
+            Right: dt => (DateTime?)dt,
+            Left: _ => null);
 
+        if (nextExecutionOption is { } nextExecution)
+        {
             await _store.RescheduleRecurringMessageAsync(message.Id, nextExecution, cancellationToken).ConfigureAwait(false);
             Log.RecurringMessageRescheduled(_logger, message.Id, nextExecution);
         }
@@ -411,6 +413,16 @@ public static class SchedulingErrorCodes
     /// Maximum retries exceeded.
     /// </summary>
     public const string MaxRetriesExceeded = "scheduling.max_retries_exceeded";
+
+    /// <summary>
+    /// Scheduled time is in the past.
+    /// </summary>
+    public const string InvalidScheduleTime = "scheduling.invalid_schedule_time";
+
+    /// <summary>
+    /// Delay must be positive.
+    /// </summary>
+    public const string InvalidDelay = "scheduling.invalid_delay";
 }
 
 /// <summary>

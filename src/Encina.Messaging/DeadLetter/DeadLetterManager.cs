@@ -237,40 +237,48 @@ public sealed class DeadLetterManager : IDeadLetterManager
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<IDeadLetterMessage>> GetMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IDeadLetterMessage>>> GetMessagesAsync(
         DeadLetterFilter? filter = null,
         int skip = 0,
         int take = 100,
         CancellationToken cancellationToken = default)
     {
-        return _store.GetMessagesAsync(filter, skip, take, cancellationToken);
+        var messages = await _store.GetMessagesAsync(filter, skip, take, cancellationToken).ConfigureAwait(false);
+        return Either<EncinaError, IEnumerable<IDeadLetterMessage>>.Right(messages);
     }
 
     /// <inheritdoc />
-    public Task<int> GetCountAsync(
+    public async Task<Either<EncinaError, int>> GetCountAsync(
         DeadLetterFilter? filter = null,
         CancellationToken cancellationToken = default)
     {
-        return _store.GetCountAsync(filter, cancellationToken);
+        return await _store.GetCountAsync(filter, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task<DeadLetterStatistics> GetStatisticsAsync(
+    public Task<Either<EncinaError, DeadLetterStatistics>> GetStatisticsAsync(
         CancellationToken cancellationToken = default)
     {
         return _orchestrator.GetStatisticsAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> DeleteAsync(
+    public async Task<Either<EncinaError, Unit>> DeleteAsync(
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        return _store.DeleteAsync(messageId, cancellationToken);
+        var deleted = await _store.DeleteAsync(messageId, cancellationToken).ConfigureAwait(false);
+
+        if (!deleted)
+        {
+            return EncinaErrors.Create(DeadLetterErrorCodes.DeleteFailed, $"Dead letter message {messageId} not found or could not be deleted");
+        }
+
+        return Unit.Default;
     }
 
     /// <inheritdoc />
-    public async Task<int> DeleteAllAsync(
+    public async Task<Either<EncinaError, int>> DeleteAllAsync(
         DeadLetterFilter filter,
         CancellationToken cancellationToken = default)
     {
@@ -297,7 +305,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     }
 
     /// <inheritdoc />
-    public Task<int> CleanupExpiredAsync(
+    public Task<Either<EncinaError, int>> CleanupExpiredAsync(
         CancellationToken cancellationToken = default)
     {
         return _orchestrator.CleanupExpiredAsync(cancellationToken);

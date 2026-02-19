@@ -129,9 +129,10 @@ public sealed class SagaOrchestratorTests
             .Returns(sagaState);
 
         // Act
-        var sagaId = await _orchestrator.StartAsync(sagaType, data);
+        var result = await _orchestrator.StartAsync(sagaType, data);
 
         // Assert
+        var sagaId = result.ShouldBeRight();
         sagaId.ShouldNotBe(Guid.Empty);
         await _store.Received(1).AddAsync(sagaState, Arg.Any<CancellationToken>());
     }
@@ -156,9 +157,10 @@ public sealed class SagaOrchestratorTests
             .Returns(sagaState);
 
         // Act
-        await _orchestrator.StartAsync(sagaType, data, timeout);
+        var result = await _orchestrator.StartAsync(sagaType, data, timeout);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         _stateFactory.Received(1).Create(
             Arg.Any<Guid>(),
             sagaType,
@@ -593,7 +595,8 @@ public sealed class SagaOrchestratorTests
         var result = await _orchestrator.GetStuckSagasAsync();
 
         // Assert
-        result.Count().ShouldBe(2);
+        var stuckResult = result.ShouldBeRight();
+        stuckResult.Count().ShouldBe(2);
     }
 
     #endregion
@@ -618,7 +621,8 @@ public sealed class SagaOrchestratorTests
         var result = await _orchestrator.GetExpiredSagasAsync();
 
         // Assert
-        result.Count().ShouldBe(1);
+        var expiredResult = result.ShouldBeRight();
+        expiredResult.Count().ShouldBe(1);
     }
 
     #endregion

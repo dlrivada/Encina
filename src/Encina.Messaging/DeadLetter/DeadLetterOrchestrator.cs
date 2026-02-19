@@ -82,8 +82,8 @@ public sealed class DeadLetterOrchestrator
     /// <param name="request">The failed request.</param>
     /// <param name="context">The dead letter context with failure details.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The created dead letter message.</returns>
-    public async Task<IDeadLetterMessage> AddAsync<TRequest>(
+    /// <returns>The created dead letter message, or an error.</returns>
+    public async Task<Either<EncinaError, IDeadLetterMessage>> AddAsync<TRequest>(
         TRequest request,
         DeadLetterContext context,
         CancellationToken cancellationToken = default)
@@ -142,7 +142,7 @@ public sealed class DeadLetterOrchestrator
             }
         }
 
-        return message;
+        return Either<EncinaError, IDeadLetterMessage>.Right(message);
     }
 
     /// <summary>
@@ -151,8 +151,8 @@ public sealed class DeadLetterOrchestrator
     /// <param name="failedMessage">The failed message from recoverability.</param>
     /// <param name="sourcePattern">The source pattern.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The created dead letter message.</returns>
-    public async Task<IDeadLetterMessage> AddFromFailedMessageAsync(
+    /// <returns>The created dead letter message, or an error.</returns>
+    public async Task<Either<EncinaError, IDeadLetterMessage>> AddFromFailedMessageAsync(
         Recoverability.FailedMessage failedMessage,
         string sourcePattern,
         CancellationToken cancellationToken = default)
@@ -192,7 +192,7 @@ public sealed class DeadLetterOrchestrator
             }
         }
 
-        return message;
+        return Either<EncinaError, IDeadLetterMessage>.Right(message);
     }
 
     /// <summary>
@@ -212,20 +212,22 @@ public sealed class DeadLetterOrchestrator
     /// Gets the count of pending (non-replayed) messages in the DLQ.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The count of pending messages.</returns>
-    public Task<int> GetPendingCountAsync(CancellationToken cancellationToken = default)
+    /// <returns>The count of pending messages, or an error.</returns>
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
     {
-        return _store.GetCountAsync(
+        var count = await _store.GetCountAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
             cancellationToken);
+
+        return count;
     }
 
     /// <summary>
     /// Gets statistics about the DLQ.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>DLQ statistics.</returns>
-    public async Task<DeadLetterStatistics> GetStatisticsAsync(
+    /// <returns>DLQ statistics, or an error.</returns>
+    public async Task<Either<EncinaError, DeadLetterStatistics>> GetStatisticsAsync(
         CancellationToken cancellationToken = default)
     {
         var totalCount = await _store.GetCountAsync(null, cancellationToken);
@@ -304,8 +306,8 @@ public sealed class DeadLetterOrchestrator
     /// Cleans up expired messages.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of messages deleted.</returns>
-    public async Task<int> CleanupExpiredAsync(CancellationToken cancellationToken = default)
+    /// <returns>The number of messages deleted, or an error.</returns>
+    public async Task<Either<EncinaError, int>> CleanupExpiredAsync(CancellationToken cancellationToken = default)
     {
         var count = await _store.DeleteExpiredAsync(cancellationToken);
 

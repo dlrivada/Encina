@@ -120,16 +120,21 @@ public sealed class SchedulerOrchestratorTests
     }
 
     [Fact]
-    public async Task ScheduleAsync_WithPastTime_ThrowsArgumentException()
+    public async Task ScheduleAsync_WithPastTime_ReturnsError()
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
         var request = new TestRequest { Value = 42 };
         var executeAt = DateTime.UtcNow.AddHours(-1); // Past time
 
-        // Act & Assert
-        await Should.ThrowAsync<ArgumentException>(
-            () => orchestrator.ScheduleAsync(request, executeAt));
+        // Act
+        var result = await orchestrator.ScheduleAsync(request, executeAt);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().Match(
+            code => code.ShouldBe(SchedulingErrorCodes.InvalidScheduleTime),
+            () => throw new InvalidOperationException("Expected error code"));
     }
 
     [Fact]
@@ -156,7 +161,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ScheduleAsync(request, executeAt);
 
         // Assert
-        result.ShouldBe(messageId);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(messageId);
         await store.Received(1).AddAsync(mockMessage, Arg.Any<CancellationToken>());
     }
 
@@ -165,27 +171,37 @@ public sealed class SchedulerOrchestratorTests
     #region ScheduleAsync (TimeSpan)
 
     [Fact]
-    public async Task ScheduleAsync_WithZeroDelay_ThrowsArgumentException()
+    public async Task ScheduleAsync_WithZeroDelay_ReturnsError()
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
         var request = new TestRequest { Value = 42 };
 
-        // Act & Assert
-        await Should.ThrowAsync<ArgumentException>(
-            () => orchestrator.ScheduleAsync(request, TimeSpan.Zero));
+        // Act
+        var result = await orchestrator.ScheduleAsync(request, TimeSpan.Zero);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().Match(
+            code => code.ShouldBe(SchedulingErrorCodes.InvalidDelay),
+            () => throw new InvalidOperationException("Expected error code"));
     }
 
     [Fact]
-    public async Task ScheduleAsync_WithNegativeDelay_ThrowsArgumentException()
+    public async Task ScheduleAsync_WithNegativeDelay_ReturnsError()
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
         var request = new TestRequest { Value = 42 };
 
-        // Act & Assert
-        await Should.ThrowAsync<ArgumentException>(
-            () => orchestrator.ScheduleAsync(request, TimeSpan.FromSeconds(-5)));
+        // Act
+        var result = await orchestrator.ScheduleAsync(request, TimeSpan.FromSeconds(-5));
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.LeftAsEnumerable().First().GetCode().Match(
+            code => code.ShouldBe(SchedulingErrorCodes.InvalidDelay),
+            () => throw new InvalidOperationException("Expected error code"));
     }
 
     [Fact]
@@ -212,7 +228,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ScheduleAsync(request, delay);
 
         // Assert
-        result.ShouldBe(messageId);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(messageId);
         await store.Received(1).AddAsync(mockMessage, Arg.Any<CancellationToken>());
     }
 
@@ -362,9 +379,10 @@ public sealed class SchedulerOrchestratorTests
         var messageId = Guid.NewGuid();
 
         // Act
-        await orchestrator.CancelAsync(messageId);
+        var result = await orchestrator.CancelAsync(messageId);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         await store.Received(1).CancelAsync(messageId, Arg.Any<CancellationToken>());
     }
 
@@ -395,7 +413,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
     }
 
     [Fact]
@@ -423,7 +442,8 @@ public sealed class SchedulerOrchestratorTests
         });
 
         // Assert
-        result.ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1);
         executed.ShouldBeTrue();
         await store.Received(1).MarkAsProcessedAsync(messageId, Arg.Any<CancellationToken>());
     }
@@ -445,7 +465,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
         await store.Received(1).MarkAsFailedAsync(
             messageId,
             Arg.Is<string>(s => s.Contains("Unknown request type")),
@@ -470,7 +491,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
         await store.Received(1).MarkAsFailedAsync(
             messageId,
             Arg.Is<string>(s => s.Contains("deserialize")),
@@ -496,7 +518,8 @@ public sealed class SchedulerOrchestratorTests
             throw new InvalidOperationException("Callback failed"));
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
         await store.Received(1).MarkAsFailedAsync(
             messageId,
             Arg.Is<string>(s => s.Contains("Callback failed")),
@@ -526,7 +549,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1);
         await store.Received(1).RescheduleRecurringMessageAsync(
             messageId,
             nextExecution,
@@ -555,7 +579,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1);
         await store.Received(1).MarkAsProcessedAsync(messageId, Arg.Any<CancellationToken>());
     }
 
@@ -577,7 +602,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1);
         await store.Received(1).MarkAsProcessedAsync(messageId, Arg.Any<CancellationToken>());
     }
 
@@ -599,7 +625,8 @@ public sealed class SchedulerOrchestratorTests
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1);
         await store.Received(1).MarkAsProcessedAsync(messageId, Arg.Any<CancellationToken>());
         cronParser.DidNotReceive().GetNextOccurrence(Arg.Any<string>(), Arg.Any<DateTime>());
     }
@@ -636,7 +663,8 @@ public sealed class SchedulerOrchestratorTests
         }, cts.Token);
 
         // Assert
-        result.ShouldBe(1); // Only first message was processed
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1); // Only first message was processed
     }
 
     #endregion
@@ -663,7 +691,8 @@ public sealed class SchedulerOrchestratorTests
         var count = await orchestrator.GetPendingCountAsync();
 
         // Assert
-        count.ShouldBe(3);
+        count.IsRight.ShouldBeTrue();
+        count.RightAsEnumerable().First().ShouldBe(3);
     }
 
     #endregion

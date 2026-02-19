@@ -119,9 +119,10 @@ public sealed class OutboxOrchestratorTests
             .Returns(expectedMessage);
 
         // Act
-        await fixture.Orchestrator.AddAsync(notification);
+        var result = await fixture.Orchestrator.AddAsync(notification);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         await fixture.Store.Received(1).AddAsync(expectedMessage, Arg.Any<CancellationToken>());
         fixture.MessageFactory.Received(1).Create(
             Arg.Any<Guid>(),
@@ -163,7 +164,8 @@ public sealed class OutboxOrchestratorTests
             (msg, type, obj) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
     }
 
     [Fact]
@@ -192,7 +194,8 @@ public sealed class OutboxOrchestratorTests
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(callback);
 
         // Assert
-        result.ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1);
         publishedMessages.Count.ShouldBe(1);
         await fixture.Store.Received(1).MarkAsProcessedAsync(message.Id, Arg.Any<CancellationToken>());
     }
@@ -215,7 +218,8 @@ public sealed class OutboxOrchestratorTests
             (msg, type, obj) => Task.CompletedTask);
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
         await fixture.Store.Received(1).MarkAsFailedAsync(
             message.Id,
             Arg.Is<string>(s => s.Contains("Unknown notification type")),
@@ -245,7 +249,8 @@ public sealed class OutboxOrchestratorTests
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(callback);
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
         await fixture.Store.Received(1).MarkAsFailedAsync(
             message.Id,
             Arg.Is<string>(s => s.Contains("Publish failed")),
@@ -299,7 +304,8 @@ public sealed class OutboxOrchestratorTests
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(callback, cts.Token);
 
         // Assert
-        result.ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(1);
     }
 
     #endregion
@@ -321,7 +327,8 @@ public sealed class OutboxOrchestratorTests
         var result = await fixture.Orchestrator.GetPendingCountAsync();
 
         // Assert
-        result.ShouldBe(0);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(0);
     }
 
     [Fact]
@@ -346,7 +353,8 @@ public sealed class OutboxOrchestratorTests
         var result = await fixture.Orchestrator.GetPendingCountAsync();
 
         // Assert
-        result.ShouldBe(3);
+        result.IsRight.ShouldBeTrue();
+        result.RightAsEnumerable().First().ShouldBe(3);
     }
 
     #endregion
