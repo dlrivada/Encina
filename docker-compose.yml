@@ -289,10 +289,31 @@ services:
       start_period: 5s
 
   # =============================================================================
-  # CLOUD EMULATORS (for Encina.AmazonSQS, Azure Storage)
+  # CLOUD EMULATORS (for Encina.AmazonSQS, Azure Storage, Secrets, etc.)
   # =============================================================================
 
-  # LocalStack - AWS Cloud emulator (SQS, SNS, S3, DynamoDB, etc.)
+  # HashiCorp Vault - Secrets management (dev mode)
+  vault:
+    image: hashicorp/vault:latest
+    container_name: encina-vault
+    profiles: ["cloud", "full"]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TOKEN:-encina-dev-token}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault-data:/vault/data
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # LocalStack - AWS Cloud emulator (SQS, SNS, S3, DynamoDB, Secrets Manager, etc.)
   localstack:
     image: localstack/localstack:latest
     container_name: encina-localstack
@@ -376,6 +397,7 @@ volumes:
   dragonfly-data:
   keydb-data:
   # Cloud emulators
+  vault-data:
   localstack-data:
   azurite-data:
   # Observability

@@ -1,0 +1,21 @@
+#nullable enable
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions.GoogleSecretManagerOptions() -> void
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions.ProjectId.get -> string!
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions.ProjectId.set -> void
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions.ProviderHealthCheck.get -> Encina.Secrets.ProviderHealthCheckOptions!
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions.ProviderHealthCheck.set -> void
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider.DeleteSecretAsync(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider.ExistsAsync(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider.GetSecretAsync(string! name, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Secrets.Secret!>>
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider.GetSecretVersionAsync(string! name, string! version, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Secrets.Secret!>>
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider.GoogleSecretManagerProvider(Google.Cloud.SecretManager.V1.SecretManagerServiceClient! client, Microsoft.Extensions.Options.IOptions<Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider!>! logger) -> void
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider.ListSecretsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IEnumerable<string!>!>>
+Encina.Secrets.GoogleSecretManager.GoogleSecretManagerProvider.SetSecretAsync(string! name, string! value, Encina.Secrets.SecretOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Secrets.SecretMetadata!>>
+Encina.Secrets.GoogleSecretManager.Health.GoogleSecretManagerHealthCheck
+Encina.Secrets.GoogleSecretManager.Health.GoogleSecretManagerHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Secrets.GoogleSecretManager.Health.GoogleSecretManagerHealthCheck.GoogleSecretManagerHealthCheck(Google.Cloud.SecretManager.V1.SecretManagerServiceClient! client, Microsoft.Extensions.Options.IOptions<Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions!>! options) -> void
+Encina.Secrets.GoogleSecretManager.ServiceCollectionExtensions
+const Encina.Secrets.GoogleSecretManager.Health.GoogleSecretManagerHealthCheck.DefaultName = "encina-secrets-gcp" -> string!
+static Encina.Secrets.GoogleSecretManager.ServiceCollectionExtensions.AddEncinaGoogleSecretManager(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Secrets.GoogleSecretManager.GoogleSecretManagerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -488,9 +488,10 @@ Key areas already completed:
   - PII Masking [#397](https://github.com/dlrivada/Encina/issues/397) — `IPIIMasker`, auto-detection, `[PII]` attribute, logging redaction (HIGH - GDPR essential)
   - Anti-Tampering [#398](https://github.com/dlrivada/Encina/issues/398) — `IRequestSigner`, HMAC/RSA signatures, replay attack prevention (HIGH - API security)
   - Input Sanitization [#399](https://github.com/dlrivada/Encina/issues/399) — `ISanitizer<T>`, XSS/SQL injection/command injection prevention (HIGH - OWASP Top 10)
-  - Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) — `ISecretProvider`, Vault/Azure/AWS/GCP integration, rotation (MEDIUM - cloud-native)
+  - ~~Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) — `ISecretProvider`, Vault/Azure/AWS/GCP integration, rotation (MEDIUM - cloud-native)~~ ✅ **COMPLETADO** (v0.13.0, #603)
   - ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) — `IAbacEngine`, policy DSL, PDP/PEP pattern (MEDIUM - complex enterprise)
-  - New packages planned: `Encina.Security`, `Encina.Security.Audit`, `Encina.Security.Encryption`, `Encina.Security.PII`, `Encina.Security.AntiTampering`, `Encina.Security.Sanitization`, `Encina.Security.Secrets`, `Encina.Security.ABAC`
+  - New packages planned: `Encina.Security`, `Encina.Security.Audit`, `Encina.Security.Encryption`, `Encina.Security.PII`, `Encina.Security.AntiTampering`, `Encina.Security.Sanitization`, `Encina.Security.ABAC`
+  - Secrets packages (✅ implemented): `Encina.Secrets`, `Encina.Secrets.AzureKeyVault`, `Encina.Secrets.AWSSecretsManager`, `Encina.Secrets.HashiCorpVault`, `Encina.Secrets.GoogleSecretManager`
 - **Compliance Patterns - GDPR & EU Laws** (new - based on December 29, 2025 research):
   - GDPR Core [#402](https://github.com/dlrivada/Encina/issues/402) — `IDataController`, `RoPARegistry`, `GDPRCompliancePipelineBehavior` (CRITICAL - EU mandatory)
   - Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) — `IConsentManager`, `[RequireConsent]`, versioning, proof of consent (CRITICAL - Art. 7)
@@ -592,7 +593,7 @@ Key areas already completed:
   - Encina.Aspire [#449](https://github.com/dlrivada/Encina/issues/449) — .NET Aspire integration with service discovery, health checks, resilience (HIGH priority)
   - Encina.Dapr [#450](https://github.com/dlrivada/Encina/issues/450) — Dapr Building Blocks: State, Pub/Sub, Service Invocation, Locks (HIGH priority)
   - Encina.FeatureFlags [#451](https://github.com/dlrivada/Encina/issues/451) — Feature flags with ConfigCat, LaunchDarkly, OpenFeature providers
-  - Encina.Secrets [#452](https://github.com/dlrivada/Encina/issues/452) — Secrets management with Azure Key Vault, AWS Secrets Manager, HashiCorp Vault
+  - ~~Encina.Secrets [#452](https://github.com/dlrivada/Encina/issues/452) — Secrets management with Azure Key Vault, AWS Secrets Manager, HashiCorp Vault~~ ✅ **COMPLETADO** (v0.13.0, #603)
   - Encina.ServiceDiscovery [#453](https://github.com/dlrivada/Encina/issues/453) — Service discovery with Kubernetes, Consul, Aspire backends
   - Encina.HealthChecks [#454](https://github.com/dlrivada/Encina/issues/454) — Kubernetes health probes (liveness, readiness, startup)
   - Encina.GracefulShutdown [#455](https://github.com/dlrivada/Encina/issues/455) — SIGTERM handling, in-flight request draining, Outbox flush

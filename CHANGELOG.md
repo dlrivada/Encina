@@ -116,6 +116,62 @@ Added the `Encina.Compliance.GDPR` package providing declarative, attribute-base
 
 ---
 
+#### Encina.Secrets — Secrets Management with Cloud Provider Support (#603)
+
+Added the `Encina.Secrets` package providing a provider-agnostic secrets management abstraction with Railway Oriented Programming. Supports Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, and Google Cloud Secret Manager through dedicated satellite packages.
+
+**Core Abstractions**:
+
+- **`ISecretProvider`**: Unified interface with 6 methods — `GetSecretAsync`, `GetSecretVersionAsync`, `SetSecretAsync`, `DeleteSecretAsync`, `ListSecretsAsync`, `ExistsAsync`
+- **`Secret`**: Immutable record with `Name`, `Value`, `Version?`, `ExpiresAtUtc?`
+- **`SecretMetadata`**: Immutable record with `Name`, `Version`, `CreatedAtUtc`, `ExpiresAtUtc?`
+- **`SecretOptions`**: Record with `ExpiresAtUtc?` and `Tags` for secret creation
+- **`CachedSecretProvider`**: Decorator with configurable TTL, cache-aside pattern (only `Right` results cached), automatic invalidation on `Set`/`Delete`
+
+**Four Cloud Providers** (satellite packages):
+
+- **`Encina.Secrets.AzureKeyVault`** — Azure Key Vault via `Azure.Security.KeyVault.Secrets`, supports Managed Identity and RBAC
+- **`Encina.Secrets.AWSSecretsManager`** — AWS Secrets Manager via `AWSSDK.SecretsManager`, supports IAM credential chain
+- **`Encina.Secrets.HashiCorpVault`** — HashiCorp Vault KV v2 engine via `VaultSharp`, supports Token/AppRole/Kubernetes auth
+- **`Encina.Secrets.GoogleSecretManager`** — Google Cloud Secret Manager via `Google.Cloud.SecretManager.V1`, supports Application Default Credentials
+
+**Error Codes** (6 structured errors via `SecretsErrorCodes`):
+
+- `encina.secrets.not_found`, `encina.secrets.access_denied`, `encina.secrets.invalid_name`
+- `encina.secrets.provider_unavailable`, `encina.secrets.version_not_found`, `encina.secrets.operation_failed`
+
+**IConfiguration Integration**:
+
+- **`ConfigurationBuilderExtensions.AddEncinaSecrets()`** — Bridge secrets to `IConfiguration` with prefix filtering, key delimiter mapping (`--` → `:`), and optional auto-reload via `ReloadInterval`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Secrets` ActivitySource with `secrets.operation`, `secrets.name` (opt-in), `secrets.status` tags
+- 3 metric instruments under `Encina.Secrets` Meter: `encina.secrets.operations` (counter), `encina.secrets.duration` (histogram ms), `encina.secrets.errors` (counter)
+- Configurable via `SecretsInstrumentationOptions`: `EnableTracing`, `EnableMetrics`, `RecordSecretNames` (default `false` for security)
+
+**Health Checks** (5 total):
+
+- **`SecretsHealthCheck`** — Verifies `ISecretProvider` is registered and resolvable from DI
+- **`KeyVaultHealthCheck`** — Lists secrets to verify Azure Key Vault connectivity
+- **`AWSSecretsManagerHealthCheck`** — Lists secrets (MaxResults=1) to verify AWS connectivity
+- **`HashiCorpVaultHealthCheck`** — Checks Vault health status (sealed/not-initialized → Degraded)
+- **`GoogleSecretManagerHealthCheck`** — Lists secrets (PageSize=1) to verify GCP connectivity
+
+**DI Registration**:
+
+```csharp
+// Choose one provider
+services.AddEncinaKeyVaultSecrets(options => options.VaultUri = "https://my-vault.vault.azure.net/");
+// Add cross-cutting concerns
+services.AddEncinaSecretsCaching(options => options.DefaultTtl = TimeSpan.FromMinutes(10));
+services.AddEncinaSecretsInstrumentation();
+```
+
+**Testing**: 212 tests across 4 test projects (154 unit, 42 guard, 8 property, 8 contract).
+
+---
+
 ## [0.12.0] - 2026-02-16 - Database & Repository
 
 ### Added

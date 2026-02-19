@@ -81,10 +81,13 @@ docker compose --profile cloud up -d
 
 | Service | Image | Port(s) | Emulates | Profile |
 |---------|-------|---------|----------|---------|
-| **LocalStack** | `localstack/localstack:latest` | 4566 | AWS SQS, SNS, S3, DynamoDB | `cloud`, `full` |
+| **HashiCorp Vault** | `hashicorp/vault:latest` | 8200 | HashiCorp Vault (dev mode) | `cloud`, `full` |
+| **LocalStack** | `localstack/localstack:latest` | 4566 | AWS SQS, SNS, S3, DynamoDB, Secrets Manager | `cloud`, `full` |
 | **Azurite** | `mcr.microsoft.com/azure-storage/azurite:latest` | 10000-10002 | Azure Blob, Queue, Table | `cloud`, `full` |
 
 > **Note**: Azure Service Bus has no local emulator. Use Azure Service Bus for `Encina.AzureServiceBus` testing.
+> **Note**: Azure Key Vault has no local emulator. Use Azure Key Vault for `Encina.Secrets.AzureKeyVault` testing.
+> **Note**: Google Secret Manager has no local emulator. Use GCP for `Encina.Secrets.GoogleSecretManager` testing.
 
 ### Observability
 
@@ -112,6 +115,7 @@ All services use development-only default credentials. Override with environment
 | Oracle | `system` | `YourStrong@Passw0rd` | `ORACLE_PASSWORD` |
 | MongoDB | `encina` | `YourStrong@Passw0rd` | `MONGO_PASSWORD` |
 | RabbitMQ | `guest` | `guest` | `RABBITMQ_PASSWORD` |
+| Vault (dev) | - | `encina-dev-token` | `VAULT_TOKEN` |
 
 ### Connection String Examples
 
@@ -150,7 +154,10 @@ All services use development-only default credentials. Override with environment
 // MQTT
 "mqtt://localhost:1883"
 
-// LocalStack (AWS)
+// HashiCorp Vault (dev mode)
+"http://localhost:8200" // Token: encina-dev-token (VAULT_TOKEN env var)
+
+// LocalStack (AWS - SQS, SNS, S3, DynamoDB, Secrets Manager)
 "http://localhost:4566"
 
 // Azurite (Azure Storage)
@@ -185,6 +192,10 @@ All services use development-only default credentials. Override with environment
 | `Encina.Caching.Valkey` | valkey | 6381 | ✅ |
 | `Encina.Caching.Dragonfly` | dragonfly | 6382 | ✅ |
 | `Encina.Caching.KeyDB` | keydb | 6383 | ✅ |
+| `Encina.Secrets.HashiCorpVault` | vault | 8200 | ✅ |
+| `Encina.Secrets.AWSSecretsManager` | localstack | 4566 | ✅ |
+| `Encina.Secrets.AzureKeyVault` | (no emulator) | - | ⚠️ Requires Azure |
+| `Encina.Secrets.GoogleSecretManager` | (no emulator) | - | ⚠️ Requires GCP |
 | `Encina.DistributedLock.Redis` | redis | 6379 | ✅ |
 | `Encina.DistributedLock.SqlServer` | sqlserver | 1433 | ✅ |
 
