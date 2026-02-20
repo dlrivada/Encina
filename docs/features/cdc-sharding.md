@@ -1,6 +1,6 @@
 # Sharded CDC Capture in Encina
 
-This guide explains how to capture change events across a sharded database topology using Encina's Sharded CDC infrastructure. Sharded CDC builds on the existing [CDC abstractions](cdc.md) and integrates with the [Database Sharding](sharding.md) module for shard topology discovery.
+This guide explains how to capture change events across a sharded database topology using Encina's Sharded CDC infrastructure. Sharded CDC builds on the existing [CDC abstractions](cdc.md) and integrates with the [Database Sharding](../architecture/adr/010-database-sharding.md) module for shard topology discovery.
 
 ## Table of Contents
 
@@ -116,7 +116,7 @@ services.AddEncinaCdcSqlServer(opts =>
 
 ### 2. Ensure Shard Topology Is Registered
 
-Sharded CDC requires an `IShardTopologyProvider` from the [Database Sharding](sharding.md) module:
+Sharded CDC requires an `IShardTopologyProvider` from the [Database Sharding](../architecture/adr/010-database-sharding.md) module:
 
 ```csharp
 services.AddEncinaSharding(config =>
@@ -463,4 +463,4 @@ Yes. `InMemoryShardedCdcPositionStore` uses `ConcurrentDictionary` with `ToUpper
 - [CDC for MySQL](cdc-mysql.md) - MySQL Binary Log connector
 - [CDC for MongoDB](cdc-mongodb.md) - MongoDB Change Streams connector
 - [CDC for Debezium](cdc-debezium.md) - Debezium HTTP/Kafka connector
-- [Database Sharding](sharding.md) - Shard topology and routing
+- [Database Sharding](../architecture/adr/010-database-sharding.md) - Shard topology and routing

@@ -334,8 +334,8 @@ The sharded read/write separation layer composes cleanly with features from ADR-
 - [GitHub Issue #644: Read/Write Separation + Sharding](https://github.com/dlrivada/Encina/issues/644)
 - [GitHub Issue #289: Database Sharding](https://github.com/dlrivada/Encina/issues/289)
 - [GitHub Issue #283: Read/Write Separation](https://github.com/dlrivada/Encina/issues/283)
-- [Usage Guide: docs/sharding/read-write-separation.md](../sharding/read-write-separation.md)
-- [Non-Sharded R/W Separation: docs/features/read-write-separation.md](../features/read-write-separation.md)
+- [Usage Guide: docs/sharding/read-write-separation.md](../../sharding/read-write-separation.md)
+- [Non-Sharded R/W Separation: docs/features/read-write-separation.md](../../features/read-write-separation.md)
 
 ## Notes
 
