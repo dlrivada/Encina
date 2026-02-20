@@ -178,6 +178,10 @@ services.AddEncinaSecretsInstrumentation();
 - All mapping builder `Build()` methods now return `Either<EncinaError, T>` instead of throwing `InvalidOperationException` (#671)
 - Removed unreachable `throw` statements from `Match`/`MatchAsync` callbacks where the branch was already determined by prior `IsLeft`/`IsSome` checks (#672)
 
+### Fixed
+
+- `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)
+
 ---
 
 ## [0.12.0] - 2026-02-16 - Database & Repository

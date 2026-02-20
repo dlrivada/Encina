@@ -305,20 +305,19 @@ public sealed class SchedulerOrchestrator
 
         var nextExecutionResult = _cronParser.GetNextOccurrence(message.CronExpression, _timeProvider.GetUtcNow().UtcDateTime);
 
-        var nextExecutionOption = nextExecutionResult.Match(
-            Right: dt => (DateTime?)dt,
-            Left: _ => null);
-
-        if (nextExecutionOption is { } nextExecution)
-        {
-            await _store.RescheduleRecurringMessageAsync(message.Id, nextExecution, cancellationToken).ConfigureAwait(false);
-            Log.RecurringMessageRescheduled(_logger, message.Id, nextExecution);
-        }
-        else
-        {
-            await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
-            Log.RecurringMessageEnded(_logger, message.Id);
-        }
+        await nextExecutionResult.MatchAsync(
+            RightAsync: async nextExecution =>
+            {
+                await _store.RescheduleRecurringMessageAsync(message.Id, nextExecution, cancellationToken).ConfigureAwait(false);
+                Log.RecurringMessageRescheduled(_logger, message.Id, nextExecution);
+                return Unit.Default;
+            },
+            LeftAsync: async _ =>
+            {
+                await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+                Log.RecurringMessageEnded(_logger, message.Id);
+                return Unit.Default;
+            }).ConfigureAwait(false);
     }
 
     private async Task MarkAsFailedAsync(Guid messageId, string errorMessage, CancellationToken cancellationToken)
