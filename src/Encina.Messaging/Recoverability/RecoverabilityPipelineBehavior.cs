@@ -229,9 +229,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         DateTime startTime,
         int attempt)
     {
-        var error = result.Match(
-            Right: _ => throw new InvalidOperationException("Unexpected Right value"),
-            Left: e => e);
+        var error = (EncinaError)result;
 
         var duration = _timeProvider.GetUtcNow().UtcDateTime - startTime;
         var errorException = error.Exception.MatchUnsafe(ex => ex, () => null);

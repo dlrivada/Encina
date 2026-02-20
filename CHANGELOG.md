@@ -170,6 +170,14 @@ services.AddEncinaSecretsInstrumentation();
 
 **Testing**: 212 tests across 4 test projects (154 unit, 42 guard, 8 property, 8 contract).
 
+### Changed
+
+#### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672)
+
+- All orchestrator public methods now return `Either<EncinaError, T>` instead of throwing exceptions (#670)
+- All mapping builder `Build()` methods now return `Either<EncinaError, T>` instead of throwing `InvalidOperationException` (#671)
+- Removed unreachable `throw` statements from `Match`/`MatchAsync` callbacks where the branch was already determined by prior `IsLeft`/`IsSome` checks (#672)
+
 ---
 
 ## [0.12.0] - 2026-02-16 - Database & Repository

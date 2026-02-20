@@ -62,47 +62,41 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
                 operationId,
                 linkedCts).ConfigureAwait(false);
 
-            if (scatterResult.IsLeft)
-            {
-                return scatterResult.Match(
-                    Right: _ => throw new InvalidOperationException("Unexpected right value"),
-                    Left: error => Left<EncinaError, ScatterGatherResult<TResponse>>(error));
-            }
-
-            var scatterResults = scatterResult.Match(
-                Right: r => r,
-                Left: _ => throw new InvalidOperationException("Unexpected left value"));
-
-            // Execute gather phase
-            var gatherResult = await ExecuteGatherPhaseAsync(
-                definition,
-                scatterResults,
-                operationId,
-                linkedCts.Token).ConfigureAwait(false);
-
-            stopwatch.Stop();
-
-            return gatherResult.Match(
-                Right: response =>
+            return await scatterResult.MatchAsync(
+                RightAsync: async scatterResults =>
                 {
-                    var result = new ScatterGatherResult<TResponse>(
-                        operationId,
-                        response,
+                    // Execute gather phase
+                    var gatherResult = await ExecuteGatherPhaseAsync(
+                        definition,
                         scatterResults,
-                        definition.Strategy,
-                        stopwatch.Elapsed,
-                        scatterResults.Count(r => r.Result.IsLeft && IsCancelled(r)),
-                        _timeProvider.GetUtcNow().UtcDateTime);
-
-                    ScatterGatherLog.ExecutionCompleted(
-                        _logger,
-                        definition.Name,
                         operationId,
-                        stopwatch.Elapsed,
-                        result.SuccessCount,
-                        definition.ScatterCount);
+                        linkedCts.Token).ConfigureAwait(false);
 
-                    return Right<EncinaError, ScatterGatherResult<TResponse>>(result);
+                    stopwatch.Stop();
+
+                    return gatherResult.Match(
+                        Right: response =>
+                        {
+                            var result = new ScatterGatherResult<TResponse>(
+                                operationId,
+                                response,
+                                scatterResults,
+                                definition.Strategy,
+                                stopwatch.Elapsed,
+                                scatterResults.Count(r => r.Result.IsLeft && IsCancelled(r)),
+                                _timeProvider.GetUtcNow().UtcDateTime);
+
+                            ScatterGatherLog.ExecutionCompleted(
+                                _logger,
+                                definition.Name,
+                                operationId,
+                                stopwatch.Elapsed,
+                                result.SuccessCount,
+                                definition.ScatterCount);
+
+                            return Right<EncinaError, ScatterGatherResult<TResponse>>(result);
+                        },
+                        Left: error => Left<EncinaError, ScatterGatherResult<TResponse>>(error));
                 },
                 Left: error => Left<EncinaError, ScatterGatherResult<TResponse>>(error));
         }

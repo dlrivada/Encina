@@ -46,7 +46,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
             return await nextStep().ConfigureAwait(false);
         }
 
-        // Validate message ID
+        // Validate message ID — return early if validation fails
         var validationError = _orchestrator.ValidateMessageId(
             context.IdempotencyKey,
             typeof(TRequest).Name,
@@ -54,9 +54,7 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
 
         if (validationError.IsSome)
         {
-            return validationError.Match(
-                Some: error => error,
-                None: () => throw new InvalidOperationException("Unexpected: validation error was Some but Match returned None"));
+            return (EncinaError)validationError;
         }
 
         // Process through orchestrator
