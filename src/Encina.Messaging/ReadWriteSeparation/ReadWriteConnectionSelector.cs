@@ -1,3 +1,4 @@
+using LanguageExt;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Messaging.ReadWriteSeparation;
@@ -99,16 +100,14 @@ public sealed class ReadWriteConnectionSelector : IReadWriteConnectionSelector
         _options.ReadConnectionStrings.Count > 0;
 
     /// <inheritdoc />
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when <see cref="ReadWriteSeparationOptions.WriteConnectionString"/> is null or empty.
-    /// </exception>
-    public string GetWriteConnectionString()
+    public Either<EncinaError, string> GetWriteConnectionString()
     {
         if (string.IsNullOrWhiteSpace(_options.WriteConnectionString))
         {
-            throw new InvalidOperationException(
-                "Write connection string has not been configured. " +
-                "Set ReadWriteSeparationOptions.WriteConnectionString before using read/write separation.");
+            return Either<EncinaError, string>.Left(
+                EncinaError.New(
+                    "Write connection string has not been configured. " +
+                    "Set ReadWriteSeparationOptions.WriteConnectionString before using read/write separation."));
         }
 
         return _options.WriteConnectionString;
@@ -132,7 +131,7 @@ public sealed class ReadWriteConnectionSelector : IReadWriteConnectionSelector
     ///   </item>
     /// </list>
     /// </remarks>
-    public string GetReadConnectionString()
+    public Either<EncinaError, string> GetReadConnectionString()
     {
         // If we have a replica selector and replicas are configured, use it
         if (_replicaSelector is not null && HasReadReplicas)
@@ -145,7 +144,7 @@ public sealed class ReadWriteConnectionSelector : IReadWriteConnectionSelector
     }
 
     /// <inheritdoc />
-    public string GetConnectionString()
+    public Either<EncinaError, string> GetConnectionString()
     {
         // If routing is not enabled, always use write connection
         if (!DatabaseRoutingContext.IsEnabled)

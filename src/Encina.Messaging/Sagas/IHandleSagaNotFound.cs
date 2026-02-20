@@ -33,7 +33,8 @@ namespace Encina.Messaging.Sagas;
 ///
 ///         // Choose a handling strategy:
 ///         // context.Ignore();
-///         // await context.MoveToDeadLetterAsync("Saga correlation failed", ct);
+///         // var result = await context.MoveToDeadLetterAsync("Saga correlation failed", ct);
+///         // result.Match(Right: _ => { }, Left: error => _logger.LogError("DLQ failed: {Error}", error.Message));
 ///     }
 /// }
 /// </code>

@@ -1,5 +1,6 @@
 using Encina.Dapper.MySQL.Tenancy;
 using Encina.Tenancy;
+using LanguageExt;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -69,10 +70,11 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _tenancyOptions);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: cs => cs.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test"), Left: _ => { });
     }
 
     [Fact]
@@ -92,10 +94,11 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _tenancyOptions);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: cs => cs.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test"), Left: _ => { });
     }
 
     [Fact]
@@ -116,10 +119,11 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _tenancyOptions);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Server=tenant1;Database=tenant1_db;User=tenant1;Password=secret");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: cs => cs.ShouldBe("Server=tenant1;Database=tenant1_db;User=tenant1;Password=secret"), Left: _ => { });
     }
 
     [Fact]
@@ -140,14 +144,15 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _tenancyOptions);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: cs => cs.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test"), Left: _ => { });
     }
 
     [Fact]
-    public async Task GetConnectionStringAsync_NoDefaultConnectionString_ThrowsException()
+    public async Task GetConnectionStringAsync_NoDefaultConnectionString_ReturnsLeft()
     {
         // Arrange
         var options = Options.Create(new TenancyOptions { DefaultConnectionString = null });
@@ -159,10 +164,12 @@ public sealed class TenantConnectionFactoryTests
 
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, options);
 
-        // Act & Assert
-        var exception = await Should.ThrowAsync<InvalidOperationException>(
-            async () => await factory.GetConnectionStringAsync());
-        exception.Message.ShouldContain("No connection string available");
+        // Act
+        var result = await factory.GetConnectionStringAsync();
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => { }, Left: error => error.Message.ShouldContain("No connection string available"));
     }
 
     #endregion
@@ -181,11 +188,17 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _tenancyOptions);
 
         // Act
-        var connection = await factory.CreateConnectionAsync();
+        var result = await factory.CreateConnectionAsync();
 
         // Assert
-        connection.ShouldNotBeNull();
-        connection.ConnectionString.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test");
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: connection =>
+            {
+                connection.ShouldNotBeNull();
+                connection.ConnectionString.ShouldBe("Server=localhost;Database=default_db;User=test;Password=test");
+            },
+            Left: _ => { });
     }
 
     #endregion
@@ -210,15 +223,21 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _tenancyOptions);
 
         // Act
-        var connection = await factory.CreateConnectionForTenantAsync("tenant-specific");
+        var result = await factory.CreateConnectionForTenantAsync("tenant-specific");
 
         // Assert
-        connection.ShouldNotBeNull();
-        connection.ConnectionString.ShouldBe("Server=specific;Database=specific_db;User=specific;Password=pass");
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: connection =>
+            {
+                connection.ShouldNotBeNull();
+                connection.ConnectionString.ShouldBe("Server=specific;Database=specific_db;User=specific;Password=pass");
+            },
+            Left: _ => { });
     }
 
     [Fact]
-    public async Task CreateConnectionForTenantAsync_TenantNotFound_ThrowsException()
+    public async Task CreateConnectionForTenantAsync_TenantNotFound_ReturnsLeft()
     {
         // Arrange
 #pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mocking
@@ -228,10 +247,12 @@ public sealed class TenantConnectionFactoryTests
 
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _tenancyOptions);
 
-        // Act & Assert
-        var exception = await Should.ThrowAsync<InvalidOperationException>(
-            async () => await factory.CreateConnectionForTenantAsync("nonexistent"));
-        exception.Message.ShouldContain("not found");
+        // Act
+        var result = await factory.CreateConnectionForTenantAsync("nonexistent");
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.Match(Right: _ => { }, Left: error => error.Message.ShouldContain("not found"));
     }
 
     [Fact]

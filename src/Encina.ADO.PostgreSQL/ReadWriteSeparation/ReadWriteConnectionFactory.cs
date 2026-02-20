@@ -1,5 +1,7 @@
 using System.Data;
+using Encina;
 using Encina.Messaging.ReadWriteSeparation;
+using LanguageExt;
 using Npgsql;
 
 namespace Encina.ADO.PostgreSQL.ReadWriteSeparation;
@@ -78,59 +80,71 @@ public sealed class ReadWriteConnectionFactory : IReadWriteConnectionFactory
     }
 
     /// <inheritdoc/>
-    public IDbConnection CreateWriteConnection()
+    public Either<EncinaError, IDbConnection> CreateWriteConnection()
     {
-        var connectionString = _connectionSelector.GetWriteConnectionString();
-        return new NpgsqlConnection(connectionString);
+        return _connectionSelector.GetWriteConnectionString()
+            .Map(cs => (IDbConnection)new NpgsqlConnection(cs));
     }
 
     /// <inheritdoc/>
-    public IDbConnection CreateReadConnection()
+    public Either<EncinaError, IDbConnection> CreateReadConnection()
     {
-        var connectionString = _connectionSelector.GetReadConnectionString();
-        return new NpgsqlConnection(connectionString);
+        return _connectionSelector.GetReadConnectionString()
+            .Map(cs => (IDbConnection)new NpgsqlConnection(cs));
     }
 
     /// <inheritdoc/>
-    public IDbConnection CreateConnection()
+    public Either<EncinaError, IDbConnection> CreateConnection()
     {
-        var connectionString = _connectionSelector.GetConnectionString();
-        return new NpgsqlConnection(connectionString);
+        return _connectionSelector.GetConnectionString()
+            .Map(cs => (IDbConnection)new NpgsqlConnection(cs));
     }
 
     /// <inheritdoc/>
-    public async ValueTask<IDbConnection> CreateWriteConnectionAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var connection = (NpgsqlConnection)CreateWriteConnection();
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return connection;
-    }
-
-    /// <inheritdoc/>
-    public async ValueTask<IDbConnection> CreateReadConnectionAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<Either<EncinaError, IDbConnection>> CreateWriteConnectionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var connection = (NpgsqlConnection)CreateReadConnection();
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return connection;
+        return await CreateWriteConnection().MatchAsync<Either<EncinaError, IDbConnection>>(
+            RightAsync: async conn =>
+            {
+                await ((System.Data.Common.DbConnection)conn).OpenAsync(cancellationToken).ConfigureAwait(false);
+                return Either<EncinaError, IDbConnection>.Right(conn);
+            },
+            Left: error => error);
     }
 
     /// <inheritdoc/>
-    public async ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<Either<EncinaError, IDbConnection>> CreateReadConnectionAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var connection = (NpgsqlConnection)CreateConnection();
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return connection;
+        return await CreateReadConnection().MatchAsync<Either<EncinaError, IDbConnection>>(
+            RightAsync: async conn =>
+            {
+                await ((System.Data.Common.DbConnection)conn).OpenAsync(cancellationToken).ConfigureAwait(false);
+                return Either<EncinaError, IDbConnection>.Right(conn);
+            },
+            Left: error => error);
     }
 
     /// <inheritdoc/>
-    public string GetWriteConnectionString() => _connectionSelector.GetWriteConnectionString();
+    public async ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return await CreateConnection().MatchAsync<Either<EncinaError, IDbConnection>>(
+            RightAsync: async conn =>
+            {
+                await ((System.Data.Common.DbConnection)conn).OpenAsync(cancellationToken).ConfigureAwait(false);
+                return Either<EncinaError, IDbConnection>.Right(conn);
+            },
+            Left: error => error);
+    }
 
     /// <inheritdoc/>
-    public string GetReadConnectionString() => _connectionSelector.GetReadConnectionString();
+    public Either<EncinaError, string> GetWriteConnectionString() => _connectionSelector.GetWriteConnectionString();
+
+    /// <inheritdoc/>
+    public Either<EncinaError, string> GetReadConnectionString() => _connectionSelector.GetReadConnectionString();
 }

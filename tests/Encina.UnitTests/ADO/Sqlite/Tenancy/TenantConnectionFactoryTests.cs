@@ -1,5 +1,7 @@
+using Encina;
 using Encina.ADO.Sqlite.Tenancy;
 using Encina.Tenancy;
+using LanguageExt;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -59,10 +61,13 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _options);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Data Source=:memory:");
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: cs => cs.ShouldBe("Data Source=:memory:"),
+            Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
     [Fact]
@@ -79,10 +84,13 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _options);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Data Source=:memory:");
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: cs => cs.ShouldBe("Data Source=:memory:"),
+            Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
     [Fact]
@@ -100,10 +108,13 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _options);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Data Source=tenant2.db");
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: cs => cs.ShouldBe("Data Source=tenant2.db"),
+            Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
     [Fact]
@@ -121,24 +132,31 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _options);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Data Source=:memory:");
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: cs => cs.ShouldBe("Data Source=:memory:"),
+            Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
     [Fact]
-    public async Task GetConnectionStringAsync_NoDefaultConnectionString_ThrowsException()
+    public async Task GetConnectionStringAsync_NoDefaultConnectionString_ReturnsLeft()
     {
         // Arrange
         _tenantProvider.GetCurrentTenantId().Returns((string?)null);
         var emptyOptions = Options.Create(new TenancyOptions { DefaultConnectionString = null });
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, emptyOptions);
 
-        // Act & Assert
-        var ex = await Should.ThrowAsync<InvalidOperationException>(
-            () => factory.GetConnectionStringAsync().AsTask());
-        ex.Message.ShouldContain("No default connection string configured");
+        // Act
+        var result = await factory.GetConnectionStringAsync();
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: error => error.Message.ShouldContain("No default connection string configured"));
     }
 
     [Fact]
@@ -149,14 +167,17 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _options);
 
         // Act
-        var connection = await factory.CreateConnectionAsync();
+        var result = await factory.CreateConnectionAsync();
 
         // Assert
-        connection.ShouldNotBeNull();
-        connection.State.ShouldBe(System.Data.ConnectionState.Open);
-
-        // Cleanup
-        connection.Dispose();
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: connection =>
+            {
+                connection.State.ShouldBe(System.Data.ConnectionState.Open);
+                connection.Dispose();
+            },
+            Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
     [Fact]
@@ -182,7 +203,7 @@ public sealed class TenantConnectionFactoryTests
     }
 
     [Fact]
-    public async Task CreateConnectionForTenantAsync_TenantNotFound_ThrowsException()
+    public async Task CreateConnectionForTenantAsync_TenantNotFound_ReturnsLeft()
     {
         // Arrange
         _tenantStore.GetTenantAsync("nonexistent", Arg.Any<CancellationToken>())
@@ -190,10 +211,14 @@ public sealed class TenantConnectionFactoryTests
 
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _options);
 
-        // Act & Assert
-        var ex = await Should.ThrowAsync<InvalidOperationException>(
-            () => factory.CreateConnectionForTenantAsync("nonexistent").AsTask());
-        ex.Message.ShouldContain("not found");
+        // Act
+        var result = await factory.CreateConnectionForTenantAsync("nonexistent");
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: error => error.Message.ShouldContain("not found"));
     }
 
     [Fact]
@@ -209,14 +234,17 @@ public sealed class TenantConnectionFactoryTests
         var factory = new TenantConnectionFactory(_tenantProvider, _tenantStore, _options);
 
         // Act
-        var connection = await factory.CreateConnectionForTenantAsync("tenant-1");
+        var result = await factory.CreateConnectionForTenantAsync("tenant-1");
 
         // Assert
-        connection.ShouldNotBeNull();
-        connection.State.ShouldBe(System.Data.ConnectionState.Open);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: connection =>
+            {
+                connection.State.ShouldBe(System.Data.ConnectionState.Open);
+                connection.Dispose();
+            },
+            Left: _ => throw new InvalidOperationException("Expected Right"));
         await _tenantStore.Received(1).GetTenantAsync("tenant-1", Arg.Any<CancellationToken>());
-
-        // Cleanup
-        connection.Dispose();
     }
 }

@@ -1,5 +1,7 @@
 using Encina.EntityFrameworkCore.Tenancy;
 using Encina.Tenancy;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -117,10 +119,10 @@ public sealed class TenantDbContextFactoryTests
             _tenancyOptions);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Server=tenant1;Database=tenant1_db;");
+        result.ShouldBeRight().ShouldBe("Server=tenant1;Database=tenant1_db;");
     }
 
     [Fact]
@@ -144,10 +146,10 @@ public sealed class TenantDbContextFactoryTests
             _tenancyOptions);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Server=test;Database=default;");
+        result.ShouldBeRight().ShouldBe("Server=test;Database=default;");
     }
 
     [Fact]
@@ -166,14 +168,14 @@ public sealed class TenantDbContextFactoryTests
             _tenancyOptions);
 
         // Act
-        var connectionString = await factory.GetConnectionStringAsync();
+        var result = await factory.GetConnectionStringAsync();
 
         // Assert
-        connectionString.ShouldBe("Server=test;Database=default;");
+        result.ShouldBeRight().ShouldBe("Server=test;Database=default;");
     }
 
     [Fact]
-    public async Task GetConnectionStringAsync_NoConnectionStringAvailable_ThrowsInvalidOperationException()
+    public async Task GetConnectionStringAsync_NoConnectionStringAvailable_ReturnsError()
     {
         // Arrange
 #pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mocking
@@ -188,10 +190,12 @@ public sealed class TenantDbContextFactoryTests
             _tenantStore,
             options);
 
-        // Act & Assert
-        var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await factory.GetConnectionStringAsync());
-        exception.Message.ShouldContain("No connection string available");
+        // Act
+        var result = await factory.GetConnectionStringAsync();
+
+        // Assert
+        var error = result.ShouldBeLeft();
+        error.Message.ShouldContain("No connection string available");
     }
 
     #endregion

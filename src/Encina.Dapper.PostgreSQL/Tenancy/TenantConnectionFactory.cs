@@ -1,5 +1,7 @@
 using System.Data;
+using Encina;
 using Encina.Tenancy;
+using LanguageExt;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -30,8 +32,10 @@ namespace Encina.Dapper.PostgreSQL.Tenancy;
 /// {
 ///     public async Task&lt;IEnumerable&lt;Order&gt;&gt; GetOrdersAsync(CancellationToken ct)
 ///     {
-///         await using var connection = await connectionFactory.CreateConnectionAsync(ct);
-///         return await connection.QueryAsync&lt;Order&gt;("SELECT * FROM orders");
+///         var connectionResult = await connectionFactory.CreateConnectionAsync(ct);
+///         return connectionResult.Match(
+///             Right: connection =&gt; connection.QueryAsync&lt;Order&gt;("SELECT * FROM orders"),
+///             Left: error =&gt; throw new InvalidOperationException(error.Message));
 ///     }
 /// }
 /// </code>
@@ -63,14 +67,14 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
     }
 
     /// <inheritdoc/>
-    public async ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionAsync(CancellationToken cancellationToken = default)
     {
-        var connectionString = await GetConnectionStringAsync(cancellationToken).ConfigureAwait(false);
-        return new NpgsqlConnection(connectionString);
+        var connectionStringResult = await GetConnectionStringAsync(cancellationToken).ConfigureAwait(false);
+        return connectionStringResult.Map(cs => (IDbConnection)new NpgsqlConnection(cs));
     }
 
     /// <inheritdoc/>
-    public async ValueTask<IDbConnection> CreateConnectionForTenantAsync(
+    public async ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionForTenantAsync(
         string tenantId,
         CancellationToken cancellationToken = default)
     {
@@ -80,21 +84,21 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
 
         if (tenant is null)
         {
-            throw new InvalidOperationException($"Tenant '{tenantId}' not found.");
+            return EncinaError.New($"Tenant '{tenantId}' not found.");
         }
 
-        var connectionString = GetConnectionStringForTenant(tenant);
-        return new NpgsqlConnection(connectionString);
+        return GetConnectionStringForTenant(tenant)
+            .Map(cs => (IDbConnection)new NpgsqlConnection(cs));
     }
 
     /// <inheritdoc/>
-    public async ValueTask<string> GetConnectionStringAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<Either<EncinaError, string>> GetConnectionStringAsync(CancellationToken cancellationToken = default)
     {
         var tenant = await _tenantProvider.GetCurrentTenantAsync(cancellationToken).ConfigureAwait(false);
         return GetConnectionStringForTenant(tenant);
     }
 
-    private string GetConnectionStringForTenant(TenantInfo? tenant)
+    private Either<EncinaError, string> GetConnectionStringForTenant(TenantInfo? tenant)
     {
         // If tenant has a dedicated database with its own connection string, use it
         if (tenant?.HasDedicatedDatabase == true &&
@@ -106,7 +110,7 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
         // Otherwise, use the default connection string
         if (string.IsNullOrEmpty(_options.DefaultConnectionString))
         {
-            throw new InvalidOperationException(
+            return EncinaError.New(
                 "No connection string available. Either configure a tenant-specific connection string " +
                 "or set TenancyOptions.DefaultConnectionString.");
         }

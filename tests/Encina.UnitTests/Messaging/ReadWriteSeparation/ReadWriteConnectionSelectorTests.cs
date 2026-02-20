@@ -1,4 +1,6 @@
 using Encina.Messaging.ReadWriteSeparation;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -86,41 +88,50 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetWriteConnectionString();
 
         // Assert
-        result.ShouldBe(WriteConnection);
+        result.ShouldBeRight().ShouldBe(WriteConnection);
     }
 
     [Fact]
-    public void GetWriteConnectionString_WhenNotConfigured_ThrowsInvalidOperationException()
+    public void GetWriteConnectionString_WhenNotConfigured_ReturnsLeft()
     {
         // Arrange
         var options = CreateOptions(null);
         var selector = new ReadWriteConnectionSelector(options);
 
-        // Act & Assert
-        var ex = Should.Throw<InvalidOperationException>(() => selector.GetWriteConnectionString());
-        ex.Message.ShouldContain("WriteConnectionString");
+        // Act
+        var result = selector.GetWriteConnectionString();
+
+        // Assert
+        var error = result.ShouldBeLeft();
+        error.Message.ShouldContain("WriteConnectionString");
     }
 
     [Fact]
-    public void GetWriteConnectionString_WhenEmpty_ThrowsInvalidOperationException()
+    public void GetWriteConnectionString_WhenEmpty_ReturnsLeft()
     {
         // Arrange
         var options = CreateOptions("");
         var selector = new ReadWriteConnectionSelector(options);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => selector.GetWriteConnectionString());
+        // Act
+        var result = selector.GetWriteConnectionString();
+
+        // Assert
+        result.ShouldBeLeft();
     }
 
     [Fact]
-    public void GetWriteConnectionString_WhenWhitespace_ThrowsInvalidOperationException()
+    public void GetWriteConnectionString_WhenWhitespace_ReturnsLeft()
     {
         // Arrange
         var options = CreateOptions("   ");
         var selector = new ReadWriteConnectionSelector(options);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => selector.GetWriteConnectionString());
+        // Act
+        var result = selector.GetWriteConnectionString();
+
+        // Assert
+        result.ShouldBeLeft();
     }
 
     [Fact]
@@ -134,7 +145,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetReadConnectionString();
 
         // Assert
-        result.ShouldBe(WriteConnection);
+        result.ShouldBeRight().ShouldBe(WriteConnection);
     }
 
     [Fact]
@@ -150,7 +161,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetReadConnectionString();
 
         // Assert
-        result.ShouldBe(Replica1);
+        result.ShouldBeRight().ShouldBe(Replica1);
         replicaSelector.Received(1).SelectReplica();
     }
 
@@ -165,7 +176,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetReadConnectionString();
 
         // Assert
-        result.ShouldBe(WriteConnection);
+        result.ShouldBeRight().ShouldBe(WriteConnection);
     }
 
     [Fact]
@@ -183,7 +194,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetConnectionString();
 
         // Assert
-        result.ShouldBe(WriteConnection);
+        result.ShouldBeRight().ShouldBe(WriteConnection);
         replicaSelector.DidNotReceive().SelectReplica();
     }
 
@@ -203,7 +214,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetConnectionString();
 
         // Assert
-        result.ShouldBe(Replica1);
+        result.ShouldBeRight().ShouldBe(Replica1);
     }
 
     [Fact]
@@ -221,7 +232,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetConnectionString();
 
         // Assert
-        result.ShouldBe(WriteConnection);
+        result.ShouldBeRight().ShouldBe(WriteConnection);
         replicaSelector.DidNotReceive().SelectReplica();
     }
 
@@ -240,7 +251,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetConnectionString();
 
         // Assert
-        result.ShouldBe(WriteConnection);
+        result.ShouldBeRight().ShouldBe(WriteConnection);
         replicaSelector.DidNotReceive().SelectReplica();
     }
 
@@ -259,7 +270,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
         var result = selector.GetConnectionString();
 
         // Assert
-        result.ShouldBe(WriteConnection);
+        result.ShouldBeRight().ShouldBe(WriteConnection);
         replicaSelector.DidNotReceive().SelectReplica();
     }
 
@@ -280,7 +291,7 @@ public sealed class ReadWriteConnectionSelectorTests : IDisposable
 
         // Assert
         selector.HasReadReplicas.ShouldBeTrue();
-        selector.GetWriteConnectionString().ShouldBe(WriteConnection);
+        selector.GetWriteConnectionString().ShouldBeRight().ShouldBe(WriteConnection);
     }
 
     [Fact]

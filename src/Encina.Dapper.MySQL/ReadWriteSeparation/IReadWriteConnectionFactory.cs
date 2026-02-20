@@ -1,4 +1,5 @@
 using System.Data;
+using LanguageExt;
 
 namespace Encina.Dapper.MySQL.ReadWriteSeparation;
 
@@ -58,20 +59,22 @@ public interface IReadWriteConnectionFactory
     /// Creates a connection to the primary (write) database.
     /// </summary>
     /// <returns>
-    /// An <see cref="IDbConnection"/> configured to connect to the primary database.
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or an <see cref="IDbConnection"/> configured to connect to the primary database.
     /// The connection is not opened; the caller must open it before use.
     /// </returns>
     /// <remarks>
     /// Use this method for all write operations (INSERT, UPDATE, DELETE) and for
     /// read operations that require the latest committed data (read-after-write consistency).
     /// </remarks>
-    IDbConnection CreateWriteConnection();
+    Either<EncinaError, IDbConnection> CreateWriteConnection();
 
     /// <summary>
     /// Creates a connection to a read replica database.
     /// </summary>
     /// <returns>
-    /// An <see cref="IDbConnection"/> configured to connect to a read replica,
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or an <see cref="IDbConnection"/> configured to connect to a read replica,
     /// or to the primary database if no replicas are configured.
     /// The connection is not opened; the caller must open it before use.
     /// </returns>
@@ -84,13 +87,14 @@ public interface IReadWriteConnectionFactory
     /// due to replication lag.
     /// </para>
     /// </remarks>
-    IDbConnection CreateReadConnection();
+    Either<EncinaError, IDbConnection> CreateReadConnection();
 
     /// <summary>
     /// Creates a connection based on the current routing context.
     /// </summary>
     /// <returns>
-    /// An <see cref="IDbConnection"/> configured to connect to the appropriate database
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or an <see cref="IDbConnection"/> configured to connect to the appropriate database
     /// based on the current <c>DatabaseRoutingContext</c>.
     /// The connection is not opened; the caller must open it before use.
     /// </returns>
@@ -118,49 +122,56 @@ public interface IReadWriteConnectionFactory
     ///   </item>
     /// </list>
     /// </remarks>
-    IDbConnection CreateConnection();
+    Either<EncinaError, IDbConnection> CreateConnection();
 
     /// <summary>
     /// Creates and opens a connection to the primary (write) database.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// An opened <see cref="IDbConnection"/> to the primary database.
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or an opened <see cref="IDbConnection"/> to the primary database.
     /// </returns>
-    ValueTask<IDbConnection> CreateWriteConnectionAsync(CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, IDbConnection>> CreateWriteConnectionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates and opens a connection to a read replica database.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// An opened <see cref="IDbConnection"/> to a read replica,
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or an opened <see cref="IDbConnection"/> to a read replica,
     /// or to the primary database if no replicas are configured.
     /// </returns>
-    ValueTask<IDbConnection> CreateReadConnectionAsync(CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, IDbConnection>> CreateReadConnectionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates and opens a connection based on the current routing context.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// An opened <see cref="IDbConnection"/> to the appropriate database
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or an opened <see cref="IDbConnection"/> to the appropriate database
     /// based on the current routing context.
     /// </returns>
-    ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the connection string for the primary (write) database.
     /// </summary>
-    /// <returns>The connection string for the primary database.</returns>
-    string GetWriteConnectionString();
+    /// <returns>
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or the connection string for the primary database.
+    /// </returns>
+    Either<EncinaError, string> GetWriteConnectionString();
 
     /// <summary>
     /// Gets a connection string for a read replica database.
     /// </summary>
     /// <returns>
-    /// A connection string for a read replica, or the primary database
+    /// Either an <see cref="EncinaError"/> if the connection string is not configured,
+    /// or a connection string for a read replica, or the primary database
     /// connection string if no replicas are configured.
     /// </returns>
-    string GetReadConnectionString();
+    Either<EncinaError, string> GetReadConnectionString();
 }

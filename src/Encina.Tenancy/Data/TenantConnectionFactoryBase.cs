@@ -1,3 +1,5 @@
+using Encina;
+using LanguageExt;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Tenancy;
@@ -32,6 +34,8 @@ namespace Encina.Tenancy;
 ///     {
 ///     }
 ///
+///     // CreateConnectionCoreAsync stays as ValueTask&lt;T&gt; (no Either) since
+///     // the base class wraps the result in Either at the CreateConnectionAsync level.
 ///     protected override async ValueTask&lt;SqlConnection&gt; CreateConnectionCoreAsync(
 ///         string connectionString,
 ///         CancellationToken cancellationToken)
@@ -81,16 +85,23 @@ public abstract class TenantConnectionFactoryBase<TConnection> : ITenantConnecti
     }
 
     /// <inheritdoc />
-    public async ValueTask<TConnection> CreateConnectionAsync(
+    public async ValueTask<Either<EncinaError, TConnection>> CreateConnectionAsync(
         string? tenantId = null,
         CancellationToken cancellationToken = default)
     {
-        var connectionString = await GetConnectionStringAsync(tenantId, cancellationToken);
-        return await CreateConnectionCoreAsync(connectionString, cancellationToken);
+        var connectionStringResult = await GetConnectionStringAsync(tenantId, cancellationToken);
+
+        return await connectionStringResult.MatchAsync<Either<EncinaError, TConnection>>(
+            RightAsync: async cs =>
+            {
+                var connection = await CreateConnectionCoreAsync(cs, cancellationToken);
+                return connection;
+            },
+            Left: error => error);
     }
 
     /// <inheritdoc />
-    public async ValueTask<string> GetConnectionStringAsync(
+    public async ValueTask<Either<EncinaError, string>> GetConnectionStringAsync(
         string? tenantId = null,
         CancellationToken cancellationToken = default)
     {
@@ -100,7 +111,7 @@ public abstract class TenantConnectionFactoryBase<TConnection> : ITenantConnecti
         // If no tenant context, use default connection string
         if (string.IsNullOrWhiteSpace(tenantId))
         {
-            return GetDefaultConnectionStringOrThrow();
+            return GetDefaultConnectionString();
         }
 
         // Get tenant info from store
@@ -113,7 +124,7 @@ public abstract class TenantConnectionFactoryBase<TConnection> : ITenantConnecti
         }
 
         // Fall back to default connection string
-        return GetDefaultConnectionStringOrThrow();
+        return GetDefaultConnectionString();
     }
 
     /// <summary>
@@ -134,23 +145,16 @@ public abstract class TenantConnectionFactoryBase<TConnection> : ITenantConnecti
         string connectionString,
         CancellationToken cancellationToken);
 
-    private string GetDefaultConnectionStringOrThrow()
+    private Either<EncinaError, string> GetDefaultConnectionString()
     {
         if (!string.IsNullOrWhiteSpace(Options.DefaultConnectionString))
         {
             return Options.DefaultConnectionString;
         }
 
-        if (Options.ThrowOnMissingConnectionString)
-        {
-            throw new InvalidOperationException(
-                "No tenant context and no default connection string configured. " +
-                "Either provide a tenant ID, ensure a tenant context is available, " +
-                "or configure TenantConnectionOptions.DefaultConnectionString.");
-        }
-
-        // This shouldn't happen if ThrowOnMissingConnectionString is true,
-        // but we need to satisfy the compiler
-        throw new InvalidOperationException("No connection string available.");
+        return EncinaError.New(
+            "No tenant context and no default connection string configured. " +
+            "Either provide a tenant ID, ensure a tenant context is available, " +
+            "or configure TenantConnectionOptions.DefaultConnectionString.");
     }
 }

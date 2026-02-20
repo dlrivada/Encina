@@ -5,6 +5,8 @@ using Encina.TestInfrastructure;
 using Encina.TestInfrastructure.Entities;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.TestInfrastructure.Schemas;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.Data.SqlClient;
 using Shouldly;
 
@@ -104,19 +106,19 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     /// <inheritdoc />
     protected override IDbConnection CreateReadConnection()
     {
-        return _connectionFactory.CreateReadConnection();
+        return _connectionFactory.CreateReadConnection().ShouldBeRight();
     }
 
     /// <inheritdoc />
     protected override IDbConnection CreateWriteConnection()
     {
-        return _connectionFactory.CreateWriteConnection();
+        return _connectionFactory.CreateWriteConnection().ShouldBeRight();
     }
 
     /// <inheritdoc />
     protected override IDbConnection CreateForcedWriteConnection()
     {
-        return _connectionFactory.CreateWriteConnection();
+        return _connectionFactory.CreateWriteConnection().ShouldBeRight();
     }
 
     /// <inheritdoc />
@@ -245,8 +247,8 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
 
         // Assert
         _connectionFactory.ShouldNotBeNull();
-        _connectionFactory.GetWriteConnectionString().ShouldBe(_fixture.ConnectionString);
-        _connectionFactory.GetReadConnectionString().ShouldBe(_fixture.ConnectionString);
+        _connectionFactory.GetWriteConnectionString().ShouldBeRight().ShouldBe(_fixture.ConnectionString);
+        _connectionFactory.GetReadConnectionString().ShouldBeRight().ShouldBe(_fixture.ConnectionString);
     }
 
     [Fact]
@@ -254,7 +256,8 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     {
 
         // Act
-        var connection = await _connectionFactory.CreateReadConnectionAsync();
+        var result = await _connectionFactory.CreateReadConnectionAsync();
+        var connection = result.ShouldBeRight();
         try
         {
             // Assert
@@ -272,7 +275,8 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
     {
 
         // Act
-        var connection = await _connectionFactory.CreateWriteConnectionAsync();
+        var result = await _connectionFactory.CreateWriteConnectionAsync();
+        var connection = result.ShouldBeRight();
         try
         {
             // Assert
@@ -293,12 +297,13 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Read);
 
         // Act
-        var connection = await _connectionFactory.CreateConnectionAsync();
+        var result = await _connectionFactory.CreateConnectionAsync();
+        var connection = result.ShouldBeRight();
         try
         {
             // Assert
             connection.State.ShouldBe(ConnectionState.Open);
-            _connectionFactory.GetReadConnectionString().ShouldNotBeEmpty();
+            _connectionFactory.GetReadConnectionString().ShouldBeRight().ShouldNotBeEmpty();
         }
         finally
         {
@@ -314,12 +319,13 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Write);
 
         // Act
-        var connection = await _connectionFactory.CreateConnectionAsync();
+        var result = await _connectionFactory.CreateConnectionAsync();
+        var connection = result.ShouldBeRight();
         try
         {
             // Assert
             connection.State.ShouldBe(ConnectionState.Open);
-            _connectionFactory.GetWriteConnectionString().ShouldNotBeEmpty();
+            _connectionFactory.GetWriteConnectionString().ShouldBeRight().ShouldNotBeEmpty();
         }
         finally
         {
@@ -352,7 +358,7 @@ public class ReadWriteSeparationDapperIntegrationTests : ReadWriteSeparationTest
         {
             for (int i = 0; i < 3; i++)
             {
-                var conn = _connectionFactory.CreateReadConnection();
+                var conn = _connectionFactory.CreateReadConnection().ShouldBeRight();
                 connections.Add(conn);
             }
 

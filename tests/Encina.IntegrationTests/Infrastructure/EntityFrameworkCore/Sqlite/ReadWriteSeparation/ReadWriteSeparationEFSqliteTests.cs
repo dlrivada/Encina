@@ -2,6 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 using Encina.EntityFrameworkCore.ReadWriteSeparation;
 using Encina.Messaging.ReadWriteSeparation;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -157,8 +159,8 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
 
         // Assert
         factory.ShouldNotBeNull();
-        _connectionSelector.GetWriteConnectionString().ShouldBe(_sharedConnectionString);
-        _connectionSelector.GetReadConnectionString().ShouldBe(_sharedConnectionString);
+        _connectionSelector.GetWriteConnectionString().ShouldBeRight().ShouldBe(_sharedConnectionString);
+        _connectionSelector.GetReadConnectionString().ShouldBeRight().ShouldBe(_sharedConnectionString);
     }
 
     [Fact]
@@ -168,11 +170,13 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         var factory = CreateFactory();
 
         // Act
-        using var context = factory.CreateWriteContext();
-
-        // Assert
-        context.ShouldNotBeNull();
-        context.ShouldBeOfType<ReadWriteTestDbContext>();
+        var context = factory.CreateWriteContext().ShouldBeRight();
+        using (context)
+        {
+            // Assert
+            context.ShouldNotBeNull();
+            context.ShouldBeOfType<ReadWriteTestDbContext>();
+        }
     }
 
     [Fact]
@@ -182,11 +186,13 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         var factory = CreateFactory();
 
         // Act
-        using var context = factory.CreateReadContext();
-
-        // Assert
-        context.ShouldNotBeNull();
-        context.ShouldBeOfType<ReadWriteTestDbContext>();
+        var context = factory.CreateReadContext().ShouldBeRight();
+        using (context)
+        {
+            // Assert
+            context.ShouldNotBeNull();
+            context.ShouldBeOfType<ReadWriteTestDbContext>();
+        }
     }
 
     [Fact]
@@ -196,11 +202,13 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         var factory = CreateFactory();
 
         // Act
-        using var context = factory.CreateContext();
-
-        // Assert
-        context.ShouldNotBeNull();
-        context.ShouldBeOfType<ReadWriteTestDbContext>();
+        var context = factory.CreateContext().ShouldBeRight();
+        using (context)
+        {
+            // Assert
+            context.ShouldNotBeNull();
+            context.ShouldBeOfType<ReadWriteTestDbContext>();
+        }
     }
 
     #endregion
@@ -222,7 +230,7 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         };
 
         // Act
-        await using (var writeContext = factory.CreateWriteContext())
+        await using (var writeContext = factory.CreateWriteContext().ShouldBeRight())
         {
             writeContext.ReadWriteTestEntities.Add(entity);
             await writeContext.SaveChangesAsync();
@@ -257,7 +265,7 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         }
 
         // Act - Update
-        await using (var writeContext = factory.CreateWriteContext())
+        await using (var writeContext = factory.CreateWriteContext().ShouldBeRight())
         {
             var toUpdate = await writeContext.ReadWriteTestEntities.FindAsync(entity.Id);
             toUpdate.ShouldNotBeNull();
@@ -299,7 +307,7 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         }
 
         // Act - Query using read context
-        await using var readContext = factory.CreateReadContext();
+        await using var readContext = factory.CreateReadContext().ShouldBeRight();
         var entities = await readContext.ReadWriteTestEntities.ToListAsync();
 
         // Assert
@@ -333,12 +341,12 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
 
         // Act - Use read routing scope
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Read);
-        await using var context2 = factory.CreateContext();
+        await using var context2 = factory.CreateContext().ShouldBeRight();
         var entities = await context2.ReadWriteTestEntities.ToListAsync();
 
         // Assert
         entities.ShouldNotBeEmpty();
-        _connectionSelector.GetReadConnectionString().ShouldNotBeEmpty();
+        _connectionSelector.GetReadConnectionString().ShouldBeRight().ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -357,12 +365,12 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
 
         // Act - Use write routing scope
         using var scope = new DatabaseRoutingScope(DatabaseIntent.Write);
-        await using var context = factory.CreateContext();
+        await using var context = factory.CreateContext().ShouldBeRight();
         context.ReadWriteTestEntities.Add(entity);
         await context.SaveChangesAsync();
 
         // Assert
-        _connectionSelector.GetWriteConnectionString().ShouldNotBeEmpty();
+        _connectionSelector.GetWriteConnectionString().ShouldBeRight().ShouldNotBeEmpty();
     }
 
     #endregion
@@ -376,7 +384,8 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         var factory = CreateFactory();
 
         // Act
-        await using var context = await factory.CreateWriteContextAsync();
+        var result = await factory.CreateWriteContextAsync();
+        await using var context = result.ShouldBeRight();
 
         // Assert
         context.ShouldNotBeNull();
@@ -390,7 +399,8 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         var factory = CreateFactory();
 
         // Act
-        await using var context = await factory.CreateReadContextAsync();
+        var result = await factory.CreateReadContextAsync();
+        await using var context = result.ShouldBeRight();
 
         // Assert
         context.ShouldNotBeNull();
@@ -404,7 +414,8 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
         var factory = CreateFactory();
 
         // Act
-        await using var context = await factory.CreateContextAsync();
+        var result = await factory.CreateContextAsync();
+        await using var context = result.ShouldBeRight();
 
         // Assert
         context.ShouldNotBeNull();
@@ -419,14 +430,14 @@ public sealed class ReadWriteSeparationEFSqliteTests : IAsyncLifetime
     public void ConnectionSelector_GetWriteConnectionString_ShouldReturnPrimary()
     {
         // Assert
-        _connectionSelector.GetWriteConnectionString().ShouldBe(_sharedConnectionString);
+        _connectionSelector.GetWriteConnectionString().ShouldBeRight().ShouldBe(_sharedConnectionString);
     }
 
     [Fact]
     public void ConnectionSelector_GetReadConnectionString_ShouldReturnReplica()
     {
         // Assert - In this test setup, replica is the same as primary
-        _connectionSelector.GetReadConnectionString().ShouldBe(_sharedConnectionString);
+        _connectionSelector.GetReadConnectionString().ShouldBeRight().ShouldBe(_sharedConnectionString);
     }
 
     #endregion

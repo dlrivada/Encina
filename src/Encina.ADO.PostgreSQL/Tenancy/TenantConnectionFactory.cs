@@ -1,5 +1,7 @@
 using System.Data;
+using Encina;
 using Encina.Tenancy;
+using LanguageExt;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -27,6 +29,10 @@ namespace Encina.ADO.PostgreSQL.Tenancy;
 /// <description>Uses the tenant's specific connection string if available</description>
 /// </item>
 /// </list>
+/// <para>
+/// All methods return <see cref="Either{EncinaError, T}"/> following the Railway Oriented
+/// Programming pattern instead of throwing exceptions for runtime configuration errors.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -36,7 +42,7 @@ namespace Encina.ADO.PostgreSQL.Tenancy;
 /// // Usage
 /// public class OrderService(ITenantConnectionFactory connectionFactory)
 /// {
-///     public async Task&lt;IDbConnection&gt; GetConnectionAsync(CancellationToken ct)
+///     public async Task&lt;Either&lt;EncinaError, IDbConnection&gt;&gt; GetConnectionAsync(CancellationToken ct)
 ///     {
 ///         return await connectionFactory.CreateConnectionAsync(ct);
 ///     }
@@ -70,16 +76,22 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
     }
 
     /// <inheritdoc/>
-    public async ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionAsync(CancellationToken cancellationToken = default)
     {
-        var connectionString = await GetConnectionStringAsync(cancellationToken).ConfigureAwait(false);
-        var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return connection;
+        var connectionStringResult = await GetConnectionStringAsync(cancellationToken).ConfigureAwait(false);
+
+        return await connectionStringResult.MatchAsync<Either<EncinaError, IDbConnection>>(
+            RightAsync: async cs =>
+            {
+                var connection = new NpgsqlConnection(cs);
+                await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+                return Either<EncinaError, IDbConnection>.Right(connection);
+            },
+            Left: error => error);
     }
 
     /// <inheritdoc/>
-    public async ValueTask<IDbConnection> CreateConnectionForTenantAsync(
+    public async ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionForTenantAsync(
         string tenantId,
         CancellationToken cancellationToken = default)
     {
@@ -89,17 +101,22 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
 
         if (tenant is null)
         {
-            throw new InvalidOperationException($"Tenant '{tenantId}' not found.");
+            return EncinaError.New($"Tenant '{tenantId}' not found.");
         }
 
-        var connectionString = GetConnectionStringForTenant(tenant);
-        var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return connection;
+        return await GetConnectionStringForTenant(tenant)
+            .MatchAsync<Either<EncinaError, IDbConnection>>(
+                RightAsync: async cs =>
+                {
+                    var connection = new NpgsqlConnection(cs);
+                    await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+                    return Either<EncinaError, IDbConnection>.Right(connection);
+                },
+                Left: error => error);
     }
 
     /// <inheritdoc/>
-    public async ValueTask<string> GetConnectionStringAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<Either<EncinaError, string>> GetConnectionStringAsync(CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -120,7 +137,7 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
         return GetConnectionStringForTenant(tenant);
     }
 
-    private string GetConnectionStringForTenant(TenantInfo tenant)
+    private Either<EncinaError, string> GetConnectionStringForTenant(TenantInfo tenant)
     {
         // Only DatabasePerTenant strategy uses tenant-specific connection strings
         if (tenant.Strategy == TenantIsolationStrategy.DatabasePerTenant)
@@ -136,11 +153,11 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
         return GetDefaultConnectionString();
     }
 
-    private string GetDefaultConnectionString()
+    private Either<EncinaError, string> GetDefaultConnectionString()
     {
         if (string.IsNullOrEmpty(_options.DefaultConnectionString))
         {
-            throw new InvalidOperationException(
+            return EncinaError.New(
                 "No default connection string configured. " +
                 "Set TenancyOptions.DefaultConnectionString in your configuration.");
         }

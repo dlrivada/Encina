@@ -1,5 +1,7 @@
 using Encina.ADO.SqlServer.ReadWriteSeparation;
 using Encina.Messaging.ReadWriteSeparation;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.Data.SqlClient;
 using NSubstitute;
 using Shouldly;
@@ -21,9 +23,9 @@ public sealed class ReadWriteConnectionFactoryTests
     public ReadWriteConnectionFactoryTests()
     {
         _connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        _connectionSelector.GetWriteConnectionString().Returns(WriteConnectionString);
-        _connectionSelector.GetReadConnectionString().Returns(ReadConnectionString);
-        _connectionSelector.GetConnectionString().Returns(WriteConnectionString);
+        _connectionSelector.GetWriteConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
+        _connectionSelector.GetReadConnectionString().Returns(Either<EncinaError, string>.Right(ReadConnectionString));
+        _connectionSelector.GetConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
     }
 
     #region Constructor Tests
@@ -57,10 +59,11 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connection = factory.CreateWriteConnection();
+        var result = factory.CreateWriteConnection();
 
         // Assert
         _connectionSelector.Received(1).GetWriteConnectionString();
+        var connection = result.ShouldBeRight();
         connection.ShouldNotBeNull();
         connection.ConnectionString.ShouldBe(WriteConnectionString);
         connection.Dispose();
@@ -73,7 +76,7 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connection = factory.CreateWriteConnection();
+        var connection = factory.CreateWriteConnection().ShouldBeRight();
 
         // Assert
         connection.ShouldBeOfType<SqlConnection>();
@@ -87,8 +90,8 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connection1 = factory.CreateWriteConnection();
-        var connection2 = factory.CreateWriteConnection();
+        var connection1 = factory.CreateWriteConnection().ShouldBeRight();
+        var connection2 = factory.CreateWriteConnection().ShouldBeRight();
 
         // Assert
         connection1.ShouldNotBeSameAs(connection2);
@@ -107,10 +110,11 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connection = factory.CreateReadConnection();
+        var result = factory.CreateReadConnection();
 
         // Assert
         _connectionSelector.Received(1).GetReadConnectionString();
+        var connection = result.ShouldBeRight();
         connection.ShouldNotBeNull();
         connection.ConnectionString.ShouldBe(ReadConnectionString);
         connection.Dispose();
@@ -123,7 +127,7 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connection = factory.CreateReadConnection();
+        var connection = factory.CreateReadConnection().ShouldBeRight();
 
         // Assert
         connection.ShouldBeOfType<SqlConnection>();
@@ -141,10 +145,11 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connection = factory.CreateConnection();
+        var result = factory.CreateConnection();
 
         // Assert
         _connectionSelector.Received(1).GetConnectionString();
+        var connection = result.ShouldBeRight();
         connection.ShouldNotBeNull();
         connection.Dispose();
     }
@@ -156,7 +161,7 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connection = factory.CreateConnection();
+        var connection = factory.CreateConnection().ShouldBeRight();
 
         // Assert
         connection.ShouldBeOfType<SqlConnection>();
@@ -217,10 +222,10 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connectionString = factory.GetWriteConnectionString();
+        var result = factory.GetWriteConnectionString();
 
         // Assert
-        connectionString.ShouldBe(WriteConnectionString);
+        result.ShouldBeRight().ShouldBe(WriteConnectionString);
         _connectionSelector.Received(1).GetWriteConnectionString();
     }
 
@@ -235,10 +240,10 @@ public sealed class ReadWriteConnectionFactoryTests
         var factory = new ReadWriteConnectionFactory(_connectionSelector);
 
         // Act
-        var connectionString = factory.GetReadConnectionString();
+        var result = factory.GetReadConnectionString();
 
         // Assert
-        connectionString.ShouldBe(ReadConnectionString);
+        result.ShouldBeRight().ShouldBe(ReadConnectionString);
         _connectionSelector.Received(1).GetReadConnectionString();
     }
 

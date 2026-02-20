@@ -3,6 +3,7 @@ using Encina.Dapper.Sqlite.Repository;
 using Encina.DomainModeling;
 using Encina.Messaging;
 using Encina.Tenancy;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -67,7 +68,10 @@ public static class TenancyServiceCollectionExtensions
         {
             var factory = sp.GetRequiredService<ITenantConnectionFactory>();
             // Note: This is synchronous for DI, but the factory can be used directly for async
-            return factory.CreateConnectionAsync().AsTask().GetAwaiter().GetResult();
+            var result = factory.CreateConnectionAsync().AsTask().GetAwaiter().GetResult();
+            return result.Match(
+                Right: connection => connection,
+                Left: error => throw new InvalidOperationException(error.Message));
         });
 
         // Add standard Dapper messaging services

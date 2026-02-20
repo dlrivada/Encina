@@ -1,4 +1,6 @@
 using Encina.Messaging.Sagas;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Sagas;
@@ -97,9 +99,10 @@ public sealed class SagaNotFoundContextTests
         var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage), Handler);
 
         // Act
-        await context.MoveToDeadLetterAsync("Test reason");
+        var result = await context.MoveToDeadLetterAsync("Test reason");
 
         // Assert
+        result.ShouldBeRight();
         handlerInvoked.ShouldBeTrue();
         capturedReason.ShouldBe("Test reason");
         context.Action.ShouldBe(SagaNotFoundAction.MovedToDeadLetter);
@@ -148,17 +151,17 @@ public sealed class SagaNotFoundContextTests
     }
 
     [Fact]
-    public async Task MoveToDeadLetterAsync_NoHandler_ThrowsInvalidOperationException()
+    public async Task MoveToDeadLetterAsync_NoHandler_ReturnsError()
     {
         // Arrange
         var context = new SagaNotFoundContext(Guid.NewGuid(), "Saga", typeof(TestMessage));
 
         // Act
-        var act = async () => await context.MoveToDeadLetterAsync("Test reason");
+        var result = await context.MoveToDeadLetterAsync("Test reason");
 
         // Assert
-        var ex = await act.ShouldThrowAsync<InvalidOperationException>();
-        ex.Message.ShouldContain("Dead letter handling is not configured");
+        var error = result.ShouldBeLeft();
+        error.Message.ShouldContain("Dead letter handling is not configured");
     }
 
     [Fact]
@@ -178,9 +181,10 @@ public sealed class SagaNotFoundContextTests
         var expectedToken = cts.Token;
 
         // Act
-        await context.MoveToDeadLetterAsync("Reason", expectedToken);
+        var result = await context.MoveToDeadLetterAsync("Reason", expectedToken);
 
         // Assert
+        result.ShouldBeRight();
         capturedToken.ShouldBe(expectedToken);
     }
 

@@ -172,11 +172,19 @@ services.AddEncinaSecretsInstrumentation();
 
 ### Changed
 
-#### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672)
+#### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)
 
 - All orchestrator public methods now return `Either<EncinaError, T>` instead of throwing exceptions (#670)
 - All mapping builder `Build()` methods now return `Either<EncinaError, T>` instead of throwing `InvalidOperationException` (#671)
 - Removed unreachable `throw` statements from `Match`/`MatchAsync` callbacks where the branch was already determined by prior `IsLeft`/`IsSome` checks (#672)
+- Replaced runtime `InvalidOperationException` throws with `Either<EncinaError, T>` returns across all config/connection infrastructure (#673):
+  - `IReadWriteConnectionSelector` and `ReadWriteConnectionSelector` (3 methods)
+  - 8 `IReadWriteConnectionFactory` + implementations (ADO.NET + Dapper, all 4 databases)
+  - `IReadWriteDbContextFactory` + `ReadWriteDbContextFactory` (EF Core)
+  - 8 `ITenantConnectionFactory` + implementations (ADO.NET + Dapper, all 4 databases)
+  - Generic `ITenantConnectionFactory<T>` + `TenantConnectionFactoryBase<T>` (Tenancy)
+  - `TenantDbContextFactory<TContext>` (EF Core Tenancy)
+  - `SagaNotFoundContext.MoveToDeadLetterAsync` (Messaging)
 - Removed 16 unreachable `throw new InvalidOperationException("Unexpected Right after Left check")` in Sharding `GetAllConnections`/`GetAllCollections` loops across all 13 database providers, replaced with direct `(EncinaError)` cast (#675)
 
 ### Fixed

@@ -1,3 +1,6 @@
+using LanguageExt;
+using static LanguageExt.Prelude;
+
 namespace Encina.Messaging.Sagas;
 
 /// <summary>
@@ -84,17 +87,17 @@ public sealed class SagaNotFoundContext
     /// </summary>
     /// <param name="reason">The reason for moving to DLQ.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when no dead letter handler is configured.
-    /// </exception>
-    public async Task MoveToDeadLetterAsync(string reason, CancellationToken cancellationToken = default)
+    /// <returns>
+    /// An <see cref="Either{EncinaError, Unit}"/> containing <see cref="Unit"/> on success,
+    /// or an <see cref="EncinaError"/> if dead letter handling is not configured.
+    /// </returns>
+    public async ValueTask<Either<EncinaError, Unit>> MoveToDeadLetterAsync(string reason, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
         if (_moveToDeadLetterAsync == null)
         {
-            throw new InvalidOperationException(
+            return EncinaError.New(
                 "Dead letter handling is not configured. " +
                 "Ensure UseDeadLetterQueue is enabled in MessagingConfiguration.");
         }
@@ -102,6 +105,7 @@ public sealed class SagaNotFoundContext
         await _moveToDeadLetterAsync(reason, cancellationToken).ConfigureAwait(false);
         _deadLetterReason = reason;
         _action = SagaNotFoundAction.MovedToDeadLetter;
+        return unit;
     }
 }
 

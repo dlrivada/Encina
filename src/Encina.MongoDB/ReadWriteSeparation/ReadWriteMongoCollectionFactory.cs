@@ -1,4 +1,5 @@
 using Encina.Messaging.ReadWriteSeparation;
+using LanguageExt;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -142,17 +143,19 @@ public sealed class ReadWriteMongoCollectionFactory : IReadWriteMongoCollectionF
     }
 
     /// <inheritdoc/>
-    public ValueTask<string> GetDatabaseNameAsync(CancellationToken cancellationToken = default)
+    public ValueTask<Either<EncinaError, string>> GetDatabaseNameAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         if (string.IsNullOrEmpty(_mongoOptions.DatabaseName))
         {
-            throw new InvalidOperationException(
-                "No database name configured. Set EncinaMongoDbOptions.DatabaseName in your configuration.");
+            return ValueTask.FromResult(
+                Either<EncinaError, string>.Left(
+                    EncinaError.New(
+                        "No database name configured. Set EncinaMongoDbOptions.DatabaseName in your configuration.")));
         }
 
-        return ValueTask.FromResult(_mongoOptions.DatabaseName);
+        return ValueTask.FromResult<Either<EncinaError, string>>(_mongoOptions.DatabaseName);
     }
 
     /// <summary>

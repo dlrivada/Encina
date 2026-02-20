@@ -1,5 +1,6 @@
 using Encina.MongoDB;
 using Encina.MongoDB.ReadWriteSeparation;
+using Encina.Testing.Shouldly;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using NSubstitute;
@@ -120,14 +121,14 @@ public sealed class ReadWriteMongoCollectionFactoryTests
         var factory = new ReadWriteMongoCollectionFactory(_mongoClient, _options);
 
         // Act
-        var dbName = await factory.GetDatabaseNameAsync();
+        var result = await factory.GetDatabaseNameAsync();
 
         // Assert
-        dbName.ShouldBe("TestDb");
+        result.ShouldBeRight().ShouldBe("TestDb");
     }
 
     [Fact]
-    public async Task GetDatabaseNameAsync_ThrowsWhenNoDatabaseNameConfigured()
+    public async Task GetDatabaseNameAsync_ReturnsLeftWhenNoDatabaseNameConfigured()
     {
         // Arrange
         var opts = Options.Create(new EncinaMongoDbOptions
@@ -136,9 +137,12 @@ public sealed class ReadWriteMongoCollectionFactoryTests
         });
         var factory = new ReadWriteMongoCollectionFactory(_mongoClient, opts);
 
-        // Act & Assert
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await factory.GetDatabaseNameAsync());
+        // Act
+        var result = await factory.GetDatabaseNameAsync();
+
+        // Assert
+        var error = result.ShouldBeLeft();
+        error.Message.ShouldContain("DatabaseName");
     }
 
     [Fact]

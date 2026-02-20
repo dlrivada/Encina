@@ -1,4 +1,6 @@
 using System.Data;
+using Encina;
+using LanguageExt;
 using Shouldly;
 using Xunit;
 using ADOMySQLRW = Encina.ADO.MySQL.ReadWriteSeparation;
@@ -146,7 +148,7 @@ public sealed class ReadWriteSeparationContractTests
 
         // Assert
         method.ShouldNotBeNull($"{factoryType.Name} should have CreateWriteConnection method");
-        method.ReturnType.ShouldBe(typeof(IDbConnection));
+        method.ReturnType.ShouldBe(typeof(Either<EncinaError, IDbConnection>));
         method.GetParameters().Length.ShouldBe(0);
     }
 
@@ -166,7 +168,7 @@ public sealed class ReadWriteSeparationContractTests
 
         // Assert
         method.ShouldNotBeNull($"{factoryType.Name} should have CreateReadConnection method");
-        method.ReturnType.ShouldBe(typeof(IDbConnection));
+        method.ReturnType.ShouldBe(typeof(Either<EncinaError, IDbConnection>));
         method.GetParameters().Length.ShouldBe(0);
     }
 
@@ -186,7 +188,7 @@ public sealed class ReadWriteSeparationContractTests
 
         // Assert
         method.ShouldNotBeNull($"{factoryType.Name} should have CreateConnection method");
-        method.ReturnType.ShouldBe(typeof(IDbConnection));
+        method.ReturnType.ShouldBe(typeof(Either<EncinaError, IDbConnection>));
         method.GetParameters().Length.ShouldBe(0);
     }
 
@@ -206,7 +208,7 @@ public sealed class ReadWriteSeparationContractTests
 
         // Assert
         method.ShouldNotBeNull($"{factoryType.Name} should have GetWriteConnectionString method");
-        method.ReturnType.ShouldBe(typeof(string));
+        method.ReturnType.ShouldBe(typeof(Either<EncinaError, string>));
         method.GetParameters().Length.ShouldBe(0);
     }
 
@@ -226,7 +228,7 @@ public sealed class ReadWriteSeparationContractTests
 
         // Assert
         method.ShouldNotBeNull($"{factoryType.Name} should have GetReadConnectionString method");
-        method.ReturnType.ShouldBe(typeof(string));
+        method.ReturnType.ShouldBe(typeof(Either<EncinaError, string>));
         method.GetParameters().Length.ShouldBe(0);
     }
 

@@ -71,7 +71,10 @@ public static class TenancyServiceCollectionExtensions
         {
             var factory = sp.GetRequiredService<ITenantConnectionFactory>();
             // Note: This is synchronous for DI, but the factory can be used directly for async
-            return factory.CreateConnectionAsync().AsTask().GetAwaiter().GetResult();
+            var result = factory.CreateConnectionAsync().AsTask().GetAwaiter().GetResult();
+            return result.Match(
+                Right: connection => connection,
+                Left: error => throw new InvalidOperationException(error.Message));
         });
 
         // Configure messaging

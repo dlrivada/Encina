@@ -1,3 +1,6 @@
+using Encina;
+using LanguageExt;
+
 namespace Encina.Tenancy;
 
 /// <summary>
@@ -39,31 +42,43 @@ namespace Encina.Tenancy;
 ///         _options = options.Value;
 ///     }
 ///
-///     public async ValueTask&lt;SqlConnection&gt; CreateConnectionAsync(
+///     public async ValueTask&lt;Either&lt;EncinaError, SqlConnection&gt;&gt; CreateConnectionAsync(
 ///         string? tenantId = null,
 ///         CancellationToken cancellationToken = default)
 ///     {
-///         var connectionString = await ResolveConnectionStringAsync(tenantId, cancellationToken);
-///         var connection = new SqlConnection(connectionString);
-///         await connection.OpenAsync(cancellationToken);
-///         return connection;
+///         var connectionStringResult = await GetConnectionStringAsync(tenantId, cancellationToken);
+///         return await connectionStringResult.MatchAsync&lt;Either&lt;EncinaError, SqlConnection&gt;&gt;(
+///             RightAsync: async cs =&gt;
+///             {
+///                 var connection = new SqlConnection(cs);
+///                 await connection.OpenAsync(cancellationToken);
+///                 return connection;
+///             },
+///             Left: error =&gt; error);
 ///     }
 ///
-///     private async ValueTask&lt;string&gt; ResolveConnectionStringAsync(
-///         string? tenantId,
-///         CancellationToken cancellationToken)
+///     public async ValueTask&lt;Either&lt;EncinaError, string&gt;&gt; GetConnectionStringAsync(
+///         string? tenantId = null,
+///         CancellationToken cancellationToken = default)
 ///     {
 ///         tenantId ??= _tenantProvider.GetCurrentTenantId();
 ///
 ///         if (tenantId is null)
-///             return _options.DefaultConnectionString
-///                 ?? throw new InvalidOperationException("No tenant context and no default connection string");
+///             return GetDefaultConnectionString();
 ///
 ///         var tenant = await _tenantProvider.GetCurrentTenantAsync(cancellationToken);
 ///
 ///         return tenant?.ConnectionString
 ///             ?? _options.DefaultConnectionString
-///             ?? throw new InvalidOperationException($"No connection string for tenant '{tenantId}'");
+///             ?? EncinaError.New($"No connection string for tenant '{tenantId}'").ToString();
+///     }
+///
+///     private Either&lt;EncinaError, string&gt; GetDefaultConnectionString()
+///     {
+///         if (!string.IsNullOrWhiteSpace(_options.DefaultConnectionString))
+///             return _options.DefaultConnectionString;
+///
+///         return EncinaError.New("No tenant context and no default connection string");
 ///     }
 /// }
 /// </code>
@@ -79,11 +94,10 @@ public interface ITenantConnectionFactory<TConnection>
     /// If <c>null</c>, uses the current tenant from <see cref="ITenantProvider"/>.
     /// </param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    /// <returns>An open database connection for the tenant.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when no tenant context is available and <see cref="TenancyOptions.RequireTenant"/> is true,
-    /// or when no connection string can be resolved for the tenant.
-    /// </exception>
+    /// <returns>
+    /// An <see cref="Either{EncinaError, TConnection}"/> containing an open database connection
+    /// for the tenant on success, or an <see cref="EncinaError"/> if no connection string can be resolved.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// The returned connection is typically already opened.
@@ -99,7 +113,7 @@ public interface ITenantConnectionFactory<TConnection>
     /// </list>
     /// </para>
     /// </remarks>
-    ValueTask<TConnection> CreateConnectionAsync(string? tenantId = null, CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, TConnection>> CreateConnectionAsync(string? tenantId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the connection string for the specified or current tenant without creating a connection.
@@ -109,13 +123,13 @@ public interface ITenantConnectionFactory<TConnection>
     /// If <c>null</c>, uses the current tenant from <see cref="ITenantProvider"/>.
     /// </param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    /// <returns>The connection string for the tenant.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when no connection string can be resolved for the tenant.
-    /// </exception>
+    /// <returns>
+    /// An <see cref="Either{EncinaError, String}"/> containing the connection string for the tenant
+    /// on success, or an <see cref="EncinaError"/> if no connection string can be resolved.
+    /// </returns>
     /// <remarks>
     /// Useful for scenarios where you need the connection string but don't want to create
     /// a connection immediately (e.g., EF Core DbContext configuration).
     /// </remarks>
-    ValueTask<string> GetConnectionStringAsync(string? tenantId = null, CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, string>> GetConnectionStringAsync(string? tenantId = null, CancellationToken cancellationToken = default);
 }

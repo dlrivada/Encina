@@ -1,3 +1,4 @@
+using LanguageExt;
 using MongoDB.Driver;
 
 namespace Encina.MongoDB.ReadWriteSeparation;
@@ -155,6 +156,9 @@ public interface IReadWriteMongoCollectionFactory
     /// Gets the database name for the current configuration.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The database name.</returns>
-    ValueTask<string> GetDatabaseNameAsync(CancellationToken cancellationToken = default);
+    /// <returns>
+    /// <c>Right</c> with the database name, or <c>Left</c> with an <see cref="EncinaError"/>
+    /// if the database name has not been configured.
+    /// </returns>
+    ValueTask<Either<EncinaError, string>> GetDatabaseNameAsync(CancellationToken cancellationToken = default);
 }

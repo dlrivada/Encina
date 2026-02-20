@@ -1,3 +1,4 @@
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.ReadWriteSeparation;
@@ -75,12 +76,15 @@ public interface IReadWriteDbContextFactory<TContext>
     /// This is useful for scenarios where you need to ensure data is written to the primary database
     /// even if the routing context indicates a read operation.
     /// </remarks>
-    TContext CreateWriteContext();
+    Either<EncinaError, TContext> CreateWriteContext();
 
     /// <summary>
     /// Creates a <see cref="DbContext"/> connected to a read replica database.
     /// </summary>
-    /// <returns>A new <typeparamref name="TContext"/> instance connected to a read replica.</returns>
+    /// <returns>
+    /// <c>Right</c> with a new <typeparamref name="TContext"/> instance connected to a read replica,
+    /// or <c>Left</c> with an <see cref="EncinaError"/> if the connection string is not configured.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// Use this method when you explicitly want to read from a replica, regardless of the current
@@ -91,14 +95,14 @@ public interface IReadWriteDbContextFactory<TContext>
     /// If no read replicas are configured, this method falls back to the primary database.
     /// </para>
     /// </remarks>
-    TContext CreateReadContext();
+    Either<EncinaError, TContext> CreateReadContext();
 
     /// <summary>
     /// Creates a <see cref="DbContext"/> based on the current routing context.
     /// </summary>
     /// <returns>
-    /// A new <typeparamref name="TContext"/> instance connected to either the primary database
-    /// or a read replica, based on the current <see cref="Encina.Messaging.ReadWriteSeparation.DatabaseRoutingContext"/>.
+    /// <c>Right</c> with a new <typeparamref name="TContext"/> instance connected to the appropriate database,
+    /// or <c>Left</c> with an <see cref="EncinaError"/> if the connection string is not configured.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -126,29 +130,26 @@ public interface IReadWriteDbContextFactory<TContext>
     /// If routing is not enabled or no context is set, defaults to the primary database.
     /// </para>
     /// </remarks>
-    TContext CreateContext();
+    Either<EncinaError, TContext> CreateContext();
 
     /// <summary>
     /// Asynchronously creates a <see cref="DbContext"/> connected to the primary (write) database.
     /// </summary>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, with a new <typeparamref name="TContext"/> instance.</returns>
-    ValueTask<TContext> CreateWriteContextAsync(CancellationToken cancellationToken = default);
+    /// <returns>A task representing the asynchronous operation.</returns>
+    ValueTask<Either<EncinaError, TContext>> CreateWriteContextAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously creates a <see cref="DbContext"/> connected to a read replica database.
     /// </summary>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation, with a new <typeparamref name="TContext"/> instance.</returns>
-    ValueTask<TContext> CreateReadContextAsync(CancellationToken cancellationToken = default);
+    /// <returns>A task representing the asynchronous operation.</returns>
+    ValueTask<Either<EncinaError, TContext>> CreateReadContextAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously creates a <see cref="DbContext"/> based on the current routing context.
     /// </summary>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>
-    /// A task representing the asynchronous operation, with a new <typeparamref name="TContext"/> instance
-    /// connected to the appropriate database.
-    /// </returns>
-    ValueTask<TContext> CreateContextAsync(CancellationToken cancellationToken = default);
+    /// <returns>A task representing the asynchronous operation.</returns>
+    ValueTask<Either<EncinaError, TContext>> CreateContextAsync(CancellationToken cancellationToken = default);
 }

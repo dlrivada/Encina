@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Messaging.ReadWriteSeparation;
 
 /// <summary>
@@ -43,16 +45,14 @@ public interface IReadWriteConnectionSelector
     /// Gets the connection string for the primary (write) database.
     /// </summary>
     /// <returns>
-    /// The connection string for the primary database.
+    /// <c>Right</c> with the connection string for the primary database,
+    /// or <c>Left</c> with an <see cref="EncinaError"/> if the write connection string has not been configured.
     /// </returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the write connection string has not been configured.
-    /// </exception>
     /// <remarks>
     /// This method should be used for all write operations (INSERT, UPDATE, DELETE)
     /// and for read operations that require the latest committed data.
     /// </remarks>
-    string GetWriteConnectionString();
+    Either<EncinaError, string> GetWriteConnectionString();
 
     /// <summary>
     /// Gets a connection string for a read replica database.
@@ -75,7 +75,7 @@ public interface IReadWriteConnectionSelector
     /// continues to function (though without the benefits of read/write separation).
     /// </para>
     /// </remarks>
-    string GetReadConnectionString();
+    Either<EncinaError, string> GetReadConnectionString();
 
     /// <summary>
     /// Gets the appropriate connection string based on the current routing context.
@@ -97,7 +97,7 @@ public interface IReadWriteConnectionSelector
     ///   <item><description>Routing disabled (<see cref="DatabaseRoutingContext.IsEnabled"/> is false)</description></item>
     /// </list>
     /// </remarks>
-    string GetConnectionString();
+    Either<EncinaError, string> GetConnectionString();
 
     /// <summary>
     /// Gets a value indicating whether read replicas are configured.

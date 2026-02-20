@@ -1,4 +1,6 @@
 using System.Data;
+using Encina;
+using LanguageExt;
 
 namespace Encina.ADO.PostgreSQL.ReadWriteSeparation;
 
@@ -66,7 +68,7 @@ public interface IReadWriteConnectionFactory
     /// Use this method for all write operations (INSERT, UPDATE, DELETE) and for
     /// read operations that require the latest committed data (read-after-write consistency).
     /// </remarks>
-    IDbConnection CreateWriteConnection();
+    Either<EncinaError, IDbConnection> CreateWriteConnection();
 
     /// <summary>
     /// Creates a connection to a read replica database.
@@ -85,7 +87,7 @@ public interface IReadWriteConnectionFactory
     /// due to replication lag.
     /// </para>
     /// </remarks>
-    IDbConnection CreateReadConnection();
+    Either<EncinaError, IDbConnection> CreateReadConnection();
 
     /// <summary>
     /// Creates a connection based on the current routing context.
@@ -119,7 +121,7 @@ public interface IReadWriteConnectionFactory
     ///   </item>
     /// </list>
     /// </remarks>
-    IDbConnection CreateConnection();
+    Either<EncinaError, IDbConnection> CreateConnection();
 
     /// <summary>
     /// Creates and opens a connection to the primary (write) database.
@@ -128,7 +130,7 @@ public interface IReadWriteConnectionFactory
     /// <returns>
     /// An opened <see cref="IDbConnection"/> to the primary database.
     /// </returns>
-    ValueTask<IDbConnection> CreateWriteConnectionAsync(CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, IDbConnection>> CreateWriteConnectionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates and opens a connection to a read replica database.
@@ -138,7 +140,7 @@ public interface IReadWriteConnectionFactory
     /// An opened <see cref="IDbConnection"/> to a read replica,
     /// or to the primary database if no replicas are configured.
     /// </returns>
-    ValueTask<IDbConnection> CreateReadConnectionAsync(CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, IDbConnection>> CreateReadConnectionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates and opens a connection based on the current routing context.
@@ -148,13 +150,13 @@ public interface IReadWriteConnectionFactory
     /// An opened <see cref="IDbConnection"/> to the appropriate database
     /// based on the current routing context.
     /// </returns>
-    ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the connection string for the primary (write) database.
     /// </summary>
     /// <returns>The connection string for the primary database.</returns>
-    string GetWriteConnectionString();
+    Either<EncinaError, string> GetWriteConnectionString();
 
     /// <summary>
     /// Gets a connection string for a read replica database.
@@ -163,5 +165,5 @@ public interface IReadWriteConnectionFactory
     /// A connection string for a read replica, or the primary database
     /// connection string if no replicas are configured.
     /// </returns>
-    string GetReadConnectionString();
+    Either<EncinaError, string> GetReadConnectionString();
 }

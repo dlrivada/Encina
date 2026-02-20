@@ -1,4 +1,5 @@
 using Encina.Messaging.ReadWriteSeparation;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -80,42 +81,36 @@ public sealed class ReadWriteDbContextFactory<TContext> : IReadWriteDbContextFac
     }
 
     /// <inheritdoc />
-    public TContext CreateWriteContext()
-    {
-        var connectionString = _connectionSelector.GetWriteConnectionString();
-        return CreateContextWithConnectionString(connectionString);
-    }
+    public Either<EncinaError, TContext> CreateWriteContext()
+        => _connectionSelector.GetWriteConnectionString()
+            .Map(CreateContextWithConnectionString);
 
     /// <inheritdoc />
-    public TContext CreateReadContext()
-    {
-        var connectionString = _connectionSelector.GetReadConnectionString();
-        return CreateContextWithConnectionString(connectionString);
-    }
+    public Either<EncinaError, TContext> CreateReadContext()
+        => _connectionSelector.GetReadConnectionString()
+            .Map(CreateContextWithConnectionString);
 
     /// <inheritdoc />
-    public TContext CreateContext()
-    {
-        var connectionString = _connectionSelector.GetConnectionString();
-        return CreateContextWithConnectionString(connectionString);
-    }
+    public Either<EncinaError, TContext> CreateContext()
+        => _connectionSelector.GetConnectionString()
+            .Map(CreateContextWithConnectionString);
 
     /// <inheritdoc />
-    public ValueTask<TContext> CreateWriteContextAsync(CancellationToken cancellationToken = default)
+    public ValueTask<Either<EncinaError, TContext>> CreateWriteContextAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult(CreateWriteContext());
     }
 
     /// <inheritdoc />
-    public ValueTask<TContext> CreateReadContextAsync(CancellationToken cancellationToken = default)
+    public ValueTask<Either<EncinaError, TContext>> CreateReadContextAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult(CreateReadContext());
     }
 
     /// <inheritdoc />
-    public ValueTask<TContext> CreateContextAsync(CancellationToken cancellationToken = default)
+    public ValueTask<Either<EncinaError, TContext>> CreateContextAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult(CreateContext());

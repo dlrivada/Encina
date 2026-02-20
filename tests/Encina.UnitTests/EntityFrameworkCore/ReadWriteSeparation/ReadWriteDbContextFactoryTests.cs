@@ -1,5 +1,7 @@
 using Encina.EntityFrameworkCore.ReadWriteSeparation;
 using Encina.Messaging.ReadWriteSeparation;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -69,7 +71,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetWriteConnectionString().Returns(WriteConnectionString);
+        connectionSelector.GetWriteConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-write")
@@ -81,10 +83,11 @@ public sealed class ReadWriteDbContextFactoryTests
             options);
 
         // Act
-        var context = factory.CreateWriteContext();
+        var result = factory.CreateWriteContext();
 
         // Assert
         connectionSelector.Received(1).GetWriteConnectionString();
+        var context = result.ShouldBeRight();
         context.ShouldNotBeNull();
         context.Dispose();
     }
@@ -97,7 +100,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetReadConnectionString().Returns(ReadConnectionString);
+        connectionSelector.GetReadConnectionString().Returns(Either<EncinaError, string>.Right(ReadConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-read")
@@ -109,10 +112,11 @@ public sealed class ReadWriteDbContextFactoryTests
             options);
 
         // Act
-        var context = factory.CreateReadContext();
+        var result = factory.CreateReadContext();
 
         // Assert
         connectionSelector.Received(1).GetReadConnectionString();
+        var context = result.ShouldBeRight();
         context.ShouldNotBeNull();
         context.Dispose();
     }
@@ -125,7 +129,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetConnectionString().Returns(WriteConnectionString);
+        connectionSelector.GetConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-context")
@@ -137,10 +141,11 @@ public sealed class ReadWriteDbContextFactoryTests
             options);
 
         // Act
-        var context = factory.CreateContext();
+        var result = factory.CreateContext();
 
         // Assert
         connectionSelector.Received(1).GetConnectionString();
+        var context = result.ShouldBeRight();
         context.ShouldNotBeNull();
         context.Dispose();
     }
@@ -153,7 +158,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetWriteConnectionString().Returns(WriteConnectionString);
+        connectionSelector.GetWriteConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-write-async")
@@ -165,9 +170,10 @@ public sealed class ReadWriteDbContextFactoryTests
             options);
 
         // Act
-        var context = await factory.CreateWriteContextAsync();
+        var result = await factory.CreateWriteContextAsync();
 
         // Assert
+        var context = result.ShouldBeRight();
         context.ShouldNotBeNull();
         await context.DisposeAsync();
     }
@@ -180,7 +186,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetReadConnectionString().Returns(ReadConnectionString);
+        connectionSelector.GetReadConnectionString().Returns(Either<EncinaError, string>.Right(ReadConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-read-async")
@@ -192,9 +198,10 @@ public sealed class ReadWriteDbContextFactoryTests
             options);
 
         // Act
-        var context = await factory.CreateReadContextAsync();
+        var result = await factory.CreateReadContextAsync();
 
         // Assert
+        var context = result.ShouldBeRight();
         context.ShouldNotBeNull();
         await context.DisposeAsync();
     }
@@ -207,7 +214,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetConnectionString().Returns(WriteConnectionString);
+        connectionSelector.GetConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-context-async")
@@ -219,9 +226,10 @@ public sealed class ReadWriteDbContextFactoryTests
             options);
 
         // Act
-        var context = await factory.CreateContextAsync();
+        var result = await factory.CreateContextAsync();
 
         // Assert
+        var context = result.ShouldBeRight();
         context.ShouldNotBeNull();
         await context.DisposeAsync();
     }
@@ -234,7 +242,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetWriteConnectionString().Returns(WriteConnectionString);
+        connectionSelector.GetWriteConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-cancel")
@@ -261,7 +269,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetReadConnectionString().Returns(ReadConnectionString);
+        connectionSelector.GetReadConnectionString().Returns(Either<EncinaError, string>.Right(ReadConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-cancel-read")
@@ -288,7 +296,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetConnectionString().Returns(WriteConnectionString);
+        connectionSelector.GetConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-cancel-context")
@@ -315,7 +323,7 @@ public sealed class ReadWriteDbContextFactoryTests
         var serviceProvider = services.BuildServiceProvider();
 
         var connectionSelector = Substitute.For<IReadWriteConnectionSelector>();
-        connectionSelector.GetWriteConnectionString().Returns(WriteConnectionString);
+        connectionSelector.GetWriteConnectionString().Returns(Either<EncinaError, string>.Right(WriteConnectionString));
 
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseInMemoryDatabase("test-multiple")
@@ -327,8 +335,8 @@ public sealed class ReadWriteDbContextFactoryTests
             options);
 
         // Act
-        var context1 = factory.CreateWriteContext();
-        var context2 = factory.CreateWriteContext();
+        var context1 = factory.CreateWriteContext().ShouldBeRight();
+        var context2 = factory.CreateWriteContext().ShouldBeRight();
 
         // Assert
         context1.ShouldNotBeSameAs(context2);

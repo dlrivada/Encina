@@ -1,4 +1,6 @@
 using System.Data;
+using Encina;
+using LanguageExt;
 
 namespace Encina.Dapper.MySQL.Tenancy;
 
@@ -28,7 +30,7 @@ namespace Encina.Dapper.MySQL.Tenancy;
 ///     private readonly ITenantStore _tenantStore;
 ///     private readonly TenancyOptions _options;
 ///
-///     public async ValueTask&lt;IDbConnection&gt; CreateConnectionAsync(CancellationToken ct)
+///     public async ValueTask&lt;Either&lt;EncinaError, IDbConnection&gt;&gt; CreateConnectionAsync(CancellationToken ct)
 ///     {
 ///         var tenant = await _tenantProvider.GetCurrentTenantAsync(ct);
 ///         var connectionString = tenant?.ConnectionString ?? _options.DefaultConnectionString;
@@ -43,7 +45,10 @@ public interface ITenantConnectionFactory
     /// Creates a database connection for the current tenant.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A database connection configured for the current tenant.</returns>
+    /// <returns>
+    /// An <see cref="Either{EncinaError, IDbConnection}"/> containing either the connection
+    /// configured for the current tenant, or an error if the connection string is unavailable.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// The returned connection should be configured with the appropriate
@@ -58,19 +63,23 @@ public interface ITenantConnectionFactory
     /// If no tenant context is available, the default connection string is used.
     /// </para>
     /// </remarks>
-    ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a database connection for a specific tenant.
     /// </summary>
     /// <param name="tenantId">The tenant identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A database connection configured for the specified tenant.</returns>
+    /// <returns>
+    /// An <see cref="Either{EncinaError, IDbConnection}"/> containing either the connection
+    /// configured for the specified tenant, or an error if the tenant is not found
+    /// or the connection string is unavailable.
+    /// </returns>
     /// <remarks>
     /// Use this method when you need to explicitly specify the tenant,
     /// such as in background jobs or cross-tenant operations.
     /// </remarks>
-    ValueTask<IDbConnection> CreateConnectionForTenantAsync(
+    ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionForTenantAsync(
         string tenantId,
         CancellationToken cancellationToken = default);
 
@@ -78,6 +87,9 @@ public interface ITenantConnectionFactory
     /// Gets the connection string for the current tenant without creating a connection.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The connection string for the current tenant.</returns>
-    ValueTask<string> GetConnectionStringAsync(CancellationToken cancellationToken = default);
+    /// <returns>
+    /// An <see cref="Either{EncinaError, String}"/> containing either the connection string
+    /// for the current tenant, or an error if the connection string is unavailable.
+    /// </returns>
+    ValueTask<Either<EncinaError, string>> GetConnectionStringAsync(CancellationToken cancellationToken = default);
 }
