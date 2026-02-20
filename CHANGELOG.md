@@ -170,6 +170,84 @@ services.AddEncinaSecretsInstrumentation();
 
 **Testing**: 212 tests across 4 test projects (154 unit, 42 guard, 8 property, 8 contract).
 
+---
+
+#### Encina.Security.Encryption — Field-Level Encryption with AES-256-GCM (#396)
+
+Added the `Encina.Security.Encryption` package providing attribute-based, automatic field-level encryption and decryption at the CQRS pipeline level. Uses AES-256-GCM (NIST SP 800-38D) with per-operation random nonces, key rotation support, and multi-tenant key isolation for GDPR, HIPAA, and PCI-DSS compliance.
+
+**Core Abstractions**:
+
+- **`IFieldEncryptor`**: Low-level encrypt/decrypt interface for strings and byte arrays, returning `Either<EncinaError, T>` (Railway Oriented Programming)
+- **`IKeyProvider`**: Key management abstraction with `GetKeyAsync`, `GetCurrentKeyIdAsync`, and `RotateKeyAsync` — pluggable for Azure Key Vault, AWS KMS, or HashiCorp Vault
+- **`IEncryptionOrchestrator`**: High-level orchestrator that discovers `[Encrypt]`-decorated properties via reflection caching and delegates to `IFieldEncryptor`
+- **`EncryptionContext`**: Sealed record carrying `KeyId`, `Purpose` (for key derivation), `TenantId` (multi-tenant isolation), and `AssociatedData` (AEAD binding)
+- **`EncryptedValue`**: Readonly record struct with `Ciphertext`, `Algorithm`, `KeyId`, `Nonce`, and `Tag` — zero-allocation storage for hot paths
+
+**Three Declarative Attributes** (composable with other pipeline behaviors):
+
+- **`[Encrypt(Purpose = "User.Email")]`**: Marks string properties for automatic encryption with optional purpose-based key derivation and explicit key version
+- **`[EncryptedResponse]`**: Marks response types for encryption before returning to the caller
+- **`[DecryptOnReceive]`**: Marks incoming data for decryption before handler execution
+
+**Base Attribute** (`EncryptionAttribute`):
+
+- `Algorithm` — configurable per-property (default: `Aes256Gcm`)
+- `FailOnError` — when `true` (default), encryption/decryption failures propagate as `EncinaError`; when `false`, the value is left unchanged
+
+**Pipeline Behavior**:
+
+- **`EncryptionPipelineBehavior<TRequest, TResponse>`**: Automatic encrypt-before-handle and decrypt-after-handle with attribute detection
+- Requests without encryption attributes bypass all checks (zero overhead)
+- Configurable via `EncryptionOptions` for global defaults
+
+**Serialization Format** (compact, self-describing):
+
+- `ENC:v1:{Algorithm}:{KeyId}:{Base64Nonce}:{Base64Tag}:{Base64Ciphertext}` — embeds key version for seamless key rotation
+
+**Error Codes** (5 structured errors via `EncryptionErrors`):
+
+- `encryption.key_not_found`, `encryption.decryption_failed`, `encryption.invalid_ciphertext`
+- `encryption.algorithm_not_supported`, `encryption.key_rotation_failed`
+- All errors include structured metadata (`keyId`, `propertyName`, `algorithm`)
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Security.Encryption` ActivitySource with tags: `encryption.request_type`, `encryption.operation`, `encryption.property_count`, `encryption.outcome`
+- 3 metric instruments under `Encina.Security.Encryption` Meter: `encryption.operations.total` (counter), `encryption.failures.total` (counter), `encryption.operation.duration` (histogram in ms)
+- Structured logging with `ILogger<T>` for encrypt/decrypt operations and error conditions
+
+**Health Check**:
+
+- **`EncryptionHealthCheck`**: Roundtrip verification — encrypts test data and decrypts it to verify the full crypto pipeline
+- Opt-in via `EncryptionOptions.AddHealthCheck = true`
+- Tags: `encina`, `encryption`, `ready`
+
+**Default Implementation**:
+
+- **`InMemoryKeyProvider`**: Thread-safe in-memory key store for testing and development (not for production)
+- **`AesGcmFieldEncryptor`**: AES-256-GCM with 12-byte nonce, 16-byte tag, 32-byte key — stateless, thread-safe
+
+**DI Registration**:
+
+```csharp
+// Basic setup (InMemoryKeyProvider for testing)
+services.AddEncinaEncryption();
+
+// With custom key provider (e.g., Azure Key Vault)
+services.AddSingleton<IKeyProvider, AzureKeyVaultKeyProvider>();
+services.AddEncinaEncryption(options =>
+{
+    options.AddHealthCheck = true;
+    options.EnableTracing = true;
+});
+
+// Or use the generic overload
+services.AddEncinaEncryption<AzureKeyVaultKeyProvider>();
+```
+
+**Testing**: 181 tests across 5 test projects (109 unit, 22 guard, 12 property, 28 contract, 10 integration) plus BenchmarkDotNet benchmarks.
+
 ### Changed
 
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)

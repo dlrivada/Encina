@@ -1,0 +1,94 @@
+#nullable enable
+Encina.Security.Encryption.Abstractions.IEncryptionOrchestrator
+Encina.Security.Encryption.Abstractions.IEncryptionOrchestrator.DecryptAsync<T>(T instance, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Security.Encryption.Abstractions.IEncryptionOrchestrator.EncryptAsync<T>(T instance, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Security.Encryption.Abstractions.IFieldEncryptor
+Encina.Security.Encryption.Abstractions.IFieldEncryptor.DecryptBytesAsync(Encina.Security.Encryption.EncryptedValue encryptedValue, Encina.Security.Encryption.EncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Security.Encryption.Abstractions.IFieldEncryptor.DecryptStringAsync(Encina.Security.Encryption.EncryptedValue encryptedValue, Encina.Security.Encryption.EncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Encryption.Abstractions.IFieldEncryptor.EncryptBytesAsync(System.ReadOnlyMemory<byte> plaintext, Encina.Security.Encryption.EncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Encryption.EncryptedValue>>
+Encina.Security.Encryption.Abstractions.IFieldEncryptor.EncryptStringAsync(string! plaintext, Encina.Security.Encryption.EncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Encryption.EncryptedValue>>
+Encina.Security.Encryption.Abstractions.IKeyProvider
+Encina.Security.Encryption.Abstractions.IKeyProvider.GetCurrentKeyIdAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Encryption.Abstractions.IKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Security.Encryption.Abstractions.IKeyProvider.RotateKeyAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Encryption.DecryptOnReceiveAttribute
+Encina.Security.Encryption.DecryptOnReceiveAttribute.DecryptOnReceiveAttribute() -> void
+Encina.Security.Encryption.EncryptAttribute
+Encina.Security.Encryption.EncryptAttribute.EncryptAttribute() -> void
+Encina.Security.Encryption.EncryptAttribute.KeyId.get -> string?
+Encina.Security.Encryption.EncryptAttribute.KeyId.set -> void
+Encina.Security.Encryption.EncryptAttribute.Purpose.get -> string?
+Encina.Security.Encryption.EncryptAttribute.Purpose.set -> void
+Encina.Security.Encryption.EncryptedResponseAttribute
+Encina.Security.Encryption.EncryptedResponseAttribute.EncryptedResponseAttribute() -> void
+Encina.Security.Encryption.EncryptedValue
+Encina.Security.Encryption.EncryptedValue.Algorithm.get -> Encina.Security.Encryption.EncryptionAlgorithm
+Encina.Security.Encryption.EncryptedValue.Algorithm.init -> void
+Encina.Security.Encryption.EncryptedValue.Ciphertext.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Security.Encryption.EncryptedValue.Ciphertext.init -> void
+Encina.Security.Encryption.EncryptedValue.EncryptedValue() -> void
+Encina.Security.Encryption.EncryptedValue.KeyId.get -> string!
+Encina.Security.Encryption.EncryptedValue.KeyId.init -> void
+Encina.Security.Encryption.EncryptedValue.Nonce.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Security.Encryption.EncryptedValue.Nonce.init -> void
+Encina.Security.Encryption.EncryptedValue.Tag.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Security.Encryption.EncryptedValue.Tag.init -> void
+Encina.Security.Encryption.EncryptionAlgorithm
+Encina.Security.Encryption.EncryptionAlgorithm.Aes256Gcm = 0 -> Encina.Security.Encryption.EncryptionAlgorithm
+Encina.Security.Encryption.EncryptionAttribute
+Encina.Security.Encryption.EncryptionAttribute.Algorithm.get -> Encina.Security.Encryption.EncryptionAlgorithm
+Encina.Security.Encryption.EncryptionAttribute.Algorithm.set -> void
+Encina.Security.Encryption.EncryptionAttribute.EncryptionAttribute() -> void
+Encina.Security.Encryption.EncryptionAttribute.FailOnError.get -> bool
+Encina.Security.Encryption.EncryptionAttribute.FailOnError.set -> void
+Encina.Security.Encryption.EncryptionContext
+Encina.Security.Encryption.EncryptionContext.AssociatedData.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Security.Encryption.EncryptionContext.AssociatedData.init -> void
+Encina.Security.Encryption.EncryptionContext.KeyId.get -> string?
+Encina.Security.Encryption.EncryptionContext.KeyId.init -> void
+Encina.Security.Encryption.EncryptionContext.Purpose.get -> string?
+Encina.Security.Encryption.EncryptionContext.Purpose.init -> void
+Encina.Security.Encryption.EncryptionContext.TenantId.get -> string?
+Encina.Security.Encryption.EncryptionContext.TenantId.init -> void
+Encina.Security.Encryption.Health.EncryptionHealthCheck
+Encina.Security.Encryption.Health.EncryptionHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Security.Encryption.Health.EncryptionHealthCheck.EncryptionHealthCheck(System.IServiceProvider! serviceProvider) -> void
+const Encina.Security.Encryption.Health.EncryptionHealthCheck.DefaultName = "encina-encryption" -> string!
+Encina.Security.Encryption.EncryptionErrors
+Encina.Security.Encryption.EncryptionOptions
+Encina.Security.Encryption.EncryptionOptions.AddHealthCheck.get -> bool
+Encina.Security.Encryption.EncryptionOptions.AddHealthCheck.set -> void
+Encina.Security.Encryption.EncryptionOptions.DefaultAlgorithm.get -> Encina.Security.Encryption.EncryptionAlgorithm
+Encina.Security.Encryption.EncryptionOptions.DefaultAlgorithm.set -> void
+Encina.Security.Encryption.EncryptionOptions.EnableMetrics.get -> bool
+Encina.Security.Encryption.EncryptionOptions.EnableMetrics.set -> void
+Encina.Security.Encryption.EncryptionOptions.EnableTracing.get -> bool
+Encina.Security.Encryption.EncryptionOptions.EnableTracing.set -> void
+Encina.Security.Encryption.EncryptionOptions.EncryptionOptions() -> void
+Encina.Security.Encryption.EncryptionOptions.FailOnDecryptionError.get -> bool
+Encina.Security.Encryption.EncryptionOptions.FailOnDecryptionError.set -> void
+Encina.Security.Encryption.EncryptionPipelineBehavior<TRequest, TResponse>
+Encina.Security.Encryption.EncryptionPipelineBehavior<TRequest, TResponse>.EncryptionPipelineBehavior(Encina.Security.Encryption.Abstractions.IEncryptionOrchestrator! orchestrator, Microsoft.Extensions.Options.IOptions<Encina.Security.Encryption.EncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Encryption.EncryptionPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Security.Encryption.EncryptionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Security.Encryption.InMemoryKeyProvider
+Encina.Security.Encryption.InMemoryKeyProvider.AddKey(string! keyId, byte[]! key) -> void
+Encina.Security.Encryption.InMemoryKeyProvider.Clear() -> void
+Encina.Security.Encryption.InMemoryKeyProvider.Count.get -> int
+Encina.Security.Encryption.InMemoryKeyProvider.GetCurrentKeyIdAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Encryption.InMemoryKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Security.Encryption.InMemoryKeyProvider.InMemoryKeyProvider() -> void
+Encina.Security.Encryption.InMemoryKeyProvider.RotateKeyAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Encryption.InMemoryKeyProvider.SetCurrentKey(string! keyId) -> void
+Encina.Security.Encryption.ServiceCollectionExtensions
+const Encina.Security.Encryption.EncryptionErrors.AlgorithmNotSupportedCode = "encryption.algorithm_not_supported" -> string!
+const Encina.Security.Encryption.EncryptionErrors.DecryptionFailedCode = "encryption.decryption_failed" -> string!
+const Encina.Security.Encryption.EncryptionErrors.InvalidCiphertextCode = "encryption.invalid_ciphertext" -> string!
+const Encina.Security.Encryption.EncryptionErrors.KeyNotFoundCode = "encryption.key_not_found" -> string!
+const Encina.Security.Encryption.EncryptionErrors.KeyRotationFailedCode = "encryption.key_rotation_failed" -> string!
+static Encina.Security.Encryption.EncryptionErrors.AlgorithmNotSupported(Encina.Security.Encryption.EncryptionAlgorithm algorithm) -> Encina.EncinaError
+static Encina.Security.Encryption.EncryptionErrors.DecryptionFailed(string! keyId, string? propertyName = null, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Encryption.EncryptionErrors.InvalidCiphertext(string? propertyName = null) -> Encina.EncinaError
+static Encina.Security.Encryption.EncryptionErrors.KeyNotFound(string! keyId) -> Encina.EncinaError
+static Encina.Security.Encryption.EncryptionErrors.KeyRotationFailed(System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Encryption.ServiceCollectionExtensions.AddEncinaEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Encryption.EncryptionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Security.Encryption.ServiceCollectionExtensions.AddEncinaEncryption<TKeyProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Encryption.EncryptionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -5570,7 +5570,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 |-------|--------|-------------|-----------|-------------|-------------------|
 | **#394** | Security Core | Abstracciones core de seguridad con RBAC, policies y permission-based auth | Crítica | Alta | `area-security`, `area-authentication`, `area-authorization`, `owasp-pattern`, `aot-compatible` |
 | **#395** ✅ | Audit Trail | Logging de auditoría con who/what/when/where para compliance | Crítica | Alta | `area-security`, `area-auditing`, `area-gdpr`, `eu-regulation` |
-| **#396** | Field Encryption | Encriptación a nivel de campo con key rotation y Azure Key Vault/AWS KMS | Alta | Alta | `area-security`, `area-encryption`, `area-gdpr`, `pattern-crypto-shredding`, `owasp-pattern` |
+| **#396** ✅ | Field Encryption | Encriptación a nivel de campo con AES-256-GCM, key rotation y multi-tenant isolation (IMPLEMENTADO) | Alta | Alta | `area-security`, `area-encryption`, `area-gdpr`, `pattern-crypto-shredding`, `owasp-pattern` |
 | **#397** | PII Masking | Enmascaramiento de datos PII con redacción automática para GDPR | Alta | Media | `area-security`, `area-gdpr`, `pattern-data-masking`, `eu-regulation` |
 | **#398** | Anti-Tampering | Firma de requests con HMAC/RSA para verificación de integridad | Alta | Media | `area-security`, `area-web-api`, `owasp-pattern` |
 | **#399** | Sanitization | Sanitización de input/output contra XSS, SQL injection, command injection | Alta | Media | `area-security`, `area-validation`, `owasp-pattern` |
@@ -5621,16 +5621,23 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 
 ##### Tier 2: Alta Prioridad (Data Protection)
 
-**#396 - Encina.Security.Encryption - Field-Level Encryption**:
+**#396 - Encina.Security.Encryption - Field-Level Encryption** ✅ **IMPLEMENTADO**:
 
-- `IFieldEncryptor` con `EncryptAsync`, `DecryptAsync`, `RotateKeyAsync`
-- `[Encrypt]` atributo para propiedades sensibles con algoritmo configurable
-- `EncryptionPipelineBehavior` para encrypt/decrypt automático en pipeline
-- Key rotation automático con versionado de claves
-- Integración con Azure Key Vault, AWS KMS, HashiCorp Vault
-- Crypto-shredding para GDPR: borrar clave = "olvidar" datos
-- **Nuevo paquete planificado**: `Encina.Security.Encryption`
-- **Demanda de comunidad**: ALTA - Crítico para datos sensibles (PCI-DSS, GDPR)
+- `IFieldEncryptor` con `EncryptStringAsync`, `DecryptStringAsync`, `EncryptBytesAsync`, `DecryptBytesAsync`
+- `IKeyProvider` con `GetKeyAsync`, `GetCurrentKeyIdAsync`, `RotateKeyAsync`
+- `IEncryptionOrchestrator` con `EncryptAsync<T>`, `DecryptAsync<T>` (descubre propiedades `[Encrypt]` por reflexión)
+- `[Encrypt]` atributo para propiedades sensibles con `Purpose` y `KeyId` configurable
+- `[EncryptedResponse]` y `[DecryptOnReceive]` para respuestas e input externo
+- `EncryptionPipelineBehavior<TRequest, TResponse>` para encrypt/decrypt automático en pipeline
+- AES-256-GCM (NIST SP 800-38D) con nonce aleatorio de 12 bytes y tag de 16 bytes
+- Key rotation con versionado embebido en ciphertext: `ENC:v1:{Algorithm}:{KeyId}:{Nonce}:{Tag}:{Ciphertext}`
+- Multi-tenant isolation via `EncryptionContext.TenantId` desde `IRequestContext`
+- `InMemoryKeyProvider` para testing (thread-safe con `ConcurrentDictionary`)
+- `EncryptionHealthCheck` con verificación roundtrip encrypt/decrypt
+- OpenTelemetry tracing y metrics (opt-in via `EncryptionOptions`)
+- 5 error codes: `encryption.key_not_found`, `.decryption_failed`, `.invalid_ciphertext`, `.algorithm_not_supported`, `.key_rotation_failed`
+- 181 tests (109 unit, 22 guard, 12 property, 28 contract, 10 integration) + benchmarks
+- **Paquete implementado**: `Encina.Security.Encryption`
 - Labels: `area-security`, `area-encryption`, `area-gdpr`, `area-data-protection`, `pattern-crypto-shredding`, `owasp-pattern`, `cloud-aws`, `cloud-azure`
 - Referencias: [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/), [AWS KMS](https://aws.amazon.com/kms/), [OWASP Cryptographic Storage](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html)
 
@@ -5711,7 +5718,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 |---------|-------|-------------|-----------|
 | `Encina.Security` | #394 ✅ | Core security abstractions, RBAC, policies (IMPLEMENTADO) | Crítica |
 | `Encina.Security.Audit` | #395 ✅ | Audit trail logging (IMPLEMENTADO) | Crítica |
-| `Encina.Security.Encryption` | #396 | Field-level encryption | Alta |
+| `Encina.Security.Encryption` | #396 ✅ | Field-level encryption with AES-256-GCM (IMPLEMENTADO) | Alta |
 | `Encina.Security.PII` | #397 | PII masking and protection | Alta |
 | `Encina.Security.AntiTampering` | #398 | Request signing and verification | Alta |
 | `Encina.Security.Sanitization` | #399 | Input/output sanitization | Alta |
