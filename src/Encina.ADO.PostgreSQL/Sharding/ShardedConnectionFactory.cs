@@ -103,9 +103,7 @@ public sealed class ShardedConnectionFactory :
 
             if (matched.IsLeft)
             {
-                return matched.Match<Either<EncinaError, IReadOnlyDictionary<string, NpgsqlConnection>>>(
-                    Right: _ => throw new InvalidOperationException("Unexpected Right after Left check"),
-                    Left: error => error);
+                return (EncinaError)matched;
             }
         }
 

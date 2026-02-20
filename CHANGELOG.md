@@ -177,6 +177,7 @@ services.AddEncinaSecretsInstrumentation();
 - All orchestrator public methods now return `Either<EncinaError, T>` instead of throwing exceptions (#670)
 - All mapping builder `Build()` methods now return `Either<EncinaError, T>` instead of throwing `InvalidOperationException` (#671)
 - Removed unreachable `throw` statements from `Match`/`MatchAsync` callbacks where the branch was already determined by prior `IsLeft`/`IsSome` checks (#672)
+- Removed 16 unreachable `throw new InvalidOperationException("Unexpected Right after Left check")` in Sharding `GetAllConnections`/`GetAllCollections` loops across all 13 database providers, replaced with direct `(EncinaError)` cast (#675)
 
 ### Fixed
 

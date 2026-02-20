@@ -245,9 +245,7 @@ public sealed class ShardedReadWriteMongoCollectionFactory : IShardedReadWriteMo
 
             if (collectionResult.IsLeft)
             {
-                return collectionResult.Match<Either<EncinaError, IReadOnlyDictionary<string, IMongoCollection<TEntity>>>>(
-                    Right: _ => throw new InvalidOperationException("Unexpected Right after Left check"),
-                    Left: error => error);
+                return (EncinaError)collectionResult;
             }
 
             collectionResult.IfRight(collection => collections[shardId] = collection);

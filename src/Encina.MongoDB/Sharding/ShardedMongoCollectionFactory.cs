@@ -142,9 +142,7 @@ public sealed class ShardedMongoCollectionFactory : IShardedMongoCollectionFacto
 
             if (clientResult.IsLeft)
             {
-                return clientResult.Match<Either<EncinaError, IReadOnlyDictionary<string, IMongoCollection<TEntity>>>>(
-                    Right: _ => throw new InvalidOperationException("Unexpected Right after Left check"),
-                    Left: error => error);
+                return (EncinaError)clientResult;
             }
 
             clientResult.IfRight(client =>

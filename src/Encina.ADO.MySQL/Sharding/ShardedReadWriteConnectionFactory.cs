@@ -279,9 +279,7 @@ public sealed class ShardedReadWriteConnectionFactory :
 
             if (matched.IsLeft)
             {
-                return matched.Match<Either<EncinaError, IReadOnlyDictionary<string, MySqlConnection>>>(
-                    Right: _ => throw new InvalidOperationException("Unexpected Right after Left check"),
-                    Left: error => error);
+                return (EncinaError)matched;
             }
         }
 

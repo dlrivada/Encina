@@ -214,9 +214,7 @@ public sealed class ShardedReadWriteDbContextFactory<TContext> : IShardedReadWri
 
             if (matched.IsLeft)
             {
-                return matched.Match<Either<EncinaError, IReadOnlyDictionary<string, TContext>>>(
-                    Right: _ => throw new InvalidOperationException("Unexpected Right after Left check"),
-                    Left: error => error);
+                return (EncinaError)matched;
             }
         }
 
