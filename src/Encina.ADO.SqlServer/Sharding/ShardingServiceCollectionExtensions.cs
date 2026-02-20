@@ -73,7 +73,8 @@ public static class ShardingServiceCollectionExtensions
         // Build entity mapping
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configureMapping(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register entity mapping
         services.TryAddSingleton<IEntityMapping<TEntity, TId>>(mapping);

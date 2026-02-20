@@ -143,20 +143,21 @@ public record OrderSagaData
     public string? ShipmentId { get; set; }
 }
 
-// In your command handler
+// In your command handler — all SagaOrchestrator methods return Either<EncinaError, T>
 public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 {
     private readonly SagaOrchestrator _sagaOrchestrator;
     private readonly IInventoryService _inventory;
     private readonly IPaymentService _payment;
+    private readonly IShippingService _shipping;
 
     public async ValueTask<Either<EncinaError, Order>> Handle(
         CreateOrderCommand command,
         IRequestContext context,
         CancellationToken ct)
     {
-        // Start the saga
-        var sagaId = await _sagaOrchestrator.StartAsync(
+        // Start the saga — returns Either<EncinaError, Guid>
+        var startResult = await _sagaOrchestrator.StartAsync(
             "OrderFulfillment",
             new OrderSagaData
             {
@@ -166,70 +167,47 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
             },
             ct);
 
-        try
-        {
-            // Step 1: Reserve inventory
-            var reservation = await _inventory.ReserveAsync(command.Items, ct);
-            await _sagaOrchestrator.AdvanceAsync<OrderSagaData>(
-                sagaId,
-                data => data with { ReservationId = reservation.Id },
-                ct);
-
-            // Step 2: Process payment
-            var payment = await _payment.ProcessAsync(command.TotalAmount, ct);
-            await _sagaOrchestrator.AdvanceAsync<OrderSagaData>(
-                sagaId,
-                data => data with { PaymentId = payment.Id },
-                ct);
-
-            // Step 3: Ship order
-            var shipment = await _shipping.CreateAsync(command.OrderId, ct);
-            await _sagaOrchestrator.AdvanceAsync<OrderSagaData>(
-                sagaId,
-                data => data with { ShipmentId = shipment.Id },
-                ct);
-
-            // Complete saga
-            await _sagaOrchestrator.CompleteAsync(sagaId, ct);
-
-            return new Order(command.OrderId, OrderStatus.Completed);
-        }
-        catch (Exception ex)
-        {
-            // Start compensation
-            var stepToCompensate = await _sagaOrchestrator.StartCompensationAsync(
-                sagaId, ex.Message, ct);
-
-            // Get saga data for compensation
-            var sagaState = await _sagaOrchestrator.GetAsync<OrderSagaData>(sagaId, ct);
-            var data = sagaState.Match(s => s.Data, () => null!);
-
-            // Compensate in reverse order
-            while (stepToCompensate > 0)
+        return await startResult.MatchAsync(
+            RightAsync: async sagaId =>
             {
-                switch (stepToCompensate)
-                {
-                    case 3: // Undo shipment
-                        if (data.ShipmentId != null)
-                            await _shipping.CancelAsync(data.ShipmentId, ct);
-                        break;
-                    case 2: // Refund payment
-                        if (data.PaymentId != null)
-                            await _payment.RefundAsync(data.PaymentId, ct);
-                        break;
-                    case 1: // Release inventory
-                        if (data.ReservationId != null)
-                            await _inventory.ReleaseAsync(data.ReservationId, ct);
-                        break;
-                }
+                // Step 1: Reserve inventory
+                var reservation = await _inventory.ReserveAsync(command.Items, ct);
+                var advance1 = await _sagaOrchestrator.AdvanceAsync<OrderSagaData>(
+                    sagaId,
+                    data => data with { ReservationId = reservation.Id },
+                    ct);
 
-                stepToCompensate = await _sagaOrchestrator
-                    .CompensateStepAsync(sagaId, ct)
-                    .Match(step => step, _ => 0);
-            }
+                if (advance1.IsLeft)
+                    return advance1.Match(_ => default!, Left: e => e);
 
-            return EncinaErrors.Create("order.failed", ex.Message);
-        }
+                // Step 2: Process payment
+                var payment = await _payment.ProcessAsync(command.TotalAmount, ct);
+                var advance2 = await _sagaOrchestrator.AdvanceAsync<OrderSagaData>(
+                    sagaId,
+                    data => data with { PaymentId = payment.Id },
+                    ct);
+
+                if (advance2.IsLeft)
+                    return advance2.Match(_ => default!, Left: e => e);
+
+                // Step 3: Ship order
+                var shipment = await _shipping.CreateAsync(command.OrderId, ct);
+                var advance3 = await _sagaOrchestrator.AdvanceAsync<OrderSagaData>(
+                    sagaId,
+                    data => data with { ShipmentId = shipment.Id },
+                    ct);
+
+                if (advance3.IsLeft)
+                    return advance3.Match(_ => default!, Left: e => e);
+
+                // Complete saga — returns Either<EncinaError, Unit>
+                var completeResult = await _sagaOrchestrator.CompleteAsync(sagaId, ct);
+
+                return completeResult.Match<Either<EncinaError, Order>>(
+                    Right: _ => new Order(command.OrderId, OrderStatus.Completed),
+                    Left: error => error);
+            },
+            Left: error => error);
     }
 }
 ```

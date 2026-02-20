@@ -25,7 +25,7 @@ namespace Encina.AzureFunctions.Durable;
 ///     .Step("ShipOrder")
 ///         .Execute("ShipOrderActivity")
 ///         .Compensate("CancelShipmentActivity")
-///     .Build();
+///     .Build(); // Returns Either&lt;EncinaError, DurableSaga&lt;TData&gt;&gt;
 ///
 /// var result = await saga.ExecuteAsync(context, initialData);
 /// </code>
@@ -73,12 +73,14 @@ public sealed class DurableSagaBuilder<TData>
     /// <summary>
     /// Builds the saga definition.
     /// </summary>
-    /// <returns>An executable saga definition.</returns>
-    public DurableSaga<TData> Build()
+    /// <returns>Either the built saga definition or a validation error.</returns>
+    public Either<EncinaError, DurableSaga<TData>> Build()
     {
         if (_steps.Count == 0)
         {
-            throw new InvalidOperationException("Saga must have at least one step.");
+            return EncinaErrors.Create(
+                DurableSagaErrorCodes.NoSteps,
+                "Saga must have at least one step.");
         }
 
         return new DurableSaga<TData>([.. _steps], _defaultRetryOptions, _timeout);
@@ -161,27 +163,37 @@ public sealed class DurableSagaStepBuilder<TData>
     /// </summary>
     /// <param name="stepName">The name of the next step.</param>
     /// <returns>A new step builder for the next step.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the current step is not properly configured.
+    /// </exception>
     public DurableSagaStepBuilder<TData> Step(string stepName)
     {
-        FinalizeStep();
+        var result = FinalizeStep();
+        if (result.IsLeft)
+        {
+            var error = result.Match(Left: e => e, Right: _ => default!);
+            throw new InvalidOperationException(error.Message);
+        }
+
         return _sagaBuilder.Step(stepName);
     }
 
     /// <summary>
     /// Adds the current step and builds the saga.
     /// </summary>
-    /// <returns>The built saga definition.</returns>
-    public DurableSaga<TData> Build()
+    /// <returns>Either the built saga definition or a validation error.</returns>
+    public Either<EncinaError, DurableSaga<TData>> Build()
     {
-        FinalizeStep();
-        return _sagaBuilder.Build();
+        return FinalizeStep().Bind(_ => _sagaBuilder.Build());
     }
 
-    private void FinalizeStep()
+    private Either<EncinaError, Unit> FinalizeStep()
     {
         if (string.IsNullOrEmpty(_executeActivityName))
         {
-            throw new InvalidOperationException($"Step '{_stepName}' must have an Execute activity.");
+            return EncinaErrors.Create(
+                DurableSagaErrorCodes.StepNotConfigured,
+                $"Step '{_stepName}' must have an Execute activity.");
         }
 
         var step = new DurableSagaStep<TData>
@@ -194,6 +206,7 @@ public sealed class DurableSagaStepBuilder<TData>
         };
 
         _sagaBuilder.AddStep(step);
+        return Unit.Default;
     }
 }
 

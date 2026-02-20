@@ -1,4 +1,6 @@
+using Encina.MongoDB;
 using Encina.MongoDB.Tenancy;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using Xunit;
 
@@ -21,7 +23,7 @@ public sealed class TenantEntityMappingBuilderTests
             .MapField(o => o.CustomerId);
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.IsTenantEntity.ShouldBeTrue();
@@ -40,7 +42,7 @@ public sealed class TenantEntityMappingBuilderTests
             .MapField(o => o.CustomerId);
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.IsTenantEntity.ShouldBeFalse();
@@ -59,7 +61,7 @@ public sealed class TenantEntityMappingBuilderTests
             .MapField(o => o.CustomerId);
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.TenantFieldName.ShouldBe("OrganizationId");
@@ -67,29 +69,33 @@ public sealed class TenantEntityMappingBuilderTests
     }
 
     [Fact]
-    public void Build_WithoutCollectionName_ThrowsInvalidOperationException()
+    public void Build_WithoutCollectionName_ReturnsError()
     {
         // Arrange
         var builder = new TenantEntityMappingBuilder<MongoTenantTestOrder, Guid>()
             .HasId(o => o.Id)
             .MapField(o => o.CustomerId);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Collection name");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingTableName);
     }
 
     [Fact]
-    public void Build_WithoutIdProperty_ThrowsInvalidOperationException()
+    public void Build_WithoutIdProperty_ReturnsError()
     {
         // Arrange
         var builder = new TenantEntityMappingBuilder<MongoTenantTestOrder, Guid>()
             .ToCollection("orders")
             .MapField(o => o.CustomerId);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Primary key");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
@@ -102,7 +108,7 @@ public sealed class TenantEntityMappingBuilderTests
             .MapField(o => o.CustomerId);
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.CollectionName.ShouldBe("mydb.orders");
@@ -117,7 +123,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapField(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new MongoTenantTestOrder { TenantId = "tenant-xyz" };
 
@@ -136,7 +143,8 @@ public sealed class TenantEntityMappingBuilderTests
             .ToCollection("orders")
             .HasId(o => o.Id)
             .MapField(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new MongoTenantTestOrder { TenantId = "tenant-xyz" };
 
@@ -156,7 +164,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapField(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new MongoTenantTestOrder();
 
@@ -175,7 +184,8 @@ public sealed class TenantEntityMappingBuilderTests
             .ToCollection("orders")
             .HasId(o => o.Id)
             .MapField(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new MongoTenantTestOrder();
 
@@ -192,7 +202,8 @@ public sealed class TenantEntityMappingBuilderTests
             .ToCollection("orders")
             .HasId(o => o.Id)
             .MapField(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var orderId = Guid.NewGuid();
         var order = new MongoTenantTestOrder { Id = orderId };
@@ -214,7 +225,7 @@ public sealed class TenantEntityMappingBuilderTests
             .MapField(o => o.CustomerId, "customer_id");
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.FieldMappings["CustomerId"].ShouldBe("customer_id");
@@ -230,7 +241,7 @@ public sealed class TenantEntityMappingBuilderTests
             .MapField(o => o.CustomerId);
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.IdFieldName.ShouldBe("order_id");
@@ -247,7 +258,7 @@ public sealed class TenantEntityMappingBuilderTests
             .MapField(o => o.CustomerId);
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.IdFieldName.ShouldBe("_id");

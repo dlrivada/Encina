@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Encina.ADO.PostgreSQL.Repository;
 using Encina.Messaging;
+using LanguageExt;
 
 namespace Encina.ADO.PostgreSQL.Tenancy;
 
@@ -24,7 +25,7 @@ namespace Encina.ADO.PostgreSQL.Tenancy;
 ///     .HasTenantId(o =&gt; o.TenantId)
 ///     .MapProperty(o =&gt; o.CustomerId)
 ///     .MapProperty(o =&gt; o.Total)
-///     .Build();
+///     .Build(); // Returns Either&lt;EncinaError, ITenantEntityMapping&lt;TEntity, TId&gt;&gt;
 /// </code>
 /// </example>
 public sealed class TenantEntityMappingBuilder<TEntity, TId>
@@ -40,8 +41,8 @@ public sealed class TenantEntityMappingBuilder<TEntity, TId>
     private Func<TEntity, string?>? _tenantIdGetter;
     private Action<TEntity, string>? _tenantIdSetter;
     private readonly Dictionary<string, string> _columnMappings = new();
-    private readonly HashSet<string> _insertExcluded = [];
-    private readonly HashSet<string> _updateExcluded = [];
+    private readonly System.Collections.Generic.HashSet<string> _insertExcluded = [];
+    private readonly System.Collections.Generic.HashSet<string> _updateExcluded = [];
 
     /// <summary>
     /// Specifies the database table name for this entity.
@@ -183,41 +184,42 @@ public sealed class TenantEntityMappingBuilder<TEntity, TId>
     /// <summary>
     /// Builds the tenant-aware entity mapping configuration.
     /// </summary>
-    /// <returns>The configured entity mapping.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when required configuration is missing.
-    /// </exception>
-    public ITenantEntityMapping<TEntity, TId> Build()
+    /// <returns>Either the configured entity mapping or a validation error.</returns>
+    public Either<EncinaError, ITenantEntityMapping<TEntity, TId>> Build()
     {
         if (string.IsNullOrWhiteSpace(_tableName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingTableName,
                 $"Table name must be specified. Call {nameof(ToTable)}() before {nameof(Build)}().");
         }
 
         if (_idSelector is null || string.IsNullOrWhiteSpace(_idColumnName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingPrimaryKey,
                 $"Primary key must be specified. Call {nameof(HasId)}() before {nameof(Build)}().");
         }
 
         if (_columnMappings.Count == 0)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingColumnMappings,
                 $"At least one column mapping is required. Call {nameof(MapProperty)}() or {nameof(HasId)}() before {nameof(Build)}().");
         }
 
-        return new TenantEntityMapping<TEntity, TId>(
-            _tableName,
-            _idColumnName,
-            _idSelector,
-            new Dictionary<string, string>(_columnMappings),
-            new HashSet<string>(_insertExcluded),
-            new HashSet<string>(_updateExcluded),
-            _tenantColumnName,
-            _tenantPropertyName,
-            _tenantIdGetter,
-            _tenantIdSetter);
+        return Either<EncinaError, ITenantEntityMapping<TEntity, TId>>.Right(
+            new TenantEntityMapping<TEntity, TId>(
+                _tableName,
+                _idColumnName,
+                _idSelector,
+                new Dictionary<string, string>(_columnMappings),
+                new System.Collections.Generic.HashSet<string>(_insertExcluded),
+                new System.Collections.Generic.HashSet<string>(_updateExcluded),
+                _tenantColumnName,
+                _tenantPropertyName,
+                _tenantIdGetter,
+                _tenantIdSetter));
     }
 
     private static string GetPropertyName<TProperty>(Expression<Func<TEntity, TProperty>> propertySelector)
@@ -254,8 +256,8 @@ internal sealed class TenantEntityMapping<TEntity, TId> : ITenantEntityMapping<T
         string idColumnName,
         Func<TEntity, TId> idSelector,
         Dictionary<string, string> columnMappings,
-        HashSet<string> insertExcluded,
-        HashSet<string> updateExcluded,
+        System.Collections.Generic.HashSet<string> insertExcluded,
+        System.Collections.Generic.HashSet<string> updateExcluded,
         string? tenantColumnName,
         string? tenantPropertyName,
         Func<TEntity, string?>? tenantIdGetter,

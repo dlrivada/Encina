@@ -93,7 +93,8 @@ public class UnitOfWorkADOIntegrationTests : IAsyncLifetime
             .MapProperty(p => p.Price, "Price")
             .MapProperty(p => p.IsActive, "IsActive")
             .MapProperty(p => p.CreatedAtUtc, "CreatedAtUtc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
     }
 
     #region Transaction Commit Tests

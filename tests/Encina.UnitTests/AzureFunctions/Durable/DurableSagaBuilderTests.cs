@@ -1,4 +1,5 @@
 using Encina.AzureFunctions.Durable;
+using Encina.Testing.Shouldly;
 using Encina.UnitTests.AzureFunctions.Fakers;
 
 namespace Encina.UnitTests.AzureFunctions.Durable;
@@ -95,7 +96,8 @@ public class DurableSagaBuilderTests
         var saga = DurableSagaBuilder.Create<TestSagaData>()
             .Step("Step1")
                 .Execute("ExecuteStep1")
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert
         saga.Steps.Count.ShouldBe(1);
@@ -117,7 +119,8 @@ public class DurableSagaBuilderTests
                 .Compensate("Compensate2")
             .Step("Step3")
                 .Execute("Execute3")
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert
         saga.Steps.Count.ShouldBe(3);
@@ -134,7 +137,8 @@ public class DurableSagaBuilderTests
             .Step("Step1")
                 .Execute("DoSomething")
                 .Compensate("UndoSomething")
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert
         saga.Steps[0].CompensateActivityName.ShouldBe("UndoSomething");
@@ -153,7 +157,8 @@ public class DurableSagaBuilderTests
             .Step("Step1")
                 .Execute("Execute1")
                 .WithRetry(retryOptions)
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert
         saga.Steps[0].RetryOptions.ShouldNotBeNull();
@@ -168,7 +173,8 @@ public class DurableSagaBuilderTests
                 .Execute("Execute1")
                 .Compensate("Compensate1")
                 .SkipCompensationOnFailure()
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert
         saga.Steps[0].SkipCompensationOnFailure.ShouldBeTrue();
@@ -187,7 +193,8 @@ public class DurableSagaBuilderTests
             .WithDefaultRetryOptions(defaultRetryOptions)
             .Step("Step1")
                 .Execute("Execute1")
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert - default options are applied to steps without explicit retry at build time
         saga.Steps[0].RetryOptions.ShouldNotBeNull();
@@ -201,35 +208,31 @@ public class DurableSagaBuilderTests
             .WithTimeout(TimeSpan.FromMinutes(30))
             .Step("Step1")
                 .Execute("Execute1")
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert
         saga.ShouldNotBeNull();
     }
 
     [Fact]
-    public void Build_WithNoSteps_ThrowsInvalidOperationException()
+    public void Build_WithNoSteps_ReturnsLeft()
     {
         // Arrange
         var builder = DurableSagaBuilder.Create<TestSagaData>();
 
         // Act & Assert
-        var action = () => builder.Build();
-        var ex = Should.Throw<InvalidOperationException>(action);
-        ex.Message.ShouldContain("at least one step");
+        builder.Build().ShouldBeErrorContaining("at least one step");
     }
 
     [Fact]
-    public void Step_WithNoExecute_ThrowsInvalidOperationException()
+    public void Step_WithNoExecute_ReturnsLeft()
     {
-        // Arrange & Act
-        var action = () => DurableSagaBuilder.Create<TestSagaData>()
+        // Act & Assert
+        DurableSagaBuilder.Create<TestSagaData>()
             .Step("Step1")
-            .Build();
-
-        // Assert
-        var ex = Should.Throw<InvalidOperationException>(action);
-        ex.Message.ShouldContain("must have an Execute activity");
+            .Build()
+            .ShouldBeErrorContaining("must have an Execute activity");
     }
 
     [Fact]
@@ -296,7 +299,8 @@ public class DurableSagaBuilderTests
                 .Execute("ShipOrderActivity")
                 .Compensate("CancelShipmentActivity")
                 .SkipCompensationOnFailure()
-            .Build();
+            .Build()
+            .ShouldBeRight();
 
         // Assert
         saga.Steps.Count.ShouldBe(3);

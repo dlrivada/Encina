@@ -60,7 +60,8 @@ public class AuditFieldPopulationADOTests : IAsyncLifetime
             .MapProperty(p => p.CreatedBy, "CreatedBy")
             .MapProperty(p => p.ModifiedAtUtc, "ModifiedAtUtc")
             .MapProperty(p => p.ModifiedBy, "ModifiedBy")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Mapping for non-auditable entity
         _nonAuditableMapping = new EntityMappingBuilder<NonAuditableProduct, Guid>()
@@ -68,7 +69,8 @@ public class AuditFieldPopulationADOTests : IAsyncLifetime
             .HasId(p => p.Id)
             .MapProperty(p => p.Name, "Name")
             .MapProperty(p => p.Price, "Price")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Repository without audit context (default behavior)
         _repository = new FunctionalRepositoryADO<AuditableProduct, Guid>(_connection, _auditableMapping);

@@ -72,7 +72,8 @@ public static class ShardingServiceCollectionExtensions
 
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configureMapping(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         services.TryAddSingleton<IEntityMapping<TEntity, TId>>(mapping);
         services.TryAddSingleton(TimeProvider.System);

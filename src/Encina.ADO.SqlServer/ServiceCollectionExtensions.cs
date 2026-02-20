@@ -268,7 +268,8 @@ public static class ServiceCollectionExtensions
         // Build mapping
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register TimeProvider.System as singleton if not already registered
         services.TryAddSingleton(TimeProvider.System);
@@ -331,7 +332,8 @@ public static class ServiceCollectionExtensions
         // Build mapping
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register TimeProvider.System as singleton if not already registered
         services.TryAddSingleton(TimeProvider.System);

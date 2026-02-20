@@ -65,7 +65,8 @@ public sealed class TenantAwareRepositoryMongoDBIntegrationTests : IAsyncLifetim
             .HasTenantId(d => d.TenantId)
             .MapField(d => d.Name)
             .MapField(d => d.Amount)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Create options
         _options = new MongoDbTenancyOptions

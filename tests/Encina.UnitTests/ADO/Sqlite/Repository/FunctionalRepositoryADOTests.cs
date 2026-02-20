@@ -2,6 +2,7 @@ using System.Data;
 using System.Linq.Expressions;
 using Encina.ADO.Sqlite.Repository;
 using Encina.DomainModeling;
+using Encina.Testing.Shouldly;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -56,7 +57,8 @@ public class FunctionalRepositoryADOTests : IDisposable
             .MapProperty(e => e.Amount, "Amount")
             .MapProperty(e => e.IsActive, "IsActive")
             .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         _repository = new FunctionalRepositoryADO<TestEntitySqliteADO, Guid>(_mockConnection, _mapping);
     }

@@ -1,4 +1,6 @@
+using Encina.Dapper.Sqlite;
 using Encina.Dapper.Sqlite.Repository;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using Xunit;
 
@@ -20,7 +22,8 @@ public class EntityMappingBuilderTests
             .MapProperty(o => o.CustomerId, "CustomerId")
             .MapProperty(o => o.Total, "Total")
             .MapProperty(o => o.CreatedAtUtc, "CreatedAtUtc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TableName.ShouldBe("Orders");
@@ -40,7 +43,8 @@ public class EntityMappingBuilderTests
             .ToTable("tbl_orders")
             .HasId(o => o.Id, "order_id")
             .MapProperty(o => o.CustomerId, "customer_id")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TableName.ShouldBe("tbl_orders");
@@ -50,27 +54,31 @@ public class EntityMappingBuilderTests
     }
 
     [Fact]
-    public void Build_WithoutTableName_ThrowsInvalidOperationException()
+    public void Build_WithoutTableName_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestOrderSqlite, Guid>()
             .HasId(o => o.Id);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Table name must be specified");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingTableName);
     }
 
     [Fact]
-    public void Build_WithoutIdProperty_ThrowsInvalidOperationException()
+    public void Build_WithoutIdProperty_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestOrderSqlite, Guid>()
             .ToTable("Orders");
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Primary key must be specified");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
@@ -82,7 +90,8 @@ public class EntityMappingBuilderTests
             .HasId(o => o.Id)
             .MapProperty(o => o.CustomerId, "CustomerId")
             .ExcludeFromInsert(o => o.Id)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.InsertExcludedProperties.ShouldContain("Id");
@@ -98,7 +107,8 @@ public class EntityMappingBuilderTests
             .MapProperty(o => o.CustomerId, "CustomerId")
             .MapProperty(o => o.CreatedAtUtc, "CreatedAtUtc")
             .ExcludeFromUpdate(o => o.CreatedAtUtc)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("CreatedAtUtc");
@@ -113,7 +123,8 @@ public class EntityMappingBuilderTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .MapProperty(o => o.CustomerId, "CustomerId")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("Id");
@@ -127,7 +138,8 @@ public class EntityMappingBuilderTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .MapProperty(o => o.CustomerId, "CustomerId")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new TestOrderSqlite
         {
@@ -152,21 +164,25 @@ public class EntityMappingBuilderTests
         var mapping = new EntityMappingBuilder<TestOrderSqlite, Guid>()
             .ToTable("Orders")
             .HasId(o => o.Id)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TableName.ShouldBe("Orders");
     }
 
     [Fact]
-    public void Build_WithoutColumnMappings_ThrowsInvalidOperationException()
+    public void Build_WithoutColumnMappings_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestOrderSqlite, Guid>()
             .ToTable("TestEntities");
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build());
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeError();
     }
 
     [Fact]
@@ -221,7 +237,8 @@ public class EntityMappingBuilderTests
             .ToTable("TestEntities")
             .HasId(e => e.Id)
             .MapProperty(e => e.CustomerId, "CustomerId")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() => mapping.GetId(null!));

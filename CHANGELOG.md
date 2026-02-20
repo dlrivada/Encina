@@ -2391,17 +2391,22 @@ Implemented the Generic Repository Pattern (`IFunctionalRepository<TEntity, TId>
 **Usage Example**:
 
 ```csharp
+// Configuration (startup) — Build() returns Either<EncinaError, IEntityMapping>.
+// Invalid configuration is a programmer error, so fail fast at startup.
 var mapping = new EntityMappingBuilder<Order, Guid>()
     .ToTable("Orders")
     .HasId(o => o.Id)
     .MapProperty(o => o.CustomerId, "CustomerId")
     .MapProperty(o => o.Total, "Total")
     .ExcludeFromInsert(o => o.Id)
-    .Build();
+    .Build()
+    .Match(
+        Right: m => m,
+        Left: error => throw new InvalidOperationException(error.Message));
 
 var repository = new FunctionalRepositoryADO<Order, Guid>(connection, mapping);
 
-// Railway Oriented Programming
+// Domain operations — Railway Oriented Programming, no exceptions
 var result = await repository.GetByIdAsync(orderId);
 result.Match(
     order => Console.WriteLine($"Found: {order.Total}"),

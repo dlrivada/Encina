@@ -1,4 +1,5 @@
 using Encina.Tenancy;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
 using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
@@ -30,7 +31,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue("Mapping with HasTenantId must be tenant entity");
         mapping.UpdateExcludedProperties.ShouldContain("TenantId", "TenantId must ALWAYS be excluded from updates");
@@ -44,7 +46,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -58,7 +61,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -72,7 +76,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -90,7 +95,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -104,7 +110,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -118,7 +125,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -132,7 +140,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -151,7 +160,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapField(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue("Mapping with HasTenantId must be tenant entity");
         mapping.TenantFieldName.ShouldBe("TenantId");
@@ -164,7 +174,8 @@ public sealed class TenantEntityMappingPropertyTests
             .ToCollection("orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new TenantTestOrder { TenantId = "tenant-mongo" };
         mapping.GetTenantId(order).ShouldBe("tenant-mongo");
@@ -177,7 +188,8 @@ public sealed class TenantEntityMappingPropertyTests
             .ToCollection("orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new TenantTestOrder();
         mapping.SetTenantId(order, "tenant-new");
@@ -193,10 +205,10 @@ public sealed class TenantEntityMappingPropertyTests
     {
         // Property: Without HasTenantId, IsTenantEntity must ALWAYS be false
         var adoSqlite = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
-            .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.CustomerId).Build();
+            .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.CustomerId).Build().ShouldBeSuccess();
 
         var dapperSqlite = new DapperSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
-            .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.CustomerId).Build();
+            .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.CustomerId).Build().ShouldBeSuccess();
 
         adoSqlite.IsTenantEntity.ShouldBeFalse("Without HasTenantId, IsTenantEntity must be false");
         adoSqlite.TenantColumnName.ShouldBeNull("Without HasTenantId, TenantColumnName must be null");
@@ -215,7 +227,8 @@ public sealed class TenantEntityMappingPropertyTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId, customColumnName)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TenantColumnName.ShouldBe(customColumnName);
     }
@@ -228,7 +241,8 @@ public sealed class TenantEntityMappingPropertyTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var testTenantIds = new[] { "tenant-1", "tenant-abc", "org-123", "", null };
 
@@ -247,7 +261,8 @@ public sealed class TenantEntityMappingPropertyTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var testTenantIds = new[] { "tenant-1", "tenant-xyz", "org-999" };
 
@@ -269,7 +284,8 @@ public sealed class TenantEntityMappingPropertyTests
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
             .MapProperty(o => o.Total)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.ColumnMappings.ShouldContainKey("TenantId");
         mapping.ColumnMappings.ShouldContainKey("Id");
@@ -278,15 +294,15 @@ public sealed class TenantEntityMappingPropertyTests
     }
 
     [Fact]
-    public void Property_BuildWithoutTableName_ThrowsInvalidOperationException()
+    public void Property_BuildWithoutTableName_ReturnsError()
     {
-        // Property: Build without ToTable MUST throw InvalidOperationException
-        var builder = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        // Property: Build without ToTable MUST return an error
+        var result = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .HasId(o => o.Id)
-            .HasTenantId(o => o.TenantId);
+            .HasTenantId(o => o.TenantId)
+            .Build();
 
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Table name must be specified");
+        result.ShouldBeErrorContaining("Table name must be specified");
     }
 
     #endregion

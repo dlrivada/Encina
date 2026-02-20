@@ -511,57 +511,6 @@ public static class SagaStatus
 }
 
 /// <summary>
-/// Error codes for saga operations.
-/// </summary>
-public static class SagaErrorCodes
-{
-    /// <summary>
-    /// Saga not found.
-    /// </summary>
-    public const string NotFound = "saga.not_found";
-
-    /// <summary>
-    /// Invalid saga status for operation.
-    /// </summary>
-    public const string InvalidStatus = "saga.invalid_status";
-
-    /// <summary>
-    /// Failed to deserialize saga data.
-    /// </summary>
-    public const string DeserializationFailed = "saga.deserialization_failed";
-
-    /// <summary>
-    /// Saga step execution failed.
-    /// </summary>
-    public const string StepFailed = "saga.step_failed";
-
-    /// <summary>
-    /// Saga compensation failed.
-    /// </summary>
-    public const string CompensationFailed = "saga.compensation_failed";
-
-    /// <summary>
-    /// Saga exceeded its configured timeout.
-    /// </summary>
-    public const string Timeout = "saga.timeout";
-
-    /// <summary>
-    /// Saga not found handler was cancelled.
-    /// </summary>
-    public const string HandlerCancelled = "saga.handler.cancelled";
-
-    /// <summary>
-    /// Saga not found handler failed with an exception.
-    /// </summary>
-    public const string HandlerFailed = "saga.handler.failed";
-
-    /// <summary>
-    /// Failed to start saga.
-    /// </summary>
-    public const string StartFailed = "saga.start_failed";
-}
-
-/// <summary>
 /// Configuration options for the Saga Pattern.
 /// </summary>
 public sealed class SagaOptions

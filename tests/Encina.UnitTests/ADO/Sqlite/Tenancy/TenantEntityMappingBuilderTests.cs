@@ -1,5 +1,7 @@
+using Encina.ADO.Sqlite;
 using Encina.ADO.Sqlite.Tenancy;
 using Encina.Tenancy;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using Xunit;
 
@@ -21,7 +23,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
             .MapProperty(o => o.Total)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.IsTenantEntity.ShouldBeTrue();
@@ -41,7 +44,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId, "organization_id")
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TenantColumnName.ShouldBe("organization_id");
@@ -57,7 +61,8 @@ public sealed class TenantEntityMappingBuilderTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.IsTenantEntity.ShouldBeFalse();
@@ -66,29 +71,33 @@ public sealed class TenantEntityMappingBuilderTests
     }
 
     [Fact]
-    public void Build_WithoutTableName_ThrowsInvalidOperationException()
+    public void Build_WithoutTableName_ReturnsError()
     {
         // Arrange
         var builder = new TenantEntityMappingBuilder<SqliteTenantTestOrder, Guid>()
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Table name must be specified");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingTableName);
     }
 
     [Fact]
-    public void Build_WithoutIdProperty_ThrowsInvalidOperationException()
+    public void Build_WithoutIdProperty_ReturnsError()
     {
         // Arrange
         var builder = new TenantEntityMappingBuilder<SqliteTenantTestOrder, Guid>()
             .ToTable("Orders")
             .HasTenantId(o => o.TenantId);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Primary key must be specified");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
@@ -100,7 +109,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
@@ -115,7 +125,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new SqliteTenantTestOrder
         {
@@ -141,7 +152,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new SqliteTenantTestOrder
         {
@@ -165,7 +177,8 @@ public sealed class TenantEntityMappingBuilderTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new SqliteTenantTestOrder { Id = Guid.NewGuid() };
 
@@ -182,7 +195,8 @@ public sealed class TenantEntityMappingBuilderTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new SqliteTenantTestOrder
         {
@@ -207,7 +221,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
             .ExcludeFromInsert(o => o.Id)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.InsertExcludedProperties.ShouldContain("Id");
@@ -224,7 +239,8 @@ public sealed class TenantEntityMappingBuilderTests
             .MapProperty(o => o.CustomerId)
             .MapProperty(o => o.CreatedAtUtc)
             .ExcludeFromUpdate(o => o.CreatedAtUtc)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("CreatedAtUtc");

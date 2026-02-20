@@ -92,7 +92,8 @@ public class UnitOfWorkDapperIntegrationTests : IAsyncLifetime
             .MapProperty(p => p.Price, "price")
             .MapProperty(p => p.IsActive, "is_active")
             .MapProperty(p => p.CreatedAtUtc, "created_at_utc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
     }
 
     #region Transaction Commit Tests

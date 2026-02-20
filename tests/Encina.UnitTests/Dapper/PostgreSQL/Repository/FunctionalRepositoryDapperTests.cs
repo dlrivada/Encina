@@ -1,7 +1,9 @@
 using System.Data;
 using System.Linq.Expressions;
+using Encina.Dapper.PostgreSQL;
 using Encina.Dapper.PostgreSQL.Repository;
 using Encina.DomainModeling;
+using Encina.Testing.Shouldly;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -28,7 +30,8 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Amount, "amount")
             .MapProperty(e => e.IsActive, "is_active")
             .MapProperty(e => e.CreatedAtUtc, "created_at_utc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
     }
 
     #region Constructor Tests
@@ -194,7 +197,7 @@ public class FunctionalRepositoryDapperTests
     #region EntityMappingBuilder Tests
 
     [Fact]
-    public void EntityMappingBuilder_Build_WithoutTableName_ThrowsInvalidOperationException()
+    public void EntityMappingBuilder_Build_WithoutTableName_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestEntityDapperPg, Guid>()
@@ -202,11 +205,12 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "name");
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build());
+        var result = builder.Build();
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingTableName);
     }
 
     [Fact]
-    public void EntityMappingBuilder_Build_WithoutId_ThrowsInvalidOperationException()
+    public void EntityMappingBuilder_Build_WithoutId_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestEntityDapperPg, Guid>()
@@ -214,18 +218,20 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "name");
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build());
+        var result = builder.Build();
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
-    public void EntityMappingBuilder_Build_WithoutColumnMappings_ThrowsInvalidOperationException()
+    public void EntityMappingBuilder_Build_WithoutColumnMappings_ReturnsError()
     {
-        // Arrange
+        // Arrange - ToTable only, without HasId, triggers MissingPrimaryKey first
         var builder = new EntityMappingBuilder<TestEntityDapperPg, Guid>()
             .ToTable("test_entities");
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build());
+        // Act & Assert - Validation is sequential: table → id → columns
+        var result = builder.Build();
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
@@ -239,7 +245,7 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Amount, "amount");
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.ShouldNotBeNull();
@@ -260,7 +266,7 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "name")
             .MapProperty(e => e.CreatedAtUtc, "created_at_utc")
             .ExcludeFromInsert(e => e.CreatedAtUtc)
-            .Build();
+            .Build().ShouldBeSuccess();
 
         // Assert
         mapping.InsertExcludedProperties.ShouldContain("CreatedAtUtc");
@@ -276,7 +282,7 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "name")
             .MapProperty(e => e.CreatedAtUtc, "created_at_utc")
             .ExcludeFromUpdate(e => e.CreatedAtUtc)
-            .Build();
+            .Build().ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("CreatedAtUtc");
@@ -292,7 +298,7 @@ public class FunctionalRepositoryDapperTests
             .ToTable("test_entities")
             .HasId(e => e.Id)
             .MapProperty(e => e.Name, "name")
-            .Build();
+            .Build().ShouldBeSuccess();
 
         var entity = new TestEntityDapperPg { Id = Guid.NewGuid(), Name = "Test" };
 

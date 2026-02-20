@@ -20,6 +20,7 @@ using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
 using Encina.MongoDB.SoftDelete;
 using Encina.MongoDB.UnitOfWork;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -488,7 +489,8 @@ public static class ServiceCollectionExtensions
         // Build soft delete mapping
         var mappingBuilder = new SoftDeleteEntityMappingBuilder<TEntity, TId>();
         mappingConfigure(mappingBuilder);
-        var mapping = mappingBuilder.Build();
+        var mapping = mappingBuilder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register the options for UnitOfWork to access
         services.AddSingleton(repositoryOptions);

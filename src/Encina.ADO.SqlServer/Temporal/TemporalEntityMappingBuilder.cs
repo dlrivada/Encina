@@ -177,32 +177,34 @@ public sealed class TemporalEntityMappingBuilder<TEntity, TId>
     /// <summary>
     /// Builds the temporal entity mapping.
     /// </summary>
-    /// <returns>The configured temporal entity mapping.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when required configuration is missing.</exception>
-    public ITemporalEntityMapping<TEntity, TId> Build()
+    /// <returns>Either the configured entity mapping or a validation error.</returns>
+    public LanguageExt.Either<EncinaError, ITemporalEntityMapping<TEntity, TId>> Build()
     {
         if (_idExtractor is null)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingPrimaryKey,
                 $"ID mapping not configured. Call HasId() before Build() for entity {typeof(TEntity).Name}.");
         }
 
         if (_columnMappings.Count == 0)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingColumnMappings,
                 $"No column mappings configured. Call MapProperty() at least once for entity {typeof(TEntity).Name}.");
         }
 
-        return new TemporalEntityMapping(
-            _tableName,
-            _idColumnName,
-            _columnMappings,
-            _idExtractor,
-            _insertExcludedProperties,
-            _updateExcludedProperties,
-            _periodStartColumnName,
-            _periodEndColumnName,
-            _historyTableName);
+        return LanguageExt.Either<EncinaError, ITemporalEntityMapping<TEntity, TId>>.Right(
+            new TemporalEntityMapping(
+                _tableName,
+                _idColumnName,
+                _columnMappings,
+                _idExtractor,
+                _insertExcludedProperties,
+                _updateExcludedProperties,
+                _periodStartColumnName,
+                _periodEndColumnName,
+                _historyTableName));
     }
 
     private static string GetPropertyName<TProperty>(Expression<Func<TEntity, TProperty>> expression)

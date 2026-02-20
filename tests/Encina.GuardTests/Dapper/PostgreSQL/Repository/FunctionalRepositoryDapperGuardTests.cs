@@ -41,7 +41,8 @@ public sealed class FunctionalRepositoryDapperGuardTests
             .ToTable("test_entities")
             .HasId(e => e.Id, "id")
             .MapProperty(e => e.Name, "name")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
     }
 }
 

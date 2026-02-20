@@ -41,7 +41,8 @@ public sealed class FunctionalRepositoryADOGuardTests
             .ToTable("TestEntities")
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
     }
 }
 

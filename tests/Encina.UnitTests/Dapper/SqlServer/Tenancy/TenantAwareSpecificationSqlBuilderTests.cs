@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Encina.Dapper.SqlServer.Tenancy;
 using Encina.DomainModeling;
 using Encina.Tenancy;
+using Encina.Testing.Shouldly;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -33,7 +34,7 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
             .MapProperty(o => o.Total)
             .MapProperty(o => o.IsActive);
 
-        var tenantMapping = tenantMappingBuilder.Build();
+        var tenantMapping = tenantMappingBuilder.Build().ShouldBeSuccess();
         _tenantMapping = new GenericTenantMappingAdapter<TenantTestOrder, Guid>(tenantMapping);
 
         // Create non-tenant entity mapping
@@ -43,7 +44,7 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
             .MapProperty(o => o.CustomerId)
             .MapProperty(o => o.Total);
 
-        var nonTenantMapping = nonTenantMappingBuilder.Build();
+        var nonTenantMapping = nonTenantMappingBuilder.Build().ShouldBeSuccess();
         _nonTenantMapping = new GenericTenantMappingAdapter<TenantTestOrder, Guid>(nonTenantMapping);
     }
 

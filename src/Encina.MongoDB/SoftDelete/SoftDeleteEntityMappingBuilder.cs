@@ -1,5 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using Encina;
+using LanguageExt;
 
 namespace Encina.MongoDB.SoftDelete;
 
@@ -22,7 +24,7 @@ namespace Encina.MongoDB.SoftDelete;
 ///     .HasSoftDelete(o =&gt; o.IsDeleted, "isDeleted")
 ///     .HasDeletedAt(o =&gt; o.DeletedAtUtc, "deletedAtUtc")
 ///     .HasDeletedBy(o =&gt; o.DeletedBy, "deletedBy")
-///     .Build();
+///     .Build(); // Returns Either&lt;EncinaError, ISoftDeleteEntityMapping&lt;TEntity, TId&gt;&gt;
 /// </code>
 /// </example>
 public sealed class SoftDeleteEntityMappingBuilder<TEntity, TId>
@@ -115,32 +117,32 @@ public sealed class SoftDeleteEntityMappingBuilder<TEntity, TId>
     /// <summary>
     /// Builds the immutable entity mapping.
     /// </summary>
-    /// <returns>The configured entity mapping.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when required properties (Id, IsDeleted) are not configured.
-    /// </exception>
-    public ISoftDeleteEntityMapping<TEntity, TId> Build()
+    /// <returns>Either the configured entity mapping or a validation error.</returns>
+    public Either<EncinaError, ISoftDeleteEntityMapping<TEntity, TId>> Build()
     {
         if (_idSelector is null)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingPrimaryKey,
                 $"ID property must be configured. Call HasId() before Build().");
         }
 
         if (_isDeletedSelector is null)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingColumnMappings,
                 $"IsDeleted property must be configured. Call HasSoftDelete() before Build().");
         }
 
-        return new SoftDeleteEntityMapping<TEntity, TId>(
-            _idSelector,
-            _isDeletedSelector,
-            _deletedAtSelector,
-            _deletedBySelector,
-            _isDeletedFieldName!,
-            _deletedAtFieldName,
-            _deletedByFieldName);
+        return Either<EncinaError, ISoftDeleteEntityMapping<TEntity, TId>>.Right(
+            new SoftDeleteEntityMapping<TEntity, TId>(
+                _idSelector,
+                _isDeletedSelector,
+                _deletedAtSelector,
+                _deletedBySelector,
+                _isDeletedFieldName!,
+                _deletedAtFieldName,
+                _deletedByFieldName));
     }
 
     private static string GetPropertyName<TProperty>(Expression<Func<TEntity, TProperty>> propertySelector)

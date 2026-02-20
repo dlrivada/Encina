@@ -5,6 +5,7 @@ using Encina.ADO.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using Xunit;
 
@@ -392,7 +393,7 @@ public class UnitOfWorkADOTests : IAsyncLifetime
         builder.ToTable("TestEntities")
             .HasId(e => e.Id)
             .MapProperty(e => e.Name);
-        return builder.Build();
+        return builder.Build().ShouldBeSuccess();
     }
 
     #endregion

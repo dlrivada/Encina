@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using LanguageExt;
 
 namespace Encina.MongoDB.Tenancy;
 
@@ -22,7 +23,7 @@ namespace Encina.MongoDB.Tenancy;
 ///     .HasTenantId(o =&gt; o.TenantId)
 ///     .MapField(o =&gt; o.CustomerId)
 ///     .MapField(o =&gt; o.Total)
-///     .Build();
+///     .Build(); // Returns Either&lt;EncinaError, ITenantEntityMapping&lt;TEntity, TId&gt;&gt;
 /// </code>
 /// </example>
 public sealed class TenantEntityMappingBuilder<TEntity, TId>
@@ -141,39 +142,40 @@ public sealed class TenantEntityMappingBuilder<TEntity, TId>
     /// <summary>
     /// Builds the tenant-aware entity mapping configuration.
     /// </summary>
-    /// <returns>The configured entity mapping.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when required configuration is missing.
-    /// </exception>
-    public ITenantEntityMapping<TEntity, TId> Build()
+    /// <returns>Either the configured entity mapping or a validation error.</returns>
+    public Either<EncinaError, ITenantEntityMapping<TEntity, TId>> Build()
     {
         if (string.IsNullOrWhiteSpace(_collectionName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingTableName,
                 $"Collection name must be specified. Call {nameof(ToCollection)}() before {nameof(Build)}().");
         }
 
         if (_idSelector is null || string.IsNullOrWhiteSpace(_idFieldName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingPrimaryKey,
                 $"Primary key must be specified. Call {nameof(HasId)}() before {nameof(Build)}().");
         }
 
         if (_fieldMappings.Count == 0)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingColumnMappings,
                 $"At least one field mapping is required. Call {nameof(MapField)}() or {nameof(HasId)}() before {nameof(Build)}().");
         }
 
-        return new TenantEntityMapping<TEntity, TId>(
-            _collectionName,
-            _idFieldName,
-            _idSelector,
-            new Dictionary<string, string>(_fieldMappings),
-            _tenantFieldName,
-            _tenantPropertyName,
-            _tenantIdGetter,
-            _tenantIdSetter);
+        return Either<EncinaError, ITenantEntityMapping<TEntity, TId>>.Right(
+            new TenantEntityMapping<TEntity, TId>(
+                _collectionName,
+                _idFieldName,
+                _idSelector,
+                new Dictionary<string, string>(_fieldMappings),
+                _tenantFieldName,
+                _tenantPropertyName,
+                _tenantIdGetter,
+                _tenantIdSetter));
     }
 
     private static string GetPropertyName<TProperty>(Expression<Func<TEntity, TProperty>> propertySelector)

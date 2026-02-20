@@ -23,7 +23,7 @@ namespace Encina.Dapper.MySQL.Repository;
 ///     .MapProperty(o =&gt; o.Total, "Total")
 ///     .MapProperty(o =&gt; o.CreatedAtUtc, "CreatedAtUtc")
 ///     .ExcludeFromInsert(o =&gt; o.Id) // Auto-generated
-///     .Build();
+///     .Build(); // Returns Either&lt;EncinaError, IEntityMapping&lt;TEntity, TId&gt;&gt;
 /// </code>
 /// </example>
 public sealed class EntityMappingBuilder<TEntity, TId>
@@ -140,37 +140,37 @@ public sealed class EntityMappingBuilder<TEntity, TId>
     /// <summary>
     /// Builds the entity mapping configuration.
     /// </summary>
-    /// <returns>The configured entity mapping.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when required configuration is missing.
-    /// </exception>
-    public IEntityMapping<TEntity, TId> Build()
+    /// <returns>Either the configured entity mapping or a validation error.</returns>
+    public LanguageExt.Either<EncinaError, IEntityMapping<TEntity, TId>> Build()
     {
         if (string.IsNullOrWhiteSpace(_tableName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingTableName,
                 $"Table name must be specified. Call {nameof(ToTable)}() before {nameof(Build)}().");
         }
 
         if (_idSelector is null || string.IsNullOrWhiteSpace(_idColumnName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingPrimaryKey,
                 $"Primary key must be specified. Call {nameof(HasId)}() before {nameof(Build)}().");
         }
 
         if (_columnMappings.Count == 0)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingColumnMappings,
                 $"At least one column mapping is required. Call {nameof(MapProperty)}() or {nameof(HasId)}() before {nameof(Build)}().");
         }
 
-        return new EntityMapping<TEntity, TId>(
+        return LanguageExt.Either<EncinaError, IEntityMapping<TEntity, TId>>.Right(new EntityMapping<TEntity, TId>(
             _tableName,
             _idColumnName,
             _idSelector,
             new Dictionary<string, string>(_columnMappings),
             new HashSet<string>(_insertExcluded),
-            new HashSet<string>(_updateExcluded));
+            new HashSet<string>(_updateExcluded)));
     }
 
     private static string GetPropertyName<TProperty>(Expression<Func<TEntity, TProperty>> propertySelector)

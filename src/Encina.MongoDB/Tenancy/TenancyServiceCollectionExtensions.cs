@@ -1,6 +1,7 @@
 using Encina.DomainModeling;
 using Encina.MongoDB.Repository;
 using Encina.Tenancy;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -128,7 +129,8 @@ public static class TenancyServiceCollectionExtensions
         // Build mapping
         var builder = new TenantEntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register the mapping
         services.AddSingleton<ITenantEntityMapping<TEntity, TId>>(mapping);
@@ -215,7 +217,8 @@ public static class TenancyServiceCollectionExtensions
         // Build mapping
         var builder = new TenantEntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register the mapping
         services.TryAddSingleton<ITenantEntityMapping<TEntity, TId>>(mapping);

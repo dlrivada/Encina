@@ -153,7 +153,8 @@ public static class ServiceCollectionExtensions
         // Build the mapping once at registration time
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register the mapping as singleton (immutable)
         services.AddSingleton<IEntityMapping<TEntity, TId>>(mapping);
@@ -216,7 +217,8 @@ public static class ServiceCollectionExtensions
         // Build the mapping once at registration time
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register the mapping as singleton (immutable)
         services.AddSingleton<IEntityMapping<TEntity, TId>>(mapping);

@@ -379,6 +379,8 @@ public async Task<Either<DurableSagaError, FulfillmentResult>> RunSaga(
 {
     var orderData = context.GetInput<OrderData>();
 
+    // Configuration — Build() returns Either<EncinaError, DurableSaga<TData>>.
+    // Invalid saga definition is a programmer error, so fail fast.
     var saga = DurableSagaBuilder.Create<OrderData>()
         .WithDefaultRetryOptions(TaskOptions.FromRetryPolicy(new RetryPolicy(3, TimeSpan.FromSeconds(1))))
         .Step("ReserveInventory")
@@ -390,7 +392,10 @@ public async Task<Either<DurableSagaError, FulfillmentResult>> RunSaga(
         .Step("ShipOrder")
             .Execute("ShipOrderActivity")
             .Compensate("CancelShipmentActivity")
-        .Build();
+        .Build()
+        .Match(
+            Right: s => s,
+            Left: error => throw new InvalidOperationException(error.Message));
 
     return await saga.ExecuteAsync(context, orderData);
 }

@@ -1,4 +1,6 @@
+using Encina.ADO.PostgreSQL;
 using Encina.ADO.PostgreSQL.Repository;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using Xunit;
 
@@ -20,7 +22,8 @@ public class EntityMappingBuilderTests
             .MapProperty(p => p.Name, "Name")
             .MapProperty(p => p.Price, "Price")
             .MapProperty(p => p.IsAvailable, "IsAvailable")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TableName.ShouldBe("Products");
@@ -36,7 +39,8 @@ public class EntityMappingBuilderTests
             .ToTable("tbl_products")
             .HasId(p => p.Id, "product_id")
             .MapProperty(p => p.Name, "product_name")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TableName.ShouldBe("tbl_products");
@@ -45,27 +49,31 @@ public class EntityMappingBuilderTests
     }
 
     [Fact]
-    public void Build_WithoutTableName_ThrowsInvalidOperationException()
+    public void Build_WithoutTableName_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestProductPg, Guid>()
             .HasId(p => p.Id);
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Table name must be specified");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingTableName);
     }
 
     [Fact]
-    public void Build_WithoutIdProperty_ThrowsInvalidOperationException()
+    public void Build_WithoutIdProperty_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestProductPg, Guid>()
             .ToTable("Products");
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Primary key must be specified");
+        // Act
+        var result = builder.Build();
+
+        // Assert
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
@@ -77,7 +85,8 @@ public class EntityMappingBuilderTests
             .HasId(p => p.Id)
             .MapProperty(p => p.Name, "Name")
             .ExcludeFromInsert(p => p.Id)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.InsertExcludedProperties.ShouldContain("Id");
@@ -93,7 +102,8 @@ public class EntityMappingBuilderTests
             .MapProperty(p => p.Name, "Name")
             .MapProperty(p => p.CreatedAtUtc, "CreatedAtUtc")
             .ExcludeFromUpdate(p => p.CreatedAtUtc)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("CreatedAtUtc");
@@ -107,7 +117,8 @@ public class EntityMappingBuilderTests
             .ToTable("Products")
             .HasId(p => p.Id)
             .MapProperty(p => p.Name, "Name")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var product = new TestProductPg
         {
@@ -133,7 +144,8 @@ public class EntityMappingBuilderTests
             .ToTable("Products")
             .HasId(p => p.Id)
             .MapProperty(p => p.Name, "Name")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("Id");
@@ -150,7 +162,8 @@ public class EntityMappingBuilderTests
             .MapProperty(p => p.Price, "unit_price")
             .MapProperty(p => p.IsAvailable, "is_available")
             .MapProperty(p => p.CreatedAtUtc, "created_at_utc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TableName.ShouldBe("products");
@@ -169,7 +182,8 @@ public class EntityMappingBuilderTests
             .ToTable("public.products")
             .HasId(p => p.Id)
             .MapProperty(p => p.Name, "Name")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.TableName.ShouldBe("public.products");

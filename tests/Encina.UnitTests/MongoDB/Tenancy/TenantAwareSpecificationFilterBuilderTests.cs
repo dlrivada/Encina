@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.MongoDB.Tenancy;
 using Encina.Tenancy;
+using Encina.Testing.Shouldly;
 using MongoDB.Driver;
 using NSubstitute;
 using Shouldly;
@@ -34,7 +35,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
             .MapField(o => o.Total)
             .MapField(o => o.IsActive);
 
-        var tenantMapping = tenantMappingBuilder.Build();
+        var tenantMapping = tenantMappingBuilder.Build().ShouldBeSuccess();
         _tenantMapping = new GenericTenantMappingAdapterForTests<MongoTenantTestOrder, Guid>(tenantMapping);
 
         // Create non-tenant entity mapping
@@ -44,7 +45,7 @@ public sealed class TenantAwareSpecificationFilterBuilderTests
             .MapField(o => o.CustomerId)
             .MapField(o => o.Total);
 
-        var nonTenantMapping = nonTenantMappingBuilder.Build();
+        var nonTenantMapping = nonTenantMappingBuilder.Build().ShouldBeSuccess();
         _nonTenantMapping = new GenericTenantMappingAdapterForTests<MongoTenantTestOrder, Guid>(nonTenantMapping);
     }
 

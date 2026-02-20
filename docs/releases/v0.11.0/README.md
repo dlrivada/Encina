@@ -2913,13 +2913,18 @@ Implemented Multi-Tenancy support across all 8 remaining database providers (ADO
 **TenantEntityMappingBuilder<TEntity, TId>**:
 
 ```csharp
+// Configuration (startup) — Build() returns Either<EncinaError, ITenantEntityMapping>.
+// Invalid configuration is a programmer error, so fail fast at startup.
 var mapping = new TenantEntityMappingBuilder<Order, Guid>()
     .ToTable("Orders")
     .HasId(o => o.Id)
     .HasTenantId(o => o.TenantId)  // Auto-excludes from updates
     .MapProperty(o => o.CustomerId)
     .MapProperty(o => o.Total)
-    .Build();
+    .Build()
+    .Match(
+        Right: m => m,
+        Left: error => throw new InvalidOperationException(error.Message));
 ```
 
 **TenantAwareFunctionalRepository Features**:

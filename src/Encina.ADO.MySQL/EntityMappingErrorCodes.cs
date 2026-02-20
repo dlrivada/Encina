@@ -1,0 +1,27 @@
+namespace Encina.ADO.MySQL;
+
+/// <summary>
+/// Error codes for entity mapping builder operations.
+/// </summary>
+public static class EntityMappingErrorCodes
+{
+    /// <summary>
+    /// The table name was not configured in the entity mapping.
+    /// </summary>
+    public const string MissingTableName = "ado.mysql.mapping.missing_table_name";
+
+    /// <summary>
+    /// The primary key was not configured in the entity mapping.
+    /// </summary>
+    public const string MissingPrimaryKey = "ado.mysql.mapping.missing_primary_key";
+
+    /// <summary>
+    /// No column mappings were configured in the entity mapping.
+    /// </summary>
+    public const string MissingColumnMappings = "ado.mysql.mapping.missing_column_mappings";
+
+    /// <summary>
+    /// The tenant column was not configured in the tenant entity mapping.
+    /// </summary>
+    public const string MissingTenantColumn = "ado.mysql.mapping.missing_tenant_column";
+}

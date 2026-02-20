@@ -1,7 +1,9 @@
 using System.Data;
 using System.Linq.Expressions;
+using Encina.Dapper.Sqlite;
 using Encina.Dapper.Sqlite.Repository;
 using Encina.DomainModeling;
+using Encina.Testing.Shouldly;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -28,7 +30,8 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Amount, "Amount")
             .MapProperty(e => e.IsActive, "IsActive")
             .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
     }
 
     #region Constructor Tests
@@ -194,7 +197,7 @@ public class FunctionalRepositoryDapperTests
     #region EntityMappingBuilder Tests
 
     [Fact]
-    public void EntityMappingBuilder_Build_WithoutTableName_ThrowsInvalidOperationException()
+    public void EntityMappingBuilder_Build_WithoutTableName_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestEntityDapperSqlite, Guid>()
@@ -202,11 +205,12 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "Name");
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build());
+        var result = builder.Build();
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingTableName);
     }
 
     [Fact]
-    public void EntityMappingBuilder_Build_WithoutId_ThrowsInvalidOperationException()
+    public void EntityMappingBuilder_Build_WithoutId_ReturnsError()
     {
         // Arrange
         var builder = new EntityMappingBuilder<TestEntityDapperSqlite, Guid>()
@@ -214,18 +218,20 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "Name");
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build());
+        var result = builder.Build();
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
-    public void EntityMappingBuilder_Build_WithoutColumnMappings_ThrowsInvalidOperationException()
+    public void EntityMappingBuilder_Build_WithoutColumnMappings_ReturnsError()
     {
-        // Arrange
+        // Arrange - ToTable only, without HasId, triggers MissingPrimaryKey first
         var builder = new EntityMappingBuilder<TestEntityDapperSqlite, Guid>()
             .ToTable("TestEntities");
 
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.Build());
+        // Act & Assert - Validation is sequential: table → id → columns
+        var result = builder.Build();
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingPrimaryKey);
     }
 
     [Fact]
@@ -239,7 +245,7 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Amount, "Amount");
 
         // Act
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
 
         // Assert
         mapping.ShouldNotBeNull();
@@ -260,7 +266,8 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "Name")
             .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc")
             .ExcludeFromInsert(e => e.CreatedAtUtc)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.InsertExcludedProperties.ShouldContain("CreatedAtUtc");
@@ -276,7 +283,8 @@ public class FunctionalRepositoryDapperTests
             .MapProperty(e => e.Name, "Name")
             .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc")
             .ExcludeFromUpdate(e => e.CreatedAtUtc)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Assert
         mapping.UpdateExcludedProperties.ShouldContain("CreatedAtUtc");
@@ -292,7 +300,8 @@ public class FunctionalRepositoryDapperTests
             .ToTable("TestEntities")
             .HasId(e => e.Id)
             .MapProperty(e => e.Name, "Name")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var entity = new TestEntityDapperSqlite { Id = Guid.NewGuid(), Name = "Test" };
 
@@ -355,7 +364,8 @@ public class FunctionalRepositoryDapperTests
             .ToTable("TestEntities")
             .HasId(e => e.Id)
             .MapProperty(e => e.Name, "Name")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() => mapping.GetId(null!));

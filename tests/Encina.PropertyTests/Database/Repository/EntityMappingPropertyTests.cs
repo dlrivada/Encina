@@ -1,3 +1,4 @@
+using Encina.Testing.Shouldly;
 using FsCheck;
 using FsCheck.Xunit;
 using Shouldly;
@@ -30,7 +31,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName, "Table name must be preserved after Build()");
     }
@@ -43,7 +45,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName);
     }
@@ -56,7 +59,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName);
     }
@@ -69,7 +73,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName);
     }
@@ -86,7 +91,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName);
     }
@@ -99,7 +105,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName);
     }
@@ -112,7 +119,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName);
     }
@@ -125,7 +133,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable(tableName)
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TableName.ShouldBe(tableName);
     }
@@ -144,7 +153,8 @@ public sealed class EntityMappingPropertyTests
             .MapProperty(e => e.Name, "entity_name")
             .MapProperty(e => e.Value, "entity_value")
             .MapProperty(e => e.CreatedAtUtc, "created_at")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.ColumnMappings.ShouldContainKey("Id");
         mapping.ColumnMappings["Id"].ShouldBe("entity_id");
@@ -164,7 +174,8 @@ public sealed class EntityMappingPropertyTests
             .HasId(e => e.Id, "EntityId")
             .MapProperty(e => e.Name, "EntityName")
             .MapProperty(e => e.Value)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.ColumnMappings.ShouldContainKey("Id");
         mapping.ColumnMappings["Id"].ShouldBe("EntityId");
@@ -179,13 +190,13 @@ public sealed class EntityMappingPropertyTests
     {
         // Property: HasId() MUST automatically add the ID property to UpdateExcludedProperties
         var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var adoSqlServer = new ADOSqlServerRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var dapperPostgres = new DapperPostgreSQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         return adoSqlite.UpdateExcludedProperties.Contains("Id")
             && adoSqlServer.UpdateExcludedProperties.Contains("Id")
@@ -208,7 +219,8 @@ public sealed class EntityMappingPropertyTests
             .MapProperty(e => e.Value)
             .ExcludeFromInsert(e => e.Id)
             .ExcludeFromInsert(e => e.CreatedAtUtc)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.InsertExcludedProperties.ShouldContain("Id", "Id should be excluded from inserts");
         mapping.InsertExcludedProperties.ShouldContain("CreatedAtUtc", "CreatedAtUtc should be excluded from inserts");
@@ -225,7 +237,8 @@ public sealed class EntityMappingPropertyTests
             .MapProperty(e => e.Name)
             .MapProperty(e => e.CreatedAtUtc)
             .ExcludeFromUpdate(e => e.CreatedAtUtc)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.UpdateExcludedProperties.ShouldContain("Id", "Id is automatically excluded from updates");
         mapping.UpdateExcludedProperties.ShouldContain("CreatedAtUtc", "CreatedAtUtc should be excluded from updates");
@@ -253,7 +266,7 @@ public sealed class EntityMappingPropertyTests
         if (propertyName == "Value") mapping.ExcludeFromUpdate(e => e.Value);
         if (propertyName == "CreatedAtUtc") mapping.ExcludeFromUpdate(e => e.CreatedAtUtc);
 
-        var result = mapping.Build();
+        var result = mapping.Build().ShouldBeSuccess();
         result.UpdateExcludedProperties.ShouldContain(propertyName);
     }
 
@@ -272,7 +285,8 @@ public sealed class EntityMappingPropertyTests
             .ToTable("TestEntities")
             .HasId(e => e.Id)
             .MapProperty(e => e.Name)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.GetId(entity).ShouldBe(expectedId);
     }
@@ -284,9 +298,9 @@ public sealed class EntityMappingPropertyTests
         var entity = new RepositoryTestEntity { Id = id, Name = name.Get };
 
         var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         return adoSqlite.GetId(entity) == id && dapperSqlite.GetId(entity) == id;
     }
@@ -304,13 +318,13 @@ public sealed class EntityMappingPropertyTests
     {
         // Property: Custom ID column name MUST be preserved
         var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var adoSqlServer = new ADOSqlServerRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var adoPostgres = new ADOPostgreSQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var adoMySQL = new ADOMySQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         adoSqlite.IdColumnName.ShouldBe(idColumnName);
         adoSqlServer.IdColumnName.ShouldBe(idColumnName);
@@ -325,13 +339,13 @@ public sealed class EntityMappingPropertyTests
     public void Property_AllDapperProviders_IdColumnNameIsPreserved(string idColumnName)
     {
         var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var dapperSqlServer = new DapperSqlServerRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var dapperPostgres = new DapperPostgreSQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
         var dapperMySQL = new DapperMySQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build();
+            .ToTable("Test").HasId(e => e.Id, idColumnName).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         dapperSqlite.IdColumnName.ShouldBe(idColumnName);
         dapperSqlServer.IdColumnName.ShouldBe(idColumnName);
@@ -344,27 +358,27 @@ public sealed class EntityMappingPropertyTests
     #region Build Validation Tests
 
     [Fact]
-    public void Property_ADOSqliteMapping_BuildWithoutTableNameThrowsInvalidOperationException()
+    public void Property_ADOSqliteMapping_BuildWithoutTableNameReturnsError()
     {
-        // Property: Build without ToTable MUST throw InvalidOperationException
-        var builder = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
+        // Property: Build without ToTable MUST return an error
+        var result = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
             .HasId(e => e.Id)
-            .MapProperty(e => e.Name);
+            .MapProperty(e => e.Name)
+            .Build();
 
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Table name must be specified");
+        result.ShouldBeErrorContaining("Table name must be specified");
     }
 
     [Fact]
-    public void Property_DapperPostgreSQLMapping_BuildWithoutHasIdThrowsInvalidOperationException()
+    public void Property_DapperPostgreSQLMapping_BuildWithoutHasIdReturnsError()
     {
-        // Property: Build without HasId MUST throw InvalidOperationException
-        var builder = new DapperPostgreSQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
+        // Property: Build without HasId MUST return an error
+        var result = new DapperPostgreSQLRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
             .ToTable("test_entities")
-            .MapProperty(e => e.Name);
+            .MapProperty(e => e.Name)
+            .Build();
 
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Primary key must be specified");
+        result.ShouldBeErrorContaining("Primary key must be specified");
     }
 
     [Fact]
@@ -372,11 +386,12 @@ public sealed class EntityMappingPropertyTests
     {
         // Property: Build with only table and id should succeed
         // HasId automatically adds the ID column to mappings
-        var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable("Test").HasId(e => e.Id);
+        var mapping = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
+            .ToTable("Test").HasId(e => e.Id)
+            .Build()
+            .ShouldBeSuccess();
 
         // This should succeed because HasId adds a column mapping
-        var mapping = adoSqlite.Build();
         mapping.ColumnMappings.Count.ShouldBe(1);
         mapping.ColumnMappings.ShouldContainKey("Id");
     }
@@ -394,13 +409,13 @@ public sealed class EntityMappingPropertyTests
         const string nameColumn = "entity_name";
 
         var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build();
+            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build().ShouldBeSuccess();
         var adoSqlServer = new ADOSqlServerRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build();
+            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build().ShouldBeSuccess();
         var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build();
+            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build().ShouldBeSuccess();
         var dapperSqlServer = new DapperSqlServerRepository.EntityMappingBuilder<RepositoryTestEntity, Guid>()
-            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build();
+            .ToTable(tableName).HasId(e => e.Id, idColumn).MapProperty(e => e.Name, nameColumn).Build().ShouldBeSuccess();
 
         // All should have same table name
         adoSqlite.TableName.ShouldBe(adoSqlServer.TableName);
@@ -443,7 +458,7 @@ public sealed class EntityMappingPropertyTests
             expectedCount++;
         }
 
-        var mapping = builder.Build();
+        var mapping = builder.Build().ShouldBeSuccess();
         return mapping.ColumnMappings.Count == expectedCount;
     }
 

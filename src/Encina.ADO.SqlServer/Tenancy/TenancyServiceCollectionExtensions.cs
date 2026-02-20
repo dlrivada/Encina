@@ -140,7 +140,8 @@ public static class TenancyServiceCollectionExtensions
         // Build the mapping once at registration time
         var builder = new TenantEntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register the mapping as singleton (immutable)
         services.AddSingleton<ITenantEntityMapping<TEntity, TId>>(mapping);
@@ -206,7 +207,8 @@ public static class TenancyServiceCollectionExtensions
         // Build the mapping once at registration time
         var builder = new TenantEntityMappingBuilder<TEntity, TId>();
         configure(builder);
-        var mapping = builder.Build();
+        var mapping = builder.Build()
+            .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
         // Register the mapping as singleton (immutable)
         services.AddSingleton<ITenantEntityMapping<TEntity, TId>>(mapping);

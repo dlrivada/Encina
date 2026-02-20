@@ -43,7 +43,8 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
             .MapProperty(p => p.Price, "price")
             .MapProperty(p => p.IsActive, "is_active")
             .MapProperty(p => p.CreatedAtUtc, "created_at_utc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         _repository = new FunctionalRepositoryDapper<TestProduct, Guid>(_connection, _mapping);
     }

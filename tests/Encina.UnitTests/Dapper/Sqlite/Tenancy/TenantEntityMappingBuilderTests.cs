@@ -1,5 +1,7 @@
+using Encina.Dapper.Sqlite;
 using Encina.Dapper.Sqlite.Tenancy;
 using Encina.Tenancy;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using Xunit;
 
@@ -17,7 +19,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
             .MapProperty(o => o.Total)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.TenantColumnName.ShouldBe("TenantId");
@@ -33,7 +36,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId, "organization_id")
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.TenantColumnName.ShouldBe("organization_id");
     }
@@ -45,21 +49,23 @@ public sealed class TenantEntityMappingBuilderTests
             .ToTable("Orders")
             .HasId(o => o.Id)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.IsTenantEntity.ShouldBeFalse();
         mapping.TenantColumnName.ShouldBeNull();
     }
 
     [Fact]
-    public void Build_WithoutTableName_ThrowsInvalidOperationException()
+    public void Build_WithoutTableName_ReturnsError()
     {
         var builder = new TenantEntityMappingBuilder<DapperSqliteTenantTestOrder, Guid>()
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId);
 
-        Should.Throw<InvalidOperationException>(() => builder.Build())
-            .Message.ShouldContain("Table name must be specified");
+        var result = builder.Build();
+
+        result.ShouldBeErrorWithCode(EntityMappingErrorCodes.MissingTableName);
     }
 
     [Fact]
@@ -70,7 +76,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
     }
@@ -83,7 +90,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new DapperSqliteTenantTestOrder { Id = Guid.NewGuid(), TenantId = "tenant-123" };
         mapping.GetTenantId(order).ShouldBe("tenant-123");
@@ -97,7 +105,8 @@ public sealed class TenantEntityMappingBuilderTests
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .MapProperty(o => o.CustomerId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         var order = new DapperSqliteTenantTestOrder { Id = Guid.NewGuid() };
         mapping.SetTenantId(order, "tenant-456");

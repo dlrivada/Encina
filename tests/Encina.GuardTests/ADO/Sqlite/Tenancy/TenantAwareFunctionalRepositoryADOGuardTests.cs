@@ -80,7 +80,8 @@ public sealed class TenantAwareFunctionalRepositoryADOGuardTests
             .ToTable("TestEntities")
             .HasId(e => e.Id)
             .HasTenantId(e => e.TenantId)
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
     }
 }
 

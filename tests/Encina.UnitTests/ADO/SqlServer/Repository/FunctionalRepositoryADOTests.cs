@@ -2,6 +2,7 @@ using System.Data;
 using System.Linq.Expressions;
 using Encina.ADO.SqlServer.Repository;
 using Encina.DomainModeling;
+using Encina.Testing.Shouldly;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -58,7 +59,8 @@ public class FunctionalRepositoryADOTests : IDisposable
             .MapProperty(e => e.Amount, "Amount")
             .MapProperty(e => e.IsActive, "IsActive")
             .MapProperty(e => e.CreatedAtUtc, "CreatedAtUtc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         _repository = new FunctionalRepositoryADO<TestEntityADO, Guid>(_mockConnection, _mapping);
     }

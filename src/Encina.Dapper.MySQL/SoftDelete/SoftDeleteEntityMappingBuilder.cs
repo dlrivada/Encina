@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Encina.Dapper.MySQL.Repository;
 using Encina.Messaging;
+using LanguageExt;
 
 namespace Encina.Dapper.MySQL.SoftDelete;
 
@@ -26,7 +27,7 @@ namespace Encina.Dapper.MySQL.SoftDelete;
 ///     .HasDeletedBy(o =&gt; o.DeletedBy)
 ///     .MapProperty(o =&gt; o.CustomerId)
 ///     .MapProperty(o =&gt; o.Total)
-///     .Build();
+///     .Build(); // Returns Either&lt;EncinaError, ISoftDeleteEntityMapping&lt;TEntity, TId&gt;&gt;
 /// </code>
 /// </example>
 public sealed class SoftDeleteEntityMappingBuilder<TEntity, TId>
@@ -49,8 +50,8 @@ public sealed class SoftDeleteEntityMappingBuilder<TEntity, TId>
     private Func<TEntity, string?>? _deletedByGetter;
     private Action<TEntity, string?>? _deletedBySetter;
     private readonly Dictionary<string, string> _columnMappings = new();
-    private readonly HashSet<string> _insertExcluded = [];
-    private readonly HashSet<string> _updateExcluded = [];
+    private readonly System.Collections.Generic.HashSet<string> _insertExcluded = [];
+    private readonly System.Collections.Generic.HashSet<string> _updateExcluded = [];
 
     /// <summary>
     /// Specifies the database table name for this entity.
@@ -242,49 +243,50 @@ public sealed class SoftDeleteEntityMappingBuilder<TEntity, TId>
     /// <summary>
     /// Builds the soft-delete-aware entity mapping configuration.
     /// </summary>
-    /// <returns>The configured entity mapping.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when required configuration is missing.
-    /// </exception>
-    public ISoftDeleteEntityMapping<TEntity, TId> Build()
+    /// <returns>Either the configured entity mapping or a validation error.</returns>
+    public Either<EncinaError, ISoftDeleteEntityMapping<TEntity, TId>> Build()
     {
         if (string.IsNullOrWhiteSpace(_tableName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingTableName,
                 $"Table name must be specified. Call {nameof(ToTable)}() before {nameof(Build)}().");
         }
 
         if (_idSelector is null || string.IsNullOrWhiteSpace(_idColumnName))
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingPrimaryKey,
                 $"Primary key must be specified. Call {nameof(HasId)}() before {nameof(Build)}().");
         }
 
         if (_columnMappings.Count == 0)
         {
-            throw new InvalidOperationException(
+            return EncinaErrors.Create(
+                EntityMappingErrorCodes.MissingColumnMappings,
                 $"At least one column mapping is required. Call {nameof(MapProperty)}() or {nameof(HasId)}() before {nameof(Build)}().");
         }
 
-        return new SoftDeleteEntityMapping<TEntity, TId>(
-            _tableName,
-            _idColumnName,
-            _idSelector,
-            new Dictionary<string, string>(_columnMappings),
-            new HashSet<string>(_insertExcluded),
-            new HashSet<string>(_updateExcluded),
-            _isDeletedColumnName,
-            _isDeletedPropertyName,
-            _isDeletedGetter,
-            _isDeletedSetter,
-            _deletedAtColumnName,
-            _deletedAtPropertyName,
-            _deletedAtGetter,
-            _deletedAtSetter,
-            _deletedByColumnName,
-            _deletedByPropertyName,
-            _deletedByGetter,
-            _deletedBySetter);
+        return Either<EncinaError, ISoftDeleteEntityMapping<TEntity, TId>>.Right(
+            new SoftDeleteEntityMapping<TEntity, TId>(
+                _tableName,
+                _idColumnName,
+                _idSelector,
+                new Dictionary<string, string>(_columnMappings),
+                new System.Collections.Generic.HashSet<string>(_insertExcluded),
+                new System.Collections.Generic.HashSet<string>(_updateExcluded),
+                _isDeletedColumnName,
+                _isDeletedPropertyName,
+                _isDeletedGetter,
+                _isDeletedSetter,
+                _deletedAtColumnName,
+                _deletedAtPropertyName,
+                _deletedAtGetter,
+                _deletedAtSetter,
+                _deletedByColumnName,
+                _deletedByPropertyName,
+                _deletedByGetter,
+                _deletedBySetter));
     }
 
     private static string GetPropertyName<TProperty>(Expression<Func<TEntity, TProperty>> propertySelector)
@@ -325,8 +327,8 @@ internal sealed class SoftDeleteEntityMapping<TEntity, TId> : ISoftDeleteEntityM
         string idColumnName,
         Func<TEntity, TId> idSelector,
         Dictionary<string, string> columnMappings,
-        HashSet<string> insertExcluded,
-        HashSet<string> updateExcluded,
+        System.Collections.Generic.HashSet<string> insertExcluded,
+        System.Collections.Generic.HashSet<string> updateExcluded,
         string? isDeletedColumnName,
         string? isDeletedPropertyName,
         Func<TEntity, bool>? isDeletedGetter,

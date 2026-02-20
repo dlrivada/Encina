@@ -89,6 +89,9 @@ static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.CallEncinaSu
 static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.WaitForEncinaExternalEventAsync<T>(this Microsoft.DurableTask.TaskOrchestrationContext! context, string! eventName, System.TimeSpan? timeout = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
 static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.CreateRetryOptions(int maxRetries, System.TimeSpan firstRetryInterval, double backoffCoefficient = 2, System.TimeSpan? maxRetryInterval = null) -> Microsoft.DurableTask.TaskOptions!
 static Encina.AzureFunctions.Durable.OrchestrationContextExtensions.GetCorrelationId(this Microsoft.DurableTask.TaskOrchestrationContext! context) -> string!
+Encina.AzureFunctions.Durable.DurableSagaErrorCodes
+const Encina.AzureFunctions.Durable.DurableSagaErrorCodes.NoSteps = "durable_saga.no_steps" -> string!
+const Encina.AzureFunctions.Durable.DurableSagaErrorCodes.StepNotConfigured = "durable_saga.step_not_configured" -> string!
 Encina.AzureFunctions.Durable.DurableSagaBuilder
 static Encina.AzureFunctions.Durable.DurableSagaBuilder.Create<TData>() -> Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>!
 Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>
@@ -96,14 +99,14 @@ Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.DurableSagaBuilder() -> 
 Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.Step(string! stepName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
 Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.WithDefaultRetryOptions(Microsoft.DurableTask.TaskOptions! options) -> Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>!
 Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.WithTimeout(System.TimeSpan timeout) -> Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>!
-Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.Build() -> Encina.AzureFunctions.Durable.DurableSaga<TData>!
+Encina.AzureFunctions.Durable.DurableSagaBuilder<TData>.Build() -> LanguageExt.Either<Encina.EncinaError, Encina.AzureFunctions.Durable.DurableSaga<TData>!>
 Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>
 Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Execute(string! activityName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
 Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Compensate(string! activityName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
 Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.WithRetry(Microsoft.DurableTask.TaskOptions! options) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
 Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.SkipCompensationOnFailure() -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
 Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Step(string! stepName) -> Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>!
-Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Build() -> Encina.AzureFunctions.Durable.DurableSaga<TData>!
+Encina.AzureFunctions.Durable.DurableSagaStepBuilder<TData>.Build() -> LanguageExt.Either<Encina.EncinaError, Encina.AzureFunctions.Durable.DurableSaga<TData>!>
 Encina.AzureFunctions.Durable.DurableSagaStep<TData>
 Encina.AzureFunctions.Durable.DurableSagaStep<TData>.DurableSagaStep() -> void
 Encina.AzureFunctions.Durable.DurableSagaStep<TData>.StepName.get -> string!

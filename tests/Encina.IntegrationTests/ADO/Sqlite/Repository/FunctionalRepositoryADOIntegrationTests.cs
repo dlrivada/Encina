@@ -44,7 +44,8 @@ public class FunctionalRepositoryADOIntegrationTests : IAsyncLifetime
             .MapProperty(p => p.Value, "Value")
             .MapProperty(p => p.IsEnabled, "IsEnabled")
             .MapProperty(p => p.CreatedAtUtc, "CreatedAtUtc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         _repository = new FunctionalRepositoryADO<TestItem, Guid>(_connection, _mapping);
     }

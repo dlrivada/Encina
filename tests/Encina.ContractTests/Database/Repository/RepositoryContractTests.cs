@@ -1,5 +1,6 @@
 using System.Reflection;
 using Encina.DomainModeling;
+using Encina.Testing.Shouldly;
 using Shouldly;
 using ADOMySQLRepository = Encina.ADO.MySQL.Repository;
 using ADOPostgreSQLRepository = Encina.ADO.PostgreSQL.Repository;
@@ -155,33 +156,31 @@ public sealed class RepositoryContractTests
     [Fact]
     public void Contract_AllProviders_EntityMappingBuilder_Build_RequiresTableName()
     {
-        // Contract: Build without ToTable must throw InvalidOperationException
-        var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
-        var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
+        // Contract: Build without ToTable must return an error
+        new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+            .HasId(e => e.Id)
+            .Build()
+            .ShouldBeErrorContaining("Table");
 
-        var adoException = Should.Throw<InvalidOperationException>(() =>
-            adoSqlite.HasId(e => e.Id).Build());
-        adoException.Message.ShouldContain("Table");
-
-        var dapperException = Should.Throw<InvalidOperationException>(() =>
-            dapperSqlite.HasId(e => e.Id).Build());
-        dapperException.Message.ShouldContain("Table");
+        new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+            .HasId(e => e.Id)
+            .Build()
+            .ShouldBeErrorContaining("Table");
     }
 
     [Fact]
     public void Contract_AllProviders_EntityMappingBuilder_Build_RequiresPrimaryKey()
     {
-        // Contract: Build without HasId must throw InvalidOperationException
-        var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
-        var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
+        // Contract: Build without HasId must return an error
+        new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+            .ToTable("Entities")
+            .Build()
+            .ShouldBeErrorContaining("Primary key");
 
-        var adoException = Should.Throw<InvalidOperationException>(() =>
-            adoSqlite.ToTable("Entities").Build());
-        adoException.Message.ShouldContain("Primary key");
-
-        var dapperException = Should.Throw<InvalidOperationException>(() =>
-            dapperSqlite.ToTable("Entities").Build());
-        dapperException.Message.ShouldContain("Primary key");
+        new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+            .ToTable("Entities")
+            .Build()
+            .ShouldBeErrorContaining("Primary key");
     }
 
     [Fact]
@@ -189,16 +188,16 @@ public sealed class RepositoryContractTests
     {
         // Contract: Build with valid configuration must produce a working mapping
         var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         var adoPostgresMapping = new ADOPostgreSQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         var dapperPostgresMapping = new DapperPostgreSQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         // Verify consistent behavior
         adoSqliteMapping.TableName.ShouldBe("Entities", "ADO.Sqlite");
@@ -223,10 +222,10 @@ public sealed class RepositoryContractTests
         };
 
         var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         adoSqliteMapping.GetId(testEntity).ShouldBe(testEntity.Id, "ADO.Sqlite");
         dapperSqliteMapping.GetId(testEntity).ShouldBe(testEntity.Id, "Dapper.Sqlite");
@@ -237,10 +236,10 @@ public sealed class RepositoryContractTests
     {
         // Contract: HasId must automatically exclude ID from updates
         var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
-            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build();
+            .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         adoSqliteMapping.UpdateExcludedProperties.ShouldContain("Id", "ADO.Sqlite must exclude Id from updates");
         dapperSqliteMapping.UpdateExcludedProperties.ShouldContain("Id", "Dapper.Sqlite must exclude Id from updates");
@@ -252,11 +251,11 @@ public sealed class RepositoryContractTests
         // Contract: ExcludeFromInsert must work consistently
         var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
-            .ExcludeFromInsert(e => e.Id).Build();
+            .ExcludeFromInsert(e => e.Id).Build().ShouldBeSuccess();
 
         var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
-            .ExcludeFromInsert(e => e.Id).Build();
+            .ExcludeFromInsert(e => e.Id).Build().ShouldBeSuccess();
 
         adoSqliteMapping.InsertExcludedProperties.ShouldContain("Id", "ADO.Sqlite");
         dapperSqliteMapping.InsertExcludedProperties.ShouldContain("Id", "Dapper.Sqlite");
@@ -268,11 +267,11 @@ public sealed class RepositoryContractTests
         // Contract: ExcludeFromUpdate must work consistently
         var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
-            .ExcludeFromUpdate(e => e.Name).Build();
+            .ExcludeFromUpdate(e => e.Name).Build().ShouldBeSuccess();
 
         var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
-            .ExcludeFromUpdate(e => e.Name).Build();
+            .ExcludeFromUpdate(e => e.Name).Build().ShouldBeSuccess();
 
         adoSqliteMapping.UpdateExcludedProperties.ShouldContain("Name", "ADO.Sqlite");
         dapperSqliteMapping.UpdateExcludedProperties.ShouldContain("Name", "Dapper.Sqlite");

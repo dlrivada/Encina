@@ -62,7 +62,8 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
             .MapProperty(e => e.IsActive, "isactive")
             .MapProperty(e => e.CreatedAtUtc, "createdatutc")
             .MapProperty(e => e.UpdatedAtUtc, "updatedatutc")
-            .Build();
+            .Build()
+            .ShouldBeSuccess();
 
         _repository = new TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid>(
             _connection, _mapping, _tenantProvider, _tenancyOptions);
