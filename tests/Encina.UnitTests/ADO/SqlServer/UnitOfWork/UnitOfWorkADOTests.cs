@@ -3,9 +3,9 @@ using Encina;
 using Encina.ADO.SqlServer.Repository;
 using Encina.ADO.SqlServer.UnitOfWork;
 using Encina.DomainModeling;
+using Encina.Testing.Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using Encina.Testing.Shouldly;
 using Shouldly;
 using Xunit;
 
