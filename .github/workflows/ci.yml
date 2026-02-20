@@ -8,6 +8,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
@@ -17,7 +21,7 @@ jobs:
   # Build job - quality checks, build, and artifact creation
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -49,7 +53,10 @@ jobs:
         with:
           name: build-output
           path: |
-            **/bin/Release/**
+            **/bin/Release/net10.0/**/*.dll
+            **/bin/Release/net10.0/**/*.pdb
+            **/bin/Release/net10.0/**/*.deps.json
+            **/bin/Release/net10.0/**/*.runtimeconfig.json
             **/obj/**/*.assets.json
           retention-days: 1
 
