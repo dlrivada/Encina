@@ -248,6 +248,95 @@ services.AddEncinaEncryption<AzureKeyVaultKeyProvider>();
 
 **Testing**: 181 tests across 5 test projects (109 unit, 22 guard, 12 property, 28 contract, 10 integration) plus BenchmarkDotNet benchmarks.
 
+---
+
+#### Encina.Security.Sanitization — Input Sanitization and Output Encoding (#399)
+
+Added the `Encina.Security.Sanitization` package providing attribute-based, context-aware input sanitization and output encoding at the CQRS pipeline level. Prevents XSS, SQL injection, command injection, and other OWASP Top 10 injection attacks through declarative property annotations.
+
+**Core Abstractions**:
+
+- **`ISanitizer`**: Context-aware input sanitization interface with 6 methods — `SanitizeHtml`, `SanitizeForSql`, `SanitizeForShell`, `SanitizeForJson`, `SanitizeForXml`, `Custom`
+- **`IOutputEncoder`**: Context-aware output encoding interface with 5 methods — `EncodeForHtml`, `EncodeForHtmlAttribute`, `EncodeForJavaScript`, `EncodeForUrl`, `EncodeForCss`
+- **`ISanitizationProfile`**: Immutable profile defining allowed tags, attributes, protocols, and stripping behavior
+- **`SanitizationOptions`**: Configuration for global sanitization mode, default profile, health check, tracing, and metrics
+
+**Sanitization Contexts** (5 input sanitization types):
+
+- **HTML** (`[SanitizeHtml]`): Strips dangerous tags/attributes while preserving safe HTML via HtmlSanitizer (Ganss.Xss)
+- **SQL** (`[SanitizeSql]`): Escapes single quotes, removes comment markers, semicolons, and `xp_` extended procedures
+- **Shell** (`[SanitizeForShell]`): OS-aware escaping — `^`-escaping on Windows, single-quote wrapping on Unix
+- **JSON**: Escapes control characters and special JSON characters per RFC 8259
+- **XML**: Escapes `<`, `>`, `&`, `"`, `'` and strips invalid XML 1.0 characters
+
+**Output Encoding** (5 encoding contexts):
+
+- **HTML** (`[EncodeForHtml]`): Entity-encodes `<`, `>`, `&`, `"`, `'`
+- **JavaScript** (`[EncodeForJavaScript]`): `\uXXXX` encoding for non-alphanumeric characters
+- **URL** (`[EncodeForUrl]`): RFC 3986 percent-encoding via `UrlEncoder.Default`
+- **CSS**: `\XXXXXX` hex escaping per OWASP Rule #4
+- **HTML Attribute**: Context-specific attribute encoding
+
+**Built-in Sanitization Profiles** (5 profiles):
+
+- **`SanitizationProfiles.None`**: Pass-through, no modifications
+- **`SanitizationProfiles.StrictText`**: Strips all HTML tags (default for auto-sanitization)
+- **`SanitizationProfiles.BasicFormatting`**: Allows `<b>`, `<i>`, `<em>`, `<strong>`, `<br>`, `<p>`
+- **`SanitizationProfiles.RichText`**: Adds headings, links, images, lists, tables with `https`/`mailto` protocols
+- **`SanitizationProfiles.Markdown`**: Comprehensive Markdown-rendered HTML including `<code>`, `<pre>`, `<blockquote>`
+
+**Custom Profiles** (via fluent builder):
+
+```csharp
+options.AddProfile("BlogPost", profile =>
+{
+    profile.AllowTags("p", "h1", "h2", "a", "img");
+    profile.AllowAttributes("href", "src", "alt");
+    profile.AllowProtocols("https", "mailto");
+    profile.WithStripScripts(true);
+});
+```
+
+**Pipeline Behaviors**:
+
+- **`InputSanitizationPipelineBehavior<TRequest, TResponse>`**: Pre-handler — sanitizes request properties before handler execution via attribute discovery and compiled delegate caching
+- **`OutputEncodingPipelineBehavior<TRequest, TResponse>`**: Post-handler — encodes response properties after handler execution
+- Requests without sanitization/encoding attributes bypass all checks (zero overhead)
+- Configurable via `SanitizeAllStringInputs` (global auto-sanitize) and `EncodeAllOutputs` (global auto-encode)
+
+**Error Codes** (2 structured errors via `SanitizationErrors`):
+
+- `sanitization.profile_not_found` — requested profile not registered
+- `sanitization.property_error` — sanitization of a property failed
+- All errors include structured metadata (`profileName`/`propertyName`, `stage`)
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Security.Sanitization` ActivitySource with activities: `Sanitization.Input`, `Sanitization.Output`; tags: `sanitization.request_type`, `sanitization.operation`, `sanitization.type`, `sanitization.profile`, `sanitization.property_count`, `sanitization.outcome`
+- 4 metric instruments under `Encina.Security.Sanitization` Meter: `sanitization.operations` (counter), `sanitization.properties.processed` (counter), `sanitization.failures` (counter), `sanitization.duration` (histogram in ms)
+- 9 structured log events (EventId 1–9) using `LoggerMessage` source generation for zero-allocation logging
+
+**Health Check**:
+
+- **`SanitizationHealthCheck`**: Verifies `ISanitizer`, `IOutputEncoder`, and `SanitizationOrchestrator` are resolvable from DI
+- Opt-in via `SanitizationOptions.AddHealthCheck = true`
+- Tags: `encina`, `sanitization`, `ready`
+
+**DI Registration**:
+
+```csharp
+services.AddEncinaSanitization(options =>
+{
+    options.SanitizeAllStringInputs = true;
+    options.EncodeAllOutputs = true;
+    options.AddHealthCheck = true;
+    options.EnableTracing = true;
+    options.EnableMetrics = true;
+});
+```
+
+**Testing**: 283 tests across 3 test projects (235 unit, 21 guard, 27 property).
+
 ### Changed
 
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)

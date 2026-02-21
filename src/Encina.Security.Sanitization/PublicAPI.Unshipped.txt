@@ -1,0 +1,129 @@
+#nullable enable
+Encina.Security.Sanitization.Abstractions.ISanitizer
+Encina.Security.Sanitization.Abstractions.ISanitizer.SanitizeHtml(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.ISanitizer.SanitizeForSql(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.ISanitizer.SanitizeForShell(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.ISanitizer.SanitizeForJson(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.ISanitizer.SanitizeForXml(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.ISanitizer.Custom(string! input, Encina.Security.Sanitization.Abstractions.ISanitizationProfile! profile) -> string!
+Encina.Security.Sanitization.Abstractions.IOutputEncoder
+Encina.Security.Sanitization.Abstractions.IOutputEncoder.EncodeForHtml(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.IOutputEncoder.EncodeForHtmlAttribute(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.IOutputEncoder.EncodeForJavaScript(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.IOutputEncoder.EncodeForUrl(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.IOutputEncoder.EncodeForCss(string! input) -> string!
+Encina.Security.Sanitization.Abstractions.ISanitizationProfile
+Encina.Security.Sanitization.Abstractions.ISanitizationProfile.AllowedTags.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Security.Sanitization.Abstractions.ISanitizationProfile.AllowedAttributes.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Security.Sanitization.Abstractions.ISanitizationProfile.AllowedProtocols.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Security.Sanitization.Abstractions.ISanitizationProfile.StripComments.get -> bool
+Encina.Security.Sanitization.Abstractions.ISanitizationProfile.StripScripts.get -> bool
+Encina.Security.Sanitization.SanitizationErrors
+const Encina.Security.Sanitization.SanitizationErrors.ProfileNotFoundCode = "sanitization.profile_not_found" -> string!
+const Encina.Security.Sanitization.SanitizationErrors.PropertyErrorCode = "sanitization.property_error" -> string!
+static Encina.Security.Sanitization.SanitizationErrors.ProfileNotFound(string! profileName) -> Encina.EncinaError
+static Encina.Security.Sanitization.SanitizationErrors.PropertyError(string! propertyName, System.Exception? exception = null) -> Encina.EncinaError
+Encina.Security.Sanitization.SanitizationOptions
+Encina.Security.Sanitization.SanitizationOptions.SanitizationOptions() -> void
+Encina.Security.Sanitization.SanitizationOptions.SanitizeAllStringInputs.get -> bool
+Encina.Security.Sanitization.SanitizationOptions.SanitizeAllStringInputs.set -> void
+Encina.Security.Sanitization.SanitizationOptions.DefaultProfile.get -> Encina.Security.Sanitization.Abstractions.ISanitizationProfile?
+Encina.Security.Sanitization.SanitizationOptions.DefaultProfile.set -> void
+Encina.Security.Sanitization.SanitizationOptions.EncodeAllOutputs.get -> bool
+Encina.Security.Sanitization.SanitizationOptions.EncodeAllOutputs.set -> void
+Encina.Security.Sanitization.SanitizationOptions.AddHealthCheck.get -> bool
+Encina.Security.Sanitization.SanitizationOptions.AddHealthCheck.set -> void
+Encina.Security.Sanitization.SanitizationOptions.EnableTracing.get -> bool
+Encina.Security.Sanitization.SanitizationOptions.EnableTracing.set -> void
+Encina.Security.Sanitization.SanitizationOptions.EnableMetrics.get -> bool
+Encina.Security.Sanitization.SanitizationOptions.EnableMetrics.set -> void
+Encina.Security.Sanitization.SanitizationOptions.AddProfile(string! name, Encina.Security.Sanitization.Abstractions.ISanitizationProfile! profile) -> void
+Encina.Security.Sanitization.SanitizationOptions.AddProfile(string! name, System.Action<Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder!>! configure) -> void
+Encina.Security.Sanitization.SanitizationOptions.TryGetProfile(string! name, out Encina.Security.Sanitization.Abstractions.ISanitizationProfile? profile) -> bool
+Encina.Security.Sanitization.SanitizationOptions.UseHtmlSanitizer(System.Action<Ganss.Xss.HtmlSanitizer!>! configure) -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfile
+Encina.Security.Sanitization.Profiles.SanitizationProfile.SanitizationProfile(System.Collections.Generic.IReadOnlySet<string!>! AllowedTags, System.Collections.Generic.IReadOnlySet<string!>! AllowedAttributes, System.Collections.Generic.IReadOnlySet<string!>! AllowedProtocols, bool StripComments, bool StripScripts) -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfile.AllowedTags.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Security.Sanitization.Profiles.SanitizationProfile.AllowedTags.init -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfile.AllowedAttributes.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Security.Sanitization.Profiles.SanitizationProfile.AllowedAttributes.init -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfile.AllowedProtocols.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.Security.Sanitization.Profiles.SanitizationProfile.AllowedProtocols.init -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfile.StripComments.get -> bool
+Encina.Security.Sanitization.Profiles.SanitizationProfile.StripComments.init -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfile.StripScripts.get -> bool
+Encina.Security.Sanitization.Profiles.SanitizationProfile.StripScripts.init -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfiles
+static Encina.Security.Sanitization.Profiles.SanitizationProfiles.None.get -> Encina.Security.Sanitization.Abstractions.ISanitizationProfile!
+static Encina.Security.Sanitization.Profiles.SanitizationProfiles.StrictText.get -> Encina.Security.Sanitization.Abstractions.ISanitizationProfile!
+static Encina.Security.Sanitization.Profiles.SanitizationProfiles.BasicFormatting.get -> Encina.Security.Sanitization.Abstractions.ISanitizationProfile!
+static Encina.Security.Sanitization.Profiles.SanitizationProfiles.RichText.get -> Encina.Security.Sanitization.Abstractions.ISanitizationProfile!
+static Encina.Security.Sanitization.Profiles.SanitizationProfiles.Markdown.get -> Encina.Security.Sanitization.Abstractions.ISanitizationProfile!
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder.SanitizationProfileBuilder() -> void
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder.AllowTags(params string![]! tags) -> Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder!
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder.AllowAttributes(params string![]! attributes) -> Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder!
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder.AllowProtocols(params string![]! protocols) -> Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder!
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder.WithStripComments(bool strip) -> Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder!
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder.WithStripScripts(bool strip) -> Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder!
+Encina.Security.Sanitization.Profiles.SanitizationProfileBuilder.Build() -> Encina.Security.Sanitization.Abstractions.ISanitizationProfile!
+Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizationType.Html = 0 -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizationType.Sql = 1 -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizationType.Shell = 2 -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizationType.Custom = 3 -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizationType.StripHtml = 4 -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizationAttribute
+Encina.Security.Sanitization.Attributes.SanitizationAttribute.SanitizationAttribute() -> void
+abstract Encina.Security.Sanitization.Attributes.SanitizationAttribute.SanitizationType.get -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizeHtmlAttribute
+Encina.Security.Sanitization.Attributes.SanitizeHtmlAttribute.SanitizeHtmlAttribute() -> void
+override Encina.Security.Sanitization.Attributes.SanitizeHtmlAttribute.SanitizationType.get -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizeSqlAttribute
+Encina.Security.Sanitization.Attributes.SanitizeSqlAttribute.SanitizeSqlAttribute() -> void
+override Encina.Security.Sanitization.Attributes.SanitizeSqlAttribute.SanitizationType.get -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizeAttribute
+Encina.Security.Sanitization.Attributes.SanitizeAttribute.SanitizeAttribute() -> void
+override Encina.Security.Sanitization.Attributes.SanitizeAttribute.SanitizationType.get -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.SanitizeAttribute.Profile.get -> string?
+Encina.Security.Sanitization.Attributes.SanitizeAttribute.Profile.set -> void
+Encina.Security.Sanitization.Attributes.StripHtmlAttribute
+Encina.Security.Sanitization.Attributes.StripHtmlAttribute.StripHtmlAttribute() -> void
+override Encina.Security.Sanitization.Attributes.StripHtmlAttribute.SanitizationType.get -> Encina.Security.Sanitization.Attributes.SanitizationType
+Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.Attributes.EncodingContext.Html = 0 -> Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.Attributes.EncodingContext.JavaScript = 1 -> Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.Attributes.EncodingContext.Url = 2 -> Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.Attributes.EncodingAttribute
+Encina.Security.Sanitization.Attributes.EncodingAttribute.EncodingAttribute() -> void
+abstract Encina.Security.Sanitization.Attributes.EncodingAttribute.EncodingContext.get -> Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.Attributes.EncodeForHtmlAttribute
+Encina.Security.Sanitization.Attributes.EncodeForHtmlAttribute.EncodeForHtmlAttribute() -> void
+override Encina.Security.Sanitization.Attributes.EncodeForHtmlAttribute.EncodingContext.get -> Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.Attributes.EncodeForJavaScriptAttribute
+Encina.Security.Sanitization.Attributes.EncodeForJavaScriptAttribute.EncodeForJavaScriptAttribute() -> void
+override Encina.Security.Sanitization.Attributes.EncodeForJavaScriptAttribute.EncodingContext.get -> Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.Attributes.EncodeForUrlAttribute
+Encina.Security.Sanitization.Attributes.EncodeForUrlAttribute.EncodeForUrlAttribute() -> void
+override Encina.Security.Sanitization.Attributes.EncodeForUrlAttribute.EncodingContext.get -> Encina.Security.Sanitization.Attributes.EncodingContext
+Encina.Security.Sanitization.DefaultSanitizer
+Encina.Security.Sanitization.DefaultSanitizer.DefaultSanitizer(Microsoft.Extensions.Options.IOptions<Encina.Security.Sanitization.SanitizationOptions!>! options) -> void
+Encina.Security.Sanitization.DefaultSanitizer.SanitizeHtml(string! input) -> string!
+Encina.Security.Sanitization.DefaultSanitizer.SanitizeForSql(string! input) -> string!
+Encina.Security.Sanitization.DefaultSanitizer.SanitizeForShell(string! input) -> string!
+Encina.Security.Sanitization.DefaultSanitizer.SanitizeForJson(string! input) -> string!
+Encina.Security.Sanitization.DefaultSanitizer.SanitizeForXml(string! input) -> string!
+Encina.Security.Sanitization.DefaultSanitizer.Custom(string! input, Encina.Security.Sanitization.Abstractions.ISanitizationProfile! profile) -> string!
+Encina.Security.Sanitization.Encoders.DefaultOutputEncoder
+Encina.Security.Sanitization.Encoders.DefaultOutputEncoder.DefaultOutputEncoder() -> void
+Encina.Security.Sanitization.Encoders.DefaultOutputEncoder.EncodeForHtml(string! input) -> string!
+Encina.Security.Sanitization.Encoders.DefaultOutputEncoder.EncodeForHtmlAttribute(string! input) -> string!
+Encina.Security.Sanitization.Encoders.DefaultOutputEncoder.EncodeForJavaScript(string! input) -> string!
+Encina.Security.Sanitization.Encoders.DefaultOutputEncoder.EncodeForUrl(string! input) -> string!
+Encina.Security.Sanitization.Encoders.DefaultOutputEncoder.EncodeForCss(string! input) -> string!
+Encina.Security.Sanitization.Health.SanitizationHealthCheck
+Encina.Security.Sanitization.Health.SanitizationHealthCheck.SanitizationHealthCheck(System.IServiceProvider! serviceProvider) -> void
+Encina.Security.Sanitization.Health.SanitizationHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+const Encina.Security.Sanitization.Health.SanitizationHealthCheck.DefaultName = "encina-sanitization" -> string!
+Encina.Security.Sanitization.ServiceCollectionExtensions
+static Encina.Security.Sanitization.ServiceCollectionExtensions.AddEncinaSanitization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Sanitization.SanitizationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

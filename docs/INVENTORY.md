@@ -30,7 +30,7 @@
 | **Patrones DDD & Workflow** | 0 (+ 10 planificados) |
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
-| **Patrones Security** | 3 implementados (#394 Core Security, #395 Audit Trail, #400/#603 Secrets Management) (+ 5 planificados: #396-#399, #401) |
+| **Patrones Security** | 4 implementados (#394 Core Security, #395 Audit Trail, #399 Sanitization, #400/#603 Secrets Management) (+ 4 planificados: #396-#398, #401) |
 | **Patrones Compliance (GDPR/EU)** | 1 implementado (#402 GDPR Core/RoPA) (+ 13 planificados: #403-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
@@ -5667,18 +5667,25 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Labels: `area-security`, `area-web-api`, `area-pipeline`, `industry-best-practice`, `owasp-pattern`
 - Referencias: [AWS Signature Version 4](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-signing.html), [Stripe Webhook Signatures](https://stripe.com/docs/webhooks/signatures)
 
-**#399 - Encina.Security.Sanitization - Input/Output Sanitization**:
+**#399 - Encina.Security.Sanitization - Input/Output Sanitization** ✅ **IMPLEMENTADO (Feb 2026)**:
 
-- `ISanitizer<T>` con `Sanitize`, `Validate`, `SanitizeAndValidate`
-- `[Sanitize]` atributo con tipos: Html, Sql, Command, Path, Url
-- `SanitizationPipelineBehavior` para limpieza automática de inputs
-- Output encoding para prevenir XSS
-- SQL injection prevention más allá de parameterized queries
-- Path traversal prevention
-- **Nuevo paquete planificado**: `Encina.Security.Sanitization`
-- **Demanda de comunidad**: ALTA - OWASP Top 10 prevention
+- ✅ `ISanitizer` con 6 métodos: `SanitizeHtml`, `SanitizeForSql`, `SanitizeForShell`, `SanitizeForJson`, `SanitizeForXml`, `Custom`
+- ✅ `IOutputEncoder` con 5 métodos: `EncodeForHtml`, `EncodeForHtmlAttribute`, `EncodeForJavaScript`, `EncodeForUrl`, `EncodeForCss`
+- ✅ `ISanitizationProfile` con AllowedTags, AllowedAttributes, AllowedProtocols, StripComments, StripScripts
+- ✅ 5 atributos de sanitización: `[SanitizeHtml]`, `[SanitizeSql]`, `[StripHtml]`, `[Sanitize(Profile = "...")]`, `[SanitizeAttribute]` (base)
+- ✅ 3 atributos de encoding: `[EncodeForHtml]`, `[EncodeForJavaScript]`, `[EncodeForUrl]`
+- ✅ 5 perfiles built-in: None, StrictText, BasicFormatting, RichText, Markdown
+- ✅ `SanitizationProfileBuilder` para perfiles custom con API fluent
+- ✅ `InputSanitizationPipelineBehavior<TRequest, TResponse>` — pre-handler sanitization
+- ✅ `OutputEncodingPipelineBehavior<TRequest, TResponse>` — post-handler encoding
+- ✅ `SanitizationOrchestrator` con compiled delegates y caching
+- ✅ `SanitizationOptions` con 7 propiedades configurables + `AddProfile` + `UseHtmlSanitizer`
+- ✅ 2 error codes: `sanitization.profile_not_found`, `sanitization.property_error`
+- ✅ OpenTelemetry: ActivitySource + 4 métricas + 9 log events
+- ✅ Health check: `SanitizationHealthCheck` con verificación de DI
+- ✅ 283 tests (235 unit, 21 guard, 27 property)
 - Labels: `area-security`, `area-validation`, `area-pipeline`, `industry-best-practice`, `owasp-pattern`
-- Referencias: [OWASP Input Validation](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html), [HtmlSanitizer](https://github.com/mganss/HtmlSanitizer)
+- Documentación: [sanitization.md](features/sanitization.md)
 
 ##### Tier 3: Media Prioridad (Advanced Security)
 
@@ -5721,7 +5728,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | `Encina.Security.Encryption` | #396 ✅ | Field-level encryption with AES-256-GCM (IMPLEMENTADO) | Alta |
 | `Encina.Security.PII` | #397 | PII masking and protection | Alta |
 | `Encina.Security.AntiTampering` | #398 | Request signing and verification | Alta |
-| `Encina.Security.Sanitization` | #399 | Input/output sanitization | Alta |
+| `Encina.Security.Sanitization` | #399 ✅ | Input/output sanitization (IMPLEMENTADO) | Alta |
 | `Encina.Secrets` | #400/#603 ✅ | Secrets management core (IMPLEMENTADO) | Media |
 | `Encina.Secrets.AzureKeyVault` | #400/#603 ✅ | Azure Key Vault provider (IMPLEMENTADO) | Media |
 | `Encina.Secrets.AWSSecretsManager` | #400/#603 ✅ | AWS Secrets Manager provider (IMPLEMENTADO) | Media |
