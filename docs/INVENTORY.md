@@ -5641,16 +5641,23 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Labels: `area-security`, `area-encryption`, `area-gdpr`, `area-data-protection`, `pattern-crypto-shredding`, `owasp-pattern`, `cloud-aws`, `cloud-azure`
 - Referencias: [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/), [AWS KMS](https://aws.amazon.com/kms/), [OWASP Cryptographic Storage](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html)
 
-**#397 - Encina.Security.PII - PII Masking and Protection**:
+**#397 - Encina.Security.PII - PII Masking and Protection** ✅ **IMPLEMENTADO (Feb 2026)**:
 
-- `IPIIMasker` con `Mask`, `Unmask`, `DetectPII`
-- `[PII]` atributo con tipos: Email, Phone, SSN, CreditCard, Address, Name, Custom
-- `PIIMaskingPipelineBehavior` para masking automático en respuestas
-- Masking strategies: Full, Partial, Hash, Tokenize
-- Auto-detection de PII en payloads
-- Logging redaction para prevenir leaks en logs
-- **Nuevo paquete planificado**: `Encina.Security.PII`
-- **Demanda de comunidad**: ALTA - Esencial para GDPR compliance
+- ✅ `IPIIMasker` con `Mask(string, PIIType)`, `Mask(string, pattern)`, `MaskObject<T>(T)`
+- ✅ `IMaskingStrategy` interfaz extensible para estrategias custom
+- ✅ `[PII]` atributo con tipos: Email, Phone, SSN, CreditCard, Name, Address, DateOfBirth, IPAddress, Custom
+- ✅ `[SensitiveData]` atributo lightweight para datos sensibles genéricos
+- ✅ `[MaskInLogs]` atributo para masking solo en contexto de logging
+- ✅ `PIIMaskingPipelineBehavior` para masking automático en respuestas (post-handler)
+- ✅ 9 masking strategies built-in: Email, Phone, CreditCard, SSN, Name, Address, DateOfBirth, IPAddress, Custom
+- ✅ 5 masking modes: Partial, Full, Hash, Tokenize, Redact
+- ✅ Integración con `Encina.Security.Audit` via `IPiiMasker`
+- ✅ `PIILoggerExtensions` con 4 métodos level-aware para masking en logs
+- ✅ Sensitive field pattern detection (password, secret, token, key, etc.)
+- ✅ OpenTelemetry tracing + metrics (opt-in)
+- ✅ `PIIHealthCheck` con verificación de estrategias y masking probe
+- ✅ 319 tests (242 unit, 13 guard, 6 property, 21 contract, 37 benchmarks)
+- **Paquete implementado**: `Encina.Security.PII`
 - Labels: `area-security`, `area-gdpr`, `area-data-protection`, `pattern-data-masking`, `industry-best-practice`, `eu-regulation`
 - Referencias: [Microsoft Presidio](https://github.com/microsoft/presidio), [GDPR Article 4](https://gdpr-info.eu/art-4-gdpr/)
 
@@ -5726,7 +5733,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | `Encina.Security` | #394 ✅ | Core security abstractions, RBAC, policies (IMPLEMENTADO) | Crítica |
 | `Encina.Security.Audit` | #395 ✅ | Audit trail logging (IMPLEMENTADO) | Crítica |
 | `Encina.Security.Encryption` | #396 ✅ | Field-level encryption with AES-256-GCM (IMPLEMENTADO) | Alta |
-| `Encina.Security.PII` | #397 | PII masking and protection | Alta |
+| `Encina.Security.PII` | #397 ✅ | PII masking and protection (IMPLEMENTADO) | Alta |
 | `Encina.Security.AntiTampering` | #398 | Request signing and verification | Alta |
 | `Encina.Security.Sanitization` | #399 ✅ | Input/output sanitization (IMPLEMENTADO) | Alta |
 | `Encina.Secrets` | #400/#603 ✅ | Secrets management core (IMPLEMENTADO) | Media |

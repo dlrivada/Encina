@@ -337,6 +337,100 @@ services.AddEncinaSanitization(options =>
 
 **Testing**: 283 tests across 3 test projects (235 unit, 21 guard, 27 property).
 
+---
+
+#### Encina.Security.PII — PII Masking and Data Protection (#397)
+
+Added the `Encina.Security.PII` package providing attribute-based PII masking and data protection at the CQRS pipeline level. Automatically masks personally identifiable information (emails, phone numbers, SSNs, credit cards) in responses, logs, and audit trails with configurable masking strategies for GDPR/HIPAA/PCI-DSS compliance.
+
+**Core Abstractions**:
+
+- **`IPIIMasker`**: PII masking interface with 3 methods — `Mask(string, PIIType)`, `Mask(string, pattern)`, `MaskObject<T>(T)`
+- **`IMaskingStrategy`**: Extensible masking strategy interface for custom PII handling
+- **`PIIOptions`**: Configuration for default masking mode, response/log/audit masking, health check, tracing, and metrics
+- **`PIIAttribute`**: Declarative attribute for marking PII properties with type, mode, pattern, and replacement
+- **`MaskingOptions`**: Immutable record struct configuring mask character, visible characters, preserve length, and hash salt
+
+**9 Built-in Masking Strategies** (one per `PIIType`):
+
+- **Email** (`PIIType.Email`): `user@example.com` → `u***@example.com`
+- **Phone** (`PIIType.Phone`): `555-123-4567` → `***-***-4567`
+- **Credit Card** (`PIIType.CreditCard`): `4111-1111-1111-1111` → `****-****-****-1111`
+- **SSN** (`PIIType.SSN`): `123-45-6789` → `***-**-6789`
+- **Name** (`PIIType.Name`): `John Doe` → `J*** D**`
+- **Address** (`PIIType.Address`): `123 Main St, Springfield, IL` → `*** **** **, Springfield, IL`
+- **Date of Birth** (`PIIType.DateOfBirth`): `01/15/1990` → `**/**/1990`
+- **IP Address** (`PIIType.IPAddress`): `192.168.1.100` → `192.168.***.***`
+- **Custom** (`PIIType.Custom`): Full masking fallback for unclassified PII
+
+**5 Masking Modes** (configurable per attribute or globally):
+
+- **Partial**: Show selected characters, mask the rest (default)
+- **Full**: Replace all characters with mask character
+- **Hash**: SHA-256 deterministic hash with optional salt
+- **Tokenize**: Passthrough for external tokenization systems
+- **Redact**: Replace entire value with `[REDACTED]`
+
+**3 Declarative Attributes** (composable):
+
+- **`[PII(PIIType.Email)]`**: Mark property with specific PII type and optional mode/pattern/replacement
+- **`[SensitiveData]`**: Lightweight marker for sensitive data (defaults to `PIIType.Custom` + `MaskingMode.Full`)
+- **`[MaskInLogs]`**: Mark property for masking only in logging context (not in responses)
+
+**Pipeline Behavior**:
+
+- **`PIIMaskingPipelineBehavior<TRequest, TResponse>`**: Post-handler — masks PII-decorated properties on response objects using JSON deep-copy
+- Requests without PII attributes bypass all checks (zero overhead)
+- Property metadata cached via `ConcurrentDictionary` after first access per type
+- Configurable sensitive field pattern detection for convention-based masking (password, secret, token, etc.)
+
+**Audit Trail Integration**:
+
+- Implements `IPiiMasker` from `Encina.Security.Audit` for automatic PII redaction in audit entries
+- **`MaskForAudit<T>(T)`** and **`MaskForAudit(object)`**: Generic and non-generic audit masking
+- Single DI registration serves both `IPIIMasker` and `IPiiMasker` interfaces
+
+**Logging Extensions** (4 methods):
+
+- **`LogMasked`**: Level-aware PII masking before structured logging with automatic fallback on failure
+- **`LogInformationMasked`**, **`LogWarningMasked`**, **`LogErrorMasked`**: Convenience wrappers per log level
+
+**Error Codes** (3 structured errors via `PIIErrors`):
+
+- `pii.masking_failed` — masking operation encountered an error
+- `pii.strategy_not_found` — no strategy registered for the requested PII type
+- `pii.invalid_configuration` — invalid PII options or strategy configuration
+- All errors include structured metadata (`piiType`, `propertyName`, `stage`)
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Security.PII` ActivitySource with activities: `PII.MaskObject`, `PII.MaskProperty`, `PII.ApplyStrategy`; tags: `pii.type_name`, `pii.property_count`, `pii.masked_count`, `pii.mode`, `pii.outcome`
+- 5 metric instruments under `Encina.Security.PII` Meter: `pii.masking.operations` (counter), `pii.masking.properties` (counter), `pii.masking.errors` (counter), `pii.masking.duration` (histogram in ms), `pii.pipeline.operations` (counter)
+- 9 structured log events (EventId 8000–8008) using `LoggerMessage` source generation for zero-allocation logging
+
+**Health Check**:
+
+- **`PIIHealthCheck`**: Verifies `IPIIMasker` resolution, strategy availability (9 built-in), and masking probe (email test)
+- Opt-in via `PIIOptions.AddHealthCheck = true`
+- Tags: `encina`, `pii`, `ready`
+
+**DI Registration**:
+
+```csharp
+services.AddEncinaPII(options =>
+{
+    options.MaskInResponses = true;
+    options.MaskInLogs = true;
+    options.MaskInAuditTrails = true;
+    options.DefaultMode = MaskingMode.Partial;
+    options.AddHealthCheck = true;
+    options.EnableTracing = true;
+    options.EnableMetrics = true;
+});
+```
+
+**Testing**: 319 tests across 5 test projects (242 unit, 13 guard, 6 property, 21 contract, 37 benchmarks).
+
 ### Changed
 
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)
