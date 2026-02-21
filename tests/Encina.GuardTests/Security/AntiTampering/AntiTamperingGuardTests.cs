@@ -72,8 +72,11 @@ public class AntiTamperingGuardTests
         var sut = new HMACSigner(keyProvider, Options.Create(new AntiTamperingOptions()));
         var context = new SigningContext
         {
-            KeyId = "k", HttpMethod = "GET", RequestPath = "/",
-            Timestamp = DateTimeOffset.UtcNow, Nonce = "n"
+            KeyId = "k",
+            HttpMethod = "GET",
+            RequestPath = "/",
+            Timestamp = DateTimeOffset.UtcNow,
+            Nonce = "n"
         };
 
         var act = async () => await sut.VerifyAsync(ReadOnlyMemory<byte>.Empty, signature!, context);
