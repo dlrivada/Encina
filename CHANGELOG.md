@@ -431,6 +431,101 @@ services.AddEncinaPII(options =>
 
 **Testing**: 319 tests across 5 test projects (242 unit, 13 guard, 6 property, 21 contract, 37 benchmarks).
 
+---
+
+#### Encina.Security.AntiTampering — HMAC Request Signing and Integrity Verification (#398)
+
+Added the `Encina.Security.AntiTampering` package providing HMAC-based request signing, integrity verification, and replay attack protection at the CQRS pipeline level. Protects API endpoints against tampering, replay, and impersonation attacks using cryptographic signatures with timestamp validation and nonce-based deduplication.
+
+**Core Abstractions**:
+
+- **`IRequestSigner`**: Signs and verifies request payloads using HMAC, returning `Either<EncinaError, T>` (Railway Oriented Programming)
+- **`INonceStore`**: Nonce deduplication interface with `TryAddAsync` and `ExistsAsync` for replay attack prevention
+- **`IKeyProvider`**: Key management abstraction for HMAC secret keys, returning `Either<EncinaError, byte[]>` — pluggable for cloud KMS
+- **`IRequestSigningClient`**: High-level client for signing outgoing `HttpRequestMessage` instances with all required headers
+
+**Declarative Attribute**:
+
+- **`[RequireSignature]`**: Marks commands/queries for automatic HMAC validation in the pipeline
+- `KeyId` — optional key restriction for specific request types
+- `SkipReplayProtection` — opt-out of nonce validation for idempotent operations
+
+**HMAC Signing** (3 algorithms):
+
+- **HMAC-SHA256** (default), **HMAC-SHA384**, **HMAC-SHA512**
+- Canonical signature format: `HMAC(SecretKey, "Method|Path|PayloadHash|Timestamp|Nonce")`
+- Payload hash computed using SHA-256 (hex-encoded lowercase)
+- Key rotation support via `KeyId` header for concurrent key versions
+
+**Signing Records**:
+
+- **`SigningContext`**: Sealed record with `KeyId`, `Nonce`, `Timestamp`, `HttpMethod`, `RequestPath` — input for signing/verification
+- **`SignatureComponents`**: Sealed record with `ToCanonicalString()` producing the pipe-delimited canonical form
+
+**Pipeline Behavior**:
+
+- **`HMACValidationPipelineBehavior<TRequest, TResponse>`**: Automatic HMAC validation on incoming requests
+- Extracts 4 headers (X-Signature, X-Timestamp, X-Nonce, X-Key-Id) from `HttpContext`
+- Validates timestamp tolerance (configurable window)
+- Validates nonce uniqueness (replay protection)
+- Verifies HMAC signature against recomputed hash
+- Requests without `[RequireSignature]` bypass all checks (zero overhead)
+- Reflection caching via `ConcurrentDictionary` for attribute lookups
+
+**HTTP Headers** (4 headers, all customizable):
+
+| Header | Default | Purpose |
+|--------|---------|---------|
+| `X-Signature` | Signature | Base64-encoded HMAC |
+| `X-Timestamp` | Timestamp | ISO 8601 UTC |
+| `X-Nonce` | Nonce | Unique request ID |
+| `X-Key-Id` | Key ID | Signing key identifier |
+
+**Nonce Stores** (2 implementations):
+
+- **`InMemoryNonceStore`**: Thread-safe in-memory store with background cleanup timer (5-minute interval) — suitable for single-instance deployments
+- **`DistributedCacheNonceStore`**: Distributed cache-backed store via `ICacheProvider` — suitable for multi-instance deployments (Redis, Valkey, etc.)
+
+**Error Codes** (6 structured errors via `AntiTamperingErrors`):
+
+- `antitampering.key_not_found`, `antitampering.signature_invalid`, `antitampering.signature_missing`
+- `antitampering.timestamp_expired`, `antitampering.nonce_reused`, `antitampering.nonce_missing`
+- All errors include structured metadata (`keyId`, `headerName`, `nonce`, `stage`)
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Security.AntiTampering` ActivitySource with tags: `antitampering.request_type`, `antitampering.key_id`, `antitampering.algorithm`, `antitampering.outcome`
+- 4 metric instruments under `Encina.Security.AntiTampering` Meter: `antitampering.sign.total`, `antitampering.verify.total` (counters), `antitampering.verify.failures` (counter), `antitampering.operation.duration` (histogram in ms)
+- Structured logging with `LoggerMessage` source generation for zero-allocation logging
+
+**Health Check**:
+
+- **`AntiTamperingHealthCheck`**: Verifies `IKeyProvider`, `IRequestSigner`, `INonceStore` are resolvable and functional (roundtrip nonce probe)
+- Opt-in via `AntiTamperingOptions.AddHealthCheck = true`
+- Tags: `encina`, `security`, `antitampering`
+
+**DI Registration**:
+
+```csharp
+// Basic setup with test keys
+services.AddEncinaAntiTampering(options =>
+{
+    options.Algorithm = HMACAlgorithm.SHA256;
+    options.TimestampToleranceMinutes = 5;
+    options.RequireNonce = true;
+    options.AddKey("api-key-v1", "your-secret-value");
+});
+
+// Distributed nonce store (requires ICacheProvider)
+services.AddDistributedNonceStore();
+
+// Custom key provider (register before AddEncinaAntiTampering)
+services.AddSingleton<IKeyProvider, AzureKeyVaultKeyProvider>();
+services.AddEncinaAntiTampering();
+```
+
+**Testing**: 94 tests across 5 test projects (41 unit, 36 guard, 6 property, 11 integration) plus BenchmarkDotNet benchmarks (17 benchmarks for signing/verification throughput across payload sizes and algorithms).
+
 ### Changed
 
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)

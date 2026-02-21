@@ -1,0 +1,116 @@
+#nullable enable
+Encina.Security.AntiTampering.Abstractions.IKeyProvider
+Encina.Security.AntiTampering.Abstractions.IKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Security.AntiTampering.Abstractions.INonceStore
+Encina.Security.AntiTampering.Abstractions.INonceStore.ExistsAsync(string! nonce, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+Encina.Security.AntiTampering.Abstractions.INonceStore.TryAddAsync(string! nonce, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+Encina.Security.AntiTampering.Abstractions.IRequestSigner
+Encina.Security.AntiTampering.Abstractions.IRequestSigner.SignAsync(System.ReadOnlyMemory<byte> payload, Encina.Security.AntiTampering.HMAC.SigningContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.AntiTampering.Abstractions.IRequestSigner.VerifyAsync(System.ReadOnlyMemory<byte> payload, string! signature, Encina.Security.AntiTampering.HMAC.SigningContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Security.AntiTampering.Abstractions.IRequestSigningClient
+Encina.Security.AntiTampering.Abstractions.IRequestSigningClient.SignRequestAsync(System.Net.Http.HttpRequestMessage! request, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Net.Http.HttpRequestMessage!>>
+Encina.Security.AntiTampering.AntiTamperingErrors
+Encina.Security.AntiTampering.AntiTamperingOptions
+Encina.Security.AntiTampering.AntiTamperingOptions.AddHealthCheck.get -> bool
+Encina.Security.AntiTampering.AntiTamperingOptions.AddHealthCheck.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.AddKey(string! keyId, string! secretValue) -> Encina.Security.AntiTampering.AntiTamperingOptions!
+Encina.Security.AntiTampering.AntiTamperingOptions.Algorithm.get -> Encina.Security.AntiTampering.HMACAlgorithm
+Encina.Security.AntiTampering.AntiTamperingOptions.Algorithm.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.AntiTamperingOptions() -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.EnableMetrics.get -> bool
+Encina.Security.AntiTampering.AntiTamperingOptions.EnableMetrics.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.EnableTracing.get -> bool
+Encina.Security.AntiTampering.AntiTamperingOptions.EnableTracing.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.KeyIdHeader.get -> string!
+Encina.Security.AntiTampering.AntiTamperingOptions.KeyIdHeader.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.NonceExpiryMinutes.get -> int
+Encina.Security.AntiTampering.AntiTamperingOptions.NonceExpiryMinutes.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.NonceHeader.get -> string!
+Encina.Security.AntiTampering.AntiTamperingOptions.NonceHeader.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.RequireNonce.get -> bool
+Encina.Security.AntiTampering.AntiTamperingOptions.RequireNonce.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.SignatureHeader.get -> string!
+Encina.Security.AntiTampering.AntiTamperingOptions.SignatureHeader.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.TimestampHeader.get -> string!
+Encina.Security.AntiTampering.AntiTamperingOptions.TimestampHeader.set -> void
+Encina.Security.AntiTampering.AntiTamperingOptions.TimestampToleranceMinutes.get -> int
+Encina.Security.AntiTampering.AntiTamperingOptions.TimestampToleranceMinutes.set -> void
+Encina.Security.AntiTampering.Health.AntiTamperingHealthCheck
+Encina.Security.AntiTampering.Health.AntiTamperingHealthCheck.AntiTamperingHealthCheck(System.IServiceProvider! serviceProvider) -> void
+Encina.Security.AntiTampering.Health.AntiTamperingHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Security.AntiTampering.HMACAlgorithm
+Encina.Security.AntiTampering.HMACAlgorithm.SHA256 = 0 -> Encina.Security.AntiTampering.HMACAlgorithm
+Encina.Security.AntiTampering.HMACAlgorithm.SHA384 = 1 -> Encina.Security.AntiTampering.HMACAlgorithm
+Encina.Security.AntiTampering.HMACAlgorithm.SHA512 = 2 -> Encina.Security.AntiTampering.HMACAlgorithm
+Encina.Security.AntiTampering.HMAC.HMACSigner
+Encina.Security.AntiTampering.HMAC.HMACSigner.HMACSigner(Encina.Security.AntiTampering.Abstractions.IKeyProvider! keyProvider, Microsoft.Extensions.Options.IOptions<Encina.Security.AntiTampering.AntiTamperingOptions!>! options) -> void
+Encina.Security.AntiTampering.HMAC.HMACSigner.SignAsync(System.ReadOnlyMemory<byte> payload, Encina.Security.AntiTampering.HMAC.SigningContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.AntiTampering.HMAC.HMACSigner.VerifyAsync(System.ReadOnlyMemory<byte> payload, string! signature, Encina.Security.AntiTampering.HMAC.SigningContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Security.AntiTampering.HMAC.SignatureComponents
+Encina.Security.AntiTampering.HMAC.SignatureComponents.HttpMethod.get -> string!
+Encina.Security.AntiTampering.HMAC.SignatureComponents.HttpMethod.init -> void
+Encina.Security.AntiTampering.HMAC.SignatureComponents.KeyId.get -> string!
+Encina.Security.AntiTampering.HMAC.SignatureComponents.KeyId.init -> void
+Encina.Security.AntiTampering.HMAC.SignatureComponents.Nonce.get -> string!
+Encina.Security.AntiTampering.HMAC.SignatureComponents.Nonce.init -> void
+Encina.Security.AntiTampering.HMAC.SignatureComponents.PayloadHash.get -> string!
+Encina.Security.AntiTampering.HMAC.SignatureComponents.PayloadHash.init -> void
+Encina.Security.AntiTampering.HMAC.SignatureComponents.RequestPath.get -> string!
+Encina.Security.AntiTampering.HMAC.SignatureComponents.RequestPath.init -> void
+Encina.Security.AntiTampering.HMAC.SignatureComponents.Timestamp.get -> string!
+Encina.Security.AntiTampering.HMAC.SignatureComponents.Timestamp.init -> void
+Encina.Security.AntiTampering.HMAC.SignatureComponents.ToCanonicalString() -> string!
+Encina.Security.AntiTampering.HMAC.SigningContext
+Encina.Security.AntiTampering.HMAC.SigningContext.HttpMethod.get -> string!
+Encina.Security.AntiTampering.HMAC.SigningContext.HttpMethod.init -> void
+Encina.Security.AntiTampering.HMAC.SigningContext.KeyId.get -> string!
+Encina.Security.AntiTampering.HMAC.SigningContext.KeyId.init -> void
+Encina.Security.AntiTampering.HMAC.SigningContext.Nonce.get -> string!
+Encina.Security.AntiTampering.HMAC.SigningContext.Nonce.init -> void
+Encina.Security.AntiTampering.HMAC.SigningContext.RequestPath.get -> string!
+Encina.Security.AntiTampering.HMAC.SigningContext.RequestPath.init -> void
+Encina.Security.AntiTampering.HMAC.SigningContext.Timestamp.get -> System.DateTimeOffset
+Encina.Security.AntiTampering.HMAC.SigningContext.Timestamp.init -> void
+Encina.Security.AntiTampering.Http.RequestSigningClient
+Encina.Security.AntiTampering.Http.RequestSigningClient.RequestSigningClient(Encina.Security.AntiTampering.Abstractions.IRequestSigner! requestSigner, Microsoft.Extensions.Options.IOptions<Encina.Security.AntiTampering.AntiTamperingOptions!>! options, System.TimeProvider! timeProvider) -> void
+Encina.Security.AntiTampering.Http.RequestSigningClient.SignRequestAsync(System.Net.Http.HttpRequestMessage! request, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Net.Http.HttpRequestMessage!>>
+Encina.Security.AntiTampering.InMemoryKeyProvider
+Encina.Security.AntiTampering.InMemoryKeyProvider.AddKey(string! keyId, byte[]! key) -> void
+Encina.Security.AntiTampering.InMemoryKeyProvider.Clear() -> void
+Encina.Security.AntiTampering.InMemoryKeyProvider.Count.get -> int
+Encina.Security.AntiTampering.InMemoryKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Security.AntiTampering.InMemoryKeyProvider.InMemoryKeyProvider(Microsoft.Extensions.Options.IOptions<Encina.Security.AntiTampering.AntiTamperingOptions!>! options) -> void
+Encina.Security.AntiTampering.Nonce.DistributedCacheNonceStore
+Encina.Security.AntiTampering.Nonce.DistributedCacheNonceStore.DistributedCacheNonceStore(Encina.Caching.ICacheProvider! cacheProvider) -> void
+Encina.Security.AntiTampering.Nonce.DistributedCacheNonceStore.ExistsAsync(string! nonce, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+Encina.Security.AntiTampering.Nonce.DistributedCacheNonceStore.TryAddAsync(string! nonce, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+Encina.Security.AntiTampering.Nonce.InMemoryNonceStore
+Encina.Security.AntiTampering.Nonce.InMemoryNonceStore.Dispose() -> void
+Encina.Security.AntiTampering.Nonce.InMemoryNonceStore.ExistsAsync(string! nonce, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+Encina.Security.AntiTampering.Nonce.InMemoryNonceStore.InMemoryNonceStore(System.TimeProvider? timeProvider = null) -> void
+Encina.Security.AntiTampering.Nonce.InMemoryNonceStore.TryAddAsync(string! nonce, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+Encina.Security.AntiTampering.Pipeline.HMACValidationPipelineBehavior<TRequest, TResponse>
+Encina.Security.AntiTampering.Pipeline.HMACValidationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Security.AntiTampering.Pipeline.HMACValidationPipelineBehavior<TRequest, TResponse>.HMACValidationPipelineBehavior(Encina.Security.AntiTampering.Abstractions.IRequestSigner! requestSigner, Encina.Security.AntiTampering.Abstractions.INonceStore! nonceStore, Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor, Microsoft.Extensions.Options.IOptions<Encina.Security.AntiTampering.AntiTamperingOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Security.AntiTampering.Pipeline.HMACValidationPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Security.AntiTampering.RequireSignatureAttribute
+Encina.Security.AntiTampering.RequireSignatureAttribute.KeyId.get -> string?
+Encina.Security.AntiTampering.RequireSignatureAttribute.KeyId.set -> void
+Encina.Security.AntiTampering.RequireSignatureAttribute.RequireSignatureAttribute() -> void
+Encina.Security.AntiTampering.RequireSignatureAttribute.SkipReplayProtection.get -> bool
+Encina.Security.AntiTampering.RequireSignatureAttribute.SkipReplayProtection.set -> void
+Encina.Security.AntiTampering.ServiceCollectionExtensions
+const Encina.Security.AntiTampering.AntiTamperingErrors.KeyNotFoundCode = "antitampering.key_not_found" -> string!
+const Encina.Security.AntiTampering.AntiTamperingErrors.NonceMissingCode = "antitampering.nonce_missing" -> string!
+const Encina.Security.AntiTampering.AntiTamperingErrors.NonceReusedCode = "antitampering.nonce_reused" -> string!
+const Encina.Security.AntiTampering.AntiTamperingErrors.SignatureInvalidCode = "antitampering.signature_invalid" -> string!
+const Encina.Security.AntiTampering.AntiTamperingErrors.SignatureMissingCode = "antitampering.signature_missing" -> string!
+const Encina.Security.AntiTampering.AntiTamperingErrors.TimestampExpiredCode = "antitampering.timestamp_expired" -> string!
+const Encina.Security.AntiTampering.Health.AntiTamperingHealthCheck.DefaultName = "encina-antitampering" -> string!
+static Encina.Security.AntiTampering.AntiTamperingErrors.KeyNotFound(string! keyId) -> Encina.EncinaError
+static Encina.Security.AntiTampering.AntiTamperingErrors.NonceMissing(string! headerName) -> Encina.EncinaError
+static Encina.Security.AntiTampering.AntiTamperingErrors.NonceReused(string! nonce) -> Encina.EncinaError
+static Encina.Security.AntiTampering.AntiTamperingErrors.SignatureInvalid(string! keyId) -> Encina.EncinaError
+static Encina.Security.AntiTampering.AntiTamperingErrors.SignatureMissing(string! headerName) -> Encina.EncinaError
+static Encina.Security.AntiTampering.AntiTamperingErrors.TimestampExpired(System.DateTimeOffset timestamp, int toleranceMinutes) -> Encina.EncinaError
+static Encina.Security.AntiTampering.ServiceCollectionExtensions.AddDistributedNonceStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Security.AntiTampering.ServiceCollectionExtensions.AddEncinaAntiTampering(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.AntiTampering.AntiTamperingOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

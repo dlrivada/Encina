@@ -30,7 +30,7 @@
 | **Patrones DDD & Workflow** | 0 (+ 10 planificados) |
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
-| **Patrones Security** | 4 implementados (#394 Core Security, #395 Audit Trail, #399 Sanitization, #400/#603 Secrets Management) (+ 4 planificados: #396-#398, #401) |
+| **Patrones Security** | 7 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management) (+ 1 planificado: #401 ABAC) |
 | **Patrones Compliance (GDPR/EU)** | 1 implementado (#402 GDPR Core/RoPA) (+ 13 planificados: #403-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
@@ -5661,16 +5661,23 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Labels: `area-security`, `area-gdpr`, `area-data-protection`, `pattern-data-masking`, `industry-best-practice`, `eu-regulation`
 - Referencias: [Microsoft Presidio](https://github.com/microsoft/presidio), [GDPR Article 4](https://gdpr-info.eu/art-4-gdpr/)
 
-**#398 - Encina.Security.AntiTampering - Request Signing**:
+**#398 - Encina.Security.AntiTampering - Request Signing** ✅ **IMPLEMENTADO (Feb 2026)**:
 
-- `IRequestSigner` con `Sign`, `Verify`, métodos async
-- `[SignedRequest]` atributo para handlers que requieren verificación
-- `SignatureVerificationPipelineBehavior` para validación automática
-- Algoritmos: HMAC-SHA256, HMAC-SHA512, RSA-SHA256, ECDSA
-- Timestamp validation para prevenir replay attacks
-- Nonce management para idempotencia
-- **Nuevo paquete planificado**: `Encina.Security.AntiTampering`
-- **Demanda de comunidad**: ALTA - API security para webhooks, inter-service communication
+- ✅ `IRequestSigner` con `SignAsync`, `VerifyAsync` retornando `Either<EncinaError, T>` (Railway Oriented Programming)
+- ✅ `INonceStore` con `TryAddAsync`, `ExistsAsync` para protección anti-replay
+- ✅ `IKeyProvider` para gestión de claves HMAC con soporte multi-key
+- ✅ `IRequestSigningClient` para firma de requests HTTP salientes con 4 headers automáticos
+- ✅ `[RequireSignature]` atributo declarativo con `KeyId` y `SkipReplayProtection` opcionales
+- ✅ `HMACValidationPipelineBehavior<TRequest, TResponse>` para validación automática en pipeline
+- ✅ Algoritmos: HMAC-SHA256 (default), HMAC-SHA384, HMAC-SHA512
+- ✅ Formato canónico: `"Method|Path|PayloadHash|Timestamp|Nonce"`
+- ✅ Timestamp validation con tolerancia configurable
+- ✅ Nonce management: `InMemoryNonceStore` (single-instance) y `DistributedCacheNonceStore` (multi-instance via `ICacheProvider`)
+- ✅ 6 error codes: `antitampering.key_not_found`, `.signature_invalid`, `.signature_missing`, `.timestamp_expired`, `.nonce_reused`, `.nonce_missing`
+- ✅ OpenTelemetry tracing + metrics (opt-in)
+- ✅ `AntiTamperingHealthCheck` con roundtrip nonce probe
+- ✅ 94 tests (41 unit, 36 guard, 6 property, 11 integration) + 17 benchmarks
+- **Paquete implementado**: `Encina.Security.AntiTampering`
 - Labels: `area-security`, `area-web-api`, `area-pipeline`, `industry-best-practice`, `owasp-pattern`
 - Referencias: [AWS Signature Version 4](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-signing.html), [Stripe Webhook Signatures](https://stripe.com/docs/webhooks/signatures)
 
@@ -5734,7 +5741,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | `Encina.Security.Audit` | #395 ✅ | Audit trail logging (IMPLEMENTADO) | Crítica |
 | `Encina.Security.Encryption` | #396 ✅ | Field-level encryption with AES-256-GCM (IMPLEMENTADO) | Alta |
 | `Encina.Security.PII` | #397 ✅ | PII masking and protection (IMPLEMENTADO) | Alta |
-| `Encina.Security.AntiTampering` | #398 | Request signing and verification | Alta |
+| `Encina.Security.AntiTampering` | #398 ✅ | HMAC request signing and integrity verification (IMPLEMENTADO) | Alta |
 | `Encina.Security.Sanitization` | #399 ✅ | Input/output sanitization (IMPLEMENTADO) | Alta |
 | `Encina.Secrets` | #400/#603 ✅ | Secrets management core (IMPLEMENTADO) | Media |
 | `Encina.Secrets.AzureKeyVault` | #400/#603 ✅ | Azure Key Vault provider (IMPLEMENTADO) | Media |
