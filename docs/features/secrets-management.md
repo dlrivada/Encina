@@ -244,11 +244,11 @@ public class VaultSecretReader : ISecretReader
 services.AddEncinaSecrets<VaultSecretReader>();
 ```
 
-Cloud vault providers will be available as separate satellite packages:
-- `Encina.Security.Secrets.AzureKeyVault`
-- `Encina.Security.Secrets.AWSSecretsManager`
-- `Encina.Security.Secrets.HashiCorpVault`
-- `Encina.Security.Secrets.GoogleSecretManager`
+Cloud vault providers are available as separate satellite packages:
+- [`Encina.Security.Secrets.AzureKeyVault`](secrets-management-azurekeyvault.md) — Azure Key Vault
+- [`Encina.Security.Secrets.AwsSecretsManager`](secrets-management-awssecretsmanager.md) — AWS Secrets Manager
+- [`Encina.Security.Secrets.HashiCorpVault`](secrets-management-hashicorpvault.md) — HashiCorp Vault
+- [`Encina.Security.Secrets.GoogleCloudSecretManager`](secrets-management-googlecloudsecretmanager.md) — Google Cloud Secret Manager
 
 ---
 

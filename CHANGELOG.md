@@ -242,6 +242,49 @@ services.AddAwsSecretsManager(
 
 ---
 
+#### Encina.Security.Secrets.GoogleCloudSecretManager — Google Cloud Secret Manager Provider (#679)
+
+Added the `Encina.Security.Secrets.GoogleCloudSecretManager` satellite package — the fourth cloud provider for Encina's secrets management system. Integrates with Google Cloud Secret Manager using the `Google.Cloud.SecretManager.V1` SDK (v2.7.0).
+
+**Provider**:
+
+- **`GoogleCloudSecretManagerProvider`**: Implements all three ISP interfaces (`ISecretReader`, `ISecretWriter`, `ISecretRotator`) backed by `SecretManagerServiceClient`
+- **Application Default Credentials (ADC)** used by default — supports service accounts, gcloud CLI, GCE metadata, GKE Workload Identity
+- **Create-or-update semantics**: `SetSecretAsync` uses `AddSecretVersion` with automatic fallback to `CreateSecret` + `AddSecretVersion`
+- **Thread-safe**: `SecretManagerServiceClient` is designed for concurrent use across threads
+
+**Error Mapping** (gRPC `StatusCode` → Encina ROP):
+
+| gRPC Status Code | Encina Error Code |
+|------------------|-------------------|
+| `NotFound` | `secrets.not_found` |
+| `PermissionDenied` | `secrets.access_denied` |
+| Other `RpcException` | `secrets.provider_unavailable` |
+| Rotation failures | `secrets.rotation_failed` |
+
+**Configuration**:
+
+- **`GoogleCloudSecretManagerOptions`**: `ProjectId` (string, **required**)
+- `ProjectId` is validated at startup; empty or whitespace values throw `InvalidOperationException`
+
+**DI Registration**:
+
+```csharp
+services.AddGoogleCloudSecretManager(
+    gcp => gcp.ProjectId = "my-gcp-project",
+    secrets =>
+    {
+        secrets.EnableCaching = true;
+        secrets.DefaultCacheDuration = TimeSpan.FromMinutes(10);
+    });
+```
+
+**Observability**: Inherits full observability from core package — caching decorator, auditing decorator, health check, OpenTelemetry tracing, and metrics are all applied transparently via `AddEncinaSecrets<GoogleCloudSecretManagerProvider>()`. Provider-specific logging via `LoggerMessage` source generators (EventIds 230-238).
+
+**Testing**: 56 tests (39 unit + 17 guard) covering provider operations, error mapping, create-or-update pattern, typed deserialization, DI registration, options configuration, ProjectId validation, and null/empty/whitespace argument validation.
+
+---
+
 #### Encina.Security.Secrets.HashiCorpVault — HashiCorp Vault Provider (#678)
 
 Added the `Encina.Security.Secrets.HashiCorpVault` satellite package — the third cloud provider for Encina's secrets management system. Integrates with HashiCorp Vault's KV v2 secrets engine using the `VaultSharp` SDK (v1.17.5.1).
