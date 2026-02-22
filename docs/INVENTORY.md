@@ -2774,9 +2774,16 @@ Los patrones de distributed lock fueron identificados tras investigación exhaus
 #### Encina.AspNetCore
 
 - `EncinaContextMiddleware` - Extrae contexto HTTP
-- `AuthorizationPipelineBehavior` - Autorización por atributos
+- `AuthorizationPipelineBehavior` - Autorización por atributos con detección CQRS y resource-based auth
 - `ProblemDetailsExtensions` - RFC 7807 responses
 - Health checks integration
+- `Authorization/AuthorizationConfiguration` - CQRS-aware authorization config (secure-by-default)
+- `Authorization/AuthorizationConfigurationExtensions` - Policy helper extensions (AddRolePolicy, AddClaimPolicy, AddAuthenticatedPolicy)
+- `Authorization/ResourceAuthorizeAttribute` - Resource-based authorization attribute
+- `Authorization/IResourceAuthorizer` - ROP facade over IAuthorizationService
+- `Authorization/ResourceAuthorizer` - Internal implementation of IResourceAuthorizer
+- Tests: `tests/Encina.UnitTests/AspNetCore/Authorization/` (39 unit tests)
+- Tests: `tests/Encina.IntegrationTests/Authorization/` (13 integration tests)
 
 #### Encina.AwsLambda
 

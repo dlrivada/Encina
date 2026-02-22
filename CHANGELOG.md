@@ -729,6 +729,45 @@ services.AddEncinaAntiTampering();
 
 **Testing**: 94 tests across 5 test projects (41 unit, 36 guard, 6 property, 11 integration) plus BenchmarkDotNet benchmarks (17 benchmarks for signing/verification throughput across payload sizes and algorithms).
 
+#### Encina.AspNetCore — Policy-Based Authorization Enhancement (#356)
+
+Enhanced the `AuthorizationPipelineBehavior` with CQRS-aware default policies, resource-based authorization, and a thin ROP facade over ASP.NET Core's `IAuthorizationService`. This extends — not replaces — ASP.NET Core's native authorization system.
+
+**CQRS-Aware Default Policies**:
+
+- `AuthorizationConfiguration` with `DefaultCommandPolicy` and `DefaultQueryPolicy` (both default to `"RequireAuthenticated"` — secure-by-default)
+- `AutoApplyPolicies` option: when enabled, commands and queries without explicit `[Authorize]` attributes automatically receive their CQRS-type default policy
+- `[AllowAnonymous]` bypasses all authorization checks, including auto-applied defaults
+
+**Resource-Based Authorization**:
+
+- `[ResourceAuthorize("PolicyName")]` attribute for request types — the request object is passed as the resource to ASP.NET Core's `IAuthorizationService.AuthorizeAsync(user, resource, policy)`
+- Works with standard `AuthorizationHandler<TRequirement, TResource>` handlers
+- Composable with `[Authorize]` attributes (both are checked, AND logic)
+
+**IResourceAuthorizer Facade**:
+
+- `IResourceAuthorizer` interface for handlers that need resource-based authorization after loading the resource from the database
+- Thin wrapper over `IAuthorizationService` adding ROP semantics (`Either<EncinaError, bool>`)
+- Registered as scoped via `AddEncinaAuthorization()`
+
+**Policy Helper Extensions**:
+
+- `AddRolePolicy()`, `AddClaimPolicy()`, `AddAuthenticatedPolicy()` — convenience wrappers over `AuthorizationOptions` (not a parallel system)
+
+**Error Codes** (4 structured errors via `EncinaErrorCodes`):
+
+- `encina.authorization.unauthorized`, `encina.authorization.forbidden`, `encina.authorization.policy_failed`, `encina.authorization.resource_denied`
+- All errors include structured metadata (`requestType`, `stage`, `userId`, `policy`, `failureReasons`)
+
+**DI Registration**:
+
+- `services.AddEncinaAuthorization()` registers `AuthorizationConfiguration`, `IResourceAuthorizer`, and the `"RequireAuthenticated"` policy
+
+**Testing**: 103 tests (90 unit + 13 integration) covering attribute validation, resource authorizer facade, pipeline behavior with CQRS auto-apply, resource-based authorization, claim policies, and full DI integration with real ASP.NET Core authorization infrastructure.
+
+---
+
 ### Changed
 
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)

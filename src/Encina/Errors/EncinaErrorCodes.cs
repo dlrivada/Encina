@@ -85,4 +85,18 @@ public static class EncinaErrorCodes
 
     /// <summary>Rate limit exceeded for request.</summary>
     public const string RateLimitExceeded = "encina.ratelimit.exceeded";
+
+    // ── Authorization ──────────────────────────────────────────────
+
+    /// <summary>User is not authenticated when authentication is required.</summary>
+    public const string AuthorizationUnauthorized = "encina.authorization.unauthorized";
+
+    /// <summary>Authenticated user does not have sufficient permissions.</summary>
+    public const string AuthorizationForbidden = "encina.authorization.forbidden";
+
+    /// <summary>User does not satisfy a required authorization policy.</summary>
+    public const string AuthorizationPolicyFailed = "encina.authorization.policy_failed";
+
+    /// <summary>Resource-based authorization denied access to the requested resource.</summary>
+    public const string AuthorizationResourceDenied = "encina.authorization.resource_denied";
 }

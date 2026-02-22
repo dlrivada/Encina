@@ -1,3 +1,5 @@
+using Encina.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -87,11 +89,12 @@ public static class ServiceCollectionExtensions
     /// <returns>The configuration for chaining.</returns>
     /// <remarks>
     /// <para>
-    /// This adds a pipeline behavior that enforces <see cref="Microsoft.AspNetCore.Authorization.AuthorizeAttribute"/>
+    /// This adds a pipeline behavior that enforces <see cref="AuthorizeAttribute"/>
     /// on request types using ASP.NET Core's authorization system.
     /// </para>
     /// <para>
-    /// Supports role-based and policy-based authorization.
+    /// For CQRS-aware authorization with default policies, use
+    /// <see cref="AddEncinaAuthorization(IServiceCollection, Action{AuthorizationConfiguration}?, Action{AuthorizationOptions}?)"/> instead.
     /// </para>
     /// </remarks>
     /// <example>
@@ -108,5 +111,79 @@ public static class ServiceCollectionExtensions
         configuration.AddPipelineBehavior(typeof(AuthorizationPipelineBehavior<,>));
 
         return configuration;
+    }
+
+    /// <summary>
+    /// Adds Encina's CQRS-aware authorization services and pipeline behavior.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureAuthorization">
+    /// Optional action to configure <see cref="AuthorizationConfiguration"/>.
+    /// When <c>null</c>, secure defaults are used.
+    /// </param>
+    /// <param name="configurePolicies">
+    /// Optional action to register ASP.NET Core authorization policies.
+    /// This delegates directly to <see cref="AuthorizationOptions"/> —
+    /// no parallel infrastructure is created.
+    /// </param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method registers:
+    /// <list type="bullet">
+    /// <item><description><see cref="AuthorizationConfiguration"/> via <c>IOptions&lt;T&gt;</c></description></item>
+    /// <item><description>A <c>"RequireAuthenticated"</c> policy if not already registered</description></item>
+    /// <item><description><see cref="IResourceAuthorizer"/> as a scoped service (thin facade over <see cref="Microsoft.AspNetCore.Authorization.IAuthorizationService"/>)</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// This method complements — not replaces — <see cref="AddAuthorization(EncinaConfiguration)"/>.
+    /// You can call both, or use this method alone which also registers the behavior.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// builder.Services.AddEncinaAuthorization(
+    ///     auth =>
+    ///     {
+    ///         auth.AutoApplyPolicies = true;
+    ///     },
+    ///     policies =>
+    ///     {
+    ///         policies.AddPolicy("CanEditOrders", p => p
+    ///             .RequireAuthenticatedUser()
+    ///             .RequireRole("Admin", "OrderManager"));
+    ///     });
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaAuthorization(
+        this IServiceCollection services,
+        Action<AuthorizationConfiguration>? configureAuthorization = null,
+        Action<AuthorizationOptions>? configurePolicies = null)
+    {
+        // Register AuthorizationConfiguration via IOptions<T>
+        services.Configure<AuthorizationConfiguration>(config =>
+        {
+            configureAuthorization?.Invoke(config);
+        });
+
+        // Ensure HttpContextAccessor is available
+        services.AddHttpContextAccessor();
+
+        // Register the "RequireAuthenticated" policy if not already configured
+        services.AddAuthorizationBuilder()
+            .AddPolicy(AuthorizationConfiguration.RequireAuthenticatedPolicyName, policy =>
+                policy.RequireAuthenticatedUser());
+
+        // Register IResourceAuthorizer facade (thin wrapper over IAuthorizationService)
+        services.TryAddScoped<IResourceAuthorizer, ResourceAuthorizer>();
+
+        // Apply user-provided policies
+        if (configurePolicies is not null)
+        {
+            services.Configure(configurePolicies);
+        }
+
+        return services;
     }
 }

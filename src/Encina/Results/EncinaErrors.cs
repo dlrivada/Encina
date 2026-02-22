@@ -30,6 +30,29 @@ public static class EncinaErrors
         => EncinaError.FromEncinaException(new EncinaException(code, message, exception, details));
 
     /// <summary>
+    /// Creates an authorization forbidden error, optionally referencing the policy that was not satisfied.
+    /// </summary>
+    /// <param name="policy">The name of the authorization policy that failed, or <c>null</c> if not applicable.</param>
+    /// <param name="details">Optional structured metadata as a dictionary.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="EncinaErrorCodes.AuthorizationForbidden"/>.</returns>
+    public static EncinaError Forbidden(string? policy = null, IReadOnlyDictionary<string, object?>? details = null)
+    {
+        var message = policy is not null
+            ? $"Access denied. Policy '{policy}' was not satisfied."
+            : "Access denied.";
+
+        return Create(EncinaErrorCodes.AuthorizationForbidden, message, details: details);
+    }
+
+    /// <summary>
+    /// Creates an authorization unauthorized error indicating the user is not authenticated.
+    /// </summary>
+    /// <param name="details">Optional structured metadata as a dictionary.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="EncinaErrorCodes.AuthorizationUnauthorized"/>.</returns>
+    public static EncinaError Unauthorized(IReadOnlyDictionary<string, object?>? details = null)
+        => Create(EncinaErrorCodes.AuthorizationUnauthorized, "Authentication is required.", details: details);
+
+    /// <summary>
     /// Wraps an exception inside a typed error.
     /// </summary>
     /// <param name="code">The error code.</param>

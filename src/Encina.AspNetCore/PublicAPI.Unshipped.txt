@@ -1,7 +1,7 @@
 #nullable enable
 Encina.AspNetCore.ApplicationBuilderExtensions
 Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>
-Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>.AuthorizationPipelineBehavior(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorizationService, Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor) -> void
+Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>.AuthorizationPipelineBehavior(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorizationService, Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor, Microsoft.Extensions.Options.IOptions<Encina.AspNetCore.Authorization.AuthorizationConfiguration!>! options, Microsoft.Extensions.Logging.ILogger<Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.AspNetCore.IRequestContextAccessor
 Encina.AspNetCore.IRequestContextAccessor.RequestContext.get -> Encina.IRequestContext?
@@ -33,6 +33,28 @@ static Encina.AspNetCore.ProblemDetailsExtensions.ToProblemDetails(this Encina.E
 static Encina.AspNetCore.ServiceCollectionExtensions.AddAuthorization(this Encina.EncinaConfiguration! configuration) -> Encina.EncinaConfiguration!
 static Encina.AspNetCore.ServiceCollectionExtensions.AddEncinaAspNetCore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.AspNetCore.ServiceCollectionExtensions.AddEncinaAspNetCore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.AspNetCore.EncinaAspNetCoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.AspNetCore.ServiceCollectionExtensions.AddEncinaAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.AspNetCore.Authorization.AuthorizationConfiguration!>? configureAuthorization = null, System.Action<Microsoft.AspNetCore.Authorization.AuthorizationOptions!>? configurePolicies = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.AspNetCore.Authorization.AuthorizationConfiguration
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.AuthorizationConfiguration() -> void
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.AutoApplyPolicies.get -> bool
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.AutoApplyPolicies.set -> void
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.DefaultCommandPolicy.get -> string!
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.DefaultCommandPolicy.set -> void
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.DefaultQueryPolicy.get -> string!
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.DefaultQueryPolicy.set -> void
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.RequireAuthenticationByDefault.get -> bool
+Encina.AspNetCore.Authorization.AuthorizationConfiguration.RequireAuthenticationByDefault.set -> void
+const Encina.AspNetCore.Authorization.AuthorizationConfiguration.RequireAuthenticatedPolicyName = "RequireAuthenticated" -> string!
+Encina.AspNetCore.Authorization.AuthorizationConfigurationExtensions
+static Encina.AspNetCore.Authorization.AuthorizationConfigurationExtensions.AddRolePolicy(this Microsoft.AspNetCore.Authorization.AuthorizationOptions! options, string! policyName, params string![]! roles) -> Microsoft.AspNetCore.Authorization.AuthorizationOptions!
+static Encina.AspNetCore.Authorization.AuthorizationConfigurationExtensions.AddClaimPolicy(this Microsoft.AspNetCore.Authorization.AuthorizationOptions! options, string! policyName, string! claimType, params string![]! allowedValues) -> Microsoft.AspNetCore.Authorization.AuthorizationOptions!
+static Encina.AspNetCore.Authorization.AuthorizationConfigurationExtensions.AddAuthenticatedPolicy(this Microsoft.AspNetCore.Authorization.AuthorizationOptions! options, string! policyName) -> Microsoft.AspNetCore.Authorization.AuthorizationOptions!
+Encina.AspNetCore.Authorization.ResourceAuthorizeAttribute
+Encina.AspNetCore.Authorization.ResourceAuthorizeAttribute.ResourceAuthorizeAttribute(string! policy) -> void
+Encina.AspNetCore.Authorization.ResourceAuthorizeAttribute.Policy.get -> string!
+Encina.AspNetCore.Authorization.IResourceAuthorizer
+Encina.AspNetCore.Authorization.IResourceAuthorizer.AuthorizeAsync<TResource>(TResource resource, string! policy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, bool>>!
+Encina.AspNetCore.Authorization.IResourceAuthorizer.AuthorizeAsync(object! resource, string! policy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, bool>>!
 Encina.AspNetCore.Health.HealthCheckBuilderExtensions
 static Encina.AspNetCore.Health.HealthCheckBuilderExtensions.AddEncinaHealthCheck<THealthCheck>(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name, System.Collections.Generic.IEnumerable<string!>? tags = null, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Encina.AspNetCore.Health.HealthCheckBuilderExtensions.AddEncinaHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Collections.Generic.IEnumerable<string!>? tags = null, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

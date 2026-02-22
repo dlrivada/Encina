@@ -8,7 +8,7 @@ ASP.NET Core integration for Encina with Railway Oriented Programming support. T
 ## Features
 
 - ✅ **Request Context Enrichment** - Automatic extraction of CorrelationId, UserId, TenantId, and IdempotencyKey from HttpContext
-- ✅ **Authorization Pipeline Behavior** - Declarative authorization with `[Authorize]` attributes (roles and policies)
+- ✅ **Authorization Pipeline Behavior** - CQRS-aware declarative authorization with `[Authorize]`, `[ResourceAuthorize]`, and auto-applied default policies
 - ✅ **RFC 7807 Problem Details** - Intelligent error mapping from `EncinaError` to standardized HTTP responses
 - ✅ **Thread-Safe Context Access** - AsyncLocal-based `IRequestContextAccessor` for safe context propagation
 - ✅ **Distributed Tracing** - Automatic correlation ID propagation and Activity integration
@@ -47,7 +47,16 @@ builder.Services.AddEncinaAspNetCore(options =>
     options.IncludeExceptionDetails = false;
 });
 
-builder.Services.AddAuthorization(); // Required for [Authorize] support
+// Authorization with CQRS-aware defaults (replaces plain AddAuthorization)
+builder.Services.AddEncinaAuthorization(
+    auth =>
+    {
+        auth.AutoApplyPolicies = true; // Auto-apply default policies to commands/queries
+    },
+    policies =>
+    {
+        policies.AddRolePolicy("AdminOnly", "Admin");
+    });
 ```
 
 ### 2. Configure Middleware Pipeline
@@ -163,14 +172,17 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 
 ### 2. Authorization Behavior
 
-The `AuthorizationPipelineBehavior` enforces declarative authorization on requests using standard ASP.NET Core `[Authorize]` attributes:
+The `AuthorizationPipelineBehavior` enforces declarative authorization on requests using ASP.NET Core's native authorization system. It supports standard attributes, CQRS-aware default policies, and resource-based authorization.
 
 **Supported Authorization Types:**
 
 - **Authentication Required**: `[Authorize]`
 - **Role-Based**: `[Authorize(Roles = "Admin")]` or `[Authorize(Roles = "Admin,Manager")]`
 - **Policy-Based**: `[Authorize(Policy = "RequireElevation")]`
+- **Resource-Based**: `[ResourceAuthorize("CanEditOrder")]` — request is passed as the resource
 - **Multiple Attributes**: Combine multiple `[Authorize]` attributes (all must pass)
+- **CQRS Defaults**: Auto-apply `DefaultCommandPolicy`/`DefaultQueryPolicy` when no attributes present
+- **Allow Anonymous**: `[AllowAnonymous]` bypasses all authorization
 
 **Example:**
 
@@ -181,30 +193,34 @@ public record GetProfileQuery : IQuery<UserProfile>;
 
 // Requires Admin role
 [Authorize(Roles = "Admin")]
-public record DeleteUserCommand(int UserId) : ICommand;
-
-// Requires multiple roles (any of them)
-[Authorize(Roles = "Admin,Manager,Supervisor")]
-public record ApproveExpenseCommand(int ExpenseId) : ICommand<Expense>;
+public record DeleteUserCommand(int UserId) : ICommand<Unit>;
 
 // Requires custom policy
 [Authorize(Policy = "RequireElevation")]
-public record PromoteUserCommand(int UserId, string NewRole) : ICommand;
+public record PromoteUserCommand(int UserId, string NewRole) : ICommand<Unit>;
 
-// Requires both Admin role AND policy
-[Authorize(Roles = "Admin")]
-[Authorize(Policy = "RequireApproval")]
-public record DeleteTenantCommand(int TenantId) : ICommand;
+// Resource-based authorization (request is the resource)
+[ResourceAuthorize("CanEditOrder")]
+public record UpdateOrderCommand(OrderId Id, string NewStatus) : ICommand<Order>;
+
+// With AutoApplyPolicies=true, this command gets DefaultCommandPolicy automatically
+public record CreateItemCommand(string Name) : ICommand<ItemId>;
+
+// Opt-out of all authorization
+[AllowAnonymous]
+public record GetPublicStatusQuery : IQuery<ServiceStatus>;
 ```
 
 **Error Codes:**
 
 | Scenario | Error Code | HTTP Status |
 |----------|-----------|-------------|
-| No HttpContext | `authorization.no_http_context` | 500 |
-| Not authenticated | `authorization.unauthenticated` | 401 |
-| Missing roles | `authorization.insufficient_roles` | 403 |
-| Policy failed | `authorization.policy_failed` | 403 |
+| Not authenticated | `encina.authorization.unauthorized` | 401 |
+| Missing roles | `encina.authorization.forbidden` | 403 |
+| Policy failed | `encina.authorization.policy_failed` | 403 |
+| Resource authorization denied | `encina.authorization.resource_denied` | 403 |
+
+> For full documentation including `IResourceAuthorizer`, policy helpers, and testing patterns, see [Authorization Feature Docs](../../docs/features/authorization.md).
 
 ### 3. Problem Details Extensions
 
@@ -216,8 +232,8 @@ Convert `EncinaError` to standardized RFC 7807 Problem Details responses:
 |-------------------|-------------|-------|
 | `validation.*` | 400 | Bad Request |
 | `Encina.guard.validation_failed` | 400 | Bad Request |
-| `authorization.unauthenticated` | 401 | Unauthorized |
-| `authorization.*` | 403 | Forbidden |
+| `encina.authorization.unauthorized` | 401 | Unauthorized |
+| `encina.authorization.*` | 403 | Forbidden |
 | `*.not_found` | 404 | Not Found |
 | `*.missing` | 404 | Not Found |
 | `Encina.request.handler_missing` | 404 | Not Found |
@@ -467,9 +483,9 @@ EncinaErrors.Create("order.not_found", $"Order with ID {id} was not found");
 EncinaErrors.Create("user.already_exists", $"User with email {email} already exists");
 EncinaErrors.Create("order.already_shipped", "Cannot modify order that has been shipped");
 
-// Authorization errors (handled by library)
-EncinaErrors.Create("authorization.insufficient_roles", "User does not have required roles");
-EncinaErrors.Create("authorization.unauthenticated", "Authentication is required");
+// Authorization errors (handled by library via EncinaErrorCodes constants)
+EncinaErrors.Forbidden("RequireElevation"); // encina.authorization.forbidden
+EncinaErrors.Unauthorized();                // encina.authorization.unauthorized
 ```
 
 ### 2. Rich Error Details
