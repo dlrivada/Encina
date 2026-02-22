@@ -197,6 +197,48 @@ services.AddSecretRotationHandler<DatabasePasswordRotationHandler>();
 
 ---
 
+#### Encina.Security.Secrets.AzureKeyVault — Azure Key Vault Provider (#676)
+
+Added the `Encina.Security.Secrets.AzureKeyVault` satellite package — the first cloud provider for Encina's secrets management system. Integrates with Azure Key Vault using the `Azure.Security.KeyVault.Secrets` SDK (v4.8.0) and `Azure.Identity` (v1.17.1).
+
+**Provider**:
+
+- **`AzureKeyVaultSecretProvider`**: Implements all three ISP interfaces (`ISecretReader`, `ISecretWriter`, `ISecretRotator`) backed by `SecretClient`
+- **`DefaultAzureCredential`** used by default — supports managed identities, environment variables, Azure CLI, and Visual Studio credentials
+- **Automatic versioning**: Azure Key Vault creates a new version on every write; `RotateSecretAsync` leverages this behavior
+- **Thread-safe**: `SecretClient` is designed for concurrent use across threads
+
+**Error Mapping** (Azure SDK → Encina ROP):
+
+- HTTP 404 → `SecretsErrors.NotFound` (`secrets.not_found`)
+- HTTP 401/403 → `SecretsErrors.AccessDenied` (`secrets.access_denied`)
+- Other HTTP errors → `SecretsErrors.ProviderUnavailable` (`secrets.provider_unavailable`)
+- Rotation failures → `SecretsErrors.RotationFailed` (`secrets.rotation_failed`)
+
+**Configuration**:
+
+- **`AzureKeyVaultOptions`**: `VaultUri`, `Credential` (`TokenCredential?`), `ClientOptions` (`SecretClientOptions?`)
+- All settings configurable via `Action<AzureKeyVaultOptions>` delegate
+
+**DI Registration**:
+
+```csharp
+services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"),
+    kvOptions => kvOptions.Credential = new ManagedIdentityCredential(),
+    secretsOptions =>
+    {
+        secretsOptions.EnableCaching = true;
+        secretsOptions.DefaultCacheDuration = TimeSpan.FromMinutes(10);
+    });
+```
+
+**Observability**: Inherits full observability from core package — caching decorator, auditing decorator, health check, OpenTelemetry tracing, and metrics are all applied transparently via `AddEncinaSecrets<AzureKeyVaultSecretProvider>()`. Provider-specific logging via `LoggerMessage` source generators (EventIds 200-208).
+
+**Testing**: 59 tests (43 unit + 16 guard) covering provider operations, error mapping, typed deserialization, DI registration, options configuration, and null/empty/whitespace argument validation.
+
+---
+
 #### Encina.Security.Encryption — Field-Level Encryption with AES-256-GCM (#396)
 
 Added the `Encina.Security.Encryption` package providing attribute-based, automatic field-level encryption and decryption at the CQRS pipeline level. Uses AES-256-GCM (NIST SP 800-38D) with per-operation random nonces, key rotation support, and multi-tenant key isolation for GDPR, HIPAA, and PCI-DSS compliance.

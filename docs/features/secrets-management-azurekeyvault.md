@@ -1,6 +1,6 @@
 # Secrets Management -- Azure Key Vault
 
-This guide covers the Azure Key Vault integration in Encina via the `Encina.Secrets.AzureKeyVault` package. It explains prerequisites, authentication strategies, configuration, error handling, health checks, and best practices specific to Azure Key Vault.
+This guide covers the Azure Key Vault integration in Encina via the `Encina.Security.Secrets.AzureKeyVault` package. It explains prerequisites, authentication strategies, configuration, error handling, health checks, and best practices specific to Azure Key Vault.
 
 ## Table of Contents
 
@@ -19,22 +19,21 @@ This guide covers the Azure Key Vault integration in Encina via the `Encina.Secr
 
 ## Overview
 
-`Encina.Secrets.AzureKeyVault` provides an `ISecretProvider` implementation backed by the Azure Key Vault Secrets SDK (`Azure.Security.KeyVault.Secrets`). It wraps the `SecretClient` to expose a unified, Railway Oriented Programming (ROP) API that returns `Either<EncinaError, T>` for all operations.
+`Encina.Security.Secrets.AzureKeyVault` provides ISP-compliant implementations of `ISecretReader`, `ISecretWriter`, and `ISecretRotator` backed by the Azure Key Vault Secrets SDK (`Azure.Security.KeyVault.Secrets`). It wraps the `SecretClient` to expose a unified, Railway Oriented Programming (ROP) API that returns `Either<EncinaError, T>` for all operations.
 
 | Component | Description |
 |-----------|-------------|
-| **`KeyVaultSecretProvider`** | `ISecretProvider` implementation that delegates to `SecretClient` |
-| **`KeyVaultSecretProviderOptions`** | Configuration: `VaultUri`, `Credential`, `ProviderHealthCheck` |
-| **`KeyVaultHealthCheck`** | ASP.NET Core health check verifying Key Vault connectivity |
-| **`AddEncinaKeyVaultSecrets`** | Extension method to register all services |
+| **`AzureKeyVaultSecretProvider`** | Implements `ISecretReader`, `ISecretWriter`, `ISecretRotator` — delegates to `SecretClient` |
+| **`AzureKeyVaultOptions`** | Configuration: `VaultUri`, `Credential`, `ClientOptions` |
+| **`AddAzureKeyVaultSecrets`** | Extension method to register all services and plug into the core decorator chain |
 
 ### NuGet Package
 
 ```
-Encina.Secrets.AzureKeyVault
+Encina.Security.Secrets.AzureKeyVault
 ```
 
-**Dependencies**: `Azure.Security.KeyVault.Secrets`, `Azure.Identity`, `Encina.Secrets` (core abstractions).
+**Dependencies**: `Azure.Security.KeyVault.Secrets` (v4.8.0), `Azure.Identity` (v1.17.1), `Encina.Security.Secrets` (core abstractions).
 
 ---
 
@@ -56,7 +55,7 @@ Encina.Secrets.AzureKeyVault
 
 ## Authentication
 
-The `KeyVaultSecretProviderOptions.Credential` property accepts any `Azure.Core.TokenCredential` implementation. When `null` (the default), `DefaultAzureCredential` is used automatically.
+The `AzureKeyVaultOptions.Credential` property accepts any `Azure.Core.TokenCredential` implementation. When `null` (the default), `DefaultAzureCredential` is used automatically.
 
 ### DefaultAzureCredential (Recommended)
 
@@ -74,11 +73,8 @@ The `KeyVaultSecretProviderOptions.Credential` property accepts any `Azure.Core.
 
 ```csharp
 // DefaultAzureCredential is used when Credential is null (default)
-services.AddEncinaKeyVaultSecrets(options =>
-{
-    options.VaultUri = "https://my-vault.vault.azure.net/";
-    // options.Credential = null; // DefaultAzureCredential used automatically
-});
+services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"));
 ```
 
 ### ManagedIdentityCredential
@@ -86,13 +82,14 @@ services.AddEncinaKeyVaultSecrets(options =>
 For production workloads running on Azure infrastructure:
 
 ```csharp
-services.AddEncinaKeyVaultSecrets(options =>
-{
-    options.VaultUri = "https://my-vault.vault.azure.net/";
-    options.Credential = new ManagedIdentityCredential(); // System-assigned
-    // or for user-assigned identity:
-    // options.Credential = new ManagedIdentityCredential("client-id-of-user-assigned-identity");
-});
+services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"),
+    kv => kv.Credential = new ManagedIdentityCredential());
+
+// For user-assigned identity:
+services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"),
+    kv => kv.Credential = new ManagedIdentityCredential("client-id-of-user-assigned-identity"));
 ```
 
 ### ClientSecretCredential
@@ -100,14 +97,12 @@ services.AddEncinaKeyVaultSecrets(options =>
 For service-to-service scenarios outside Azure (not recommended for production):
 
 ```csharp
-services.AddEncinaKeyVaultSecrets(options =>
-{
-    options.VaultUri = "https://my-vault.vault.azure.net/";
-    options.Credential = new ClientSecretCredential(
+services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"),
+    kv => kv.Credential = new ClientSecretCredential(
         tenantId: "your-tenant-id",
         clientId: "your-client-id",
-        clientSecret: "your-client-secret");
-});
+        clientSecret: "your-client-secret"));
 ```
 
 > **Warning**: Avoid storing client secrets in code or configuration files. Use environment variables or a secure configuration provider.
@@ -116,20 +111,26 @@ services.AddEncinaKeyVaultSecrets(options =>
 
 ## Configuration
 
-`KeyVaultSecretProviderOptions` exposes the following settings:
+### AzureKeyVaultOptions
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `VaultUri` | `string` | `""` | The Key Vault URI (e.g., `https://my-vault.vault.azure.net/`). **Required.** |
+| `VaultUri` | `Uri?` | `null` | The Key Vault URI (e.g., `https://my-vault.vault.azure.net/`). Set by the extension method. |
 | `Credential` | `TokenCredential?` | `null` | Token credential for authentication. When `null`, `DefaultAzureCredential` is used. |
-| `ProviderHealthCheck` | `ProviderHealthCheckOptions` | Disabled | Health check configuration (see [Health Check](#health-check)). |
+| `ClientOptions` | `SecretClientOptions?` | `null` | Custom options for the underlying `SecretClient` (retry policy, diagnostics, etc.). |
 
-### ProviderHealthCheckOptions
+### SecretsOptions (from core package)
+
+The `configureSecrets` parameter controls core decorator behavior:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `Enabled` | `bool` | `false` | Whether to register the health check. |
-| `Tags` | `IReadOnlyList<string>` | `["encina", "secrets", "ready"]` | Tags applied to the health check registration. |
+| `EnableCaching` | `bool` | `true` | Wrap `ISecretReader` with `CachedSecretReaderDecorator` |
+| `DefaultCacheDuration` | `TimeSpan` | `5 minutes` | Default cache TTL for secrets |
+| `EnableTracing` | `bool` | `false` | Enable OpenTelemetry tracing via `SecretsActivitySource` |
+| `EnableMetrics` | `bool` | `false` | Enable OpenTelemetry metrics via `SecretsMetrics` |
+| `EnableAccessAuditing` | `bool` | `false` | Wrap `ISecretReader` with `AuditedSecretReaderDecorator` |
+| `ProviderHealthCheck` | `bool` | `false` | Register `SecretsHealthCheck` for ASP.NET Core health endpoints |
 
 ---
 
@@ -184,27 +185,32 @@ Replace `<principal-id>` with the Object ID of the managed identity, service pri
 
 ## Error Mapping
 
-`KeyVaultSecretProvider` translates `RequestFailedException` from the Azure SDK into `EncinaError` using `SecretsErrorCodes`:
+`AzureKeyVaultSecretProvider` translates `RequestFailedException` from the Azure SDK into `EncinaError` using `SecretsErrors` factory methods:
 
-| Azure HTTP Status | Encina Error Code | Description |
-|-------------------|-------------------|-------------|
-| `404` | `encina.secrets.not_found` | Secret does not exist in the vault |
-| `401` or `403` | `encina.secrets.access_denied` | Insufficient permissions or invalid credentials |
-| Any other status | `encina.secrets.provider_unavailable` | Network error, throttling, or other Azure failure |
+| Azure HTTP Status | SecretsErrors Method | Error Code | Description |
+|-------------------|---------------------|------------|-------------|
+| `404` | `NotFound(secretName)` | `secrets.not_found` | Secret does not exist in the vault |
+| `401` or `403` | `AccessDenied(secretName, message)` | `secrets.access_denied` | Insufficient permissions or invalid credentials |
+| Any other status | `ProviderUnavailable("AzureKeyVault", ex)` | `secrets.provider_unavailable` | Network error, throttling, or other Azure failure |
+| Rotation failure | `RotationFailed(secretName, message, ex)` | `secrets.rotation_failed` | Error during secret rotation |
 
-For versioned access (`GetSecretVersionAsync`), a `404` maps to `encina.secrets.version_not_found` instead of `not_found`.
+Additionally, `GetSecretAsync<T>` can return:
+
+| Scenario | SecretsErrors Method | Error Code |
+|----------|---------------------|------------|
+| JSON deserialization failure | `DeserializationFailed(secretName, typeof(T))` | `secrets.deserialization_failed` |
 
 ### Example Error Handling
 
 ```csharp
-var result = await provider.GetSecretAsync("my-secret", cancellationToken);
+var result = await secretReader.GetSecretAsync("my-secret", cancellationToken);
 
 result.Match(
-    Right: secret => logger.LogInformation("Retrieved secret version {Version}", secret.Version),
+    Right: value => logger.LogInformation("Retrieved secret: {Length} chars", value.Length),
     Left: error => error.Code switch
     {
-        SecretsErrorCodes.NotFoundCode => logger.LogWarning("Secret not found"),
-        SecretsErrorCodes.AccessDeniedCode => logger.LogError("Access denied to secret"),
+        SecretsErrors.NotFoundCode => logger.LogWarning("Secret not found"),
+        SecretsErrors.AccessDeniedCode => logger.LogError("Access denied to secret"),
         _ => logger.LogError("Provider error: {Message}", error.Message)
     });
 ```
@@ -213,30 +219,17 @@ result.Match(
 
 ## Health Check
 
-`KeyVaultHealthCheck` verifies connectivity by calling `GetPropertiesOfSecretsAsync` (a lightweight list operation that breaks after the first result).
-
-| Property | Value |
-|----------|-------|
-| **Name** | `encina-secrets-keyvault` |
-| **Tags** | `["encina", "secrets", "keyvault", "ready"]` |
-| **Healthy** | Key Vault is accessible |
-| **Unhealthy** | `RequestFailedException` thrown (includes HTTP status in description) |
+Health checks are provided by the core `Encina.Security.Secrets` package via `SecretsHealthCheck`. When enabled, the health check verifies that `ISecretReader` can resolve and operate correctly.
 
 ### Enabling the Health Check
 
 ```csharp
-services.AddEncinaKeyVaultSecrets(options =>
-{
-    options.VaultUri = "https://my-vault.vault.azure.net/";
-    options.ProviderHealthCheck = new ProviderHealthCheckOptions
-    {
-        Enabled = true,
-        Tags = ["encina", "secrets", "keyvault", "ready"]
-    };
-});
+services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"),
+    configureSecrets: o => o.ProviderHealthCheck = true);
 ```
 
-> **Permission requirement**: The health check calls `GetPropertiesOfSecrets`, which requires the **Key Vault Secrets User** role at minimum.
+The health check is registered automatically by the core `AddEncinaSecrets<T>()` infrastructure.
 
 ---
 
@@ -245,57 +238,89 @@ services.AddEncinaKeyVaultSecrets(options =>
 ### 1. Install the Package
 
 ```bash
-dotnet add package Encina.Secrets.AzureKeyVault
+dotnet add package Encina.Security.Secrets.AzureKeyVault
 ```
 
 ### 2. Register Services
 
 ```csharp
-using Encina.Secrets.AzureKeyVault;
+using Encina.Security.Secrets.AzureKeyVault;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEncinaKeyVaultSecrets(options =>
-{
-    options.VaultUri = "https://my-vault.vault.azure.net/";
-    // DefaultAzureCredential is used automatically
-    options.ProviderHealthCheck = new ProviderHealthCheckOptions { Enabled = true };
-});
+// Basic setup with DefaultAzureCredential
+builder.Services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"));
+
+// With caching and custom credential
+builder.Services.AddAzureKeyVaultSecrets(
+    new Uri("https://my-vault.vault.azure.net/"),
+    kv => kv.Credential = new ManagedIdentityCredential(),
+    secrets =>
+    {
+        secrets.EnableCaching = true;
+        secrets.DefaultCacheDuration = TimeSpan.FromMinutes(10);
+    });
 ```
 
-### 3. Use the Provider
+### 3. Read Secrets
 
 ```csharp
-public class MyService
+public class MyService(ISecretReader secretReader)
 {
-    private readonly ISecretProvider _secrets;
-
-    public MyService(ISecretProvider secrets) => _secrets = secrets;
-
-    public async Task DoWorkAsync(CancellationToken ct)
+    public async Task<string> GetApiKeyAsync(CancellationToken ct)
     {
-        // Read a secret
-        var result = await _secrets.GetSecretAsync("api-key", ct);
+        var result = await secretReader.GetSecretAsync("api-key", ct);
+        return result.Match(
+            Right: value => value,
+            Left: error => throw new InvalidOperationException(error.Message));
+    }
+}
+```
 
+### 4. Write Secrets
+
+```csharp
+public class SecretManager(ISecretWriter secretWriter)
+{
+    public async Task StoreConnectionStringAsync(string value, CancellationToken ct)
+    {
+        var result = await secretWriter.SetSecretAsync("db-connection-string", value, ct);
         result.Match(
-            Right: secret => Console.WriteLine($"Key: {secret.Value}, Version: {secret.Version}"),
-            Left: error => Console.WriteLine($"Error [{error.Code}]: {error.Message}"));
+            Right: _ => Console.WriteLine("Secret stored successfully"),
+            Left: error => Console.WriteLine($"Error: {error.Message}"));
+    }
+}
+```
 
-        // Write a secret with expiration
-        var setResult = await _secrets.SetSecretAsync(
-            "db-connection-string",
-            "Server=...;Password=...",
-            new SecretOptions(ExpiresAtUtc: DateTime.UtcNow.AddDays(90)),
-            ct);
+### 5. Rotate Secrets
 
-        // Delete a secret (starts soft-delete via StartDeleteSecretAsync)
-        var deleteResult = await _secrets.DeleteSecretAsync("old-key", ct);
+```csharp
+public class RotationService(ISecretRotator secretRotator)
+{
+    public async Task RotateAsync(string secretName, CancellationToken ct)
+    {
+        var result = await secretRotator.RotateSecretAsync(secretName, ct);
+        result.Match(
+            Right: _ => Console.WriteLine("Secret rotated (new version created in Key Vault)"),
+            Left: error => Console.WriteLine($"Rotation failed: {error.Message}"));
+    }
+}
+```
 
-        // List all secret names
-        var listResult = await _secrets.ListSecretsAsync(ct);
+### 6. Typed Secrets
 
-        // Check existence
-        var existsResult = await _secrets.ExistsAsync("api-key", ct);
+```csharp
+public record DatabaseConfig(string Host, int Port, string Password);
+
+public class ConfigService(ISecretReader secretReader)
+{
+    public async Task<DatabaseConfig> GetDbConfigAsync(CancellationToken ct)
+    {
+        var result = await secretReader.GetSecretAsync<DatabaseConfig>("db-config", ct);
+        return result.Match(
+            Right: config => config,
+            Left: error => throw new InvalidOperationException(error.Message));
     }
 }
 ```
@@ -310,17 +335,33 @@ public class MyService
 | **Use RBAC over access policies** | RBAC is the modern authorization model; access policies are legacy |
 | **Use `DefaultAzureCredential` for local development** | Supports `az login`, Visual Studio, and other local credential sources seamlessly |
 | **Apply least-privilege roles** | Use Secrets User for read-only workloads; Secrets Officer only when writes are needed |
-| **Enable soft-delete and purge protection** | Prevents accidental permanent deletion; `DeleteSecretAsync` triggers soft-delete via `StartDeleteSecretAsync` |
-| **Enable health checks in production** | Detect connectivity issues before they impact users |
+| **Enable soft-delete and purge protection** | Prevents accidental permanent deletion |
+| **Enable caching for frequently accessed secrets** | Reduces latency and Key Vault API calls (enabled by default) |
 | **Keep secrets close to consumers** | Deploy Key Vault in the same region as your application to minimize latency |
-| **Use tags for organization** | Pass tags via `SecretOptions.Tags` to categorize secrets by team, environment, or application |
 | **Monitor with Azure Diagnostics** | Enable Key Vault diagnostics logging for audit and troubleshooting |
+
+---
+
+## Observability
+
+All observability features are inherited from the core `Encina.Security.Secrets` package through the decorator chain:
+
+| Feature | Source | Opt-In |
+|---------|--------|--------|
+| **Tracing** | `SecretsActivitySource` (4 activities) | `EnableTracing = true` |
+| **Metrics** | `SecretsMetrics` (5 instruments) | `EnableMetrics = true` |
+| **Health checks** | `SecretsHealthCheck` | `ProviderHealthCheck = true` |
+| **Access auditing** | `AuditedSecretReaderDecorator` | `EnableAccessAuditing = true` |
+| **Caching** | `CachedSecretReaderDecorator` | `EnableCaching = true` (default) |
+| **Provider logging** | `Log.cs` (EventIds 200-208) | Always active |
+
+The satellite package provides its own structured logging via `LoggerMessage` source generators (EventIds 200-208) covering all provider-specific operations.
 
 ---
 
 ## Related Documentation
 
-- [Secrets Management Overview](../features/secrets-management.md) (if available)
-- [Encina.Secrets Core Abstractions](../../src/Encina.Secrets/) -- `ISecretProvider`, `Secret`, `SecretMetadata`, `SecretsErrorCodes`
+- [Secrets Management Overview](secrets-management.md)
+- [Encina.Security.Secrets Core Abstractions](../../src/Encina.Security.Secrets/)
 - [Azure Key Vault Documentation](https://learn.microsoft.com/en-us/azure/key-vault/)
 - [Azure.Identity Documentation](https://learn.microsoft.com/en-us/dotnet/api/azure.identity)
