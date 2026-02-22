@@ -1,8 +1,11 @@
 using System.Security.Claims;
 using BenchmarkDotNet.Attributes;
+using Encina.AspNetCore.Authorization;
 using Encina.UnitTests.AspNetCore;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
 
 namespace Encina.AspNetCore.Benchmarks;
@@ -44,26 +47,31 @@ public class AuthorizationPipelineBehaviorBenchmarks
         // Setup behaviors
         var httpContextAccessor = new HttpContextAccessor();
         var authService = new TestAuthorizationService(shouldSucceed: true);
+        var options = Options.Create(new AuthorizationConfiguration());
 
         // No authorization required
         httpContextAccessor.HttpContext = null;
         _noAuthBehavior = new AuthorizationPipelineBehavior<UnauthorizedRequest, string>(
-            authService, httpContextAccessor);
+            authService, httpContextAccessor, options,
+            NullLogger<AuthorizationPipelineBehavior<UnauthorizedRequest, string>>.Instance);
 
         // Simple authentication
         httpContextAccessor.HttpContext = CreateAuthenticatedContext("user-123");
         _authBehavior = new AuthorizationPipelineBehavior<AuthorizedRequest, string>(
-            authService, httpContextAccessor);
+            authService, httpContextAccessor, options,
+            NullLogger<AuthorizationPipelineBehavior<AuthorizedRequest, string>>.Instance);
 
         // Role-based authorization
         httpContextAccessor.HttpContext = CreateAuthenticatedContext("user-123", roles: ["Admin"]);
         _roleBehavior = new AuthorizationPipelineBehavior<RoleBasedRequest, string>(
-            authService, httpContextAccessor);
+            authService, httpContextAccessor, options,
+            NullLogger<AuthorizationPipelineBehavior<RoleBasedRequest, string>>.Instance);
 
         // Policy-based authorization
         httpContextAccessor.HttpContext = CreateAuthenticatedContext("user-123");
         _policyBehavior = new AuthorizationPipelineBehavior<PolicyBasedRequest, string>(
-            authService, httpContextAccessor);
+            authService, httpContextAccessor, options,
+            NullLogger<AuthorizationPipelineBehavior<PolicyBasedRequest, string>>.Instance);
     }
 
     [Benchmark(Baseline = true)]
