@@ -116,59 +116,84 @@ Added the `Encina.Compliance.GDPR` package providing declarative, attribute-base
 
 ---
 
-#### Encina.Secrets — Secrets Management with Cloud Provider Support (#603)
+#### Encina.Security.Secrets — Secrets Management and Vault Integration (#400)
 
-Added the `Encina.Secrets` package providing a provider-agnostic secrets management abstraction with Railway Oriented Programming. Supports Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, and Google Cloud Secret Manager through dedicated satellite packages.
+Added the `Encina.Security.Secrets` package providing ISP-compliant, provider-agnostic secrets management with Railway Oriented Programming. Ships with development-ready providers (environment variables, `IConfiguration`) and a transparent caching decorator. Cloud vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) will be available as separate satellite packages.
 
-**Core Abstractions**:
+**Core Abstractions** (Interface Segregation Principle):
 
-- **`ISecretProvider`**: Unified interface with 6 methods — `GetSecretAsync`, `GetSecretVersionAsync`, `SetSecretAsync`, `DeleteSecretAsync`, `ListSecretsAsync`, `ExistsAsync`
-- **`Secret`**: Immutable record with `Name`, `Value`, `Version?`, `ExpiresAtUtc?`
-- **`SecretMetadata`**: Immutable record with `Name`, `Version`, `CreatedAtUtc`, `ExpiresAtUtc?`
-- **`SecretOptions`**: Record with `ExpiresAtUtc?` and `Tags` for secret creation
-- **`CachedSecretProvider`**: Decorator with configurable TTL, cache-aside pattern (only `Right` results cached), automatic invalidation on `Set`/`Delete`
+- **`ISecretReader`**: Read secrets — `GetSecretAsync(string)` and `GetSecretAsync<T>(string)` with JSON deserialization
+- **`ISecretWriter`**: Write/update secrets — `SetSecretAsync(string, string)` (separate from reader)
+- **`ISecretRotator`**: Rotate secrets — `RotateSecretAsync(string)` (optional)
+- **`ISecretRotationHandler`**: Custom rotation logic — `GenerateNewSecretAsync` + `OnRotationAsync` callbacks
+- **`SecretReference`**: Immutable record with `Name`, `Version?`, `CacheDuration?`, `AutoRotate`, `RotationInterval?`
 
-**Four Cloud Providers** (satellite packages):
+**Development Providers**:
 
-- **`Encina.Secrets.AzureKeyVault`** — Azure Key Vault via `Azure.Security.KeyVault.Secrets`, supports Managed Identity and RBAC
-- **`Encina.Secrets.AWSSecretsManager`** — AWS Secrets Manager via `AWSSDK.SecretsManager`, supports IAM credential chain
-- **`Encina.Secrets.HashiCorpVault`** — HashiCorp Vault KV v2 engine via `VaultSharp`, supports Token/AppRole/Kubernetes auth
-- **`Encina.Secrets.GoogleSecretManager`** — Google Cloud Secret Manager via `Google.Cloud.SecretManager.V1`, supports Application Default Credentials
+- **`EnvironmentSecretProvider`**: Reads from environment variables (default provider via `AddEncinaSecrets()`)
+- **`ConfigurationSecretProvider`**: Reads from `IConfiguration` sections (`appsettings.json`, user secrets)
+- **`FailoverSecretReader`**: Chain multiple providers — first `Right` result wins, returns `SecretsErrors.FailoverExhausted` if all fail
 
-**Error Codes** (6 structured errors via `SecretsErrorCodes`):
+**Decorator Chain** (transparent, opt-in via `SecretsOptions`):
 
-- `encina.secrets.not_found`, `encina.secrets.access_denied`, `encina.secrets.invalid_name`
-- `encina.secrets.provider_unavailable`, `encina.secrets.version_not_found`, `encina.secrets.operation_failed`
+- **`CachedSecretReaderDecorator`**: In-memory caching via `IMemoryCache` with configurable TTL (default 5 min), cache-aside pattern (only `Right` results cached), `Invalidate(secretName)` for manual cache eviction
+- **`AuditedSecretReaderDecorator`** / **`AuditedSecretWriterDecorator`** / **`AuditedSecretRotatorDecorator`**: Automatic audit trail via `IAuditStore` — records action, entity, user, tenant, timing, and outcome. Audit failures are logged but never block secret operations
 
-**IConfiguration Integration**:
+**Secret Rotation**:
 
-- **`ConfigurationBuilderExtensions.AddEncinaSecrets()`** — Bridge secrets to `IConfiguration` with prefix filtering, key delimiter mapping (`--` → `:`), and optional auto-reload via `ReloadInterval`
+- **`SecretRotationCoordinator`**: Orchestrates full rotation workflow — generate new secret → rotate via `ISecretRotator` → notify handlers. Supports multiple `ISecretRotationHandler` registrations
+
+**Attribute-Based Secret Injection**:
+
+- **`[InjectSecret("secret-name")]`**: Decorate pipeline request properties for automatic resolution from `ISecretReader` before handler execution. Supports `Version` (appends `/{version}` to name), `FailOnError` (default `true`, set `false` for graceful skip)
+- **`SecretInjectionPipelineBehavior<TRequest, TResponse>`**: Pipeline behavior that discovers `[InjectSecret]` properties via reflection caching (`SecretPropertyCache`) and delegates to `SecretInjectionOrchestrator`
+
+**IConfiguration Bridge**:
+
+- **`IConfigurationBuilder.AddEncinaSecrets()`**: Exposes secrets as `IConfiguration` keys with key delimiter mapping (`--` → `:`), optional prefix filtering with `StripPrefix`, and auto-reload via `ReloadInterval`
+- Enables `IOptions<T>` binding for libraries expecting standard configuration
+
+**Error Codes** (9 structured errors via `SecretsErrors`):
+
+- `secrets.not_found`, `secrets.access_denied`, `secrets.provider_unavailable`
+- `secrets.deserialization_failed`, `secrets.failover_exhausted`, `secrets.injection_failed`
+- `secrets.rotation_failed`, `secrets.audit_failed`, `secrets.cache_failure`
+- All errors include structured metadata via `EncinaError` with ROP pattern
 
 **Observability**:
 
-- OpenTelemetry tracing via `Encina.Secrets` ActivitySource with `secrets.operation`, `secrets.name` (opt-in), `secrets.status` tags
-- 3 metric instruments under `Encina.Secrets` Meter: `encina.secrets.operations` (counter), `encina.secrets.duration` (histogram ms), `encina.secrets.errors` (counter)
-- Configurable via `SecretsInstrumentationOptions`: `EnableTracing`, `EnableMetrics`, `RecordSecretNames` (default `false` for security)
+- OpenTelemetry tracing via `Encina.Security.Secrets` ActivitySource with 4 activity types: `Secrets.GetSecret`, `Secrets.SetSecret`, `Secrets.RotateSecret`, `Secrets.InjectSecrets`
+- 5 metric instruments under `Encina.Security.Secrets` Meter: `secrets.operations` (counter), `secrets.errors` (counter), `secrets.cache_hits` / `secrets.cache_misses` (counters), `secrets.operation_duration` (histogram in ms)
+- `SecretsDiagnostics` internal facade for unified tracing/metrics access
+- Configurable via `SecretsOptions.EnableTracing` and `SecretsOptions.EnableMetrics`
 
-**Health Checks** (5 total):
+**Health Check**:
 
-- **`SecretsHealthCheck`** — Verifies `ISecretProvider` is registered and resolvable from DI
-- **`KeyVaultHealthCheck`** — Lists secrets to verify Azure Key Vault connectivity
-- **`AWSSecretsManagerHealthCheck`** — Lists secrets (MaxResults=1) to verify AWS connectivity
-- **`HashiCorpVaultHealthCheck`** — Checks Vault health status (sealed/not-initialized → Degraded)
-- **`GoogleSecretManagerHealthCheck`** — Lists secrets (PageSize=1) to verify GCP connectivity
+- **`SecretsHealthCheck`**: Verifies `ISecretReader` is registered and resolvable; optionally probes a specific secret via `SecretsOptions.HealthCheckSecretName`
+- Opt-in via `SecretsOptions.ProviderHealthCheck = true`
+- Tags: `encina`, `secrets`, `ready`
 
 **DI Registration**:
 
 ```csharp
-// Choose one provider
-services.AddEncinaKeyVaultSecrets(options => options.VaultUri = "https://my-vault.vault.azure.net/");
-// Add cross-cutting concerns
-services.AddEncinaSecretsCaching(options => options.DefaultTtl = TimeSpan.FromMinutes(10));
-services.AddEncinaSecretsInstrumentation();
+// Default: EnvironmentSecretProvider + caching enabled
+services.AddEncinaSecrets();
+
+// With custom reader
+services.AddEncinaSecrets<ConfigurationSecretProvider>(options =>
+{
+    options.EnableCaching = true;
+    options.EnableSecretInjection = true;
+    options.EnableAccessAuditing = true;
+    options.EnableTracing = true;
+    options.EnableMetrics = true;
+});
+
+// Rotation handler registration
+services.AddSecretRotationHandler<DatabasePasswordRotationHandler>();
 ```
 
-**Testing**: 212 tests across 4 test projects (154 unit, 42 guard, 8 property, 8 contract).
+**Testing**: 335 tests (319 unit + 16 integration) covering all providers, decorators, injection, rotation, configuration bridge, health check, and observability.
 
 ---
 

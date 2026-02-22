@@ -5703,21 +5703,27 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 
 ##### Tier 3: Media Prioridad (Advanced Security)
 
-**#400 - Encina.Secrets - Secrets Management** ✅ **IMPLEMENTADO (Feb 2026, #603)**:
+**#400 - Encina.Security.Secrets - Secrets Management** ✅ **IMPLEMENTADO (Feb 2026)**:
 
-- ✅ `ISecretProvider` con 6 métodos: `GetSecretAsync`, `GetSecretMetadataAsync`, `SetSecretAsync`, `DeleteSecretAsync`, `ListSecretNamesAsync`, `SecretExistsAsync`
+- ✅ ISP-compliant interfaces: `ISecretReader`, `ISecretWriter`, `ISecretRotator`, `ISecretRotationHandler`
 - ✅ Todos retornan `ValueTask<Either<EncinaError, T>>` (Railway Oriented Programming)
-- ✅ `SecretMetadata` record con Name, Version, CreatedAtUtc, ExpiresAtUtc, Tags
-- ✅ `CachedSecretProvider` decorator con TTL configurable, solo cachea Right results
-- ✅ `InstrumentedSecretProvider` con OpenTelemetry tracing + 3 metric instruments
-- ✅ `SecretsErrorCodes` con 6 error codes (`encina.secrets.*`)
-- ✅ 4 providers: Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, Google Secret Manager
-- ✅ `IConfiguration` bridge: `SecretsConfigurationSource` + `SecretsConfigurationProvider`
-- ✅ 5 health checks (1 por provider + 1 cached)
-- ✅ DI registration via `AddEncinaSecrets()` + provider-specific extensions
-- ✅ 212 tests (154 unit + 42 guard + 8 property + 8 contract)
-- **Paquetes**: `Encina.Secrets`, `Encina.Secrets.AzureKeyVault`, `Encina.Secrets.AWSSecretsManager`, `Encina.Secrets.HashiCorpVault`, `Encina.Secrets.GoogleSecretManager`
-- Labels: `area-security`, `area-serverless`, `cloud-aws`, `cloud-azure`, `cloud-gcp`, `area-cloud-native`, `industry-best-practice`
+- ✅ Typed secrets: `GetSecretAsync<T>()` con JSON deserialization
+- ✅ `CachedSecretReaderDecorator` con `IMemoryCache`, TTL configurable (default 5 min), solo cachea Right results
+- ✅ `AuditedSecretReaderDecorator` / `AuditedSecretWriterDecorator` / `AuditedSecretRotatorDecorator` vía `IAuditStore`
+- ✅ `FailoverSecretReader` — multi-provider chain, primer Right gana, `SecretsErrors.FailoverExhausted` si todos fallan
+- ✅ `SecretRotationCoordinator` — orquesta generate → rotate → notify con múltiples `ISecretRotationHandler`
+- ✅ `[InjectSecret("name")]` — inyección de secretos en propiedades de pipeline requests vía `SecretInjectionPipelineBehavior`
+- ✅ `SecretsErrors` con 9 error codes (`secrets.*`)
+- ✅ 2 development providers: `EnvironmentSecretProvider`, `ConfigurationSecretProvider`
+- ✅ `IConfiguration` bridge: `SecretsConfigurationSource` + `SecretsConfigurationProvider` con key delimiter mapping y prefix
+- ✅ `SecretsHealthCheck` con probe opcional vía `HealthCheckSecretName`
+- ✅ OpenTelemetry: `SecretsActivitySource` (4 activities), `SecretsMetrics` (5 instruments), `SecretsDiagnostics` facade
+- ✅ DI registration via `AddEncinaSecrets()` / `AddEncinaSecrets<TReader>()` / `AddSecretRotationHandler<T>()`
+- ✅ 335 tests (319 unit + 16 integration)
+- **Paquete**: `Encina.Security.Secrets`
+- **Paquetes futuros**: `Encina.Security.Secrets.AzureKeyVault`, `Encina.Security.Secrets.AWSSecretsManager`, `Encina.Security.Secrets.HashiCorpVault`, `Encina.Security.Secrets.GoogleSecretManager`
+- Labels: `area-security`, `cloud-aws`, `cloud-azure`, `cloud-gcp`, `area-cloud-native`, `industry-best-practice`
+- Documentación: [secrets-management.md](features/secrets-management.md)
 - Referencias: [12-Factor App Config](https://12factor.net/config), [HashiCorp Vault](https://www.vaultproject.io/)
 
 **#401 - Encina.Security.ABAC - Attribute-Based Access Control**:
@@ -5743,11 +5749,11 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | `Encina.Security.PII` | #397 ✅ | PII masking and protection (IMPLEMENTADO) | Alta |
 | `Encina.Security.AntiTampering` | #398 ✅ | HMAC request signing and integrity verification (IMPLEMENTADO) | Alta |
 | `Encina.Security.Sanitization` | #399 ✅ | Input/output sanitization (IMPLEMENTADO) | Alta |
-| `Encina.Secrets` | #400/#603 ✅ | Secrets management core (IMPLEMENTADO) | Media |
-| `Encina.Secrets.AzureKeyVault` | #400/#603 ✅ | Azure Key Vault provider (IMPLEMENTADO) | Media |
-| `Encina.Secrets.AWSSecretsManager` | #400/#603 ✅ | AWS Secrets Manager provider (IMPLEMENTADO) | Media |
-| `Encina.Secrets.HashiCorpVault` | #400/#603 ✅ | HashiCorp Vault provider (IMPLEMENTADO) | Media |
-| `Encina.Secrets.GoogleSecretManager` | #400/#603 ✅ | Google Secret Manager provider (IMPLEMENTADO) | Media |
+| `Encina.Security.Secrets` | #400 ✅ | ISP-compliant secrets management core (IMPLEMENTADO) | Media |
+| `Encina.Security.Secrets.AzureKeyVault` | #400 | Azure Key Vault provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.AWSSecretsManager` | #400 | AWS Secrets Manager provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.HashiCorpVault` | #400 | HashiCorp Vault provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.GoogleSecretManager` | #400 | Google Secret Manager provider (PLANIFICADO) | Media |
 | `Encina.Security.ABAC` | #401 | Attribute-Based Access Control | Media |
 
 #### Labels Nuevas Creadas (Security - 2)
@@ -6667,29 +6673,26 @@ public class CreateOrderHandler : ICommandHandler<CreateOrder, Order>
 }
 ```
 
-**#452 - Encina.Secrets** ✅ **IMPLEMENTADO (Feb 2026, consolidado en #603)**:
+**#452 - Encina.Secrets** ✅ **IMPLEMENTADO (Feb 2026, consolidado en #400)**:
 
-> **Nota**: Este issue fue consolidado en #603 (v0.13.0 - Security & Compliance). La implementación final difiere del diseño original: usa `ISecretProvider` (no `ISecretsProvider`), ROP con `Either<EncinaError, T>`, y añade Google Secret Manager como 4to provider cloud.
+> **Nota**: Este issue fue consolidado en #400 (Encina.Security.Secrets). La implementación final usa ISP-compliant interfaces (`ISecretReader`, `ISecretWriter`, `ISecretRotator`), decoradores transparentes para caching y auditoría, y `[InjectSecret]` para inyección automática en pipeline requests.
 
-- ✅ `ISecretProvider` con 6 métodos ROP (`GetSecretAsync`, `SetSecretAsync`, `DeleteSecretAsync`, etc.)
-- ✅ `CachedSecretProvider` decorator con TTL configurable
-- ✅ `InstrumentedSecretProvider` con OpenTelemetry tracing y métricas
-- ✅ `IConfiguration` bridge via `SecretsConfigurationSource`
-- ✅ 4 cloud providers: Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, Google Secret Manager
-- ✅ 5 health checks, DI registration extensions
-- ✅ 212 tests (154 unit + 42 guard + 8 property + 8 contract)
-- **Paquetes**: `Encina.Secrets`, `Encina.Secrets.AzureKeyVault`, `Encina.Secrets.AWSSecretsManager`, `Encina.Secrets.HashiCorpVault`, `Encina.Secrets.GoogleSecretManager`
-- Labels: `area-security`, `area-configuration`, `area-data-protection`, `industry-best-practice`, `saas-enabler`, `cloud-aws`, `cloud-azure`, `cloud-gcp`
+- ✅ Implementación completa bajo `Encina.Security.Secrets` — ver [#400](#400---encinasecuritysecrets---secrets-management) para detalles
+- ✅ 335 tests (319 unit + 16 integration)
+- **Paquete**: `Encina.Security.Secrets`
+- Labels: `area-security`, `area-configuration`, `area-data-protection`, `industry-best-practice`, `cloud-aws`, `cloud-azure`, `cloud-gcp`
 
 ```csharp
-// ROP-based secrets access
-services.AddEncinaSecrets()
-    .AddAzureKeyVault(new Uri("https://myvault.vault.azure.net/"))
-    .AddCaching(TimeSpan.FromMinutes(5));
+// ISP-compliant DI-first secrets access
+services.AddEncinaSecrets(options =>
+{
+    options.EnableCaching = true;
+    options.EnableSecretInjection = true;
+});
 
-var result = await provider.GetSecretAsync("stripe-api-key", ct);
+var result = await secretReader.GetSecretAsync("stripe-api-key", ct);
 result.Match(
-    Right: secret => UseSecret(secret),
+    Right: value => UseSecret(value),
     Left: error => HandleError(error));
 ```
 
@@ -6773,11 +6776,11 @@ result.Match(
 | `Encina.FeatureFlags.LaunchDarkly` | #451 | LaunchDarkly provider | Media |
 | `Encina.FeatureFlags.AzureAppConfiguration` | #451 | Azure App Config provider | Media |
 | `Encina.FeatureFlags.OpenFeature` | #451 | OpenFeature SDK provider | Media |
-| `Encina.Secrets` | #452/#603 ✅ | Secrets abstraction (IMPLEMENTADO) | Media |
-| `Encina.Secrets.AzureKeyVault` | #452/#603 ✅ | Azure Key Vault provider (IMPLEMENTADO) | Media |
-| `Encina.Secrets.AWSSecretsManager` | #452/#603 ✅ | AWS provider (IMPLEMENTADO) | Media |
-| `Encina.Secrets.HashiCorpVault` | #452/#603 ✅ | HashiCorp Vault provider (IMPLEMENTADO) | Media |
-| `Encina.Secrets.GoogleSecretManager` | #452/#603 ✅ | Google Secret Manager provider (IMPLEMENTADO) | Media |
+| `Encina.Security.Secrets` | #400/#452 ✅ | ISP-compliant secrets management (IMPLEMENTADO) | Media |
+| `Encina.Security.Secrets.AzureKeyVault` | #400 | Azure Key Vault provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.AWSSecretsManager` | #400 | AWS Secrets Manager provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.HashiCorpVault` | #400 | HashiCorp Vault provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.GoogleSecretManager` | #400 | Google Secret Manager provider (PLANIFICADO) | Media |
 | `Encina.ServiceDiscovery` | #453 | Service discovery abstraction | Media |
 | `Encina.ServiceDiscovery.Kubernetes` | #453 | Kubernetes DNS provider | Media |
 | `Encina.ServiceDiscovery.Consul` | #453 | Consul provider | Media |
@@ -7205,11 +7208,11 @@ src/
 ├── Encina.FeatureFlags.ConfigCat/   # (Planned #451) ConfigCat provider
 ├── Encina.FeatureFlags.LaunchDarkly/ # (Planned #451) LaunchDarkly provider
 ├── Encina.FeatureFlags.OpenFeature/ # (Planned #451) OpenFeature SDK provider
-├── Encina.Secrets/                  # ✅ (#400/#452/#603) Secrets management core
-├── Encina.Secrets.AzureKeyVault/    # ✅ (#400/#452/#603) Azure Key Vault provider
-├── Encina.Secrets.AWSSecretsManager/ # ✅ (#400/#452/#603) AWS Secrets Manager provider
-├── Encina.Secrets.HashiCorpVault/   # ✅ (#400/#452/#603) HashiCorp Vault provider
-├── Encina.Secrets.GoogleSecretManager/ # ✅ (#400/#452/#603) Google Secret Manager provider
+├── Encina.Security.Secrets/         # ✅ (#400) ISP-compliant secrets management
+├── Encina.Security.Secrets.AzureKeyVault/    # (Planned #400) Azure Key Vault provider
+├── Encina.Security.Secrets.AWSSecretsManager/ # (Planned #400) AWS Secrets Manager provider
+├── Encina.Security.Secrets.HashiCorpVault/   # (Planned #400) HashiCorp Vault provider
+├── Encina.Security.Secrets.GoogleSecretManager/ # (Planned #400) Google Secret Manager provider
 ├── Encina.ServiceDiscovery/         # (Planned #453) Service discovery abstraction
 ├── Encina.ServiceDiscovery.Kubernetes/ # (Planned #453) Kubernetes DNS provider
 ├── Encina.ServiceDiscovery.Consul/  # (Planned #453) Consul provider

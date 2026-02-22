@@ -1,0 +1,129 @@
+#nullable enable
+Encina.Security.Secrets.Abstractions.ISecretReader
+Encina.Security.Secrets.Abstractions.ISecretReader.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Abstractions.ISecretReader.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.Abstractions.ISecretRotationHandler
+Encina.Security.Secrets.Abstractions.ISecretRotationHandler.GenerateNewSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Abstractions.ISecretRotationHandler.OnRotationAsync(string! secretName, string! oldValue, string! newValue, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.Abstractions.ISecretRotator
+Encina.Security.Secrets.Abstractions.ISecretRotator.RotateSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.Abstractions.ISecretWriter
+Encina.Security.Secrets.Abstractions.ISecretWriter.SetSecretAsync(string! secretName, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.Caching.CachedSecretReaderDecorator
+Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.CachedSecretReaderDecorator(Encina.Security.Secrets.Abstractions.ISecretReader! inner, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Options.IOptions<Encina.Security.Secrets.SecretsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Caching.CachedSecretReaderDecorator!>! logger) -> void
+Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.Invalidate(string! secretName) -> void
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.KeyDelimiter.get -> string!
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.KeyDelimiter.set -> void
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.ReloadInterval.get -> System.TimeSpan?
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.ReloadInterval.set -> void
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.SecretNames.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.SecretNames.set -> void
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.SecretPrefix.get -> string?
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.SecretPrefix.set -> void
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.SecretsConfigurationOptions() -> void
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.StripPrefix.get -> bool
+Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.StripPrefix.set -> void
+Encina.Security.Secrets.Health.SecretsHealthCheck
+Encina.Security.Secrets.Health.SecretsHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Security.Secrets.Health.SecretsHealthCheck.SecretsHealthCheck(System.IServiceProvider! serviceProvider) -> void
+Encina.Security.Secrets.Providers.ConfigurationSecretProvider
+Encina.Security.Secrets.Providers.ConfigurationSecretProvider.ConfigurationSecretProvider(Microsoft.Extensions.Configuration.IConfiguration! configuration, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Providers.ConfigurationSecretProvider!>! logger, string! sectionPath = "Secrets") -> void
+Encina.Security.Secrets.Providers.ConfigurationSecretProvider.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Providers.ConfigurationSecretProvider.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.Providers.EnvironmentSecretProvider
+Encina.Security.Secrets.Providers.EnvironmentSecretProvider.EnvironmentSecretProvider(Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Providers.EnvironmentSecretProvider!>! logger) -> void
+Encina.Security.Secrets.Providers.EnvironmentSecretProvider.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Providers.EnvironmentSecretProvider.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.SecretReference
+Encina.Security.Secrets.SecretReference.AutoRotate.get -> bool
+Encina.Security.Secrets.SecretReference.AutoRotate.init -> void
+Encina.Security.Secrets.SecretReference.CacheDuration.get -> System.TimeSpan?
+Encina.Security.Secrets.SecretReference.CacheDuration.init -> void
+Encina.Security.Secrets.SecretReference.Name.get -> string!
+Encina.Security.Secrets.SecretReference.Name.init -> void
+Encina.Security.Secrets.SecretReference.RotationInterval.get -> System.TimeSpan?
+Encina.Security.Secrets.SecretReference.RotationInterval.init -> void
+Encina.Security.Secrets.SecretReference.Version.get -> string?
+Encina.Security.Secrets.SecretReference.Version.init -> void
+Encina.Security.Secrets.SecretsErrors
+Encina.Security.Secrets.SecretsOptions
+Encina.Security.Secrets.SecretsOptions.DefaultCacheDuration.get -> System.TimeSpan
+Encina.Security.Secrets.SecretsOptions.DefaultCacheDuration.set -> void
+Encina.Security.Secrets.SecretsOptions.EnableAccessAuditing.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableAccessAuditing.set -> void
+Encina.Security.Secrets.SecretsOptions.EnableAutoRotation.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableAutoRotation.set -> void
+Encina.Security.Secrets.SecretsOptions.EnableCaching.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableCaching.set -> void
+Encina.Security.Secrets.SecretsOptions.EnableFailover.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableFailover.set -> void
+Encina.Security.Secrets.SecretsOptions.KeyPrefix.get -> string?
+Encina.Security.Secrets.SecretsOptions.KeyPrefix.set -> void
+Encina.Security.Secrets.SecretsOptions.ProviderHealthCheck.get -> bool
+Encina.Security.Secrets.SecretsOptions.ProviderHealthCheck.set -> void
+Encina.Security.Secrets.SecretsOptions.RotationCheckInterval.get -> System.TimeSpan?
+Encina.Security.Secrets.SecretsOptions.RotationCheckInterval.set -> void
+Encina.Security.Secrets.SecretsOptions.SecretsOptions() -> void
+Encina.Security.Secrets.ServiceCollectionExtensions
+const Encina.Security.Secrets.Health.SecretsHealthCheck.DefaultName = "encina-secrets" -> string!
+const Encina.Security.Secrets.Providers.ConfigurationSecretProvider.DefaultSectionPath = "Secrets" -> string!
+const Encina.Security.Secrets.SecretsErrors.AccessDeniedCode = "secrets.access_denied" -> string!
+const Encina.Security.Secrets.SecretsErrors.AuditFailedCode = "secrets.audit_failed" -> string!
+const Encina.Security.Secrets.SecretsErrors.CacheFailureCode = "secrets.cache_failure" -> string!
+const Encina.Security.Secrets.SecretsErrors.DeserializationFailedCode = "secrets.deserialization_failed" -> string!
+const Encina.Security.Secrets.SecretsErrors.FailoverExhaustedCode = "secrets.failover_exhausted" -> string!
+const Encina.Security.Secrets.SecretsErrors.InjectionFailedCode = "secrets.injection_failed" -> string!
+const Encina.Security.Secrets.SecretsErrors.NotFoundCode = "secrets.not_found" -> string!
+const Encina.Security.Secrets.SecretsErrors.ProviderUnavailableCode = "secrets.provider_unavailable" -> string!
+const Encina.Security.Secrets.SecretsErrors.RotationFailedCode = "secrets.rotation_failed" -> string!
+static Encina.Security.Secrets.SecretsErrors.AccessDenied(string! secretName, string? reason = null) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.AuditFailed(string! secretName, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.CacheFailure(string! secretName, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.DeserializationFailed(string! secretName, System.Type! targetType, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.FailoverExhausted(string! secretName, int providerCount) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.InjectionFailed(string! secretName, string! propertyName, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.NotFound(string! secretName) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.ProviderUnavailable(string! providerName, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.RotationFailed(string! secretName, string? reason = null, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Secrets.ServiceCollectionExtensions.AddEncinaSecrets(this Microsoft.Extensions.Configuration.IConfigurationBuilder! builder, System.IServiceProvider! serviceProvider, System.Action<Encina.Security.Secrets.Configuration.SecretsConfigurationOptions!>? configure = null) -> Microsoft.Extensions.Configuration.IConfigurationBuilder!
+static Encina.Security.Secrets.ServiceCollectionExtensions.AddEncinaSecrets(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Secrets.SecretsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Security.Secrets.ServiceCollectionExtensions.AddEncinaSecrets<TReader>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Secrets.SecretsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Security.Secrets.ServiceCollectionExtensions.AddSecretRotationHandler<THandler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Security.Secrets.Auditing.AuditedSecretReaderDecorator
+Encina.Security.Secrets.Auditing.AuditedSecretReaderDecorator.AuditedSecretReaderDecorator(Encina.Security.Secrets.Abstractions.ISecretReader! inner, Encina.Security.Audit.IAuditStore! auditStore, Encina.IRequestContext! requestContext, Encina.Security.Secrets.SecretsOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Auditing.AuditedSecretReaderDecorator!>! logger) -> void
+Encina.Security.Secrets.Auditing.AuditedSecretReaderDecorator.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Auditing.AuditedSecretReaderDecorator.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.Auditing.AuditedSecretWriterDecorator
+Encina.Security.Secrets.Auditing.AuditedSecretWriterDecorator.AuditedSecretWriterDecorator(Encina.Security.Secrets.Abstractions.ISecretWriter! inner, Encina.Security.Audit.IAuditStore! auditStore, Encina.IRequestContext! requestContext, Encina.Security.Secrets.SecretsOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Auditing.AuditedSecretWriterDecorator!>! logger) -> void
+Encina.Security.Secrets.Auditing.AuditedSecretWriterDecorator.SetSecretAsync(string! secretName, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.Auditing.AuditedSecretRotatorDecorator
+Encina.Security.Secrets.Auditing.AuditedSecretRotatorDecorator.AuditedSecretRotatorDecorator(Encina.Security.Secrets.Abstractions.ISecretRotator! inner, Encina.Security.Audit.IAuditStore! auditStore, Encina.IRequestContext! requestContext, Encina.Security.Secrets.SecretsOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Auditing.AuditedSecretRotatorDecorator!>! logger) -> void
+Encina.Security.Secrets.Auditing.AuditedSecretRotatorDecorator.RotateSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.Providers.FailoverSecretReader
+Encina.Security.Secrets.Providers.FailoverSecretReader.FailoverSecretReader(System.Collections.Generic.IEnumerable<Encina.Security.Secrets.Abstractions.ISecretReader!>! providers, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Providers.FailoverSecretReader!>! logger) -> void
+Encina.Security.Secrets.Providers.FailoverSecretReader.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Providers.FailoverSecretReader.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.Providers.FailoverSecretReaderExtensions
+static Encina.Security.Secrets.Providers.FailoverSecretReaderExtensions.WithFailover(this Encina.Security.Secrets.Abstractions.ISecretReader! primary, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Providers.FailoverSecretReader!>! logger, params Encina.Security.Secrets.Abstractions.ISecretReader![]! fallbacks) -> Encina.Security.Secrets.Providers.FailoverSecretReader!
+Encina.Security.Secrets.Rotation.SecretRotationCoordinator
+Encina.Security.Secrets.Rotation.SecretRotationCoordinator.SecretRotationCoordinator(System.Collections.Generic.IEnumerable<Encina.Security.Secrets.Abstractions.ISecretRotationHandler!>! handlers, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Rotation.SecretRotationCoordinator!>! logger, Encina.Security.Secrets.Abstractions.ISecretRotator? rotator = null, Encina.Security.Secrets.Abstractions.ISecretReader? reader = null) -> void
+Encina.Security.Secrets.Rotation.SecretRotationCoordinator.RotateWithCallbacksAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.InjectSecretAttribute
+Encina.Security.Secrets.InjectSecretAttribute.InjectSecretAttribute(string! secretName) -> void
+Encina.Security.Secrets.InjectSecretAttribute.SecretName.get -> string!
+Encina.Security.Secrets.InjectSecretAttribute.Version.get -> string?
+Encina.Security.Secrets.InjectSecretAttribute.Version.set -> void
+Encina.Security.Secrets.InjectSecretAttribute.FailOnError.get -> bool
+Encina.Security.Secrets.InjectSecretAttribute.FailOnError.set -> void
+Encina.Security.Secrets.SecretsOptions.EnableTracing.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableTracing.set -> void
+Encina.Security.Secrets.SecretsOptions.EnableMetrics.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableMetrics.set -> void
+Encina.Security.Secrets.SecretsOptions.EnableSecretInjection.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableSecretInjection.set -> void
+Encina.Security.Secrets.SecretsOptions.HealthCheckSecretName.get -> string?
+Encina.Security.Secrets.SecretsOptions.HealthCheckSecretName.set -> void
+Encina.Security.Secrets.Providers.FailoverSecretReader.ProviderCount.get -> int
