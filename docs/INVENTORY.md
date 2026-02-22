@@ -5722,8 +5722,8 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - ✅ 335 tests (319 unit + 16 integration)
 - **Paquete**: `Encina.Security.Secrets`
 - **Paquete satélite**: `Encina.Security.Secrets.AzureKeyVault` (#676 ✅ IMPLEMENTADO)
-- **Paquetes futuros**: `Encina.Security.Secrets.HashiCorpVault`, `Encina.Security.Secrets.GoogleSecretManager`
-- **Paquetes implementados**: `Encina.Security.Secrets.AzureKeyVault` (#676), `Encina.Security.Secrets.AwsSecretsManager` (#677)
+- **Paquetes futuros**: `Encina.Security.Secrets.GoogleSecretManager`
+- **Paquetes implementados**: `Encina.Security.Secrets.AzureKeyVault` (#676), `Encina.Security.Secrets.AwsSecretsManager` (#677), `Encina.Security.Secrets.HashiCorpVault` (#678)
 - Labels: `area-security`, `cloud-aws`, `cloud-azure`, `cloud-gcp`, `area-cloud-native`, `industry-best-practice`
 - Documentación: [secrets-management.md](features/secrets-management.md)
 - Referencias: [12-Factor App Config](https://12factor.net/config), [HashiCorp Vault](https://www.vaultproject.io/)
@@ -5754,7 +5754,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | `Encina.Security.Secrets` | #400 ✅ | ISP-compliant secrets management core (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.AzureKeyVault` | #676 ✅ | Azure Key Vault provider (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.AwsSecretsManager` | #677 ✅ | AWS Secrets Manager provider (IMPLEMENTADO) | Media |
-| `Encina.Security.Secrets.HashiCorpVault` | #400 | HashiCorp Vault provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.HashiCorpVault` | #678 ✅ | HashiCorp Vault provider (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.GoogleSecretManager` | #400 | Google Secret Manager provider (PLANIFICADO) | Media |
 | `Encina.Security.ABAC` | #401 | Attribute-Based Access Control | Media |
 
@@ -6781,7 +6781,7 @@ result.Match(
 | `Encina.Security.Secrets` | #400/#452 ✅ | ISP-compliant secrets management (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.AzureKeyVault` | #676 ✅ | Azure Key Vault provider (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.AwsSecretsManager` | #677 ✅ | AWS Secrets Manager provider (IMPLEMENTADO) | Media |
-| `Encina.Security.Secrets.HashiCorpVault` | #400 | HashiCorp Vault provider (PLANIFICADO) | Media |
+| `Encina.Security.Secrets.HashiCorpVault` | #678 ✅ | HashiCorp Vault provider (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.GoogleSecretManager` | #400 | Google Secret Manager provider (PLANIFICADO) | Media |
 | `Encina.ServiceDiscovery` | #453 | Service discovery abstraction | Media |
 | `Encina.ServiceDiscovery.Kubernetes` | #453 | Kubernetes DNS provider | Media |
@@ -7213,7 +7213,7 @@ src/
 ├── Encina.Security.Secrets/         # ✅ (#400) ISP-compliant secrets management
 ├── Encina.Security.Secrets.AzureKeyVault/    # ✅ (#676) Azure Key Vault provider
 ├── Encina.Security.Secrets.AwsSecretsManager/ # ✅ (#677) AWS Secrets Manager provider
-├── Encina.Security.Secrets.HashiCorpVault/   # (Planned #400) HashiCorp Vault provider
+├── Encina.Security.Secrets.HashiCorpVault/   # ✅ (#678) HashiCorp Vault provider
 ├── Encina.Security.Secrets.GoogleSecretManager/ # (Planned #400) Google Secret Manager provider
 ├── Encina.ServiceDiscovery/         # (Planned #453) Service discovery abstraction
 ├── Encina.ServiceDiscovery.Kubernetes/ # (Planned #453) Kubernetes DNS provider

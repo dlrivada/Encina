@@ -1,6 +1,6 @@
 # Secrets Management -- HashiCorp Vault
 
-This guide covers the HashiCorp Vault integration in Encina via the `Encina.Secrets.HashiCorpVault` package. It explains prerequisites, authentication methods, KV v2 engine specifics, configuration, error mapping, health checks, and best practices specific to HashiCorp Vault.
+This guide covers the HashiCorp Vault integration in Encina via the `Encina.Security.Secrets.HashiCorpVault` package. It explains prerequisites, authentication methods, KV v2 engine specifics, configuration, error mapping, and best practices specific to HashiCorp Vault.
 
 ## Table of Contents
 
@@ -11,33 +11,29 @@ This guide covers the HashiCorp Vault integration in Encina via the `Encina.Secr
 5. [KV v2 Engine Specifics](#kv-v2-engine-specifics)
 6. [Secret Value Extraction](#secret-value-extraction)
 7. [Error Mapping](#error-mapping)
-8. [ListSecretsAsync Behavior](#listsecretsasync-behavior)
-9. [Version Handling](#version-handling)
-10. [Health Check](#health-check)
-11. [Quick Start](#quick-start)
-12. [Docker Setup](#docker-setup)
-13. [Best Practices](#best-practices)
+8. [Quick Start](#quick-start)
+9. [Docker Setup](#docker-setup)
+10. [Best Practices](#best-practices)
 
 ---
 
 ## Overview
 
-`Encina.Secrets.HashiCorpVault` provides an `ISecretProvider` implementation backed by VaultSharp, targeting the **KV v2** (Key-Value version 2) secrets engine. It wraps `IVaultClient` to expose a unified, Railway Oriented Programming (ROP) API that returns `Either<EncinaError, T>` for all operations.
+`Encina.Security.Secrets.HashiCorpVault` provides ISP-compliant secret management backed by VaultSharp, targeting the **KV v2** (Key-Value version 2) secrets engine. It wraps `IVaultClient` to expose a unified, Railway Oriented Programming (ROP) API that returns `Either<EncinaError, T>` for all operations.
 
 | Component | Description |
 |-----------|-------------|
-| **`HashiCorpVaultProvider`** | `ISecretProvider` implementation using VaultSharp's KV v2 API |
-| **`HashiCorpVaultOptions`** | Configuration: `VaultAddress`, `MountPoint`, `AuthMethod`, `ProviderHealthCheck` |
-| **`HashiCorpVaultHealthCheck`** | ASP.NET Core health check verifying Vault connectivity, initialization, and seal status |
-| **`AddEncinaHashiCorpVault`** | Extension method to register all services |
+| **`HashiCorpVaultSecretProvider`** | Implements `ISecretReader`, `ISecretWriter`, and `ISecretRotator` using VaultSharp's KV v2 API |
+| **`HashiCorpVaultOptions`** | Configuration: `VaultAddress`, `MountPoint`, `AuthMethod` |
+| **`AddHashiCorpVaultSecrets`** | Extension method to register all services |
 
 ### NuGet Package
 
 ```
-Encina.Secrets.HashiCorpVault
+Encina.Security.Secrets.HashiCorpVault
 ```
 
-**Dependencies**: `VaultSharp`, `Encina.Secrets` (core abstractions).
+**Dependencies**: `VaultSharp`, `Encina.Security.Secrets` (core abstractions).
 
 ---
 
@@ -77,7 +73,7 @@ The simplest method; suitable for development and CI/CD:
 ```csharp
 using VaultSharp.V1.AuthMethods.Token;
 
-services.AddEncinaHashiCorpVault(options =>
+services.AddHashiCorpVaultSecrets(options =>
 {
     options.VaultAddress = "https://vault.example.com:8200";
     options.AuthMethod = new TokenAuthMethodInfo("hvs.your-vault-token");
@@ -91,7 +87,7 @@ Recommended for machine-to-machine authentication in production:
 ```csharp
 using VaultSharp.V1.AuthMethods.AppRole;
 
-services.AddEncinaHashiCorpVault(options =>
+services.AddHashiCorpVaultSecrets(options =>
 {
     options.VaultAddress = "https://vault.example.com:8200";
     options.AuthMethod = new AppRoleAuthMethodInfo(
@@ -107,7 +103,7 @@ For workloads running in Kubernetes:
 ```csharp
 using VaultSharp.V1.AuthMethods.Kubernetes;
 
-services.AddEncinaHashiCorpVault(options =>
+services.AddHashiCorpVaultSecrets(options =>
 {
     options.VaultAddress = "https://vault.example.com:8200";
     options.AuthMethod = new KubernetesAuthMethodInfo(
@@ -140,7 +136,6 @@ VaultSharp supports many additional auth methods. Any `IAuthMethodInfo` implemen
 | `VaultAddress` | `string` | `""` | Vault server address (e.g., `https://vault.example.com:8200`). **Required.** |
 | `MountPoint` | `string` | `"secret"` | Mount point of the KV v2 secrets engine. |
 | `AuthMethod` | `IAuthMethodInfo?` | `null` | Authentication method. **Required** -- throws `InvalidOperationException` if null at startup. |
-| `ProviderHealthCheck` | `ProviderHealthCheckOptions` | Disabled | Health check configuration (see [Health Check](#health-check)). |
 
 ---
 
@@ -160,14 +155,12 @@ The KV v2 engine is a versioned key-value store. Key differences from KV v1:
 
 | Encina Operation | VaultSharp Method | KV v2 Path |
 |------------------|-------------------|------------|
-| `GetSecretAsync` | `ReadSecretAsync` | `GET secret/data/<name>` |
-| `GetSecretVersionAsync` | `ReadSecretAsync(version: N)` | `GET secret/data/<name>?version=N` |
-| `SetSecretAsync` | `WriteSecretAsync` | `POST secret/data/<name>` |
-| `DeleteSecretAsync` | `DeleteMetadataAsync` | `DELETE secret/metadata/<name>` (permanent) |
-| `ListSecretsAsync` | `ReadSecretPathsAsync` | `LIST secret/metadata/` |
-| `ExistsAsync` | `ReadSecretMetadataAsync` | `GET secret/metadata/<name>` |
+| `GetSecretAsync(string)` | `ReadSecretAsync` | `GET secret/data/<name>` |
+| `GetSecretAsync<T>(string)` | `ReadSecretAsync` + JSON deserialization | `GET secret/data/<name>` |
+| `SetSecretAsync(string, string)` | `WriteSecretAsync` | `POST secret/data/<name>` |
+| `RotateSecretAsync(string)` | `ReadSecretAsync` + `WriteSecretAsync` | Read then write to create new version |
 
-> **Note on deletion**: `DeleteSecretAsync` calls `DeleteMetadataAsync`, which permanently deletes all versions and metadata. This is different from `DeleteSecretVersionsAsync` which only soft-deletes specific versions.
+> **Note on versioning**: KV v2 automatically creates a new version on every write. `SetSecretAsync` and `RotateSecretAsync` both leverage this behavior.
 
 ---
 
@@ -188,111 +181,36 @@ When you call `SetSecretAsync(name, value)`, the provider writes:
 }
 ```
 
-If you also provide tags via `SecretOptions.Tags`, they are stored as additional keys in the same data dictionary:
-
-```json
-{
-  "data": "<your-value>",
-  "environment": "production",
-  "team": "backend"
-}
-```
-
 ---
 
 ## Error Mapping
 
-`HashiCorpVaultProvider` translates `VaultApiException` into `EncinaError` using `SecretsErrorCodes`:
+`HashiCorpVaultSecretProvider` translates `VaultApiException` into `EncinaError` using `SecretsErrors`:
 
 | Vault HTTP Status | Encina Error Code | Description |
 |-------------------|-------------------|-------------|
-| `404 NotFound` | `encina.secrets.not_found` | Secret path does not exist |
-| `403 Forbidden` | `encina.secrets.access_denied` | Insufficient Vault policy permissions |
-| Any other status | `encina.secrets.provider_unavailable` | Network error, sealed vault, or other Vault failure |
+| `404 NotFound` | `secrets.not_found` | Secret path does not exist |
+| `403 Forbidden` | `secrets.access_denied` | Insufficient Vault policy permissions |
+| Any other status | `secrets.provider_unavailable` | Network error, sealed vault, or other Vault failure |
 
-For versioned access (`GetSecretVersionAsync`):
-- `404` maps to `encina.secrets.version_not_found`.
-- Non-integer version strings return `encina.secrets.version_not_found` immediately (VaultSharp requires integer versions).
+For rotation failures (`RotateSecretAsync`), any `VaultApiException` maps to `secrets.rotation_failed`.
+
+For typed deserialization (`GetSecretAsync<T>`), invalid JSON maps to `secrets.deserialization_failed`.
 
 ### Example Error Handling
 
 ```csharp
-var result = await provider.GetSecretAsync("app/config", cancellationToken);
+var result = await secretReader.GetSecretAsync("app/config", cancellationToken);
 
 result.Match(
-    Right: secret => logger.LogInformation("Secret version: {Version}", secret.Version),
+    Right: value => logger.LogInformation("Secret value retrieved"),
     Left: error => error.Code switch
     {
-        SecretsErrorCodes.NotFoundCode => logger.LogWarning("Secret not found in Vault"),
-        SecretsErrorCodes.AccessDeniedCode => logger.LogError("Vault policy denied access"),
+        "secrets.not_found" => logger.LogWarning("Secret not found in Vault"),
+        "secrets.access_denied" => logger.LogError("Vault policy denied access"),
         _ => logger.LogError("Vault error: {Message}", error.Message)
     });
 ```
-
----
-
-## ListSecretsAsync Behavior
-
-When `ListSecretsAsync` is called and the KV v2 engine has no secrets (or the path does not exist), Vault returns a `404` response. The Encina provider handles this intentionally:
-
-- **`404` returns an empty list** (not an error).
-- This is by design -- an empty vault is a valid state, not a failure.
-
-All other errors (403, 5xx) are mapped to their respective `EncinaError` codes.
-
----
-
-## Version Handling
-
-KV v2 versions are **integers** (1, 2, 3, ...). The `ISecretProvider` interface uses **strings** for version identifiers. The provider handles conversion:
-
-1. The `version` parameter from `GetSecretVersionAsync` is parsed as `int` using `int.TryParse`.
-2. If parsing fails (e.g., the version is `"abc"` or a UUID), the provider returns `encina.secrets.version_not_found` immediately without making a Vault API call.
-3. Version numbers returned in `Secret.Version` and `SecretMetadata.Version` are formatted as strings using `CultureInfo.InvariantCulture`.
-
-```csharp
-// Valid: integer version as string
-var v2 = await provider.GetSecretVersionAsync("my-secret", "2", ct);
-
-// Invalid: non-integer returns VersionNotFound immediately
-var bad = await provider.GetSecretVersionAsync("my-secret", "abc", ct);
-// bad is Left(encina.secrets.version_not_found)
-```
-
----
-
-## Health Check
-
-`HashiCorpVaultHealthCheck` verifies Vault health by calling `GetHealthStatusAsync()` (the `/sys/health` endpoint). It evaluates both initialization and seal status:
-
-| Condition | Result | Description |
-|-----------|--------|-------------|
-| Initialized and unsealed | **Healthy** | Vault is fully operational |
-| Sealed | **Degraded** | Vault is sealed and cannot serve requests |
-| Not initialized | **Degraded** | Vault has not been initialized |
-| Exception thrown | **Unhealthy** | Vault is not accessible (network error, wrong address) |
-
-| Property | Value |
-|----------|-------|
-| **Name** | `encina-secrets-vault` |
-| **Tags** | `["encina", "secrets", "vault", "ready"]` |
-
-### Enabling the Health Check
-
-```csharp
-services.AddEncinaHashiCorpVault(options =>
-{
-    options.VaultAddress = "https://vault.example.com:8200";
-    options.AuthMethod = new TokenAuthMethodInfo("hvs.my-token");
-    options.ProviderHealthCheck = new ProviderHealthCheckOptions
-    {
-        Enabled = true,
-        Tags = ["encina", "secrets", "vault", "ready"]
-    };
-});
-```
-
-> **Note**: The `/sys/health` endpoint may be accessible even without authentication on some Vault configurations. The health check does not require secret-level permissions.
 
 ---
 
@@ -301,7 +219,7 @@ services.AddEncinaHashiCorpVault(options =>
 ### 1. Install the Package
 
 ```bash
-dotnet add package Encina.Secrets.HashiCorpVault
+dotnet add package Encina.Security.Secrets.HashiCorpVault
 ```
 
 ### 2. Register Services
@@ -309,27 +227,26 @@ dotnet add package Encina.Secrets.HashiCorpVault
 #### With Token Auth (Development)
 
 ```csharp
-using Encina.Secrets.HashiCorpVault;
+using Encina.Security.Secrets.HashiCorpVault;
 using VaultSharp.V1.AuthMethods.Token;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEncinaHashiCorpVault(options =>
+builder.Services.AddHashiCorpVaultSecrets(options =>
 {
     options.VaultAddress = "http://localhost:8200";
     options.MountPoint = "secret"; // default
     options.AuthMethod = new TokenAuthMethodInfo("hvs.dev-root-token");
-    options.ProviderHealthCheck = new ProviderHealthCheckOptions { Enabled = true };
 });
 ```
 
 #### With AppRole Auth (Production)
 
 ```csharp
-using Encina.Secrets.HashiCorpVault;
+using Encina.Security.Secrets.HashiCorpVault;
 using VaultSharp.V1.AuthMethods.AppRole;
 
-builder.Services.AddEncinaHashiCorpVault(options =>
+builder.Services.AddHashiCorpVaultSecrets(options =>
 {
     options.VaultAddress = "https://vault.production.internal:8200";
     options.AuthMethod = new AppRoleAuthMethodInfo(
@@ -341,10 +258,10 @@ builder.Services.AddEncinaHashiCorpVault(options =>
 #### With Kubernetes Auth
 
 ```csharp
-using Encina.Secrets.HashiCorpVault;
+using Encina.Security.Secrets.HashiCorpVault;
 using VaultSharp.V1.AuthMethods.Kubernetes;
 
-builder.Services.AddEncinaHashiCorpVault(options =>
+builder.Services.AddHashiCorpVaultSecrets(options =>
 {
     options.VaultAddress = "https://vault.vault.svc.cluster.local:8200";
     options.AuthMethod = new KubernetesAuthMethodInfo(
@@ -358,41 +275,32 @@ builder.Services.AddEncinaHashiCorpVault(options =>
 ```csharp
 public class MyService
 {
-    private readonly ISecretProvider _secrets;
+    private readonly ISecretReader _secretReader;
+    private readonly ISecretWriter _secretWriter;
 
-    public MyService(ISecretProvider secrets) => _secrets = secrets;
+    public MyService(ISecretReader secretReader, ISecretWriter secretWriter)
+    {
+        _secretReader = secretReader;
+        _secretWriter = secretWriter;
+    }
 
     public async Task DoWorkAsync(CancellationToken ct)
     {
-        // Read a secret (latest version)
-        var result = await _secrets.GetSecretAsync("app/db-password", ct);
+        // Read a secret (returns the string value)
+        var result = await _secretReader.GetSecretAsync("app/db-password", ct);
 
         result.Match(
-            Right: secret => Console.WriteLine($"Value: {secret.Value}, Version: {secret.Version}"),
+            Right: value => Console.WriteLine($"Value: {value}"),
             Left: error => Console.WriteLine($"Error [{error.Code}]: {error.Message}"));
 
-        // Read a specific version
-        var v1 = await _secrets.GetSecretVersionAsync("app/db-password", "1", ct);
+        // Read and deserialize a typed secret
+        var typed = await _secretReader.GetSecretAsync<DatabaseConfig>("app/db-config", ct);
 
-        // Write a secret (creates new version in KV v2)
-        var setResult = await _secrets.SetSecretAsync(
+        // Write a secret (creates a new version in KV v2)
+        var setResult = await _secretWriter.SetSecretAsync(
             "app/api-key",
             "sk-new-key-value",
-            new SecretOptions(
-                Tags: new Dictionary<string, string>
-                {
-                    ["environment"] = "production"
-                }),
             ct);
-
-        // Delete a secret (permanent: removes all versions and metadata)
-        var deleteResult = await _secrets.DeleteSecretAsync("app/old-secret", ct);
-
-        // List all secret paths at the root
-        var listResult = await _secrets.ListSecretsAsync(ct);
-
-        // Check existence
-        var existsResult = await _secrets.ExistsAsync("app/db-password", ct);
     }
 }
 ```
@@ -443,7 +351,6 @@ vault kv get secret/test-secret
 | **Enable audit logging** | Vault audit logs record every request/response; essential for compliance and security investigations |
 | **Use namespaces (Enterprise)** | Vault Enterprise namespaces provide multi-tenancy and delegation |
 | **Rotate SecretIDs regularly** | When using AppRole, configure `secret_id_ttl` and `secret_id_num_uses` for automatic expiration |
-| **Enable health checks in production** | Detect sealed vault, network issues, or uninitialized state before they impact users |
 | **Use auto-unseal** | Configure auto-unseal with a cloud KMS (AWS KMS, Azure Key Vault, GCP Cloud KMS) to avoid manual unseal operations |
 | **Set max versions** | Configure `max_versions` on the KV v2 engine to prevent unbounded version growth |
 | **Use the `secret` mount point** | Stick with the default `"secret"` mount point unless you have a specific organizational reason to change it |
@@ -452,8 +359,8 @@ vault kv get secret/test-secret
 
 ## Related Documentation
 
-- [Secrets Management Overview](../features/secrets-management.md) (if available)
-- [Encina.Secrets Core Abstractions](../../src/Encina.Secrets/) -- `ISecretProvider`, `Secret`, `SecretMetadata`, `SecretsErrorCodes`
+- [Secrets Management Overview](../features/secrets-management.md)
+- [Encina.Security.Secrets Core Abstractions](../../src/Encina.Security.Secrets/) -- `ISecretReader`, `ISecretWriter`, `ISecretRotator`, `SecretsErrors`
 - [HashiCorp Vault Documentation](https://developer.hashicorp.com/vault/docs)
 - [VaultSharp GitHub](https://github.com/rajanadar/VaultSharp)
 - [KV v2 Secrets Engine](https://developer.hashicorp.com/vault/docs/secrets/kv/kv-v2)

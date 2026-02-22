@@ -242,6 +242,54 @@ services.AddAwsSecretsManager(
 
 ---
 
+#### Encina.Security.Secrets.HashiCorpVault — HashiCorp Vault Provider (#678)
+
+Added the `Encina.Security.Secrets.HashiCorpVault` satellite package — the third cloud provider for Encina's secrets management system. Integrates with HashiCorp Vault's KV v2 secrets engine using the `VaultSharp` SDK (v1.17.5.1).
+
+**Provider**:
+
+- **`HashiCorpVaultSecretProvider`**: Implements all three ISP interfaces (`ISecretReader`, `ISecretWriter`, `ISecretRotator`) backed by `IVaultClient`
+- **Multiple auth methods** supported via `IAuthMethodInfo`: Token, AppRole, Kubernetes, LDAP, Userpass, AWS IAM, Azure, GitHub, TLS
+- **KV v2 value extraction**: Looks for a `"data"` key with string value; if not found, serializes the entire dictionary to JSON
+- **Automatic versioning**: KV v2 creates a new version on every write; `RotateSecretAsync` reads current data and writes it back
+
+**Error Mapping** (via `VaultApiException.HttpStatusCode`):
+
+| HTTP Status | Encina Error Code |
+|-------------|-------------------|
+| 404 | `secrets.not_found` |
+| 403 | `secrets.access_denied` |
+| Other | `secrets.provider_unavailable` |
+| Rotation failures | `secrets.rotation_failed` |
+
+**Configuration**:
+
+- **`HashiCorpVaultOptions`**: `VaultAddress` (string, **required**), `AuthMethod` (`IAuthMethodInfo?`, **required**), `MountPoint` (string, default `"secret"`)
+- Both `VaultAddress` and `AuthMethod` are validated at startup; missing values throw `InvalidOperationException`
+
+**DI Registration**:
+
+```csharp
+services.AddHashiCorpVaultSecrets(
+    vault =>
+    {
+        vault.VaultAddress = "https://vault.example.com:8200";
+        vault.AuthMethod = new TokenAuthMethodInfo("hvs.my-token");
+        vault.MountPoint = "secret";
+    },
+    secrets =>
+    {
+        secrets.EnableCaching = true;
+        secrets.DefaultCacheDuration = TimeSpan.FromMinutes(5);
+    });
+```
+
+**Observability**: Inherits full observability from core package — caching decorator, auditing decorator, health check, OpenTelemetry tracing, and metrics are all applied transparently via `AddEncinaSecrets<HashiCorpVaultSecretProvider>()`. Provider-specific logging via `LoggerMessage` source generators (EventIds 220-227).
+
+**Testing**: 65 tests (48 unit + 17 guard) covering provider operations, error mapping, KV v2 value extraction, typed deserialization, DI registration, options configuration, validation, and null/empty/whitespace argument validation.
+
+---
+
 #### Encina.Security.Secrets.AzureKeyVault — Azure Key Vault Provider (#676)
 
 Added the `Encina.Security.Secrets.AzureKeyVault` satellite package — the first cloud provider for Encina's secrets management system. Integrates with Azure Key Vault using the `Azure.Security.KeyVault.Secrets` SDK (v4.8.0) and `Azure.Identity` (v1.17.1).
