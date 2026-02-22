@@ -1,6 +1,6 @@
 # Secrets Management -- AWS Secrets Manager
 
-This guide covers the AWS Secrets Manager integration in Encina via the `Encina.Secrets.AWSSecretsManager` package. It explains prerequisites, IAM policies, credential resolution, configuration, version handling, error mapping, health checks, and best practices specific to AWS Secrets Manager.
+This guide covers the AWS Secrets Manager integration in Encina via the `Encina.Security.Secrets.AwsSecretsManager` package. It explains prerequisites, IAM policies, credential resolution, configuration, error mapping, and best practices specific to AWS Secrets Manager.
 
 ## Table of Contents
 
@@ -9,33 +9,31 @@ This guide covers the AWS Secrets Manager integration in Encina via the `Encina.
 3. [IAM Policy](#iam-policy)
 4. [Credential Chain](#credential-chain)
 5. [Configuration](#configuration)
-6. [Version Handling](#version-handling)
-7. [Error Mapping](#error-mapping)
-8. [SetSecretAsync Behavior](#setsecretasync-behavior)
-9. [Health Check](#health-check)
-10. [Quick Start](#quick-start)
-11. [Best Practices](#best-practices)
+6. [Error Mapping](#error-mapping)
+7. [SetSecretAsync Behavior](#setsecretasync-behavior)
+8. [RotateSecretAsync Behavior](#rotatesecretasync-behavior)
+9. [Quick Start](#quick-start)
+10. [Best Practices](#best-practices)
 
 ---
 
 ## Overview
 
-`Encina.Secrets.AWSSecretsManager` provides an `ISecretProvider` implementation backed by the AWS SDK for .NET (`AWSSDK.SecretsManager`). It wraps `IAmazonSecretsManager` to expose a unified, Railway Oriented Programming (ROP) API that returns `Either<EncinaError, T>` for all operations.
+`Encina.Security.Secrets.AwsSecretsManager` provides an ISP-compliant implementation backed by the AWS SDK for .NET (`AWSSDK.SecretsManager` v4.0.4.6). It wraps `IAmazonSecretsManager` to expose a unified, Railway Oriented Programming (ROP) API that returns `Either<EncinaError, T>` for all operations.
 
 | Component | Description |
 |-----------|-------------|
-| **`AWSSecretsManagerProvider`** | `ISecretProvider` implementation that delegates to `IAmazonSecretsManager` |
-| **`AWSSecretsManagerOptions`** | Configuration: `Region`, `Credentials`, `ProviderHealthCheck` |
-| **`AWSSecretsManagerHealthCheck`** | ASP.NET Core health check verifying Secrets Manager connectivity |
-| **`AddEncinaAWSSecretsManager`** | Extension method to register all services |
+| **`AwsSecretsManagerProvider`** | Implements `ISecretReader`, `ISecretWriter`, `ISecretRotator` via `IAmazonSecretsManager` |
+| **`AwsSecretsManagerOptions`** | Configuration: `Region` (`RegionEndpoint?`), `Credentials` (`AWSCredentials?`), `ClientConfig` (`AmazonSecretsManagerConfig?`) |
+| **`AddAwsSecretsManager`** | Extension method to register all services with decorator chain |
 
 ### NuGet Package
 
 ```
-Encina.Secrets.AWSSecretsManager
+Encina.Security.Secrets.AwsSecretsManager
 ```
 
-**Dependencies**: `AWSSDK.SecretsManager`, `Encina.Secrets` (core abstractions).
+**Dependencies**: `AWSSDK.SecretsManager` (v4.0.4.6), `Encina.Security.Secrets` (core abstractions).
 
 ---
 
@@ -49,16 +47,13 @@ Encina.Secrets.AWSSecretsManager
 
 ## IAM Policy
 
-The following IAM actions are used by `AWSSecretsManagerProvider`:
+The following IAM actions are used by `AwsSecretsManagerProvider`:
 
 | IAM Action | Used By | Purpose |
 |------------|---------|---------|
-| `secretsmanager:GetSecretValue` | `GetSecretAsync`, `GetSecretVersionAsync` | Read secret values |
-| `secretsmanager:PutSecretValue` | `SetSecretAsync` | Update existing secret values |
+| `secretsmanager:GetSecretValue` | `GetSecretAsync`, `GetSecretAsync<T>`, `RotateSecretAsync` | Read secret values |
+| `secretsmanager:PutSecretValue` | `SetSecretAsync`, `RotateSecretAsync` | Update existing secret values |
 | `secretsmanager:CreateSecret` | `SetSecretAsync` (fallback) | Create new secrets when they do not exist |
-| `secretsmanager:DeleteSecret` | `DeleteSecretAsync` | Schedule secret deletion |
-| `secretsmanager:ListSecrets` | `ListSecretsAsync`, health check | Enumerate secrets |
-| `secretsmanager:DescribeSecret` | `ExistsAsync` | Check secret existence without reading the value |
 
 ### Minimum IAM Policy Document
 
@@ -71,10 +66,7 @@ The following IAM actions are used by `AWSSecretsManagerProvider`:
       "Action": [
         "secretsmanager:GetSecretValue",
         "secretsmanager:PutSecretValue",
-        "secretsmanager:CreateSecret",
-        "secretsmanager:DeleteSecret",
-        "secretsmanager:ListSecrets",
-        "secretsmanager:DescribeSecret"
+        "secretsmanager:CreateSecret"
       ],
       "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:*"
     }
@@ -82,13 +74,13 @@ The following IAM actions are used by `AWSSecretsManagerProvider`:
 }
 ```
 
-For read-only access, remove `PutSecretValue`, `CreateSecret`, and `DeleteSecret`.
+For read-only access, remove `PutSecretValue` and `CreateSecret`.
 
 ---
 
 ## Credential Chain
 
-When `AWSSecretsManagerOptions.Credentials` is `null` (the default), the AWS SDK resolves credentials through its default chain:
+When `AwsSecretsManagerOptions.Credentials` is `null` (the default), the AWS SDK resolves credentials through its default chain:
 
 | Order | Source | Environment |
 |-------|--------|-------------|
@@ -102,12 +94,13 @@ When `AWSSecretsManagerOptions.Credentials` is `null` (the default), the AWS SDK
 ### Explicit Credentials
 
 ```csharp
+using Amazon;
 using Amazon.Runtime;
 
-services.AddEncinaAWSSecretsManager(options =>
+services.AddAwsSecretsManager(aws =>
 {
-    options.Region = "us-east-1";
-    options.Credentials = new BasicAWSCredentials("AKIA...", "secret...");
+    aws.Region = RegionEndpoint.USEast1;
+    aws.Credentials = new BasicAWSCredentials("AKIA...", "secret...");
 });
 ```
 
@@ -117,72 +110,41 @@ services.AddEncinaAWSSecretsManager(options =>
 
 ## Configuration
 
-`AWSSecretsManagerOptions` exposes the following settings:
+`AwsSecretsManagerOptions` exposes the following settings:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `Region` | `string?` | `null` | AWS region (e.g., `us-east-1`). When `null`, the default region from the credential chain is used. |
+| `Region` | `RegionEndpoint?` | `null` | AWS region endpoint. When `null`, the default region from the credential chain is used. |
 | `Credentials` | `AWSCredentials?` | `null` | Explicit AWS credentials. When `null`, the default credential chain is used. |
-| `ProviderHealthCheck` | `ProviderHealthCheckOptions` | Disabled | Health check configuration (see [Health Check](#health-check)). |
+| `ClientConfig` | `AmazonSecretsManagerConfig?` | `null` | Client configuration (retry policies, timeouts, etc.). When `null`, AWS SDK defaults are used. |
 
 ### Region Resolution
 
-If `Region` is set, the provider creates an `AmazonSecretsManagerClient` with `RegionEndpoint.GetBySystemName(options.Region)`. Otherwise, the SDK resolves the region from the environment or credentials profile.
-
----
-
-## Version Handling
-
-AWS Secrets Manager uses two versioning mechanisms:
-
-| Mechanism | Description | Example |
-|-----------|-------------|---------|
-| **VersionId** | Unique UUID assigned to each version | `a1b2c3d4-5678-90ab-cdef-EXAMPLE11111` |
-| **VersionStage** | Label attached to versions | `AWSCURRENT` (latest), `AWSPREVIOUS` (previous), `AWSPENDING` (rotation in progress) |
-
-### How Encina Uses Versions
-
-- **`GetSecretAsync`**: Retrieves the `AWSCURRENT` version (default behavior when no version is specified).
-- **`GetSecretVersionAsync`**: Passes the `version` parameter as `VersionId` in the `GetSecretValueRequest`.
-- **`SetSecretAsync`**: Returns the `VersionId` of the newly created version in `SecretMetadata.Version`.
-
-### Accessing a Specific Version
-
-```csharp
-// Get the current version
-var current = await provider.GetSecretAsync("my-secret", ct);
-
-// Get a specific version by VersionId
-var specific = await provider.GetSecretVersionAsync("my-secret", "a1b2c3d4-...", ct);
-```
+If `Region` is set, the provider creates an `AmazonSecretsManagerClient` with that `RegionEndpoint`. Otherwise, the SDK resolves the region from the environment or credentials profile.
 
 ---
 
 ## Error Mapping
 
-`AWSSecretsManagerProvider` translates AWS SDK exceptions into `EncinaError` using `SecretsErrorCodes`:
+`AwsSecretsManagerProvider` translates AWS SDK exceptions into `EncinaError` using `SecretsErrors`:
 
 | AWS Exception | Encina Error Code | Description |
 |---------------|-------------------|-------------|
-| `ResourceNotFoundException` | `encina.secrets.not_found` | Secret does not exist |
-| `AmazonSecretsManagerException` with `ErrorCode == "AccessDeniedException"` | `encina.secrets.access_denied` | Insufficient IAM permissions |
-| Other `AmazonSecretsManagerException` | `encina.secrets.provider_unavailable` | Network error, throttling, or other AWS failure |
-
-For versioned access (`GetSecretVersionAsync`), a `ResourceNotFoundException` maps to `encina.secrets.version_not_found`.
+| `ResourceNotFoundException` | `secrets.not_found` | Secret does not exist |
+| `AmazonSecretsManagerException` with `ErrorCode == "AccessDeniedException"` | `secrets.access_denied` | Insufficient IAM permissions |
+| Other `AmazonSecretsManagerException` | `secrets.provider_unavailable` | Network error, throttling, or other AWS failure |
+| Any exception during rotation | `secrets.rotation_failed` | Rotation operation failed |
+| `JsonException` during typed deserialization | `secrets.deserialization_failed` | Secret value is not valid JSON for the target type |
 
 ### Example Error Handling
 
 ```csharp
-var result = await provider.GetSecretAsync("db-password", cancellationToken);
+var result = await secretReader.GetSecretAsync("db-password", cancellationToken);
 
 result.Match(
-    Right: secret => logger.LogInformation("Secret version: {Version}", secret.Version),
-    Left: error => error.Code switch
-    {
-        SecretsErrorCodes.NotFoundCode => logger.LogWarning("Secret not found"),
-        SecretsErrorCodes.AccessDeniedCode => logger.LogError("IAM permission denied"),
-        _ => logger.LogError("AWS error: {Message}", error.Message)
-    });
+    Right: value => logger.LogInformation("Secret value retrieved"),
+    Left: error => logger.LogError("Failed: [{Code}] {Message}",
+        error.GetCode().IfNone("unknown"), error.Message));
 ```
 
 ---
@@ -196,42 +158,18 @@ result.Match(
 
 This means `SetSecretAsync` is idempotent: calling it for a secret that does not yet exist will create it automatically.
 
-### Tags on Creation
-
-Tags (via `SecretOptions.Tags`) are only applied when the secret is **created** (the `CreateSecretRequest`). Updating tags on an existing secret requires a separate AWS API call not covered by `SetSecretAsync`.
-
-### Delete Behavior
-
-`DeleteSecretAsync` calls `DeleteSecretRequest` with `ForceDeleteWithoutRecovery = false`, which schedules the secret for deletion (default 30-day recovery window). It does **not** permanently destroy the secret immediately.
-
 ---
 
-## Health Check
+## RotateSecretAsync Behavior
 
-`AWSSecretsManagerHealthCheck` verifies connectivity by calling `ListSecrets` with `MaxResults = 1`.
+`RotateSecretAsync` performs a read-then-write rotation:
 
-| Property | Value |
-|----------|-------|
-| **Name** | `encina-secrets-aws` |
-| **Tags** | `["encina", "secrets", "aws", "ready"]` |
-| **Healthy** | `ListSecrets` call succeeds |
-| **Unhealthy** | `AmazonSecretsManagerException` thrown (includes `ErrorCode` in description) |
+1. **Read** -- Retrieves the current secret value via `GetSecretValue`.
+2. **Write** -- Writes the value back via `PutSecretValue`, creating a new version.
 
-### Enabling the Health Check
+In practice, the `SecretRotationCoordinator` (from the core package) generates the new value via `ISecretRotationHandler` and writes it through `ISecretWriter`.
 
-```csharp
-services.AddEncinaAWSSecretsManager(options =>
-{
-    options.Region = "us-east-1";
-    options.ProviderHealthCheck = new ProviderHealthCheckOptions
-    {
-        Enabled = true,
-        Tags = ["encina", "secrets", "aws", "ready"]
-    };
-});
-```
-
-> **Permission requirement**: The health check calls `ListSecrets`, which requires the `secretsmanager:ListSecrets` IAM action.
+> **Note**: This is a simple version-based rotation. For AWS Lambda-based rotation (multi-step with pending/current stages), use the AWS Secrets Manager rotation configuration directly.
 
 ---
 
@@ -240,63 +178,62 @@ services.AddEncinaAWSSecretsManager(options =>
 ### 1. Install the Package
 
 ```bash
-dotnet add package Encina.Secrets.AWSSecretsManager
+dotnet add package Encina.Security.Secrets.AwsSecretsManager
 ```
 
 ### 2. Register Services
 
 ```csharp
-using Encina.Secrets.AWSSecretsManager;
+using Encina.Security.Secrets.AwsSecretsManager;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEncinaAWSSecretsManager(options =>
-{
-    options.Region = "us-east-1";
-    // Default credential chain is used automatically
-    options.ProviderHealthCheck = new ProviderHealthCheckOptions { Enabled = true };
-});
+// Basic setup with default credential chain
+builder.Services.AddAwsSecretsManager();
+
+// With explicit region and caching
+builder.Services.AddAwsSecretsManager(
+    aws => aws.Region = RegionEndpoint.USEast1,
+    secrets =>
+    {
+        secrets.EnableCaching = true;
+        secrets.DefaultCacheDuration = TimeSpan.FromMinutes(10);
+    });
 ```
 
 ### 3. Use the Provider
 
 ```csharp
-public class MyService
+public class MyService(ISecretReader secretReader)
 {
-    private readonly ISecretProvider _secrets;
-
-    public MyService(ISecretProvider secrets) => _secrets = secrets;
-
-    public async Task DoWorkAsync(CancellationToken ct)
+    public async Task<string> GetApiKeyAsync(CancellationToken ct)
     {
-        // Read a secret (returns AWSCURRENT version)
-        var result = await _secrets.GetSecretAsync("prod/db-password", ct);
+        var result = await secretReader.GetSecretAsync("prod/api-key", ct);
 
-        result.Match(
-            Right: secret => Console.WriteLine($"Value: {secret.Value}, VersionId: {secret.Version}"),
-            Left: error => Console.WriteLine($"Error [{error.Code}]: {error.Message}"));
-
-        // Write a secret (creates if not exists, updates if exists)
-        var setResult = await _secrets.SetSecretAsync(
-            "prod/api-key",
-            "sk-new-value-here",
-            new SecretOptions(
-                Tags: new Dictionary<string, string>
-                {
-                    ["Environment"] = "Production",
-                    ["Team"] = "Backend"
-                }),
-            ct);
-
-        // Delete a secret (schedules for deletion with 30-day recovery window)
-        var deleteResult = await _secrets.DeleteSecretAsync("prod/old-key", ct);
-
-        // List all secret names
-        var listResult = await _secrets.ListSecretsAsync(ct);
-
-        // Check existence (uses DescribeSecret, does not read the value)
-        var existsResult = await _secrets.ExistsAsync("prod/db-password", ct);
+        return result.Match(
+            Right: value => value,
+            Left: error => throw new InvalidOperationException(error.Message));
     }
+}
+
+// Typed deserialization
+public class ConfigService(ISecretReader secretReader)
+{
+    public async Task<DbConfig> GetDatabaseConfigAsync(CancellationToken ct)
+    {
+        var result = await secretReader.GetSecretAsync<DbConfig>("prod/db-config", ct);
+
+        return result.Match(
+            Right: config => config,
+            Left: error => throw new InvalidOperationException(error.Message));
+    }
+}
+
+public class DbConfig
+{
+    public string Host { get; set; } = "";
+    public int Port { get; set; }
+    public string Database { get; set; } = "";
 }
 ```
 
@@ -310,9 +247,8 @@ public class MyService
 | **Enable automatic rotation** | AWS Secrets Manager supports automatic rotation with Lambda functions for databases and other services |
 | **Use resource-based policies** | Scope IAM policies to specific secret ARNs rather than `*` |
 | **Organize with path prefixes** | Name secrets like `prod/db-password`, `staging/api-key` for clear hierarchy |
-| **Enable health checks in production** | Detect connectivity or permission issues before they impact users |
+| **Enable caching** | Use `EnableCaching = true` to reduce API calls and latency |
 | **Monitor with CloudWatch** | Enable AWS CloudTrail logging for Secrets Manager API calls for auditing |
-| **Use `ForceDeleteWithoutRecovery = false`** | The default in Encina; allows recovery within 30 days of accidental deletion |
 | **Tag secrets consistently** | Use tags for cost allocation, ownership tracking, and automated policies |
 | **Avoid storing large payloads** | AWS Secrets Manager has a 64 KB limit per secret value; for larger data, store a reference to S3 |
 | **Use VPC endpoints** | Deploy a VPC endpoint for Secrets Manager to keep traffic off the public internet |
@@ -321,7 +257,8 @@ public class MyService
 
 ## Related Documentation
 
-- [Secrets Management Overview](../features/secrets-management.md) (if available)
-- [Encina.Secrets Core Abstractions](../../src/Encina.Secrets/) -- `ISecretProvider`, `Secret`, `SecretMetadata`, `SecretsErrorCodes`
+- [Secrets Management Overview](secrets-management.md) -- Core abstractions and architecture
+- [Azure Key Vault Provider](secrets-management-azurekeyvault.md) -- Azure Key Vault integration
+- [Encina.Security.Secrets](../../src/Encina.Security.Secrets/) -- `ISecretReader`, `ISecretWriter`, `ISecretRotator`, `SecretsErrors`
 - [AWS Secrets Manager Documentation](https://docs.aws.amazon.com/secretsmanager/)
 - [AWSSDK.SecretsManager NuGet](https://www.nuget.org/packages/AWSSDK.SecretsManager/)

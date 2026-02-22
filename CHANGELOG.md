@@ -197,6 +197,51 @@ services.AddSecretRotationHandler<DatabasePasswordRotationHandler>();
 
 ---
 
+#### Encina.Security.Secrets.AwsSecretsManager — AWS Secrets Manager Provider (#677)
+
+Added the `Encina.Security.Secrets.AwsSecretsManager` satellite package — the second cloud provider for Encina's secrets management system. Integrates with AWS Secrets Manager using the `AWSSDK.SecretsManager` SDK (v4.0.4.6).
+
+**Provider**:
+
+- **`AwsSecretsManagerProvider`**: Implements all three ISP interfaces (`ISecretReader`, `ISecretWriter`, `ISecretRotator`) backed by `IAmazonSecretsManager`
+- **Default credential chain** used by default — supports IAM roles, environment variables, shared credential files, EC2 instance profiles, ECS task roles, and EKS Pod Identity
+- **Create-or-update semantics**: `SetSecretAsync` attempts `PutSecretValue` first; on `ResourceNotFoundException`, falls back to `CreateSecret` for idempotent writes
+- **Thread-safe**: `IAmazonSecretsManager` client is designed for concurrent use across threads
+
+**Error Mapping** (AWS SDK → Encina ROP):
+
+- `ResourceNotFoundException` → `SecretsErrors.NotFound` (`secrets.not_found`)
+- `ErrorCode == "AccessDeniedException"` → `SecretsErrors.AccessDenied` (`secrets.access_denied`)
+- Other `AmazonSecretsManagerException` → `SecretsErrors.ProviderUnavailable` (`secrets.provider_unavailable`)
+- Rotation failures → `SecretsErrors.RotationFailed` (`secrets.rotation_failed`)
+
+**Configuration**:
+
+- **`AwsSecretsManagerOptions`**: `Region` (`RegionEndpoint?`), `Credentials` (`AWSCredentials?`), `ClientConfig` (`AmazonSecretsManagerConfig?`)
+- All parameters are optional — sensible defaults from the AWS SDK credential chain
+
+**DI Registration**:
+
+```csharp
+services.AddAwsSecretsManager(
+    aws =>
+    {
+        aws.Region = RegionEndpoint.USEast1;
+        aws.Credentials = new EnvironmentVariablesAWSCredentials();
+    },
+    secrets =>
+    {
+        secrets.EnableCaching = true;
+        secrets.DefaultCacheDuration = TimeSpan.FromMinutes(10);
+    });
+```
+
+**Observability**: Inherits full observability from core package — caching decorator, auditing decorator, health check, OpenTelemetry tracing, and metrics are all applied transparently via `AddEncinaSecrets<AwsSecretsManagerProvider>()`. Provider-specific logging via `LoggerMessage` source generators (EventIds 210-218).
+
+**Testing**: 58 tests (43 unit + 15 guard) covering provider operations, error mapping, create-or-update fallback, typed deserialization, DI registration, options configuration, and null/empty/whitespace argument validation.
+
+---
+
 #### Encina.Security.Secrets.AzureKeyVault — Azure Key Vault Provider (#676)
 
 Added the `Encina.Security.Secrets.AzureKeyVault` satellite package — the first cloud provider for Encina's secrets management system. Integrates with Azure Key Vault using the `Azure.Security.KeyVault.Secrets` SDK (v4.8.0) and `Azure.Identity` (v1.17.1).
