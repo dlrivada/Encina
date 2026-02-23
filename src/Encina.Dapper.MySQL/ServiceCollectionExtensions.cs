@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Compliance.Consent;
 using Encina.Dapper.MySQL.Auditing;
 using Encina.Dapper.MySQL.Health;
 using Encina.Dapper.MySQL.Inbox;
@@ -68,6 +69,14 @@ public static class ServiceCollectionExtensions
         // Dapper shares the same underlying connection pool as ADO.NET (MySqlConnector)
         services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
             new DapperMySqlDatabaseHealthMonitor(sp));
+
+        // Register consent stores if enabled
+        if (config.UseConsent)
+        {
+            services.TryAddScoped<IConsentStore, Consent.ConsentStoreDapper>();
+            services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreDapper>();
+            services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerDapper>();
+        }
 
         return services;
     }

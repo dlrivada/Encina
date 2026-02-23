@@ -190,11 +190,42 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the ConsentRecords table schema for consent management integration tests.
+    /// </summary>
+    public static async Task CreateConsentSchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS ConsentRecords (
+                Id TEXT NOT NULL PRIMARY KEY,
+                SubjectId TEXT NOT NULL,
+                Purpose TEXT NOT NULL,
+                Status INTEGER NOT NULL,
+                ConsentVersionId TEXT NOT NULL,
+                GivenAtUtc TEXT NOT NULL,
+                WithdrawnAtUtc TEXT NULL,
+                ExpiresAtUtc TEXT NULL,
+                Source TEXT NOT NULL,
+                IpAddress TEXT NULL,
+                ProofOfConsent TEXT NULL,
+                Metadata TEXT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_ConsentRecords_SubjectId ON ConsentRecords (SubjectId);
+            CREATE INDEX IF NOT EXISTS IX_ConsentRecords_SubjectId_Purpose ON ConsentRecords (SubjectId, Purpose);
+            CREATE INDEX IF NOT EXISTS IX_ConsentRecords_Status ON ConsentRecords (Status);
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqliteConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS ConsentRecords;
             DROP TABLE IF EXISTS TenantTestEntities;
             DROP TABLE IF EXISTS ReadWriteTestEntities;
             DROP TABLE IF EXISTS Orders;
@@ -239,7 +270,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
+        var tables = new[] { "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

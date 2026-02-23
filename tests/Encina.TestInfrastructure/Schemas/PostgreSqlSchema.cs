@@ -216,11 +216,47 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the consentrecords table schema for consent management integration tests.
+    /// </summary>
+    public static async Task CreateConsentSchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS consentrecords (
+                id UUID PRIMARY KEY,
+                subjectid VARCHAR(256) NOT NULL,
+                purpose VARCHAR(256) NOT NULL,
+                status INTEGER NOT NULL,
+                consentversionid VARCHAR(256) NOT NULL,
+                givenatutc TIMESTAMPTZ NOT NULL,
+                withdrawnatutc TIMESTAMPTZ NULL,
+                expiresatutc TIMESTAMPTZ NULL,
+                source VARCHAR(256) NOT NULL,
+                ipaddress VARCHAR(45) NULL,
+                proofofconsent TEXT NULL,
+                metadata TEXT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_consentrecords_subjectid
+            ON consentrecords(subjectid);
+
+            CREATE INDEX IF NOT EXISTS ix_consentrecords_subjectid_purpose
+            ON consentrecords(subjectid, purpose);
+
+            CREATE INDEX IF NOT EXISTS ix_consentrecords_status
+            ON consentrecords(status);
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS consentrecords CASCADE;
             DROP TABLE IF EXISTS tenanttestentities CASCADE;
             DROP TABLE IF EXISTS readwritetestentities CASCADE;
             DROP TABLE IF EXISTS orders CASCADE;
@@ -242,6 +278,7 @@ public static class PostgreSqlSchema
     public static async Task ClearAllDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DELETE FROM consentrecords;
             DELETE FROM tenanttestentities;
             DELETE FROM readwritetestentities;
             DELETE FROM orders;

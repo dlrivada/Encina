@@ -1,0 +1,329 @@
+using Encina.ADO.Sqlite.Consent;
+using Encina.Compliance.Consent;
+using Encina.TestInfrastructure.Fixtures;
+
+using LanguageExt;
+
+namespace Encina.IntegrationTests.ADO.Sqlite.Consent;
+
+/// <summary>
+/// Integration tests for <see cref="ConsentStoreADO"/> with SQLite.
+/// Tests the ADO.NET implementation of the consent store using a real SQLite in-memory database.
+/// </summary>
+[Collection("ADO-Sqlite")]
+[Trait("Category", "Integration")]
+[Trait("Provider", "ADO.Sqlite")]
+public sealed class ConsentStoreADOSqliteTests : IAsyncLifetime
+{
+    private readonly SqliteFixture _fixture;
+    private ConsentStoreADO _store = null!;
+
+    public ConsentStoreADOSqliteTests(SqliteFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        await _fixture.ClearAllDataAsync();
+        _store = new ConsentStoreADO(_fixture.CreateConnection());
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    #region RecordConsentAsync Tests
+
+    [Fact]
+    public async Task RecordConsentAsync_ValidRecord_ShouldSucceed()
+    {
+        // Arrange
+        var record = CreateConsentRecord();
+
+        // Act
+        var result = await _store.RecordConsentAsync(record);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RecordConsentAsync_ShouldPersistAllProperties()
+    {
+        // Arrange
+        var record = CreateConsentRecord(
+            subjectId: "user-persist",
+            purpose: "analytics",
+            source: "web-form",
+            versionId: "v2");
+
+        // Act
+        await _store.RecordConsentAsync(record);
+
+        // Assert
+        var getResult = await _store.GetConsentAsync("user-persist", "analytics");
+        getResult.IsRight.ShouldBeTrue();
+        var opt = (Option<ConsentRecord>)getResult;
+        opt.IsSome.ShouldBeTrue();
+        var retrieved = (ConsentRecord)opt;
+        retrieved.SubjectId.ShouldBe("user-persist");
+        retrieved.Purpose.ShouldBe("analytics");
+        retrieved.Source.ShouldBe("web-form");
+        retrieved.ConsentVersionId.ShouldBe("v2");
+        retrieved.Status.ShouldBe(ConsentStatus.Active);
+    }
+
+    #endregion
+
+    #region GetConsentAsync Tests
+
+    [Fact]
+    public async Task GetConsentAsync_ExistingRecord_ShouldReturnSome()
+    {
+        // Arrange
+        var record = CreateConsentRecord(subjectId: "user-get", purpose: "marketing");
+        await _store.RecordConsentAsync(record);
+
+        // Act
+        var result = await _store.GetConsentAsync("user-get", "marketing");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var opt = (Option<ConsentRecord>)result;
+        opt.IsSome.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetConsentAsync_NonExistingRecord_ShouldReturnNone()
+    {
+        // Act
+        var result = await _store.GetConsentAsync("nonexistent-user", "marketing");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var opt = (Option<ConsentRecord>)result;
+        opt.IsNone.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region GetAllConsentsAsync Tests
+
+    [Fact]
+    public async Task GetAllConsentsAsync_MultipleRecords_ShouldReturnAll()
+    {
+        // Arrange
+        var record1 = CreateConsentRecord(subjectId: "user-all", purpose: "marketing");
+        var record2 = CreateConsentRecord(subjectId: "user-all", purpose: "analytics");
+        await _store.RecordConsentAsync(record1);
+        await _store.RecordConsentAsync(record2);
+
+        // Act
+        var result = await _store.GetAllConsentsAsync("user-all");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var consents = result.Match<IReadOnlyList<ConsentRecord>>(Right: r => r, Left: _ => []);
+        consents.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task GetAllConsentsAsync_NoRecords_ShouldReturnEmptyList()
+    {
+        // Act
+        var result = await _store.GetAllConsentsAsync("empty-user");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var consents = result.Match<IReadOnlyList<ConsentRecord>>(Right: r => r, Left: _ => []);
+        consents.Count.ShouldBe(0);
+    }
+
+    #endregion
+
+    #region WithdrawConsentAsync Tests
+
+    [Fact]
+    public async Task WithdrawConsentAsync_ActiveConsent_ShouldSucceed()
+    {
+        // Arrange
+        var record = CreateConsentRecord(subjectId: "user-withdraw", purpose: "marketing");
+        await _store.RecordConsentAsync(record);
+
+        // Act
+        var result = await _store.WithdrawConsentAsync("user-withdraw", "marketing");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task WithdrawConsentAsync_ShouldUpdateStatusAndTimestamp()
+    {
+        // Arrange
+        var record = CreateConsentRecord(subjectId: "user-withdraw-check", purpose: "marketing");
+        await _store.RecordConsentAsync(record);
+
+        // Act
+        await _store.WithdrawConsentAsync("user-withdraw-check", "marketing");
+
+        // Assert
+        var getResult = await _store.GetConsentAsync("user-withdraw-check", "marketing");
+        var opt = (Option<ConsentRecord>)getResult;
+        var retrieved = (ConsentRecord)opt;
+        retrieved.Status.ShouldBe(ConsentStatus.Withdrawn);
+        retrieved.WithdrawnAtUtc.ShouldNotBeNull();
+    }
+
+    #endregion
+
+    #region HasValidConsentAsync Tests
+
+    [Fact]
+    public async Task HasValidConsentAsync_ActiveConsent_ShouldReturnTrue()
+    {
+        // Arrange
+        var record = CreateConsentRecord(subjectId: "user-valid", purpose: "marketing");
+        await _store.RecordConsentAsync(record);
+
+        // Act
+        var result = await _store.HasValidConsentAsync("user-valid", "marketing");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        ((bool)result).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task HasValidConsentAsync_WithdrawnConsent_ShouldReturnFalse()
+    {
+        // Arrange
+        var record = CreateConsentRecord(subjectId: "user-invalid", purpose: "marketing");
+        await _store.RecordConsentAsync(record);
+        await _store.WithdrawConsentAsync("user-invalid", "marketing");
+
+        // Act
+        var result = await _store.HasValidConsentAsync("user-invalid", "marketing");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        ((bool)result).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task HasValidConsentAsync_NoConsent_ShouldReturnFalse()
+    {
+        // Act
+        var result = await _store.HasValidConsentAsync("no-consent-user", "marketing");
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        ((bool)result).ShouldBeFalse();
+    }
+
+    #endregion
+
+    #region BulkRecordConsentAsync Tests
+
+    [Fact]
+    public async Task BulkRecordConsentAsync_MultipleRecords_ShouldAllSucceed()
+    {
+        // Arrange
+        var records = Enumerable.Range(0, 5)
+            .Select(i => CreateConsentRecord(subjectId: $"bulk-user-{i}", purpose: "marketing"))
+            .ToList();
+
+        // Act
+        var result = await _store.BulkRecordConsentAsync(records);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var bulkResult = (BulkOperationResult)result;
+        bulkResult.SuccessCount.ShouldBe(5);
+        bulkResult.AllSucceeded.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region BulkWithdrawConsentAsync Tests
+
+    [Fact]
+    public async Task BulkWithdrawConsentAsync_MultiplePurposes_ShouldWithdrawAll()
+    {
+        // Arrange
+        var subjectId = "bulk-withdraw-user";
+        await _store.RecordConsentAsync(CreateConsentRecord(subjectId: subjectId, purpose: "marketing"));
+        await _store.RecordConsentAsync(CreateConsentRecord(subjectId: subjectId, purpose: "analytics"));
+
+        // Act
+        var result = await _store.BulkWithdrawConsentAsync(subjectId, ["marketing", "analytics"]);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var bulkResult = (BulkOperationResult)result;
+        bulkResult.SuccessCount.ShouldBe(2);
+    }
+
+    #endregion
+
+    #region Full Lifecycle Test
+
+    [Fact]
+    public async Task FullLifecycle_RecordCheckWithdrawCheck_ShouldWork()
+    {
+        // Arrange
+        var subjectId = "lifecycle-user";
+        var purpose = "marketing";
+        var record = CreateConsentRecord(subjectId: subjectId, purpose: purpose);
+
+        // Act & Assert: Record consent
+        var recordResult = await _store.RecordConsentAsync(record);
+        recordResult.IsRight.ShouldBeTrue();
+
+        // Act & Assert: Verify active
+        var hasValidBefore = await _store.HasValidConsentAsync(subjectId, purpose);
+        ((bool)hasValidBefore).ShouldBeTrue();
+
+        // Act & Assert: Withdraw
+        var withdrawResult = await _store.WithdrawConsentAsync(subjectId, purpose);
+        withdrawResult.IsRight.ShouldBeTrue();
+
+        // Act & Assert: Verify withdrawn
+        var hasValidAfter = await _store.HasValidConsentAsync(subjectId, purpose);
+        ((bool)hasValidAfter).ShouldBeFalse();
+
+        // Act & Assert: Verify status
+        var getResult = await _store.GetConsentAsync(subjectId, purpose);
+        var opt = (Option<ConsentRecord>)getResult;
+        var retrieved = (ConsentRecord)opt;
+        retrieved.Status.ShouldBe(ConsentStatus.Withdrawn);
+        retrieved.WithdrawnAtUtc.ShouldNotBeNull();
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private static ConsentRecord CreateConsentRecord(
+        string subjectId = "user-1",
+        string purpose = "marketing",
+        ConsentStatus status = ConsentStatus.Active,
+        string versionId = "v1",
+        string source = "test")
+    {
+        return new ConsentRecord
+        {
+            Id = Guid.NewGuid(),
+            SubjectId = subjectId,
+            Purpose = purpose,
+            Status = status,
+            ConsentVersionId = versionId,
+            GivenAtUtc = DateTimeOffset.UtcNow,
+            WithdrawnAtUtc = null,
+            ExpiresAtUtc = null,
+            Source = source,
+            Metadata = new Dictionary<string, object?>()
+        };
+    }
+
+    #endregion
+}

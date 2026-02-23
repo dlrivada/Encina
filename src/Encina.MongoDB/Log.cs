@@ -200,4 +200,35 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 88, Level = LogLevel.Error, Message = "Failed to purge audit entries older than {OlderThanUtc}")]
     public static partial void FailedToPurgeAuditEntries(ILogger logger, Exception exception, DateTime olderThanUtc);
+
+    // ConsentStoreMongoDB: EventIds 90-99
+    [LoggerMessage(EventId = 90, Level = LogLevel.Debug, Message = "Recorded consent for subject {SubjectId} purpose {Purpose}")]
+    public static partial void RecordedConsent(ILogger logger, string subjectId, string purpose);
+
+    [LoggerMessage(EventId = 91, Level = LogLevel.Debug, Message = "Retrieved consent for subject {SubjectId} purpose {Purpose}")]
+    public static partial void RetrievedConsent(ILogger logger, string subjectId, string purpose);
+
+    [LoggerMessage(EventId = 92, Level = LogLevel.Debug, Message = "Withdrew consent for subject {SubjectId} purpose {Purpose}")]
+    public static partial void WithdrewConsent(ILogger logger, string subjectId, string purpose);
+
+    [LoggerMessage(EventId = 93, Level = LogLevel.Debug, Message = "Bulk recorded {SuccessCount} consents ({FailureCount} failures)")]
+    public static partial void BulkRecordedConsents(ILogger logger, int successCount, int failureCount);
+
+    [LoggerMessage(EventId = 94, Level = LogLevel.Debug, Message = "Bulk withdrew {SuccessCount} consents for subject {SubjectId} ({FailureCount} failures)")]
+    public static partial void BulkWithdrewConsents(ILogger logger, string subjectId, int successCount, int failureCount);
+
+    [LoggerMessage(EventId = 95, Level = LogLevel.Debug, Message = "Recorded consent audit entry {EntryId} for subject {SubjectId}")]
+    public static partial void RecordedConsentAuditEntry(ILogger logger, Guid entryId, string subjectId);
+
+    [LoggerMessage(EventId = 96, Level = LogLevel.Debug, Message = "Retrieved {Count} consent audit entries for subject {SubjectId}")]
+    public static partial void RetrievedConsentAuditTrail(ILogger logger, int count, string subjectId);
+
+    [LoggerMessage(EventId = 97, Level = LogLevel.Debug, Message = "Published consent version {VersionId} for purpose {Purpose}")]
+    public static partial void PublishedConsentVersion(ILogger logger, string versionId, string purpose);
+
+    [LoggerMessage(EventId = 98, Level = LogLevel.Debug, Message = "Created consent indexes")]
+    public static partial void CreatedConsentIndexes(ILogger logger);
+
+    [LoggerMessage(EventId = 99, Level = LogLevel.Error, Message = "Consent store operation failed: {Operation}")]
+    public static partial void ConsentStoreOperationFailed(ILogger logger, Exception exception, string operation);
 }

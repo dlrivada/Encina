@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 7 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management) (+ 1 planificado: #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 1 implementado (#402 GDPR Core/RoPA) (+ 13 planificados: #403-#415) |
+| **Patrones Compliance (GDPR/EU)** | 2 implementados (#402 GDPR Core/RoPA, #403 Consent Management) (+ 12 planificados: #404-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -5839,17 +5839,30 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `foundational`
 - Referencias: [GDPR Article 30](https://gdpr-info.eu/art-30-gdpr/), [ICO Records of Processing](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/records-of-processing-activities/)
 
-**#403 - Encina.Compliance.Consent - Consent Management**:
+**#403 - Encina.Compliance.Consent - Consent Management** ✅ **IMPLEMENTADO**:
 
-- `IConsentManager` con `RequestAsync`, `GrantAsync`, `WithdrawAsync`, `CheckAsync`
-- `Consent` con Purpose, Version, Timestamp, Source, WithdrawalTimestamp
-- `ConsentPipelineBehavior` para verificación antes de procesamiento
-- `[RequireConsent("purpose")]` atributo declarativo
-- Consent versioning para cambios en terms
-- Proof of consent para auditoría
-- Granular consent por purpose (marketing, analytics, third-party)
-- **Nuevo paquete planificado**: `Encina.Compliance.Consent`
-- **Demanda de comunidad**: MUY ALTA - Art. 7 GDPR requirement
+- `IConsentStore` con `RecordConsentAsync`, `GetConsentAsync`, `GetAllConsentsAsync`, `WithdrawConsentAsync`, `HasValidConsentAsync`, `BulkRecordConsentAsync`, `BulkWithdrawConsentAsync`
+- `IConsentValidator` con `ValidateAsync(subjectId, requiredPurposes)` → `ConsentValidationResult` (Valid/Invalid/ValidWithWarnings)
+- `IConsentVersionManager` con `GetCurrentVersionAsync`, `PublishNewVersionAsync`, `RequiresReconsentAsync`
+- `IConsentAuditStore` con `RecordAsync`, `GetAuditTrailAsync` — immutable audit trail
+- `ConsentRequiredPipelineBehavior<TRequest, TResponse>` para validación antes de procesamiento
+- `[RequireConsent("marketing", SubjectIdProperty = "UserId")]` atributo declarativo con cached reflection
+- `ConsentRecord` sealed record con Id, SubjectId, Purpose, Status, ConsentVersionId, GivenAtUtc, WithdrawnAtUtc, ExpiresAtUtc, Source, IpAddress, ProofOfConsent, Metadata
+- `ConsentVersion` sealed record con VersionId, Purpose, EffectiveFromUtc, Description, RequiresExplicitReconsent
+- 4 domain events: `ConsentGrantedEvent`, `ConsentWithdrawnEvent`, `ConsentExpiredEvent`, `ConsentVersionChangedEvent`
+- 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
+- 8 standard purposes: Marketing, Analytics, Personalization, ThirdPartySharing, Profiling, Newsletter, LocationTracking, CrossBorderTransfer
+- 5 error codes: `consent.missing`, `consent.withdrawn`, `consent.expired`, `consent.requires_reconsent`, `consent.version_mismatch`
+- `ConsentOptions` con `DefinePurpose()` fluent API, `AutoRegisterFromAttributes`, `FailOnUnknownPurpose`, `TrackConsentProof`
+- In-memory implementations: `InMemoryConsentStore`, `InMemoryConsentAuditStore`, `InMemoryConsentVersionManager`
+- 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
+- `ConsentHealthCheck` con opt-in via `AddHealthCheck = true`
+- OpenTelemetry tracing via `Encina.Compliance.Consent` ActivitySource
+- 6 structured log events con `LoggerMessage.Define` (zero-allocation)
+- `BulkOperationResult` con `SuccessCount`, `FailureCount`, `Errors` per-item tracking
+- **Paquete**: `Encina.Compliance.Consent`
+- **Testing**: 1,100+ tests (unit, guard, property, contract, integration ×13 providers, load tests, benchmarks)
+- **Documentación**: [Feature Guide](docs/features/consent-management.md), [README](src/Encina.Compliance.Consent/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `pattern-consent-management`
 - Referencias: [GDPR Article 7](https://gdpr-info.eu/art-7-gdpr/), [Cookiebot Consent](https://www.cookiebot.com/en/gdpr-consent/)
 
@@ -6020,7 +6033,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | Paquete | Issue | Descripción | Prioridad |
 |---------|-------|-------------|-----------|
 | `Encina.Compliance.GDPR` | #402 | Core GDPR abstractions, RoPA | Crítica |
-| `Encina.Compliance.Consent` | #403 | Consent management | Crítica |
+| `Encina.Compliance.Consent` | #403 | Consent management ✅ | Crítica |
 | `Encina.Compliance.DataSubjectRights` | #404 | GDPR rights (Arts. 15-22) | Crítica |
 | `Encina.Compliance.DataResidency` | #405 | Data sovereignty | Crítica |
 | `Encina.Compliance.Retention` | #406 | Data retention policies | Alta |

@@ -1,4 +1,5 @@
 using Encina.MongoDB.Auditing;
+using Encina.MongoDB.Consent;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
@@ -58,6 +59,11 @@ internal sealed class MongoDbIndexCreator : IHostedService
             if (_options.UseAuditLogStore)
             {
                 await CreateAuditLogIndexesAsync(database, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (_options.UseConsent)
+            {
+                await CreateConsentIndexesAsync(database, cancellationToken).ConfigureAwait(false);
             }
 
             Log.IndexesCreatedSuccessfully(_logger);
@@ -223,5 +229,89 @@ internal sealed class MongoDbIndexCreator : IHostedService
 
         await collection.Indexes.CreateManyAsync(indexModels, cancellationToken).ConfigureAwait(false);
         Log.CreatedAuditLogIndexes(_logger);
+    }
+
+    private async Task CreateConsentIndexesAsync(IMongoDatabase database, CancellationToken cancellationToken)
+    {
+        // Consent records indexes
+        var consentsCollection = database.GetCollection<ConsentRecordDocument>(_options.Collections.Consents);
+
+        var consentIndexModels = new List<CreateIndexModel<ConsentRecordDocument>>
+        {
+            // Unique compound index for one consent per subject-purpose pair
+            new(
+                Builders<ConsentRecordDocument>.IndexKeys
+                    .Ascending(d => d.SubjectId)
+                    .Ascending(d => d.Purpose),
+                new CreateIndexOptions
+                {
+                    Name = "IX_Consent_SubjectId_Purpose",
+                    Unique = true
+                }
+            ),
+            // Index for querying by subject and status
+            new(
+                Builders<ConsentRecordDocument>.IndexKeys
+                    .Ascending(d => d.SubjectId)
+                    .Ascending(d => d.Status),
+                new CreateIndexOptions { Name = "IX_Consent_SubjectId_Status" }
+            ),
+            // Index for status-based queries (e.g., finding all active consents)
+            new(
+                Builders<ConsentRecordDocument>.IndexKeys.Ascending(d => d.Status),
+                new CreateIndexOptions { Name = "IX_Consent_Status" }
+            )
+        };
+
+        await consentsCollection.Indexes.CreateManyAsync(consentIndexModels, cancellationToken).ConfigureAwait(false);
+
+        // Consent audit entries indexes
+        var auditCollection = database.GetCollection<ConsentAuditEntryDocument>(_options.Collections.ConsentAuditEntries);
+
+        var auditIndexModels = new List<CreateIndexModel<ConsentAuditEntryDocument>>
+        {
+            // Index for querying audit trail by subject
+            new(
+                Builders<ConsentAuditEntryDocument>.IndexKeys.Ascending(d => d.SubjectId),
+                new CreateIndexOptions { Name = "IX_ConsentAudit_SubjectId" }
+            ),
+            // Compound index for querying audit trail by subject and purpose
+            new(
+                Builders<ConsentAuditEntryDocument>.IndexKeys
+                    .Ascending(d => d.SubjectId)
+                    .Ascending(d => d.Purpose),
+                new CreateIndexOptions { Name = "IX_ConsentAudit_SubjectId_Purpose" }
+            ),
+            // Index for time-based queries
+            new(
+                Builders<ConsentAuditEntryDocument>.IndexKeys.Ascending(d => d.OccurredAtUtc),
+                new CreateIndexOptions { Name = "IX_ConsentAudit_OccurredAtUtc" }
+            )
+        };
+
+        await auditCollection.Indexes.CreateManyAsync(auditIndexModels, cancellationToken).ConfigureAwait(false);
+
+        // Consent versions indexes
+        var versionsCollection = database.GetCollection<ConsentVersionDocument>(_options.Collections.ConsentVersions);
+
+        var versionIndexModels = new List<CreateIndexModel<ConsentVersionDocument>>
+        {
+            // Index for querying versions by purpose
+            new(
+                Builders<ConsentVersionDocument>.IndexKeys.Ascending(d => d.Purpose),
+                new CreateIndexOptions { Name = "IX_ConsentVersions_Purpose" }
+            ),
+            // Compound index for finding the latest version per purpose
+            new(
+                Builders<ConsentVersionDocument>.IndexKeys
+                    .Ascending(d => d.Purpose)
+                    .Descending(d => d.EffectiveFromUtc),
+                new CreateIndexOptions { Name = "IX_ConsentVersions_Purpose_EffectiveFromUtc" }
+            )
+        };
+
+        await versionsCollection.Indexes.CreateManyAsync(versionIndexModels, cancellationToken).ConfigureAwait(false);
+
+        Log.CreatedConsentIndexes(_logger);
     }
 }

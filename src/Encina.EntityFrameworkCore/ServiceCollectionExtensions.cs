@@ -1,8 +1,10 @@
 using Encina.Caching;
+using Encina.Compliance.Consent;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
+using Encina.EntityFrameworkCore.Consent;
 using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.Caching;
 using Encina.EntityFrameworkCore.DomainEvents;
@@ -321,6 +323,14 @@ public static class ServiceCollectionExtensions
         {
             // Register security audit trail store (Encina.Security.Audit)
             services.AddScoped<IAuditStore, AuditStoreEF>();
+        }
+
+        if (config.UseConsent)
+        {
+            // Register GDPR consent management stores
+            services.TryAddScoped<IConsentStore, ConsentStoreEF>();
+            services.TryAddScoped<IConsentAuditStore, ConsentAuditStoreEF>();
+            services.TryAddScoped<IConsentVersionManager, ConsentVersionManagerEF>();
         }
 
         if (config.UseTemporalTables)

@@ -76,6 +76,23 @@ public sealed class EncinaMongoDbOptions
     public bool UseSecurityAuditStore { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Consent stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.Consent.IConsentStore"/>,
+    /// <see cref="Compliance.Consent.IConsentAuditStore"/>, and
+    /// <see cref="Compliance.Consent.IConsentVersionManager"/> implemented by their
+    /// respective MongoDB store classes.
+    /// </para>
+    /// <para>
+    /// The consent stores provide GDPR-compliant consent lifecycle management backed
+    /// by MongoDB collections for consent records, audit trail, and version tracking.
+    /// </para>
+    /// </remarks>
+    public bool UseConsent { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -180,4 +197,19 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for security audit entries.
     /// </summary>
     public string SecurityAuditEntries { get; set; } = "security_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for consent records.
+    /// </summary>
+    public string Consents { get; set; } = "consents";
+
+    /// <summary>
+    /// Gets or sets the collection name for consent audit entries.
+    /// </summary>
+    public string ConsentAuditEntries { get; set; } = "consent_audit";
+
+    /// <summary>
+    /// Gets or sets the collection name for consent versions.
+    /// </summary>
+    public string ConsentVersions { get; set; } = "consent_versions";
 }

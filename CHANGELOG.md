@@ -116,6 +116,93 @@ Added the `Encina.Compliance.GDPR` package providing declarative, attribute-base
 
 ---
 
+#### Encina.Compliance.Consent — Consent Management with GDPR Article 7 Compliance (#403)
+
+Added the `Encina.Compliance.Consent` package providing declarative, attribute-based consent management at the CQRS pipeline level. Implements GDPR Articles 6(1)(a), 7, and 8 with full consent lifecycle management, version tracking, audit trail, and domain event publishing.
+
+**Core Abstractions**:
+
+- **`IConsentStore`**: Full consent lifecycle with `RecordConsentAsync`, `GetConsentAsync`, `GetAllConsentsAsync`, `WithdrawConsentAsync`, `HasValidConsentAsync`, `BulkRecordConsentAsync`, `BulkWithdrawConsentAsync`
+- **`IConsentValidator`**: Consent validation with `ValidateAsync(subjectId, requiredPurposes)` returning `ConsentValidationResult`
+- **`IConsentVersionManager`**: Version management with `GetCurrentVersionAsync`, `PublishNewVersionAsync`, `RequiresReconsentAsync`
+- **`IConsentAuditStore`**: Immutable audit trail with `RecordAsync` and `GetAuditTrailAsync`
+- **`ConsentRecord`**: Sealed record with Id, SubjectId, Purpose, Status, ConsentVersionId, GivenAtUtc, WithdrawnAtUtc, ExpiresAtUtc, Source, IpAddress, ProofOfConsent, Metadata
+- **`ConsentVersion`**: Sealed record with VersionId, Purpose, EffectiveFromUtc, Description, RequiresExplicitReconsent
+- **`ConsentValidationResult`**: Valid / ValidWithWarnings / Invalid states with missing purposes and errors
+
+**Declarative Attribute**:
+
+- **`[RequireConsent("marketing", SubjectIdProperty = "UserId")]`**: Attribute-based consent requirement with purpose(s), subject ID extraction via cached reflection, and custom error messages
+
+**Pipeline Behavior**:
+
+- **`ConsentRequiredPipelineBehavior<TRequest, TResponse>`**: Validates consent at pipeline level with attribute caching, property reflection caching, and OpenTelemetry tracing
+- Three enforcement modes: `Block` (reject non-compliant), `Warn` (log and proceed), `Disabled` (no-op)
+- Requests without `[RequireConsent]` bypass all checks (zero overhead)
+
+**Domain Events** (4 notification types):
+
+- **`ConsentGrantedEvent`**: Published when consent is recorded
+- **`ConsentWithdrawnEvent`**: Published when consent is withdrawn (Article 7(3))
+- **`ConsentExpiredEvent`**: Published when expired consent is detected
+- **`ConsentVersionChangedEvent`**: Published when a new consent version is published
+
+**In-Memory Implementations** (development/testing):
+
+- **`InMemoryConsentStore`**: ConcurrentDictionary-based with automatic expiration detection
+- **`InMemoryConsentAuditStore`**: Thread-safe audit trail with time-ordered entries
+- **`InMemoryConsentVersionManager`**: ConcurrentDictionary-based version tracking
+
+**Standard Consent Purposes** (8 pre-defined constants in `ConsentPurposes`):
+
+- `Marketing`, `Analytics`, `Personalization`, `ThirdPartySharing`, `Profiling`, `Newsletter`, `LocationTracking`, `CrossBorderTransfer`
+
+**Error Codes** (5 structured errors via `ConsentErrors`):
+
+- `consent.missing`, `consent.withdrawn`, `consent.expired`, `consent.requires_reconsent`, `consent.version_mismatch`
+- All errors include structured metadata (`subjectId`, `purpose`, timestamps)
+
+**Configuration** (`ConsentOptions`):
+
+- `EnforcementMode` (Block/Warn/Disabled), `DefaultExpirationDays`, `RequireExplicitConsent`
+- `AutoRegisterFromAttributes` with assembly scanning
+- `DefinePurpose()` fluent API with per-purpose `DefaultExpirationDays`, `RequiresExplicitOptIn`, `CanBeWithdrawnAnytime`
+- `FailOnUnknownPurpose`, `AllowGranularWithdrawal`, `TrackConsentProof`
+- Options validation via `IValidateOptions<ConsentOptions>`
+
+**Auto-Registration**:
+
+- Scan assemblies for `[RequireConsent]` attributes at startup via `IHostedService`
+- Registers discovered purposes automatically into `ConsentOptions.PurposeDefinitions`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.Consent` ActivitySource with consent-specific tags
+- 6 structured log events using `LoggerMessage.Define` (zero-allocation)
+- Optional health check (`ConsentHealthCheck`) verifying store connectivity and DI configuration
+
+**Bulk Operations**:
+
+- `BulkRecordConsentAsync`: Batch consent recording with per-item error tracking
+- `BulkWithdrawConsentAsync`: Batch withdrawal for single subject across multiple purposes
+- `BulkOperationResult`: Success/Partial results with `SuccessCount`, `FailureCount`, `Errors`
+
+**DI Registration**:
+
+- `services.AddEncinaConsent()` with `TryAdd` semantics — register custom stores before calling to override defaults
+- Configurable via `Action<ConsentOptions>` delegate
+
+**Database Provider Implementations** (13 providers):
+
+- ADO.NET: SQLite, SQL Server, PostgreSQL, MySQL (`ConsentStoreADO`, `ConsentAuditStoreADO`, `ConsentVersionManagerADO`)
+- Dapper: SQLite, SQL Server, PostgreSQL, MySQL (`ConsentStoreDapper`, `ConsentAuditStoreDapper`, `ConsentVersionManagerDapper`)
+- EF Core: SQLite, SQL Server, PostgreSQL, MySQL (`ConsentStoreEF`, `ConsentAuditStoreEF`, `ConsentVersionManagerEF`)
+- MongoDB: `ConsentStoreMongo`, `ConsentAuditStoreMongo`, `ConsentVersionManagerMongo`
+
+**Testing**: 1,100+ tests across 7 test projects — unit tests, guard tests, property tests, contract tests, integration tests (178 passing across 13 providers), load tests (7 concurrent scenarios), benchmarks (13 BenchmarkDotNet scenarios).
+
+---
+
 #### Encina.Security.Secrets — Secrets Management and Vault Integration (#400)
 
 Added the `Encina.Security.Secrets` package providing ISP-compliant, provider-agnostic secrets management with Railway Oriented Programming. Ships with development-ready providers (environment variables, `IConfiguration`) and a transparent caching decorator. Cloud vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) will be available as separate satellite packages.

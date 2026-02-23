@@ -266,11 +266,47 @@ public static class SqlServerSchema
     }
 
     /// <summary>
+    /// Creates the ConsentRecords table schema for consent management integration tests.
+    /// </summary>
+    public static async Task CreateConsentSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS ConsentRecords;
+            CREATE TABLE ConsentRecords (
+                    Id UNIQUEIDENTIFIER PRIMARY KEY,
+                    SubjectId NVARCHAR(256) NOT NULL,
+                    Purpose NVARCHAR(256) NOT NULL,
+                    Status INT NOT NULL,
+                    ConsentVersionId NVARCHAR(256) NOT NULL,
+                    GivenAtUtc DATETIMEOFFSET(7) NOT NULL,
+                    WithdrawnAtUtc DATETIMEOFFSET(7) NULL,
+                    ExpiresAtUtc DATETIMEOFFSET(7) NULL,
+                    Source NVARCHAR(256) NOT NULL,
+                    IpAddress NVARCHAR(45) NULL,
+                    ProofOfConsent NVARCHAR(MAX) NULL,
+                    Metadata NVARCHAR(MAX) NULL
+                );
+
+            CREATE INDEX IX_ConsentRecords_SubjectId
+                ON ConsentRecords(SubjectId);
+
+            CREATE INDEX IX_ConsentRecords_SubjectId_Purpose
+                ON ConsentRecords(SubjectId, Purpose);
+
+            CREATE INDEX IX_ConsentRecords_Status
+                ON ConsentRecords(Status);
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            DROP TABLE IF EXISTS ConsentRecords;
             DROP TABLE IF EXISTS TenantTestEntities;
             DROP TABLE IF EXISTS ReadWriteTestEntities;
             DROP TABLE IF EXISTS Orders;
@@ -297,6 +333,7 @@ public static class SqlServerSchema
             IF OBJECT_ID('ReadWriteTestEntities', 'U') IS NOT NULL DELETE FROM ReadWriteTestEntities;
             IF OBJECT_ID('Orders', 'U') IS NOT NULL DELETE FROM Orders;
             IF OBJECT_ID('TestRepositoryEntities', 'U') IS NOT NULL DELETE FROM TestRepositoryEntities;
+            IF OBJECT_ID('ConsentRecords', 'U') IS NOT NULL DELETE FROM ConsentRecords;
             IF OBJECT_ID('TestEntities', 'U') IS NOT NULL DELETE FROM TestEntities;
             IF OBJECT_ID('ImmutableAggregates', 'U') IS NOT NULL DELETE FROM ImmutableAggregates;
             IF OBJECT_ID('ScheduledMessages', 'U') IS NOT NULL DELETE FROM ScheduledMessages;

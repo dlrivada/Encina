@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Compliance.Consent;
 using Encina.Dapper.SqlServer.Auditing;
 using Encina.Dapper.SqlServer.BulkOperations;
 using Encina.Dapper.SqlServer.Health;
@@ -88,6 +89,14 @@ public static class ServiceCollectionExtensions
         // Dapper shares the same underlying connection pool as ADO.NET (Microsoft.Data.SqlClient)
         services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
             new DapperSqlServerDatabaseHealthMonitor(sp));
+
+        // Register consent stores if enabled
+        if (config.UseConsent)
+        {
+            services.TryAddScoped<IConsentStore, Consent.ConsentStoreDapper>();
+            services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreDapper>();
+            services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerDapper>();
+        }
 
         // Register module isolation services if enabled
         if (config.UseModuleIsolation)

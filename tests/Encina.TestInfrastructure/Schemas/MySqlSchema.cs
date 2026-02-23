@@ -193,11 +193,41 @@ public static class MySqlSchema
     }
 
     /// <summary>
+    /// Creates the ConsentRecords table schema for consent management integration tests.
+    /// </summary>
+    public static async Task CreateConsentSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS ConsentRecords (
+                Id CHAR(36) PRIMARY KEY,
+                SubjectId VARCHAR(256) NOT NULL,
+                Purpose VARCHAR(256) NOT NULL,
+                Status INT NOT NULL,
+                ConsentVersionId VARCHAR(256) NOT NULL,
+                GivenAtUtc DATETIME(6) NOT NULL,
+                WithdrawnAtUtc DATETIME(6) NULL,
+                ExpiresAtUtc DATETIME(6) NULL,
+                Source VARCHAR(256) NOT NULL,
+                IpAddress VARCHAR(45) NULL,
+                ProofOfConsent TEXT NULL,
+                Metadata TEXT NULL,
+                INDEX IX_ConsentRecords_SubjectId (SubjectId),
+                INDEX IX_ConsentRecords_SubjectId_Purpose (SubjectId, Purpose),
+                INDEX IX_ConsentRecords_Status (Status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(MySqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS ConsentRecords;
             DROP TABLE IF EXISTS `TenantTestEntities`;
             DROP TABLE IF EXISTS `ReadWriteTestEntities`;
             DROP TABLE IF EXISTS `Orders`;
@@ -219,6 +249,7 @@ public static class MySqlSchema
     public static async Task ClearAllDataAsync(MySqlConnection connection)
     {
         const string sql = """
+            DELETE FROM ConsentRecords;
             DELETE FROM `TenantTestEntities`;
             DELETE FROM `ReadWriteTestEntities`;
             DELETE FROM `Orders`;

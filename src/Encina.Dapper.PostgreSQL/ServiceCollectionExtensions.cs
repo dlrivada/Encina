@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Compliance.Consent;
 using Encina.Dapper.PostgreSQL.Auditing;
 using Encina.Dapper.PostgreSQL.Health;
 using Encina.Dapper.PostgreSQL.Inbox;
@@ -70,6 +71,14 @@ public static class ServiceCollectionExtensions
         // Dapper shares the same underlying connection pool as ADO.NET (Npgsql)
         services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
             new DapperPostgreSqlDatabaseHealthMonitor(sp));
+
+        // Register consent stores if enabled
+        if (config.UseConsent)
+        {
+            services.TryAddScoped<IConsentStore, Consent.ConsentStoreDapper>();
+            services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreDapper>();
+            services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerDapper>();
+        }
 
         return services;
     }

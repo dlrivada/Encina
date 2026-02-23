@@ -8,8 +8,10 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.SoftDelete;
 using Encina.Modules.Isolation;
+using Encina.Compliance.Consent;
 using Encina.MongoDB.Auditing;
 using Encina.MongoDB.BulkOperations;
+using Encina.MongoDB.Consent;
 using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Modules;
@@ -108,6 +110,14 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
         }
 
+        // Register consent stores if enabled
+        if (options.UseConsent)
+        {
+            services.AddScoped<IConsentStore, ConsentStoreMongoDB>();
+            services.AddScoped<IConsentAuditStore, ConsentAuditStoreMongoDB>();
+            services.AddScoped<IConsentVersionManager, ConsentVersionManagerMongoDB>();
+        }
+
         // Create indexes if configured
         if (options.CreateIndexes)
         {
@@ -197,6 +207,14 @@ public static class ServiceCollectionExtensions
         if (options.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
+        }
+
+        // Register consent stores if enabled
+        if (options.UseConsent)
+        {
+            services.AddScoped<IConsentStore, ConsentStoreMongoDB>();
+            services.AddScoped<IConsentAuditStore, ConsentAuditStoreMongoDB>();
+            services.AddScoped<IConsentVersionManager, ConsentVersionManagerMongoDB>();
         }
 
         // Create indexes if configured

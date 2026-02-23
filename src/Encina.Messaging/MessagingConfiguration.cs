@@ -569,6 +569,37 @@ public sealed class MessagingConfiguration
     public bool UseQueryCache { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable GDPR consent management stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, consent management stores are registered for recording, querying,
+    /// and validating data subject consent as required by GDPR Articles 6(1)(a), 7, and 8.
+    /// </para>
+    /// <para>
+    /// Registers:
+    /// <list type="bullet">
+    /// <item><description><c>IConsentStore</c> — Consent record lifecycle management</description></item>
+    /// <item><description><c>IConsentAuditStore</c> — Immutable consent audit trail (Article 7(1))</description></item>
+    /// <item><description><c>IConsentVersionManager</c> — Consent version tracking and reconsent</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Requires</b>: <c>Encina.Compliance.Consent</c> package to be configured.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaADO(connectionString, config =>
+    /// {
+    ///     config.UseConsent = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseConsent { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -842,5 +873,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent;
 }

@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.ADO.PostgreSQL.Auditing;
 using Encina.ADO.PostgreSQL.Health;
+using Encina.Compliance.Consent;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.ADO.PostgreSQL.Repository;
@@ -54,6 +55,14 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
+
+        // Register consent stores if enabled
+        if (config.UseConsent)
+        {
+            services.TryAddScoped<IConsentStore, Consent.ConsentStoreADO>();
+            services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreADO>();
+            services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerADO>();
         }
 
         // Register provider health check if enabled
