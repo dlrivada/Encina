@@ -1,7 +1,6 @@
 using System.Data;
 using Encina.ADO.Sqlite.Auditing;
 using Encina.ADO.Sqlite.BulkOperations;
-using Encina.Compliance.Consent;
 using Encina.ADO.Sqlite.Health;
 using Encina.ADO.Sqlite.Inbox;
 using Encina.ADO.Sqlite.Outbox;
@@ -9,6 +8,7 @@ using Encina.ADO.Sqlite.Repository;
 using Encina.ADO.Sqlite.Sagas;
 using Encina.ADO.Sqlite.Scheduling;
 using Encina.ADO.Sqlite.UnitOfWork;
+using Encina.Compliance.Consent;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;

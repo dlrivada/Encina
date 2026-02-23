@@ -485,16 +485,16 @@ public class InMemoryConsentStoreTests
         string subjectId,
         string purpose,
         string versionId = "v1") => new()
-    {
-        Id = Guid.NewGuid(),
-        SubjectId = subjectId,
-        Purpose = purpose,
-        Status = ConsentStatus.Active,
-        ConsentVersionId = versionId,
-        GivenAtUtc = _timeProvider.GetUtcNow(),
-        Source = "test",
-        Metadata = new Dictionary<string, object?>()
-    };
+        {
+            Id = Guid.NewGuid(),
+            SubjectId = subjectId,
+            Purpose = purpose,
+            Status = ConsentStatus.Active,
+            ConsentVersionId = versionId,
+            GivenAtUtc = _timeProvider.GetUtcNow(),
+            Source = "test",
+            Metadata = new Dictionary<string, object?>()
+        };
 
     #endregion
 }

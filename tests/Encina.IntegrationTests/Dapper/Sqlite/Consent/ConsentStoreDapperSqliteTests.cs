@@ -1,9 +1,8 @@
 using Dapper;
-using Encina.Dapper.Sqlite.Consent;
 using Encina.Compliance.Consent;
+using Encina.Dapper.Sqlite.Consent;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
-
 using LanguageExt;
 
 namespace Encina.IntegrationTests.Dapper.Sqlite.Consent;

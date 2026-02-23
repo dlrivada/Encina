@@ -219,15 +219,15 @@ public class InMemoryConsentAuditStoreTests
         string purpose,
         ConsentAuditAction action,
         Guid? id = null) => new()
-    {
-        Id = id ?? Guid.NewGuid(),
-        SubjectId = subjectId,
-        Purpose = purpose,
-        Action = action,
-        OccurredAtUtc = _timeProvider.GetUtcNow(),
-        PerformedBy = subjectId,
-        Metadata = new Dictionary<string, object?>()
-    };
+        {
+            Id = id ?? Guid.NewGuid(),
+            SubjectId = subjectId,
+            Purpose = purpose,
+            Action = action,
+            OccurredAtUtc = _timeProvider.GetUtcNow(),
+            PerformedBy = subjectId,
+            Metadata = new Dictionary<string, object?>()
+        };
 
     #endregion
 }

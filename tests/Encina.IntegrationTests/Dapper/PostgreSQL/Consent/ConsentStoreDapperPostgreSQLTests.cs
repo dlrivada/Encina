@@ -1,7 +1,6 @@
-using Encina.Dapper.PostgreSQL.Consent;
 using Encina.Compliance.Consent;
+using Encina.Dapper.PostgreSQL.Consent;
 using Encina.TestInfrastructure.Fixtures;
-
 using LanguageExt;
 
 namespace Encina.IntegrationTests.Dapper.PostgreSQL.Consent;

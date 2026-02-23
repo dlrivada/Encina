@@ -1,7 +1,6 @@
-using Encina.Dapper.SqlServer.Consent;
 using Encina.Compliance.Consent;
+using Encina.Dapper.SqlServer.Consent;
 using Encina.TestInfrastructure.Fixtures;
-
 using LanguageExt;
 
 namespace Encina.IntegrationTests.Dapper.SqlServer.Consent;

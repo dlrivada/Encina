@@ -2,11 +2,10 @@ using Encina.Compliance.Consent;
 using Encina.MongoDB;
 using Encina.MongoDB.Consent;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
-
-using LanguageExt;
 
 namespace Encina.IntegrationTests.Infrastructure.MongoDB.Consent;
 

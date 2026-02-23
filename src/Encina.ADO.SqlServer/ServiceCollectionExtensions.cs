@@ -1,7 +1,6 @@
 using System.Data;
 using Encina.ADO.SqlServer.Auditing;
 using Encina.ADO.SqlServer.BulkOperations;
-using Encina.Compliance.Consent;
 using Encina.ADO.SqlServer.Health;
 using Encina.ADO.SqlServer.Inbox;
 using Encina.ADO.SqlServer.Modules;
@@ -11,6 +10,7 @@ using Encina.ADO.SqlServer.Repository;
 using Encina.ADO.SqlServer.Sagas;
 using Encina.ADO.SqlServer.Scheduling;
 using Encina.ADO.SqlServer.UnitOfWork;
+using Encina.Compliance.Consent;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;

@@ -1,3 +1,4 @@
+using Encina.Compliance.Consent;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
@@ -8,7 +9,6 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.SoftDelete;
 using Encina.Modules.Isolation;
-using Encina.Compliance.Consent;
 using Encina.MongoDB.Auditing;
 using Encina.MongoDB.BulkOperations;
 using Encina.MongoDB.Consent;

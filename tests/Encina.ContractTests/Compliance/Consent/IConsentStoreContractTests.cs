@@ -1,19 +1,15 @@
 using System.Reflection;
-
 using Encina.Compliance.Consent;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
+using ADOMySQLConsent = Encina.ADO.MySQL.Consent;
+using ADOPostgreSQLConsent = Encina.ADO.PostgreSQL.Consent;
 using ADOSqliteConsent = Encina.ADO.Sqlite.Consent;
 using ADOSqlServerConsent = Encina.ADO.SqlServer.Consent;
-using ADOPostgreSQLConsent = Encina.ADO.PostgreSQL.Consent;
-using ADOMySQLConsent = Encina.ADO.MySQL.Consent;
+using DapperMySQLConsent = Encina.Dapper.MySQL.Consent;
+using DapperPostgreSQLConsent = Encina.Dapper.PostgreSQL.Consent;
 using DapperSqliteConsent = Encina.Dapper.Sqlite.Consent;
 using DapperSqlServerConsent = Encina.Dapper.SqlServer.Consent;
-using DapperPostgreSQLConsent = Encina.Dapper.PostgreSQL.Consent;
-using DapperMySQLConsent = Encina.Dapper.MySQL.Consent;
 using EFCoreConsent = Encina.EntityFrameworkCore.Consent;
 using MongoDBConsent = Encina.MongoDB.Consent;
 

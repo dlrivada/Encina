@@ -1,13 +1,13 @@
 using System.Data;
 using Encina.ADO.PostgreSQL.Auditing;
 using Encina.ADO.PostgreSQL.Health;
-using Encina.Compliance.Consent;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.ADO.PostgreSQL.Repository;
 using Encina.ADO.PostgreSQL.Sagas;
 using Encina.ADO.PostgreSQL.Scheduling;
 using Encina.ADO.PostgreSQL.UnitOfWork;
+using Encina.Compliance.Consent;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
