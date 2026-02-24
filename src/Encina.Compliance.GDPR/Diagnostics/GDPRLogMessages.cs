@@ -159,4 +159,43 @@ internal static class GDPRLogMessages
 
     internal static void HealthCheckCompleted(this ILogger logger, string status, int activityCount)
         => HealthCheckCompletedDef(logger, status, activityCount, null);
+
+    // =====================================================
+    // Lawful Basis DI & Auto-Registration (8211–8213)
+    // Note: Validation events 8200–8210 are now in
+    // LawfulBasisLogMessages (source-generated).
+    // =====================================================
+
+    // -- 8211: Lawful basis auto-registration completed --
+
+    private static readonly Action<ILogger, int, int, int, Exception?> LawfulBasisAutoRegistrationCompletedDef =
+        LoggerMessage.Define<int, int, int>(
+            LogLevel.Information,
+            new EventId(8211, nameof(LawfulBasisAutoRegistrationCompleted)),
+            "Lawful basis auto-registration completed. TotalRegistered={TotalRegistered}, AssembliesScanned={AssembliesScanned}, DefaultBasesApplied={DefaultBasesApplied}");
+
+    internal static void LawfulBasisAutoRegistrationCompleted(this ILogger logger, int totalRegistered, int assembliesScanned, int defaultBasesApplied)
+        => LawfulBasisAutoRegistrationCompletedDef(logger, totalRegistered, assembliesScanned, defaultBasesApplied, null);
+
+    // -- 8212: Lawful basis auto-registration skipped (custom registry) --
+
+    private static readonly Action<ILogger, string, Exception?> LawfulBasisAutoRegistrationSkippedDef =
+        LoggerMessage.Define<string>(
+            LogLevel.Debug,
+            new EventId(8212, nameof(LawfulBasisAutoRegistrationSkipped)),
+            "Lawful basis auto-registration skipped. Registry type '{RegistryType}' does not support attribute scanning.");
+
+    internal static void LawfulBasisAutoRegistrationSkipped(this ILogger logger, string registryType)
+        => LawfulBasisAutoRegistrationSkippedDef(logger, registryType, null);
+
+    // -- 8213: Lawful basis health check completed --
+
+    private static readonly Action<ILogger, string, int, Exception?> LawfulBasisHealthCheckCompletedDef =
+        LoggerMessage.Define<string, int>(
+            LogLevel.Debug,
+            new EventId(8213, nameof(LawfulBasisHealthCheckCompleted)),
+            "Lawful basis health check completed. Status={Status}, RegistrationCount={RegistrationCount}");
+
+    internal static void LawfulBasisHealthCheckCompleted(this ILogger logger, string status, int registrationCount)
+        => LawfulBasisHealthCheckCompletedDef(logger, status, registrationCount, null);
 }

@@ -222,11 +222,61 @@ public static class MySqlSchema
     }
 
     /// <summary>
+    /// Creates the LawfulBasisRegistrations and LIARecords table schemas for lawful basis integration tests.
+    /// </summary>
+    public static async Task CreateLawfulBasisSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS LawfulBasisRegistrations (
+                Id VARCHAR(450) NOT NULL PRIMARY KEY,
+                RequestTypeName VARCHAR(450) NOT NULL UNIQUE,
+                BasisValue INT NOT NULL,
+                Purpose TEXT NULL,
+                LIAReference TEXT NULL,
+                LegalReference TEXT NULL,
+                ContractReference TEXT NULL,
+                RegisteredAtUtc DATETIME(6) NOT NULL,
+                INDEX IX_LawfulBasisRegistrations_RequestTypeName (RequestTypeName)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS LIARecords (
+                Id VARCHAR(450) NOT NULL PRIMARY KEY,
+                Name VARCHAR(450) NOT NULL,
+                Purpose TEXT NOT NULL,
+                LegitimateInterest TEXT NOT NULL,
+                Benefits TEXT NOT NULL,
+                ConsequencesIfNotProcessed TEXT NOT NULL,
+                NecessityJustification TEXT NOT NULL,
+                AlternativesConsideredJson TEXT NOT NULL,
+                DataMinimisationNotes TEXT NOT NULL,
+                NatureOfData TEXT NOT NULL,
+                ReasonableExpectations TEXT NOT NULL,
+                ImpactAssessment TEXT NOT NULL,
+                SafeguardsJson TEXT NOT NULL,
+                OutcomeValue INT NOT NULL,
+                Conclusion TEXT NOT NULL,
+                Conditions TEXT NULL,
+                AssessedAtUtc DATETIME(6) NOT NULL,
+                AssessedBy VARCHAR(450) NOT NULL,
+                DPOInvolvement TINYINT(1) NOT NULL,
+                NextReviewAtUtc DATETIME(6) NULL,
+                INDEX IX_LIARecords_NextReviewAtUtc (NextReviewAtUtc),
+                INDEX IX_LIARecords_OutcomeValue (OutcomeValue)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(MySqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS LIARecords;
+            DROP TABLE IF EXISTS LawfulBasisRegistrations;
             DROP TABLE IF EXISTS ConsentRecords;
             DROP TABLE IF EXISTS `TenantTestEntities`;
             DROP TABLE IF EXISTS `ReadWriteTestEntities`;
@@ -249,6 +299,8 @@ public static class MySqlSchema
     public static async Task ClearAllDataAsync(MySqlConnection connection)
     {
         const string sql = """
+            DELETE FROM LIARecords;
+            DELETE FROM LawfulBasisRegistrations;
             DELETE FROM ConsentRecords;
             DELETE FROM `TenantTestEntities`;
             DELETE FROM `ReadWriteTestEntities`;

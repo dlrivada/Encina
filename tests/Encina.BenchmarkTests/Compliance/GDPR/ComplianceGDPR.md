@@ -70,6 +70,15 @@ public async Task CompliancePipeline_WithDatabaseRegistry_PerRequest()
 }
 ```
 
+## Note: Lawful Basis Benchmarks ARE Implemented
+
+This justification applies only to the **GDPR Core (RoPA)** module (#402). The **Lawful Basis Validation** feature (#413) has dedicated benchmarks:
+
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/Compliance/GDPR/LawfulBasisPipelineBenchmarks.cs` — 7 pipeline benchmarks
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/Compliance/GDPR/LawfulBasisStoreBenchmarks.cs` — 11 store benchmarks
+
+See [Benchmark Results §14](../../../docs/testing/benchmarks/benchmark-results.md#14-gdpr-lawful-basis-validation-413) for metrics.
+
 ## Related Files
 
 - `src/Encina.Compliance.GDPR/GDPRCompliancePipelineBehavior.cs` - Pipeline behavior
@@ -77,5 +86,5 @@ public async Task CompliancePipeline_WithDatabaseRegistry_PerRequest()
 - `src/Encina.Compliance.GDPR/Export/` - JSON and CSV exporters
 - `tests/Encina.UnitTests/Compliance/GDPR/` - Unit test coverage
 
-## Date: 2026-02-17
+## Date: 2026-02-17 (updated 2026-02-24)
 ## Issue: #402

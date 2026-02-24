@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.Compliance.Consent;
+using Encina.Compliance.GDPR;
 using Encina.Dapper.MySQL.Auditing;
 using Encina.Dapper.MySQL.Health;
 using Encina.Dapper.MySQL.Inbox;
@@ -302,6 +303,29 @@ public static class ServiceCollectionExtensions
 
         // Only register if not already registered
         services.TryAddScoped<IUnitOfWork, UnitOfWorkDapper>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds GDPR Lawful Basis persistent stores using Dapper for MySQL.
+    /// Registers <see cref="ILawfulBasisRegistry"/> and <see cref="ILIAStore"/> as singletons
+    /// that create connections per operation.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaLawfulBasisDapperMySQL(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.TryAddSingleton<ILawfulBasisRegistry>(
+            new LawfulBasis.LawfulBasisRegistryDapper(connectionString));
+        services.TryAddSingleton<ILIAStore>(
+            new LawfulBasis.LIAStoreDapper(connectionString));
 
         return services;
     }

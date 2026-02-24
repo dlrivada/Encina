@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 7 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management) (+ 1 planificado: #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 2 implementados (#402 GDPR Core/RoPA, #403 Consent Management) (+ 12 planificados: #404-#415) |
+| **Patrones Compliance (GDPR/EU)** | 3 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #413 Lawful Basis Validation) (+ 11 planificados: #404-#412, #414-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management completado, #603) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, Consent #403, Lawful Basis #413 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -4290,7 +4290,7 @@ dotnet run -c Release -- --filter "*Comparison*"
 | [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 ✅ | Value Objects, Entities, Aggregates, Specifications, ACL - **COMPLETADO** |
 | [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 34 ✅ | Fakes, Respawn, WireMock, Shouldly, Bogus, FsCheck, TUnit, Pact - **COMPLETADO** |
 | [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 58 ✅ | Repository, UoW, Bulk Ops, Pagination, ID Generation, CDC - **COMPLETADO** |
-| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅) |
+| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅), Consent (#403 ✅), Lawful Basis (#413 ✅) |
 | [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
 | [v0.15.0 - Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | EIP, Transports, Process Manager |
 | [v0.16.0 - Multi-Tenancy & Modular](https://github.com/dlrivada/Encina/milestone/13) | 21 | Multi-Tenancy, Modular Monolith |
@@ -5818,7 +5818,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | **#410** | Processor Agreements | Gestión de acuerdos con Data Processors (Art. 28) | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation`, `saas-enabler` |
 | **#411** | Privacy by Design | Enforcement de Privacy by Design (Art. 25) | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation`, `foundational` |
 | **#412** | Cross-Border Transfer | Transferencias internacionales con SCCs y adequacy (Schrems II) | Media | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-data-sovereignty` |
-| **#413** | Lawful Basis | Tracking y validación de base legal (Art. 6) | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation` |
+| **#413** | Lawful Basis ✅ | Tracking y validación de base legal (Art. 6) - **IMPLEMENTADO** | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation` |
 | **#414** | NIS2 Compliance | Cumplimiento de NIS2 Directive para ciberseguridad | Media | Muy Alta | `area-compliance`, `eu-regulation`, `area-security`, `owasp-pattern` |
 | **#415** | AI Act Compliance | Cumplimiento de EU AI Act para gobernanza de datos AI | Media | Muy Alta | `area-compliance`, `eu-regulation`, `area-ai-ml` |
 
@@ -5988,17 +5988,37 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `pattern-data-sovereignty`, `area-cloud-native`, `saas-essential`
 - Referencias: [GDPR Chapter V](https://gdpr-info.eu/chapter-5/), [EDPB Transfer Recommendations](https://edpb.europa.eu/our-work-tools/our-documents/recommendations/recommendations-012020-measures-supplement-transfer_en)
 
-**#413 - Encina.Compliance.LawfulBasis - Art. 6 Tracking**:
+**#413 - Encina.Compliance.LawfulBasis - Art. 6 Tracking** ✅ **IMPLEMENTADO**:
 
-- `ILawfulBasisService` con `DetermineAsync`, `ValidateAsync`, `TrackAsync`
+- `ILawfulBasisRegistry` con `RegisterAsync`, `GetByRequestTypeAsync`, `GetByRequestTypeNameAsync`, `AutoRegisterFromAssemblies` — central registry for lawful basis declarations
+- `ILawfulBasisProvider` con `GetBasisForRequestAsync` — retrieves registered basis for a request type
+- `ILIAStore` con `StoreAsync`, `GetByReferenceAsync`, `GetPendingReviewAsync` — Legitimate Interest Assessment persistence
+- `ILegitimateInterestAssessment` con `ValidateAsync` — EDPB three-part test (Purpose, Necessity, Balancing)
+- `IConsentStatusProvider` con `CheckConsentAsync` — consent verification for consent-based processing
+- `ILawfulBasisSubjectIdExtractor` con `ExtractSubjectIdAsync` — data subject identification
 - `LawfulBasis` enum: Consent, Contract, LegalObligation, VitalInterests, PublicTask, LegitimateInterests
-- `LawfulBasisPipelineBehavior` para validar base legal antes de procesamiento
-- Legitimate Interest Assessment (LIA) workflow
-- Basis change tracking con audit
-- **Nuevo paquete planificado**: `Encina.Compliance.LawfulBasis`
-- **Demanda de comunidad**: MEDIA - Foundation of lawful processing
+- `[LawfulBasis(LawfulBasis.Consent)]` atributo declarativo con cached static reflection (zero overhead after first access)
+- `LawfulBasisValidationPipelineBehavior<TRequest, TResponse>` para validación antes de procesamiento
+- `LawfulBasisRegistration` sealed record con RequestType, Basis, Description, RegisteredAtUtc, Source
+- `LawfulBasisValidationResult` con factory methods: Valid, ValidWithWarnings, Invalid
+- `LIARecord` sealed record con 15 properties para EDPB three-part test completo
+- `LIAValidationResult` con Approved, Rejected, PendingReview, NotFound
+- `LIAOutcome` enum: Approved, Rejected, RequiresReview
+- 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
+- 7 error codes: `lawful_basis.missing`, `lawful_basis.not_registered`, `lawful_basis.consent_required`, `lawful_basis.consent_denied`, `lawful_basis.lia_required`, `lawful_basis.lia_rejected`, `lawful_basis.lia_pending`
+- In-memory implementations: `InMemoryLawfulBasisRegistry`, `InMemoryLIAStore`
+- Default implementations: `DefaultLawfulBasisProvider`, `DefaultLegitimateInterestAssessment`
+- `LawfulBasisAutoRegistrationHostedService` para assembly scanning al startup
+- `LawfulBasisOptions` con `ScanAssembly()`, `EnforcementMode`, `ValidateLIAForLegitimateInterests`
+- 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1) — `LawfulBasisRegistryAdo*`, `LIAStoreAdo*`, `LawfulBasisRegistryDapper*`, `LIAStoreDapper*`, `LawfulBasisRegistryEF`, `LIAStoreEF`, `LawfulBasisRegistryMongo`, `LIAStoreMongo`
+- OpenTelemetry tracing via dedicated `Encina.Compliance.GDPR.LawfulBasis` ActivitySource
+- 3 counters: `lawful_basis_validations_total`, `lawful_basis_consent_checks_total`, `lawful_basis_lia_checks_total`
+- DI registration via `AddLawfulBasisValidation()` extension method with fluent configuration
+- **Paquete**: `Encina.Compliance.GDPR` (extends existing package)
+- **Testing**: 284 xUnit tests (70 unit, 137 integration ×13 providers, 19 guard, 17 property, 26 contract) + 18 BenchmarkDotNet benchmarks (11 store + 7 pipeline) + 8 load test scenarios
+- **Documentación**: [Feature Guide](docs/features/lawful-basis-validation.md), [README](src/Encina.Compliance.GDPR/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`
-- Referencias: [GDPR Article 6](https://gdpr-info.eu/art-6-gdpr/), [ICO Lawful Basis Tool](https://ico.org.uk/for-organisations/guidance-for-organisations/lawful-basis-interactive-guidance-tool/)
+- Referencias: [GDPR Article 6](https://gdpr-info.eu/art-6-gdpr/), [ICO Lawful Basis Tool](https://ico.org.uk/for-organisations/guidance-for-organisations/lawful-basis-interactive-guidance-tool/), [EDPB Legitimate Interest Guidelines](https://edpb.europa.eu/our-work-tools/our-documents/opinion-board-art-64/guidelines-legitimate-interest_en)
 
 ##### Tier 4: Extensiones (Additional EU Regulations)
 
@@ -6043,7 +6063,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | `Encina.Compliance.ProcessorAgreements` | #410 | DPA management | Media |
 | `Encina.Compliance.PrivacyByDesign` | #411 | Privacy by Design enforcement | Media |
 | `Encina.Compliance.CrossBorderTransfer` | #412 | International transfers | Media |
-| `Encina.Compliance.LawfulBasis` | #413 | Lawful basis tracking | Media |
+| `Encina.Compliance.LawfulBasis` | #413 | Lawful basis tracking ✅ | Media |
 | `Encina.Compliance.NIS2` | #414 | NIS2 Directive compliance | Media |
 | `Encina.Compliance.AIAct` | #415 | EU AI Act compliance | Media |
 
@@ -6076,7 +6096,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
    - #410 (ProcessorAgreements) - B2B SaaS
    - #411 (PrivacyByDesign) - Proactive compliance
    - #412 (CrossBorderTransfer) - International
-   - #413 (LawfulBasis) - Processing validation
+   - ~~#413 (LawfulBasis) - Processing validation~~ ✅ **COMPLETADO** (Feb 2026)
 
 4. **Largo Plazo (Extensiones EU)**:
    - #414 (NIS2) - Cybersecurity directive
@@ -7115,7 +7135,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 | v0.10.0 - DDD Foundations | 31 | ✅ **COMPLETADO** |
 | v0.11.0 - Testing Infrastructure | 34 | ✅ **COMPLETADO** |
 | v0.12.0 - Database & Repository | 58 | ✅ **COMPLETADO** (16-feb-2026) |
-| v0.13.0 - Security & Compliance | 25 | 🔄 En progreso (Secrets #603 ✅) |
+| v0.13.0 - Security & Compliance | 25 | 🔄 En progreso (Secrets #603 ✅, Consent #403 ✅, Lawful Basis #413 ✅) |
 | v0.14.0 - Cloud-Native & Aspire | 23 | Pendiente |
 | v0.15.0 - Messaging & EIP | 71 | Pendiente |
 | v0.16.0 - Multi-Tenancy & Modular | 21 | Pendiente |

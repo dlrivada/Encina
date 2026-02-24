@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.Compliance.Consent;
+using Encina.Compliance.GDPR;
 using Encina.Dapper.PostgreSQL.Auditing;
 using Encina.Dapper.PostgreSQL.Health;
 using Encina.Dapper.PostgreSQL.Inbox;
@@ -310,6 +311,29 @@ public static class ServiceCollectionExtensions
 
         // Only register if not already registered
         services.TryAddScoped<IUnitOfWork, UnitOfWorkDapper>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds GDPR Lawful Basis persistent stores using Dapper for PostgreSQL.
+    /// Registers <see cref="ILawfulBasisRegistry"/> and <see cref="ILIAStore"/> as singletons
+    /// that create connections per operation.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="connectionString">The PostgreSQL connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaLawfulBasisDapperPostgreSQL(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.TryAddSingleton<ILawfulBasisRegistry>(
+            new LawfulBasis.LawfulBasisRegistryDapper(connectionString));
+        services.TryAddSingleton<ILIAStore>(
+            new LawfulBasis.LIAStoreDapper(connectionString));
 
         return services;
     }

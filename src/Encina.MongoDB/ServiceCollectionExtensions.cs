@@ -1,4 +1,5 @@
 using Encina.Compliance.Consent;
+using Encina.Compliance.GDPR;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
@@ -779,5 +780,31 @@ public static class ServiceCollectionExtensions
 
         // Register health check for replica set topology monitoring
         services.AddSingleton<IEncinaHealthCheck, ReadWriteMongoHealthCheck>();
+    }
+
+    /// <summary>
+    /// Adds GDPR Lawful Basis persistent stores using MongoDB.
+    /// Registers <see cref="ILawfulBasisRegistry"/> and <see cref="ILIAStore"/> as singletons
+    /// that create their own MongoClient.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="connectionString">The MongoDB connection string.</param>
+    /// <param name="databaseName">The database name (default: Encina).</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaLawfulBasisMongoDB(
+        this IServiceCollection services,
+        string connectionString,
+        string databaseName = "Encina")
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+
+        services.TryAddSingleton<ILawfulBasisRegistry>(
+            new LawfulBasis.LawfulBasisRegistryMongoDB(connectionString, databaseName));
+        services.TryAddSingleton<ILIAStore>(
+            new LawfulBasis.LIAStoreMongoDB(connectionString, databaseName));
+
+        return services;
     }
 }

@@ -220,11 +220,64 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the LawfulBasisRegistrations and LIARecords table schemas for lawful basis integration tests.
+    /// </summary>
+    public static async Task CreateLawfulBasisSchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS LawfulBasisRegistrations (
+                Id TEXT NOT NULL PRIMARY KEY,
+                RequestTypeName TEXT NOT NULL UNIQUE,
+                BasisValue INTEGER NOT NULL,
+                Purpose TEXT NULL,
+                LIAReference TEXT NULL,
+                LegalReference TEXT NULL,
+                ContractReference TEXT NULL,
+                RegisteredAtUtc TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_LawfulBasisRegistrations_RequestTypeName
+            ON LawfulBasisRegistrations(RequestTypeName);
+
+            CREATE TABLE IF NOT EXISTS LIARecords (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Purpose TEXT NOT NULL,
+                LegitimateInterest TEXT NOT NULL,
+                Benefits TEXT NOT NULL,
+                ConsequencesIfNotProcessed TEXT NOT NULL,
+                NecessityJustification TEXT NOT NULL,
+                AlternativesConsideredJson TEXT NOT NULL,
+                DataMinimisationNotes TEXT NOT NULL,
+                NatureOfData TEXT NOT NULL,
+                ReasonableExpectations TEXT NOT NULL,
+                ImpactAssessment TEXT NOT NULL,
+                SafeguardsJson TEXT NOT NULL,
+                OutcomeValue INTEGER NOT NULL,
+                Conclusion TEXT NOT NULL,
+                Conditions TEXT NULL,
+                AssessedAtUtc TEXT NOT NULL,
+                AssessedBy TEXT NOT NULL,
+                DPOInvolvement INTEGER NOT NULL,
+                NextReviewAtUtc TEXT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_LIARecords_NextReviewAtUtc ON LIARecords(NextReviewAtUtc);
+            CREATE INDEX IF NOT EXISTS IX_LIARecords_OutcomeValue ON LIARecords(OutcomeValue);
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqliteConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS LIARecords;
+            DROP TABLE IF EXISTS LawfulBasisRegistrations;
             DROP TABLE IF EXISTS ConsentRecords;
             DROP TABLE IF EXISTS TenantTestEntities;
             DROP TABLE IF EXISTS ReadWriteTestEntities;
@@ -270,7 +323,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
+        var tables = new[] { "LIARecords", "LawfulBasisRegistrations", "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

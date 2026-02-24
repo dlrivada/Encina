@@ -301,11 +301,69 @@ public static class SqlServerSchema
     }
 
     /// <summary>
+    /// Creates the LawfulBasisRegistrations and LIARecords table schemas for lawful basis integration tests.
+    /// </summary>
+    public static async Task CreateLawfulBasisSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS LIARecords;
+            DROP TABLE IF EXISTS LawfulBasisRegistrations;
+
+            CREATE TABLE LawfulBasisRegistrations (
+                    Id NVARCHAR(450) NOT NULL PRIMARY KEY,
+                    RequestTypeName NVARCHAR(450) NOT NULL UNIQUE,
+                    BasisValue INT NOT NULL,
+                    Purpose NVARCHAR(MAX) NULL,
+                    LIAReference NVARCHAR(MAX) NULL,
+                    LegalReference NVARCHAR(MAX) NULL,
+                    ContractReference NVARCHAR(MAX) NULL,
+                    RegisteredAtUtc DATETIMEOFFSET(7) NOT NULL
+                );
+
+            CREATE INDEX IX_LawfulBasisRegistrations_RequestTypeName
+                ON LawfulBasisRegistrations(RequestTypeName);
+
+            CREATE TABLE LIARecords (
+                    Id NVARCHAR(450) NOT NULL PRIMARY KEY,
+                    Name NVARCHAR(450) NOT NULL,
+                    Purpose NVARCHAR(MAX) NOT NULL,
+                    LegitimateInterest NVARCHAR(MAX) NOT NULL,
+                    Benefits NVARCHAR(MAX) NOT NULL,
+                    ConsequencesIfNotProcessed NVARCHAR(MAX) NOT NULL,
+                    NecessityJustification NVARCHAR(MAX) NOT NULL,
+                    AlternativesConsideredJson NVARCHAR(MAX) NOT NULL,
+                    DataMinimisationNotes NVARCHAR(MAX) NOT NULL,
+                    NatureOfData NVARCHAR(MAX) NOT NULL,
+                    ReasonableExpectations NVARCHAR(MAX) NOT NULL,
+                    ImpactAssessment NVARCHAR(MAX) NOT NULL,
+                    SafeguardsJson NVARCHAR(MAX) NOT NULL,
+                    OutcomeValue INT NOT NULL,
+                    Conclusion NVARCHAR(MAX) NOT NULL,
+                    Conditions NVARCHAR(MAX) NULL,
+                    AssessedAtUtc DATETIMEOFFSET(7) NOT NULL,
+                    AssessedBy NVARCHAR(450) NOT NULL,
+                    DPOInvolvement BIT NOT NULL,
+                    NextReviewAtUtc DATETIMEOFFSET(7) NULL
+                );
+
+            CREATE INDEX IX_LIARecords_NextReviewAtUtc
+                ON LIARecords(NextReviewAtUtc);
+
+            CREATE INDEX IX_LIARecords_OutcomeValue
+                ON LIARecords(OutcomeValue);
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            DROP TABLE IF EXISTS LIARecords;
+            DROP TABLE IF EXISTS LawfulBasisRegistrations;
             DROP TABLE IF EXISTS ConsentRecords;
             DROP TABLE IF EXISTS TenantTestEntities;
             DROP TABLE IF EXISTS ReadWriteTestEntities;
@@ -329,6 +387,8 @@ public static class SqlServerSchema
     public static async Task ClearAllDataAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            IF OBJECT_ID('LIARecords', 'U') IS NOT NULL DELETE FROM LIARecords;
+            IF OBJECT_ID('LawfulBasisRegistrations', 'U') IS NOT NULL DELETE FROM LawfulBasisRegistrations;
             IF OBJECT_ID('TenantTestEntities', 'U') IS NOT NULL DELETE FROM TenantTestEntities;
             IF OBJECT_ID('ReadWriteTestEntities', 'U') IS NOT NULL DELETE FROM ReadWriteTestEntities;
             IF OBJECT_ID('Orders', 'U') IS NOT NULL DELETE FROM Orders;

@@ -184,13 +184,15 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 - ✅ Core Security abstractions [#394](https://github.com/dlrivada/Encina/issues/394) - `Encina.Security` with 7 security attributes, `SecurityPipelineBehavior`, RBAC/Permission-based auth, OpenTelemetry tracing
 - ✅ GDPR Core (RoPA) [#402](https://github.com/dlrivada/Encina/issues/402) - `Encina.Compliance.GDPR` with `[ProcessingActivity]` attribute, `GDPRCompliancePipelineBehavior`, JSON/CSV RoPA export, auto-registration
+- ✅ Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) - `Encina.Compliance.Consent` with `[RequireConsent]` attribute, `ConsentRequiredPipelineBehavior`, consent versioning, audit trail, 13 database providers
+- ✅ Lawful Basis Validation [#413](https://github.com/dlrivada/Encina/issues/413) - `[LawfulBasis]` attribute, `LawfulBasisValidationPipelineBehavior`, Legitimate Interest Assessment (LIA), EDPB three-part test, 13 database providers
 
 **Remaining:**
 
 - ~~Audit Trail logging~~ (Moved to v0.12.0 as #286)
 - Field-Level Encryption
 - PII Masking
-- Consent Management, Data Subject Rights
+- Data Subject Rights
 - Data Residency enforcement
 - NIS2 Directive compliance
 - AI Act compliance
@@ -494,7 +496,7 @@ Key areas already completed:
   - Secrets packages (✅ implemented): `Encina.Secrets`, `Encina.Secrets.AzureKeyVault`, `Encina.Secrets.AWSSecretsManager`, `Encina.Secrets.HashiCorpVault`, `Encina.Secrets.GoogleSecretManager`
 - **Compliance Patterns - GDPR & EU Laws** (new - based on December 29, 2025 research):
   - GDPR Core [#402](https://github.com/dlrivada/Encina/issues/402) — `IDataController`, `RoPARegistry`, `GDPRCompliancePipelineBehavior` (CRITICAL - EU mandatory)
-  - Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) — `IConsentManager`, `[RequireConsent]`, versioning, proof of consent (CRITICAL - Art. 7)
+  - ~~Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) — `IConsentManager`, `[RequireConsent]`, versioning, proof of consent (CRITICAL - Art. 7)~~ ✅ **COMPLETADO** (v0.13.0)
   - Data Subject Rights [#404](https://github.com/dlrivada/Encina/issues/404) — `IDataSubjectRightsService`, Arts. 15-22 (Access, Erasure, Portability) (CRITICAL - fundamental rights)
   - Data Residency [#405](https://github.com/dlrivada/Encina/issues/405) — `IDataResidencyEnforcer`, geo-routing, Schrems II compliance (CRITICAL - post-Schrems II)
   - Retention Policies [#406](https://github.com/dlrivada/Encina/issues/406) — `IRetentionPolicyEngine`, automatic deletion, legal hold (HIGH - Art. 5(1)(e))
@@ -504,7 +506,7 @@ Key areas already completed:
   - Processor Agreements [#410](https://github.com/dlrivada/Encina/issues/410) — `IProcessorAgreementService`, Art. 28 compliance (MEDIUM - B2B SaaS)
   - Privacy by Design [#411](https://github.com/dlrivada/Encina/issues/411) — `IPrivacyByDesignValidator`, Roslyn analyzer, data minimization (MEDIUM - Art. 25)
   - Cross-Border Transfer [#412](https://github.com/dlrivada/Encina/issues/412) — `ICrossBorderTransferValidator`, SCCs, adequacy, TIA (MEDIUM - Chapter V)
-  - Lawful Basis [#413](https://github.com/dlrivada/Encina/issues/413) — `ILawfulBasisService`, Art. 6 tracking, LIA workflow (MEDIUM - processing foundation)
+  - ~~Lawful Basis [#413](https://github.com/dlrivada/Encina/issues/413) — `ILawfulBasisRegistry`, Art. 6 tracking, LIA workflow, `[LawfulBasis]` attribute, 13 providers (MEDIUM - processing foundation)~~ ✅ **COMPLETADO** (v0.13.0)
   - NIS2 Directive [#414](https://github.com/dlrivada/Encina/issues/414) — `INIS2ComplianceService`, incident reporting, supply chain security (MEDIUM - EU 2022/2555)
   - EU AI Act [#415](https://github.com/dlrivada/Encina/issues/415) — `IAIActComplianceService`, risk classification, transparency requirements (MEDIUM - EU 2024/1689)
   - New packages planned: `Encina.Compliance.GDPR`, `Encina.Compliance.Consent`, `Encina.Compliance.DataSubjectRights`, `Encina.Compliance.DataResidency`, `Encina.Compliance.Retention`, `Encina.Compliance.Anonymization`, `Encina.Compliance.BreachNotification`, `Encina.Compliance.DPIA`, `Encina.Compliance.ProcessorAgreements`, `Encina.Compliance.PrivacyByDesign`, `Encina.Compliance.CrossBorderTransfer`, `Encina.Compliance.LawfulBasis`, `Encina.Compliance.NIS2`, `Encina.Compliance.AIAct`

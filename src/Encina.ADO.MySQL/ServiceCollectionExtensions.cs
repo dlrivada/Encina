@@ -7,6 +7,7 @@ using Encina.ADO.MySQL.Repository;
 using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
 using Encina.Compliance.Consent;
+using Encina.Compliance.GDPR;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
@@ -244,6 +245,48 @@ public static class ServiceCollectionExtensions
             return new FunctionalRepositoryADO<TEntity, TId>(
                 connection, mapping, requestContext, timeProvider);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds persistent GDPR lawful basis stores using ADO.NET for MySQL.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="ILawfulBasisRegistry"/> and <see cref="ILIAStore"/> with singleton
+    /// lifetime, creating a new <see cref="MySqlConnection"/> per operation for thread safety.
+    /// </para>
+    /// <para>
+    /// These registrations override the in-memory defaults from <c>AddEncinaLawfulBasis()</c>.
+    /// Call this method <b>before</b> <c>AddEncinaLawfulBasis()</c> so that <c>TryAddSingleton</c>
+    /// in the core registration finds the persistent implementations already registered.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaLawfulBasisADOMySQL(connectionString);
+    /// services.AddEncinaLawfulBasis(options =&gt;
+    /// {
+    ///     options.AutoRegisterFromAttributes = true;
+    ///     options.ScanAssemblyContaining&lt;Program&gt;();
+    /// });
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaLawfulBasisADOMySQL(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.TryAddSingleton<ILawfulBasisRegistry>(
+            new LawfulBasis.LawfulBasisRegistryADO(connectionString));
+        services.TryAddSingleton<ILIAStore>(
+            new LawfulBasis.LIAStoreADO(connectionString));
 
         return services;
     }

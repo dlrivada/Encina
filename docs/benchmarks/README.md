@@ -56,7 +56,7 @@ BenchmarkDotNet.Artifacts/results/
 |---------|----------|-------|
 | Encina.Dapper.Benchmarks | `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/` | Dapper provider stores, repository, SQL builder |
 | Encina.ADO.Benchmarks | `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/` | ADO.NET provider stores, repository, SQL builder |
-| Encina.Benchmarks | `tests/Encina.BenchmarkTests/Encina.Benchmarks/` | EF Core, general benchmarks |
+| Encina.Benchmarks | `tests/Encina.BenchmarkTests/Encina.Benchmarks/` | EF Core, general benchmarks, compliance (GDPR Lawful Basis) |
 
 ## When to Run Benchmarks
 
@@ -99,4 +99,5 @@ BenchmarkDotNet.Artifacts/results/
 
 - [BenchmarkDotNet Documentation](https://benchmarkdotnet.org/)
 - [Main Benchmark README](../../tests/Encina.BenchmarkTests/README.md)
-- [Benchmark Results](../testing/benchmarks/benchmark-results.md)
+- [Benchmark Results](../testing/benchmarks/benchmark-results.md) — Includes all benchmark data (sections 1-14)
+- [Lawful Basis Feature Guide](../features/lawful-basis-validation.md#performance-benchmarks) — GDPR Article 6 benchmark summary

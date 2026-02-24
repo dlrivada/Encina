@@ -251,11 +251,169 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the lawful basis registration and LIA record table schemas for lawful basis integration tests.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// PostgreSQL ADO and Dapper stores use different table/column naming conventions:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>ADO: flat lowercase (e.g. <c>lawfulbasisregistrations</c>, <c>requesttypename</c>)</description></item>
+    /// <item><description>Dapper: snake_case (e.g. <c>lawful_basis_registrations</c>, <c>request_type_name</c>)</description></item>
+    /// </list>
+    /// <para>
+    /// Both sets of tables are created so that integration tests for both providers can run against the same database.
+    /// </para>
+    /// </remarks>
+    public static async Task CreateLawfulBasisSchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            -- ADO tables (flat lowercase naming)
+            CREATE TABLE IF NOT EXISTS lawfulbasisregistrations (
+                id VARCHAR(450) NOT NULL PRIMARY KEY,
+                requesttypename VARCHAR(450) NOT NULL UNIQUE,
+                basisvalue INTEGER NOT NULL,
+                purpose TEXT NULL,
+                liareference TEXT NULL,
+                legalreference TEXT NULL,
+                contractreference TEXT NULL,
+                registeredatutc TIMESTAMPTZ NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_lawfulbasisregistrations_requesttypename
+            ON lawfulbasisregistrations(requesttypename);
+
+            CREATE TABLE IF NOT EXISTS liarecords (
+                id VARCHAR(450) NOT NULL PRIMARY KEY,
+                name VARCHAR(450) NOT NULL,
+                purpose TEXT NOT NULL,
+                legitimateinterest TEXT NOT NULL,
+                benefits TEXT NOT NULL,
+                consequencesifnotprocessed TEXT NOT NULL,
+                necessityjustification TEXT NOT NULL,
+                alternativesconsideredjson TEXT NOT NULL,
+                dataminimisationnotes TEXT NOT NULL,
+                natureofdata TEXT NOT NULL,
+                reasonableexpectations TEXT NOT NULL,
+                impactassessment TEXT NOT NULL,
+                safeguardsjson TEXT NOT NULL,
+                outcomevalue INTEGER NOT NULL,
+                conclusion TEXT NOT NULL,
+                conditions TEXT NULL,
+                assessedatutc TIMESTAMPTZ NOT NULL,
+                assessedby VARCHAR(450) NOT NULL,
+                dpoinvolvement BOOLEAN NOT NULL,
+                nextreviewatutc TIMESTAMPTZ NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_liarecords_nextreviewatutc
+            ON liarecords(nextreviewatutc);
+
+            CREATE INDEX IF NOT EXISTS ix_liarecords_outcomevalue
+            ON liarecords(outcomevalue);
+
+            -- Dapper tables (snake_case naming)
+            CREATE TABLE IF NOT EXISTS lawful_basis_registrations (
+                id VARCHAR(450) NOT NULL PRIMARY KEY,
+                request_type_name VARCHAR(450) NOT NULL UNIQUE,
+                basis_value INTEGER NOT NULL,
+                purpose TEXT NULL,
+                lia_reference TEXT NULL,
+                legal_reference TEXT NULL,
+                contract_reference TEXT NULL,
+                registered_at_utc TIMESTAMPTZ NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_lawful_basis_registrations_request_type_name
+            ON lawful_basis_registrations(request_type_name);
+
+            CREATE TABLE IF NOT EXISTS lia_records (
+                id VARCHAR(450) NOT NULL PRIMARY KEY,
+                name VARCHAR(450) NOT NULL,
+                purpose TEXT NOT NULL,
+                legitimate_interest TEXT NOT NULL,
+                benefits TEXT NOT NULL,
+                consequences_if_not_processed TEXT NOT NULL,
+                necessity_justification TEXT NOT NULL,
+                alternatives_considered_json TEXT NOT NULL,
+                data_minimisation_notes TEXT NOT NULL,
+                nature_of_data TEXT NOT NULL,
+                reasonable_expectations TEXT NOT NULL,
+                impact_assessment TEXT NOT NULL,
+                safeguards_json TEXT NOT NULL,
+                outcome_value INTEGER NOT NULL,
+                conclusion TEXT NOT NULL,
+                conditions TEXT NULL,
+                assessed_at_utc TIMESTAMPTZ NOT NULL,
+                assessed_by VARCHAR(450) NOT NULL,
+                dpo_involvement BOOLEAN NOT NULL,
+                next_review_at_utc TIMESTAMPTZ NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_lia_records_next_review_at_utc
+            ON lia_records(next_review_at_utc);
+
+            CREATE INDEX IF NOT EXISTS ix_lia_records_outcome_value
+            ON lia_records(outcome_value);
+
+            -- EF Core tables (PascalCase quoted identifiers)
+            CREATE TABLE IF NOT EXISTS "LawfulBasisRegistrations" (
+                "Id" VARCHAR(36) NOT NULL PRIMARY KEY,
+                "RequestTypeName" VARCHAR(512) NOT NULL,
+                "BasisValue" INTEGER NOT NULL,
+                "Purpose" VARCHAR(1024) NULL,
+                "LIAReference" VARCHAR(256) NULL,
+                "LegalReference" VARCHAR(256) NULL,
+                "ContractReference" VARCHAR(256) NULL,
+                "RegisteredAtUtc" TIMESTAMPTZ NOT NULL
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_LawfulBasisRegistrations_RequestTypeName"
+            ON "LawfulBasisRegistrations"("RequestTypeName");
+
+            CREATE TABLE IF NOT EXISTS "LIARecords" (
+                "Id" VARCHAR(256) NOT NULL PRIMARY KEY,
+                "Name" VARCHAR(512) NOT NULL,
+                "Purpose" VARCHAR(1024) NOT NULL,
+                "LegitimateInterest" TEXT NOT NULL,
+                "Benefits" TEXT NOT NULL,
+                "ConsequencesIfNotProcessed" TEXT NOT NULL,
+                "NecessityJustification" TEXT NOT NULL,
+                "AlternativesConsideredJson" TEXT NOT NULL,
+                "DataMinimisationNotes" TEXT NOT NULL,
+                "NatureOfData" TEXT NOT NULL,
+                "ReasonableExpectations" TEXT NOT NULL,
+                "ImpactAssessment" TEXT NOT NULL,
+                "SafeguardsJson" TEXT NOT NULL,
+                "OutcomeValue" INTEGER NOT NULL,
+                "Conclusion" TEXT NOT NULL,
+                "Conditions" TEXT NULL,
+                "AssessedAtUtc" TIMESTAMPTZ NOT NULL,
+                "AssessedBy" VARCHAR(256) NOT NULL,
+                "DPOInvolvement" BOOLEAN NOT NULL,
+                "NextReviewAtUtc" TIMESTAMPTZ NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS "IX_LIARecords_OutcomeValue"
+            ON "LIARecords"("OutcomeValue");
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS "LIARecords" CASCADE;
+            DROP TABLE IF EXISTS "LawfulBasisRegistrations" CASCADE;
+            DROP TABLE IF EXISTS lia_records CASCADE;
+            DROP TABLE IF EXISTS lawful_basis_registrations CASCADE;
+            DROP TABLE IF EXISTS liarecords CASCADE;
+            DROP TABLE IF EXISTS lawfulbasisregistrations CASCADE;
             DROP TABLE IF EXISTS consentrecords CASCADE;
             DROP TABLE IF EXISTS tenanttestentities CASCADE;
             DROP TABLE IF EXISTS readwritetestentities CASCADE;
@@ -278,6 +436,12 @@ public static class PostgreSqlSchema
     public static async Task ClearAllDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DELETE FROM "LIARecords";
+            DELETE FROM "LawfulBasisRegistrations";
+            DELETE FROM lia_records;
+            DELETE FROM lawful_basis_registrations;
+            DELETE FROM liarecords;
+            DELETE FROM lawfulbasisregistrations;
             DELETE FROM consentrecords;
             DELETE FROM tenanttestentities;
             DELETE FROM readwritetestentities;

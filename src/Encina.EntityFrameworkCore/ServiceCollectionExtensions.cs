@@ -1,5 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.Consent;
+using Encina.Compliance.GDPR;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
@@ -712,6 +713,35 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddScoped<IBulkOperations<TEntity>, BulkOperationsEF<TEntity>>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds GDPR Lawful Basis persistent stores using Entity Framework Core.
+    /// Registers <see cref="ILawfulBasisRegistry"/> and <see cref="ILIAStore"/> as scoped services
+    /// that use the registered <see cref="DbContext"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Remember to apply the entity configurations in your <c>OnModelCreating</c> override:
+    /// </para>
+    /// <code>
+    /// protected override void OnModelCreating(ModelBuilder modelBuilder)
+    /// {
+    ///     modelBuilder.ApplyLawfulBasisConfiguration();
+    /// }
+    /// </code>
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaLawfulBasisEFCore(
+        this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<ILawfulBasisRegistry, LawfulBasis.LawfulBasisRegistryEF>();
+        services.TryAddScoped<ILIAStore, LawfulBasis.LIAStoreEF>();
 
         return services;
     }

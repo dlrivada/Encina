@@ -212,4 +212,14 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for consent versions.
     /// </summary>
     public string ConsentVersions { get; set; } = "consent_versions";
+
+    /// <summary>
+    /// Gets or sets the collection name for lawful basis registrations.
+    /// </summary>
+    public string LawfulBasisRegistrations { get; set; } = "lawful_basis_registrations";
+
+    /// <summary>
+    /// Gets or sets the collection name for LIA records.
+    /// </summary>
+    public string LIARecords { get; set; } = "lia_records";
 }

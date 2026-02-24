@@ -120,4 +120,5 @@ internal static class GDPRDiagnostics
     {
         activity?.SetTag(TagLawfulBasis, lawfulBasis.ToString());
     }
+
 }

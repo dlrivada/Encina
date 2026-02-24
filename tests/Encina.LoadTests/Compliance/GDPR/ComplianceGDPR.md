@@ -73,6 +73,14 @@ public async Task RegistryLookup_UnderHighConcurrency_MaintainsThroughput()
 }
 ```
 
+## Note: Lawful Basis Load Tests ARE Implemented
+
+This justification applies only to the **GDPR Core (RoPA)** module (#402). The **Lawful Basis Validation** feature (#413) has dedicated load tests:
+
+- `tests/Encina.LoadTests/Compliance/GDPR/LawfulBasisValidationLoadTests.cs` — 8 high-concurrency scenarios (50 workers × 10K operations each)
+
+See [Load Test Baselines — Compliance](../../../docs/testing/load-test-baselines.md#compliance-load-tests) for details.
+
 ## Related Files
 
 - `src/Encina.Compliance.GDPR/` - Source implementation
@@ -81,5 +89,5 @@ public async Task RegistryLookup_UnderHighConcurrency_MaintainsThroughput()
 - `tests/Encina.PropertyTests/Compliance/GDPR/` - Property-based tests
 - `tests/Encina.ContractTests/Compliance/GDPR/` - Contract tests
 
-## Date: 2026-02-17
+## Date: 2026-02-17 (updated 2026-02-24)
 ## Issue: #402

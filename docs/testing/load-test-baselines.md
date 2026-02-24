@@ -13,6 +13,7 @@ Encina load tests are organized into five categories:
 | **Caching** | Memory cache, Redis, hybrid L1/L2 | memory, redis, hybrid | Throughput, Concurrent, Eviction |
 | **Locking** | Distributed lock coordination | inmemory, redis, sqlserver | Contention, Renewal, Timeout |
 | **Brokers** | Message broker pub/sub | rabbitmq, kafka, nats, mqtt | Publish, Consume, Partition |
+| **Compliance** | GDPR Lawful Basis validation under concurrency | inmemory | Registry, LIA Store, Pipeline |
 
 ---
 
@@ -472,6 +473,63 @@ All load tests run on a weekly schedule (Saturdays at 2:00 AM UTC) and can be tr
 | Connection timeouts | Pool exhaustion | Increase pool size |
 | Lock timeouts | High contention | Reduce concurrent clients or increase resources |
 | Message loss | QoS 0 or network issues | Use QoS 1+ or check network stability |
+
+---
+
+# Compliance Load Tests
+
+The compliance load tests exercise GDPR Lawful Basis validation components under high concurrency.
+
+## Lawful Basis Validation Scenarios (#413)
+
+8 high-concurrency scenarios using 50 concurrent workers × 10,000 operations each (500,000 total operations per scenario).
+
+### Registry Scenarios
+
+| Scenario | Total Operations | Workers | Validation |
+|----------|-----------------|---------|------------|
+| `registry-concurrent-reads` | 500,000 | 50 | Throughput stability, zero errors |
+| `registry-concurrent-writes` | 500,000 | 50 | All upserts succeed, no contention |
+| `registry-latency-distribution` | 500,000 | 50 | P50/P95/P99 percentile tracking |
+
+### LIA Store Scenarios
+
+| Scenario | Total Operations | Workers | Validation |
+|----------|-----------------|---------|------------|
+| `lia-store-concurrent-reads` | 500,000 | 50 | Consistent results under load |
+| `lia-store-concurrent-writes` | 500,000 | 50 | Thread-safe ConcurrentDictionary |
+| `lia-store-pending-review-under-load` | 500,000 | 50 | Correct filtering while writes occur |
+
+### Mixed / Pipeline Scenarios
+
+| Scenario | Total Operations | Workers | Validation |
+|----------|-----------------|---------|------------|
+| `mixed-registry-lia-operations` | 500,000 | 50 | Cross-store concurrent access |
+| `pipeline-validation-concurrent` | 50,000 | 50 | End-to-end pipeline under load |
+
+### Notes
+
+- All scenarios use in-memory stores (`ConcurrentDictionary` backed)
+- Registry operations are O(1) — load tests validate thread safety, not scaling
+- Pipeline scenario tests the full DI → pipeline → validation → handler chain under concurrency
+- The latency distribution scenario tracks P50/P95/P99 to detect outliers caused by GC pauses or lock contention
+
+### Running Compliance Load Tests
+
+```bash
+# Run from the load test project
+cd tests/Encina.LoadTests
+
+# Execute all LawfulBasis scenarios
+dotnet run -- lawful-basis
+
+# Or invoke from code:
+# await LawfulBasisValidationLoadTests.RunAllAsync();
+```
+
+### Related Files (Compliance)
+
+- `tests/Encina.LoadTests/Compliance/GDPR/LawfulBasisValidationLoadTests.cs` — 8 scenario implementations
 
 ---
 

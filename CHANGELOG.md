@@ -203,6 +203,74 @@ Added the `Encina.Compliance.Consent` package providing declarative, attribute-b
 
 ---
 
+#### Encina.Compliance.GDPR — Lawful Basis Tracking and Validation (Art. 6) (#413)
+
+Added GDPR Article 6(1) lawful basis enforcement to the compliance pipeline. Provides declarative, attribute-based lawful basis declarations with runtime validation, Legitimate Interest Assessment (LIA) management, consent integration, and multi-provider persistence across all 13 database providers.
+
+**Core Abstractions**:
+
+- **`ILawfulBasisRegistry`**: Central registry linking request types to lawful bases with `RegisterAsync`, `GetByRequestTypeAsync`, `GetByRequestTypeNameAsync`, `GetAllAsync`
+- **`ILawfulBasisProvider`**: Resolves and validates lawful bases with `GetBasisForRequestAsync`, `ValidateBasisAsync<TRequest>`
+- **`ILIAStore`**: Legitimate Interest Assessment storage with `StoreAsync`, `GetByReferenceAsync`, `GetPendingReviewAsync`
+- **`ILegitimateInterestAssessment`**: LIA validation via `ValidateAsync(liaReference)` returning `LIAValidationResult`
+- **`IConsentStatusProvider`**: Bridge interface for consent-based processing validation
+- **`ILawfulBasisSubjectIdExtractor`**: Subject ID extraction for consent validation
+
+**Declarative Attributes**:
+
+- **`[LawfulBasis(LawfulBasis.Consent, Purpose = "...")]`**: Declares the lawful basis for a request type with optional `Purpose`, `LIAReference`, `LegalReference`, `ContractReference`
+- Works alongside `[ProcessingActivity]` with automatic conflict detection and LawfulBasisAttribute priority
+
+**Pipeline Behavior**:
+
+- **`LawfulBasisValidationPipelineBehavior<TRequest, TResponse>`**: Validates lawful basis at pipeline level
+- Three enforcement modes: `Block` (reject), `Warn` (log and proceed), `Disabled` (no-op)
+- Consent validation via `IConsentStatusProvider` for `LawfulBasis.Consent`
+- LIA approval validation via `ILegitimateInterestAssessment` for `LawfulBasis.LegitimateInterests`
+- Attribute-conflict detection when both `[LawfulBasis]` and `[ProcessingActivity]` declare different bases
+- Static per-generic-type attribute caching (zero reflection after first access)
+- Registry fallback for programmatically registered bases
+
+**Legitimate Interest Assessment (LIA)**:
+
+- **`LIARecord`**: Full EDPB three-part test model with Purpose, Necessity, and Balancing assessments
+- 20 documented fields covering legitimate interest, benefits, necessity justification, alternatives, data minimisation, impact assessment, safeguards, DPO involvement
+- **`LIAOutcome`**: Three states — `Approved`, `Rejected`, `RequiresReview`
+- **`LIAValidationResult`**: Four factory methods — `Approved()`, `Rejected(reason)`, `PendingReview()`, `NotFound()`
+
+**Multi-Provider Persistence** (13 providers):
+
+- ADO.NET: `LawfulBasisRegistryADO{Sqlite,SqlServer,PostgreSQL,MySQL}`, `LIAStoreADO{...}`
+- Dapper: `LawfulBasisRegistryDapper{Sqlite,SqlServer,PostgreSQL,MySQL}`, `LIAStoreDapper{...}`
+- EF Core: `LawfulBasisRegistryEF`, `LIAStoreEF` (with entity configurations)
+- MongoDB: `LawfulBasisRegistryMongo`, `LIAStoreMongo`
+- All stores support upsert semantics for idempotent operations
+
+**Error Codes** (7 structured errors via `GDPRErrors`):
+
+- `gdpr.lawful_basis_not_declared`, `gdpr.consent_not_found`, `gdpr.lia_not_found`
+- `gdpr.lia_not_approved`, `gdpr.consent_provider_not_registered`
+- `gdpr.lawful_basis_store_error`, `gdpr.lia_store_error`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.GDPR.LawfulBasis` ActivitySource with tags: `request.type`, `lawful_basis.declared`, `lawful_basis.valid`, `basis`, `outcome`, `failure_reason`
+- 3 metric counters: `lawful_basis_validations_total`, `lawful_basis_consent_checks_total`, `lawful_basis_lia_checks_total`
+- 17 structured log events (EventId 8200–8216)
+- Optional `LawfulBasisHealthCheck` verifying registry and LIA store access
+
+**DI Registration**:
+
+- `services.AddEncinaLawfulBasis()` with `LawfulBasisOptions` configuration
+- Provider-specific: `AddEncinaLawfulBasisADO{Sqlite,SqlServer,PostgreSQL,MySQL}(connectionString)`
+- Provider-specific: `AddEncinaLawfulBasisDapper{...}(connectionString)`
+- Provider-specific: `AddEncinaLawfulBasisEFCore()`
+- Provider-specific: `AddEncinaLawfulBasisMongoDB(connectionString, databaseName)`
+
+**Testing**: 284 tests across 7 test projects plus 18 benchmarks and 8 load test scenarios — 70 unit tests, 137 integration tests (13 providers), 19 guard tests, 17 property tests, 26 contract tests, 15 integration test justification documents, 18 BenchmarkDotNet benchmarks (11 store + 7 pipeline), 8 load test scenarios (50 concurrent workers × 10K operations each).
+
+---
+
 #### Encina.Security.Secrets — Secrets Management and Vault Integration (#400)
 
 Added the `Encina.Security.Secrets` package providing ISP-compliant, provider-agnostic secrets management with Railway Oriented Programming. Ships with development-ready providers (environment variables, `IConfiguration`) and a transparent caching decorator. Cloud vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) will be available as separate satellite packages.
