@@ -310,23 +310,23 @@ public class LawfulBasisPropertyTests
         string id = "LIA-001",
         string name = "Test LIA",
         LIAOutcome outcome = LIAOutcome.Approved) => new()
-    {
-        Id = id,
-        Name = name,
-        Purpose = "Testing",
-        LegitimateInterest = "Test interest",
-        Benefits = "Test benefits",
-        ConsequencesIfNotProcessed = "None",
-        NecessityJustification = "Required for testing",
-        AlternativesConsidered = ["Manual"],
-        DataMinimisationNotes = "Test data only",
-        NatureOfData = "Test identifiers",
-        ReasonableExpectations = "Expected by developers",
-        ImpactAssessment = "Minimal impact",
-        Safeguards = ["Encryption"],
-        Outcome = outcome,
-        Conclusion = "Test conclusion",
-        AssessedAtUtc = DateTimeOffset.UtcNow,
-        AssessedBy = "Test DPO"
-    };
+        {
+            Id = id,
+            Name = name,
+            Purpose = "Testing",
+            LegitimateInterest = "Test interest",
+            Benefits = "Test benefits",
+            ConsequencesIfNotProcessed = "None",
+            NecessityJustification = "Required for testing",
+            AlternativesConsidered = ["Manual"],
+            DataMinimisationNotes = "Test data only",
+            NatureOfData = "Test identifiers",
+            ReasonableExpectations = "Expected by developers",
+            ImpactAssessment = "Minimal impact",
+            Safeguards = ["Encryption"],
+            Outcome = outcome,
+            Conclusion = "Test conclusion",
+            AssessedAtUtc = DateTimeOffset.UtcNow,
+            AssessedBy = "Test DPO"
+        };
 }

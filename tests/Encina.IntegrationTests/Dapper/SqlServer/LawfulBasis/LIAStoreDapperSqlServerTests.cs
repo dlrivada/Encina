@@ -1,5 +1,5 @@
-using Encina.Dapper.SqlServer.LawfulBasis;
 using Encina.Compliance.GDPR;
+using Encina.Dapper.SqlServer.LawfulBasis;
 using Encina.TestInfrastructure.Fixtures;
 using FluentAssertions;
 using LanguageExt;
@@ -30,25 +30,25 @@ public sealed class LIAStoreDapperSqlServerTests : IAsyncLifetime
     private static LIARecord CreateRecord(
         string id = "LIA-001",
         LIAOutcome outcome = LIAOutcome.Approved) => new()
-    {
-        Id = id,
-        Name = "Test LIA",
-        Purpose = "Integration testing",
-        LegitimateInterest = "Testing interest",
-        Benefits = "Better quality",
-        ConsequencesIfNotProcessed = "Bugs",
-        NecessityJustification = "Required for testing",
-        AlternativesConsidered = ["Manual testing"],
-        DataMinimisationNotes = "Only test data",
-        NatureOfData = "Test identifiers",
-        ReasonableExpectations = "Expected by developers",
-        ImpactAssessment = "Minimal impact",
-        Safeguards = ["Encryption", "Access control"],
-        Outcome = outcome,
-        Conclusion = "Approved for testing",
-        AssessedAtUtc = DateTimeOffset.UtcNow,
-        AssessedBy = "Test DPO"
-    };
+        {
+            Id = id,
+            Name = "Test LIA",
+            Purpose = "Integration testing",
+            LegitimateInterest = "Testing interest",
+            Benefits = "Better quality",
+            ConsequencesIfNotProcessed = "Bugs",
+            NecessityJustification = "Required for testing",
+            AlternativesConsidered = ["Manual testing"],
+            DataMinimisationNotes = "Only test data",
+            NatureOfData = "Test identifiers",
+            ReasonableExpectations = "Expected by developers",
+            ImpactAssessment = "Minimal impact",
+            Safeguards = ["Encryption", "Access control"],
+            Outcome = outcome,
+            Conclusion = "Approved for testing",
+            AssessedAtUtc = DateTimeOffset.UtcNow,
+            AssessedBy = "Test DPO"
+        };
 
     [Fact]
     public async Task StoreAsync_ValidRecord_ShouldPersist()

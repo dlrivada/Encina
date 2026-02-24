@@ -16,12 +16,12 @@ public class InMemoryLawfulBasisRegistryTests
     private static LawfulBasisRegistration CreateRegistration(
         Type? requestType = null,
         global::Encina.Compliance.GDPR.LawfulBasis basis = LawfulBasis.Contract) => new()
-    {
-        RequestType = requestType ?? typeof(InMemoryLawfulBasisRegistryTests),
-        Basis = basis,
-        Purpose = "Test purpose",
-        RegisteredAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            RequestType = requestType ?? typeof(InMemoryLawfulBasisRegistryTests),
+            Basis = basis,
+            Purpose = "Test purpose",
+            RegisteredAtUtc = DateTimeOffset.UtcNow
+        };
 
     // -- RegisterAsync --
 

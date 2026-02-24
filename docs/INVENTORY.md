@@ -5862,7 +5862,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - `BulkOperationResult` con `SuccessCount`, `FailureCount`, `Errors` per-item tracking
 - **Paquete**: `Encina.Compliance.Consent`
 - **Testing**: 1,100+ tests (unit, guard, property, contract, integration ×13 providers, load tests, benchmarks)
-- **Documentación**: [Feature Guide](docs/features/consent-management.md), [README](src/Encina.Compliance.Consent/README.md)
+- **Documentación**: [Feature Guide](features/consent-management.md), [README](../src/Encina.Compliance.Consent/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `pattern-consent-management`
 - Referencias: [GDPR Article 7](https://gdpr-info.eu/art-7-gdpr/), [Cookiebot Consent](https://www.cookiebot.com/en/gdpr-consent/)
 
@@ -6016,7 +6016,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - DI registration via `AddLawfulBasisValidation()` extension method with fluent configuration
 - **Paquete**: `Encina.Compliance.GDPR` (extends existing package)
 - **Testing**: 284 xUnit tests (70 unit, 137 integration ×13 providers, 19 guard, 17 property, 26 contract) + 18 BenchmarkDotNet benchmarks (11 store + 7 pipeline) + 8 load test scenarios
-- **Documentación**: [Feature Guide](docs/features/lawful-basis-validation.md), [README](src/Encina.Compliance.GDPR/README.md)
+- **Documentación**: [Feature Guide](features/lawful-basis-validation.md), [README](../src/Encina.Compliance.GDPR/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`
 - Referencias: [GDPR Article 6](https://gdpr-info.eu/art-6-gdpr/), [ICO Lawful Basis Tool](https://ico.org.uk/for-organisations/guidance-for-organisations/lawful-basis-interactive-guidance-tool/), [EDPB Legitimate Interest Guidelines](https://edpb.europa.eu/our-work-tools/our-documents/opinion-board-art-64/guidelines-legitimate-interest_en)
 

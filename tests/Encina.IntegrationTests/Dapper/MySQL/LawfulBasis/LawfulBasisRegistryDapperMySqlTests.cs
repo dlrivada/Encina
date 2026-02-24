@@ -1,5 +1,5 @@
-using Encina.Dapper.MySQL.LawfulBasis;
 using Encina.Compliance.GDPR;
+using Encina.Dapper.MySQL.LawfulBasis;
 using Encina.TestInfrastructure.Fixtures;
 using FluentAssertions;
 using LanguageExt;
@@ -30,12 +30,12 @@ public sealed class LawfulBasisRegistryDapperMySqlTests : IAsyncLifetime
     private static LawfulBasisRegistration CreateRegistration(
         Type? requestType = null,
         global::Encina.Compliance.GDPR.LawfulBasis basis = global::Encina.Compliance.GDPR.LawfulBasis.Contract) => new()
-    {
-        RequestType = requestType ?? typeof(LawfulBasisRegistryDapperMySqlTests),
-        Basis = basis,
-        Purpose = "Integration test purpose",
-        RegisteredAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            RequestType = requestType ?? typeof(LawfulBasisRegistryDapperMySqlTests),
+            Basis = basis,
+            Purpose = "Integration test purpose",
+            RegisteredAtUtc = DateTimeOffset.UtcNow
+        };
 
     [Fact]
     public async Task RegisterAsync_ValidRegistration_ShouldPersist()

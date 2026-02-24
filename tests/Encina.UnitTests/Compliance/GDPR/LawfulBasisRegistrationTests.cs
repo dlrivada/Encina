@@ -1,8 +1,7 @@
 using Encina.Compliance.GDPR;
+using Encina.UnitTests.Compliance.GDPR.Attributes;
 using FluentAssertions;
 using Microsoft.Extensions.Time.Testing;
-
-using Encina.UnitTests.Compliance.GDPR.Attributes;
 
 namespace Encina.UnitTests.Compliance.GDPR;
 

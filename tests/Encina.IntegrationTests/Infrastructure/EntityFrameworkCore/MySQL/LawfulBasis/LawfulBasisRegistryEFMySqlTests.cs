@@ -30,12 +30,12 @@ public sealed class LawfulBasisRegistryEFMySqlTests : IAsyncLifetime
     private static LawfulBasisRegistration CreateRegistration(
         Type? requestType = null,
         global::Encina.Compliance.GDPR.LawfulBasis basis = global::Encina.Compliance.GDPR.LawfulBasis.Contract) => new()
-    {
-        RequestType = requestType ?? typeof(LawfulBasisRegistryEFMySqlTests),
-        Basis = basis,
-        Purpose = "Integration test purpose",
-        RegisteredAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            RequestType = requestType ?? typeof(LawfulBasisRegistryEFMySqlTests),
+            Basis = basis,
+            Purpose = "Integration test purpose",
+            RegisteredAtUtc = DateTimeOffset.UtcNow
+        };
 
     [Fact]
     public async Task RegisterAsync_ValidRegistration_ShouldPersist()

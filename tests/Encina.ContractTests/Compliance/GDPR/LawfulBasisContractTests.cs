@@ -447,23 +447,23 @@ public class LawfulBasisContractTests
     private static LIARecord CreateLIARecord(
         string id,
         LIAOutcome outcome = LIAOutcome.Approved) => new()
-    {
-        Id = id,
-        Name = "Test LIA",
-        Purpose = "Contract testing",
-        LegitimateInterest = "Test interest",
-        Benefits = "Test benefits",
-        ConsequencesIfNotProcessed = "None",
-        NecessityJustification = "Required for testing",
-        AlternativesConsidered = ["Manual"],
-        DataMinimisationNotes = "Test data only",
-        NatureOfData = "Test identifiers",
-        ReasonableExpectations = "Expected by developers",
-        ImpactAssessment = "Minimal impact",
-        Safeguards = ["Encryption"],
-        Outcome = outcome,
-        Conclusion = "Test conclusion",
-        AssessedAtUtc = FixedTime,
-        AssessedBy = "Test DPO"
-    };
+        {
+            Id = id,
+            Name = "Test LIA",
+            Purpose = "Contract testing",
+            LegitimateInterest = "Test interest",
+            Benefits = "Test benefits",
+            ConsequencesIfNotProcessed = "None",
+            NecessityJustification = "Required for testing",
+            AlternativesConsidered = ["Manual"],
+            DataMinimisationNotes = "Test data only",
+            NatureOfData = "Test identifiers",
+            ReasonableExpectations = "Expected by developers",
+            ImpactAssessment = "Minimal impact",
+            Safeguards = ["Encryption"],
+            Outcome = outcome,
+            Conclusion = "Test conclusion",
+            AssessedAtUtc = FixedTime,
+            AssessedBy = "Test DPO"
+        };
 }

@@ -1,5 +1,5 @@
-using Encina.Dapper.SqlServer.LawfulBasis;
 using Encina.Compliance.GDPR;
+using Encina.Dapper.SqlServer.LawfulBasis;
 using Encina.TestInfrastructure.Fixtures;
 using FluentAssertions;
 using LanguageExt;
@@ -30,12 +30,12 @@ public sealed class LawfulBasisRegistryDapperSqlServerTests : IAsyncLifetime
     private static LawfulBasisRegistration CreateRegistration(
         Type? requestType = null,
         global::Encina.Compliance.GDPR.LawfulBasis basis = global::Encina.Compliance.GDPR.LawfulBasis.Contract) => new()
-    {
-        RequestType = requestType ?? typeof(LawfulBasisRegistryDapperSqlServerTests),
-        Basis = basis,
-        Purpose = "Integration test purpose",
-        RegisteredAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            RequestType = requestType ?? typeof(LawfulBasisRegistryDapperSqlServerTests),
+            Basis = basis,
+            Purpose = "Integration test purpose",
+            RegisteredAtUtc = DateTimeOffset.UtcNow
+        };
 
     [Fact]
     public async Task RegisterAsync_ValidRegistration_ShouldPersist()
