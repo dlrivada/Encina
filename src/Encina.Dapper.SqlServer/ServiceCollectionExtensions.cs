@@ -515,4 +515,29 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Adds persistent GDPR processing activity registry using Dapper for SQL Server.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IProcessingActivityRegistry"/> as a singleton backed by a SQL Server
+    /// <c>[ProcessingActivities]</c> table. Each operation creates a new connection, ensuring thread safety.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="connectionString">The SQL Server connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaProcessingActivityDapperSqlServer(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.TryAddSingleton<IProcessingActivityRegistry>(
+            new ProcessingActivity.ProcessingActivityRegistryDapper(connectionString));
+
+        return services;
+    }
 }

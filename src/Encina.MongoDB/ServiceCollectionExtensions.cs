@@ -807,4 +807,28 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Adds GDPR Processing Activity persistent store using MongoDB.
+    /// Registers <see cref="IProcessingActivityRegistry"/> as a singleton
+    /// that creates its own MongoClient.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="connectionString">The MongoDB connection string.</param>
+    /// <param name="databaseName">The database name (default: Encina).</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaProcessingActivityMongoDB(
+        this IServiceCollection services,
+        string connectionString,
+        string databaseName = "Encina")
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+
+        services.TryAddSingleton<IProcessingActivityRegistry>(
+            new ProcessingActivity.ProcessingActivityRegistryMongoDB(connectionString, databaseName));
+
+        return services;
+    }
 }

@@ -13,6 +13,7 @@ The GDPR compliance pipeline operates within the request pipeline, which is inhe
 | Component | Concurrency Model |
 |-----------|-------------------|
 | `InMemoryProcessingActivityRegistry` | `ConcurrentDictionary` (already thread-safe) |
+| Database-backed registries (13 providers) | Connection pool managed by DB driver (thread-safe) |
 | `GDPRCompliancePipelineBehavior` | Scoped per request, no shared state |
 | `DefaultGDPRComplianceValidator` | Stateless |
 | `ProcessingActivityAttribute` cache | `ConcurrentDictionary` (read-heavy, thread-safe) |
@@ -53,25 +54,14 @@ The `IRoPAExporter` implementations (JSON/CSV) are designed for administrative b
 
 Load tests for GDPR compliance would be appropriate if:
 
-1. **Custom IProcessingActivityRegistry**: A database-backed registry with network I/O
-2. **Custom IGDPRComplianceValidator**: A validator that calls external compliance services
-3. **High-frequency RoPA exports**: Automated export pipelines under concurrency
+1. **Custom IGDPRComplianceValidator**: A validator that calls external compliance services
+2. **High-frequency RoPA exports**: Automated export pipelines under concurrency
 
-**Recommended future load test scenario**:
-
-```csharp
-// Only implement if database-backed registry is added
-[LoadTest]
-public async Task RegistryLookup_UnderHighConcurrency_MaintainsThroughput()
-{
-    var registry = new DatabaseProcessingActivityRegistry(connectionString);
-    var tasks = Enumerable.Range(0, 1000)
-        .Select(_ => registry.GetActivityByRequestTypeAsync(typeof(MyCommand)));
-
-    var results = await Task.WhenAll(tasks);
-    // Assert all succeeded and latency is within bounds
-}
-```
+**Note on database-backed registries (Issue #681):**
+As of Issue #681, database-backed `IProcessingActivityRegistry` implementations exist for all 13 providers
+(ADO.NET, Dapper, EF Core, MongoDB). These are thin CRUD wrappers where actual load/concurrency handling
+is managed by the underlying database connection pool. Load testing these would measure database driver
+performance, not application code. Concurrent access behavior is validated in IntegrationTests instead.
 
 ## Note: Lawful Basis Load Tests ARE Implemented
 
@@ -90,4 +80,4 @@ See [Load Test Baselines — Compliance](../../../docs/testing/load-test-baselin
 - `tests/Encina.ContractTests/Compliance/GDPR/` - Contract tests
 
 ## Date: 2026-02-17 (updated 2026-02-24)
-## Issue: #402
+## Issues: #402, #681

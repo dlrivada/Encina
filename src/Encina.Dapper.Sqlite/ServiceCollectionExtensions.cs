@@ -396,4 +396,29 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Adds persistent GDPR processing activity registry using Dapper for SQLite.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IProcessingActivityRegistry"/> as a singleton backed by a SQLite
+    /// <c>ProcessingActivities</c> table. Each operation creates a new connection, ensuring thread safety.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="connectionString">The SQLite connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaProcessingActivityDapperSqlite(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.TryAddSingleton<IProcessingActivityRegistry>(
+            new ProcessingActivity.ProcessingActivityRegistryDapper(connectionString));
+
+        return services;
+    }
 }

@@ -430,12 +430,42 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the processingactivities table schema for GDPR processing activity integration tests.
+    /// </summary>
+    public static async Task CreateProcessingActivitySchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS processingactivities (
+                id                             VARCHAR(36)   NOT NULL PRIMARY KEY,
+                requesttypename                VARCHAR(1000) NOT NULL,
+                name                           VARCHAR(500)  NOT NULL,
+                purpose                        TEXT          NOT NULL,
+                lawfulbasisvalue               INT           NOT NULL,
+                categoriesofdatasubjectsjson   TEXT          NOT NULL,
+                categoriesofpersonaldatajson   TEXT          NOT NULL,
+                recipientsjson                 TEXT          NOT NULL,
+                thirdcountrytransfers          TEXT          NULL,
+                safeguards                     TEXT          NULL,
+                retentionperiodticks           BIGINT        NOT NULL,
+                securitymeasures               TEXT          NOT NULL,
+                createdatutc                   TIMESTAMPTZ   NOT NULL,
+                lastupdatedatutc               TIMESTAMPTZ   NOT NULL,
+                CONSTRAINT uq_processingactivities_requesttypename UNIQUE (requesttypename)
+            );
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
     /// </summary>
     public static async Task ClearAllDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DELETE FROM processingactivities;
             DELETE FROM "LIARecords";
             DELETE FROM "LawfulBasisRegistrations";
             DELETE FROM lia_records;

@@ -381,12 +381,42 @@ public static class SqlServerSchema
     }
 
     /// <summary>
+    /// Creates the ProcessingActivities table schema for GDPR processing activity integration tests.
+    /// </summary>
+    public static async Task CreateProcessingActivitySchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProcessingActivities')
+            CREATE TABLE [ProcessingActivities] (
+                [Id]                             NVARCHAR(36)    NOT NULL PRIMARY KEY,
+                [RequestTypeName]                NVARCHAR(1000)  NOT NULL,
+                [Name]                           NVARCHAR(500)   NOT NULL,
+                [Purpose]                        NVARCHAR(MAX)   NOT NULL,
+                [LawfulBasisValue]               INT             NOT NULL,
+                [CategoriesOfDataSubjectsJson]   NVARCHAR(MAX)   NOT NULL,
+                [CategoriesOfPersonalDataJson]   NVARCHAR(MAX)   NOT NULL,
+                [RecipientsJson]                 NVARCHAR(MAX)   NOT NULL,
+                [ThirdCountryTransfers]          NVARCHAR(MAX)   NULL,
+                [Safeguards]                     NVARCHAR(MAX)   NULL,
+                [RetentionPeriodTicks]           BIGINT          NOT NULL,
+                [SecurityMeasures]               NVARCHAR(MAX)   NOT NULL,
+                [CreatedAtUtc]                   DATETIME2(7)    NOT NULL,
+                [LastUpdatedAtUtc]               DATETIME2(7)    NOT NULL,
+                CONSTRAINT UQ_ProcessingActivities_RequestTypeName UNIQUE ([RequestTypeName])
+            );
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
     /// </summary>
     public static async Task ClearAllDataAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            IF OBJECT_ID('ProcessingActivities', 'U') IS NOT NULL DELETE FROM ProcessingActivities;
             IF OBJECT_ID('LIARecords', 'U') IS NOT NULL DELETE FROM LIARecords;
             IF OBJECT_ID('LawfulBasisRegistrations', 'U') IS NOT NULL DELETE FROM LawfulBasisRegistrations;
             IF OBJECT_ID('TenantTestEntities', 'U') IS NOT NULL DELETE FROM TenantTestEntities;

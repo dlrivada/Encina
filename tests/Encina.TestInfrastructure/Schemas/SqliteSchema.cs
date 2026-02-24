@@ -316,6 +316,36 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the ProcessingActivities table schema for GDPR processing activity integration tests.
+    /// </summary>
+    public static async Task CreateProcessingActivitySchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS ProcessingActivities
+            (
+                Id                             TEXT    NOT NULL PRIMARY KEY,
+                RequestTypeName                TEXT    NOT NULL,
+                Name                           TEXT    NOT NULL,
+                Purpose                        TEXT    NOT NULL,
+                LawfulBasisValue               INTEGER NOT NULL,
+                CategoriesOfDataSubjectsJson   TEXT    NOT NULL,
+                CategoriesOfPersonalDataJson   TEXT    NOT NULL,
+                RecipientsJson                 TEXT    NOT NULL,
+                ThirdCountryTransfers          TEXT    NULL,
+                Safeguards                     TEXT    NULL,
+                RetentionPeriodTicks           INTEGER NOT NULL,
+                SecurityMeasures               TEXT    NOT NULL,
+                CreatedAtUtc                   TEXT    NOT NULL,
+                LastUpdatedAtUtc               TEXT    NOT NULL,
+                CONSTRAINT UQ_ProcessingActivities_RequestTypeName UNIQUE (RequestTypeName)
+            );
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
     /// Uses conditional deletion to handle cases where tables may not exist.
@@ -323,7 +353,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "LIARecords", "LawfulBasisRegistrations", "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
+        var tables = new[] { "ProcessingActivities", "LIARecords", "LawfulBasisRegistrations", "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

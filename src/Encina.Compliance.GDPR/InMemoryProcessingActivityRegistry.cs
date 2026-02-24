@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 
+using Encina.Compliance.GDPR.Diagnostics;
+
 using LanguageExt;
 
 using static LanguageExt.Prelude;
@@ -36,12 +38,16 @@ public sealed class InMemoryProcessingActivityRegistry : IProcessingActivityRegi
     {
         ArgumentNullException.ThrowIfNull(activity);
 
+        using var trace = ProcessingActivityDiagnostics.StartRegistration(activity.RequestType);
+
         if (!_activities.TryAdd(activity.RequestType, activity))
         {
+            ProcessingActivityDiagnostics.RecordFailure(trace, "register", "duplicate");
             return ValueTask.FromResult<Either<EncinaError, Unit>>(
                 EncinaError.New($"A processing activity is already registered for request type '{activity.RequestType.FullName}'."));
         }
 
+        ProcessingActivityDiagnostics.RecordSuccess(trace, "register");
         return ValueTask.FromResult<Either<EncinaError, Unit>>(unit);
     }
 
@@ -49,8 +55,12 @@ public sealed class InMemoryProcessingActivityRegistry : IProcessingActivityRegi
     public ValueTask<Either<EncinaError, IReadOnlyList<ProcessingActivity>>> GetAllActivitiesAsync(
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<ProcessingActivity> result = _activities.Values.ToList().AsReadOnly();
-        return ValueTask.FromResult<Either<EncinaError, IReadOnlyList<ProcessingActivity>>>(Right(result));
+        using var trace = ProcessingActivityDiagnostics.StartGetAll();
+
+        var result = _activities.Values.ToList().AsReadOnly();
+
+        ProcessingActivityDiagnostics.RecordSuccess(trace, result.Count, "get_all");
+        return ValueTask.FromResult(Right<EncinaError, IReadOnlyList<ProcessingActivity>>(result));
     }
 
     /// <inheritdoc />
@@ -60,10 +70,13 @@ public sealed class InMemoryProcessingActivityRegistry : IProcessingActivityRegi
     {
         ArgumentNullException.ThrowIfNull(requestType);
 
+        using var trace = ProcessingActivityDiagnostics.StartGetByRequestType(requestType);
+
         Option<ProcessingActivity> result = _activities.TryGetValue(requestType, out var activity)
             ? Some(activity)
             : None;
 
+        ProcessingActivityDiagnostics.RecordSuccess(trace, "get_by_request_type");
         return ValueTask.FromResult<Either<EncinaError, Option<ProcessingActivity>>>(result);
     }
 
@@ -74,13 +87,17 @@ public sealed class InMemoryProcessingActivityRegistry : IProcessingActivityRegi
     {
         ArgumentNullException.ThrowIfNull(activity);
 
+        using var trace = ProcessingActivityDiagnostics.StartUpdate(activity.RequestType);
+
         if (!_activities.ContainsKey(activity.RequestType))
         {
+            ProcessingActivityDiagnostics.RecordFailure(trace, "update", "not_found");
             return ValueTask.FromResult<Either<EncinaError, Unit>>(
                 EncinaError.New($"No processing activity is registered for request type '{activity.RequestType.FullName}'."));
         }
 
         _activities[activity.RequestType] = activity;
+        ProcessingActivityDiagnostics.RecordSuccess(trace, "update");
         return ValueTask.FromResult<Either<EncinaError, Unit>>(unit);
     }
 

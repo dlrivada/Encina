@@ -271,6 +271,47 @@ Added GDPR Article 6(1) lawful basis enforcement to the compliance pipeline. Pro
 
 ---
 
+#### Encina.Compliance.GDPR — ProcessingActivity Registry for All 13 Database Providers (#681)
+
+Added multi-provider persistence for `IProcessingActivityRegistry` (GDPR Article 30 Record of Processing Activities) across all 13 database providers. Previously only available via `InMemoryProcessingActivityRegistry`, the registry can now persist processing activities in production databases.
+
+**Infrastructure**:
+
+- **`ProcessingActivityEntity`**: Flat persistence entity with 14 primitive fields, JSON-serialized collections, and `RetentionPeriodTicks` (long) for lossless `TimeSpan` storage
+- **`ProcessingActivityMapper`**: Static `ToEntity`/`ToDomain` mapping with `System.Text.Json` camelCase serialization, `Type.GetType` resolution for `RequestTypeName`, and null-safe round-trips
+- **SQL migration scripts** (`011_CreateProcessingActivitiesTable.sql`): Provider-specific DDL for SQLite, SQL Server, PostgreSQL, and MySQL with UNIQUE constraint on `RequestTypeName`
+
+**Multi-Provider Persistence** (13 providers):
+
+- ADO.NET: `ProcessingActivityRegistryADO` for SQLite, SQL Server, PostgreSQL, MySQL — INSERT-only registration with provider-specific duplicate detection (SQLite error code 19, SQL Server 2627/2601, PostgreSQL "23505", MySQL 1062)
+- Dapper: `ProcessingActivityRegistryDapper` for SQLite, SQL Server, PostgreSQL, MySQL — same semantics with Dapper parameterized queries
+- EF Core: `ProcessingActivityRegistryEF` with `ProcessingActivityEntityConfiguration` and `ProcessingActivityModelBuilderExtensions` — shared implementation across SQLite, SQL Server, PostgreSQL, MySQL via `DbUpdateException` duplicate key detection
+- MongoDB: `ProcessingActivityRegistryMongoDB` with `ProcessingActivityDocument` — `MongoWriteException` `DuplicateKey` detection, unique index on `RequestTypeName`
+
+**Error Codes** (3 new structured errors via `GDPRErrors`):
+
+- `gdpr.processing_activity_store_error` — general store operation failure
+- `gdpr.processing_activity_duplicate` — duplicate `RequestType` registration attempt
+- `gdpr.processing_activity_not_found` — update on non-existing activity
+
+**DI Registration**:
+
+- All ADO.NET providers: `AddEncinaProcessingActivityADO{Sqlite,SqlServer,PostgreSQL,MySQL}(connectionString)`
+- All Dapper providers: `AddEncinaProcessingActivityDapper{Sqlite,SqlServer,PostgreSQL,MySQL}(connectionString)`
+- EF Core: `AddEncinaProcessingActivityEFCore()`
+- MongoDB: `AddEncinaProcessingActivityMongoDB(connectionString, databaseName)`
+
+**Observability**:
+
+- **`ProcessingActivityDiagnostics`**: Dedicated ActivitySource (`Encina.Compliance.GDPR.ProcessingActivity`) with 4 activity types: Register, Update, GetByRequestType, GetAll
+- 2 counters via shared `GDPRDiagnostics.Meter`: `processing_activity_operations_total`, `processing_activity_operations_failed_total`
+- Tag constants: `operation`, `outcome`, `request.type`, `activity.count`, `failure_reason`
+- Helper methods: `RecordSuccess`/`RecordFailure` with null-safe activity handling
+
+**Testing**: 42 new tests — 30 unit tests (16 mapper + 14 diagnostics), 2 guard tests, 4 property tests (FsCheck mapper round-trips), plus 91 integration tests across 13 providers (7 tests × 13 providers).
+
+---
+
 #### Encina.Security.Secrets — Secrets Management and Vault Integration (#400)
 
 Added the `Encina.Security.Secrets` package providing ISP-compliant, provider-agnostic secrets management with Railway Oriented Programming. Ships with development-ready providers (environment variables, `IConfiguration`) and a transparent caching decorator. Cloud vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) will be available as separate satellite packages.

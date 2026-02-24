@@ -745,4 +745,32 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Adds GDPR Processing Activity persistent store using Entity Framework Core.
+    /// Registers <see cref="IProcessingActivityRegistry"/> as a scoped service
+    /// that uses the registered <see cref="DbContext"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Remember to apply the entity configuration in your <c>OnModelCreating</c> override:
+    /// </para>
+    /// <code>
+    /// protected override void OnModelCreating(ModelBuilder modelBuilder)
+    /// {
+    ///     modelBuilder.ApplyProcessingActivityConfiguration();
+    /// }
+    /// </code>
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddEncinaProcessingActivityEFCore(
+        this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IProcessingActivityRegistry, ProcessingActivity.ProcessingActivityRegistryEF>();
+
+        return services;
+    }
 }

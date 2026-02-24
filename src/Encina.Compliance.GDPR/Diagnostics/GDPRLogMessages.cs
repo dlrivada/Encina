@@ -198,4 +198,19 @@ internal static class GDPRLogMessages
 
     internal static void LawfulBasisHealthCheckCompleted(this ILogger logger, string status, int registrationCount)
         => LawfulBasisHealthCheckCompletedDef(logger, status, registrationCount, null);
+
+    // =====================================================
+    // Processing Activity Registry (8220–8229)
+    // =====================================================
+
+    // -- 8220: Processing activity health check completed --
+
+    private static readonly Action<ILogger, string, int, Exception?> ProcessingActivityHealthCheckCompletedDef =
+        LoggerMessage.Define<string, int>(
+            LogLevel.Debug,
+            new EventId(8220, nameof(ProcessingActivityHealthCheckCompleted)),
+            "Processing activity health check completed. Status={Status}, ActivityCount={ActivityCount}");
+
+    internal static void ProcessingActivityHealthCheckCompleted(this ILogger logger, string status, int activityCount)
+        => ProcessingActivityHealthCheckCompletedDef(logger, status, activityCount, null);
 }

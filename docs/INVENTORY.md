@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, Consent #403, Lawful Basis #413 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Lawful Basis #413 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -4290,7 +4290,7 @@ dotnet run -c Release -- --filter "*Comparison*"
 | [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 ✅ | Value Objects, Entities, Aggregates, Specifications, ACL - **COMPLETADO** |
 | [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 34 ✅ | Fakes, Respawn, WireMock, Shouldly, Bogus, FsCheck, TUnit, Pact - **COMPLETADO** |
 | [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 58 ✅ | Repository, UoW, Bulk Ops, Pagination, ID Generation, CDC - **COMPLETADO** |
-| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅), Consent (#403 ✅), Lawful Basis (#413 ✅) |
+| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅), GDPR Core (#402 ✅), Consent (#403 ✅), Lawful Basis (#413 ✅) |
 | [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
 | [v0.15.0 - Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | EIP, Transports, Process Manager |
 | [v0.16.0 - Multi-Tenancy & Modular](https://github.com/dlrivada/Encina/milestone/13) | 21 | Multi-Tenancy, Modular Monolith |
@@ -5807,7 +5807,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 
 | Issue | Patrón | Descripción | Prioridad | Complejidad | Labels Principales |
 |-------|--------|-------------|-----------|-------------|-------------------|
-| **#402** | GDPR Core | Abstracciones core GDPR con RoPA (Record of Processing Activities) | Crítica | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `foundational` |
+| **#402** | GDPR Core ✅ | Abstracciones core GDPR con RoPA (Record of Processing Activities) - **IMPLEMENTADO** | Crítica | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `foundational` |
 | **#403** | Consent Management | Gestión de consentimientos con versioning y withdrawal tracking | Crítica | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-consent-management` |
 | **#404** | Data Subject Rights | Implementación de Arts. 15-22 (Access, Rectification, Erasure, Portability) | Crítica | Muy Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `saas-essential` |
 | **#405** | Data Residency | Enforcement de residencia de datos con routing geográfico | Crítica | Muy Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-data-sovereignty`, `area-cloud-native` |
@@ -5826,16 +5826,31 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 
 ##### Tier 1: Crítica Prioridad (GDPR Foundation)
 
-**#402 - Encina.Compliance.GDPR - Core GDPR Abstractions**:
+**#402 - Encina.Compliance.GDPR - Core GDPR Abstractions** ✅ **IMPLEMENTADO**:
 
-- `IDataController`, `IDataProcessor` interfaces para roles GDPR
-- `IGDPRContext` con `ProcessingActivities`, `LegalBases`, `RetentionPolicies`
-- `RoPARegistry` (Record of Processing Activities) automático - Art. 30
-- `ProcessingActivity` con Purpose, LegalBasis, Categories, Recipients, Retention
-- `GDPRCompliancePipelineBehavior` para validación automática de operaciones
-- Dashboard de compliance status
-- **Nuevo paquete planificado**: `Encina.Compliance.GDPR`
-- **Demanda de comunidad**: MUY ALTA - Obligatorio para operar en EU
+- `IProcessingActivityRegistry` con `RegisterActivityAsync`, `GetActivityByRequestTypeAsync`, `GetAllActivitiesAsync`, `UpdateActivityAsync` — central registry for GDPR processing activities (Art. 30 RoPA)
+- `ProcessingActivity` sealed record con RequestType, Purpose, LawfulBasis, DataSubjects, PersonalData, Recipients, RetentionPeriod, TransferInfo, Description
+- `[ProcessingActivity(...)]` atributo declarativo con cached `ConcurrentDictionary` reflection (zero overhead after first access)
+- `GDPRCompliancePipelineBehavior<TRequest, TResponse>` para validación automática de operaciones
+- `ComplianceResult` con IsCompliant, Violations, LawfulBasis — immutable compliance status
+- 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
+- `GDPROptions` con `EnforcementMode`, `AutoRegisterFromAttributes`, `ScanAssemblies`
+- In-memory implementation: `InMemoryProcessingActivityRegistry`
+- 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1) — `ProcessingActivityRegistryADO*`, `ProcessingActivityRegistryDapper*`, `ProcessingActivityRegistryEF`, `ProcessingActivityRegistryMongoDB` (#681)
+- `ProcessingActivityMapper` for entity↔domain conversion with JSON serialization for collection fields
+- `ProcessingActivityEntity` shared flat entity for all relational providers
+- `ProcessingActivityDocument` MongoDB-specific BSON document with unique index on `request_type_name`
+- SQL schema scripts per provider: `ProcessingActivitySchema.sql` (Sqlite, SqlServer, PostgreSQL, MySQL)
+- RoPA export: `ProcessingActivityJsonExporter`, `ProcessingActivityCsvExporter` for compliance audit reports
+- `ProcessingActivityHealthCheck` with `IHealthCheck` integration and opt-in via `AddHealthCheck = true`
+- OpenTelemetry tracing via dedicated `Encina.Compliance.GDPR.ProcessingActivity` ActivitySource
+- 3 counters: `processing_activity_registrations_total`, `processing_activity_lookups_total`, `processing_activity_updates_total`
+- 12 structured log events con `LoggerMessage.Define` (zero-allocation, event IDs 8100–8112, 8220)
+- DI registration via `AddEncinaProcessingActivity*()` extension methods (10 provider-specific methods)
+- `GDPRAutoRegistrationHostedService` para assembly scanning al startup
+- **Paquete**: `Encina.Compliance.GDPR` (+ satellite packages: `Encina.ADO.*`, `Encina.Dapper.*`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`)
+- **Testing**: Unit tests (60+), guard tests (27), contract tests (8), property tests (FsCheck invariants), integration tests (×13 providers) + LoadTest/Benchmark justification docs
+- **Documentación**: [README](../src/Encina.Compliance.GDPR/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `foundational`
 - Referencias: [GDPR Article 30](https://gdpr-info.eu/art-30-gdpr/), [ICO Records of Processing](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/records-of-processing-activities/)
 
@@ -6052,7 +6067,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 
 | Paquete | Issue | Descripción | Prioridad |
 |---------|-------|-------------|-----------|
-| `Encina.Compliance.GDPR` | #402 | Core GDPR abstractions, RoPA | Crítica |
+| `Encina.Compliance.GDPR` | #402 | Core GDPR abstractions, RoPA ✅ | Crítica |
 | `Encina.Compliance.Consent` | #403 | Consent management ✅ | Crítica |
 | `Encina.Compliance.DataSubjectRights` | #404 | GDPR rights (Arts. 15-22) | Crítica |
 | `Encina.Compliance.DataResidency` | #405 | Data sovereignty | Crítica |
@@ -6081,7 +6096,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 #### Prioridades de Implementación (Compliance)
 
 1. **Inmediato (Crítica Prioridad - GDPR Foundation)**:
-   - #402 (GDPR Core) - Base para todo lo demás
+   - ~~#402 (GDPR Core) - Base para todo lo demás~~ ✅ **COMPLETADO** (Feb 2026, #681 database providers)
    - #403 (Consent) - Art. 7 requirement
    - #404 (DataSubjectRights) - Arts. 15-22 rights
    - #405 (DataResidency) - Post-Schrems II critical
@@ -7135,7 +7150,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 | v0.10.0 - DDD Foundations | 31 | ✅ **COMPLETADO** |
 | v0.11.0 - Testing Infrastructure | 34 | ✅ **COMPLETADO** |
 | v0.12.0 - Database & Repository | 58 | ✅ **COMPLETADO** (16-feb-2026) |
-| v0.13.0 - Security & Compliance | 25 | 🔄 En progreso (Secrets #603 ✅, Consent #403 ✅, Lawful Basis #413 ✅) |
+| v0.13.0 - Security & Compliance | 25 | 🔄 En progreso (Secrets #603 ✅, GDPR Core #402 ✅, Consent #403 ✅, Lawful Basis #413 ✅) |
 | v0.14.0 - Cloud-Native & Aspire | 23 | Pendiente |
 | v0.15.0 - Messaging & EIP | 71 | Pendiente |
 | v0.16.0 - Multi-Tenancy & Modular | 21 | Pendiente |

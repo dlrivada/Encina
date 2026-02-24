@@ -45,6 +45,15 @@ public static class GDPRErrors
     /// <summary>Error code when a LIA store operation fails.</summary>
     public const string LIAStoreErrorCode = "gdpr.lia_store_error";
 
+    /// <summary>Error code when a processing activity store operation fails.</summary>
+    public const string ProcessingActivityStoreErrorCode = "gdpr.processing_activity_store_error";
+
+    /// <summary>Error code when a duplicate processing activity is detected.</summary>
+    public const string ProcessingActivityDuplicateCode = "gdpr.processing_activity_duplicate";
+
+    /// <summary>Error code when a processing activity is not found for update.</summary>
+    public const string ProcessingActivityNotFoundCode = "gdpr.processing_activity_not_found";
+
     /// <summary>
     /// Creates an error for unregistered processing activity.
     /// </summary>
@@ -273,5 +282,55 @@ public static class GDPRErrors
                 [MetadataKeyBasis] = nameof(LawfulBasis.Consent),
                 [MetadataKeyStage] = MetadataStageLawfulBasis,
                 ["requirement"] = "consent_provider_registration"
+            });
+
+    // --- Processing Activity store errors (Article 30 persistence) ---
+
+    /// <summary>
+    /// Creates an error when a processing activity store operation fails.
+    /// </summary>
+    /// <param name="operation">The store operation that failed (e.g., "Register", "GetAll").</param>
+    /// <param name="message">The error message describing the failure.</param>
+    /// <returns>An error indicating a processing activity store failure.</returns>
+    public static EncinaError ProcessingActivityStoreError(string operation, string message) =>
+        EncinaErrors.Create(
+            code: ProcessingActivityStoreErrorCode,
+            message: $"Processing activity store operation '{operation}' failed: {message}",
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataStageGDPR
+            });
+
+    /// <summary>
+    /// Creates an error when a duplicate processing activity is detected during registration.
+    /// </summary>
+    /// <param name="requestTypeName">The request type name that already has a registered activity.</param>
+    /// <returns>An error indicating a duplicate processing activity.</returns>
+    public static EncinaError ProcessingActivityDuplicate(string requestTypeName) =>
+        EncinaErrors.Create(
+            code: ProcessingActivityDuplicateCode,
+            message: $"A processing activity is already registered for request type '{requestTypeName}'.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestTypeName,
+                [MetadataKeyStage] = MetadataStageGDPR,
+                ["requirement"] = "article_30_ropa"
+            });
+
+    /// <summary>
+    /// Creates an error when a processing activity is not found for update.
+    /// </summary>
+    /// <param name="requestTypeName">The request type name that was not found.</param>
+    /// <returns>An error indicating the processing activity was not found.</returns>
+    public static EncinaError ProcessingActivityNotFound(string requestTypeName) =>
+        EncinaErrors.Create(
+            code: ProcessingActivityNotFoundCode,
+            message: $"No processing activity found for request type '{requestTypeName}'. Cannot update a non-existent record.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestTypeName,
+                [MetadataKeyStage] = MetadataStageGDPR,
+                ["requirement"] = "article_30_ropa"
             });
 }

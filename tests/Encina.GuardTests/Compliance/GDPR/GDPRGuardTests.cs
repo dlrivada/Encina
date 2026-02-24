@@ -128,6 +128,24 @@ public class GDPRGuardTests
         (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("metadata");
     }
 
+    // -- ProcessingActivityMapper --
+
+    [Fact]
+    public void Mapper_ToEntity_NullActivity_ThrowsArgumentNullException()
+    {
+        Action act = () => ProcessingActivityMapper.ToEntity(null!);
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("activity");
+    }
+
+    [Fact]
+    public void Mapper_ToDomain_NullEntity_ThrowsArgumentNullException()
+    {
+        Action act = () => ProcessingActivityMapper.ToDomain(null!);
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("entity");
+    }
+
     // Test stub
     private sealed record TestCommand : ICommand<LanguageExt.Unit>;
 }

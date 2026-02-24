@@ -155,6 +155,60 @@ public class GDPRPropertyTests
         return a == b;
     }
 
+    // -- ProcessingActivityMapper round-trip invariants --
+
+    [Property(MaxTest = 50)]
+    public bool Mapper_RoundTrip_PreservesName(NonEmptyString name)
+    {
+        var activity = CreateActivity(typeof(GDPRPropertyTests), name.Get);
+        var entity = ProcessingActivityMapper.ToEntity(activity);
+        var restored = ProcessingActivityMapper.ToDomain(entity);
+        return restored is not null && restored.Name == name.Get;
+    }
+
+    [Property(MaxTest = 50)]
+    public bool Mapper_RoundTrip_PreservesPurpose(NonEmptyString purpose)
+    {
+        var activity = CreateActivity(typeof(GDPRPropertyTests), purpose: purpose.Get);
+        var entity = ProcessingActivityMapper.ToEntity(activity);
+        var restored = ProcessingActivityMapper.ToDomain(entity);
+        return restored is not null && restored.Purpose == purpose.Get;
+    }
+
+    [Property(MaxTest = 20)]
+    public Property Mapper_RoundTrip_PreservesRetentionPeriod()
+    {
+        return Prop.ForAll(
+            Gen.Choose(1, 3650).ToArbitrary(),
+            days =>
+            {
+                var activity = CreateActivity(typeof(GDPRPropertyTests)) with
+                {
+                    RetentionPeriod = TimeSpan.FromDays(days)
+                };
+                var entity = ProcessingActivityMapper.ToEntity(activity);
+                var restored = ProcessingActivityMapper.ToDomain(entity);
+                restored.ShouldNotBeNull();
+                restored!.RetentionPeriod.ShouldBe(TimeSpan.FromDays(days));
+            });
+    }
+
+    [Property(MaxTest = 20)]
+    public Property Mapper_RoundTrip_PreservesLawfulBasis()
+    {
+        return Prop.ForAll(
+            Gen.Choose(0, 5).ToArbitrary(),
+            basisValue =>
+            {
+                var basis = (LawfulBasis)basisValue;
+                var activity = CreateActivity(typeof(GDPRPropertyTests)) with { LawfulBasis = basis };
+                var entity = ProcessingActivityMapper.ToEntity(activity);
+                var restored = ProcessingActivityMapper.ToDomain(entity);
+                restored.ShouldNotBeNull();
+                restored!.LawfulBasis.ShouldBe(basis);
+            });
+    }
+
     // -- Helper --
 
     private static ProcessingActivity CreateActivity(

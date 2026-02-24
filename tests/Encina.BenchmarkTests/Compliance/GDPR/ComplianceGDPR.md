@@ -56,19 +56,16 @@ The `ProcessingActivityAttribute` lookup uses a `ConcurrentDictionary<Type, ...>
 If performance concerns arise in production:
 
 1. **Profile with dotTrace/PerfView**: Identify if GDPR pipeline is actually a bottleneck
-2. **Use OpenTelemetry**: The pipeline already emits tracing spans - monitor `gdpr.compliance.check` duration
-3. **Implement targeted benchmarks**: Only if custom validator or database-backed registry shows latency
+2. **Use OpenTelemetry**: The pipeline already emits tracing spans — monitor `ProcessingActivity.Register` and `ProcessingActivity.GetByRequestType` span durations
+3. **Implement targeted benchmarks**: Only if database-backed registry shows latency
 
-```csharp
-// Future benchmark if needed (custom validator scenario)
-[Benchmark]
-public async Task CompliancePipeline_WithDatabaseRegistry_PerRequest()
-{
-    var request = new SampleCommand();
-    var context = RequestContext.CreateForTest();
-    await _behavior.Handle(request, context, () => _next, CancellationToken.None);
-}
-```
+**Note on database-backed registries (Issue #681):**
+As of Issue #681, database-backed `IProcessingActivityRegistry` implementations exist for all 13 providers
+(ADO.NET, Dapper, EF Core, MongoDB). The `ProcessingActivityMapper` performs JSON serialization for
+collection fields (DataSubjects, PersonalData, Recipients), but these collections are small (typically
+3-10 elements) making serialization overhead negligible (~1-5µs). Registry operations are thin CRUD
+wrappers where database I/O dominates — benchmarking them would measure driver performance, not
+application code.
 
 ## Note: Lawful Basis Benchmarks ARE Implemented
 
@@ -87,4 +84,5 @@ See [Benchmark Results §14](../../../docs/testing/benchmarks/benchmark-results.
 - `tests/Encina.UnitTests/Compliance/GDPR/` - Unit test coverage
 
 ## Date: 2026-02-17 (updated 2026-02-24)
-## Issue: #402
+
+## Issues: #402, #681

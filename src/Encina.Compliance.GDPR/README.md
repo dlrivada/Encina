@@ -408,6 +408,72 @@ services.AddEncinaLawfulBasisMongoDB(connectionString, databaseName: "MyApp");
 
 All providers implement the same `ILawfulBasisRegistry` and `ILIAStore` interfaces, making it trivial to switch providers by changing only the DI registration.
 
+## Processing Activity Persistence Providers
+
+The in-memory `IProcessingActivityRegistry` is suitable for development. For production, use one of the 13 database-backed providers:
+
+### ADO.NET Providers
+
+```bash
+dotnet add package Encina.ADO.Sqlite      # or SqlServer, PostgreSQL, MySQL
+```
+
+```csharp
+services.AddEncinaGDPR();
+services.AddEncinaProcessingActivityADOSqlite(connectionString);
+```
+
+### Dapper Providers
+
+```bash
+dotnet add package Encina.Dapper.PostgreSQL  # or Sqlite, SqlServer, MySQL
+```
+
+```csharp
+services.AddEncinaGDPR();
+services.AddEncinaProcessingActivityDapperPostgreSQL(connectionString);
+```
+
+### EF Core Provider
+
+```bash
+dotnet add package Encina.EntityFrameworkCore
+```
+
+```csharp
+// DbContext must call modelBuilder.ApplyProcessingActivityConfiguration()
+services.AddEncinaGDPR();
+services.AddEncinaProcessingActivityEFCore();
+```
+
+### MongoDB Provider
+
+```bash
+dotnet add package Encina.MongoDB
+```
+
+```csharp
+services.AddEncinaGDPR();
+services.AddEncinaProcessingActivityMongoDB(connectionString, databaseName: "MyApp");
+```
+
+### Provider Extension Methods
+
+| Provider | Extension Method |
+|----------|------------------|
+| ADO.NET SQLite | `AddEncinaProcessingActivityADOSqlite(connectionString)` |
+| ADO.NET SQL Server | `AddEncinaProcessingActivityADOSqlServer(connectionString)` |
+| ADO.NET PostgreSQL | `AddEncinaProcessingActivityADOPostgreSQL(connectionString)` |
+| ADO.NET MySQL | `AddEncinaProcessingActivityADOMySQL(connectionString)` |
+| Dapper SQLite | `AddEncinaProcessingActivityDapperSqlite(connectionString)` |
+| Dapper SQL Server | `AddEncinaProcessingActivityDapperSqlServer(connectionString)` |
+| Dapper PostgreSQL | `AddEncinaProcessingActivityDapperPostgreSQL(connectionString)` |
+| Dapper MySQL | `AddEncinaProcessingActivityDapperMySQL(connectionString)` |
+| EF Core (multi-DB) | `AddEncinaProcessingActivityEFCore()` |
+| MongoDB | `AddEncinaProcessingActivityMongoDB(connectionString, databaseName)` |
+
+All providers implement the same `IProcessingActivityRegistry` interface, making it trivial to switch providers by changing only the DI registration.
+
 ## Error Codes
 
 ### Processing Activity Errors
@@ -436,8 +502,11 @@ All providers implement the same `ILawfulBasisRegistry` and `ILIAStore` interfac
 Register custom implementations before `AddEncinaGDPR()` or `AddEncinaLawfulBasis()` to override defaults (TryAdd semantics):
 
 ```csharp
-// Custom registry (e.g., database-backed)
-services.AddSingleton<IProcessingActivityRegistry, DatabaseProcessingActivityRegistry>();
+// Use a database-backed registry (see "Processing Activity Persistence Providers" section)
+services.AddEncinaProcessingActivityDapperPostgreSQL(connectionString);
+
+// Or register a completely custom implementation
+services.AddSingleton<IProcessingActivityRegistry, MyCustomRegistry>();
 
 // Custom compliance validator
 services.AddScoped<IGDPRComplianceValidator, MyComplianceValidator>();
