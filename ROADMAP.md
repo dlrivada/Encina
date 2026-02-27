@@ -186,6 +186,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ GDPR Core (RoPA) [#402](https://github.com/dlrivada/Encina/issues/402) - `Encina.Compliance.GDPR` with `[ProcessingActivity]` attribute, `GDPRCompliancePipelineBehavior`, JSON/CSV RoPA export, auto-registration
 - ✅ Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) - `Encina.Compliance.Consent` with `[RequireConsent]` attribute, `ConsentRequiredPipelineBehavior`, consent versioning, audit trail, 13 database providers
 - ✅ Lawful Basis Validation [#413](https://github.com/dlrivada/Encina/issues/413) - `[LawfulBasis]` attribute, `LawfulBasisValidationPipelineBehavior`, Legitimate Interest Assessment (LIA), EDPB three-part test, 13 database providers
+- ✅ Data Subject Rights [#404](https://github.com/dlrivada/Encina/issues/404) - `Encina.Compliance.DataSubjectRights` with DSR pipeline behavior, restriction enforcement, personal data discovery, erasure, portability, audit trail, health check, OpenTelemetry
 
 **Remaining:**
 
@@ -497,7 +498,7 @@ Key areas already completed:
 - **Compliance Patterns - GDPR & EU Laws** (new - based on December 29, 2025 research):
   - GDPR Core [#402](https://github.com/dlrivada/Encina/issues/402) — `IDataController`, `RoPARegistry`, `GDPRCompliancePipelineBehavior` (CRITICAL - EU mandatory)
   - ~~Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) — `IConsentManager`, `[RequireConsent]`, versioning, proof of consent (CRITICAL - Art. 7)~~ ✅ **COMPLETADO** (v0.13.0)
-  - Data Subject Rights [#404](https://github.com/dlrivada/Encina/issues/404) — `IDataSubjectRightsService`, Arts. 15-22 (Access, Erasure, Portability) (CRITICAL - fundamental rights)
+  - ~~Data Subject Rights [#404](https://github.com/dlrivada/Encina/issues/404) — `IDataSubjectRightsService`, Arts. 15-22 (Access, Erasure, Portability) (CRITICAL - fundamental rights)~~ ✅ **COMPLETADO** (v0.13.0)
   - Data Residency [#405](https://github.com/dlrivada/Encina/issues/405) — `IDataResidencyEnforcer`, geo-routing, Schrems II compliance (CRITICAL - post-Schrems II)
   - Retention Policies [#406](https://github.com/dlrivada/Encina/issues/406) — `IRetentionPolicyEngine`, automatic deletion, legal hold (HIGH - Art. 5(1)(e))
   - Anonymization [#407](https://github.com/dlrivada/Encina/issues/407) — `IAnonymizer`, pseudonymization, k-anonymity, crypto-shredding (HIGH - Art. 4(5))

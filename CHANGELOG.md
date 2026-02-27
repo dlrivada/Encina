@@ -312,6 +312,62 @@ Added multi-provider persistence for `IProcessingActivityRegistry` (GDPR Article
 
 ---
 
+#### Encina.Compliance.DataSubjectRights — GDPR Data Subject Rights Management (Arts. 15-22) (#404)
+
+Added the `Encina.Compliance.DataSubjectRights` package providing comprehensive GDPR Data Subject Rights management covering Articles 15-22. Includes full request lifecycle tracking with 30-day SLA compliance, automated data erasure with legal retention exemptions (Art. 17(3)), data portability export (Art. 20), processing restriction enforcement via pipeline behavior (Art. 18), and immutable audit trail for compliance evidence.
+
+**Core Abstractions**:
+
+- **`IDataSubjectRightsHandler`**: Full DSR lifecycle orchestration — submit, track, update, query pending/overdue requests
+- **`IDSRRequestStore`**: Request persistence with CRUD, subject-based queries, and active restriction detection
+- **`IDSRAuditStore`**: Immutable audit trail with chronological entry recording
+- **`IPersonalDataLocator`**: Discovers all personal data fields for a subject across the application
+- **`IDataErasureExecutor`**: Orchestrates field-level erasure with legal retention exemptions
+- **`IDataErasureStrategy`**: Per-field erasure customization (anonymize, nullify, pseudonymize)
+- **`IDataPortabilityExporter`**: Data export with portable-only field filtering
+- **`IExportFormatWriter`**: Pluggable format writers for JSON, CSV, XML output
+
+**Domain Model**:
+
+- **`DSRRequest`**: Sealed record with 30-day deadline calculation, extension support, identity verification tracking
+- **`DSRRequestStatus`**: 7-state lifecycle — Received, IdentityVerified, InProgress, Completed, Rejected, Extended, Expired
+- **`DataSubjectRight`**: 8 GDPR rights — Access, Rectification, Erasure, Restriction, Portability, Objection, AutomatedDecisionMaking, Notification
+- **`[PersonalData]`**: Property-level attribute with Category, IsErasable, IsPortable, HasLegalRetention, ErasureMethod
+- **`PersonalDataCategory`**: 16 categories including Identity, Contact, Financial, Health, Biometric, Location, Genetic, Political
+- **`ErasureScope`/`ErasureResult`**: Detailed per-field erasure tracking with exemption documentation
+
+**Pipeline Behavior**:
+
+- **`ProcessingRestrictionPipelineBehavior<TRequest, TResponse>`**: Enforces Art. 18 processing restrictions in the CQRS pipeline
+- 3 enforcement modes: `Block` (reject with error), `Warn` (log + proceed), `Disabled` (no-op)
+- Cached `[ProcessesPersonalData]` attribute detection per generic type
+
+**Default Implementations**:
+
+- `DefaultDataSubjectRightsHandler`: Full lifecycle orchestration with deadline enforcement and audit trail
+- `DefaultDataErasureExecutor`: Erasure with legal retention exemptions and field-level result tracking
+- `DefaultDataPortabilityExporter`: Portable-only field filtering with format writer resolution
+- `InMemoryDSRRequestStore`: Thread-safe `ConcurrentDictionary` implementation
+- `InMemoryDSRAuditStore`: Thread-safe `ConcurrentDictionary` implementation
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.DataSubjectRights` ActivitySource
+- 3 counters: `dsr.requests.submitted`, `dsr.requests.completed`, `dsr.requests.overdue`
+- 2 histograms: `dsr.request.duration`, `dsr.erasure.duration`
+- 14 structured log events using `LoggerMessage.Define` (zero-allocation, event IDs 8300-8399)
+- `DataSubjectRightsHealthCheck` with overdue request monitoring (Unhealthy/Degraded/Healthy)
+
+**DI Registration**:
+
+- `services.AddEncinaDataSubjectRights()` with `TryAdd` semantics and `Action<DataSubjectRightsOptions>` configuration
+
+**Testing**: 228 tests across 6 test projects — 125 unit tests, 42 guard tests, 17 contract tests, 10 property tests (FsCheck invariants), 17 integration tests (DI registration, full lifecycle, audit trail, health check, concurrent access), plus 8 load test methods (50 concurrent workers × 10K operations each), and 15 BenchmarkDotNet benchmarks (12 request store, 3 audit store — with 10/100/1000 pre-seeded records).
+
+**Note**: Database provider implementations (13 providers) are planned for future phases. Currently ships with InMemory stores only.
+
+---
+
 #### Encina.Security.Secrets — Secrets Management and Vault Integration (#400)
 
 Added the `Encina.Security.Secrets` package providing ISP-compliant, provider-agnostic secrets management with Railway Oriented Programming. Ships with development-ready providers (environment variables, `IConfiguration`) and a transparent caching decorator. Cloud vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) will be available as separate satellite packages.

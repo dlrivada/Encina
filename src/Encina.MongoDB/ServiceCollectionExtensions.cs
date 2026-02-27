@@ -1,4 +1,5 @@
 using Encina.Compliance.Consent;
+using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
 using Encina.Database;
 using Encina.DomainModeling;
@@ -119,6 +120,13 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IConsentVersionManager, ConsentVersionManagerMongoDB>();
         }
 
+        // Register DSR (Data Subject Rights) stores if enabled
+        if (options.UseDataSubjectRights)
+        {
+            services.AddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreMongoDB>();
+            services.AddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreMongoDB>();
+        }
+
         // Create indexes if configured
         if (options.CreateIndexes)
         {
@@ -216,6 +224,13 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IConsentStore, ConsentStoreMongoDB>();
             services.AddScoped<IConsentAuditStore, ConsentAuditStoreMongoDB>();
             services.AddScoped<IConsentVersionManager, ConsentVersionManagerMongoDB>();
+        }
+
+        // Register DSR (Data Subject Rights) stores if enabled
+        if (options.UseDataSubjectRights)
+        {
+            services.AddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreMongoDB>();
+            services.AddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreMongoDB>();
         }
 
         // Create indexes if configured

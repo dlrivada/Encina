@@ -7,6 +7,7 @@ using Encina.ADO.MySQL.Repository;
 using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
 using Encina.Compliance.Consent;
+using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
 using Encina.Database;
 using Encina.DomainModeling;
@@ -63,6 +64,13 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IConsentStore, Consent.ConsentStoreADO>();
             services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreADO>();
             services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerADO>();
+        }
+
+        // Register DSR (Data Subject Rights) stores if enabled
+        if (config.UseDataSubjectRights)
+        {
+            services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreADO>();
+            services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreADO>();
         }
 
         // Register provider health check if enabled

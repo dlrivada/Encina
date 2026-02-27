@@ -1,5 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.Consent;
+using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
 using Encina.Database;
 using Encina.DomainModeling;
@@ -332,6 +333,13 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IConsentStore, ConsentStoreEF>();
             services.TryAddScoped<IConsentAuditStore, ConsentAuditStoreEF>();
             services.TryAddScoped<IConsentVersionManager, ConsentVersionManagerEF>();
+        }
+
+        if (config.UseDataSubjectRights)
+        {
+            // Register GDPR Data Subject Rights stores (Articles 15-22)
+            services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreEF>();
+            services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreEF>();
         }
 
         if (config.UseTemporalTables)

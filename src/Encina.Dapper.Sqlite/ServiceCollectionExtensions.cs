@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.Compliance.Consent;
+using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
 using Encina.Dapper.Sqlite.Auditing;
 using Encina.Dapper.Sqlite.BulkOperations;
@@ -79,6 +80,13 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IConsentStore, Consent.ConsentStoreDapper>();
             services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreDapper>();
             services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerDapper>();
+        }
+
+        // Register DSR (Data Subject Rights) stores if enabled
+        if (config.UseDataSubjectRights)
+        {
+            services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreDapper>();
+            services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreDapper>();
         }
 
         return services;

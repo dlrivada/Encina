@@ -93,6 +93,18 @@ public sealed class EncinaMongoDbOptions
     public bool UseConsent { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Data Subject Rights stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.DataSubjectRights.IDSRRequestStore"/>
+    /// and <see cref="Compliance.DataSubjectRights.IDSRAuditStore"/> implemented by their
+    /// respective MongoDB store classes for GDPR Articles 15-22 compliance.
+    /// </para>
+    /// </remarks>
+    public bool UseDataSubjectRights { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -222,4 +234,14 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for LIA records.
     /// </summary>
     public string LIARecords { get; set; } = "lia_records";
+
+    /// <summary>
+    /// Gets or sets the collection name for DSR (Data Subject Rights) requests.
+    /// </summary>
+    public string DSRRequests { get; set; } = "dsr_requests";
+
+    /// <summary>
+    /// Gets or sets the collection name for DSR audit entries.
+    /// </summary>
+    public string DSRAuditEntries { get; set; } = "dsr_audit_entries";
 }
