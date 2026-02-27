@@ -130,18 +130,18 @@ public sealed class DSRRequestStoreMongoDB : IDSRRequestStore
                     break;
 
                 case DSRRequestStatus.Extended:
-                {
-                    var document = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-                    if (document is null)
-                        return Left(DSRErrors.RequestNotFound(id));
+                    {
+                        var document = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+                        if (document is null)
+                            return Left(DSRErrors.RequestNotFound(id));
 
-                    var extendedDeadline = new DateTimeOffset(document.DeadlineAtUtc, TimeSpan.Zero).AddMonths(2).UtcDateTime;
-                    update = Builders<DSRRequestDocument>.Update
-                        .Set(d => d.StatusValue, (int)newStatus)
-                        .Set(d => d.ExtensionReason, reason)
-                        .Set(d => d.ExtendedDeadlineAtUtc, extendedDeadline);
-                    break;
-                }
+                        var extendedDeadline = new DateTimeOffset(document.DeadlineAtUtc, TimeSpan.Zero).AddMonths(2).UtcDateTime;
+                        update = Builders<DSRRequestDocument>.Update
+                            .Set(d => d.StatusValue, (int)newStatus)
+                            .Set(d => d.ExtensionReason, reason)
+                            .Set(d => d.ExtendedDeadlineAtUtc, extendedDeadline);
+                        break;
+                    }
 
                 case DSRRequestStatus.IdentityVerified:
                     update = Builders<DSRRequestDocument>.Update

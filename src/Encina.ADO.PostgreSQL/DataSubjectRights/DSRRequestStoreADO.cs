@@ -175,144 +175,144 @@ public sealed class DSRRequestStoreADO : IDSRRequestStore
             switch (newStatus)
             {
                 case DSRRequestStatus.Completed:
-                {
-                    var sql = $@"
+                    {
+                        var sql = $@"
                         UPDATE {_tableName}
                         SET statusvalue = @StatusValue,
                             completedatutc = @NowUtc
                         WHERE id = @Id";
 
-                    using var command = _connection.CreateCommand();
-                    command.CommandText = sql;
-                    AddParameter(command, "@Id", id);
-                    AddParameter(command, "@StatusValue", (int)newStatus);
-                    AddParameter(command, "@NowUtc", nowUtc.UtcDateTime);
+                        using var command = _connection.CreateCommand();
+                        command.CommandText = sql;
+                        AddParameter(command, "@Id", id);
+                        AddParameter(command, "@StatusValue", (int)newStatus);
+                        AddParameter(command, "@NowUtc", nowUtc.UtcDateTime);
 
-                    if (_connection.State != ConnectionState.Open)
-                        await OpenConnectionAsync(cancellationToken);
+                        if (_connection.State != ConnectionState.Open)
+                            await OpenConnectionAsync(cancellationToken);
 
-                    var rows = await ExecuteNonQueryAsync(command, cancellationToken);
-                    if (rows == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
+                        var rows = await ExecuteNonQueryAsync(command, cancellationToken);
+                        if (rows == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
 
-                    return Right(Unit.Default);
-                }
+                        return Right(Unit.Default);
+                    }
 
                 case DSRRequestStatus.Rejected:
-                {
-                    var sql = $@"
+                    {
+                        var sql = $@"
                         UPDATE {_tableName}
                         SET statusvalue = @StatusValue,
                             rejectionreason = @RejectionReason,
                             completedatutc = @NowUtc
                         WHERE id = @Id";
 
-                    using var command = _connection.CreateCommand();
-                    command.CommandText = sql;
-                    AddParameter(command, "@Id", id);
-                    AddParameter(command, "@StatusValue", (int)newStatus);
-                    AddParameter(command, "@RejectionReason", (object?)reason ?? DBNull.Value);
-                    AddParameter(command, "@NowUtc", nowUtc.UtcDateTime);
+                        using var command = _connection.CreateCommand();
+                        command.CommandText = sql;
+                        AddParameter(command, "@Id", id);
+                        AddParameter(command, "@StatusValue", (int)newStatus);
+                        AddParameter(command, "@RejectionReason", (object?)reason ?? DBNull.Value);
+                        AddParameter(command, "@NowUtc", nowUtc.UtcDateTime);
 
-                    if (_connection.State != ConnectionState.Open)
-                        await OpenConnectionAsync(cancellationToken);
+                        if (_connection.State != ConnectionState.Open)
+                            await OpenConnectionAsync(cancellationToken);
 
-                    var rows = await ExecuteNonQueryAsync(command, cancellationToken);
-                    if (rows == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
+                        var rows = await ExecuteNonQueryAsync(command, cancellationToken);
+                        if (rows == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
 
-                    return Right(Unit.Default);
-                }
+                        return Right(Unit.Default);
+                    }
 
                 case DSRRequestStatus.Extended:
-                {
-                    // First, retrieve the current deadline to calculate the extended deadline
-                    var selectSql = $@"
+                    {
+                        // First, retrieve the current deadline to calculate the extended deadline
+                        var selectSql = $@"
                         SELECT deadlineatutc
                         FROM {_tableName}
                         WHERE id = @Id";
 
-                    using var selectCommand = _connection.CreateCommand();
-                    selectCommand.CommandText = selectSql;
-                    AddParameter(selectCommand, "@Id", id);
+                        using var selectCommand = _connection.CreateCommand();
+                        selectCommand.CommandText = selectSql;
+                        AddParameter(selectCommand, "@Id", id);
 
-                    if (_connection.State != ConnectionState.Open)
-                        await OpenConnectionAsync(cancellationToken);
+                        if (_connection.State != ConnectionState.Open)
+                            await OpenConnectionAsync(cancellationToken);
 
-                    DateTimeOffset deadline;
-                    using (var reader = await ExecuteReaderAsync(selectCommand, cancellationToken))
-                    {
-                        if (!await ReadAsync(reader, cancellationToken))
-                            return Left(DSRErrors.RequestNotFound(id));
+                        DateTimeOffset deadline;
+                        using (var reader = await ExecuteReaderAsync(selectCommand, cancellationToken))
+                        {
+                            if (!await ReadAsync(reader, cancellationToken))
+                                return Left(DSRErrors.RequestNotFound(id));
 
-                        deadline = new DateTimeOffset(reader.GetDateTime(reader.GetOrdinal("deadlineatutc")), TimeSpan.Zero);
-                    }
+                            deadline = new DateTimeOffset(reader.GetDateTime(reader.GetOrdinal("deadlineatutc")), TimeSpan.Zero);
+                        }
 
-                    var extendedDeadline = deadline.AddMonths(2);
+                        var extendedDeadline = deadline.AddMonths(2);
 
-                    var updateSql = $@"
+                        var updateSql = $@"
                         UPDATE {_tableName}
                         SET statusvalue = @StatusValue,
                             extensionreason = @ExtensionReason,
                             extendeddeadlineatutc = @ExtendedDeadlineAtUtc
                         WHERE id = @Id";
 
-                    using var updateCommand = _connection.CreateCommand();
-                    updateCommand.CommandText = updateSql;
-                    AddParameter(updateCommand, "@Id", id);
-                    AddParameter(updateCommand, "@StatusValue", (int)newStatus);
-                    AddParameter(updateCommand, "@ExtensionReason", (object?)reason ?? DBNull.Value);
-                    AddParameter(updateCommand, "@ExtendedDeadlineAtUtc", extendedDeadline.UtcDateTime);
+                        using var updateCommand = _connection.CreateCommand();
+                        updateCommand.CommandText = updateSql;
+                        AddParameter(updateCommand, "@Id", id);
+                        AddParameter(updateCommand, "@StatusValue", (int)newStatus);
+                        AddParameter(updateCommand, "@ExtensionReason", (object?)reason ?? DBNull.Value);
+                        AddParameter(updateCommand, "@ExtendedDeadlineAtUtc", extendedDeadline.UtcDateTime);
 
-                    await ExecuteNonQueryAsync(updateCommand, cancellationToken);
-                    return Right(Unit.Default);
-                }
+                        await ExecuteNonQueryAsync(updateCommand, cancellationToken);
+                        return Right(Unit.Default);
+                    }
 
                 case DSRRequestStatus.IdentityVerified:
-                {
-                    var sql = $@"
+                    {
+                        var sql = $@"
                         UPDATE {_tableName}
                         SET statusvalue = @StatusValue,
                             verifiedatutc = @NowUtc
                         WHERE id = @Id";
 
-                    using var command = _connection.CreateCommand();
-                    command.CommandText = sql;
-                    AddParameter(command, "@Id", id);
-                    AddParameter(command, "@StatusValue", (int)newStatus);
-                    AddParameter(command, "@NowUtc", nowUtc.UtcDateTime);
+                        using var command = _connection.CreateCommand();
+                        command.CommandText = sql;
+                        AddParameter(command, "@Id", id);
+                        AddParameter(command, "@StatusValue", (int)newStatus);
+                        AddParameter(command, "@NowUtc", nowUtc.UtcDateTime);
 
-                    if (_connection.State != ConnectionState.Open)
-                        await OpenConnectionAsync(cancellationToken);
+                        if (_connection.State != ConnectionState.Open)
+                            await OpenConnectionAsync(cancellationToken);
 
-                    var rows = await ExecuteNonQueryAsync(command, cancellationToken);
-                    if (rows == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
+                        var rows = await ExecuteNonQueryAsync(command, cancellationToken);
+                        if (rows == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
 
-                    return Right(Unit.Default);
-                }
+                        return Right(Unit.Default);
+                    }
 
                 default:
-                {
-                    var sql = $@"
+                    {
+                        var sql = $@"
                         UPDATE {_tableName}
                         SET statusvalue = @StatusValue
                         WHERE id = @Id";
 
-                    using var command = _connection.CreateCommand();
-                    command.CommandText = sql;
-                    AddParameter(command, "@Id", id);
-                    AddParameter(command, "@StatusValue", (int)newStatus);
+                        using var command = _connection.CreateCommand();
+                        command.CommandText = sql;
+                        AddParameter(command, "@Id", id);
+                        AddParameter(command, "@StatusValue", (int)newStatus);
 
-                    if (_connection.State != ConnectionState.Open)
-                        await OpenConnectionAsync(cancellationToken);
+                        if (_connection.State != ConnectionState.Open)
+                            await OpenConnectionAsync(cancellationToken);
 
-                    var rows = await ExecuteNonQueryAsync(command, cancellationToken);
-                    if (rows == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
+                        var rows = await ExecuteNonQueryAsync(command, cancellationToken);
+                        if (rows == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
 
-                    return Right(Unit.Default);
-                }
+                        return Right(Unit.Default);
+                    }
             }
         }
         catch (Exception ex)

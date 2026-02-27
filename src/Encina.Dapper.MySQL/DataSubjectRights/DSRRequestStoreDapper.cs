@@ -165,82 +165,82 @@ public sealed class DSRRequestStoreDapper : IDSRRequestStore
             switch (newStatus)
             {
                 case DSRRequestStatus.Completed:
-                {
-                    var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, CompletedAtUtc = @NowUtc WHERE Id = @Id";
-                    var rowsAffected = await _connection.ExecuteAsync(sql, new
                     {
-                        StatusValue = (int)newStatus,
-                        NowUtc = nowUtc.UtcDateTime,
-                        Id = id
-                    });
-                    if (rowsAffected == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
-                    break;
-                }
+                        var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, CompletedAtUtc = @NowUtc WHERE Id = @Id";
+                        var rowsAffected = await _connection.ExecuteAsync(sql, new
+                        {
+                            StatusValue = (int)newStatus,
+                            NowUtc = nowUtc.UtcDateTime,
+                            Id = id
+                        });
+                        if (rowsAffected == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
+                        break;
+                    }
 
                 case DSRRequestStatus.Rejected:
-                {
-                    var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, RejectionReason = @Reason, CompletedAtUtc = @NowUtc WHERE Id = @Id";
-                    var rowsAffected = await _connection.ExecuteAsync(sql, new
                     {
-                        StatusValue = (int)newStatus,
-                        Reason = reason,
-                        NowUtc = nowUtc.UtcDateTime,
-                        Id = id
-                    });
-                    if (rowsAffected == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
-                    break;
-                }
+                        var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, RejectionReason = @Reason, CompletedAtUtc = @NowUtc WHERE Id = @Id";
+                        var rowsAffected = await _connection.ExecuteAsync(sql, new
+                        {
+                            StatusValue = (int)newStatus,
+                            Reason = reason,
+                            NowUtc = nowUtc.UtcDateTime,
+                            Id = id
+                        });
+                        if (rowsAffected == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
+                        break;
+                    }
 
                 case DSRRequestStatus.Extended:
-                {
-                    var selectSql = $"SELECT DeadlineAtUtc FROM {_tableName} WHERE Id = @Id";
-                    var deadlineRow = await _connection.QuerySingleOrDefaultAsync<dynamic>(selectSql, new { Id = id });
-
-                    if (deadlineRow is null)
-                        return Left(DSRErrors.RequestNotFound(id));
-
-                    var deadline = new DateTimeOffset((DateTime)deadlineRow.DeadlineAtUtc, TimeSpan.Zero);
-                    var extendedDeadline = deadline.AddMonths(2);
-
-                    var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, ExtensionReason = @Reason, ExtendedDeadlineAtUtc = @ExtendedDeadline WHERE Id = @Id";
-                    await _connection.ExecuteAsync(sql, new
                     {
-                        StatusValue = (int)newStatus,
-                        Reason = reason,
-                        ExtendedDeadline = extendedDeadline.UtcDateTime,
-                        Id = id
-                    });
-                    break;
-                }
+                        var selectSql = $"SELECT DeadlineAtUtc FROM {_tableName} WHERE Id = @Id";
+                        var deadlineRow = await _connection.QuerySingleOrDefaultAsync<dynamic>(selectSql, new { Id = id });
+
+                        if (deadlineRow is null)
+                            return Left(DSRErrors.RequestNotFound(id));
+
+                        var deadline = new DateTimeOffset((DateTime)deadlineRow.DeadlineAtUtc, TimeSpan.Zero);
+                        var extendedDeadline = deadline.AddMonths(2);
+
+                        var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, ExtensionReason = @Reason, ExtendedDeadlineAtUtc = @ExtendedDeadline WHERE Id = @Id";
+                        await _connection.ExecuteAsync(sql, new
+                        {
+                            StatusValue = (int)newStatus,
+                            Reason = reason,
+                            ExtendedDeadline = extendedDeadline.UtcDateTime,
+                            Id = id
+                        });
+                        break;
+                    }
 
                 case DSRRequestStatus.IdentityVerified:
-                {
-                    var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, VerifiedAtUtc = @NowUtc WHERE Id = @Id";
-                    var rowsAffected = await _connection.ExecuteAsync(sql, new
                     {
-                        StatusValue = (int)newStatus,
-                        NowUtc = nowUtc.UtcDateTime,
-                        Id = id
-                    });
-                    if (rowsAffected == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
-                    break;
-                }
+                        var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, VerifiedAtUtc = @NowUtc WHERE Id = @Id";
+                        var rowsAffected = await _connection.ExecuteAsync(sql, new
+                        {
+                            StatusValue = (int)newStatus,
+                            NowUtc = nowUtc.UtcDateTime,
+                            Id = id
+                        });
+                        if (rowsAffected == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
+                        break;
+                    }
 
                 default:
-                {
-                    var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue WHERE Id = @Id";
-                    var rowsAffected = await _connection.ExecuteAsync(sql, new
                     {
-                        StatusValue = (int)newStatus,
-                        Id = id
-                    });
-                    if (rowsAffected == 0)
-                        return Left(DSRErrors.RequestNotFound(id));
-                    break;
-                }
+                        var sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue WHERE Id = @Id";
+                        var rowsAffected = await _connection.ExecuteAsync(sql, new
+                        {
+                            StatusValue = (int)newStatus,
+                            Id = id
+                        });
+                        if (rowsAffected == 0)
+                            return Left(DSRErrors.RequestNotFound(id));
+                        break;
+                    }
             }
 
             return Right(Unit.Default);

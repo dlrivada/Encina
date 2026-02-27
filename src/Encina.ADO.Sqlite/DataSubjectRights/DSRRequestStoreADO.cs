@@ -186,36 +186,36 @@ public sealed class DSRRequestStoreADO : IDSRRequestStore
                     break;
 
                 case DSRRequestStatus.Extended:
-                {
-                    // First read the current deadline
-                    var selectSql = $"SELECT DeadlineAtUtc FROM {_tableName} WHERE Id = @Id";
-                    using var selectCmd = _connection.CreateCommand();
-                    selectCmd.CommandText = selectSql;
-                    AddParameter(selectCmd, "@Id", id);
-
-                    if (_connection.State != ConnectionState.Open)
-                        await OpenConnectionAsync(cancellationToken);
-
-                    using var selectReader = await ExecuteReaderAsync(selectCmd, cancellationToken);
-                    if (!await ReadAsync(selectReader, cancellationToken))
                     {
-                        return Left(DSRErrors.RequestNotFound(id));
+                        // First read the current deadline
+                        var selectSql = $"SELECT DeadlineAtUtc FROM {_tableName} WHERE Id = @Id";
+                        using var selectCmd = _connection.CreateCommand();
+                        selectCmd.CommandText = selectSql;
+                        AddParameter(selectCmd, "@Id", id);
+
+                        if (_connection.State != ConnectionState.Open)
+                            await OpenConnectionAsync(cancellationToken);
+
+                        using var selectReader = await ExecuteReaderAsync(selectCmd, cancellationToken);
+                        if (!await ReadAsync(selectReader, cancellationToken))
+                        {
+                            return Left(DSRErrors.RequestNotFound(id));
+                        }
+
+                        var deadlineStr = selectReader.GetString(0);
+                        var deadline = DateTimeOffset.Parse(deadlineStr, null, DateTimeStyles.RoundtripKind);
+                        var extendedDeadline = deadline.AddMonths(2);
+
+                        sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, ExtensionReason = @Reason, ExtendedDeadlineAtUtc = @ExtendedDeadline WHERE Id = @Id";
+                        addParams = cmd =>
+                        {
+                            AddParameter(cmd, "@StatusValue", (int)newStatus);
+                            AddParameter(cmd, "@Reason", reason);
+                            AddParameter(cmd, "@ExtendedDeadline", extendedDeadline.ToString("O"));
+                            AddParameter(cmd, "@Id", id);
+                        };
+                        break;
                     }
-
-                    var deadlineStr = selectReader.GetString(0);
-                    var deadline = DateTimeOffset.Parse(deadlineStr, null, DateTimeStyles.RoundtripKind);
-                    var extendedDeadline = deadline.AddMonths(2);
-
-                    sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, ExtensionReason = @Reason, ExtendedDeadlineAtUtc = @ExtendedDeadline WHERE Id = @Id";
-                    addParams = cmd =>
-                    {
-                        AddParameter(cmd, "@StatusValue", (int)newStatus);
-                        AddParameter(cmd, "@Reason", reason);
-                        AddParameter(cmd, "@ExtendedDeadline", extendedDeadline.ToString("O"));
-                        AddParameter(cmd, "@Id", id);
-                    };
-                    break;
-                }
 
                 case DSRRequestStatus.IdentityVerified:
                     sql = $@"UPDATE {_tableName} SET StatusValue = @StatusValue, VerifiedAtUtc = @NowUtc WHERE Id = @Id";
