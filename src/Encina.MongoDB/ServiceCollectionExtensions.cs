@@ -1,3 +1,4 @@
+using Encina.Compliance.Anonymization;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -127,6 +128,12 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreMongoDB>();
         }
 
+        // Register Anonymization token mapping store if enabled
+        if (options.UseAnonymization)
+        {
+            services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
+        }
+
         // Create indexes if configured
         if (options.CreateIndexes)
         {
@@ -231,6 +238,12 @@ public static class ServiceCollectionExtensions
         {
             services.AddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreMongoDB>();
             services.AddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreMongoDB>();
+        }
+
+        // Register Anonymization token mapping store if enabled
+        if (options.UseAnonymization)
+        {
+            services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
         }
 
         // Create indexes if configured

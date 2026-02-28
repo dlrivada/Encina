@@ -9,6 +9,7 @@ using Encina.ADO.Sqlite.Sagas;
 using Encina.ADO.Sqlite.Scheduling;
 using Encina.ADO.Sqlite.UnitOfWork;
 using Encina.Compliance.Consent;
+using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
 using Encina.Database;
@@ -73,6 +74,12 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreADO>();
             services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreADO>();
+        }
+
+        // Register Anonymization token mapping store if enabled
+        if (config.UseAnonymization)
+        {
+            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreADO>();
         }
 
         // Register provider health check if enabled

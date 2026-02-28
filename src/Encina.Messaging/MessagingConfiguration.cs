@@ -613,6 +613,19 @@ public sealed class MessagingConfiguration
     public bool UseDataSubjectRights { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to register Anonymization stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.Anonymization.ITokenMappingStore"/>
+    /// with the provider-specific implementation for GDPR-compliant data anonymization
+    /// and pseudonymization via tokenization.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseAnonymization { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -886,5 +899,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization;
 }

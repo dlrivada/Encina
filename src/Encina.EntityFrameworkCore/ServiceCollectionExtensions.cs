@@ -1,4 +1,5 @@
 using Encina.Caching;
+using Encina.Compliance.Anonymization;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -340,6 +341,12 @@ public static class ServiceCollectionExtensions
             // Register GDPR Data Subject Rights stores (Articles 15-22)
             services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreEF>();
             services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreEF>();
+        }
+
+        // Register Anonymization token mapping store if enabled
+        if (config.UseAnonymization)
+        {
+            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreEF>();
         }
 
         if (config.UseTemporalTables)

@@ -368,6 +368,79 @@ Added the `Encina.Compliance.DataSubjectRights` package providing comprehensive 
 
 ---
 
+#### Encina.Compliance.Anonymization — Data Anonymization, Pseudonymization, and Tokenization (#407)
+
+Added the `Encina.Compliance.Anonymization` package providing comprehensive data anonymization capabilities at the CQRS pipeline level. Implements GDPR Article 4(5) pseudonymization, five anonymization techniques, reversible tokenization with encrypted token mapping stores, and statistical risk assessment (k-anonymity, l-diversity, t-closeness).
+
+**Core Abstractions**:
+
+- **`IAnonymizer`**: Data anonymization with technique-based field processing, field-level anonymization rules, and anonymization detection heuristics
+- **`IPseudonymizer`**: Reversible pseudonymization using AES-256-GCM encryption and HMAC-SHA256 deterministic hashing
+- **`ITokenizer`**: Token-based data protection with encrypted original value storage, deduplication via HMAC hash, and three token formats (UUID, Prefixed, FormatPreserving)
+- **`IRiskAssessor`**: Statistical re-identification risk assessment computing k-anonymity, l-diversity, and t-closeness metrics with configurable acceptance targets
+
+**Five Anonymization Techniques** (implementing `IAnonymizationTechnique`):
+
+- **`GeneralizationTechnique`**: Numeric range bucketing (e.g., age 25 → "20-29"), configurable bucket sizes
+- **`SuppressionTechnique`**: Complete value removal (returns null/default for all types)
+- **`PerturbationTechnique`**: Random noise injection with configurable percentage (default 10%)
+- **`DataMaskingTechnique`**: Character masking preserving first character (e.g., "John" → "J***")
+- **`SwappingTechnique`**: Value swapping within a dataset for relational anonymity
+
+**Domain Model**:
+
+- **`TokenMapping`**: Sealed record with Id, Token, OriginalValueHash, EncryptedOriginalValue, KeyId, CreatedAtUtc, ExpiresAtUtc
+- **`AnonymizationProfile`**: Named profile with field-level anonymization rules
+- **`AnonymizationAuditEntry`**: Audit trail for anonymization operations with subject ID and operation type
+- **`RiskAssessmentResult`**: Statistical metrics with KAnonymityValue, LDiversityValue, TClosenessDistance, ReIdentificationProbability, IsAcceptable, Recommendations
+- **`AnonymizationOptions`**: Configuration for enforcement mode, audit trail opt-in, health check, assembly scanning
+- **`TokenizationOptions`**: Token format (UUID/Prefixed/FormatPreserving), prefix, preserve-length settings
+- **`FieldAnonymizationRule`**: Per-field technique assignment with optional parameters
+- **`AnonymizationTechnique`**: Enum with 8 technique types (Generalization, Suppression, Perturbation, Swapping, DataMasking, KAnonymity, LDiversity, TCloseness)
+
+**Pipeline Behavior**:
+
+- **`AnonymizationPipelineBehavior<TRequest, TResponse>`**: Applies anonymization at the CQRS pipeline level with configurable enforcement mode
+- Constructor takes 6 parameters: techniques, pseudonymizer, tokenizer, keyProvider, options, logger
+
+**In-Memory Implementations** (development/testing):
+
+- **`InMemoryTokenMappingStore`**: ConcurrentDictionary-based with triple-index lookups (by ID, by token, by hash)
+- **`InMemoryKeyProvider`**: Thread-safe key management with generation, rotation, and retrieval
+- **`InMemoryAnonymizationAuditStore`**: Thread-safe audit trail with subject-based queries
+
+**Error Codes** (14 factory methods via `AnonymizationErrors`):
+
+- `anonymization.technique_not_found`, `anonymization.field_not_found`, `anonymization.encryption_failed`
+- `anonymization.decryption_failed`, `anonymization.token_not_found`, `anonymization.key_not_found`
+- `anonymization.invalid_configuration`, `anonymization.risk_assessment_failed`
+- Plus 6 additional error codes for store operations, token format, and audit failures
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.Anonymization` ActivitySource
+- Structured log events using `LoggerMessage.Define` (zero-allocation)
+- Optional `AnonymizationHealthCheck` verifying service registration and store connectivity
+
+**DI Registration**:
+
+- `services.AddEncinaAnonymization()` with `TryAdd` semantics and `Action<AnonymizationOptions>` configuration
+
+**Multi-Provider Token Mapping Persistence** (13 providers):
+
+- **`TokenMappingEntity`**: Database-agnostic persistence entity with primitive types (strings, byte arrays, DateTimeOffset)
+- **`TokenMappingMapper`**: Static `ToEntity`/`ToDomain` mapping with null safety
+- ADO.NET: `TokenMappingStoreADO` for SQLite, SQL Server, PostgreSQL, MySQL — provider-specific SQL with parameterized queries
+- Dapper: `TokenMappingStoreDapper` for SQLite, SQL Server, PostgreSQL, MySQL — Dapper parameterized queries
+- EF Core: `TokenMappingStoreEF` with `TokenMappingEntityConfiguration` — shared implementation across all EF Core providers
+- MongoDB: `TokenMappingStoreMongoDB` with `TokenMappingDocument` — BSON serialization with snake_case conventions, DateTimeOffset→DateTime UTC conversion
+
+**Testing**: 351 tests across 5 test projects — 271 unit tests (23 files covering all services, techniques, models, errors, in-memory stores, mapper, entity), 40 guard tests (9 files covering all constructors and public method parameter validation), 16 property tests (3 files with FsCheck invariants for TokenMapping roundtrips, mapper preservation, store deduplication), 12 contract tests (abstract base + InMemory implementation for ITokenMappingStore), 12 integration tests (DI registration, options configuration, full lifecycle tokenize/detokenize and pseudonymize/depseudonymize roundtrips, concurrent access with 50 parallel operations).
+
+**Note**: Database provider integration tests (13 providers) are planned for future phases. Currently ships with InMemory stores and all 13 provider store implementations.
+
+---
+
 #### Encina.Security.Secrets — Secrets Management and Vault Integration (#400)
 
 Added the `Encina.Security.Secrets` package providing ISP-compliant, provider-agnostic secrets management with Railway Oriented Programming. Ships with development-ready providers (environment variables, `IConfiguration`) and a transparent caching decorator. Cloud vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) will be available as separate satellite packages.

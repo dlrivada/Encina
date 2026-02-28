@@ -105,6 +105,18 @@ public sealed class EncinaMongoDbOptions
     public bool UseDataSubjectRights { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Anonymization stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.Anonymization.ITokenMappingStore"/>
+    /// implemented by its MongoDB store class for GDPR-compliant data anonymization
+    /// and pseudonymization via tokenization.
+    /// </para>
+    /// </remarks>
+    public bool UseAnonymization { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -244,4 +256,9 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for DSR audit entries.
     /// </summary>
     public string DSRAuditEntries { get; set; } = "dsr_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for token mappings (anonymization).
+    /// </summary>
+    public string TokenMappings { get; set; } = "token_mappings";
 }

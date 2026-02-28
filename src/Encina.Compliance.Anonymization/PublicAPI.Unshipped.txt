@@ -1,0 +1,319 @@
+#nullable enable
+Encina.Compliance.Anonymization.AnonymizationEnforcementMode
+Encina.Compliance.Anonymization.AnonymizationEnforcementMode.Block = 0 -> Encina.Compliance.Anonymization.AnonymizationEnforcementMode
+Encina.Compliance.Anonymization.AnonymizationEnforcementMode.Disabled = 2 -> Encina.Compliance.Anonymization.AnonymizationEnforcementMode
+Encina.Compliance.Anonymization.AnonymizationEnforcementMode.Warn = 1 -> Encina.Compliance.Anonymization.AnonymizationEnforcementMode
+Encina.Compliance.Anonymization.AnonymizationErrors
+Encina.Compliance.Anonymization.IAnonymizationAuditStore
+Encina.Compliance.Anonymization.IAnonymizationAuditStore.AddEntryAsync(Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Anonymization.IAnonymizationAuditStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry!>!>>
+Encina.Compliance.Anonymization.IAnonymizationAuditStore.GetBySubjectIdAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry!>!>>
+Encina.Compliance.Anonymization.IAnonymizationTechnique
+Encina.Compliance.Anonymization.IAnonymizationTechnique.ApplyAsync(object? value, System.Type! valueType, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, object?>>
+Encina.Compliance.Anonymization.IAnonymizationTechnique.CanApply(System.Type! valueType) -> bool
+Encina.Compliance.Anonymization.IAnonymizationTechnique.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.IAnonymizer
+Encina.Compliance.Anonymization.IAnonymizer.AnonymizeAsync<T>(T data, Encina.Compliance.Anonymization.Model.AnonymizationProfile! profile, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Compliance.Anonymization.IAnonymizer.AnonymizeFieldsAsync<T>(T data, Encina.Compliance.Anonymization.Model.AnonymizationProfile! profile, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Anonymization.Model.AnonymizationResult!>>
+Encina.Compliance.Anonymization.IAnonymizer.IsAnonymizedAsync<T>(T data, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Anonymization.IKeyProvider
+Encina.Compliance.Anonymization.IKeyProvider.GetActiveKeyIdAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.IKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Compliance.Anonymization.IKeyProvider.ListKeysAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.KeyInfo!>!>>
+Encina.Compliance.Anonymization.IKeyProvider.RotateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Anonymization.Model.KeyInfo!>>
+Encina.Compliance.Anonymization.IPseudonymizer
+Encina.Compliance.Anonymization.IPseudonymizer.DepseudonymizeAsync<T>(T data, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Compliance.Anonymization.IPseudonymizer.DepseudonymizeValueAsync(string! pseudonym, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.IPseudonymizer.PseudonymizeAsync<T>(T data, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Compliance.Anonymization.IPseudonymizer.PseudonymizeValueAsync(string! value, string! keyId, Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm algorithm, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.IRiskAssessor
+Encina.Compliance.Anonymization.IRiskAssessor.AssessAsync<T>(System.Collections.Generic.IReadOnlyList<T>! dataset, System.Collections.Generic.IReadOnlyList<string!>! quasiIdentifiers, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Anonymization.Model.RiskAssessmentResult!>>
+Encina.Compliance.Anonymization.ITokenMappingStore
+Encina.Compliance.Anonymization.ITokenMappingStore.DeleteByKeyIdAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Anonymization.ITokenMappingStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.TokenMapping!>!>>
+Encina.Compliance.Anonymization.ITokenMappingStore.GetByOriginalValueHashAsync(string! hash, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Anonymization.Model.TokenMapping!>>>
+Encina.Compliance.Anonymization.ITokenMappingStore.GetByTokenAsync(string! token, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Anonymization.Model.TokenMapping!>>>
+Encina.Compliance.Anonymization.ITokenMappingStore.StoreAsync(Encina.Compliance.Anonymization.Model.TokenMapping! mapping, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Anonymization.ITokenizer
+Encina.Compliance.Anonymization.ITokenizer.DetokenizeAsync(string! token, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.ITokenizer.IsTokenAsync(string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Anonymization.ITokenizer.TokenizeAsync(string! value, Encina.Compliance.Anonymization.Model.TokenizationOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.FieldName.get -> string?
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.FieldName.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.Id.get -> string!
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.Id.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.KeyId.get -> string?
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.KeyId.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.Operation.get -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.Operation.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.PerformedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.PerformedAtUtc.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.PerformedByUserId.get -> string?
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.PerformedByUserId.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.SubjectId.get -> string?
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.SubjectId.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique?
+Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.Technique.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationOperation.Anonymized = 0 -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationOperation.Depseudonymized = 2 -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationOperation.Detokenized = 4 -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationOperation.KeyRotated = 5 -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationOperation.Pseudonymized = 1 -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationOperation.RiskAssessed = 6 -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationOperation.Tokenized = 3 -> Encina.Compliance.Anonymization.Model.AnonymizationOperation
+Encina.Compliance.Anonymization.Model.AnonymizationProfile
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.CreatedAtUtc.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.Description.get -> string?
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.Description.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.FieldRules.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.FieldAnonymizationRule!>!
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.FieldRules.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.Id.get -> string!
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.Id.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.Name.get -> string!
+Encina.Compliance.Anonymization.Model.AnonymizationProfile.Name.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationResult
+Encina.Compliance.Anonymization.Model.AnonymizationResult.AnonymizedFieldCount.get -> int
+Encina.Compliance.Anonymization.Model.AnonymizationResult.AnonymizedFieldCount.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationResult.OriginalFieldCount.get -> int
+Encina.Compliance.Anonymization.Model.AnonymizationResult.OriginalFieldCount.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationResult.SkippedFieldCount.get -> int
+Encina.Compliance.Anonymization.Model.AnonymizationResult.SkippedFieldCount.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationResult.TechniqueApplied.get -> System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Compliance.Anonymization.Model.AnonymizationTechnique>!
+Encina.Compliance.Anonymization.Model.AnonymizationResult.TechniqueApplied.init -> void
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.DataMasking = 4 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.Generalization = 0 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.KAnonymity = 5 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.LDiversity = 6 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.Perturbation = 2 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.Suppression = 1 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.Swapping = 3 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.AnonymizationTechnique.TCloseness = 7 -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.FieldAnonymizationRule
+Encina.Compliance.Anonymization.Model.FieldAnonymizationRule.FieldName.get -> string!
+Encina.Compliance.Anonymization.Model.FieldAnonymizationRule.FieldName.init -> void
+Encina.Compliance.Anonymization.Model.FieldAnonymizationRule.Parameters.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>?
+Encina.Compliance.Anonymization.Model.FieldAnonymizationRule.Parameters.init -> void
+Encina.Compliance.Anonymization.Model.FieldAnonymizationRule.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Model.FieldAnonymizationRule.Technique.init -> void
+Encina.Compliance.Anonymization.Model.KeyInfo
+Encina.Compliance.Anonymization.Model.KeyInfo.Algorithm.get -> Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm
+Encina.Compliance.Anonymization.Model.KeyInfo.Algorithm.init -> void
+Encina.Compliance.Anonymization.Model.KeyInfo.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Anonymization.Model.KeyInfo.CreatedAtUtc.init -> void
+Encina.Compliance.Anonymization.Model.KeyInfo.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Anonymization.Model.KeyInfo.ExpiresAtUtc.init -> void
+Encina.Compliance.Anonymization.Model.KeyInfo.IsActive.get -> bool
+Encina.Compliance.Anonymization.Model.KeyInfo.IsActive.init -> void
+Encina.Compliance.Anonymization.Model.KeyInfo.KeyId.get -> string!
+Encina.Compliance.Anonymization.Model.KeyInfo.KeyId.init -> void
+Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm
+Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm.Aes256Gcm = 0 -> Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm
+Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm.HmacSha256 = 1 -> Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.AssessedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.AssessedAtUtc.init -> void
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.IsAcceptable.get -> bool
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.IsAcceptable.init -> void
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.KAnonymityValue.get -> int
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.KAnonymityValue.init -> void
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.LDiversityValue.get -> int
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.LDiversityValue.init -> void
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.ReIdentificationProbability.get -> double
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.ReIdentificationProbability.init -> void
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.Recommendations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.Recommendations.init -> void
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.TClosenessDistance.get -> double
+Encina.Compliance.Anonymization.Model.RiskAssessmentResult.TClosenessDistance.init -> void
+Encina.Compliance.Anonymization.Model.TokenFormat
+Encina.Compliance.Anonymization.Model.TokenFormat.FormatPreserving = 2 -> Encina.Compliance.Anonymization.Model.TokenFormat
+Encina.Compliance.Anonymization.Model.TokenFormat.Prefixed = 1 -> Encina.Compliance.Anonymization.Model.TokenFormat
+Encina.Compliance.Anonymization.Model.TokenFormat.Uuid = 0 -> Encina.Compliance.Anonymization.Model.TokenFormat
+Encina.Compliance.Anonymization.Model.TokenMapping
+Encina.Compliance.Anonymization.Model.TokenMapping.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Anonymization.Model.TokenMapping.CreatedAtUtc.init -> void
+Encina.Compliance.Anonymization.Model.TokenMapping.EncryptedOriginalValue.get -> byte[]!
+Encina.Compliance.Anonymization.Model.TokenMapping.EncryptedOriginalValue.init -> void
+Encina.Compliance.Anonymization.Model.TokenMapping.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Anonymization.Model.TokenMapping.ExpiresAtUtc.init -> void
+Encina.Compliance.Anonymization.Model.TokenMapping.Id.get -> string!
+Encina.Compliance.Anonymization.Model.TokenMapping.Id.init -> void
+Encina.Compliance.Anonymization.Model.TokenMapping.KeyId.get -> string!
+Encina.Compliance.Anonymization.Model.TokenMapping.KeyId.init -> void
+Encina.Compliance.Anonymization.Model.TokenMapping.OriginalValueHash.get -> string!
+Encina.Compliance.Anonymization.Model.TokenMapping.OriginalValueHash.init -> void
+Encina.Compliance.Anonymization.Model.TokenMapping.Token.get -> string!
+Encina.Compliance.Anonymization.Model.TokenMapping.Token.init -> void
+Encina.Compliance.Anonymization.Model.TokenizationOptions
+Encina.Compliance.Anonymization.Model.TokenizationOptions.Format.get -> Encina.Compliance.Anonymization.Model.TokenFormat
+Encina.Compliance.Anonymization.Model.TokenizationOptions.Format.init -> void
+Encina.Compliance.Anonymization.Model.TokenizationOptions.Prefix.get -> string?
+Encina.Compliance.Anonymization.Model.TokenizationOptions.Prefix.init -> void
+Encina.Compliance.Anonymization.Model.TokenizationOptions.PreserveLength.get -> bool
+Encina.Compliance.Anonymization.Model.TokenizationOptions.PreserveLength.init -> void
+static Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry.Create(Encina.Compliance.Anonymization.Model.AnonymizationOperation operation, Encina.Compliance.Anonymization.Model.AnonymizationTechnique? technique = null, string? fieldName = null, string? subjectId = null, string? keyId = null, string? performedByUserId = null) -> Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry!
+static Encina.Compliance.Anonymization.Model.AnonymizationProfile.Create(string! name, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.FieldAnonymizationRule!>! fieldRules, string? description = null) -> Encina.Compliance.Anonymization.Model.AnonymizationProfile!
+static Encina.Compliance.Anonymization.Model.TokenMapping.Create(string! token, string! originalValueHash, byte[]! encryptedOriginalValue, string! keyId, System.DateTimeOffset? expiresAtUtc = null) -> Encina.Compliance.Anonymization.Model.TokenMapping!
+const Encina.Compliance.Anonymization.AnonymizationErrors.AnonymizationFailedCode = "anonymization.anonymization_failed" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.DecryptionFailedCode = "anonymization.decryption_failed" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.DepseudonymizationFailedCode = "anonymization.depseudonymization_failed" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.EncryptionFailedCode = "anonymization.encryption_failed" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.InvalidParameterCode = "anonymization.invalid_parameter" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.KeyNotFoundCode = "anonymization.key_not_found" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.KeyRotationFailedCode = "anonymization.key_rotation_failed" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.NoActiveKeyCode = "anonymization.no_active_key" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.PseudonymizationFailedCode = "anonymization.pseudonymization_failed" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.RiskAssessmentFailedCode = "anonymization.risk_assessment_failed" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.StoreErrorCode = "anonymization.store_error" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.TechniqueNotApplicableCode = "anonymization.technique_not_applicable" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.TechniqueNotRegisteredCode = "anonymization.technique_not_registered" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.TokenNotFoundCode = "anonymization.token_not_found" -> string!
+const Encina.Compliance.Anonymization.AnonymizationErrors.TokenizationFailedCode = "anonymization.tokenization_failed" -> string!
+static Encina.Compliance.Anonymization.AnonymizationErrors.AnonymizationFailed(string! fieldName, string! message, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.DecryptionFailed(string! keyId, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.DepseudonymizationFailed(string! message) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.EncryptionFailed(string! keyId, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.InvalidParameter(string! parameterName, string! message) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.KeyNotFound(string! keyId) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.KeyRotationFailed(string! keyId, string! reason) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.NoActiveKey() -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.PseudonymizationFailed(string! message, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.RiskAssessmentFailed(string! message, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.StoreError(string! operation, string! message, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.TechniqueNotApplicable(Encina.Compliance.Anonymization.Model.AnonymizationTechnique technique, string! fieldName, System.Type! valueType) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.TechniqueNotRegistered(Encina.Compliance.Anonymization.Model.AnonymizationTechnique technique) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.TokenNotFound(string! token) -> Encina.EncinaError
+static Encina.Compliance.Anonymization.AnonymizationErrors.TokenizationFailed(string! message, System.Exception? exception = null) -> Encina.EncinaError
+Encina.Compliance.Anonymization.DefaultAnonymizer
+Encina.Compliance.Anonymization.DefaultAnonymizer.DefaultAnonymizer(System.Collections.Generic.IEnumerable<Encina.Compliance.Anonymization.IAnonymizationTechnique!>! techniques) -> void
+Encina.Compliance.Anonymization.DefaultAnonymizer.AnonymizeAsync<T>(T data, Encina.Compliance.Anonymization.Model.AnonymizationProfile! profile, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Compliance.Anonymization.DefaultAnonymizer.AnonymizeFieldsAsync<T>(T data, Encina.Compliance.Anonymization.Model.AnonymizationProfile! profile, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Anonymization.Model.AnonymizationResult!>>
+Encina.Compliance.Anonymization.DefaultAnonymizer.IsAnonymizedAsync<T>(T data, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Anonymization.DefaultPseudonymizer
+Encina.Compliance.Anonymization.DefaultPseudonymizer.DefaultPseudonymizer(Encina.Compliance.Anonymization.IKeyProvider! keyProvider) -> void
+Encina.Compliance.Anonymization.DefaultPseudonymizer.DepseudonymizeAsync<T>(T data, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Compliance.Anonymization.DefaultPseudonymizer.DepseudonymizeValueAsync(string! pseudonym, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.DefaultPseudonymizer.PseudonymizeAsync<T>(T data, string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T>>
+Encina.Compliance.Anonymization.DefaultPseudonymizer.PseudonymizeValueAsync(string! value, string! keyId, Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm algorithm, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.DefaultRiskAssessor
+Encina.Compliance.Anonymization.DefaultRiskAssessor.DefaultRiskAssessor(System.TimeProvider? timeProvider = null) -> void
+Encina.Compliance.Anonymization.DefaultRiskAssessor.AssessAsync<T>(System.Collections.Generic.IReadOnlyList<T>! dataset, System.Collections.Generic.IReadOnlyList<string!>! quasiIdentifiers, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Anonymization.Model.RiskAssessmentResult!>>
+Encina.Compliance.Anonymization.DefaultTokenizer
+Encina.Compliance.Anonymization.DefaultTokenizer.DefaultTokenizer(Encina.Compliance.Anonymization.ITokenMappingStore! mappingStore, Encina.Compliance.Anonymization.IKeyProvider! keyProvider) -> void
+Encina.Compliance.Anonymization.DefaultTokenizer.DetokenizeAsync(string! token, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.DefaultTokenizer.IsTokenAsync(string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Anonymization.DefaultTokenizer.TokenizeAsync(string! value, Encina.Compliance.Anonymization.Model.TokenizationOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore.InMemoryAnonymizationAuditStore() -> void
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore.AddEntryAsync(Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore.Clear() -> void
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore.Count.get -> int
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry!>!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore.GetAllEntries() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry!>!
+Encina.Compliance.Anonymization.InMemory.InMemoryAnonymizationAuditStore.GetBySubjectIdAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.AnonymizationAuditEntry!>!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider.InMemoryKeyProvider(System.TimeProvider? timeProvider = null) -> void
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider.Clear() -> void
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider.Count.get -> int
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider.GetActiveKeyIdAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider.ListKeysAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.KeyInfo!>!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryKeyProvider.RotateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Anonymization.Model.KeyInfo!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.InMemoryTokenMappingStore() -> void
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.Clear() -> void
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.Count.get -> int
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.DeleteByKeyIdAsync(string! keyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Anonymization.Model.TokenMapping!>!>>
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.GetByOriginalValueHashAsync(string! hash, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Anonymization.Model.TokenMapping!>>>
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.GetByTokenAsync(string! token, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Anonymization.Model.TokenMapping!>>>
+Encina.Compliance.Anonymization.InMemory.InMemoryTokenMappingStore.StoreAsync(Encina.Compliance.Anonymization.Model.TokenMapping! mapping, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Anonymization.Techniques.DataMaskingTechnique
+Encina.Compliance.Anonymization.Techniques.DataMaskingTechnique.DataMaskingTechnique() -> void
+Encina.Compliance.Anonymization.Techniques.DataMaskingTechnique.ApplyAsync(object? value, System.Type! valueType, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, object?>>
+Encina.Compliance.Anonymization.Techniques.DataMaskingTechnique.CanApply(System.Type! valueType) -> bool
+Encina.Compliance.Anonymization.Techniques.DataMaskingTechnique.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Techniques.GeneralizationTechnique
+Encina.Compliance.Anonymization.Techniques.GeneralizationTechnique.GeneralizationTechnique() -> void
+Encina.Compliance.Anonymization.Techniques.GeneralizationTechnique.ApplyAsync(object? value, System.Type! valueType, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, object?>>
+Encina.Compliance.Anonymization.Techniques.GeneralizationTechnique.CanApply(System.Type! valueType) -> bool
+Encina.Compliance.Anonymization.Techniques.GeneralizationTechnique.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Techniques.PerturbationTechnique
+Encina.Compliance.Anonymization.Techniques.PerturbationTechnique.PerturbationTechnique() -> void
+Encina.Compliance.Anonymization.Techniques.PerturbationTechnique.ApplyAsync(object? value, System.Type! valueType, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, object?>>
+Encina.Compliance.Anonymization.Techniques.PerturbationTechnique.CanApply(System.Type! valueType) -> bool
+Encina.Compliance.Anonymization.Techniques.PerturbationTechnique.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Techniques.SuppressionTechnique
+Encina.Compliance.Anonymization.Techniques.SuppressionTechnique.SuppressionTechnique() -> void
+Encina.Compliance.Anonymization.Techniques.SuppressionTechnique.ApplyAsync(object? value, System.Type! valueType, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, object?>>
+Encina.Compliance.Anonymization.Techniques.SuppressionTechnique.CanApply(System.Type! valueType) -> bool
+Encina.Compliance.Anonymization.Techniques.SuppressionTechnique.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.Techniques.SwappingTechnique
+Encina.Compliance.Anonymization.Techniques.SwappingTechnique.SwappingTechnique() -> void
+Encina.Compliance.Anonymization.Techniques.SwappingTechnique.ApplyAsync(object? value, System.Type! valueType, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? parameters, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, object?>>
+Encina.Compliance.Anonymization.Techniques.SwappingTechnique.CanApply(System.Type! valueType) -> bool
+Encina.Compliance.Anonymization.Techniques.SwappingTechnique.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.AnonymizeAttribute
+Encina.Compliance.Anonymization.AnonymizeAttribute.AnonymizeAttribute() -> void
+Encina.Compliance.Anonymization.AnonymizeAttribute.Granularity.get -> int?
+Encina.Compliance.Anonymization.AnonymizeAttribute.Granularity.set -> void
+Encina.Compliance.Anonymization.AnonymizeAttribute.NoiseRange.get -> double?
+Encina.Compliance.Anonymization.AnonymizeAttribute.NoiseRange.set -> void
+Encina.Compliance.Anonymization.AnonymizeAttribute.Pattern.get -> string?
+Encina.Compliance.Anonymization.AnonymizeAttribute.Pattern.set -> void
+Encina.Compliance.Anonymization.AnonymizeAttribute.Technique.get -> Encina.Compliance.Anonymization.Model.AnonymizationTechnique
+Encina.Compliance.Anonymization.AnonymizeAttribute.Technique.set -> void
+Encina.Compliance.Anonymization.AnonymizationOptions
+Encina.Compliance.Anonymization.AnonymizationOptions.AnonymizationOptions() -> void
+Encina.Compliance.Anonymization.AnonymizationOptions.EnforcementMode.get -> Encina.Compliance.Anonymization.AnonymizationEnforcementMode
+Encina.Compliance.Anonymization.AnonymizationOptions.EnforcementMode.set -> void
+Encina.Compliance.Anonymization.AnonymizationOptions.TrackAuditTrail.get -> bool
+Encina.Compliance.Anonymization.AnonymizationOptions.TrackAuditTrail.set -> void
+Encina.Compliance.Anonymization.AnonymizationPipelineBehavior<TRequest, TResponse>
+Encina.Compliance.Anonymization.AnonymizationPipelineBehavior<TRequest, TResponse>.AnonymizationPipelineBehavior(System.Collections.Generic.IEnumerable<Encina.Compliance.Anonymization.IAnonymizationTechnique!>! techniques, Encina.Compliance.Anonymization.IPseudonymizer! pseudonymizer, Encina.Compliance.Anonymization.ITokenizer! tokenizer, Encina.Compliance.Anonymization.IKeyProvider! keyProvider, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Anonymization.AnonymizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Anonymization.AnonymizationPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.Anonymization.AnonymizationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Compliance.Anonymization.PseudonymizeAttribute
+Encina.Compliance.Anonymization.PseudonymizeAttribute.Algorithm.get -> Encina.Compliance.Anonymization.Model.PseudonymizationAlgorithm
+Encina.Compliance.Anonymization.PseudonymizeAttribute.Algorithm.set -> void
+Encina.Compliance.Anonymization.PseudonymizeAttribute.KeyId.get -> string?
+Encina.Compliance.Anonymization.PseudonymizeAttribute.KeyId.set -> void
+Encina.Compliance.Anonymization.PseudonymizeAttribute.PseudonymizeAttribute() -> void
+Encina.Compliance.Anonymization.TokenizeAttribute
+Encina.Compliance.Anonymization.TokenizeAttribute.Format.get -> Encina.Compliance.Anonymization.Model.TokenFormat
+Encina.Compliance.Anonymization.TokenizeAttribute.Format.set -> void
+Encina.Compliance.Anonymization.TokenizeAttribute.Prefix.get -> string?
+Encina.Compliance.Anonymization.TokenizeAttribute.Prefix.set -> void
+Encina.Compliance.Anonymization.TokenizeAttribute.TokenizeAttribute() -> void
+Encina.Compliance.Anonymization.AnonymizationOptions.AddHealthCheck.get -> bool
+Encina.Compliance.Anonymization.AnonymizationOptions.AddHealthCheck.set -> void
+Encina.Compliance.Anonymization.AnonymizationOptions.AssembliesToScan.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!
+Encina.Compliance.Anonymization.AnonymizationOptions.AutoRegisterFromAttributes.get -> bool
+Encina.Compliance.Anonymization.AnonymizationOptions.AutoRegisterFromAttributes.set -> void
+Encina.Compliance.Anonymization.Health.AnonymizationHealthCheck
+Encina.Compliance.Anonymization.Health.AnonymizationHealthCheck.AnonymizationHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Anonymization.Health.AnonymizationHealthCheck!>! logger) -> void
+Encina.Compliance.Anonymization.Health.AnonymizationHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+const Encina.Compliance.Anonymization.Health.AnonymizationHealthCheck.DefaultName = "encina-anonymization" -> string!
+Encina.Compliance.Anonymization.ServiceCollectionExtensions
+static Encina.Compliance.Anonymization.ServiceCollectionExtensions.AddEncinaAnonymization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.Anonymization.AnonymizationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Compliance.Anonymization.TokenMappingEntity
+Encina.Compliance.Anonymization.TokenMappingEntity.TokenMappingEntity() -> void
+Encina.Compliance.Anonymization.TokenMappingEntity.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Anonymization.TokenMappingEntity.CreatedAtUtc.set -> void
+Encina.Compliance.Anonymization.TokenMappingEntity.EncryptedOriginalValue.get -> byte[]!
+Encina.Compliance.Anonymization.TokenMappingEntity.EncryptedOriginalValue.set -> void
+Encina.Compliance.Anonymization.TokenMappingEntity.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Anonymization.TokenMappingEntity.ExpiresAtUtc.set -> void
+Encina.Compliance.Anonymization.TokenMappingEntity.Id.get -> string!
+Encina.Compliance.Anonymization.TokenMappingEntity.Id.set -> void
+Encina.Compliance.Anonymization.TokenMappingEntity.KeyId.get -> string!
+Encina.Compliance.Anonymization.TokenMappingEntity.KeyId.set -> void
+Encina.Compliance.Anonymization.TokenMappingEntity.OriginalValueHash.get -> string!
+Encina.Compliance.Anonymization.TokenMappingEntity.OriginalValueHash.set -> void
+Encina.Compliance.Anonymization.TokenMappingEntity.Token.get -> string!
+Encina.Compliance.Anonymization.TokenMappingEntity.Token.set -> void
+Encina.Compliance.Anonymization.TokenMappingMapper
+static Encina.Compliance.Anonymization.TokenMappingMapper.ToDomain(Encina.Compliance.Anonymization.TokenMappingEntity! entity) -> Encina.Compliance.Anonymization.Model.TokenMapping!
+static Encina.Compliance.Anonymization.TokenMappingMapper.ToEntity(Encina.Compliance.Anonymization.Model.TokenMapping! mapping) -> Encina.Compliance.Anonymization.TokenMappingEntity!

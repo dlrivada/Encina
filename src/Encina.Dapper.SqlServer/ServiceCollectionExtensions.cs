@@ -1,4 +1,5 @@
 using System.Data;
+using Encina.Compliance.Anonymization;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -105,6 +106,12 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreDapper>();
             services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreDapper>();
+        }
+
+        // Register Anonymization token mapping store if enabled
+        if (config.UseAnonymization)
+        {
+            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreDapper>();
         }
 
         // Register module isolation services if enabled
