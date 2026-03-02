@@ -187,14 +187,22 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) - `Encina.Compliance.Consent` with `[RequireConsent]` attribute, `ConsentRequiredPipelineBehavior`, consent versioning, audit trail, 13 database providers
 - ✅ Lawful Basis Validation [#413](https://github.com/dlrivada/Encina/issues/413) - `[LawfulBasis]` attribute, `LawfulBasisValidationPipelineBehavior`, Legitimate Interest Assessment (LIA), EDPB three-part test, 13 database providers
 - ✅ Data Subject Rights [#404](https://github.com/dlrivada/Encina/issues/404) - `Encina.Compliance.DataSubjectRights` with DSR pipeline behavior, restriction enforcement, personal data discovery, erasure, portability, audit trail, health check, OpenTelemetry
+- ✅ Data Residency [#405](https://github.com/dlrivada/Encina/issues/405) - `Encina.Compliance.DataResidency` with `[DataResidency]` attribute, `DataResidencyPipelineBehavior`, GDPR Chapter V cross-border transfer validation (Art. 44-49), 50+ pre-defined regions, adequacy decisions, fluent policy builder, audit trail, 13 database providers
+- ✅ Retention [#406](https://github.com/dlrivada/Encina/issues/406) - `Encina.Compliance.Retention` with GDPR Art. 5(1)(e) data retention and automatic deletion, 13 database providers
+- ✅ Anonymization [#407](https://github.com/dlrivada/Encina/issues/407) - `Encina.Compliance.Anonymization` with GDPR Art. 4(5) data anonymization, pseudonymization, and tokenization, 13 database providers
+- ✅ Field-Level Encryption [#396](https://github.com/dlrivada/Encina/issues/396) - `Encina.Security.Encryption` with AES-256-GCM field-level encryption
+- ✅ PII Masking [#397](https://github.com/dlrivada/Encina/issues/397) - `Encina.Security.PII` with PII masking and data protection pattern
+- ✅ Anti-Tampering [#398](https://github.com/dlrivada/Encina/issues/398) - `Encina.Security.AntiTampering` with HMAC request signing and integrity verification
+- ✅ Input Sanitization [#399](https://github.com/dlrivada/Encina/issues/399) - `Encina.Security.Sanitization` with attribute-based input sanitization and output encoding
+- ✅ Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) - `Encina.Security.Secrets` with ISP-compliant secrets management and vault integration (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager)
 
 **Remaining:**
 
 - ~~Audit Trail logging~~ (Moved to v0.12.0 as #286)
-- Field-Level Encryption
-- PII Masking
-- Data Subject Rights
-- Data Residency enforcement
+- ~~Field-Level Encryption~~ (Completed as #396)
+- ~~PII Masking~~ (Completed as #397)
+- ~~Data Subject Rights~~ (Completed as #404)
+- ~~Data Residency enforcement~~ (Completed as #405)
 - NIS2 Directive compliance
 - AI Act compliance
 

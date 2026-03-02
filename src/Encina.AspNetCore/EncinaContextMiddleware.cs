@@ -21,6 +21,7 @@ namespace Encina.AspNetCore;
 /// <item><description><b>IdempotencyKey</b>: From X-Idempotency-Key header</description></item>
 /// <item><description><b>IpAddress</b>: From X-Forwarded-For header or Connection.RemoteIpAddress (for audit)</description></item>
 /// <item><description><b>UserAgent</b>: From User-Agent header (for audit)</description></item>
+/// <item><description><b>DataRegion</b>: From X-Data-Region header (for data residency, optional)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -74,6 +75,9 @@ public sealed class EncinaContextMiddleware
         var ipAddress = ExtractIpAddress(context);
         var userAgent = ExtractUserAgent(context);
 
+        // Extract data region hint (optional, for data residency module)
+        var dataRegion = ExtractDataRegion(context);
+
         // Create enriched request context
         var requestContext = RequestContext.CreateForTest(
             userId: userId,
@@ -82,6 +86,12 @@ public sealed class EncinaContextMiddleware
             correlationId: correlationId)
             .WithIpAddress(ipAddress)
             .WithUserAgent(userAgent);
+
+        // Only add data region metadata when the header is present
+        if (!string.IsNullOrEmpty(dataRegion))
+        {
+            requestContext = requestContext.WithDataRegion(dataRegion);
+        }
 
         // Set context for this request scope
         contextAccessor.RequestContext = requestContext;
@@ -246,6 +256,33 @@ public sealed class EncinaContextMiddleware
             !string.IsNullOrWhiteSpace(userAgent))
         {
             return userAgent.ToString();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts the data region hint from the HTTP request header.
+    /// </summary>
+    /// <param name="context">The HTTP context.</param>
+    /// <returns>The data region code (e.g., "DE", "US"), or <c>null</c> if the header is absent.</returns>
+    /// <remarks>
+    /// <para>
+    /// The header name is configurable via <see cref="EncinaAspNetCoreOptions.DataRegionHeaderName"/>
+    /// (default: <c>X-Data-Region</c>). When present, the value is stored in
+    /// <see cref="IRequestContext"/> metadata for use by <c>HttpRegionContextProvider</c>.
+    /// </para>
+    /// <para>
+    /// This header is optional — missing or empty headers are silently ignored to avoid
+    /// breaking requests that do not require data residency enforcement.
+    /// </para>
+    /// </remarks>
+    private string? ExtractDataRegion(HttpContext context)
+    {
+        if (context.Request.Headers.TryGetValue(_options.DataRegionHeaderName, out var regionValue) &&
+            !string.IsNullOrWhiteSpace(regionValue))
+        {
+            return regionValue.ToString();
         }
 
         return null;

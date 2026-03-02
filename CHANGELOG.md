@@ -441,6 +441,102 @@ Added the `Encina.Compliance.Anonymization` package providing comprehensive data
 
 ---
 
+#### Encina.Compliance.DataResidency — Data Sovereignty and Residency Enforcement with GDPR Chapter V (Arts. 44-49) (#405)
+
+Added the `Encina.Compliance.DataResidency` package providing declarative, attribute-based data residency enforcement at the CQRS pipeline level. Implements GDPR Chapter V (Articles 44-49) international transfer controls with region-based routing, cross-border transfer validation using the five-step GDPR hierarchy (adequacy decisions, appropriate safeguards, BCRs, SCCs, derogations), and immutable audit trail for transfer accountability.
+
+**Core Abstractions**:
+
+- **`IDataResidencyPolicy`**: Validates whether a region is allowed for a data category with `IsAllowedAsync` and `GetAllowedRegionsAsync` returning `Either<EncinaError, T>`
+- **`ICrossBorderTransferValidator`**: Five-step GDPR hierarchy validation — same country, EU/EEA, adequacy decision, allowed safeguards, deny
+- **`IDataLocationStore`**: Data location tracking with `RecordAsync`, `GetByEntityAsync`, `GetByRegionAsync`, `GetByCategoryAsync`, `DeleteByEntityAsync`
+- **`IResidencyPolicyStore`**: Policy CRUD with `CreateAsync`, `GetByCategoryAsync`, `GetAllAsync`, `UpdateAsync`, `DeleteAsync`
+- **`IResidencyAuditStore`**: Immutable audit trail with `RecordAsync`, `GetByEntityAsync`, `GetByDateRangeAsync`, `GetViolationsAsync`
+- **`IRegionRouter`**: Determines target region for a request via `DetermineTargetRegionAsync<TRequest>`
+- **`IRegionContextProvider`**: Resolves current deployment region via `GetCurrentRegionAsync`
+- **`IAdequacyDecisionProvider`**: EU adequacy decision verification with `HasAdequacy` and `GetAdequateRegions`
+
+**Domain Model**:
+
+- **`Region`**: Sealed record with Code, Name, IsEU, IsEEA, HasAdequacyDecision — case-insensitive equality by Code
+- **`RegionRegistry`**: 50+ pre-defined regions (27 EU, 3 EEA, 15+ adequacy countries) with `EUMemberStates`, `EEACountries`, `AdequacyCountries` aggregate collections and `GetByCode` lookup
+- **`DataLocation`**: Sealed record with EntityId, RegionCode, DataCategory, StorageType, RecordedAtUtc, ExpiresAtUtc, Metadata
+- **`ResidencyPolicyDescriptor`**: Sealed record with DataCategory, AllowedRegions, RequireAdequacyDecision, AllowedTransferBases
+- **`TransferValidationResult`**: Sealed record with IsAllowed, Reason, LegalBasis, SourceRegion — factory methods `Allow` and `Deny`
+- **`ResidencyAuditEntry`**: Sealed record with 10 properties including Action (enum), Outcome (enum), EntityId, DataCategory, RegionCode
+- **`StorageType`**: Enum with 5 values — Database, FileSystem, ObjectStorage, Cache, MessageQueue
+- **`TransferLegalBasis`**: Enum with 8 GDPR bases — AdequacyDecision, StandardContractualClauses, BindingCorporateRules, ExplicitConsent, PublicInterest, VitalInterests, LegitimateInterests, Derogation
+- **`DataProtectionLevel`**: Enum with 4 levels — Standard, Enhanced, Maximum, Custom
+- **`RegionGroup`**: Sealed record with 3 static groups — EU, EEA, Adequate
+
+**Two Declarative Attributes**:
+
+- **`[DataResidency("healthcare-data", AllowedRegions = "DE,FR,NL")]`**: Data category with allowed region codes and optional `RequireAdequacyDecision`
+- **`[NoCrossBorderTransfer]`**: Marks a request as requiring same-region processing only
+
+**Pipeline Behavior**:
+
+- **`DataResidencyPipelineBehavior<TRequest, TResponse>`**: Eight-step pipeline — disabled check, attribute resolution, region routing, policy validation, cross-border transfer check, data location recording, audit trail, response return
+- Static per-generic-type attribute caching (zero reflection after first access)
+- Three enforcement modes: `Block` (reject), `Warn` (log and proceed), `Disabled` (no-op)
+
+**Fluent Policy Configuration**:
+
+- **`ResidencyPolicyBuilder`**: Fluent API with `AllowRegions()`, `AllowEU()`, `AllowEEA()`, `AllowAdequate()`, `RequireAdequacyDecision()`, `AllowTransferBasis()`
+- **`DataResidencyOptions.AddPolicy()`**: Chainable policy configuration with auto-creation at startup
+
+**Error Codes** (7 structured errors via `DataResidencyErrors`):
+
+- `residency.region_not_allowed`, `residency.cross_border_denied`, `residency.region_not_resolved`
+- `residency.policy_not_found`, `residency.policy_already_exists`, `residency.store_error`, `residency.transfer_validation_failed`
+- All errors include structured metadata (`dataCategory`, `regionCode`, `sourceRegion`, `destinationRegion`, `requirement`)
+
+**Configuration** (`DataResidencyOptions`):
+
+- `DefaultRegion` (Region?), `EnforcementMode` (Block/Warn/Disabled, default: Warn), `TrackDataLocations` (true), `TrackAuditTrail` (true)
+- `BlockNonCompliantTransfers` (true), `AddHealthCheck` (false), `AutoRegisterFromAttributes` (true)
+- `AdditionalAdequateRegions` for custom adequacy zones, `AssembliesToScan` for attribute discovery
+- `AddPolicy()` fluent API with `ResidencyPolicyBuilder`
+- Options validation via `IValidateOptions<DataResidencyOptions>`
+
+**In-Memory Implementations** (development/testing):
+
+- **`InMemoryResidencyPolicyStore`**: ConcurrentDictionary-based with category-key lookups
+- **`InMemoryDataLocationStore`**: Thread-safe with entity, region, and category queries
+- **`InMemoryResidencyAuditStore`**: Thread-safe audit trail with date-range and violation queries
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.DataResidency` ActivitySource with 3 activity types: Pipeline, TransferValidation, LocationRecord
+- 7 counters: pipeline executions, policy checks, cross-border transfers, transfers blocked, location records, violations, audit entries
+- 2 histograms: pipeline duration (ms), transfer validation duration (ms)
+- 35 structured log events via `[LoggerMessage]` source generator (zero-allocation, event IDs 8600-8674)
+- Optional `DataResidencyHealthCheck` verifying stores, services, and options configuration
+
+**Health Check**:
+
+- `DataResidencyHealthCheck` with Healthy/Degraded/Unhealthy states
+- Tags: `encina`, `compliance`, `data-residency`, `ready`
+- Opt-in via `DataResidencyOptions.AddHealthCheck = true`
+
+**DI Registration**:
+
+- `services.AddEncinaDataResidency()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+- Configurable via `Action<DataResidencyOptions>` delegate
+- Auto-registration of `[DataResidency]` attributes via `IHostedService` at startup
+- Fluent policy creation via separate `IHostedService` when auto-registration is disabled
+
+**Multi-Provider Persistence** (13 providers):
+
+- **`ResidencyPolicyEntity`**, **`DataLocationEntity`**, **`ResidencyAuditEntryEntity`**: Database-agnostic persistence entities with primitive types
+- **`ResidencyPolicyMapper`**, **`DataLocationMapper`**, **`ResidencyAuditEntryMapper`**: Static `ToEntity`/`ToDomain` mapping with enum↔int and Region↔string conversions
+- SQL migration scripts for SQLite, SQL Server, PostgreSQL, MySQL (3 tables each)
+- ADO.NET, Dapper, EF Core, and MongoDB store implementations ready for satellite package integration
+
+**Testing**: 235+ tests across 6 test projects — 150+ unit tests (23 files covering all models, services, stores, mappers, attributes, errors, health check, pipeline behavior, diagnostics), 30+ guard tests (6 files covering all public method parameter validation), 19 contract tests (3 base + 3 InMemory implementations for all store interfaces), 21 property tests (3 FsCheck files for mapper roundtrips, region equality, store invariants), 15 integration tests (DI registration, options configuration, full pipeline lifecycle, concurrent access).
+
+---
+
 #### Encina.Security.Secrets — Secrets Management and Vault Integration (#400)
 
 Added the `Encina.Security.Secrets` package providing ISP-compliant, provider-agnostic secrets management with Railway Oriented Programming. Ships with development-ready providers (environment variables, `IConfiguration`) and a transparent caching decorator. Cloud vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) will be available as separate satellite packages.

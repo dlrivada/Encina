@@ -8,6 +8,7 @@ using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Consent;
+using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
@@ -88,6 +89,14 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreADO>();
             services.TryAddScoped<ILegalHoldStore, Retention.LegalHoldStoreADO>();
             services.TryAddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreADO>();
+        }
+
+        // Register Data Residency stores if enabled
+        if (config.UseDataResidency)
+        {
+            services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreADO>();
+            services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreADO>();
+            services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreADO>();
         }
 
         // Register provider health check if enabled

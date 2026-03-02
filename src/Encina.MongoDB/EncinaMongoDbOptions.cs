@@ -132,6 +132,20 @@ public sealed class EncinaMongoDbOptions
     public bool UseRetention { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Data Residency stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.DataResidency.IDataLocationStore"/>,
+    /// <see cref="Compliance.DataResidency.IResidencyPolicyStore"/>, and
+    /// <see cref="Compliance.DataResidency.IResidencyAuditStore"/>
+    /// implemented by their MongoDB store classes for data sovereignty and residency
+    /// enforcement per GDPR Articles 44–49 cross-border transfer rules.
+    /// </para>
+    /// </remarks>
+    public bool UseDataResidency { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -296,4 +310,19 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for retention audit entries.
     /// </summary>
     public string RetentionAuditEntries { get; set; } = "retention_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for data location records (data residency).
+    /// </summary>
+    public string DataLocations { get; set; } = "data_locations";
+
+    /// <summary>
+    /// Gets or sets the collection name for residency policies (data residency).
+    /// </summary>
+    public string ResidencyPolicies { get; set; } = "residency_policies";
+
+    /// <summary>
+    /// Gets or sets the collection name for residency audit entries (data residency).
+    /// </summary>
+    public string ResidencyAuditEntries { get; set; } = "residency_audit_entries";
 }

@@ -1,5 +1,6 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Consent;
+using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
@@ -144,6 +145,14 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreMongoDB>();
         }
 
+        // Register Data Residency stores if enabled
+        if (options.UseDataResidency)
+        {
+            services.AddScoped<IDataLocationStore, DataResidency.DataLocationStoreMongoDB>();
+            services.AddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreMongoDB>();
+            services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
+        }
+
         // Create indexes if configured
         if (options.CreateIndexes)
         {
@@ -263,6 +272,14 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreMongoDB>();
             services.AddScoped<ILegalHoldStore, Retention.LegalHoldStoreMongoDB>();
             services.AddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreMongoDB>();
+        }
+
+        // Register Data Residency stores if enabled
+        if (options.UseDataResidency)
+        {
+            services.AddScoped<IDataLocationStore, DataResidency.DataLocationStoreMongoDB>();
+            services.AddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreMongoDB>();
+            services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
         }
 
         // Create indexes if configured

@@ -80,3 +80,12 @@ static Encina.AspNetCore.HttpAuditContextExtensions.WithIpAddress(this Encina.IR
 static Encina.AspNetCore.HttpAuditContextExtensions.WithUserAgent(this Encina.IRequestContext! context, string? userAgent) -> Encina.IRequestContext!
 static Encina.AspNetCore.Health.HealthCheckBuilderExtensions.AddEncinaAudit(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "encina-audit", System.Collections.Generic.IEnumerable<string!>? tags = null, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Encina.AspNetCore.Health.HealthCheckBuilderExtensions.AddEncinaQueryCache(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "encina-query-cache", System.Collections.Generic.IEnumerable<string!>? tags = null, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+Encina.AspNetCore.EncinaAspNetCoreOptions.DataRegionHeaderName.get -> string!
+Encina.AspNetCore.EncinaAspNetCoreOptions.DataRegionHeaderName.set -> void
+Encina.AspNetCore.HttpDataResidencyContextExtensions
+const Encina.AspNetCore.HttpDataResidencyContextExtensions.DataRegionKey = "Encina.DataResidency.Region" -> string!
+static Encina.AspNetCore.HttpDataResidencyContextExtensions.GetDataRegion(this Encina.IRequestContext! context) -> string?
+static Encina.AspNetCore.HttpDataResidencyContextExtensions.WithDataRegion(this Encina.IRequestContext! context, string? regionCode) -> Encina.IRequestContext!
+Encina.AspNetCore.HttpRegionContextProvider
+Encina.AspNetCore.HttpRegionContextProvider.HttpRegionContextProvider(Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DataResidency.DataResidencyOptions!>! dataResidencyOptions, Microsoft.Extensions.Options.IOptions<Encina.AspNetCore.EncinaAspNetCoreOptions!>! aspNetCoreOptions, Microsoft.Extensions.Logging.ILogger<Encina.AspNetCore.HttpRegionContextProvider!>! logger) -> void
+Encina.AspNetCore.HttpRegionContextProvider.GetCurrentRegionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DataResidency.Model.Region!>>

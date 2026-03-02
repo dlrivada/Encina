@@ -642,6 +642,21 @@ public sealed class MessagingConfiguration
     public bool UseRetention { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to register Data Residency stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.DataResidency.IDataLocationStore"/>,
+    /// <see cref="Compliance.DataResidency.IResidencyPolicyStore"/>, and
+    /// <see cref="Compliance.DataResidency.IResidencyAuditStore"/>
+    /// with the provider-specific implementation for data sovereignty and residency
+    /// enforcement per GDPR Articles 44–49 cross-border transfer rules.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseDataResidency { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -915,5 +930,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency;
 }

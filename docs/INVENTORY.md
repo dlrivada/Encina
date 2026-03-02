@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 7 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management) (+ 1 planificado: #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 4 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #406 Data Retention, #413 Lawful Basis Validation) (+ 10 planificados: #404-#405, #407-#412, #414-#415) |
+| **Patrones Compliance (GDPR/EU)** | 5 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #413 Lawful Basis Validation) (+ 9 planificados: #404, #407-#412, #414-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Retention #406, Lawful Basis #413 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -4290,7 +4290,7 @@ dotnet run -c Release -- --filter "*Comparison*"
 | [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 ✅ | Value Objects, Entities, Aggregates, Specifications, ACL - **COMPLETADO** |
 | [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 34 ✅ | Fakes, Respawn, WireMock, Shouldly, Bogus, FsCheck, TUnit, Pact - **COMPLETADO** |
 | [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 58 ✅ | Repository, UoW, Bulk Ops, Pagination, ID Generation, CDC - **COMPLETADO** |
-| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅), GDPR Core (#402 ✅), Consent (#403 ✅), Lawful Basis (#413 ✅) |
+| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅), GDPR Core (#402 ✅), Consent (#403 ✅), Data Residency (#405 ✅), Lawful Basis (#413 ✅) |
 | [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
 | [v0.15.0 - Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | EIP, Transports, Process Manager |
 | [v0.16.0 - Multi-Tenancy & Modular](https://github.com/dlrivada/Encina/milestone/13) | 21 | Multi-Tenancy, Modular Monolith |
@@ -5810,7 +5810,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | **#402** | GDPR Core ✅ | Abstracciones core GDPR con RoPA (Record of Processing Activities) - **IMPLEMENTADO** | Crítica | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `foundational` |
 | **#403** | Consent Management | Gestión de consentimientos con versioning y withdrawal tracking | Crítica | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-consent-management` |
 | **#404** | Data Subject Rights | Implementación de Arts. 15-22 (Access, Rectification, Erasure, Portability) | Crítica | Muy Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `saas-essential` |
-| **#405** | Data Residency | Enforcement de residencia de datos con routing geográfico | Crítica | Muy Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-data-sovereignty`, `area-cloud-native` |
+| **#405** | Data Residency ✅ | Enforcement de residencia de datos con routing geográfico - **IMPLEMENTADO** | Crítica | Muy Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-data-sovereignty`, `area-cloud-native` |
 | **#406** | Retention ✅ | Políticas de retención de datos con eliminación automática - **IMPLEMENTADO** | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `area-archival` |
 | **#407** | Anonymization | Pseudonimización y anonimización reversible/irreversible | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-crypto-shredding` |
 | **#408** | Breach Notification | Sistema de notificación de brechas en 72 horas (Art. 33) | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `area-observability` |
@@ -5922,17 +5922,37 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `saas-essential`
 - Referencias: [GDPR Chapter III Rights](https://gdpr-info.eu/chapter-3/), [OneTrust Subject Requests](https://www.onetrust.com/products/subject-rights-requests/)
 
-**#405 - Encina.Compliance.DataResidency - Data Sovereignty**:
+**#405 - Encina.Compliance.DataResidency - Data Sovereignty** ✅ **IMPLEMENTADO**:
 
-- `IDataResidencyEnforcer` con `EnforceAsync`, `ValidateAsync`, `RouteAsync`
-- `DataResidencyPolicy` con AllowedRegions, RestrictedRegions, DefaultRegion
-- `DataResidencyPipelineBehavior` para routing automático por región
-- `[DataResidency("EU")]` atributo para requests/entities
-- Multi-region database routing
-- Cross-region transfer validation contra SCCs
-- Cloud provider region mapping (AWS, Azure, GCP)
-- **Nuevo paquete planificado**: `Encina.Compliance.DataResidency`
-- **Demanda de comunidad**: MUY ALTA - Post-Schrems II requirement
+- `IDataResidencyPolicy` con `IsAllowedAsync`, `GetAllowedRegionsAsync` — region-based policy enforcement with ROP
+- `ICrossBorderTransferValidator` con `ValidateTransferAsync` — five-step GDPR Chapter V hierarchy (same country → EU/EEA → adequacy → safeguards → deny)
+- `IDataLocationStore` con `RecordAsync`, `GetByEntityAsync`, `GetByRegionAsync`, `GetByCategoryAsync`, `DeleteByEntityAsync` — GDPR Article 30 data location tracking
+- `IResidencyPolicyStore` con `CreateAsync`, `GetByCategoryAsync`, `GetAllAsync`, `UpdateAsync`, `DeleteAsync` — policy CRUD lifecycle
+- `IResidencyAuditStore` con `RecordAsync`, `GetByEntityAsync`, `GetByDateRangeAsync`, `GetViolationsAsync` — immutable audit trail
+- `IRegionRouter` con `DetermineTargetRegionAsync<TRequest>` — attribute-based region routing with reflection caching
+- `IRegionContextProvider` con `GetCurrentRegionAsync` — deployment region resolution with fallback to DefaultRegion
+- `IAdequacyDecisionProvider` con `HasAdequacy`, `GetAdequateRegions` — EU adequacy decision verification (Article 45)
+- `Region` sealed record con Code, Name, IsEU, IsEEA, HasAdequacyDecision — case-insensitive equality
+- `RegionRegistry` static class con 50+ pre-defined regions (27 EU, 3 EEA, 15+ adequacy countries)
+- `DataLocation` sealed record con EntityId, RegionCode, DataCategory, StorageType, RecordedAtUtc, ExpiresAtUtc, Metadata
+- `ResidencyPolicyDescriptor` sealed record con DataCategory, AllowedRegions, RequireAdequacyDecision, AllowedTransferBases
+- `TransferValidationResult` sealed record con IsAllowed, Reason, LegalBasis, SourceRegion — factory methods Allow/Deny
+- `ResidencyAuditEntry` sealed record con 10 properties including Action, Outcome enums
+- `[DataResidency("healthcare-data", AllowedRegions = "DE,FR,NL")]` atributo declarativo con cached reflection
+- `[NoCrossBorderTransfer]` atributo para same-region-only processing
+- `DataResidencyPipelineBehavior<TRequest, TResponse>` — 8-step pipeline con zero-reflection attribute caching
+- `ResidencyPolicyBuilder` fluent API con `AllowEU()`, `AllowEEA()`, `AllowAdequate()`, `RequireAdequacyDecision()`, `AllowTransferBasis()`
+- `DataResidencyOptions` con DefaultRegion, EnforcementMode (Block/Warn/Disabled), TrackDataLocations, TrackAuditTrail, BlockNonCompliantTransfers
+- 7 error codes via `DataResidencyErrors` (region_not_allowed, cross_border_denied, region_not_resolved, policy_not_found, etc.)
+- In-memory implementations: `InMemoryResidencyPolicyStore`, `InMemoryDataLocationStore`, `InMemoryResidencyAuditStore`
+- Mapper infrastructure: `ResidencyPolicyMapper`, `DataLocationMapper`, `ResidencyAuditEntryMapper` + entities (ready for 13 providers)
+- `DataResidencyHealthCheck` con Healthy/Degraded/Unhealthy states
+- OpenTelemetry tracing via `Encina.Compliance.DataResidency` ActivitySource, 7 counters, 2 histograms
+- 35 structured log events via `[LoggerMessage]` source generator (event IDs 8600-8674)
+- `services.AddEncinaDataResidency()` with `TryAdd` semantics and `Action<DataResidencyOptions>` configuration
+- **Paquete**: `Encina.Compliance.DataResidency`
+- **Testing**: 235+ tests across 6 test projects (unit, guard, contract, property, integration)
+- **Documentación**: [README](../src/Encina.Compliance.DataResidency/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-multi-tenancy`, `area-data-protection`, `pattern-data-sovereignty`, `area-cloud-native`, `saas-essential`
 - Referencias: [Schrems II Decision](https://curia.europa.eu/juris/liste.jsf?num=C-311/18), [EU SCCs](https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection/standard-contractual-clauses-scc_en)
 
@@ -6113,7 +6133,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | `Encina.Compliance.GDPR` | #402 | Core GDPR abstractions, RoPA ✅ | Crítica |
 | `Encina.Compliance.Consent` | #403 | Consent management ✅ | Crítica |
 | `Encina.Compliance.DataSubjectRights` | #404 | GDPR rights (Arts. 15-22) | Crítica |
-| `Encina.Compliance.DataResidency` | #405 | Data sovereignty | Crítica |
+| `Encina.Compliance.DataResidency` | #405 | Data sovereignty ✅ | Crítica |
 | `Encina.Compliance.Retention` | #406 | Data retention policies ✅ | Alta |
 | `Encina.Compliance.Anonymization` | #407 | Pseudonymization & anonymization | Alta |
 | `Encina.Compliance.BreachNotification` | #408 | 72-hour breach notification | Alta |
@@ -6142,7 +6162,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
    - ~~#402 (GDPR Core) - Base para todo lo demás~~ ✅ **COMPLETADO** (Feb 2026, #681 database providers)
    - #403 (Consent) - Art. 7 requirement
    - #404 (DataSubjectRights) - Arts. 15-22 rights
-   - #405 (DataResidency) - Post-Schrems II critical
+   - ~~#405 (DataResidency) - Post-Schrems II critical~~ ✅ **COMPLETADO** (Mar 2026)
 
 2. **Corto Plazo (Alta Prioridad - Data Lifecycle)**:
    - ~~#406 (Retention) - Storage limitation~~ ✅ **COMPLETADO** (Mar 2026)
@@ -7193,7 +7213,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 | v0.10.0 - DDD Foundations | 31 | ✅ **COMPLETADO** |
 | v0.11.0 - Testing Infrastructure | 34 | ✅ **COMPLETADO** |
 | v0.12.0 - Database & Repository | 58 | ✅ **COMPLETADO** (16-feb-2026) |
-| v0.13.0 - Security & Compliance | 25 | 🔄 En progreso (Secrets #603 ✅, GDPR Core #402 ✅, Consent #403 ✅, Lawful Basis #413 ✅) |
+| v0.13.0 - Security & Compliance | 25 | 🔄 En progreso (Secrets #603 ✅, GDPR Core #402 ✅, Consent #403 ✅, Data Residency #405 ✅, Lawful Basis #413 ✅) |
 | v0.14.0 - Cloud-Native & Aspire | 23 | Pendiente |
 | v0.15.0 - Messaging & EIP | 71 | Pendiente |
 | v0.16.0 - Multi-Tenancy & Modular | 21 | Pendiente |
