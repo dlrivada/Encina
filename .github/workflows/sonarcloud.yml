@@ -43,7 +43,7 @@ jobs:
           dotnet build Encina.slnx --configuration Release --no-restore
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: build-output
           path: |
@@ -112,7 +112,7 @@ jobs:
         run: find artifacts -name "*.xml" -type f 2>/dev/null || echo "No XML files found"
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.shard.name }}
           path: artifacts/coverage/**/coverage.opencover.xml
