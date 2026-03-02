@@ -1,0 +1,436 @@
+#nullable enable
+Encina.Compliance.Retention.DataDeletedNotification
+Encina.Compliance.Retention.DataDeletedNotification.DataCategory.get -> string!
+Encina.Compliance.Retention.DataDeletedNotification.DataCategory.init -> void
+Encina.Compliance.Retention.DataDeletedNotification.DataDeletedNotification(string! EntityId, string! DataCategory, System.DateTimeOffset DeletedAtUtc, string? PolicyId) -> void
+Encina.Compliance.Retention.DataDeletedNotification.DeletedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.DataDeletedNotification.DeletedAtUtc.init -> void
+Encina.Compliance.Retention.DataDeletedNotification.EntityId.get -> string!
+Encina.Compliance.Retention.DataDeletedNotification.EntityId.init -> void
+Encina.Compliance.Retention.DataDeletedNotification.PolicyId.get -> string?
+Encina.Compliance.Retention.DataDeletedNotification.PolicyId.init -> void
+Encina.Compliance.Retention.DataExpiringNotification
+Encina.Compliance.Retention.DataExpiringNotification.DataCategory.get -> string!
+Encina.Compliance.Retention.DataExpiringNotification.DataCategory.init -> void
+Encina.Compliance.Retention.DataExpiringNotification.DataExpiringNotification(string! EntityId, string! DataCategory, System.DateTimeOffset ExpiresAtUtc, int DaysUntilExpiration, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.Retention.DataExpiringNotification.DaysUntilExpiration.get -> int
+Encina.Compliance.Retention.DataExpiringNotification.DaysUntilExpiration.init -> void
+Encina.Compliance.Retention.DataExpiringNotification.EntityId.get -> string!
+Encina.Compliance.Retention.DataExpiringNotification.EntityId.init -> void
+Encina.Compliance.Retention.DataExpiringNotification.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.DataExpiringNotification.ExpiresAtUtc.init -> void
+Encina.Compliance.Retention.DataExpiringNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.DataExpiringNotification.OccurredAtUtc.init -> void
+Encina.Compliance.Retention.DefaultLegalHoldManager
+Encina.Compliance.Retention.DefaultLegalHoldManager.ApplyHoldAsync(string! entityId, Encina.Compliance.Retention.Model.LegalHold! hold, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.DefaultLegalHoldManager.DefaultLegalHoldManager(Encina.Compliance.Retention.ILegalHoldStore! holdStore, Encina.Compliance.Retention.IRetentionRecordStore! recordStore, Encina.Compliance.Retention.IRetentionAuditStore! auditStore, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.DefaultLegalHoldManager!>! logger, Encina.IEncina? encina = null) -> void
+Encina.Compliance.Retention.DefaultLegalHoldManager.GetActiveHoldsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.DefaultLegalHoldManager.IsUnderHoldAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Retention.DefaultLegalHoldManager.ReleaseHoldAsync(string! holdId, string? releasedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.DefaultRetentionEnforcer
+Encina.Compliance.Retention.DefaultRetentionEnforcer.DefaultRetentionEnforcer(Encina.Compliance.Retention.IRetentionRecordStore! recordStore, Encina.Compliance.Retention.ILegalHoldStore! legalHoldStore, Encina.Compliance.Retention.IRetentionAuditStore! auditStore, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Retention.RetentionOptions!>! options, System.IServiceProvider! serviceProvider, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.DefaultRetentionEnforcer!>! logger) -> void
+Encina.Compliance.Retention.DefaultRetentionEnforcer.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Retention.Model.DeletionResult!>>
+Encina.Compliance.Retention.DefaultRetentionEnforcer.GetExpiringDataAsync(System.TimeSpan within, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.ExpiringData!>!>>
+Encina.Compliance.Retention.DefaultRetentionPolicy
+Encina.Compliance.Retention.DefaultRetentionPolicy.DefaultRetentionPolicy(Encina.Compliance.Retention.IRetentionPolicyStore! policyStore, Encina.Compliance.Retention.IRetentionRecordStore! recordStore, System.TimeProvider! timeProvider, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Retention.RetentionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.DefaultRetentionPolicy!>! logger) -> void
+Encina.Compliance.Retention.DefaultRetentionPolicy.GetRetentionPeriodAsync(string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.TimeSpan>>
+Encina.Compliance.Retention.DefaultRetentionPolicy.IsExpiredAsync(string! entityId, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Retention.ILegalHoldManager
+Encina.Compliance.Retention.ILegalHoldManager.ApplyHoldAsync(string! entityId, Encina.Compliance.Retention.Model.LegalHold! hold, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.ILegalHoldManager.GetActiveHoldsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.ILegalHoldManager.IsUnderHoldAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Retention.ILegalHoldManager.ReleaseHoldAsync(string! holdId, string? releasedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.ILegalHoldStore
+Encina.Compliance.Retention.ILegalHoldStore.CreateAsync(Encina.Compliance.Retention.Model.LegalHold! hold, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.ILegalHoldStore.GetActiveHoldsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.ILegalHoldStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.ILegalHoldStore.GetByEntityIdAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.ILegalHoldStore.GetByIdAsync(string! holdId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.LegalHold!>>>
+Encina.Compliance.Retention.ILegalHoldStore.IsUnderHoldAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Retention.ILegalHoldStore.ReleaseAsync(string! holdId, string? releasedByUserId, System.DateTimeOffset releasedAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.IRetentionAuditStore
+Encina.Compliance.Retention.IRetentionAuditStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionAuditEntry!>!>>
+Encina.Compliance.Retention.IRetentionAuditStore.GetByEntityIdAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionAuditEntry!>!>>
+Encina.Compliance.Retention.IRetentionAuditStore.RecordAsync(Encina.Compliance.Retention.Model.RetentionAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.IRetentionEnforcer
+Encina.Compliance.Retention.IRetentionEnforcer.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Retention.Model.DeletionResult!>>
+Encina.Compliance.Retention.IRetentionEnforcer.GetExpiringDataAsync(System.TimeSpan within, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.ExpiringData!>!>>
+Encina.Compliance.Retention.IRetentionPolicy
+Encina.Compliance.Retention.IRetentionPolicy.GetRetentionPeriodAsync(string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.TimeSpan>>
+Encina.Compliance.Retention.IRetentionPolicy.IsExpiredAsync(string! entityId, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Retention.IRetentionPolicyStore
+Encina.Compliance.Retention.IRetentionPolicyStore.CreateAsync(Encina.Compliance.Retention.Model.RetentionPolicy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.IRetentionPolicyStore.DeleteAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.IRetentionPolicyStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionPolicy!>!>>
+Encina.Compliance.Retention.IRetentionPolicyStore.GetByCategoryAsync(string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.RetentionPolicy!>>>
+Encina.Compliance.Retention.IRetentionPolicyStore.GetByIdAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.RetentionPolicy!>>>
+Encina.Compliance.Retention.IRetentionPolicyStore.UpdateAsync(Encina.Compliance.Retention.Model.RetentionPolicy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.IRetentionRecordStore
+Encina.Compliance.Retention.IRetentionRecordStore.CreateAsync(Encina.Compliance.Retention.Model.RetentionRecord! record, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.IRetentionRecordStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.IRetentionRecordStore.GetByEntityIdAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.IRetentionRecordStore.GetByIdAsync(string! recordId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.RetentionRecord!>>>
+Encina.Compliance.Retention.IRetentionRecordStore.GetExpiredRecordsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.IRetentionRecordStore.GetExpiringWithinAsync(System.TimeSpan within, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.IRetentionRecordStore.UpdateStatusAsync(string! recordId, Encina.Compliance.Retention.Model.RetentionStatus newStatus, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.Clear() -> void
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.Count.get -> int
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.CreateAsync(Encina.Compliance.Retention.Model.LegalHold! hold, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.GetActiveHoldsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.GetByEntityIdAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.LegalHold!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.GetByIdAsync(string! holdId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.LegalHold!>>>
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.InMemoryLegalHoldStore(Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore!>! logger) -> void
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.IsUnderHoldAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Retention.InMemory.InMemoryLegalHoldStore.ReleaseAsync(string! holdId, string? releasedByUserId, System.DateTimeOffset releasedAtUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore.Clear() -> void
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore.Count.get -> int
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionAuditEntry!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore.GetAllEntries() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionAuditEntry!>!
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore.GetByEntityIdAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionAuditEntry!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore.InMemoryRetentionAuditStore(Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore!>! logger) -> void
+Encina.Compliance.Retention.InMemory.InMemoryRetentionAuditStore.RecordAsync(Encina.Compliance.Retention.Model.RetentionAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.Clear() -> void
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.Count.get -> int
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.CreateAsync(Encina.Compliance.Retention.Model.RetentionPolicy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.DeleteAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionPolicy!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.GetAllPolicies() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionPolicy!>!
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.GetByCategoryAsync(string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.RetentionPolicy!>>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.GetByIdAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.RetentionPolicy!>>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.InMemoryRetentionPolicyStore(Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore!>! logger) -> void
+Encina.Compliance.Retention.InMemory.InMemoryRetentionPolicyStore.UpdateAsync(Encina.Compliance.Retention.Model.RetentionPolicy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.Clear() -> void
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.Count.get -> int
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.CreateAsync(Encina.Compliance.Retention.Model.RetentionRecord! record, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.GetByEntityIdAsync(string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.GetByIdAsync(string! recordId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Retention.Model.RetentionRecord!>>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.GetExpiredRecordsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.GetExpiringWithinAsync(System.TimeSpan within, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.RetentionRecord!>!>>
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.InMemoryRetentionRecordStore(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore!>! logger) -> void
+Encina.Compliance.Retention.InMemory.InMemoryRetentionRecordStore.UpdateStatusAsync(string! recordId, Encina.Compliance.Retention.Model.RetentionStatus newStatus, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.LegalHoldAppliedNotification
+Encina.Compliance.Retention.LegalHoldAppliedNotification.AppliedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.LegalHoldAppliedNotification.AppliedAtUtc.init -> void
+Encina.Compliance.Retention.LegalHoldAppliedNotification.EntityId.get -> string!
+Encina.Compliance.Retention.LegalHoldAppliedNotification.EntityId.init -> void
+Encina.Compliance.Retention.LegalHoldAppliedNotification.HoldId.get -> string!
+Encina.Compliance.Retention.LegalHoldAppliedNotification.HoldId.init -> void
+Encina.Compliance.Retention.LegalHoldAppliedNotification.LegalHoldAppliedNotification(string! HoldId, string! EntityId, string! Reason, System.DateTimeOffset AppliedAtUtc) -> void
+Encina.Compliance.Retention.LegalHoldAppliedNotification.Reason.get -> string!
+Encina.Compliance.Retention.LegalHoldAppliedNotification.Reason.init -> void
+Encina.Compliance.Retention.LegalHoldReleasedNotification
+Encina.Compliance.Retention.LegalHoldReleasedNotification.EntityId.get -> string!
+Encina.Compliance.Retention.LegalHoldReleasedNotification.EntityId.init -> void
+Encina.Compliance.Retention.LegalHoldReleasedNotification.HoldId.get -> string!
+Encina.Compliance.Retention.LegalHoldReleasedNotification.HoldId.init -> void
+Encina.Compliance.Retention.LegalHoldReleasedNotification.LegalHoldReleasedNotification(string! HoldId, string! EntityId, System.DateTimeOffset ReleasedAtUtc) -> void
+Encina.Compliance.Retention.LegalHoldReleasedNotification.ReleasedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.LegalHoldReleasedNotification.ReleasedAtUtc.init -> void
+Encina.Compliance.Retention.Model.DeletionDetail
+Encina.Compliance.Retention.Model.DeletionDetail.DataCategory.get -> string!
+Encina.Compliance.Retention.Model.DeletionDetail.DataCategory.init -> void
+Encina.Compliance.Retention.Model.DeletionDetail.EntityId.get -> string!
+Encina.Compliance.Retention.Model.DeletionDetail.EntityId.init -> void
+Encina.Compliance.Retention.Model.DeletionDetail.Outcome.get -> Encina.Compliance.Retention.Model.DeletionOutcome
+Encina.Compliance.Retention.Model.DeletionDetail.Outcome.init -> void
+Encina.Compliance.Retention.Model.DeletionDetail.Reason.get -> string?
+Encina.Compliance.Retention.Model.DeletionDetail.Reason.init -> void
+Encina.Compliance.Retention.Model.DeletionOutcome
+Encina.Compliance.Retention.Model.DeletionOutcome.Deleted = 0 -> Encina.Compliance.Retention.Model.DeletionOutcome
+Encina.Compliance.Retention.Model.DeletionOutcome.Failed = 2 -> Encina.Compliance.Retention.Model.DeletionOutcome
+Encina.Compliance.Retention.Model.DeletionOutcome.HeldByLegalHold = 3 -> Encina.Compliance.Retention.Model.DeletionOutcome
+Encina.Compliance.Retention.Model.DeletionOutcome.Retained = 1 -> Encina.Compliance.Retention.Model.DeletionOutcome
+Encina.Compliance.Retention.Model.DeletionOutcome.Skipped = 4 -> Encina.Compliance.Retention.Model.DeletionOutcome
+Encina.Compliance.Retention.Model.DeletionResult
+Encina.Compliance.Retention.Model.DeletionResult.Details.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Retention.Model.DeletionDetail!>!
+Encina.Compliance.Retention.Model.DeletionResult.Details.init -> void
+Encina.Compliance.Retention.Model.DeletionResult.ExecutedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.DeletionResult.ExecutedAtUtc.init -> void
+Encina.Compliance.Retention.Model.DeletionResult.RecordsDeleted.get -> int
+Encina.Compliance.Retention.Model.DeletionResult.RecordsDeleted.init -> void
+Encina.Compliance.Retention.Model.DeletionResult.RecordsFailed.get -> int
+Encina.Compliance.Retention.Model.DeletionResult.RecordsFailed.init -> void
+Encina.Compliance.Retention.Model.DeletionResult.RecordsRetained.get -> int
+Encina.Compliance.Retention.Model.DeletionResult.RecordsRetained.init -> void
+Encina.Compliance.Retention.Model.DeletionResult.RecordsUnderHold.get -> int
+Encina.Compliance.Retention.Model.DeletionResult.RecordsUnderHold.init -> void
+Encina.Compliance.Retention.Model.DeletionResult.TotalRecordsEvaluated.get -> int
+Encina.Compliance.Retention.Model.DeletionResult.TotalRecordsEvaluated.init -> void
+Encina.Compliance.Retention.Model.ExpiringData
+Encina.Compliance.Retention.Model.ExpiringData.DataCategory.get -> string!
+Encina.Compliance.Retention.Model.ExpiringData.DataCategory.init -> void
+Encina.Compliance.Retention.Model.ExpiringData.DaysUntilExpiration.get -> int
+Encina.Compliance.Retention.Model.ExpiringData.DaysUntilExpiration.init -> void
+Encina.Compliance.Retention.Model.ExpiringData.EntityId.get -> string!
+Encina.Compliance.Retention.Model.ExpiringData.EntityId.init -> void
+Encina.Compliance.Retention.Model.ExpiringData.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.ExpiringData.ExpiresAtUtc.init -> void
+Encina.Compliance.Retention.Model.ExpiringData.PolicyId.get -> string?
+Encina.Compliance.Retention.Model.ExpiringData.PolicyId.init -> void
+Encina.Compliance.Retention.Model.LegalHold
+Encina.Compliance.Retention.Model.LegalHold.AppliedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.LegalHold.AppliedAtUtc.init -> void
+Encina.Compliance.Retention.Model.LegalHold.AppliedByUserId.get -> string?
+Encina.Compliance.Retention.Model.LegalHold.AppliedByUserId.init -> void
+Encina.Compliance.Retention.Model.LegalHold.EntityId.get -> string!
+Encina.Compliance.Retention.Model.LegalHold.EntityId.init -> void
+Encina.Compliance.Retention.Model.LegalHold.Id.get -> string!
+Encina.Compliance.Retention.Model.LegalHold.Id.init -> void
+Encina.Compliance.Retention.Model.LegalHold.IsActive.get -> bool
+Encina.Compliance.Retention.Model.LegalHold.Reason.get -> string!
+Encina.Compliance.Retention.Model.LegalHold.Reason.init -> void
+Encina.Compliance.Retention.Model.LegalHold.ReleasedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Retention.Model.LegalHold.ReleasedAtUtc.init -> void
+Encina.Compliance.Retention.Model.LegalHold.ReleasedByUserId.get -> string?
+Encina.Compliance.Retention.Model.LegalHold.ReleasedByUserId.init -> void
+Encina.Compliance.Retention.Model.RetentionAuditEntry
+Encina.Compliance.Retention.Model.RetentionAuditEntry.Action.get -> string!
+Encina.Compliance.Retention.Model.RetentionAuditEntry.Action.init -> void
+Encina.Compliance.Retention.Model.RetentionAuditEntry.DataCategory.get -> string?
+Encina.Compliance.Retention.Model.RetentionAuditEntry.DataCategory.init -> void
+Encina.Compliance.Retention.Model.RetentionAuditEntry.Detail.get -> string?
+Encina.Compliance.Retention.Model.RetentionAuditEntry.Detail.init -> void
+Encina.Compliance.Retention.Model.RetentionAuditEntry.EntityId.get -> string?
+Encina.Compliance.Retention.Model.RetentionAuditEntry.EntityId.init -> void
+Encina.Compliance.Retention.Model.RetentionAuditEntry.Id.get -> string!
+Encina.Compliance.Retention.Model.RetentionAuditEntry.Id.init -> void
+Encina.Compliance.Retention.Model.RetentionAuditEntry.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.RetentionAuditEntry.OccurredAtUtc.init -> void
+Encina.Compliance.Retention.Model.RetentionAuditEntry.PerformedByUserId.get -> string?
+Encina.Compliance.Retention.Model.RetentionAuditEntry.PerformedByUserId.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy
+Encina.Compliance.Retention.Model.RetentionPolicy.AutoDelete.get -> bool
+Encina.Compliance.Retention.Model.RetentionPolicy.AutoDelete.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.RetentionPolicy.CreatedAtUtc.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.DataCategory.get -> string!
+Encina.Compliance.Retention.Model.RetentionPolicy.DataCategory.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.Id.get -> string!
+Encina.Compliance.Retention.Model.RetentionPolicy.Id.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.LastModifiedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Retention.Model.RetentionPolicy.LastModifiedAtUtc.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.LegalBasis.get -> string?
+Encina.Compliance.Retention.Model.RetentionPolicy.LegalBasis.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.PolicyType.get -> Encina.Compliance.Retention.Model.RetentionPolicyType
+Encina.Compliance.Retention.Model.RetentionPolicy.PolicyType.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.Reason.get -> string?
+Encina.Compliance.Retention.Model.RetentionPolicy.Reason.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicy.RetentionPeriod.get -> System.TimeSpan
+Encina.Compliance.Retention.Model.RetentionPolicy.RetentionPeriod.init -> void
+Encina.Compliance.Retention.Model.RetentionPolicyType
+Encina.Compliance.Retention.Model.RetentionPolicyType.ConsentBased = 2 -> Encina.Compliance.Retention.Model.RetentionPolicyType
+Encina.Compliance.Retention.Model.RetentionPolicyType.EventBased = 1 -> Encina.Compliance.Retention.Model.RetentionPolicyType
+Encina.Compliance.Retention.Model.RetentionPolicyType.TimeBased = 0 -> Encina.Compliance.Retention.Model.RetentionPolicyType
+Encina.Compliance.Retention.Model.RetentionRecord
+Encina.Compliance.Retention.Model.RetentionRecord.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.RetentionRecord.CreatedAtUtc.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.DataCategory.get -> string!
+Encina.Compliance.Retention.Model.RetentionRecord.DataCategory.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.DeletedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Retention.Model.RetentionRecord.DeletedAtUtc.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.EntityId.get -> string!
+Encina.Compliance.Retention.Model.RetentionRecord.EntityId.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.RetentionRecord.ExpiresAtUtc.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.Id.get -> string!
+Encina.Compliance.Retention.Model.RetentionRecord.Id.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.LegalHoldId.get -> string?
+Encina.Compliance.Retention.Model.RetentionRecord.LegalHoldId.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.PolicyId.get -> string?
+Encina.Compliance.Retention.Model.RetentionRecord.PolicyId.init -> void
+Encina.Compliance.Retention.Model.RetentionRecord.Status.get -> Encina.Compliance.Retention.Model.RetentionStatus
+Encina.Compliance.Retention.Model.RetentionRecord.Status.init -> void
+Encina.Compliance.Retention.Model.RetentionStatus
+Encina.Compliance.Retention.Model.RetentionStatus.Active = 0 -> Encina.Compliance.Retention.Model.RetentionStatus
+Encina.Compliance.Retention.Model.RetentionStatus.Deleted = 2 -> Encina.Compliance.Retention.Model.RetentionStatus
+Encina.Compliance.Retention.Model.RetentionStatus.Expired = 1 -> Encina.Compliance.Retention.Model.RetentionStatus
+Encina.Compliance.Retention.Model.RetentionStatus.UnderLegalHold = 3 -> Encina.Compliance.Retention.Model.RetentionStatus
+Encina.Compliance.Retention.RetentionEnforcementMode
+Encina.Compliance.Retention.RetentionEnforcementMode.Block = 0 -> Encina.Compliance.Retention.RetentionEnforcementMode
+Encina.Compliance.Retention.RetentionEnforcementMode.Disabled = 2 -> Encina.Compliance.Retention.RetentionEnforcementMode
+Encina.Compliance.Retention.RetentionEnforcementMode.Warn = 1 -> Encina.Compliance.Retention.RetentionEnforcementMode
+Encina.Compliance.Retention.RetentionEnforcementService
+Encina.Compliance.Retention.RetentionEnforcementService.RetentionEnforcementService(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Retention.RetentionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.RetentionEnforcementService!>! logger) -> void
+Encina.Compliance.Retention.RetentionEnforcementCompletedNotification
+Encina.Compliance.Retention.RetentionEnforcementCompletedNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.RetentionEnforcementCompletedNotification.OccurredAtUtc.init -> void
+Encina.Compliance.Retention.RetentionEnforcementCompletedNotification.Result.get -> Encina.Compliance.Retention.Model.DeletionResult!
+Encina.Compliance.Retention.RetentionEnforcementCompletedNotification.Result.init -> void
+Encina.Compliance.Retention.RetentionEnforcementCompletedNotification.RetentionEnforcementCompletedNotification(Encina.Compliance.Retention.Model.DeletionResult! Result, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.Retention.RetentionErrors
+Encina.Compliance.Retention.RetentionOptions
+Encina.Compliance.Retention.RetentionOptions.AddHealthCheck.get -> bool
+Encina.Compliance.Retention.RetentionOptions.AddHealthCheck.set -> void
+Encina.Compliance.Retention.RetentionOptions.EnableAutomaticEnforcement.get -> bool
+Encina.Compliance.Retention.RetentionOptions.EnableAutomaticEnforcement.set -> void
+Encina.Compliance.Retention.RetentionOptions.EnforcementInterval.get -> System.TimeSpan
+Encina.Compliance.Retention.RetentionOptions.EnforcementInterval.set -> void
+Encina.Compliance.Retention.RetentionOptions.EnforcementMode.get -> Encina.Compliance.Retention.RetentionEnforcementMode
+Encina.Compliance.Retention.RetentionOptions.EnforcementMode.set -> void
+Encina.Compliance.Retention.RetentionOptions.AlertBeforeExpirationDays.get -> int
+Encina.Compliance.Retention.RetentionOptions.AlertBeforeExpirationDays.set -> void
+Encina.Compliance.Retention.RetentionOptions.DefaultRetentionPeriod.get -> System.TimeSpan?
+Encina.Compliance.Retention.RetentionOptions.DefaultRetentionPeriod.set -> void
+Encina.Compliance.Retention.RetentionOptions.PublishNotifications.get -> bool
+Encina.Compliance.Retention.RetentionOptions.PublishNotifications.set -> void
+Encina.Compliance.Retention.RetentionOptions.RetentionOptions() -> void
+Encina.Compliance.Retention.RetentionOptions.TrackAuditTrail.get -> bool
+Encina.Compliance.Retention.RetentionOptions.TrackAuditTrail.set -> void
+Encina.Compliance.Retention.RetentionPeriodAttribute
+Encina.Compliance.Retention.RetentionPeriodAttribute.AutoDelete.get -> bool
+Encina.Compliance.Retention.RetentionPeriodAttribute.AutoDelete.set -> void
+Encina.Compliance.Retention.RetentionPeriodAttribute.DataCategory.get -> string?
+Encina.Compliance.Retention.RetentionPeriodAttribute.DataCategory.set -> void
+Encina.Compliance.Retention.RetentionPeriodAttribute.Days.get -> int
+Encina.Compliance.Retention.RetentionPeriodAttribute.Days.set -> void
+Encina.Compliance.Retention.RetentionPeriodAttribute.Reason.get -> string?
+Encina.Compliance.Retention.RetentionPeriodAttribute.Reason.set -> void
+Encina.Compliance.Retention.RetentionPeriodAttribute.RetentionPeriod.get -> System.TimeSpan
+Encina.Compliance.Retention.RetentionPeriodAttribute.RetentionPeriodAttribute() -> void
+Encina.Compliance.Retention.RetentionPeriodAttribute.Years.get -> int
+Encina.Compliance.Retention.RetentionPeriodAttribute.Years.set -> void
+const Encina.Compliance.Retention.RetentionErrors.DeletionFailedCode = "retention.deletion_failed" -> string!
+const Encina.Compliance.Retention.RetentionErrors.EnforcementFailedCode = "retention.enforcement_failed" -> string!
+const Encina.Compliance.Retention.RetentionErrors.HoldAlreadyActiveCode = "retention.hold_already_active" -> string!
+const Encina.Compliance.Retention.RetentionErrors.HoldAlreadyReleasedCode = "retention.hold_already_released" -> string!
+const Encina.Compliance.Retention.RetentionErrors.HoldNotFoundCode = "retention.hold_not_found" -> string!
+const Encina.Compliance.Retention.RetentionErrors.InvalidParameterCode = "retention.invalid_parameter" -> string!
+const Encina.Compliance.Retention.RetentionErrors.NoPolicyForCategoryCode = "retention.no_policy_for_category" -> string!
+const Encina.Compliance.Retention.RetentionErrors.PolicyAlreadyExistsCode = "retention.policy_already_exists" -> string!
+const Encina.Compliance.Retention.RetentionErrors.PolicyNotFoundCode = "retention.policy_not_found" -> string!
+const Encina.Compliance.Retention.RetentionErrors.RecordAlreadyExistsCode = "retention.record_already_exists" -> string!
+const Encina.Compliance.Retention.RetentionErrors.RecordNotFoundCode = "retention.record_not_found" -> string!
+const Encina.Compliance.Retention.RetentionErrors.StoreErrorCode = "retention.store_error" -> string!
+static Encina.Compliance.Retention.Model.LegalHold.Create(string! entityId, string! reason, string? appliedByUserId = null) -> Encina.Compliance.Retention.Model.LegalHold!
+static Encina.Compliance.Retention.Model.RetentionAuditEntry.Create(string! action, string? entityId = null, string? dataCategory = null, string? detail = null, string? performedByUserId = null) -> Encina.Compliance.Retention.Model.RetentionAuditEntry!
+static Encina.Compliance.Retention.Model.RetentionPolicy.Create(string! dataCategory, System.TimeSpan retentionPeriod, bool autoDelete = true, string? reason = null, string? legalBasis = null, Encina.Compliance.Retention.Model.RetentionPolicyType policyType = Encina.Compliance.Retention.Model.RetentionPolicyType.TimeBased) -> Encina.Compliance.Retention.Model.RetentionPolicy!
+static Encina.Compliance.Retention.Model.RetentionPolicy.FromDays(int days) -> System.TimeSpan
+static Encina.Compliance.Retention.Model.RetentionPolicy.FromYears(int years) -> System.TimeSpan
+static Encina.Compliance.Retention.Model.RetentionRecord.Create(string! entityId, string! dataCategory, System.DateTimeOffset createdAtUtc, System.DateTimeOffset expiresAtUtc, string? policyId = null) -> Encina.Compliance.Retention.Model.RetentionRecord!
+static Encina.Compliance.Retention.RetentionErrors.DeletionFailed(string! entityId, string! reason) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.EnforcementFailed(string! reason, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.HoldAlreadyActive(string! entityId) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.HoldAlreadyReleased(string! holdId) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.HoldNotFound(string! holdId) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.InvalidParameter(string! parameterName, string! message) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.NoPolicyForCategory(string! dataCategory) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.PolicyAlreadyExists(string! dataCategory) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.PolicyNotFound(string! policyId) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.RecordAlreadyExists(string! recordId) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.RecordNotFound(string! recordId) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.PipelineEntityIdNotFound(string! responseType) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.PipelineRecordCreationFailed(string! dataCategory, string! reason, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.Retention.RetentionErrors.StoreError(string! operation, string! message, System.Exception? exception = null) -> Encina.EncinaError
+const Encina.Compliance.Retention.RetentionErrors.PipelineEntityIdNotFoundCode = "retention.pipeline_entity_id_not_found" -> string!
+const Encina.Compliance.Retention.RetentionErrors.PipelineRecordCreationFailedCode = "retention.pipeline_record_creation_failed" -> string!
+Encina.Compliance.Retention.RetentionValidationPipelineBehavior<TRequest, TResponse>
+Encina.Compliance.Retention.RetentionValidationPipelineBehavior<TRequest, TResponse>.RetentionValidationPipelineBehavior(Encina.Compliance.Retention.IRetentionRecordStore! recordStore, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Retention.RetentionOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.RetentionValidationPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.Retention.RetentionValidationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Compliance.Retention.Health.RetentionHealthCheck
+Encina.Compliance.Retention.Health.RetentionHealthCheck.RetentionHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Retention.Health.RetentionHealthCheck!>! logger) -> void
+Encina.Compliance.Retention.Health.RetentionHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+const Encina.Compliance.Retention.Health.RetentionHealthCheck.DefaultName = "encina-retention" -> string!
+Encina.Compliance.Retention.ServiceCollectionExtensions
+static Encina.Compliance.Retention.ServiceCollectionExtensions.AddEncinaRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.Retention.RetentionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Compliance.Retention.RetentionPolicyBuilder
+Encina.Compliance.Retention.RetentionPolicyBuilder.RetainForDays(int days) -> Encina.Compliance.Retention.RetentionPolicyBuilder!
+Encina.Compliance.Retention.RetentionPolicyBuilder.RetainForYears(int years) -> Encina.Compliance.Retention.RetentionPolicyBuilder!
+Encina.Compliance.Retention.RetentionPolicyBuilder.RetainFor(System.TimeSpan period) -> Encina.Compliance.Retention.RetentionPolicyBuilder!
+Encina.Compliance.Retention.RetentionPolicyBuilder.WithAutoDelete(bool autoDelete = true) -> Encina.Compliance.Retention.RetentionPolicyBuilder!
+Encina.Compliance.Retention.RetentionPolicyBuilder.WithReason(string! reason) -> Encina.Compliance.Retention.RetentionPolicyBuilder!
+Encina.Compliance.Retention.RetentionPolicyBuilder.WithLegalBasis(string! legalBasis) -> Encina.Compliance.Retention.RetentionPolicyBuilder!
+Encina.Compliance.Retention.RetentionOptions.AutoRegisterFromAttributes.get -> bool
+Encina.Compliance.Retention.RetentionOptions.AutoRegisterFromAttributes.set -> void
+Encina.Compliance.Retention.RetentionOptions.AssembliesToScan.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!
+Encina.Compliance.Retention.RetentionOptions.AddPolicy(string! dataCategory, System.Action<Encina.Compliance.Retention.RetentionPolicyBuilder!>! configure) -> Encina.Compliance.Retention.RetentionOptions!
+Encina.Compliance.Retention.RetentionRecordEntity
+Encina.Compliance.Retention.RetentionRecordEntity.RetentionRecordEntity() -> void
+Encina.Compliance.Retention.RetentionRecordEntity.Id.get -> string!
+Encina.Compliance.Retention.RetentionRecordEntity.Id.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.EntityId.get -> string!
+Encina.Compliance.Retention.RetentionRecordEntity.EntityId.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.DataCategory.get -> string!
+Encina.Compliance.Retention.RetentionRecordEntity.DataCategory.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.PolicyId.get -> string?
+Encina.Compliance.Retention.RetentionRecordEntity.PolicyId.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.RetentionRecordEntity.CreatedAtUtc.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.RetentionRecordEntity.ExpiresAtUtc.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.StatusValue.get -> int
+Encina.Compliance.Retention.RetentionRecordEntity.StatusValue.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.DeletedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Retention.RetentionRecordEntity.DeletedAtUtc.set -> void
+Encina.Compliance.Retention.RetentionRecordEntity.LegalHoldId.get -> string?
+Encina.Compliance.Retention.RetentionRecordEntity.LegalHoldId.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity
+Encina.Compliance.Retention.RetentionPolicyEntity.RetentionPolicyEntity() -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.Id.get -> string!
+Encina.Compliance.Retention.RetentionPolicyEntity.Id.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.DataCategory.get -> string!
+Encina.Compliance.Retention.RetentionPolicyEntity.DataCategory.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.RetentionPeriodTicks.get -> long
+Encina.Compliance.Retention.RetentionPolicyEntity.RetentionPeriodTicks.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.AutoDelete.get -> bool
+Encina.Compliance.Retention.RetentionPolicyEntity.AutoDelete.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.Reason.get -> string?
+Encina.Compliance.Retention.RetentionPolicyEntity.Reason.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.LegalBasis.get -> string?
+Encina.Compliance.Retention.RetentionPolicyEntity.LegalBasis.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.PolicyTypeValue.get -> int
+Encina.Compliance.Retention.RetentionPolicyEntity.PolicyTypeValue.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.RetentionPolicyEntity.CreatedAtUtc.set -> void
+Encina.Compliance.Retention.RetentionPolicyEntity.LastModifiedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Retention.RetentionPolicyEntity.LastModifiedAtUtc.set -> void
+Encina.Compliance.Retention.LegalHoldEntity
+Encina.Compliance.Retention.LegalHoldEntity.LegalHoldEntity() -> void
+Encina.Compliance.Retention.LegalHoldEntity.Id.get -> string!
+Encina.Compliance.Retention.LegalHoldEntity.Id.set -> void
+Encina.Compliance.Retention.LegalHoldEntity.EntityId.get -> string!
+Encina.Compliance.Retention.LegalHoldEntity.EntityId.set -> void
+Encina.Compliance.Retention.LegalHoldEntity.Reason.get -> string!
+Encina.Compliance.Retention.LegalHoldEntity.Reason.set -> void
+Encina.Compliance.Retention.LegalHoldEntity.AppliedByUserId.get -> string?
+Encina.Compliance.Retention.LegalHoldEntity.AppliedByUserId.set -> void
+Encina.Compliance.Retention.LegalHoldEntity.AppliedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.LegalHoldEntity.AppliedAtUtc.set -> void
+Encina.Compliance.Retention.LegalHoldEntity.ReleasedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Retention.LegalHoldEntity.ReleasedAtUtc.set -> void
+Encina.Compliance.Retention.LegalHoldEntity.ReleasedByUserId.get -> string?
+Encina.Compliance.Retention.LegalHoldEntity.ReleasedByUserId.set -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity
+Encina.Compliance.Retention.RetentionAuditEntryEntity.RetentionAuditEntryEntity() -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity.Id.get -> string!
+Encina.Compliance.Retention.RetentionAuditEntryEntity.Id.set -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity.Action.get -> string!
+Encina.Compliance.Retention.RetentionAuditEntryEntity.Action.set -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity.EntityId.get -> string?
+Encina.Compliance.Retention.RetentionAuditEntryEntity.EntityId.set -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity.DataCategory.get -> string?
+Encina.Compliance.Retention.RetentionAuditEntryEntity.DataCategory.set -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity.Detail.get -> string?
+Encina.Compliance.Retention.RetentionAuditEntryEntity.Detail.set -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity.PerformedByUserId.get -> string?
+Encina.Compliance.Retention.RetentionAuditEntryEntity.PerformedByUserId.set -> void
+Encina.Compliance.Retention.RetentionAuditEntryEntity.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.RetentionAuditEntryEntity.OccurredAtUtc.set -> void
+Encina.Compliance.Retention.RetentionRecordMapper
+static Encina.Compliance.Retention.RetentionRecordMapper.ToEntity(Encina.Compliance.Retention.Model.RetentionRecord! record) -> Encina.Compliance.Retention.RetentionRecordEntity!
+static Encina.Compliance.Retention.RetentionRecordMapper.ToDomain(Encina.Compliance.Retention.RetentionRecordEntity! entity) -> Encina.Compliance.Retention.Model.RetentionRecord?
+Encina.Compliance.Retention.RetentionPolicyMapper
+static Encina.Compliance.Retention.RetentionPolicyMapper.ToEntity(Encina.Compliance.Retention.Model.RetentionPolicy! policy) -> Encina.Compliance.Retention.RetentionPolicyEntity!
+static Encina.Compliance.Retention.RetentionPolicyMapper.ToDomain(Encina.Compliance.Retention.RetentionPolicyEntity! entity) -> Encina.Compliance.Retention.Model.RetentionPolicy?
+Encina.Compliance.Retention.LegalHoldMapper
+static Encina.Compliance.Retention.LegalHoldMapper.ToEntity(Encina.Compliance.Retention.Model.LegalHold! hold) -> Encina.Compliance.Retention.LegalHoldEntity!
+static Encina.Compliance.Retention.LegalHoldMapper.ToDomain(Encina.Compliance.Retention.LegalHoldEntity! entity) -> Encina.Compliance.Retention.Model.LegalHold!
+Encina.Compliance.Retention.RetentionAuditEntryMapper
+static Encina.Compliance.Retention.RetentionAuditEntryMapper.ToEntity(Encina.Compliance.Retention.Model.RetentionAuditEntry! entry) -> Encina.Compliance.Retention.RetentionAuditEntryEntity!
+static Encina.Compliance.Retention.RetentionAuditEntryMapper.ToDomain(Encina.Compliance.Retention.RetentionAuditEntryEntity! entity) -> Encina.Compliance.Retention.Model.RetentionAuditEntry!

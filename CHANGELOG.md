@@ -1093,6 +1093,127 @@ Enhanced the `AuthorizationPipelineBehavior` with CQRS-aware default policies, r
 
 ---
 
+#### Encina.Compliance.Retention — Data Retention and Automatic Deletion with GDPR Art. 5(1)(e) (#406)
+
+Added the `Encina.Compliance.Retention` package providing declarative, attribute-based data retention management at the CQRS pipeline level. Implements GDPR Article 5(1)(e) storage limitation principle with automatic enforcement cycles, legal hold support for litigation preservation, and immutable audit trail for compliance evidence.
+
+**Core Abstractions**:
+
+- **`IRetentionRecordStore`**: Retention record persistence with `AddAsync`, `GetByIdAsync`, `GetByEntityIdAsync`, `GetExpiredRecordsAsync`, `UpdateStatusAsync`, `DeleteAsync` — tracks data lifecycle per entity
+- **`IRetentionPolicyStore`**: Policy persistence with `AddAsync`, `GetByIdAsync`, `GetByCategoryAsync`, `GetAllAsync`, `UpdateAsync`, `DeleteAsync` — one policy per data category with duplicate detection
+- **`IRetentionAuditStore`**: Immutable audit trail with `AddAsync`, `GetByEntityIdAsync`, `GetByActionAsync`, `GetAllAsync` — chronological compliance evidence
+- **`ILegalHoldStore`**: Legal hold management with `AddAsync`, `GetByIdAsync`, `GetByEntityIdAsync`, `GetActiveHoldsAsync`, `ReleaseAsync` — litigation preservation
+- **`IRetentionPolicy`** (service): Policy resolution with `GetPolicyForCategoryAsync` and `GetRetentionPeriodAsync` — fallback to `DefaultRetentionPeriod`
+- **`IRetentionEnforcer`** (service): Enforcement orchestration with `EnforceRetentionAsync` — discovers expired records, executes deletion via `IDataErasureExecutor`, records audit trail
+- **`ILegalHoldManager`** (service): Legal hold lifecycle with `ApplyHoldAsync`, `ReleaseHoldAsync`, `IsUnderHoldAsync`, `GetActiveHoldsAsync` — publishes domain notifications
+
+**Domain Model**:
+
+- **`RetentionRecord`**: Sealed record with Id, EntityId, DataCategory, PolicyId, CreatedAtUtc, ExpiresAtUtc, Status, DeletedAtUtc, LegalHoldId — factory `Create()` generates 32-char GUID
+- **`RetentionPolicy`**: Sealed record with Id, DataCategory, RetentionPeriod, AutoDelete, Reason, LegalBasis, PolicyType, CreatedAtUtc, LastModifiedAtUtc — helpers `FromDays(int)` and `FromYears(int)`
+- **`LegalHold`**: Sealed record with Id, EntityId, Reason, AppliedByUserId, AppliedAtUtc, ReleasedAtUtc, ReleasedByUserId — computed `IsActive` property (`ReleasedAtUtc is null`)
+- **`RetentionAuditEntry`**: Sealed record with Id, EntityId, Action, Details, OccurredAtUtc, PerformedBy — immutable audit evidence
+- **`RetentionStatus`**: 4-state enum — Active, Expired, Deleted, UnderLegalHold
+- **`RetentionPolicyType`**: 3-type enum — TimeBased, EventBased, Indefinite
+- **`RetentionEnforcementMode`**: 3-mode enum — Block, Warn, Disabled
+- **`DeletionResult`**: Sealed record with TotalProcessed, SuccessCount, FailureCount, Details (list of `DeletionDetail`), HasFailures (computed)
+- **`DeletionDetail`**: Sealed record with RecordId, EntityId, DataCategory, Success, ErrorMessage
+- **`ExpiringData`**: Sealed record with RecordId, EntityId, DataCategory, ExpiresAtUtc, DaysUntilExpiration
+
+**Declarative Attribute**:
+
+- **`[RetentionPeriod(Days = 365)]`**: Marks request/response types with data retention requirements — supports `Days`, `Years` (mutually exclusive), `Reason`, `AutoDelete` (default `true`), `DataCategory`. Applicable to classes and properties (`AllowMultiple = false, Inherited = true`)
+
+**Pipeline Behavior**:
+
+- **`RetentionValidationPipelineBehavior<TRequest, TResponse>`**: Creates retention records automatically when requests with `[RetentionPeriod]` produce responses — extracts entity ID from response properties, resolves policy, persists record
+- Three enforcement modes: `Block` (reject on failure), `Warn` (log and proceed), `Disabled` (no-op)
+- Static per-closed-generic-type attribute cache (`CachedAttributeInfo`) for zero reflection overhead after first access
+- Requests without `[RetentionPeriod]` bypass all checks (zero overhead)
+
+**Automatic Enforcement**:
+
+- **`RetentionEnforcementService`**: `BackgroundService` with `PeriodicTimer`-based scheduling — immediate first cycle, then at `EnforcementInterval` (default 60 min)
+- Per cycle: discovers expiring records (publishes `DataExpiringNotification`), then delegates to `IRetentionEnforcer.EnforceRetentionAsync`
+- Graceful error handling: cycle failures are logged, host never crashes
+- **`DefaultRetentionEnforcer`**: Orchestrates deletion via `IDataErasureExecutor` (from `Encina.Compliance.DataSubjectRights`), skips records under legal hold, records audit trail, publishes `DataDeletedNotification` per successful deletion
+
+**Legal Hold Management**:
+
+- **`DefaultLegalHoldManager`**: Full lifecycle with idempotent apply (checks existing active holds), release with validation (hold must be active), `IsUnderHoldAsync` for enforcement checks
+- Publishes `LegalHoldAppliedNotification` and `LegalHoldReleasedNotification` via `IEncina` (MediatR)
+- Records audit trail entries for all hold operations
+
+**Domain Events** (5 notification types implementing `INotification`):
+
+- **`DataExpiringNotification`**: Published when data approaches expiration (EntityId, DataCategory, ExpiresAtUtc, DaysUntilExpiration, OccurredAtUtc)
+- **`DataDeletedNotification`**: Published when data is deleted by enforcement (EntityId, DataCategory, DeletedAtUtc, PolicyId)
+- **`LegalHoldAppliedNotification`**: Published when a legal hold is applied (HoldId, EntityId, Reason, AppliedAtUtc)
+- **`LegalHoldReleasedNotification`**: Published when a legal hold is released (HoldId, EntityId, ReleasedAtUtc)
+- **`RetentionEnforcementCompletedNotification`**: Published when an enforcement cycle completes (Result, OccurredAtUtc)
+
+**In-Memory Implementations** (development/testing):
+
+- **`InMemoryRetentionRecordStore`**: ConcurrentDictionary-based with `TimeProvider` for deterministic time control in tests
+- **`InMemoryRetentionPolicyStore`**: ConcurrentDictionary-based with duplicate category detection and atomic rollback
+- **`InMemoryRetentionAuditStore`**: ConcurrentDictionary-based with descending chronological ordering
+- **`InMemoryLegalHoldStore`**: ConcurrentDictionary-based with active hold filtering and release validation
+
+**Mapper Infrastructure** (for future 13-provider persistence):
+
+- **`RetentionRecordMapper`**: Static `ToEntity`/`ToDomain` mapping with `RetentionRecordEntity` (UTC ticks for TimeSpan, int for enum)
+- **`RetentionPolicyMapper`**: Static `ToEntity`/`ToDomain` mapping with `RetentionPolicyEntity` (ticks for RetentionPeriod)
+- **`LegalHoldMapper`**: Static `ToEntity`/`ToDomain` mapping with `LegalHoldEntity` (nullable DateTimeOffset for release)
+- **`RetentionAuditEntryMapper`**: Static `ToEntity`/`ToDomain` mapping with `RetentionAuditEntryEntity`
+
+**Error Codes** (14 structured errors via `RetentionErrors`):
+
+- `retention.policy_not_found`, `retention.policy_already_exists`, `retention.record_not_found`, `retention.record_already_exists`
+- `retention.hold_not_found`, `retention.hold_already_active`, `retention.hold_already_released`
+- `retention.enforcement_failed`, `retention.deletion_failed`, `retention.store_error`
+- `retention.invalid_parameter`, `retention.no_policy_for_category`
+- `retention.pipeline_record_creation_failed`, `retention.pipeline_entity_id_not_found`
+- All errors include structured metadata via `EncinaError` with ROP pattern
+
+**Configuration** (`RetentionOptions`):
+
+- `DefaultRetentionPeriod` (`TimeSpan?`), `AlertBeforeExpirationDays` (default 30), `PublishNotifications` (default `true`), `TrackAuditTrail` (default `true`)
+- `EnableAutomaticEnforcement` (default `true`), `EnforcementInterval` (default 60 min), `EnforcementMode` (Block/Warn/Disabled, default Warn)
+- `AutoRegisterFromAttributes` (default `true`), `AssembliesToScan` (assembly list for attribute discovery)
+- `AddPolicy()` fluent API with `RetentionPolicyBuilder`: `RetainForDays`, `RetainForYears`, `RetainFor`, `WithAutoDelete`, `WithReason`, `WithLegalBasis`
+- Options validation via `IValidateOptions<RetentionOptions>` — validates enum ranges, positive intervals, non-negative alert days
+
+**Auto-Registration**:
+
+- Scan assemblies for `[RetentionPeriod]` attributes at startup via `RetentionAutoRegistrationHostedService`
+- Registers discovered policies automatically into `IRetentionPolicyStore`
+- Configurable via `RetentionOptions.AutoRegisterFromAttributes` and `RetentionOptions.AssembliesToScan`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.Retention` ActivitySource with 6 activity types: Pipeline, Enforcement, Deletion, LegalHold, PolicyResolution, Audit
+- 13 metric instruments under `Encina.Compliance.Retention` Meter: 10 counters (pipeline executions, enforcement cycles, records created/deleted/held/failed, legal holds applied/released, policy resolutions, audit entries) + 3 histograms (enforcement/pipeline/deletion duration in ms)
+- 70 structured log events (EventId 8500–8569) using `LoggerMessage.Define` for zero-allocation logging
+
+**Health Check**:
+
+- **`RetentionHealthCheck`**: Verifies required services (`RetentionOptions`, `IRetentionRecordStore`, `IRetentionPolicyStore`, `IRetentionEnforcer`) and optional services (`ILegalHoldStore`, `IRetentionAuditStore`)
+- Reports Healthy/Degraded/Unhealthy based on service availability
+- Opt-in via `RetentionOptions.AddHealthCheck = true`
+- Tags: `encina`, `gdpr`, `retention`, `compliance`, `ready`
+
+**DI Registration**:
+
+- `services.AddEncinaRetention()` with `TryAdd` semantics — register custom stores before calling to override defaults
+- Configurable via `Action<RetentionOptions>` delegate
+- Conditionally registers `RetentionEnforcementService` (hosted), `RetentionAutoRegistrationHostedService` (hosted), and `RetentionHealthCheck`
+
+**Testing**: 684 tests across 5 test projects — 469 unit tests (15 files covering all domain models, services, stores, mappers, errors, options, pipeline behavior, enforcement, legal hold management), 92 guard tests (12 files covering all constructors and public method parameter validation), 51 contract tests (4 abstract base + 4 InMemory implementations for all store interfaces), 58 property tests (5 files with FsCheck invariants for record creation, policy evaluation, mapper round-trips, store operations, legal hold lifecycle), 14 integration tests (DI registration, options configuration, full lifecycle flows, concurrent access).
+
+**Note**: Database provider implementations (13 providers) are planned for future phases. Currently ships with InMemory stores and mapper infrastructure ready for all 13 provider store implementations.
+
+---
+
 ### Changed
 
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)

@@ -1,4 +1,5 @@
 using Encina.Compliance.Anonymization;
+using Encina.Compliance.Retention;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -134,6 +135,15 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
         }
 
+        // Register Retention stores if enabled
+        if (options.UseRetention)
+        {
+            services.AddScoped<IRetentionPolicyStore, Retention.RetentionPolicyStoreMongoDB>();
+            services.AddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreMongoDB>();
+            services.AddScoped<ILegalHoldStore, Retention.LegalHoldStoreMongoDB>();
+            services.AddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreMongoDB>();
+        }
+
         // Create indexes if configured
         if (options.CreateIndexes)
         {
@@ -244,6 +254,15 @@ public static class ServiceCollectionExtensions
         if (options.UseAnonymization)
         {
             services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
+        }
+
+        // Register Retention stores if enabled
+        if (options.UseRetention)
+        {
+            services.AddScoped<IRetentionPolicyStore, Retention.RetentionPolicyStoreMongoDB>();
+            services.AddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreMongoDB>();
+            services.AddScoped<ILegalHoldStore, Retention.LegalHoldStoreMongoDB>();
+            services.AddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreMongoDB>();
         }
 
         // Create indexes if configured

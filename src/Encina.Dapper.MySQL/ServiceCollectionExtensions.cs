@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
+using Encina.Compliance.Retention;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -92,6 +93,15 @@ public static class ServiceCollectionExtensions
         if (config.UseAnonymization)
         {
             services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreDapper>();
+        }
+
+        // Register Retention stores if enabled
+        if (config.UseRetention)
+        {
+            services.TryAddScoped<IRetentionPolicyStore, Retention.RetentionPolicyStoreDapper>();
+            services.TryAddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreDapper>();
+            services.TryAddScoped<ILegalHoldStore, Retention.LegalHoldStoreDapper>();
+            services.TryAddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreDapper>();
         }
 
         return services;

@@ -626,6 +626,22 @@ public sealed class MessagingConfiguration
     public bool UseAnonymization { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Retention stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.Retention.IRetentionPolicyStore"/>,
+    /// <see cref="Compliance.Retention.IRetentionRecordStore"/>,
+    /// <see cref="Compliance.Retention.ILegalHoldStore"/>, and
+    /// <see cref="Compliance.Retention.IRetentionAuditStore"/>
+    /// with the provider-specific implementation for GDPR Article 5(1)(e) compliant
+    /// data retention management, automatic deletion, and legal hold enforcement.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseRetention { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -899,5 +915,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention;
 }

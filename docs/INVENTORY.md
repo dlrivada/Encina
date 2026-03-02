@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 7 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management) (+ 1 planificado: #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 3 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #413 Lawful Basis Validation) (+ 11 planificados: #404-#412, #414-#415) |
+| **Patrones Compliance (GDPR/EU)** | 4 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #406 Data Retention, #413 Lawful Basis Validation) (+ 10 planificados: #404-#405, #407-#412, #414-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Lawful Basis #413 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Retention #406, Lawful Basis #413 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -5811,7 +5811,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | **#403** | Consent Management | Gestión de consentimientos con versioning y withdrawal tracking | Crítica | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-consent-management` |
 | **#404** | Data Subject Rights | Implementación de Arts. 15-22 (Access, Rectification, Erasure, Portability) | Crítica | Muy Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `saas-essential` |
 | **#405** | Data Residency | Enforcement de residencia de datos con routing geográfico | Crítica | Muy Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-data-sovereignty`, `area-cloud-native` |
-| **#406** | Retention | Políticas de retención de datos con eliminación automática | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `area-archival` |
+| **#406** | Retention ✅ | Políticas de retención de datos con eliminación automática - **IMPLEMENTADO** | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `area-archival` |
 | **#407** | Anonymization | Pseudonimización y anonimización reversible/irreversible | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-crypto-shredding` |
 | **#408** | Breach Notification | Sistema de notificación de brechas en 72 horas (Art. 33) | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `area-observability` |
 | **#409** | DPIA | Automatización de Data Protection Impact Assessment | Media | Alta | `area-compliance`, `area-gdpr`, `eu-regulation` |
@@ -5938,16 +5938,33 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 
 ##### Tier 2: Alta Prioridad (Data Lifecycle)
 
-**#406 - Encina.Compliance.Retention - Data Retention**:
+**#406 - Encina.Compliance.Retention - Data Retention** ✅ **IMPLEMENTADO**:
 
-- `IRetentionPolicyEngine` con `ApplyAsync`, `ScheduleDeletionAsync`, `AuditAsync`
-- `RetentionPolicy` con Duration, LegalBasis, DataCategories, ExceptionRules
-- `RetentionPipelineBehavior` para marcar datos con fecha de expiración
-- Automatic deletion jobs con audit trail
-- Legal hold support para litigation
-- Retention reporting para compliance audits
-- **Nuevo paquete planificado**: `Encina.Compliance.Retention`
-- **Demanda de comunidad**: ALTA - Art. 5(1)(e) storage limitation
+- `IRetentionRecordStore` con `AddAsync`, `GetByIdAsync`, `GetByEntityIdAsync`, `GetExpiredRecordsAsync`, `UpdateStatusAsync`, `DeleteAsync` — retention record lifecycle tracking
+- `IRetentionPolicyStore` con `AddAsync`, `GetByIdAsync`, `GetByCategoryAsync`, `GetAllAsync`, `UpdateAsync`, `DeleteAsync` — one policy per data category
+- `IRetentionAuditStore` con `AddAsync`, `GetByEntityIdAsync`, `GetByActionAsync`, `GetAllAsync` — immutable compliance evidence
+- `ILegalHoldStore` con `AddAsync`, `GetByIdAsync`, `GetByEntityIdAsync`, `GetActiveHoldsAsync`, `ReleaseAsync` — litigation preservation
+- `IRetentionPolicy` (service) con `GetPolicyForCategoryAsync`, `GetRetentionPeriodAsync` — policy resolution with fallback
+- `IRetentionEnforcer` (service) con `EnforceRetentionAsync` — orchestrates deletion via `IDataErasureExecutor`
+- `ILegalHoldManager` (service) con `ApplyHoldAsync`, `ReleaseHoldAsync`, `IsUnderHoldAsync`, `GetActiveHoldsAsync` — lifecycle with notifications
+- `RetentionRecord` sealed record con Id, EntityId, DataCategory, PolicyId, CreatedAtUtc, ExpiresAtUtc, Status, DeletedAtUtc, LegalHoldId
+- `RetentionPolicy` sealed record con Id, DataCategory, RetentionPeriod, AutoDelete, Reason, LegalBasis, PolicyType, CreatedAtUtc
+- `LegalHold` sealed record con Id, EntityId, Reason, AppliedByUserId, AppliedAtUtc, ReleasedAtUtc, computed IsActive
+- `RetentionAuditEntry` sealed record con Id, EntityId, Action, Details, OccurredAtUtc, PerformedBy
+- `[RetentionPeriod(Days/Years)]` attribute with AutoDelete, DataCategory, Reason — class/property level
+- `RetentionValidationPipelineBehavior<TRequest, TResponse>` — automatic retention record creation with attribute caching
+- `RetentionEnforcementService` (`BackgroundService`) — periodic enforcement with `PeriodicTimer`, immediate first cycle
+- `DefaultRetentionEnforcer` — deletion via `IDataErasureExecutor`, legal hold bypass, audit trail
+- `DefaultLegalHoldManager` — full lifecycle with `IEncina` notification publishing
+- 5 domain notifications: `DataExpiringNotification`, `DataDeletedNotification`, `LegalHoldAppliedNotification`, `LegalHoldReleasedNotification`, `RetentionEnforcementCompletedNotification`
+- 14 error codes via `RetentionErrors` (policy_not_found, record_not_found, hold_already_active, enforcement_failed, etc.)
+- `RetentionOptions` con DefaultRetentionPeriod, AlertBeforeExpirationDays, EnforcementMode (Block/Warn/Disabled), fluent `AddPolicy()` API
+- In-memory implementations: `InMemoryRetentionRecordStore`, `InMemoryRetentionPolicyStore`, `InMemoryRetentionAuditStore`, `InMemoryLegalHoldStore`
+- Mapper infrastructure: `RetentionRecordMapper`, `RetentionPolicyMapper`, `LegalHoldMapper`, `RetentionAuditEntryMapper` + entities (ready for 13 providers)
+- OpenTelemetry: ActivitySource with 6 activity types, Meter with 13 instruments (10 counters + 3 histograms), 70 LoggerMessage events (8500-8569)
+- `RetentionHealthCheck` con Healthy/Degraded/Unhealthy states based on service availability
+- `services.AddEncinaRetention()` with `TryAdd` semantics and `Action<RetentionOptions>` configuration
+- 684 tests: 469 unit, 92 guard, 51 contract, 58 property, 14 integration
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `area-archival`
 - Referencias: [GDPR Article 5](https://gdpr-info.eu/art-5-gdpr/), [NIST Data Retention](https://csrc.nist.gov/glossary/term/data_retention)
 
@@ -6097,7 +6114,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | `Encina.Compliance.Consent` | #403 | Consent management ✅ | Crítica |
 | `Encina.Compliance.DataSubjectRights` | #404 | GDPR rights (Arts. 15-22) | Crítica |
 | `Encina.Compliance.DataResidency` | #405 | Data sovereignty | Crítica |
-| `Encina.Compliance.Retention` | #406 | Data retention policies | Alta |
+| `Encina.Compliance.Retention` | #406 | Data retention policies ✅ | Alta |
 | `Encina.Compliance.Anonymization` | #407 | Pseudonymization & anonymization | Alta |
 | `Encina.Compliance.BreachNotification` | #408 | 72-hour breach notification | Alta |
 | `Encina.Compliance.DPIA` | #409 | Impact assessment automation | Media |
@@ -6128,7 +6145,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
    - #405 (DataResidency) - Post-Schrems II critical
 
 2. **Corto Plazo (Alta Prioridad - Data Lifecycle)**:
-   - #406 (Retention) - Storage limitation
+   - ~~#406 (Retention) - Storage limitation~~ ✅ **COMPLETADO** (Mar 2026)
    - #407 (Anonymization) - Privacy by default
    - #408 (BreachNotification) - 72-hour requirement
 

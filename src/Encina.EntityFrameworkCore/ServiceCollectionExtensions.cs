@@ -1,5 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.Anonymization;
+using Encina.Compliance.Retention;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -347,6 +348,15 @@ public static class ServiceCollectionExtensions
         if (config.UseAnonymization)
         {
             services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreEF>();
+        }
+
+        // Register Retention stores if enabled
+        if (config.UseRetention)
+        {
+            services.TryAddScoped<IRetentionPolicyStore, Retention.RetentionPolicyStoreEF>();
+            services.TryAddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreEF>();
+            services.TryAddScoped<ILegalHoldStore, Retention.LegalHoldStoreEF>();
+            services.TryAddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreEF>();
         }
 
         if (config.UseTemporalTables)

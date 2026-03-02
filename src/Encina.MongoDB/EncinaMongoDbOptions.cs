@@ -117,6 +117,21 @@ public sealed class EncinaMongoDbOptions
     public bool UseAnonymization { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Retention stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.Retention.IRetentionPolicyStore"/>,
+    /// <see cref="Compliance.Retention.IRetentionRecordStore"/>,
+    /// <see cref="Compliance.Retention.ILegalHoldStore"/>, and
+    /// <see cref="Compliance.Retention.IRetentionAuditStore"/>
+    /// implemented by their MongoDB store classes for GDPR Article 5(1)(e) compliant
+    /// data retention management and legal hold enforcement.
+    /// </para>
+    /// </remarks>
+    public bool UseRetention { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -261,4 +276,24 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for token mappings (anonymization).
     /// </summary>
     public string TokenMappings { get; set; } = "token_mappings";
+
+    /// <summary>
+    /// Gets or sets the collection name for retention policies.
+    /// </summary>
+    public string RetentionPolicies { get; set; } = "retention_policies";
+
+    /// <summary>
+    /// Gets or sets the collection name for retention records.
+    /// </summary>
+    public string RetentionRecords { get; set; } = "retention_records";
+
+    /// <summary>
+    /// Gets or sets the collection name for legal holds.
+    /// </summary>
+    public string LegalHolds { get; set; } = "legal_holds";
+
+    /// <summary>
+    /// Gets or sets the collection name for retention audit entries.
+    /// </summary>
+    public string RetentionAuditEntries { get; set; } = "retention_audit_entries";
 }
