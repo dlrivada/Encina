@@ -1,8 +1,8 @@
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.Retention;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
+using Encina.Compliance.Retention;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;

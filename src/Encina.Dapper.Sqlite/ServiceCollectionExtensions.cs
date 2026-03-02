@@ -1,9 +1,9 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.Retention;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
+using Encina.Compliance.Retention;
 using Encina.Dapper.Sqlite.Auditing;
 using Encina.Dapper.Sqlite.BulkOperations;
 using Encina.Dapper.Sqlite.Health;

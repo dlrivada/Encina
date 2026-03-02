@@ -1,9 +1,9 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.Retention;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
+using Encina.Compliance.Retention;
 using Encina.Dapper.SqlServer.Auditing;
 using Encina.Dapper.SqlServer.BulkOperations;
 using Encina.Dapper.SqlServer.Health;
