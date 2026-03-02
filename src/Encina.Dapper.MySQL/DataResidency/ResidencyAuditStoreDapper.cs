@@ -1,10 +1,10 @@
 using System.Data;
+using System.Globalization;
 using Dapper;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 using Encina.Messaging;
 using LanguageExt;
-using System.Globalization;
 using static LanguageExt.Prelude;
 
 namespace Encina.Dapper.MySQL.DataResidency;
