@@ -1,6 +1,5 @@
 using System.Data;
 using Encina.ADO.PostgreSQL.Auditing;
-using Encina.Security.Audit;
 using Encina.ADO.PostgreSQL.Health;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
@@ -20,6 +19,7 @@ using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Security.Audit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;

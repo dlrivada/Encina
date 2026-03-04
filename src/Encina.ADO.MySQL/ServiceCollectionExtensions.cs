@@ -1,6 +1,5 @@
 using System.Data;
 using Encina.ADO.MySQL.Auditing;
-using Encina.Security.Audit;
 using Encina.ADO.MySQL.Health;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
@@ -19,6 +18,7 @@ using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Security.Audit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MySqlConnector;

@@ -1,6 +1,5 @@
 using System.Data;
 using Encina.ADO.SqlServer.Auditing;
-using Encina.Security.Audit;
 using Encina.ADO.SqlServer.BulkOperations;
 using Encina.ADO.SqlServer.Health;
 using Encina.ADO.SqlServer.Inbox;
@@ -25,6 +24,7 @@ using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.ReadWriteSeparation;
 using Encina.Modules.Isolation;
+using Encina.Security.Audit;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

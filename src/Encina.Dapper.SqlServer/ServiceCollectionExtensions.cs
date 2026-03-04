@@ -8,7 +8,6 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.SqlServer.Auditing;
 using Encina.Dapper.SqlServer.BulkOperations;
-using Encina.Security.Audit;
 using Encina.Dapper.SqlServer.Health;
 using Encina.Dapper.SqlServer.Inbox;
 using Encina.Dapper.SqlServer.Modules;
@@ -25,6 +24,7 @@ using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.ReadWriteSeparation;
 using Encina.Modules.Isolation;
+using Encina.Security.Audit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

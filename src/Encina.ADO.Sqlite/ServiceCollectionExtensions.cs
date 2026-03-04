@@ -1,6 +1,5 @@
 using System.Data;
 using Encina.ADO.Sqlite.Auditing;
-using Encina.Security.Audit;
 using Encina.ADO.Sqlite.BulkOperations;
 using Encina.ADO.Sqlite.Health;
 using Encina.ADO.Sqlite.Inbox;
@@ -21,6 +20,7 @@ using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Security.Audit;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

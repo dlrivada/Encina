@@ -575,18 +575,18 @@ public class InMemoryReadAuditStoreTests
         string? purpose = null,
         ReadAccessMethod accessMethod = ReadAccessMethod.Repository,
         int entityCount = 1) => new()
-    {
-        Id = id ?? Guid.NewGuid(),
-        EntityType = entityType,
-        EntityId = entityId,
-        UserId = userId,
-        TenantId = tenantId,
-        AccessedAtUtc = accessedAtUtc ?? DateTimeOffset.UtcNow,
-        CorrelationId = correlationId,
-        Purpose = purpose,
-        AccessMethod = accessMethod,
-        EntityCount = entityCount
-    };
+        {
+            Id = id ?? Guid.NewGuid(),
+            EntityType = entityType,
+            EntityId = entityId,
+            UserId = userId,
+            TenantId = tenantId,
+            AccessedAtUtc = accessedAtUtc ?? DateTimeOffset.UtcNow,
+            CorrelationId = correlationId,
+            Purpose = purpose,
+            AccessMethod = accessMethod,
+            EntityCount = entityCount
+        };
 
     #endregion
 }
