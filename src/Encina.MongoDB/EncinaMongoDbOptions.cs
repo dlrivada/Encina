@@ -146,6 +146,19 @@ public sealed class EncinaMongoDbOptions
     public bool UseDataResidency { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Breach Notification stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.BreachNotification.IBreachRecordStore"/>
+    /// and <see cref="Compliance.BreachNotification.IBreachAuditStore"/>
+    /// implemented by their MongoDB store classes for GDPR Articles 33–34 compliant
+    /// personal data breach notification management and audit trail.
+    /// </para>
+    /// </remarks>
+    public bool UseBreachNotification { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -325,4 +338,19 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for residency audit entries (data residency).
     /// </summary>
     public string ResidencyAuditEntries { get; set; } = "residency_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for breach records (breach notification).
+    /// </summary>
+    public string BreachRecords { get; set; } = "breach_records";
+
+    /// <summary>
+    /// Gets or sets the collection name for breach phased reports (breach notification).
+    /// </summary>
+    public string BreachPhasedReports { get; set; } = "breach_phased_reports";
+
+    /// <summary>
+    /// Gets or sets the collection name for breach audit entries (breach notification).
+    /// </summary>
+    public string BreachAuditEntries { get; set; } = "breach_audit_entries";
 }

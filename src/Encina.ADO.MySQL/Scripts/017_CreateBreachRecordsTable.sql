@@ -1,0 +1,21 @@
+CREATE TABLE `BreachRecords` (
+    `Id`                                VARCHAR(36)   NOT NULL PRIMARY KEY,
+    `Nature`                            TEXT          NOT NULL,
+    `ApproximateSubjectsAffected`       INT           NOT NULL,
+    `CategoriesOfDataAffected`          TEXT          NOT NULL,
+    `DPOContactDetails`                 VARCHAR(1024) NOT NULL,
+    `LikelyConsequences`                TEXT          NOT NULL,
+    `MeasuresTaken`                     TEXT          NOT NULL,
+    `DetectedAtUtc`                     DATETIME(6)   NOT NULL,
+    `NotificationDeadlineUtc`           DATETIME(6)   NOT NULL,
+    `NotifiedAuthorityAtUtc`            DATETIME(6)   NULL,
+    `NotifiedSubjectsAtUtc`             DATETIME(6)   NULL,
+    `SeverityValue`                     INT           NOT NULL,
+    `StatusValue`                       INT           NOT NULL,
+    `DelayReason`                       TEXT          NULL,
+    `SubjectNotificationExemptionValue` INT           NOT NULL,
+    `ResolvedAtUtc`                     DATETIME(6)   NULL,
+    `ResolutionSummary`                 TEXT          NULL,
+    INDEX `IX_BreachRecords_StatusValue` (`StatusValue`),
+    INDEX `IX_BreachRecords_DetectedAtUtc` (`DetectedAtUtc`)
+);

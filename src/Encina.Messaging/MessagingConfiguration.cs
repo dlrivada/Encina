@@ -657,6 +657,20 @@ public sealed class MessagingConfiguration
     public bool UseDataResidency { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to register Breach Notification stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.BreachNotification.IBreachRecordStore"/>
+    /// and <see cref="Compliance.BreachNotification.IBreachAuditStore"/>
+    /// with the provider-specific implementation for GDPR Articles 33–34 compliant
+    /// personal data breach notification management and audit trail.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseBreachNotification { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();
@@ -930,5 +944,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency || UseBreachNotification;
 }

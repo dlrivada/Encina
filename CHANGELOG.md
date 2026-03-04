@@ -1310,7 +1310,83 @@ Added the `Encina.Compliance.Retention` package providing declarative, attribute
 
 ---
 
-### Changed
+#### Encina.Compliance.BreachNotification — GDPR 72-Hour Breach Notification with Detection Engine (#408)
+
+Added the `Encina.Compliance.BreachNotification` package implementing GDPR Articles 33 and 34 for mandatory personal data breach notification. Provides a complete breach lifecycle management system with extensible detection rules, phased reporting, 72-hour deadline tracking, and supervisory authority notification.
+
+**Core Abstractions**:
+
+- **`IBreachDetector`**: Extensible detection engine with `DetectAsync` and `RegisterDetectionRule` for custom breach detection rules
+- **`IBreachHandler`**: Full breach lifecycle management with `HandleDetectedBreachAsync`, `NotifyAuthorityAsync`, `NotifyDataSubjectsAsync`, `AddPhasedReportAsync`, `ResolveBreachAsync`, `GetDeadlineStatusAsync`
+- **`IBreachNotifier`**: Notification dispatch for supervisory authorities and data subjects
+- **`IBreachDetectionRule`**: Extensible rule interface returning `Either<EncinaError, Option<PotentialBreach>>` (Railway Oriented Programming)
+- **`IBreachRecordStore`**: Breach record persistence with `RecordBreachAsync`, `GetBreachAsync`, `UpdateBreachAsync`, `GetOverdueBreachesAsync`, `GetApproachingDeadlineAsync`, `GetBreachesByStatusAsync`
+- **`IBreachAuditStore`**: Immutable audit trail with `RecordAsync` and `GetAuditTrailAsync`
+
+**Four Built-In Detection Rules**:
+
+- **`UnauthorizedAccessRule`**: Detects unauthorized access patterns (High severity)
+- **`MassDataExfiltrationRule`**: Detects large-volume data exfiltration (Critical severity)
+- **`PrivilegeEscalationRule`**: Detects unauthorized privilege elevation (High severity)
+- **`AnomalousQueryPatternRule`**: Detects unusual query patterns (Medium severity)
+
+**Domain Model**:
+
+- **`BreachRecord`**: Sealed record with Id, Nature, Severity, Status, DetectedAtUtc, NotificationDeadlineUtc, AffectedDataCategories, EstimatedAffectedSubjects, phased reports, audit entries
+- **`PotentialBreach`**: Detection result with rule name, severity, description, recommended actions
+- **`PhasedReport`**: Incremental updates to the supervisory authority (Article 33(4))
+- **`BreachAuditEntry`**: Complete traceability for all breach-related actions
+- **`DeadlineStatus`**: Deadline tracking with hours remaining and overdue detection
+- **`BreachSeverity`**: Low / Medium / High / Critical
+- **`BreachStatus`**: Detected / UnderInvestigation / AuthorityNotified / SubjectsNotified / Resolved / Closed
+
+**Pipeline Behavior**:
+
+- **`BreachDetectionPipelineBehavior<TRequest, TResponse>`**: Attribute-based breach monitoring at the CQRS pipeline level
+- **`[BreachMonitored]`** attribute with configurable detection rules, severity level, and data source
+- Three enforcement modes: `Block` (reject on breach), `Warn` (log and continue), `Disabled` (no-op)
+- Requests without `[BreachMonitored]` attribute bypass all checks (zero overhead)
+
+**Notification System**:
+
+- **`DefaultBreachNotifier`**: Default notification implementation with structured logging and `TimeProvider` timestamps
+- **`IBreachNotifier`**: Replaceable interface for custom notification channels (email, SMS, webhook)
+- Authority and data subject notification with `NotificationResult` tracking
+
+**In-Memory Implementations** (development/testing):
+
+- **`InMemoryBreachRecordStore`**: ConcurrentDictionary-based with deadline tracking and phased report management
+- **`InMemoryBreachAuditStore`**: Thread-safe audit trail with chronological ordering
+
+**Error Codes** (14 structured errors via `BreachNotificationErrors`):
+
+- `breach.detected`, `breach.not_found`, `breach.already_exists`, `breach.already_resolved`
+- `breach.deadline_expired`, `breach.detection_failed`, `breach.store_error`
+- `breach.notification_failed`, `breach.authority_notification_failed`, `breach.subject_notification_failed`
+- `breach.phased_report_failed`, `breach.rule_evaluation_failed`, `breach.exemption_invalid`, `breach.invalid_parameter`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.BreachNotification` ActivitySource with severity and status tags
+- Meter with 5 instruments: breaches detected, authority notifications, subject notifications, phased reports, deadline checks
+- Structured log events using `LoggerMessage.Define` (zero-allocation)
+- Optional health check verifying DI configuration and store connectivity
+
+**DI Registration**:
+
+- `services.AddEncinaBreachNotification()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+
+**Database Provider Infrastructure** (13 providers ready):
+
+- Entity classes: `BreachRecordEntity`, `PhasedReportEntity`, `BreachAuditEntryEntity` with mappers
+- SQL migration scripts for ADO.NET providers (Sqlite, SqlServer, PostgreSQL, MySQL)
+- Dapper, EF Core, and MongoDB store stubs for all providers
+
+**Testing**: 250 tests across 5 test projects — 182 unit tests (12 files), 14 guard tests (5 files), 20 contract tests (4 files), 21 property tests (3 files), 13 integration tests (1 file).
+
+**Note**: Database provider store implementations (13 providers) are infrastructure-ready with entities, mappers, and SQL scripts. Currently ships with InMemory stores for development and testing.
+
+---
 
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)
 

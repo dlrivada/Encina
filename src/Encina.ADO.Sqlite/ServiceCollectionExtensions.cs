@@ -10,6 +10,7 @@ using Encina.ADO.Sqlite.Scheduling;
 using Encina.ADO.Sqlite.UnitOfWork;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Consent;
+using Encina.Compliance.BreachNotification;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -99,6 +100,13 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreADO>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreADO>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreADO>();
+        }
+
+        // Register Breach Notification stores if enabled
+        if (config.UseBreachNotification)
+        {
+            services.TryAddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreADO>();
+            services.TryAddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreADO>();
         }
 
         // Register provider health check if enabled

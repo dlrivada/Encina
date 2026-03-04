@@ -1,5 +1,6 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Consent;
+using Encina.Compliance.BreachNotification;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -153,6 +154,13 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
         }
 
+        // Register Breach Notification stores if enabled
+        if (options.UseBreachNotification)
+        {
+            services.AddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreMongoDB>();
+            services.AddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreMongoDB>();
+        }
+
         // Create indexes if configured
         if (options.CreateIndexes)
         {
@@ -280,6 +288,13 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IDataLocationStore, DataResidency.DataLocationStoreMongoDB>();
             services.AddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreMongoDB>();
             services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
+        }
+
+        // Register Breach Notification stores if enabled
+        if (options.UseBreachNotification)
+        {
+            services.AddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreMongoDB>();
+            services.AddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreMongoDB>();
         }
 
         // Create indexes if configured
