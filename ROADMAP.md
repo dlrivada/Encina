@@ -495,6 +495,7 @@ Key areas already completed:
 - **Security Patterns** (new - based on December 29, 2025 research):
   - Core Security [#394](https://github.com/dlrivada/Encina/issues/394) — `ISecurityContext`, `SecurityPipelineBehavior`, RBAC/ABAC/Permission-based auth (CRITICAL - foundational)
   - Audit Trail [#395](https://github.com/dlrivada/Encina/issues/395) — `IAuditLogger`, `AuditPipelineBehavior`, who/what/when/where compliance logging (CRITICAL - SOX/HIPAA/GDPR)
+  - ~~Read Auditing [#573](https://github.com/dlrivada/Encina/issues/573) — `IReadAuditStore`, `AuditedRepository<T>`, read access tracking, sampling, retention, 13 providers (CRITICAL - GDPR Art. 15/HIPAA)~~ ✅ **COMPLETADO** (v0.13.0)
   - Field-Level Encryption [#396](https://github.com/dlrivada/Encina/issues/396) — `IFieldEncryptor`, `[Encrypt]` attribute, Azure Key Vault/AWS KMS integration (HIGH - PCI-DSS/GDPR)
   - PII Masking [#397](https://github.com/dlrivada/Encina/issues/397) — `IPIIMasker`, auto-detection, `[PII]` attribute, logging redaction (HIGH - GDPR essential)
   - Anti-Tampering [#398](https://github.com/dlrivada/Encina/issues/398) — `IRequestSigner`, HMAC/RSA signatures, replay attack prevention (HIGH - API security)

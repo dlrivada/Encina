@@ -100,4 +100,91 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Adds Encina read audit trail services to the specified <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="configure">Optional action to configure <see cref="ReadAuditOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method registers the following services:
+    /// <list type="bullet">
+    /// <item><see cref="ReadAuditOptions"/> - Configured via the provided action and registered as singleton</item>
+    /// <item><see cref="IReadAuditStore"/> → <see cref="InMemoryReadAuditStore"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IReadAuditContext"/> → <see cref="ReadAuditContext"/> (Scoped)</item>
+    /// <item><see cref="ReadAuditRetentionService"/> (Hosted service, only when <see cref="ReadAuditOptions.EnableAutoPurge"/> is true)</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Default registrations:</b>
+    /// <see cref="IReadAuditStore"/> is registered using <c>TryAdd</c>,
+    /// allowing you to register a custom persistent implementation before calling this method.
+    /// </para>
+    /// <para>
+    /// <b>Production considerations:</b>
+    /// For production use, register a persistent <see cref="IReadAuditStore"/> implementation
+    /// (e.g., SQL Server, PostgreSQL) before calling this method.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Basic setup with defaults
+    /// services.AddEncinaReadAuditing(options =>
+    /// {
+    ///     options.AuditReadsFor&lt;Patient&gt;();
+    ///     options.AuditReadsFor&lt;FinancialRecord&gt;();
+    /// });
+    ///
+    /// // With sampling and compliance settings
+    /// services.AddEncinaReadAuditing(options =>
+    /// {
+    ///     options.AuditReadsFor&lt;Patient&gt;();
+    ///     options.AuditReadsFor&lt;AuditLog&gt;(samplingRate: 0.1);
+    ///     options.RequirePurpose = true;
+    ///     options.ExcludeSystemAccess = true;
+    ///     options.RetentionDays = 2555; // 7 years for SOX
+    ///     options.EnableAutoPurge = true;
+    /// });
+    ///
+    /// // With custom store (register before AddEncinaReadAuditing)
+    /// services.AddSingleton&lt;IReadAuditStore, SqlServerReadAuditStore&gt;();
+    /// services.AddEncinaReadAuditing(options =>
+    /// {
+    ///     options.AuditReadsFor&lt;Patient&gt;();
+    /// });
+    /// </code>
+    /// </example>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+    public static IServiceCollection AddEncinaReadAuditing(
+        this IServiceCollection services,
+        Action<ReadAuditOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Configure and register options
+        var optionsInstance = new ReadAuditOptions();
+        configure?.Invoke(optionsInstance);
+
+        services.Configure<ReadAuditOptions>(opts =>
+        {
+            configure?.Invoke(opts);
+        });
+        services.TryAddSingleton(optionsInstance);
+
+        // Register default implementations (TryAdd allows override)
+        services.TryAddSingleton<IReadAuditStore, InMemoryReadAuditStore>();
+
+        // Register scoped context for purpose tracking
+        services.AddScoped<IReadAuditContext, ReadAuditContext>();
+
+        // Register auto-purge service if enabled
+        if (optionsInstance.EnableAutoPurge)
+        {
+            services.AddHostedService<ReadAuditRetentionService>();
+        }
+
+        return services;
+    }
 }

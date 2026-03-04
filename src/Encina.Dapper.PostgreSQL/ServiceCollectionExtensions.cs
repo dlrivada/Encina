@@ -8,6 +8,7 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.PostgreSQL.Auditing;
 using Encina.Dapper.PostgreSQL.Health;
+using Encina.Security.Audit;
 using Encina.Dapper.PostgreSQL.Inbox;
 using Encina.Dapper.PostgreSQL.Outbox;
 using Encina.Dapper.PostgreSQL.Repository;
@@ -63,6 +64,12 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
+        }
+
+        // Register read audit store if enabled
+        if (config.UseReadAuditStore)
+        {
+            services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreDapper>();
         }
 
         // Register provider health check if enabled

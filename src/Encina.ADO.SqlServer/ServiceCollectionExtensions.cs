@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.ADO.SqlServer.Auditing;
+using Encina.Security.Audit;
 using Encina.ADO.SqlServer.BulkOperations;
 using Encina.ADO.SqlServer.Health;
 using Encina.ADO.SqlServer.Inbox;
@@ -82,6 +83,12 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
+
+        // Register read audit store if enabled
+        if (config.UseReadAuditStore)
+        {
+            services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
         }
 
         // Register consent stores if enabled

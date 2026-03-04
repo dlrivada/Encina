@@ -5,10 +5,19 @@
     <Description>Audit trail logging abstractions for Encina - Immutable audit records, pluggable storage, and PII masking integration points. Supports SOX/HIPAA/GDPR compliance requirements with tamper-evident payload hashing.</Description>
     <PackageTags>encina;cqrs;audit;security;compliance;logging</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- RS0016/RS0017: Suppress PublicAPI analyzer warnings for generic decorator classes
+         (AuditedRepository, AuditedReadOnlyRepository). The analyzer cannot resolve
+         the correct entry format for sealed generic classes with constrained type parameters
+         implementing interface methods from referenced projects.
+         DomainModeling suppresses these same warnings.
+         RS0026: Decorator classes implement overloaded interface methods with optional params.
+         RS0036/RS0037: Nullable annotation mismatches in generic type parameters. -->
+    <NoWarn>$(NoWarn);RS0016;RS0017;RS0026;RS0036;RS0037</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Encina\Encina.csproj" />
+    <ProjectReference Include="..\Encina.DomainModeling\Encina.DomainModeling.csproj" />
     <ProjectReference Include="..\Encina.Messaging\Encina.Messaging.csproj" />
   </ItemGroup>
 

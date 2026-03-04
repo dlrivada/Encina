@@ -331,6 +331,12 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuditStore, AuditStoreEF>();
         }
 
+        if (config.UseReadAuditStore)
+        {
+            // Register read audit trail store (Encina.Security.Audit)
+            services.AddScoped<IReadAuditStore, ReadAuditStoreEF>();
+        }
+
         if (config.UseConsent)
         {
             // Register GDPR consent management stores

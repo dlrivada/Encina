@@ -16,6 +16,7 @@ using Encina.Messaging.Scheduling;
 using Encina.Messaging.SoftDelete;
 using Encina.Modules.Isolation;
 using Encina.MongoDB.Auditing;
+using Encina.Security.Audit;
 using Encina.MongoDB.BulkOperations;
 using Encina.MongoDB.Consent;
 using Encina.MongoDB.Health;
@@ -114,6 +115,12 @@ public static class ServiceCollectionExtensions
         if (options.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
+        }
+
+        // Register read audit store if enabled
+        if (options.UseReadAuditStore)
+        {
+            services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
         }
 
         // Register consent stores if enabled
@@ -250,6 +257,12 @@ public static class ServiceCollectionExtensions
         if (options.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
+        }
+
+        // Register read audit store if enabled
+        if (options.UseReadAuditStore)
+        {
+            services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
         }
 
         // Register consent stores if enabled

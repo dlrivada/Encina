@@ -76,6 +76,21 @@ public sealed class EncinaMongoDbOptions
     public bool UseSecurityAuditStore { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Read Audit Store.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Security.Audit.IReadAuditStore"/> implemented by
+    /// <c>ReadAuditStoreMongoDB</c>.
+    /// </para>
+    /// <para>
+    /// The read audit store tracks who accessed sensitive data, when, and for what purpose,
+    /// supporting GDPR Art. 15, HIPAA, SOX, and PCI-DSS compliance requirements.
+    /// </para>
+    /// </remarks>
+    public bool UseReadAuditStore { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to use the Consent stores.
     /// </summary>
     /// <remarks>
@@ -263,6 +278,11 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for security audit entries.
     /// </summary>
     public string SecurityAuditEntries { get; set; } = "security_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for read audit entries.
+    /// </summary>
+    public string ReadAuditEntries { get; set; } = "read_audit_entries";
 
     /// <summary>
     /// Gets or sets the collection name for consent records.

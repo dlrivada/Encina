@@ -8,6 +8,7 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.MySQL.Auditing;
 using Encina.Dapper.MySQL.Health;
+using Encina.Security.Audit;
 using Encina.Dapper.MySQL.Inbox;
 using Encina.Dapper.MySQL.Outbox;
 using Encina.Dapper.MySQL.Repository;
@@ -62,6 +63,12 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
+        }
+
+        // Register read audit store if enabled
+        if (config.UseReadAuditStore)
+        {
+            services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreDapper>();
         }
 
         // Register provider health check if enabled

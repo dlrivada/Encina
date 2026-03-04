@@ -34,4 +34,7 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 9, Level = LogLevel.Error, Message = "Unexpected error during audit purge")]
     public static partial void AuditRetentionPurgeError(ILogger logger, Exception exception);
+
+    // Read audit log messages have been migrated to Encina.Security.Audit.Diagnostics.ReadAuditLog
+    // with proper EventId range 1700-1799 (consistent with Encina EventId allocation).
 }

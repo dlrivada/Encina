@@ -1187,6 +1187,46 @@ Enhanced the `AuthorizationPipelineBehavior` with CQRS-aware default policies, r
 
 **Testing**: 103 tests (90 unit + 13 integration) covering attribute validation, resource authorizer facade, pipeline behavior with CQRS auto-apply, resource-based authorization, claim policies, and full DI integration with real ASP.NET Core authorization infrastructure.
 
+#### Encina.Security.Audit — Read Auditing for Sensitive Entity Access (#573)
+
+Added comprehensive read audit trail tracking for repository-level read operations across all 13 database providers. Separate from CUD auditing (`AuditPipelineBehavior`), this tracks **who accessed what data and why** — critical for GDPR Art. 15, HIPAA §164.312(b), SOX §302/§404, and PCI-DSS Req. 10.2.
+
+**Core Abstractions**:
+
+- **`IReadAuditStore`**: 5-method interface (`LogReadAsync`, `GetAccessHistoryAsync`, `GetUserAccessHistoryAsync`, `QueryAsync`, `PurgeEntriesAsync`) — all return `Either<EncinaError, T>`
+- **`IReadAuditContext`**: Scoped context with `WithPurpose(string)` for GDPR Art. 15 purpose declaration
+- **`IReadAuditable`**: Marker interface for entities that require read audit tracking
+- **`ReadAuditEntry`**: Sealed record with Id, EntityType, EntityId, UserId, TenantId, AccessedAtUtc, CorrelationId, Purpose, AccessMethod, EntityCount, Metadata
+- **`ReadAccessMethod`**: 5-value enum — Repository, DirectQuery, Api, Export, Custom
+- **`ReadAuditQuery`**: Fluent builder pattern with filters (user, tenant, entity type, access method, purpose, date range) and pagination (DefaultPageSize=50, MaxPageSize=1000)
+
+**Repository Decorator**:
+
+- **`AuditedRepository<TEntity, TId>`**: Transparent decorator wrapping `IRepository<TEntity, TId>` with fire-and-forget audit recording
+- **Sampling**: Per-entity sampling rates (0.0–1.0) via `ReadAuditOptions.AuditReadsFor<T>(samplingRate)`
+- **Resilience**: Audit failures never block read operations — logged and metered but never thrown
+
+**Retention Service**:
+
+- **`ReadAuditRetentionService`**: `BackgroundService` with configurable purge interval and retention period
+- Defaults: 365-day retention, 24-hour purge interval
+
+**Provider Implementations** (all 13 database providers):
+
+| Category | Providers | Implementation |
+|----------|-----------|----------------|
+| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | `ReadAuditStoreADO` |
+| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | `ReadAuditStoreDapper` |
+| EF Core | All databases | `ReadAuditStoreEF` |
+| MongoDB | MongoDB | `ReadAuditStoreMongoDB` |
+| In-Memory | Testing | `InMemoryReadAuditStore` |
+
+**Observability**: OpenTelemetry traces (`Encina.ReadAudit`), metrics (`encina.read_audit.entries_logged_total`, `log_failures_total`, `entries_purged_total`), and structured logging via `ReadAuditLog`.
+
+**Testing**: 119+ tests across 5 test projects — 91 unit tests, 17 guard tests, 7 property tests, 30+ contract tests, 20+ integration tests (ADO + Dapper SQLite). Load test and benchmark justifications provided.
+
+**Documentation**: See `docs/features/read-auditing.md` for complete guide.
+
 ---
 
 #### Encina.Compliance.Retention — Data Retention and Automatic Deletion with GDPR Art. 5(1)(e) (#406)

@@ -8,6 +8,7 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.Sqlite.Auditing;
 using Encina.Dapper.Sqlite.BulkOperations;
+using Encina.Security.Audit;
 using Encina.Dapper.Sqlite.Health;
 using Encina.Dapper.Sqlite.Inbox;
 using Encina.Dapper.Sqlite.Outbox;
@@ -64,6 +65,12 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
+        }
+
+        // Register read audit store if enabled
+        if (config.UseReadAuditStore)
+        {
+            services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreDapper>();
         }
 
         // Register provider health check if enabled

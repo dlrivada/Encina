@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.ADO.PostgreSQL.Auditing;
+using Encina.Security.Audit;
 using Encina.ADO.PostgreSQL.Health;
 using Encina.ADO.PostgreSQL.Inbox;
 using Encina.ADO.PostgreSQL.Outbox;
@@ -61,6 +62,12 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
+
+        // Register read audit store if enabled
+        if (config.UseReadAuditStore)
+        {
+            services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
         }
 
         // Register consent stores if enabled

@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.ADO.Sqlite.Auditing;
+using Encina.Security.Audit;
 using Encina.ADO.Sqlite.BulkOperations;
 using Encina.ADO.Sqlite.Health;
 using Encina.ADO.Sqlite.Inbox;
@@ -62,6 +63,12 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
+
+        // Register read audit store if enabled
+        if (config.UseReadAuditStore)
+        {
+            services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
         }
 
         // Register consent stores if enabled

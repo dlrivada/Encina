@@ -491,6 +491,41 @@ public sealed class MessagingConfiguration
     public bool UseSecurityAuditStore { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable read audit trail storage.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, read access operations on sensitive entities are audited to the
+    /// database using the provider-specific <c>IReadAuditStore</c> implementation from
+    /// <c>Encina.Security.Audit</c>. This is separate from <see cref="UseSecurityAuditStore"/>
+    /// which audits CQRS request/response operations.
+    /// </para>
+    /// <para>
+    /// Read audit trail features:
+    /// <list type="bullet">
+    /// <item><description>Records who accessed sensitive data, when, and for what purpose</description></item>
+    /// <item><description>Supports GDPR Art. 15, HIPAA §164.312(b), SOX §302/§404, PCI-DSS Req. 10.2</description></item>
+    /// <item><description>Tracks access method and entity count for exfiltration detection</description></item>
+    /// <item><description>Provides flexible querying with pagination for compliance reporting</description></item>
+    /// <item><description>Includes efficient bulk purge for data retention policies</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Requires</b>: <c>Encina.Security.Audit</c> package to be configured.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaEntityFrameworkCore&lt;AppDbContext&gt;(config =>
+    /// {
+    ///     config.UseReadAuditStore = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UseReadAuditStore { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to enable SQL Server temporal table support.
     /// </summary>
     /// <remarks>
@@ -944,5 +979,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency || UseBreachNotification;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseReadAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency || UseBreachNotification;
 }

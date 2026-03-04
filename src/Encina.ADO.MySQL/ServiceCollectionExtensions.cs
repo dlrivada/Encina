@@ -1,5 +1,6 @@
 using System.Data;
 using Encina.ADO.MySQL.Auditing;
+using Encina.Security.Audit;
 using Encina.ADO.MySQL.Health;
 using Encina.ADO.MySQL.Inbox;
 using Encina.ADO.MySQL.Outbox;
@@ -60,6 +61,12 @@ public static class ServiceCollectionExtensions
         if (config.UseAuditLogStore)
         {
             services.AddScoped<IAuditLogStore, AuditLogStoreADO>();
+        }
+
+        // Register read audit store if enabled
+        if (config.UseReadAuditStore)
+        {
+            services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
         }
 
         // Register consent stores if enabled

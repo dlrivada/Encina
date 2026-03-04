@@ -187,13 +187,139 @@ Encina.Security.Audit.InMemoryAuditStore.InMemoryAuditStore() -> void
 Encina.Security.Audit.InMemoryAuditStore.RecordAsync(Encina.Security.Audit.AuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.Audit.InMemoryAuditStore.QueryAsync(Encina.Security.Audit.AuditQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.PagedResult<Encina.Security.Audit.AuditEntry!>!>>
 Encina.Security.Audit.InMemoryAuditStore.PurgeEntriesAsync(System.DateTime olderThanUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Security.Audit.InMemoryReadAuditStore
+Encina.Security.Audit.InMemoryReadAuditStore.InMemoryReadAuditStore() -> void
+Encina.Security.Audit.InMemoryReadAuditStore.LogReadAsync(Encina.Security.Audit.ReadAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Audit.InMemoryReadAuditStore.GetAccessHistoryAsync(string! entityType, string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.ReadAuditEntry!>!>>
+Encina.Security.Audit.InMemoryReadAuditStore.GetUserAccessHistoryAsync(string! userId, System.DateTimeOffset fromUtc, System.DateTimeOffset toUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.ReadAuditEntry!>!>>
+Encina.Security.Audit.InMemoryReadAuditStore.QueryAsync(Encina.Security.Audit.ReadAuditQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.PagedResult<Encina.Security.Audit.ReadAuditEntry!>!>>
+Encina.Security.Audit.InMemoryReadAuditStore.PurgeEntriesAsync(System.DateTimeOffset olderThanUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Security.Audit.InMemoryReadAuditStore.GetAllEntries() -> System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.ReadAuditEntry!>!
+Encina.Security.Audit.InMemoryReadAuditStore.Clear() -> void
+Encina.Security.Audit.InMemoryReadAuditStore.Count.get -> int
 Encina.Security.Audit.IPiiMasker
 Encina.Security.Audit.IPiiMasker.MaskForAudit(object! request) -> object!
 Encina.Security.Audit.IPiiMasker.MaskForAudit<T>(T request) -> T
+Encina.Security.Audit.IReadAuditStore
+Encina.Security.Audit.IReadAuditStore.LogReadAsync(Encina.Security.Audit.ReadAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Audit.IReadAuditStore.GetAccessHistoryAsync(string! entityType, string! entityId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.ReadAuditEntry!>!>>
+Encina.Security.Audit.IReadAuditStore.GetUserAccessHistoryAsync(string! userId, System.DateTimeOffset fromUtc, System.DateTimeOffset toUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.Audit.ReadAuditEntry!>!>>
+Encina.Security.Audit.IReadAuditStore.QueryAsync(Encina.Security.Audit.ReadAuditQuery! query, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.Audit.PagedResult<Encina.Security.Audit.ReadAuditEntry!>!>>
+Encina.Security.Audit.IReadAuditStore.PurgeEntriesAsync(System.DateTimeOffset olderThanUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
 Encina.Security.Audit.NullPiiMasker
 Encina.Security.Audit.NullPiiMasker.MaskForAudit(object! request) -> object!
 Encina.Security.Audit.NullPiiMasker.MaskForAudit<T>(T request) -> T
 Encina.Security.Audit.NullPiiMasker.NullPiiMasker() -> void
+Encina.Security.Audit.ReadAccessMethod
+Encina.Security.Audit.ReadAccessMethod.Repository = 0 -> Encina.Security.Audit.ReadAccessMethod
+Encina.Security.Audit.ReadAccessMethod.DirectQuery = 1 -> Encina.Security.Audit.ReadAccessMethod
+Encina.Security.Audit.ReadAccessMethod.Api = 2 -> Encina.Security.Audit.ReadAccessMethod
+Encina.Security.Audit.ReadAccessMethod.Export = 3 -> Encina.Security.Audit.ReadAccessMethod
+Encina.Security.Audit.ReadAccessMethod.Custom = 4 -> Encina.Security.Audit.ReadAccessMethod
+Encina.Security.Audit.ReadAuditEntry
+Encina.Security.Audit.ReadAuditEntry.Id.get -> System.Guid
+Encina.Security.Audit.ReadAuditEntry.Id.init -> void
+Encina.Security.Audit.ReadAuditEntry.EntityType.get -> string!
+Encina.Security.Audit.ReadAuditEntry.EntityType.init -> void
+Encina.Security.Audit.ReadAuditEntry.EntityId.get -> string?
+Encina.Security.Audit.ReadAuditEntry.EntityId.init -> void
+Encina.Security.Audit.ReadAuditEntry.UserId.get -> string?
+Encina.Security.Audit.ReadAuditEntry.UserId.init -> void
+Encina.Security.Audit.ReadAuditEntry.TenantId.get -> string?
+Encina.Security.Audit.ReadAuditEntry.TenantId.init -> void
+Encina.Security.Audit.ReadAuditEntry.AccessedAtUtc.get -> System.DateTimeOffset
+Encina.Security.Audit.ReadAuditEntry.AccessedAtUtc.init -> void
+Encina.Security.Audit.ReadAuditEntry.CorrelationId.get -> string?
+Encina.Security.Audit.ReadAuditEntry.CorrelationId.init -> void
+Encina.Security.Audit.ReadAuditEntry.Purpose.get -> string?
+Encina.Security.Audit.ReadAuditEntry.Purpose.init -> void
+Encina.Security.Audit.ReadAuditEntry.AccessMethod.get -> Encina.Security.Audit.ReadAccessMethod
+Encina.Security.Audit.ReadAuditEntry.AccessMethod.init -> void
+Encina.Security.Audit.ReadAuditEntry.EntityCount.get -> int
+Encina.Security.Audit.ReadAuditEntry.EntityCount.init -> void
+Encina.Security.Audit.ReadAuditEntry.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.Security.Audit.ReadAuditEntry.Metadata.init -> void
+Encina.Security.Audit.ReadAuditErrors
+const Encina.Security.Audit.ReadAuditErrors.StoreErrorCode = "read_audit.store_error" -> string!
+const Encina.Security.Audit.ReadAuditErrors.NotFoundCode = "read_audit.not_found" -> string!
+const Encina.Security.Audit.ReadAuditErrors.InvalidQueryCode = "read_audit.invalid_query" -> string!
+const Encina.Security.Audit.ReadAuditErrors.PurgeFailedCode = "read_audit.purge_failed" -> string!
+const Encina.Security.Audit.ReadAuditErrors.PurposeRequiredCode = "read_audit.purpose_required" -> string!
+static Encina.Security.Audit.ReadAuditErrors.StoreError(string! operation, string! message, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Audit.ReadAuditErrors.NotFound(string! entityType, string! entityId) -> Encina.EncinaError
+static Encina.Security.Audit.ReadAuditErrors.InvalidQuery(string! reason) -> Encina.EncinaError
+static Encina.Security.Audit.ReadAuditErrors.PurgeFailed(string! reason, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Security.Audit.ReadAuditErrors.PurposeRequired(string! entityType, string? userId) -> Encina.EncinaError
+Encina.Security.Audit.ReadAuditOptions
+Encina.Security.Audit.ReadAuditOptions.ReadAuditOptions() -> void
+Encina.Security.Audit.ReadAuditOptions.Enabled.get -> bool
+Encina.Security.Audit.ReadAuditOptions.Enabled.set -> void
+Encina.Security.Audit.ReadAuditOptions.ExcludeSystemAccess.get -> bool
+Encina.Security.Audit.ReadAuditOptions.ExcludeSystemAccess.set -> void
+Encina.Security.Audit.ReadAuditOptions.RequirePurpose.get -> bool
+Encina.Security.Audit.ReadAuditOptions.RequirePurpose.set -> void
+Encina.Security.Audit.ReadAuditOptions.BatchSize.get -> int
+Encina.Security.Audit.ReadAuditOptions.BatchSize.set -> void
+Encina.Security.Audit.ReadAuditOptions.RetentionDays.get -> int
+Encina.Security.Audit.ReadAuditOptions.RetentionDays.set -> void
+Encina.Security.Audit.ReadAuditOptions.EnableAutoPurge.get -> bool
+Encina.Security.Audit.ReadAuditOptions.EnableAutoPurge.set -> void
+Encina.Security.Audit.ReadAuditOptions.PurgeIntervalHours.get -> int
+Encina.Security.Audit.ReadAuditOptions.PurgeIntervalHours.set -> void
+Encina.Security.Audit.ReadAuditOptions.AuditReadsFor<TEntity>() -> Encina.Security.Audit.ReadAuditOptions!
+Encina.Security.Audit.ReadAuditOptions.AuditReadsFor<TEntity>(double samplingRate) -> Encina.Security.Audit.ReadAuditOptions!
+Encina.Security.Audit.ReadAuditOptions.IsAuditable(System.Type! entityType) -> bool
+Encina.Security.Audit.ReadAuditOptions.GetSamplingRate(System.Type! entityType) -> double
+Encina.Security.Audit.ReadAuditOptions.AuditedEntityTypes.get -> System.Collections.Generic.IReadOnlyDictionary<System.Type!, double>!
+Encina.Security.Audit.ReadAuditQuery
+Encina.Security.Audit.ReadAuditQuery.UserId.get -> string?
+Encina.Security.Audit.ReadAuditQuery.UserId.init -> void
+Encina.Security.Audit.ReadAuditQuery.TenantId.get -> string?
+Encina.Security.Audit.ReadAuditQuery.TenantId.init -> void
+Encina.Security.Audit.ReadAuditQuery.EntityType.get -> string?
+Encina.Security.Audit.ReadAuditQuery.EntityType.init -> void
+Encina.Security.Audit.ReadAuditQuery.EntityId.get -> string?
+Encina.Security.Audit.ReadAuditQuery.EntityId.init -> void
+Encina.Security.Audit.ReadAuditQuery.AccessMethod.get -> Encina.Security.Audit.ReadAccessMethod?
+Encina.Security.Audit.ReadAuditQuery.AccessMethod.init -> void
+Encina.Security.Audit.ReadAuditQuery.Purpose.get -> string?
+Encina.Security.Audit.ReadAuditQuery.Purpose.init -> void
+Encina.Security.Audit.ReadAuditQuery.CorrelationId.get -> string?
+Encina.Security.Audit.ReadAuditQuery.CorrelationId.init -> void
+Encina.Security.Audit.ReadAuditQuery.FromUtc.get -> System.DateTimeOffset?
+Encina.Security.Audit.ReadAuditQuery.FromUtc.init -> void
+Encina.Security.Audit.ReadAuditQuery.ToUtc.get -> System.DateTimeOffset?
+Encina.Security.Audit.ReadAuditQuery.ToUtc.init -> void
+Encina.Security.Audit.ReadAuditQuery.PageNumber.get -> int
+Encina.Security.Audit.ReadAuditQuery.PageNumber.init -> void
+Encina.Security.Audit.ReadAuditQuery.PageSize.get -> int
+Encina.Security.Audit.ReadAuditQuery.PageSize.init -> void
+const Encina.Security.Audit.ReadAuditQuery.DefaultPageSize = 50 -> int
+const Encina.Security.Audit.ReadAuditQuery.MaxPageSize = 1000 -> int
+static Encina.Security.Audit.ReadAuditQuery.Builder() -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder
+Encina.Security.Audit.ReadAuditQueryBuilder.ReadAuditQueryBuilder() -> void
+Encina.Security.Audit.ReadAuditQueryBuilder.ForUser(string! userId) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.ForTenant(string! tenantId) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.ForEntityType(string! entityType) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.ForEntity(string! entityType, string! entityId) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.WithAccessMethod(Encina.Security.Audit.ReadAccessMethod accessMethod) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.WithPurpose(string! purpose) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.WithCorrelationId(string! correlationId) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.InDateRange(System.DateTimeOffset? fromUtc, System.DateTimeOffset? toUtc) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.OnPage(int pageNumber) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.WithPageSize(int pageSize) -> Encina.Security.Audit.ReadAuditQueryBuilder!
+Encina.Security.Audit.ReadAuditQueryBuilder.Build() -> Encina.Security.Audit.ReadAuditQuery!
+Encina.Security.Audit.SensitiveDataAccessedNotification
+Encina.Security.Audit.SensitiveDataAccessedNotification.SensitiveDataAccessedNotification(string! EntityType, string? EntityId, string? UserId, System.DateTimeOffset AccessedAtUtc) -> void
+Encina.Security.Audit.SensitiveDataAccessedNotification.EntityType.get -> string!
+Encina.Security.Audit.SensitiveDataAccessedNotification.EntityType.init -> void
+Encina.Security.Audit.SensitiveDataAccessedNotification.EntityId.get -> string?
+Encina.Security.Audit.SensitiveDataAccessedNotification.EntityId.init -> void
+Encina.Security.Audit.SensitiveDataAccessedNotification.UserId.get -> string?
+Encina.Security.Audit.SensitiveDataAccessedNotification.UserId.init -> void
+Encina.Security.Audit.SensitiveDataAccessedNotification.AccessedAtUtc.get -> System.DateTimeOffset
+Encina.Security.Audit.SensitiveDataAccessedNotification.AccessedAtUtc.init -> void
 Encina.Security.Audit.ServiceCollectionExtensions
 static Encina.Security.Audit.ServiceCollectionExtensions.AddEncinaAudit(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Audit.AuditOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.Security.Audit.AuditRetentionService
@@ -201,3 +327,35 @@ Encina.Security.Audit.AuditRetentionService.AuditRetentionService(Encina.Securit
 Encina.Security.Audit.Health.AuditStoreHealthCheck
 Encina.Security.Audit.Health.AuditStoreHealthCheck.AuditStoreHealthCheck(Encina.Security.Audit.IAuditStore! auditStore) -> void
 const Encina.Security.Audit.Health.AuditStoreHealthCheck.DefaultName = "encina-audit" -> string!
+Encina.Security.Audit.IReadAuditContext
+Encina.Security.Audit.IReadAuditContext.Purpose.get -> string?
+Encina.Security.Audit.IReadAuditContext.WithPurpose(string! purpose) -> Encina.Security.Audit.IReadAuditContext!
+Encina.Security.Audit.ReadAuditContext
+Encina.Security.Audit.ReadAuditContext.ReadAuditContext() -> void
+Encina.Security.Audit.ReadAuditContext.Purpose.get -> string?
+Encina.Security.Audit.ReadAuditContext.WithPurpose(string! purpose) -> Encina.Security.Audit.IReadAuditContext!
+Encina.Security.Audit.ReadAuditRetentionService
+Encina.Security.Audit.ReadAuditRetentionService.ReadAuditRetentionService(Encina.Security.Audit.IReadAuditStore! readAuditStore, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.ReadAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Audit.ReadAuditRetentionService!>! logger, System.TimeProvider? timeProvider = null) -> void
+Encina.Security.Audit.Health.ReadAuditStoreHealthCheck
+Encina.Security.Audit.Health.ReadAuditStoreHealthCheck.ReadAuditStoreHealthCheck(Encina.Security.Audit.IReadAuditStore! readAuditStore) -> void
+const Encina.Security.Audit.Health.ReadAuditStoreHealthCheck.DefaultName = "read_audit_store" -> string!
+static Encina.Security.Audit.ServiceCollectionExtensions.AddEncinaReadAuditing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Audit.ReadAuditOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Security.Audit.Diagnostics.ReadAuditLog
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.ReadAccessRecorded(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string! methodName) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.ReadAccessFailed(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string! methodName, System.Exception! exception) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurposeNotDeclared(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string? userId) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.LoggingEntry(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string! accessMethod) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.EntryLogged(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string? entityId, string! accessMethod) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.EntryLogFailed(Microsoft.Extensions.Logging.ILogger! logger, string! entityType, string! errorMessage) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.QueryStarted(Microsoft.Extensions.Logging.ILogger! logger, string! queryType, string? entityType) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.QueryCompleted(Microsoft.Extensions.Logging.ILogger! logger, string! queryType, int resultCount) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.QueryFailed(Microsoft.Extensions.Logging.ILogger! logger, string! queryType, string! errorMessage) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.RetentionServiceStarted(Microsoft.Extensions.Logging.ILogger! logger, int intervalHours, int retentionDays) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.RetentionServiceStopped(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.RetentionServiceDisabled(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeStarted(Microsoft.Extensions.Logging.ILogger! logger, System.DateTimeOffset cutoffDate) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeCompleted(Microsoft.Extensions.Logging.ILogger! logger, int count, System.DateTimeOffset cutoffDate) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.NothingToPurge(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeFailed(Microsoft.Extensions.Logging.ILogger! logger, string! errorMessage) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeCancelled(Microsoft.Extensions.Logging.ILogger! logger) -> void
+static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeError(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void

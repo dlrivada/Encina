@@ -5626,6 +5626,29 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - Labels: `area-security`, `area-observability`, `area-auditing`, `area-gdpr`, `industry-best-practice`, `eu-regulation`
 - Referencias: [NIST SP 800-92](https://csrc.nist.gov/publications/detail/sp/800-92/final), [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
 
+**#573 - Encina.Security.Audit - Read Auditing** ✅ **IMPLEMENTADO (Mar 2026)**:
+
+- `IReadAuditStore` con `LogReadAsync`, `GetAccessHistoryAsync`, `GetUserAccessHistoryAsync`, `QueryAsync`, `PurgeEntriesAsync` — all return `Either<EncinaError, T>`
+- `IReadAuditContext` con `WithPurpose(string)` para declaración de propósito GDPR Art. 15
+- `IReadAuditable` marker interface para entidades con auditoría de lectura
+- `ReadAuditEntry` sealed record con Id, EntityType, EntityId, UserId, TenantId, AccessedAtUtc, CorrelationId, Purpose, AccessMethod, EntityCount, Metadata
+- `ReadAccessMethod` enum: Repository, DirectQuery, Api, Export, Custom
+- `ReadAuditQuery` + `ReadAuditQueryBuilder` con filtros y paginación (DefaultPageSize=50, MaxPageSize=1000)
+- `AuditedRepository<TEntity, TId>` decorator con fire-and-forget, sampling, y resiliencia
+- `ReadAuditRetentionService` (BackgroundService) para auto-purge con RetentionDays configurable
+- **Store implementations para todos los 13 providers**:
+  - `ReadAuditStoreEF` (EF Core: SQLite, SQL Server, PostgreSQL, MySQL)
+  - `ReadAuditStoreDapper` (Dapper: SQLite, SQL Server, PostgreSQL, MySQL)
+  - `ReadAuditStoreADO` (ADO.NET: SQLite, SQL Server, PostgreSQL, MySQL)
+  - `ReadAuditStoreMongoDB` (MongoDB)
+  - `InMemoryReadAuditStore` (Testing/Development)
+- OpenTelemetry: traces (`Encina.ReadAudit`), metrics (`encina.read_audit.*`), structured logging (`ReadAuditLog`)
+- 5 error codes: `read_audit.store_error`, `.not_found`, `.invalid_query`, `.purge_failed`, `.purpose_required`
+- 119+ tests (91 unit, 17 guard, 7 property, 30+ contract, 20+ integration)
+- **Paquete**: `Encina.Security.Audit` (core) + store implementations en cada provider package
+- **Documentación**: [docs/features/read-auditing.md](./features/read-auditing.md)
+- Labels: `area-security`, `area-auditing`, `area-gdpr`, `area-hipaa`, `compliance-sox`
+
 ##### Tier 2: Alta Prioridad (Data Protection)
 
 **#396 - Encina.Security.Encryption - Field-Level Encryption** ✅ **IMPLEMENTADO**:
