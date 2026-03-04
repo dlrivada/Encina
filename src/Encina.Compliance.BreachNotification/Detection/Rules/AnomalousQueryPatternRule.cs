@@ -1,11 +1,8 @@
 using Encina.Compliance.BreachNotification.Model;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
-
-using static LanguageExt.Prelude;
 using Microsoft.Extensions.Options;
+using static LanguageExt.Prelude;
 
 namespace Encina.Compliance.BreachNotification.Detection.Rules;
 

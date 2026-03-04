@@ -1,7 +1,7 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.Consent;
 using Encina.Compliance.BreachNotification;
+using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
