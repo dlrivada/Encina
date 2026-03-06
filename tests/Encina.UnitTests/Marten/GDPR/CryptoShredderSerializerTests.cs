@@ -1,19 +1,12 @@
 using Encina.Compliance.DataSubjectRights;
 using Encina.Marten.GDPR;
 using Encina.Marten.GDPR.Abstractions;
-
 using LanguageExt;
-
 using Marten;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
-using Weasel.Core;
-
 using NSubstitute;
-
 using Shouldly;
-
+using Weasel.Core;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Marten.GDPR;
