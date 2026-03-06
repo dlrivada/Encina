@@ -154,12 +154,12 @@ public class EncryptedPayloadFormatterTests
 
     private static EncryptedPayload CreatePayload(
         string keyId, string algorithm, byte[] nonce, byte[] tag, byte[] ciphertext) => new()
-    {
-        KeyId = keyId,
-        Algorithm = algorithm,
-        Nonce = [.. nonce],
-        Tag = [.. tag],
-        Ciphertext = [.. ciphertext],
-        Version = 1
-    };
+        {
+            KeyId = keyId,
+            Algorithm = algorithm,
+            Nonce = [.. nonce],
+            Tag = [.. tag],
+            Ciphertext = [.. ciphertext],
+            Version = 1
+        };
 }
