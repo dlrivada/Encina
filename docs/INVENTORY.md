@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -1359,6 +1359,7 @@ src/
 | **Encina.ADO.Sqlite** | ADO.NET | SQLite | ✅ Completo |
 | **Encina.MongoDB** | MongoDB Driver | MongoDB | ✅ Completo |
 | **Encina.Marten** | Marten | PostgreSQL (Event Store) | ✅ Completo |
+| **Encina.Marten.GDPR** | Marten + Encryption | PostgreSQL (Crypto-Shredding) | ✅ Completo (#322) |
 | **Encina.InMemory** | Channels | N/A (Testing) | ✅ Completo |
 | **Encina.IdGeneration** | Multi-strategy | Todas (type mapping) | ✅ Completo |
 
@@ -1383,6 +1384,14 @@ src/
 - **Snapshots**: `ISnapshotStore`, `SnapshotAwareAggregateRepository`
 - **Event Versioning**: `IEventUpcaster`, `EventUpcasterRegistry`
 - Concurrency detection (optimistic locking)
+- **Crypto-Shredding** (`Encina.Marten.GDPR` #322):
+  - `[CryptoShredded]` attribute for PII field marking with subject binding
+  - `CryptoShredderSerializer` — transparent encrypt/decrypt at serializer level
+  - `ISubjectKeyProvider` — per-subject key lifecycle (InMemory + PostgreSQL)
+  - `CryptoShredErasureStrategy` — DSR erasure integration
+  - `MartenEventPersonalDataLocator` — PII discovery in event streams
+  - Key rotation with forward-only encryption
+  - Full observability (ActivitySource, Meter, structured logging, health check)
 
 #### Event Sourcing Patterns Planificados (Phase 2) - Diciembre 2025
 
@@ -1416,14 +1425,17 @@ Basado en investigación exhaustiva del ecosistema Event Sourcing .NET (Marten, 
 - Integración con `Encina.OpenTelemetry`
 - 30-40% reducción en tiempo de troubleshooting (estudios empíricos)
 
-**#322 - Crypto-Shredding for GDPR Compliance** (Nuevo paquete: `Encina.Marten.GDPR`):
+**#322 - Crypto-Shredding for GDPR Compliance** ✅ **COMPLETADO** (Nuevo paquete: `Encina.Marten.GDPR`):
 
-- `[PersonalData]` attribute para marcar propiedades PII
-- `ICryptoShredder` interface con `EncryptAsync`, `DecryptAsync`, `ForgetAsync`
-- Integración con key vaults: HashiCorp Vault, Azure Key Vault, AWS KMS
-- Cifrar PII con clave por sujeto, borrar clave = datos ilegibles
-- **Ninguna librería .NET ofrece GDPR first-class** - diferenciación competitiva
-- Referencias: [Crypto-Shredding Patterns](https://dev.to/alex_aslam/event-sourcing-for-gdpr-how-to-forget-data-without-breaking-history-4013)
+- `[CryptoShredded]` attribute para marcar propiedades PII con binding a subject ID
+- `CryptoShredderSerializer` — encriptación/desencriptación transparente a nivel de serializer Marten
+- `ISubjectKeyProvider` con `InMemorySubjectKeyProvider` y `PostgreSqlSubjectKeyProvider`
+- Per-subject key lifecycle: create, retrieve, rotate, delete (GDPR Art. 17)
+- Reutiliza `IFieldEncryptor` (AES-256-GCM) de `Encina.Security.Encryption` — zero crypto duplication
+- `CryptoShredErasureStrategy` — integración con DSR erasure workflow
+- `MartenEventPersonalDataLocator` — descubrimiento de PII en event streams
+- 9 error codes, 3 domain events, health check, observability completa
+- Tests en 6 proyectos: unit, guard, property, contract, integration (PostgreSQL), benchmarks
 
 **#323 - Advanced Snapshot Strategies**:
 

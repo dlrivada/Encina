@@ -1,0 +1,195 @@
+#nullable enable
+Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler
+Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler.HandleForgottenSubjectAsync(string! subjectId, string! propertyName, System.Type! eventType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetSubjectInfoAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionInfo!>>
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetSubjectKeyAsync(string! subjectId, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.IsSubjectForgottenAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.RotateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.KeyRotationResult!>>
+Encina.Marten.GDPR.CryptoShreddedAttribute
+Encina.Marten.GDPR.CryptoShreddedAttribute.CryptoShreddedAttribute() -> void
+Encina.Marten.GDPR.CryptoShreddedAttribute.SubjectIdProperty.get -> string!
+Encina.Marten.GDPR.CryptoShreddedAttribute.SubjectIdProperty.set -> void
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.Category.get -> Encina.Compliance.DataSubjectRights.PersonalDataCategory
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.Category.init -> void
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.DeclaringType.get -> System.Type!
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.DeclaringType.init -> void
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.PropertyName.get -> string!
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.PropertyName.init -> void
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.SubjectIdProperty.get -> string!
+Encina.Marten.GDPR.CryptoShreddedFieldMetadata.SubjectIdProperty.init -> void
+Encina.Marten.GDPR.CryptoShreddingErrors
+const Encina.Marten.GDPR.CryptoShreddingErrors.AttributeMisconfiguredCode = "crypto.attribute_misconfigured" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.DecryptionFailedCode = "crypto.decryption_failed" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.EncryptionFailedCode = "crypto.encryption_failed" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.InvalidSubjectIdCode = "crypto.invalid_subject_id" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.KeyAlreadyExistsCode = "crypto.key_already_exists" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.KeyRotationFailedCode = "crypto.key_rotation_failed" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.KeyStoreErrorCode = "crypto.key_store_error" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.SerializationErrorCode = "crypto.serialization_error" -> string!
+const Encina.Marten.GDPR.CryptoShreddingErrors.SubjectForgottenCode = "crypto.subject_forgotten" -> string!
+static Encina.Marten.GDPR.CryptoShreddingErrors.AttributeMisconfigured(string! propertyName, System.Type! declaringType, string! reason) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.DecryptionFailed(string! subjectId, string! propertyName, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.EncryptionFailed(string! subjectId, string! propertyName, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.InvalidSubjectId(string? subjectId) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.KeyAlreadyExists(string! subjectId) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.KeyRotationFailed(string! subjectId, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.KeyStoreError(string! operation, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.SerializationError(System.Type! eventType, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Marten.GDPR.CryptoShreddingErrors.SubjectForgotten(string! subjectId) -> Encina.EncinaError
+Encina.Marten.GDPR.CryptoShreddingResult
+Encina.Marten.GDPR.CryptoShreddingResult.FieldsAffected.get -> int
+Encina.Marten.GDPR.CryptoShreddingResult.FieldsAffected.init -> void
+Encina.Marten.GDPR.CryptoShreddingResult.KeysDeleted.get -> int
+Encina.Marten.GDPR.CryptoShreddingResult.KeysDeleted.init -> void
+Encina.Marten.GDPR.CryptoShreddingResult.ShreddedAtUtc.get -> System.DateTimeOffset
+Encina.Marten.GDPR.CryptoShreddingResult.ShreddedAtUtc.init -> void
+Encina.Marten.GDPR.CryptoShreddingResult.SubjectId.get -> string!
+Encina.Marten.GDPR.CryptoShreddingResult.SubjectId.init -> void
+Encina.Marten.GDPR.KeyRotationResult
+Encina.Marten.GDPR.KeyRotationResult.NewKeyId.get -> string!
+Encina.Marten.GDPR.KeyRotationResult.NewKeyId.init -> void
+Encina.Marten.GDPR.KeyRotationResult.NewVersion.get -> int
+Encina.Marten.GDPR.KeyRotationResult.NewVersion.init -> void
+Encina.Marten.GDPR.KeyRotationResult.OldKeyId.get -> string!
+Encina.Marten.GDPR.KeyRotationResult.OldKeyId.init -> void
+Encina.Marten.GDPR.KeyRotationResult.OldVersion.get -> int
+Encina.Marten.GDPR.KeyRotationResult.OldVersion.init -> void
+Encina.Marten.GDPR.KeyRotationResult.RotatedAtUtc.get -> System.DateTimeOffset
+Encina.Marten.GDPR.KeyRotationResult.RotatedAtUtc.init -> void
+Encina.Marten.GDPR.KeyRotationResult.SubjectId.get -> string!
+Encina.Marten.GDPR.KeyRotationResult.SubjectId.init -> void
+Encina.Marten.GDPR.PiiEncryptionFailedEvent
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.ErrorMessage.get -> string!
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.ErrorMessage.init -> void
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.OccurredAtUtc.init -> void
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.PiiEncryptionFailedEvent(string! SubjectId, string! PropertyName, string! ErrorMessage, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.PropertyName.get -> string!
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.PropertyName.init -> void
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.SubjectId.get -> string!
+Encina.Marten.GDPR.PiiEncryptionFailedEvent.SubjectId.init -> void
+Encina.Marten.GDPR.SubjectEncryptionInfo
+Encina.Marten.GDPR.SubjectEncryptionInfo.ActiveKeyVersion.get -> int
+Encina.Marten.GDPR.SubjectEncryptionInfo.ActiveKeyVersion.init -> void
+Encina.Marten.GDPR.SubjectEncryptionInfo.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Marten.GDPR.SubjectEncryptionInfo.CreatedAtUtc.init -> void
+Encina.Marten.GDPR.SubjectEncryptionInfo.ForgottenAtUtc.get -> System.DateTimeOffset?
+Encina.Marten.GDPR.SubjectEncryptionInfo.ForgottenAtUtc.init -> void
+Encina.Marten.GDPR.SubjectEncryptionInfo.Status.get -> Encina.Marten.GDPR.SubjectStatus
+Encina.Marten.GDPR.SubjectEncryptionInfo.Status.init -> void
+Encina.Marten.GDPR.SubjectEncryptionInfo.SubjectId.get -> string!
+Encina.Marten.GDPR.SubjectEncryptionInfo.SubjectId.init -> void
+Encina.Marten.GDPR.SubjectEncryptionInfo.TotalKeyVersions.get -> int
+Encina.Marten.GDPR.SubjectEncryptionInfo.TotalKeyVersions.init -> void
+Encina.Marten.GDPR.SubjectForgottenEvent
+Encina.Marten.GDPR.SubjectForgottenEvent.FieldsAffected.get -> int
+Encina.Marten.GDPR.SubjectForgottenEvent.FieldsAffected.init -> void
+Encina.Marten.GDPR.SubjectForgottenEvent.KeysDeleted.get -> int
+Encina.Marten.GDPR.SubjectForgottenEvent.KeysDeleted.init -> void
+Encina.Marten.GDPR.SubjectForgottenEvent.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Marten.GDPR.SubjectForgottenEvent.OccurredAtUtc.init -> void
+Encina.Marten.GDPR.SubjectForgottenEvent.SubjectForgottenEvent(string! SubjectId, int KeysDeleted, int FieldsAffected, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Marten.GDPR.SubjectForgottenEvent.SubjectId.get -> string!
+Encina.Marten.GDPR.SubjectForgottenEvent.SubjectId.init -> void
+Encina.Marten.GDPR.SubjectKeyInfo
+Encina.Marten.GDPR.SubjectKeyInfo.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Marten.GDPR.SubjectKeyInfo.CreatedAtUtc.init -> void
+Encina.Marten.GDPR.SubjectKeyInfo.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Marten.GDPR.SubjectKeyInfo.ExpiresAtUtc.init -> void
+Encina.Marten.GDPR.SubjectKeyInfo.KeyId.get -> string!
+Encina.Marten.GDPR.SubjectKeyInfo.KeyId.init -> void
+Encina.Marten.GDPR.SubjectKeyInfo.Status.get -> Encina.Marten.GDPR.SubjectKeyStatus
+Encina.Marten.GDPR.SubjectKeyInfo.Status.init -> void
+Encina.Marten.GDPR.SubjectKeyInfo.SubjectId.get -> string!
+Encina.Marten.GDPR.SubjectKeyInfo.SubjectId.init -> void
+Encina.Marten.GDPR.SubjectKeyInfo.Version.get -> int
+Encina.Marten.GDPR.SubjectKeyInfo.Version.init -> void
+Encina.Marten.GDPR.SubjectKeyRotatedEvent
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.NewKeyId.get -> string!
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.NewKeyId.init -> void
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.OccurredAtUtc.init -> void
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.OldKeyId.get -> string!
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.OldKeyId.init -> void
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.SubjectId.get -> string!
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.SubjectId.init -> void
+Encina.Marten.GDPR.SubjectKeyRotatedEvent.SubjectKeyRotatedEvent(string! SubjectId, string! OldKeyId, string! NewKeyId, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Marten.GDPR.SubjectKeyStatus
+Encina.Marten.GDPR.SubjectKeyStatus.Active = 0 -> Encina.Marten.GDPR.SubjectKeyStatus
+Encina.Marten.GDPR.SubjectKeyStatus.Deleted = 2 -> Encina.Marten.GDPR.SubjectKeyStatus
+Encina.Marten.GDPR.SubjectKeyStatus.Rotated = 1 -> Encina.Marten.GDPR.SubjectKeyStatus
+Encina.Marten.GDPR.SubjectStatus
+Encina.Marten.GDPR.SubjectStatus.Active = 0 -> Encina.Marten.GDPR.SubjectStatus
+Encina.Marten.GDPR.SubjectStatus.Forgotten = 1 -> Encina.Marten.GDPR.SubjectStatus
+Encina.Marten.GDPR.SubjectStatus.PendingDeletion = 2 -> Encina.Marten.GDPR.SubjectStatus
+Encina.Marten.GDPR.CryptoShredderSerializer
+Encina.Marten.GDPR.CryptoShredderSerializer.Casing.get -> Marten.Casing
+Encina.Marten.GDPR.CryptoShredderSerializer.CryptoShredderSerializer(Marten.ISerializer! inner, Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider! subjectKeyProvider, Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler! forgottenSubjectHandler, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredderSerializer!>! logger, string! anonymizedPlaceholder = "[REDACTED]") -> void
+Encina.Marten.GDPR.CryptoShredderSerializer.EnumStorage.get -> Weasel.Core.EnumStorage
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJson(System.Type! type, System.Data.Common.DbDataReader! reader, int index) -> object!
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJson(System.Type! type, System.IO.Stream! stream) -> object!
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJson<T>(System.Data.Common.DbDataReader! reader, int index) -> T
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJson<T>(System.IO.Stream! stream) -> T
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJsonAsync(System.Type! type, System.Data.Common.DbDataReader! reader, int index, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<object!>
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJsonAsync(System.Type! type, System.IO.Stream! stream, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<object!>
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJsonAsync<T>(System.Data.Common.DbDataReader! reader, int index, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<T>
+Encina.Marten.GDPR.CryptoShredderSerializer.FromJsonAsync<T>(System.IO.Stream! stream, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<T>
+Encina.Marten.GDPR.CryptoShredderSerializer.ToCleanJson(object? document) -> string!
+Encina.Marten.GDPR.CryptoShredderSerializer.ToJson(object? document) -> string!
+Encina.Marten.GDPR.CryptoShredderSerializer.ToJsonWithTypes(object! document) -> string!
+Encina.Marten.GDPR.CryptoShredderSerializer.ValueCasting.get -> Marten.ValueCasting
+Encina.Marten.GDPR.CryptoShredderSerializerFactory
+const Encina.Marten.GDPR.CryptoShredderSerializerFactory.DefaultAnonymizedPlaceholder = "[REDACTED]" -> string!
+static Encina.Marten.GDPR.CryptoShredderSerializerFactory.Apply(Marten.StoreOptions! options, Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider! subjectKeyProvider, Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler! forgottenSubjectHandler, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredderSerializer!>! logger, string! anonymizedPlaceholder = "[REDACTED]") -> void
+Encina.Marten.GDPR.CryptoShredErasureStrategy
+Encina.Marten.GDPR.CryptoShredErasureStrategy.CryptoShredErasureStrategy(Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider! subjectKeyProvider, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredErasureStrategy!>! logger) -> void
+Encina.Marten.GDPR.CryptoShredErasureStrategy.EraseFieldAsync(Encina.Compliance.DataSubjectRights.PersonalDataLocation! location, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Marten.GDPR.DefaultForgottenSubjectHandler
+Encina.Marten.GDPR.DefaultForgottenSubjectHandler.DefaultForgottenSubjectHandler(Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.DefaultForgottenSubjectHandler!>! logger) -> void
+Encina.Marten.GDPR.DefaultForgottenSubjectHandler.HandleForgottenSubjectAsync(string! subjectId, string! propertyName, System.Type! eventType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Encina.Marten.GDPR.InMemorySubjectKeyProvider
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.Clear() -> void
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.GetSubjectInfoAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionInfo!>>
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.GetSubjectKeyAsync(string! subjectId, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.InMemorySubjectKeyProvider(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.InMemorySubjectKeyProvider!>! logger) -> void
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.IsSubjectForgottenAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.RotateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.KeyRotationResult!>>
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.SubjectCount.get -> int
+Encina.Marten.GDPR.MartenEventPersonalDataLocator
+Encina.Marten.GDPR.MartenEventPersonalDataLocator.LocateAllDataAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DataSubjectRights.PersonalDataLocation!>!>>
+Encina.Marten.GDPR.MartenEventPersonalDataLocator.MartenEventPersonalDataLocator(Marten.IDocumentSession! session, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.MartenEventPersonalDataLocator!>! logger) -> void
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.GetSubjectInfoAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionInfo!>>
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.GetSubjectKeyAsync(string! subjectId, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.IsSubjectForgottenAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.PostgreSqlSubjectKeyProvider(Marten.IDocumentSession! session, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider!>! logger) -> void
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.RotateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.KeyRotationResult!>>
+Encina.Marten.GDPR.CryptoShreddingOptions
+Encina.Marten.GDPR.CryptoShreddingOptions.CryptoShreddingOptions() -> void
+Encina.Marten.GDPR.CryptoShreddingOptions.AddHealthCheck.get -> bool
+Encina.Marten.GDPR.CryptoShreddingOptions.AddHealthCheck.set -> void
+Encina.Marten.GDPR.CryptoShreddingOptions.AnonymizedPlaceholder.get -> string!
+Encina.Marten.GDPR.CryptoShreddingOptions.AnonymizedPlaceholder.set -> void
+Encina.Marten.GDPR.CryptoShreddingOptions.AssembliesToScan.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!
+Encina.Marten.GDPR.CryptoShreddingOptions.AutoRegisterFromAttributes.get -> bool
+Encina.Marten.GDPR.CryptoShreddingOptions.AutoRegisterFromAttributes.set -> void
+Encina.Marten.GDPR.CryptoShreddingOptions.KeyRotationDays.get -> int
+Encina.Marten.GDPR.CryptoShreddingOptions.KeyRotationDays.set -> void
+Encina.Marten.GDPR.CryptoShreddingOptions.PublishEvents.get -> bool
+Encina.Marten.GDPR.CryptoShreddingOptions.PublishEvents.set -> void
+Encina.Marten.GDPR.CryptoShreddingOptions.UsePostgreSqlKeyStore.get -> bool
+Encina.Marten.GDPR.CryptoShreddingOptions.UsePostgreSqlKeyStore.set -> void
+Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck
+Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck.CryptoShreddingHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck!>! logger) -> void
+const Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck.DefaultName = "encina-crypto-shredding" -> string!
+Encina.Marten.GDPR.ServiceCollectionExtensions
+static Encina.Marten.GDPR.ServiceCollectionExtensions.AddEncinaMartenGdpr(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Marten.GDPR.CryptoShreddingOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

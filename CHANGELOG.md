@@ -1443,6 +1443,64 @@ Added the `Encina.Compliance.BreachNotification` package implementing GDPR Artic
   - `SagaNotFoundContext.MoveToDeadLetterAsync` (Messaging)
 - Removed 16 unreachable `throw new InvalidOperationException("Unexpected Right after Left check")` in Sharding `GetAllConnections`/`GetAllCollections` loops across all 13 database providers, replaced with direct `(EncinaError)` cast (#675)
 
+---
+
+#### Encina.Marten.GDPR — Crypto-Shredding for GDPR Compliance in Event-Sourced Systems (#322)
+
+Added the `Encina.Marten.GDPR` package providing crypto-shredding for GDPR Article 17 compliance in Marten event-sourced systems. Encrypts PII fields with per-subject encryption keys and enables the "Right to be Forgotten" by deleting keys, rendering data permanently unreadable without modifying event history.
+
+**`[CryptoShredded]` Attribute**:
+
+- Declarative PII marking on domain event properties with subject binding via `SubjectIdProperty`
+- Requires co-located `[PersonalData]` attribute from `Encina.Compliance.DataSubjectRights`
+- Validates configuration at startup via auto-registration hosted service
+
+**Transparent Serializer Interception**:
+
+- `CryptoShredderSerializer` wraps Marten's `ISerializer` — automatic encrypt on save, decrypt on load
+- Reuses `IFieldEncryptor` (AES-256-GCM) from `Encina.Security.Encryption` — zero crypto code duplication
+- `CryptoShreddedPropertyCache` with compiled expression tree setters for near-native performance
+- `EncryptedFieldJsonConverter` for structured encrypted value storage with key ID tracking
+
+**Per-Subject Key Management** (`ISubjectKeyProvider`):
+
+- `InMemorySubjectKeyProvider` for testing and development
+- `PostgreSqlSubjectKeyProvider` for production (persists keys in Marten's document store)
+- Key lifecycle: create → retrieve → rotate → delete
+- Key rotation with forward-only encryption (old events decrypt with original key version)
+- Subject forgetting via `DeleteSubjectKeysAsync` — deletes ALL key versions (GDPR Art. 17)
+
+**DSR Integration**:
+
+- `CryptoShredErasureStrategy` plugs into `Encina.Compliance.DataSubjectRights` erasure workflow
+- `MartenEventPersonalDataLocator` discovers PII in Marten event streams for a given subject
+- Configurable placeholder for forgotten data (default: `[REDACTED]`)
+
+**Error Codes** (9 structured errors via `CryptoShreddingErrors`):
+
+- `crypto.subject_forgotten`, `crypto.encryption_failed`, `crypto.decryption_failed`
+- `crypto.key_rotation_failed`, `crypto.key_store_error`, `crypto.invalid_subject_id`
+- `crypto.key_already_exists`, `crypto.serialization_error`, `crypto.attribute_misconfigured`
+
+**Domain Events**:
+
+- `SubjectForgottenEvent`, `SubjectKeyRotatedEvent`, `PiiEncryptionFailedEvent`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Marten.GDPR` ActivitySource with 5 activity types: Encrypt, Decrypt, Forget, KeyRotation, Erasure
+- 10 metric instruments under `Encina.Marten.GDPR` Meter: 7 counters (encryption, decryption, failures, forgotten access, rotation, forget) + 3 histograms (encryption/decryption/forget duration in ms)
+- Structured log events using `LoggerMessage.Define` (zero-allocation)
+- Optional `CryptoShreddingHealthCheck` (`encina-crypto-shredding`) verifying encryption services, key provider, and configuration
+
+**DI Registration**:
+
+- `services.AddEncinaMartenGdpr()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+- Configurable via `Action<CryptoShreddingOptions>` delegate
+- Options: `UsePostgreSqlKeyStore`, `AnonymizedPlaceholder`, `KeyRotationDays`, `AutoRegisterFromAttributes`, `AddHealthCheck`, `PublishEvents`
+
+**Testing**: Tests across 6 test projects covering unit tests, guard tests, property tests, contract tests, integration tests (PostgreSQL), and BenchmarkDotNet benchmarks.
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

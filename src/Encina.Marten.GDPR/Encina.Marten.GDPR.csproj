@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Encina.Marten.GDPR</PackageId>
+    <Description>Crypto-shredding for GDPR compliance in Marten event-sourced systems. Encrypts PII fields with per-subject keys and enables GDPR Article 17 "Right to be Forgotten" by deleting encryption keys, rendering data permanently unreadable. Integrates with Encina.Security.Encryption and Encina.Compliance.DataSubjectRights.</Description>
+    <PackageTags>encina;marten;gdpr;crypto-shredding;event-sourcing;encryption;right-to-be-forgotten;article-17;pii;compliance</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Encina.Marten\Encina.Marten.csproj" />
+    <ProjectReference Include="..\Encina.Security.Encryption\Encina.Security.Encryption.csproj" />
+    <ProjectReference Include="..\Encina.Compliance.DataSubjectRights\Encina.Compliance.DataSubjectRights.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LanguageExt.Core" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Encina.UnitTests" />
+    <InternalsVisibleTo Include="Encina.IntegrationTests" />
+    <InternalsVisibleTo Include="Encina.ContractTests" />
+    <InternalsVisibleTo Include="Encina.PropertyTests" />
+    <InternalsVisibleTo Include="Encina.Marten.GDPR.Benchmarks" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
