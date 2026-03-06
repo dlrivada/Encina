@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -34,12 +34,8 @@ public sealed class InboxOrchestrator
     private readonly InboxOptions _options;
     private readonly ILogger<InboxOrchestrator> _logger;
     private readonly IInboxMessageFactory _messageFactory;
+    private readonly IMessageSerializer _messageSerializer;
     private readonly TimeProvider _timeProvider;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InboxOrchestrator"/> class.
@@ -48,23 +44,27 @@ public sealed class InboxOrchestrator
     /// <param name="options">The inbox options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="messageFactory">Factory to create inbox messages.</param>
+    /// <param name="messageSerializer">The message serializer for response caching.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public InboxOrchestrator(
         IInboxStore store,
         InboxOptions options,
         ILogger<InboxOrchestrator> logger,
         IInboxMessageFactory messageFactory,
+        IMessageSerializer messageSerializer,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageFactory);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _options = options;
         _logger = logger;
         _messageFactory = messageFactory;
+        _messageSerializer = messageSerializer;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -199,18 +199,18 @@ public sealed class InboxOrchestrator
         }
     }
 
-    private static string SerializeResponse<TResponse>(Either<EncinaError, TResponse> response)
+    private string SerializeResponse<TResponse>(Either<EncinaError, TResponse> response)
     {
         var envelope = response.Match(
             Right: value => new ResponseEnvelope<TResponse> { IsSuccess = true, Value = value },
             Left: error => new ResponseEnvelope<TResponse> { IsSuccess = false, ErrorMessage = error.Message });
 
-        return JsonSerializer.Serialize(envelope, JsonOptions);
+        return _messageSerializer.Serialize(envelope);
     }
 
-    private static Either<EncinaError, TResponse> DeserializeResponse<TResponse>(string json)
+    private Either<EncinaError, TResponse> DeserializeResponse<TResponse>(string json)
     {
-        var envelope = JsonSerializer.Deserialize<ResponseEnvelope<TResponse>>(json, JsonOptions);
+        var envelope = _messageSerializer.Deserialize<ResponseEnvelope<TResponse>>(json);
         if (envelope == null)
         {
             return EncinaErrors.Create(

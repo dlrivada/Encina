@@ -386,7 +386,7 @@ flowchart TB
 | **#126** | Message TTL | Expiración automática de mensajes | Media |
 | **#127** | Request/Response RPC | Comunicación estilo RPC sobre messaging | Media |
 | **#128** | Saga Visibility | APIs de consulta, historial de pasos, métricas | Media |
-| **#129** | Message Encryption | Encriptación de mensajes para compliance | Media |
+| **#129** | Message Encryption | Encriptación de mensajes para compliance ✅ **IMPLEMENTADO** | Media |
 | **#130** | Competing Consumers | Gestión de grupos de consumidores | Media |
 | **#131** | Backpressure | Control de flujo cuando consumidores saturados | Media |
 | **#132** | W3C Trace Context | Propagación de contexto distribuido OpenTelemetry | Media |
@@ -4326,7 +4326,7 @@ dotnet run -c Release -- --filter "*Comparison*"
 | **#126** | Message TTL (Time-To-Live) & Expiration | Baja | Media | `area-messaging`, `area-eip` |
 | **#127** | Request/Response Pattern (RPC over Messaging) | Media | Media | `area-messaging`, `area-interop` |
 | **#128** | Enhanced Saga Visibility & Process Manager | Media | Media | `area-messaging`, `area-saga`, `area-observability` |
-| **#129** | Message Encryption & Security | Alta | Media | `area-encryption`, `area-security`, `new-package` |
+| **#129** | Message Encryption & Security ✅ **IMPLEMENTADO** | Alta | Media | `area-encryption`, `area-security`, `new-package` |
 | **#130** | Competing Consumers Management | Alta | Media | `area-scalability`, `area-cloud-native` |
 | **#131** | Backpressure & Flow Control | Media | Media | `area-resilience`, `area-performance` |
 | **#132** | Enhanced Distributed Context Propagation | Baja | Media | `area-observability`, `area-interop` |
@@ -4342,7 +4342,7 @@ dotnet run -c Release -- --filter "*Comparison*"
 
 **#125 - Multi-Tenancy Messaging**: Soporte first-class para SaaS con aislamiento por tenant. Incluye propagación automática del TenantId, stores aislados y configuración per-tenant.
 
-**#129 - Message Encryption**: Encriptación transparente de mensajes para cumplimiento regulatorio (GDPR, HIPAA, PCI-DSS). Soporta múltiples providers (Azure Key Vault, AWS KMS, Data Protection).
+**#129 - Message Encryption** ✅ **IMPLEMENTADO**: Encriptación transparente de payload de mensajes outbox/inbox para cumplimiento regulatorio (GDPR Art. 32, HIPAA, PCI-DSS). Decorator `EncryptingMessageSerializer` sobre `IMessageSerializer` con AES-256-GCM. Atributos `[EncryptedMessage]` y `[EncryptedField]`. Soporte multi-tenant via `ITenantKeyResolver`. Tres proveedores KMS satelitales: Azure Key Vault, AWS KMS, ASP.NET Core Data Protection. Health check, OpenTelemetry tracing/metrics, 9 error codes. 118 tests (64 unit, 15 guard, 12 property, 27 contract) + benchmarks. Paquetes: `Encina.Messaging.Encryption`, `Encina.Messaging.Encryption.AzureKeyVault`, `Encina.Messaging.Encryption.AwsKms`, `Encina.Messaging.Encryption.DataProtection`.
 
 **#130 - Competing Consumers**: Gestión de grupos de consumidores para escalado horizontal. Incluye rebalanceo, asignación de particiones y métricas de lag.
 
@@ -5090,9 +5090,10 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 | `Encina.ClaimCheck` | #122 | Core abstractions para Claim Check |
 | `Encina.ClaimCheck.AzureBlob` | #122 | Azure Blob Storage provider |
 | `Encina.ClaimCheck.AmazonS3` | #122 | AWS S3 provider |
-| `Encina.Encryption` | #129 | Core abstractions para encriptación |
-| `Encina.Encryption.AzureKeyVault` | #129 | Azure Key Vault provider |
-| `Encina.Encryption.AwsKms` | #129 | AWS KMS provider |
+| `Encina.Messaging.Encryption` | #129 ✅ | Message payload encryption core (IMPLEMENTADO) |
+| `Encina.Messaging.Encryption.AzureKeyVault` | #129 ✅ | Azure Key Vault KMS provider (IMPLEMENTADO) |
+| `Encina.Messaging.Encryption.AwsKms` | #129 ✅ | AWS KMS provider (IMPLEMENTADO) |
+| `Encina.Messaging.Encryption.DataProtection` | #129 ✅ | ASP.NET Core Data Protection provider (IMPLEMENTADO) |
 | `Encina.LoadShedding` | #138 | Load Shedding con prioridad (Netflix pattern) |
 | `Encina.CascadingTimeout` | #141 | Coordinación de timeouts en cascada |
 | `Encina.Testing.Testcontainers` | #162 | Docker fixtures para bases de datos |

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.UnitTests.Messaging.Outbox;
@@ -29,9 +30,10 @@ public sealed class OutboxOrchestratorTests
         };
         var logger = Substitute.For<ILogger<OutboxOrchestrator>>();
         var messageFactory = Substitute.For<IOutboxMessageFactory>();
-        var orchestrator = new OutboxOrchestrator(store, options, logger, messageFactory);
+        var messageSerializer = new JsonMessageSerializer();
+        var orchestrator = new OutboxOrchestrator(store, options, logger, messageFactory, messageSerializer);
 
-        return new TestFixture(store, options, logger, messageFactory, orchestrator);
+        return new TestFixture(store, options, logger, messageFactory, messageSerializer, orchestrator);
     }
 
     private sealed record TestFixture(
@@ -39,22 +41,24 @@ public sealed class OutboxOrchestratorTests
         OutboxOptions Options,
         ILogger<OutboxOrchestrator> Logger,
         IOutboxMessageFactory MessageFactory,
+        IMessageSerializer MessageSerializer,
         OutboxOrchestrator Orchestrator);
 
     #endregion
 
     #region Constructor Tests
 
-    public static TheoryData<IOutboxStore?, OutboxOptions?, ILogger<OutboxOrchestrator>?, IOutboxMessageFactory?, string> ConstructorNullArgumentTestCases()
+    public static TheoryData<IOutboxStore?, OutboxOptions?, ILogger<OutboxOrchestrator>?, IOutboxMessageFactory?, IMessageSerializer?, string> ConstructorNullArgumentTestCases()
     {
         // Each row creates fresh instances to avoid shared state between theory cases
-        return new TheoryData<IOutboxStore?, OutboxOptions?, ILogger<OutboxOrchestrator>?, IOutboxMessageFactory?, string>
+        return new TheoryData<IOutboxStore?, OutboxOptions?, ILogger<OutboxOrchestrator>?, IOutboxMessageFactory?, IMessageSerializer?, string>
         {
             {
                 null,
                 new OutboxOptions { BatchSize = 10, MaxRetries = 3 },
                 Substitute.For<ILogger<OutboxOrchestrator>>(),
                 Substitute.For<IOutboxMessageFactory>(),
+                new JsonMessageSerializer(),
                 "store"
             },
             {
@@ -62,6 +66,7 @@ public sealed class OutboxOrchestratorTests
                 null,
                 Substitute.For<ILogger<OutboxOrchestrator>>(),
                 Substitute.For<IOutboxMessageFactory>(),
+                new JsonMessageSerializer(),
                 "options"
             },
             {
@@ -69,6 +74,7 @@ public sealed class OutboxOrchestratorTests
                 new OutboxOptions { BatchSize = 10, MaxRetries = 3 },
                 null,
                 Substitute.For<IOutboxMessageFactory>(),
+                new JsonMessageSerializer(),
                 "logger"
             },
             {
@@ -76,7 +82,16 @@ public sealed class OutboxOrchestratorTests
                 new OutboxOptions { BatchSize = 10, MaxRetries = 3 },
                 Substitute.For<ILogger<OutboxOrchestrator>>(),
                 null,
+                new JsonMessageSerializer(),
                 "messageFactory"
+            },
+            {
+                Substitute.For<IOutboxStore>(),
+                new OutboxOptions { BatchSize = 10, MaxRetries = 3 },
+                Substitute.For<ILogger<OutboxOrchestrator>>(),
+                Substitute.For<IOutboxMessageFactory>(),
+                null,
+                "messageSerializer"
             }
         };
     }
@@ -88,13 +103,15 @@ public sealed class OutboxOrchestratorTests
         OutboxOptions? options,
         ILogger<OutboxOrchestrator>? logger,
         IOutboxMessageFactory? messageFactory,
+        IMessageSerializer? messageSerializer,
         string expectedParamName)
     {
         var act = () => new OutboxOrchestrator(
             store!,
             options!,
             logger!,
-            messageFactory!);
+            messageFactory!,
+            messageSerializer!);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe(expectedParamName);
     }

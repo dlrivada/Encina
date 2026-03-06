@@ -1,4 +1,5 @@
 using Encina.Messaging.Inbox;
+using Encina.Messaging.Serialization;
 
 using LanguageExt;
 
@@ -211,7 +212,7 @@ public sealed class InboxPipelineBehaviorTests
             Arg.Any<InboxMetadata?>())
             .Returns(_ => Substitute.For<IInboxMessage>());
 
-        return new InboxOrchestrator(inboxStore, options, logger, messageFactory);
+        return new InboxOrchestrator(inboxStore, options, logger, messageFactory, new JsonMessageSerializer());
     }
 
     private static IRequestContext CreateContext(

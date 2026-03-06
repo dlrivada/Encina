@@ -1,4 +1,5 @@
 using Encina.Messaging.Inbox;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -15,6 +16,7 @@ public sealed class InboxOrchestratorTests
     private readonly InboxOptions _options;
     private readonly ILogger<InboxOrchestrator> _logger;
     private readonly IInboxMessageFactory _messageFactory;
+    private readonly IMessageSerializer _messageSerializer;
     private readonly InboxOrchestrator _orchestrator;
 
     public InboxOrchestratorTests()
@@ -27,7 +29,8 @@ public sealed class InboxOrchestratorTests
         };
         _logger = Substitute.For<ILogger<InboxOrchestrator>>();
         _messageFactory = Substitute.For<IInboxMessageFactory>();
-        _orchestrator = new InboxOrchestrator(_store, _options, _logger, _messageFactory);
+        _messageSerializer = new JsonMessageSerializer();
+        _orchestrator = new InboxOrchestrator(_store, _options, _logger, _messageFactory, _messageSerializer);
     }
 
     #region Constructor Tests
@@ -41,7 +44,7 @@ public sealed class InboxOrchestratorTests
         var messageFactory = Substitute.For<IInboxMessageFactory>();
 
         // Act
-        var act = () => new InboxOrchestrator(null!, options, logger, messageFactory);
+        var act = () => new InboxOrchestrator(null!, options, logger, messageFactory, new JsonMessageSerializer());
 
         // Assert
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("store");
@@ -56,7 +59,7 @@ public sealed class InboxOrchestratorTests
         var messageFactory = Substitute.For<IInboxMessageFactory>();
 
         // Act
-        var act = () => new InboxOrchestrator(store, null!, logger, messageFactory);
+        var act = () => new InboxOrchestrator(store, null!, logger, messageFactory, new JsonMessageSerializer());
 
         // Assert
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("options");
@@ -71,7 +74,7 @@ public sealed class InboxOrchestratorTests
         var messageFactory = Substitute.For<IInboxMessageFactory>();
 
         // Act
-        var act = () => new InboxOrchestrator(store, options, null!, messageFactory);
+        var act = () => new InboxOrchestrator(store, options, null!, messageFactory, new JsonMessageSerializer());
 
         // Assert
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("logger");
@@ -86,10 +89,26 @@ public sealed class InboxOrchestratorTests
         var logger = Substitute.For<ILogger<InboxOrchestrator>>();
 
         // Act
-        var act = () => new InboxOrchestrator(store, options, logger, null!);
+        var act = () => new InboxOrchestrator(store, options, logger, null!, new JsonMessageSerializer());
 
         // Assert
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageFactory");
+    }
+
+    [Fact]
+    public void Constructor_NullMessageSerializer_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var store = Substitute.For<IInboxStore>();
+        var options = new InboxOptions { MaxRetries = 3 };
+        var logger = Substitute.For<ILogger<InboxOrchestrator>>();
+        var messageFactory = Substitute.For<IInboxMessageFactory>();
+
+        // Act
+        var act = () => new InboxOrchestrator(store, options, logger, messageFactory, null!);
+
+        // Assert
+        act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageSerializer");
     }
 
     #endregion

@@ -1501,6 +1501,78 @@ Added the `Encina.Marten.GDPR` package providing crypto-shredding for GDPR Artic
 
 **Testing**: Tests across 6 test projects covering unit tests, guard tests, property tests, contract tests, integration tests (PostgreSQL), and BenchmarkDotNet benchmarks.
 
+#### Encina.Messaging.Encryption — Message Payload Encryption for Outbox/Inbox (#129)
+
+Added the `Encina.Messaging.Encryption` package providing transparent, payload-level encryption for outbox/inbox messages. Decorates the existing `IMessageSerializer` with `EncryptingMessageSerializer` to encrypt serialized message content before database persistence and decrypt upon retrieval. Supports key rotation, multi-tenant key isolation, and pluggable KMS providers (Azure Key Vault, AWS KMS, ASP.NET Core Data Protection).
+
+**Core Abstractions**:
+
+- **`IMessageEncryptionProvider`**: Primary facade for message encryption/decryption returning `Either<EncinaError, T>` (ROP)
+- **`ITenantKeyResolver`**: Per-tenant key ID resolution for multi-tenant encryption isolation
+- **`EncryptedPayload`**: Sealed record carrying ciphertext, key ID, algorithm, nonce, tag, and format version
+- **`MessageEncryptionContext`**: Encryption context with key ID, tenant ID, message type, and associated data
+- **`EncryptedPayloadFormatter`**: Serializes payloads to compact `ENC:v{Version}:{KeyId}:{Algorithm}:{Nonce}:{Tag}:{Ciphertext}` format
+
+**Two Declarative Attributes**:
+
+- **`[EncryptedMessage]`**: Message-level encryption opt-in/opt-out with `KeyId`, `UseTenantKey`, `Enabled` properties
+- **`[EncryptedField]`**: Marks individual fields for selective encryption (future use)
+
+**Serializer Decorator** (`EncryptingMessageSerializer`):
+
+- Wraps any `IMessageSerializer` (typically `JsonMessageSerializer`) transparently
+- Encrypts on `Serialize<T>()`, decrypts on `Deserialize<T>()`/`Deserialize(string, Type)`
+- Attribute caching via `EncryptedMessageAttributeCache` (zero reflection after first access per type)
+- Supports `EncryptAllMessages` mode (encrypt everything unless opted out) and per-type opt-in
+
+**Error Codes** (9 structured errors via `MessageEncryptionErrors`):
+
+- `msg_encryption.encryption_failed`, `msg_encryption.decryption_failed`, `msg_encryption.key_not_found`
+- `msg_encryption.invalid_payload`, `msg_encryption.unsupported_version`, `msg_encryption.tenant_key_resolution_failed`
+- `msg_encryption.serialization_failed`, `msg_encryption.deserialization_failed`, `msg_encryption.provider_unavailable`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Messaging.Encryption` ActivitySource with activities: `MessageEncryption.Encrypt`, `MessageEncryption.Decrypt`; tags: `messaging.encryption.operation`, `messaging.encryption.key_id`, `messaging.encryption.algorithm`, `messaging.encryption.outcome`, `messaging.encryption.message_type`
+- 4 metric instruments under `Encina.Messaging.Encryption` Meter: `messaging.encryption.operations` (counter), `messaging.encryption.failures` (counter), `messaging.encryption.duration` (histogram in ms), `messaging.encryption.payload_size` (histogram in bytes)
+- Structured log events using `LoggerMessage` source generation for zero-allocation logging
+
+**Health Check**:
+
+- **`MessageEncryptionHealthCheck`**: Roundtrip verification — encrypts probe, decrypts, verifies match
+- Opt-in via `MessageEncryptionOptions.AddHealthCheck = true`
+- Tags: `encina`, `messaging`, `encryption`, `ready`
+
+**Configuration** (`MessageEncryptionOptions`):
+
+- `Enabled` (global on/off), `EncryptAllMessages` (encrypt-everything mode)
+- `DefaultKeyId`, `UseTenantKeys`, `TenantKeyPattern` (`"tenant-{0}-key"`)
+- `AuditDecryption` (HIPAA/PCI-DSS audit trail), `AddHealthCheck`, `EnableTracing`, `EnableMetrics`
+
+**DI Registration**:
+
+```csharp
+services.AddEncinaMessageEncryption(options =>
+{
+    options.EncryptAllMessages = true;
+    options.DefaultKeyId = "msg-key-2024";
+    options.AddHealthCheck = true;
+    options.EnableTracing = true;
+});
+```
+
+**Three Satellite KMS Packages**:
+
+- **`Encina.Messaging.Encryption.AzureKeyVault`**: Azure Key Vault key provider via `Azure.Security.KeyVault.Keys` + `Azure.Identity` with `DefaultAzureCredential`, managed identities, and HSM-backed keys
+- **`Encina.Messaging.Encryption.AwsKms`**: AWS KMS key provider via `AWSSDK.KeyManagementService` with IAM-based access and automatic key rotation
+- **`Encina.Messaging.Encryption.DataProtection`**: ASP.NET Core Data Protection provider implementing `IMessageEncryptionProvider` directly (handles both key management and encryption)
+
+**Compliance**: GDPR Article 32, HIPAA §164.312(a)(2)(iv), PCI-DSS Requirement 3 encryption-at-rest.
+
+**Testing**: 118 tests across 4 test projects (64 unit, 15 guard, 12 property, 27 contract) plus BenchmarkDotNet benchmarks (11 scenarios: encrypt/decrypt, payload formatting, attribute caching).
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

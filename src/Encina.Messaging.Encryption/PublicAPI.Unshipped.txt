@@ -1,0 +1,103 @@
+#nullable enable
+Encina.Messaging.Encryption.Abstractions.IMessageEncryptionProvider
+Encina.Messaging.Encryption.Abstractions.IMessageEncryptionProvider.DecryptAsync(Encina.Messaging.Encryption.Model.EncryptedPayload! payload, Encina.Messaging.Encryption.Model.MessageEncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Immutable.ImmutableArray<byte>>>
+Encina.Messaging.Encryption.Abstractions.IMessageEncryptionProvider.EncryptAsync(System.ReadOnlyMemory<byte> plaintext, Encina.Messaging.Encryption.Model.MessageEncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Encryption.Model.EncryptedPayload!>>
+Encina.Messaging.Encryption.Abstractions.ITenantKeyResolver
+Encina.Messaging.Encryption.Abstractions.ITenantKeyResolver.ResolveKeyId(string! tenantId) -> string!
+Encina.Messaging.Encryption.Attributes.EncryptedFieldAttribute
+Encina.Messaging.Encryption.Attributes.EncryptedFieldAttribute.EncryptedFieldAttribute() -> void
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute.Enabled.get -> bool
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute.Enabled.set -> void
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute.EncryptedMessageAttribute() -> void
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute.KeyId.get -> string?
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute.KeyId.set -> void
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute.UseTenantKey.get -> bool
+Encina.Messaging.Encryption.Attributes.EncryptedMessageAttribute.UseTenantKey.set -> void
+Encina.Messaging.Encryption.DefaultMessageEncryptionProvider
+Encina.Messaging.Encryption.DefaultMessageEncryptionProvider.DecryptAsync(Encina.Messaging.Encryption.Model.EncryptedPayload! payload, Encina.Messaging.Encryption.Model.MessageEncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Immutable.ImmutableArray<byte>>>
+Encina.Messaging.Encryption.DefaultMessageEncryptionProvider.DefaultMessageEncryptionProvider(Encina.Security.Encryption.Abstractions.IFieldEncryptor! fieldEncryptor, Encina.Security.Encryption.Abstractions.IKeyProvider! keyProvider) -> void
+Encina.Messaging.Encryption.DefaultMessageEncryptionProvider.EncryptAsync(System.ReadOnlyMemory<byte> plaintext, Encina.Messaging.Encryption.Model.MessageEncryptionContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Messaging.Encryption.Model.EncryptedPayload!>>
+Encina.Messaging.Encryption.DefaultTenantKeyResolver
+Encina.Messaging.Encryption.DefaultTenantKeyResolver.DefaultTenantKeyResolver(Microsoft.Extensions.Options.IOptions<Encina.Messaging.Encryption.MessageEncryptionOptions!>! options) -> void
+Encina.Messaging.Encryption.DefaultTenantKeyResolver.ResolveKeyId(string! tenantId) -> string!
+Encina.Messaging.Encryption.EncryptedPayloadFormatter
+const Encina.Messaging.Encryption.EncryptedPayloadFormatter.EncryptedPrefix = "ENC:" -> string!
+static Encina.Messaging.Encryption.EncryptedPayloadFormatter.Format(Encina.Messaging.Encryption.Model.EncryptedPayload! payload) -> string!
+static Encina.Messaging.Encryption.EncryptedPayloadFormatter.IsEncrypted(string? content) -> bool
+static Encina.Messaging.Encryption.EncryptedPayloadFormatter.TryParse(string? content, out Encina.Messaging.Encryption.Model.EncryptedPayload? payload) -> bool
+Encina.Messaging.Encryption.Health.MessageEncryptionHealthCheck
+Encina.Messaging.Encryption.Health.MessageEncryptionHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Messaging.Encryption.Health.MessageEncryptionHealthCheck.MessageEncryptionHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Encryption.Health.MessageEncryptionHealthCheck!>! logger) -> void
+const Encina.Messaging.Encryption.Health.MessageEncryptionHealthCheck.DefaultName = "encina-message-encryption" -> string!
+Encina.Messaging.Encryption.MessageEncryptionErrors
+Encina.Messaging.Encryption.MessageEncryptionOptions
+Encina.Messaging.Encryption.MessageEncryptionOptions.AddHealthCheck.get -> bool
+Encina.Messaging.Encryption.MessageEncryptionOptions.AddHealthCheck.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.AuditDecryption.get -> bool
+Encina.Messaging.Encryption.MessageEncryptionOptions.AuditDecryption.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.DefaultKeyId.get -> string?
+Encina.Messaging.Encryption.MessageEncryptionOptions.DefaultKeyId.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.EnableMetrics.get -> bool
+Encina.Messaging.Encryption.MessageEncryptionOptions.EnableMetrics.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.EnableTracing.get -> bool
+Encina.Messaging.Encryption.MessageEncryptionOptions.EnableTracing.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.Enabled.get -> bool
+Encina.Messaging.Encryption.MessageEncryptionOptions.Enabled.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.EncryptAllMessages.get -> bool
+Encina.Messaging.Encryption.MessageEncryptionOptions.EncryptAllMessages.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.MessageEncryptionOptions() -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.TenantKeyPattern.get -> string!
+Encina.Messaging.Encryption.MessageEncryptionOptions.TenantKeyPattern.set -> void
+Encina.Messaging.Encryption.MessageEncryptionOptions.UseTenantKeys.get -> bool
+Encina.Messaging.Encryption.MessageEncryptionOptions.UseTenantKeys.set -> void
+Encina.Messaging.Encryption.Model.EncryptedPayload
+Encina.Messaging.Encryption.Model.EncryptedPayload.Algorithm.get -> string!
+Encina.Messaging.Encryption.Model.EncryptedPayload.Algorithm.init -> void
+Encina.Messaging.Encryption.Model.EncryptedPayload.Ciphertext.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Messaging.Encryption.Model.EncryptedPayload.Ciphertext.init -> void
+Encina.Messaging.Encryption.Model.EncryptedPayload.KeyId.get -> string!
+Encina.Messaging.Encryption.Model.EncryptedPayload.KeyId.init -> void
+Encina.Messaging.Encryption.Model.EncryptedPayload.Nonce.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Messaging.Encryption.Model.EncryptedPayload.Nonce.init -> void
+Encina.Messaging.Encryption.Model.EncryptedPayload.Tag.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Messaging.Encryption.Model.EncryptedPayload.Tag.init -> void
+Encina.Messaging.Encryption.Model.EncryptedPayload.Version.get -> int
+Encina.Messaging.Encryption.Model.EncryptedPayload.Version.init -> void
+Encina.Messaging.Encryption.Model.MessageEncryptionContext
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.AssociatedData.get -> System.Collections.Immutable.ImmutableArray<byte>
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.AssociatedData.init -> void
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.KeyId.get -> string?
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.KeyId.init -> void
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.MessageId.get -> System.Guid?
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.MessageId.init -> void
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.MessageType.get -> string?
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.MessageType.init -> void
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.TenantId.get -> string?
+Encina.Messaging.Encryption.Model.MessageEncryptionContext.TenantId.init -> void
+Encina.Messaging.Encryption.Serialization.EncryptingMessageSerializer
+Encina.Messaging.Encryption.Serialization.EncryptingMessageSerializer.Deserialize(string! content, System.Type! type) -> object?
+Encina.Messaging.Encryption.Serialization.EncryptingMessageSerializer.Deserialize<T>(string! content) -> T?
+Encina.Messaging.Encryption.Serialization.EncryptingMessageSerializer.EncryptingMessageSerializer(Encina.Messaging.Serialization.IMessageSerializer! inner, Encina.Messaging.Encryption.Abstractions.IMessageEncryptionProvider! provider, Microsoft.Extensions.Options.IOptions<Encina.Messaging.Encryption.MessageEncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Encryption.Serialization.EncryptingMessageSerializer!>! logger) -> void
+Encina.Messaging.Encryption.Serialization.EncryptingMessageSerializer.Serialize<T>(T message) -> string!
+Encina.Messaging.Encryption.ServiceCollectionExtensions
+static Encina.Messaging.Encryption.ServiceCollectionExtensions.AddEncinaMessageEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.Encryption.MessageEncryptionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Messaging.Encryption.ServiceCollectionExtensions.AddEncinaMessageEncryption<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Messaging.Encryption.MessageEncryptionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.DecryptionFailedCode = "msg_encryption.decryption_failed" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.DeserializationFailedCode = "msg_encryption.deserialization_failed" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.EncryptionFailedCode = "msg_encryption.encryption_failed" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.InvalidPayloadCode = "msg_encryption.invalid_payload" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.KeyNotFoundCode = "msg_encryption.key_not_found" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.ProviderUnavailableCode = "msg_encryption.provider_unavailable" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.SerializationFailedCode = "msg_encryption.serialization_failed" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.TenantKeyResolutionFailedCode = "msg_encryption.tenant_key_resolution_failed" -> string!
+const Encina.Messaging.Encryption.MessageEncryptionErrors.UnsupportedVersionCode = "msg_encryption.unsupported_version" -> string!
+static Encina.Messaging.Encryption.MessageEncryptionErrors.DecryptionFailed(string! keyId, string? messageType = null, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.DeserializationFailed(string? messageType = null, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.EncryptionFailed(string? messageType = null, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.InvalidPayload(string? reason = null) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.KeyNotFound(string! keyId) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.ProviderUnavailable(string? reason = null, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.SerializationFailed(string? messageType = null, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.TenantKeyResolutionFailed(string! tenantId, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Messaging.Encryption.MessageEncryptionErrors.UnsupportedVersion(int version) -> Encina.EncinaError

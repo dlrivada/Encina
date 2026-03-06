@@ -10,6 +10,7 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Serialization;
 using Encina.Messaging.SoftDelete;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -58,6 +59,10 @@ public static class MessagingServiceCollectionExtensions
 
         // Register TimeProvider for consistent timestamps across all messaging components
         services.TryAddSingleton(TimeProvider.System);
+
+        // Register default message serializer (JSON with camelCase).
+        // Encina.Messaging.Encryption can decorate this with EncryptingMessageSerializer.
+        services.TryAddSingleton<IMessageSerializer, JsonMessageSerializer>();
 
         if (config.UseTransactions)
         {
@@ -170,6 +175,10 @@ public static class MessagingServiceCollectionExtensions
 
         // Register TimeProvider for consistent timestamps across all messaging components
         services.TryAddSingleton(TimeProvider.System);
+
+        // Register default message serializer (JSON with camelCase).
+        // Encina.Messaging.Encryption can decorate this with EncryptingMessageSerializer.
+        services.TryAddSingleton<IMessageSerializer, JsonMessageSerializer>();
 
         if (config.UseTransactions)
         {

@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -30,12 +30,8 @@ public sealed class OutboxOrchestrator
     private readonly OutboxOptions _options;
     private readonly ILogger<OutboxOrchestrator> _logger;
     private readonly IOutboxMessageFactory _messageFactory;
+    private readonly IMessageSerializer _messageSerializer;
     private readonly TimeProvider _timeProvider;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxOrchestrator"/> class.
@@ -44,23 +40,27 @@ public sealed class OutboxOrchestrator
     /// <param name="options">The outbox options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="messageFactory">Factory to create outbox messages.</param>
+    /// <param name="messageSerializer">The message serializer for payload serialization/deserialization.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public OutboxOrchestrator(
         IOutboxStore store,
         OutboxOptions options,
         ILogger<OutboxOrchestrator> logger,
         IOutboxMessageFactory messageFactory,
+        IMessageSerializer messageSerializer,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageFactory);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _options = options;
         _logger = logger;
         _messageFactory = messageFactory;
+        _messageSerializer = messageSerializer;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -80,7 +80,7 @@ public sealed class OutboxOrchestrator
             ?? typeof(TNotification).FullName
             ?? typeof(TNotification).Name;
 
-        var content = JsonSerializer.Serialize(notification, JsonOptions);
+        var content = _messageSerializer.Serialize(notification);
 
         var message = _messageFactory.Create(
             Guid.NewGuid(),
@@ -129,7 +129,7 @@ public sealed class OutboxOrchestrator
                     continue;
                 }
 
-                var notification = JsonSerializer.Deserialize(message.Content, notificationType, JsonOptions);
+                var notification = _messageSerializer.Deserialize(message.Content, notificationType);
                 if (notification == null)
                 {
                     Log.DeserializationFailed(_logger, message.Id, message.NotificationType);
