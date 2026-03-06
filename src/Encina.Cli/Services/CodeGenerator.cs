@@ -47,6 +47,20 @@ public sealed class NotificationOptions
 }
 
 /// <summary>
+/// Options for generating a Stryker.NET configuration file.
+/// </summary>
+public sealed class StrykerOptions
+{
+    public required string ProjectPath { get; init; }
+    public IReadOnlyList<string> TestProjects { get; init; } = [];
+    public required string OutputDirectory { get; init; }
+    public int ThresholdHigh { get; init; } = 80;
+    public int ThresholdLow { get; init; } = 60;
+    public int ThresholdBreak { get; init; } = 50;
+    public bool UseAdvanced { get; init; }
+}
+
+/// <summary>
 /// Result of a code generation operation.
 /// </summary>
 public sealed class GenerationResult
@@ -165,6 +179,173 @@ public static class CodeGenerator
         generatedFiles.Add(handlerPath);
 
         return Task.FromResult(GenerationResult.Ok(generatedFiles));
+    }
+
+    /// <summary>
+    /// Generates a Stryker.NET configuration file.
+    /// </summary>
+    /// <param name="options">The generation options.</param>
+    /// <returns>The result of the generation.</returns>
+    public static async Task<GenerationResult> GenerateStrykerConfigAsync(StrykerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.ProjectPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.OutputDirectory);
+
+        var tb = options.ThresholdBreak;
+        var tl = options.ThresholdLow;
+        var th = options.ThresholdHigh;
+        if (!(0 <= tb && tb <= tl && tl <= th && th <= 100))
+        {
+            return GenerationResult.Error(
+                $"Invalid thresholds: Break={tb}, Low={tl}, High={th}. Required: 0 <= Break <= Low <= High <= 100");
+        }
+
+        Directory.CreateDirectory(options.OutputDirectory);
+
+        var content = options.UseAdvanced
+            ? GenerateAdvancedStrykerConfig(options)
+            : GenerateBasicStrykerConfig(options);
+
+        var configPath = Path.Combine(options.OutputDirectory, "stryker-config.json");
+        await File.WriteAllTextAsync(configPath, content);
+
+        return GenerationResult.Ok([configPath]);
+    }
+
+    private static string BuildTestProjectsJson(StrykerOptions options)
+    {
+        if (options.TestProjects.Count > 0)
+        {
+            return string.Join(",\n            ", options.TestProjects.Select(p => $"\"{p}\""));
+        }
+
+        var proj = options.ProjectPath;
+        var normalized = proj.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        var dir = Path.GetDirectoryName(normalized) ?? string.Empty;
+        var parts = dir.Split(Path.DirectorySeparatorChar).Where(s => !string.IsNullOrEmpty(s)).ToList();
+
+        var srcIndex = -1;
+        for (var i = parts.Count - 1; i >= 0; i--)
+        {
+            if (parts[i].Equals("src", StringComparison.OrdinalIgnoreCase))
+            {
+                srcIndex = i;
+                break;
+            }
+        }
+
+        if (srcIndex < 0)
+        {
+            return $"\"{proj.Replace(Path.DirectorySeparatorChar, '/')}\"";
+        }
+
+        parts[srcIndex] = "tests";
+        var root = Path.GetPathRoot(normalized) ?? string.Empty;
+        var testDir = Path.Combine(root, Path.Combine(parts.ToArray()));
+        var projectName = Path.GetFileNameWithoutExtension(normalized);
+        var testProjPath = Path.Combine(testDir, projectName + ".Tests", projectName + ".Tests.csproj");
+        return $"\"{testProjPath.Replace(Path.DirectorySeparatorChar, '/')}\"";
+    }
+
+    private static string GenerateBasicStrykerConfig(StrykerOptions options)
+    {
+        var concurrency = Environment.ProcessorCount;
+        var testProjects = BuildTestProjectsJson(options);
+
+        return $$"""
+            {
+                "$schema": "https://stryker-mutator.io/schema/stryker.schema.json",
+                "stryker-config": {
+                    "project": "{{options.ProjectPath}}",
+                    "test-projects": [
+                        {{testProjects}}
+                    ],
+                    "mutation-level": "Standard",
+                    "thresholds": {
+                        "high": {{options.ThresholdHigh}},
+                        "low": {{options.ThresholdLow}},
+                        "break": {{options.ThresholdBreak}}
+                    },
+                    "reporters": [
+                        "html",
+                        "progress",
+                        "json"
+                    ],
+                    "mutate": [
+                        "!**/Program.cs",
+                        "!**/Startup.cs",
+                        "!**/Migrations/**",
+                        "!**/obj/**",
+                        "!**/*.Designer.cs"
+                    ],
+                    "ignore-mutations": [
+                        "string"
+                    ],
+                    "concurrency": {{concurrency}},
+                    "log-level": "Info"
+                }
+            }
+            """;
+    }
+
+    private static string GenerateAdvancedStrykerConfig(StrykerOptions options)
+    {
+        var concurrency = Environment.ProcessorCount;
+        var testProjects = BuildTestProjectsJson(options);
+
+        return $$"""
+            {
+                "$schema": "https://stryker-mutator.io/schema/stryker.schema.json",
+                "stryker-config": {
+                    "project": "{{options.ProjectPath}}",
+                    "test-projects": [
+                        {{testProjects}}
+                    ],
+                    "mutation-level": "Standard",
+                    "thresholds": {
+                        "high": {{options.ThresholdHigh}},
+                        "low": {{options.ThresholdLow}},
+                        "break": {{options.ThresholdBreak}}
+                    },
+                    "reporters": [
+                        "html",
+                        "progress",
+                        "json",
+                        "cleartext"
+                    ],
+                    "mutate": [
+                        "src/**/*.cs",
+                        "!**/Program.cs",
+                        "!**/Startup.cs",
+                        "!**/Migrations/**",
+                        "!**/obj/**",
+                        "!**/*.Designer.cs",
+                        "!**/PublicAPI.*.txt"
+                    ],
+                    "ignore-mutations": [
+                        "string"
+                    ],
+                    "ignore-methods": [
+                        "Dispose",
+                        "DisposeAsync",
+                        "ToString",
+                        "GetHashCode",
+                        "Equals"
+                    ],
+                    "concurrency": {{concurrency}},
+                    "baseline": {
+                        "enabled": true,
+                        "provider": "disk"
+                    },
+                    "since": {
+                        "enabled": true,
+                        "target": "main"
+                    },
+                    "log-level": "Info"
+                }
+            }
+            """;
     }
 
     private static string DetectNamespace(string directory)

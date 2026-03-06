@@ -127,6 +127,41 @@ public void Add_NegativeNumbers_ShouldReturnCorrectSum()
 4. **Include boundary values** - Test exact boundary conditions for arithmetic/equality mutations
 5. **Multiple attributes allowed** - Tests can kill multiple mutation types
 
+## CLI Integration
+
+Generate a Stryker configuration file using the Encina CLI:
+
+```bash
+# Generate basic configuration
+encina generate stryker --project src/MyApp/MyApp.csproj
+
+# Generate with custom thresholds
+encina generate stryker --project src/MyApp/MyApp.csproj --threshold-high 85 --threshold-break 60
+
+# Generate advanced configuration with baseline and incremental testing
+encina generate stryker --project src/MyApp/MyApp.csproj --advanced
+
+# Specify test projects explicitly
+encina generate stryker --project src/MyApp/MyApp.csproj -t tests/MyApp.Tests/MyApp.Tests.csproj
+```
+
+## Recommended Thresholds
+
+| Project Type | Break | Low | High | Rationale |
+|--------------|-------|-----|------|-----------|
+| Core Libraries | 60% | 70% | 85% | Critical code needs strong coverage |
+| Application Code | 50% | 60% | 75% | Balance between coverage and velocity |
+| New Projects | 40% | 50% | 70% | Lower initially, increase over time |
+| Mature Projects | 70% | 80% | 90% | Established codebases should aim higher |
+
+## Tips for Effective Mutation Testing
+
+1. **Start with a subset** - Use `--since main` to only test changed code
+2. **Use baseline mode** - Enable `baseline.enabled` to skip unchanged files
+3. **Exclude trivial code** - Methods like `ToString`, `Dispose`, `GetHashCode` add noise
+4. **Focus on killed vs survived** - Timeouts and no-coverage need attention too
+5. **Iterate on survivors** - Each surviving mutant is a potential test gap
+
 ## Next Steps
 
 - Keep the 93.74% baseline intact by refreshing the badge after every Stryker run.

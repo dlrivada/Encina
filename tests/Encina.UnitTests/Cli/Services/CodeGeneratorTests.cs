@@ -221,4 +221,164 @@ public class CodeGeneratorTests : IDisposable
         // Act & Assert
         await Should.ThrowAsync<ArgumentException>(() => CodeGenerator.GenerateCommandHandlerAsync(options));
     }
+
+    // --- Stryker config generation tests ---
+
+    [Fact]
+    public async Task GenerateStrykerConfigAsync_BasicConfig_GeneratesFile()
+    {
+        // Arrange
+        var options = new StrykerOptions
+        {
+            ProjectPath = "src/MyApp/MyApp.csproj",
+            OutputDirectory = _tempDir
+        };
+
+        // Act
+        var result = await CodeGenerator.GenerateStrykerConfigAsync(options);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.GeneratedFiles.Count.ShouldBe(1);
+        var configPath = result.GeneratedFiles[0];
+        File.Exists(configPath).ShouldBeTrue();
+
+        var content = await File.ReadAllTextAsync(configPath);
+        content.ShouldContain("stryker-mutator.io/schema");
+        content.ShouldContain("MyApp.csproj");
+        content.ShouldContain("\"high\": 80");
+        content.ShouldContain("\"low\": 60");
+        content.ShouldContain("\"break\": 50");
+        content.ShouldNotContain("baseline");
+    }
+
+    [Fact]
+    public async Task GenerateStrykerConfigAsync_AdvancedConfig_IncludesBaselineAndSince()
+    {
+        // Arrange
+        var options = new StrykerOptions
+        {
+            ProjectPath = "src/MyApp/MyApp.csproj",
+            OutputDirectory = _tempDir,
+            UseAdvanced = true
+        };
+
+        // Act
+        var result = await CodeGenerator.GenerateStrykerConfigAsync(options);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var content = await File.ReadAllTextAsync(result.GeneratedFiles[0]);
+        content.ShouldContain("\"baseline\"");
+        content.ShouldContain("\"since\"");
+        content.ShouldContain("\"target\": \"main\"");
+        content.ShouldContain("\"cleartext\"");
+        content.ShouldContain("ignore-methods");
+    }
+
+    [Fact]
+    public async Task GenerateStrykerConfigAsync_CustomThresholds_UsesProvidedValues()
+    {
+        // Arrange
+        var options = new StrykerOptions
+        {
+            ProjectPath = "src/MyApp/MyApp.csproj",
+            OutputDirectory = _tempDir,
+            ThresholdHigh = 90,
+            ThresholdLow = 75,
+            ThresholdBreak = 65
+        };
+
+        // Act
+        var result = await CodeGenerator.GenerateStrykerConfigAsync(options);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var content = await File.ReadAllTextAsync(result.GeneratedFiles[0]);
+        content.ShouldContain("\"high\": 90");
+        content.ShouldContain("\"low\": 75");
+        content.ShouldContain("\"break\": 65");
+    }
+
+    [Fact]
+    public async Task GenerateStrykerConfigAsync_InvalidThresholds_ReturnsError()
+    {
+        // Arrange — break > low
+        var options = new StrykerOptions
+        {
+            ProjectPath = "src/MyApp/MyApp.csproj",
+            OutputDirectory = _tempDir,
+            ThresholdHigh = 80,
+            ThresholdLow = 50,
+            ThresholdBreak = 70
+        };
+
+        // Act
+        var result = await CodeGenerator.GenerateStrykerConfigAsync(options);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage.ShouldContain("Invalid thresholds");
+    }
+
+    [Fact]
+    public async Task GenerateStrykerConfigAsync_WithExplicitTestProjects_UsesProvided()
+    {
+        // Arrange
+        var options = new StrykerOptions
+        {
+            ProjectPath = "src/MyApp/MyApp.csproj",
+            TestProjects = ["tests/MyApp.Tests/MyApp.Tests.csproj"],
+            OutputDirectory = _tempDir
+        };
+
+        // Act
+        var result = await CodeGenerator.GenerateStrykerConfigAsync(options);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var content = await File.ReadAllTextAsync(result.GeneratedFiles[0]);
+        content.ShouldContain("MyApp.Tests.csproj");
+    }
+
+    [Fact]
+    public async Task GenerateStrykerConfigAsync_NullOptions_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentNullException>(() => CodeGenerator.GenerateStrykerConfigAsync(null!));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task GenerateStrykerConfigAsync_InvalidProjectPath_ThrowsArgumentException(string project)
+    {
+        // Arrange
+        var options = new StrykerOptions
+        {
+            ProjectPath = project,
+            OutputDirectory = _tempDir
+        };
+
+        // Act & Assert
+        await Should.ThrowAsync<ArgumentException>(() => CodeGenerator.GenerateStrykerConfigAsync(options));
+    }
+
+    [Fact]
+    public async Task GenerateStrykerConfigAsync_OutputFileNameIsStrykerConfig()
+    {
+        // Arrange
+        var options = new StrykerOptions
+        {
+            ProjectPath = "src/MyApp/MyApp.csproj",
+            OutputDirectory = _tempDir
+        };
+
+        // Act
+        var result = await CodeGenerator.GenerateStrykerConfigAsync(options);
+
+        // Assert
+        Path.GetFileName(result.GeneratedFiles[0]).ShouldBe("stryker-config.json");
+    }
 }
