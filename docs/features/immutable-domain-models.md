@@ -106,45 +106,35 @@ var result = context.UpdateImmutable(shippedOrder);
 
 ### How It Works
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Immutable Update Flow                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  1. Load Entity                                                      │
-│     ┌───────────────┐                                               │
-│     │ order (tracked)│ ←── EF Core Change Tracker                   │
-│     │ Status: Pending│                                               │
-│     │ Events: []     │                                               │
-│     └───────────────┘                                               │
-│              │                                                       │
-│              ▼                                                       │
-│  2. State Transition (with-expression)                              │
-│     ┌───────────────┐     ┌────────────────┐                        │
-│     │ order          │ ──► │ shippedOrder   │ (new instance)         │
-│     │ Status: Pending│     │ Status: Shipped│                        │
-│     │ Events: []     │     │ Events: [Event]│ ←── Event raised here  │
-│     └───────────────┘     └────────────────┘                        │
-│              │                                                       │
-│              ▼                                                       │
-│  3. WithPreservedEvents (optional, if events raised in method)      │
-│     ┌────────────────┐                                              │
-│     │ shippedOrder   │ ←── Events copied from original if needed    │
-│     │ Status: Shipped│                                               │
-│     │ Events: [Event]│                                               │
-│     └────────────────┘                                              │
-│              │                                                       │
-│              ▼                                                       │
-│  4. UpdateImmutable                                                  │
-│     ┌───────────────┐     ┌────────────────┐                        │
-│     │ order          │     │ shippedOrder   │                        │
-│     │ State: Detached│     │ State: Modified│ ←── Now tracked        │
-│     └───────────────┘     └────────────────┘                        │
-│              │                                                       │
-│              ▼                                                       │
-│  5. SaveChanges → Events Dispatched                                 │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Step1["1. Load Entity"]
+        OrderTracked["order (tracked)<br/>Status: Pending<br/>Events: [ ]<br/>EF Core Change Tracker"]
+    end
+
+    subgraph Step2["2. State Transition (with-expression)"]
+        OrderOriginal["order<br/>Status: Pending<br/>Events: [ ]"]
+        ShippedNew["shippedOrder (new instance)<br/>Status: Shipped<br/>Events: [Event]<br/>Event raised here"]
+        OrderOriginal --> ShippedNew
+    end
+
+    subgraph Step3["3. WithPreservedEvents (optional)"]
+        ShippedPreserved["shippedOrder<br/>Status: Shipped<br/>Events: [Event]<br/>Events copied from original if needed"]
+    end
+
+    subgraph Step4["4. UpdateImmutable"]
+        OrderDetached["order<br/>State: Detached"]
+        ShippedModified["shippedOrder<br/>State: Modified<br/>Now tracked"]
+    end
+
+    subgraph Step5["5. SaveChanges"]
+        Dispatched["Events Dispatched"]
+    end
+
+    Step1 --> Step2
+    Step2 --> Step3
+    Step3 --> Step4
+    Step4 --> Step5
 ```
 
 ---

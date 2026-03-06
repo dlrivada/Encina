@@ -23,30 +23,43 @@ This guide explains how to configure per-shard read/write separation in Encina s
 
 Sharded read/write separation extends Encina's sharding infrastructure to route read operations to replicas within each shard:
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                              Application                                         │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│  Request ──► ShardRouter ──► ShardId ──► ReadWrite Intent ──► Replica Selector   │
-│                                                │                   │             │
-│                                         ┌──────┴──────┐    ┌───────┴──────┐      │
-│                                         │   Write?    │    │    Read?     │      │
-│                                         │  → Primary  │    │ → Strategy   │      │
-│                                         └──────┬──────┘    └───────┬──────┘      │
-│                                                │                   │             │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌───────────────────────────────┐     │
-│  │    Shard 1      │  │    Shard 2      │  │           Shard 3             │     │
-│  │  ┌─────────┐    │  │  ┌─────────┐    │  │  ┌─────────┐                  │     │
-│  │  │ Primary │    │  │  │ Primary │    │  │  │ Primary │                  │     │
-│  │  └─────────┘    │  │  └─────────┘    │  │  └─────────┘                  │     │
-│  │  ┌─────────┐    │  │  ┌─────────┐    │  │  ┌─────────┐ ┌─────────┐      │     │
-│  │  │Replica A│    │  │  │Replica A│    │  │  │Replica A│ │Replica B│      │     │
-│  │  └─────────┘    │  │  └─────────┘    │  │  └─────────┘ └─────────┘      │     │
-│  └─────────────────┘  └─────────────────┘  └───────────────────────────────┘     │
-│                                                                                  │
-│  Strategy: RoundRobin      Strategy: LeastLatency    Strategy: WeightedRandom    │
-└──────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Application
+        request["Request"]
+        shardRouter["ShardRouter"]
+        shardId["ShardId"]
+        rwIntent["ReadWrite Intent"]
+        writeCheck{"Write?"}
+        readCheck{"Read?"}
+        primary["Primary"]
+        strategy["Strategy-based<br/>Replica Selector"]
+
+        request --> shardRouter --> shardId --> rwIntent
+        rwIntent --> writeCheck
+        rwIntent --> readCheck
+        writeCheck -- "Yes" --> primary
+        readCheck -- "Yes" --> strategy
+    end
+
+    subgraph shard1["Shard 1 (RoundRobin)"]
+        s1p["Primary"]
+        s1ra["Replica A"]
+    end
+
+    subgraph shard2["Shard 2 (LeastLatency)"]
+        s2p["Primary"]
+        s2ra["Replica A"]
+    end
+
+    subgraph shard3["Shard 3 (WeightedRandom)"]
+        s3p["Primary"]
+        s3ra["Replica A"]
+        s3rb["Replica B"]
+    end
+
+    primary --> s1p & s2p & s3p
+    strategy --> s1ra & s2ra & s3ra & s3rb
 ```
 
 ### Key Capabilities
@@ -149,36 +162,19 @@ public class OrderRepository
 
 The complete request flow from application code to database connection:
 
-```text
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                          Request Processing Pipeline                           │
-│                                                                                │
-│  ① ICommand<T> / IQuery<T>                                                     │
-│         │                                                                      │
-│  ② ShardKeyExtractor  ──────────────────►  ShardKey                            │
-│         │                                                                      │
-│  ③ IShardRouter.GetShardId(key)  ────────►  ShardId  (e.g., "shard-eu")        │
-│         │                                                                      │
-│  ④ DatabaseRoutingContext  ──────────────►  Intent  (Read / Write / ForceWrite)│
-│         │                                                                      │
-│  ⑤ Intent == Write?  ──── YES ──────────►  Primary connection string           │
-│         │                                                                      │
-│     NO (Read)                                                                  │
-│         │                                                                      │
-│  ⑥ IReplicaHealthTracker                                                       │
-│     .GetAvailableReplicas(shardId)  ────►  Healthy replicas (filtered by lag)  │
-│         │                                                                      │
-│     No healthy replicas?                                                       │
-│         │── YES ── FallbackToPrimary? ──►  Primary connection string           │
-│         │                                  (fallback counter incremented)      │
-│         │                                                                      │
-│     Has healthy replicas                                                       │
-│         │                                                                      │
-│  ⑦ IShardReplicaSelector                                                       │
-│     .SelectReplica(healthyReplicas)  ───►  Selected replica connection string  │
-│         │                                                                      │
-│  ⑧ Create IDbConnection / DbContext  ───►  Return to caller                    │
-└────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["① ICommand / IQuery"] --> B["② ShardKeyExtractor → ShardKey"]
+    B --> C["③ IShardRouter.GetShardId → ShardId"]
+    C --> D["④ DatabaseRoutingContext → Intent"]
+    D --> E{"⑤ Intent == Write?"}
+    E -->|"YES"| F["Primary connection string"]
+    E -->|"NO (Read)"| G["⑥ IReplicaHealthTracker<br/>.GetAvailableReplicas(shardId)"]
+    G --> H{"No healthy replicas?"}
+    H -->|"YES + FallbackToPrimary"| F
+    H -->|"Has healthy replicas"| I["⑦ IShardReplicaSelector<br/>.SelectReplica → Replica connection"]
+    F --> J["⑧ Create IDbConnection / DbContext"]
+    I --> J
 ```
 
 ### Core Types
@@ -579,21 +575,13 @@ Debug-level logging for routing decisions:
 
 ### Automatic Fallback Chain
 
-```text
-① Attempt to select a healthy replica
-    │
-    ├── Success → Return replica connection
-    │
-    └── No healthy replicas?
-         │
-         ├── FallbackToPrimaryWhenNoReplicas = true
-         │       → Return primary connection
-         │       → Increment fallback counter
-         │       → Log warning
-         │
-         └── FallbackToPrimaryWhenNoReplicas = false
-                 → Return EncinaError
-                 → Caller handles error via Either<EncinaError, T>
+```mermaid
+flowchart TD
+    A["① Select a healthy replica"] --> B{"Success?"}
+    B -->|"Yes"| C["Return replica connection"]
+    B -->|"No healthy replicas"| D{"FallbackToPrimaryWhenNoReplicas?"}
+    D -->|"true"| E["Return primary connection<br/>Increment fallback counter<br/>Log warning"]
+    D -->|"false"| F["Return EncinaError<br/>Caller handles via Either"]
 ```
 
 ### Failover Scenarios

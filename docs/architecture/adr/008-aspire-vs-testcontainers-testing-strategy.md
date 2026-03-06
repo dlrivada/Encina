@@ -20,25 +20,31 @@ The Encina project has an established integration testing infrastructure built o
 
 **Centralized Fixture Architecture:**
 
-```
-tests/Encina.TestInfrastructure/
-├── Fixtures/
-│   ├── DatabaseFixture.cs          # Abstract base (IAsyncLifetime)
-│   ├── PostgreSqlFixture.cs        # PostgreSQL via Testcontainers
-│   ├── SqlServerFixture.cs         # SQL Server via Testcontainers
-│   ├── MySqlFixture.cs             # MySQL via Testcontainers
-│   ├── SqliteFixture.cs            # SQLite (in-memory, no container)
-│   ├── OracleFixture.cs            # Oracle via GenericContainer
-│   ├── MongoDbFixture.cs           # MongoDB via Testcontainers
-│   ├── RedisFixture.cs             # Redis via Testcontainers
-│   ├── RabbitMqFixture.cs          # RabbitMQ via Testcontainers
-│   ├── KafkaFixture.cs             # Kafka via Testcontainers
-│   ├── NatsFixture.cs              # NATS via Testcontainers
-│   └── MqttFixture.cs              # MQTT via Testcontainers
-└── Schemas/
-    ├── PostgreSqlSchema.cs
-    ├── SqlServerSchema.cs
-    └── ...
+```mermaid
+flowchart TB
+    root["tests/Encina.TestInfrastructure/"]
+    fixtures["Fixtures/"]
+    schemas["Schemas/"]
+
+    root --- fixtures
+    root --- schemas
+
+    fixtures --- f1["DatabaseFixture.cs<br/><i>Abstract base (IAsyncLifetime)</i>"]
+    fixtures --- f2["PostgreSqlFixture.cs<br/><i>PostgreSQL via Testcontainers</i>"]
+    fixtures --- f3["SqlServerFixture.cs<br/><i>SQL Server via Testcontainers</i>"]
+    fixtures --- f4["MySqlFixture.cs<br/><i>MySQL via Testcontainers</i>"]
+    fixtures --- f5["SqliteFixture.cs<br/><i>SQLite (in-memory, no container)</i>"]
+    fixtures --- f6["OracleFixture.cs<br/><i>Oracle via GenericContainer</i>"]
+    fixtures --- f7["MongoDbFixture.cs<br/><i>MongoDB via Testcontainers</i>"]
+    fixtures --- f8["RedisFixture.cs<br/><i>Redis via Testcontainers</i>"]
+    fixtures --- f9["RabbitMqFixture.cs<br/><i>RabbitMQ via Testcontainers</i>"]
+    fixtures --- f10["KafkaFixture.cs<br/><i>Kafka via Testcontainers</i>"]
+    fixtures --- f11["NatsFixture.cs<br/><i>NATS via Testcontainers</i>"]
+    fixtures --- f12["MqttFixture.cs<br/><i>MQTT via Testcontainers</i>"]
+
+    schemas --- s1["PostgreSqlSchema.cs"]
+    schemas --- s2["SqlServerSchema.cs"]
+    schemas --- s3["..."]
 ```
 
 **Key Patterns:**

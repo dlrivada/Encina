@@ -51,27 +51,15 @@ In a sharded database architecture, each shard has its own independent change st
 
 Sharded CDC uses a **wrapper pattern**: it wraps multiple per-shard `ICdcConnector` instances and exposes a unified `IShardedCdcConnector` interface.
 
-```text
-                    ┌──────────────────────────┐
-                    │   ShardedCdcProcessor    │
-                    │   (BackgroundService)    │
-                    └────────────┬─────────────┘
-                                 │
-                    ┌────────────▼─────────────┐
-                    │  IShardedCdcConnector    │
-                    │  (ShardedCdcConnector)   │
-                    └────────────┬─────────────┘
-                                 │
-              ┌──────────────────┼───────────────────┐
-              │                  │                   │
-     ┌────────▼─────────┐ ┌──────▼────────┐ ┌────────▼─────────┐
-     │  ICdcConnector   │ │ ICdcConnector │ │  ICdcConnector   │
-     │  (Shard A)       │ │ (Shard B)     │ │  (Shard C)       │
-     └────────┬─────────┘ └──────┬────────┘ └────────┬─────────┘
-              │                  │                   │
-     ┌────────▼─────────┐ ┌──────▼────────┐ ┌────────▼─────────┐
-     │   Database A     │ │  Database B   │ │   Database C     │
-     └──────────────────┘ └───────────────┘ └──────────────────┘
+```mermaid
+flowchart TD
+    A["ShardedCdcProcessor<br/>(BackgroundService)"] --> B["IShardedCdcConnector<br/>(ShardedCdcConnector)"]
+    B --> C["ICdcConnector<br/>(Shard A)"]
+    B --> D["ICdcConnector<br/>(Shard B)"]
+    B --> E["ICdcConnector<br/>(Shard C)"]
+    C --> F[("Database A")]
+    D --> G[("Database B")]
+    E --> H[("Database C")]
 ```
 
 **Key components:**

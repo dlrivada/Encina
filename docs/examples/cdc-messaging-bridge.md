@@ -6,11 +6,11 @@ This example shows how to use the CDC messaging bridge to publish database chang
 
 The messaging bridge converts CDC `ChangeEvent` instances into `CdcChangeNotification` objects and publishes them via `IEncina.Publish()`. This enables you to handle database changes using the same notification handlers used for other domain events.
 
-```text
-┌───────────┐  CDC  ┌──────────────┐  intercept  ┌───────────────────┐  publish  ┌────────────────┐
-│ Database  │─────▶│ CdcProcessor │────────────▶│ CdcMessagingBridge│─────────▶│ INotification  │
-│ (changes) │       │ + Dispatcher │             │ (interceptor)     │           │ Handler(s)     │
-└───────────┘       └──────────────┘             └───────────────────┘           └────────────────┘
+```mermaid
+flowchart LR
+    A[("Database<br/>(changes)")] -->|"CDC"| B["CdcProcessor<br/>+ Dispatcher"]
+    B -->|"intercept"| C["CdcMessagingBridge<br/>(interceptor)"]
+    C -->|"publish"| D["INotification<br/>Handler(s)"]
 ```
 
 ## Configuration

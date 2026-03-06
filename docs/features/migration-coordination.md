@@ -26,25 +26,18 @@ Coordinated schema migration across all shards in a topology, with four deployme
 
 When data is distributed across multiple shards, applying DDL changes consistently requires coordination. A manual approach (running scripts shard-by-shard) is error-prone and slow. Encina provides `IShardedMigrationCoordinator` to orchestrate migrations across the entire topology with configurable strategies, per-shard isolation, and automatic progress tracking.
 
-```text
-+---------------------------------------------------------------------+
-|               Migration Coordination Flow                           |
-|                                                                     |
-|  coordinator.ApplyToAllShardsAsync(script, options, ct)             |
-|                          |                                          |
-|              +-----------+-----------+                              |
-|              v           v           v                              |
-|          Shard-0      Shard-1      Shard-2                          |
-|         CREATE IDX   CREATE IDX   CREATE IDX                        |
-|         (UpSql)      (UpSql)      (UpSql)                           |
-|           OK           OK           OK                              |
-|              |           |           |                              |
-|              +-----------+-----------+                              |
-|                          v                                          |
-|                  MigrationResult                                    |
-|                  AllSucceeded = true                                |
-|                  SucceededCount = 3                                 |
-+---------------------------------------------------------------------+
+```mermaid
+flowchart TD
+    APPLY["coordinator.ApplyToAllShardsAsync(script, options, ct)"]
+    APPLY --> S0["Shard-0<br/>CREATE IDX (UpSql)"]
+    APPLY --> S1["Shard-1<br/>CREATE IDX (UpSql)"]
+    APPLY --> S2["Shard-2<br/>CREATE IDX (UpSql)"]
+    S0 --> R0["OK"]
+    S1 --> R1["OK"]
+    S2 --> R2["OK"]
+    R0 --> RES["MigrationResult<br/>AllSucceeded = true<br/>SucceededCount = 3"]
+    R1 --> RES
+    R2 --> RES
 ```
 
 All operations return `Either<EncinaError, T>` following Encina's Railway Oriented Programming pattern.
@@ -109,40 +102,61 @@ Four strategies offer different trade-offs between safety and speed:
 
 ### Sequential
 
-```text
-Shard-0 --> Shard-1 --> Shard-2 --> Shard-3
-  OK          OK          OK          OK
+```mermaid
+flowchart LR
+    S0["Shard-0"] --> R0["OK"]
+    R0 --> S1["Shard-1"]
+    S1 --> R1["OK"]
+    R1 --> S2["Shard-2"]
+    S2 --> R2["OK"]
+    R2 --> S3["Shard-3"]
+    S3 --> R3["OK"]
 ```
 
 Applies the migration to one shard at a time. If any shard fails (and `StopOnFirstFailure` is enabled), remaining shards are left untouched.
 
 ### Parallel
 
-```text
-Shard-0 --+
-Shard-1 --+--> All at once (throttled by MaxParallelism)
-Shard-2 --+
-Shard-3 --+
+```mermaid
+flowchart LR
+    subgraph AllAtOnce["All at once (throttled by MaxParallelism)"]
+        S0["Shard-0"]
+        S1["Shard-1"]
+        S2["Shard-2"]
+        S3["Shard-3"]
+    end
 ```
 
 Applies to all shards simultaneously, limited by `MaxParallelism`. Best for safe, additive changes like `CREATE INDEX`.
 
 ### RollingUpdate
 
-```text
-Batch 1: [Shard-0, Shard-1] --> OK
-Batch 2: [Shard-2, Shard-3] --> OK
+```mermaid
+flowchart LR
+    subgraph B1["Batch 1"]
+        S0["Shard-0"]
+        S1["Shard-1"]
+    end
+    B1 -- "OK" --> B2
+    subgraph B2["Batch 2"]
+        S2["Shard-2"]
+        S3["Shard-3"]
+    end
+    B2 -- "OK" --> DONE["Done"]
 ```
 
 Applies in batches of `MaxParallelism` shards. Each batch must complete before the next starts. Balanced approach for medium-to-large topologies.
 
 ### CanaryFirst
 
-```text
-Canary: Shard-0 --> OK
-Then:   Shard-1 --+
-        Shard-2 --+--> Parallel
-        Shard-3 --+
+```mermaid
+flowchart LR
+    C["Canary: Shard-0"] -- "OK" --> PAR
+    subgraph PAR["Parallel"]
+        S1["Shard-1"]
+        S2["Shard-2"]
+        S3["Shard-3"]
+    end
 ```
 
 Applies to a single canary shard first. If the canary succeeds, the remaining shards are migrated in parallel. Recommended for high-risk schema changes.

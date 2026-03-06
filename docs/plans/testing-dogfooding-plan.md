@@ -2096,30 +2096,12 @@ Supporting issue: [#509](https://github.com/dlrivada/Encina/issues/509) - Evalua
 
 ### 11.2 Migration Workflow Per Phase
 
-```
-┌─────────────────┐
-│  1. Audit       │ ─── Identify tests to migrate, count dependencies
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  2. Plan        │ ─── Create migration checklist, estimate effort
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  3. Migrate     │ ─── One test class at a time, verify green
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  4. Review      │ ─── PR review with focus on patterns
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  5. Document    │ ─── Update examples, note learnings
-└─────────────────┘
+```mermaid
+flowchart TD
+    A["1. Audit<br/>Identify tests to migrate, count dependencies"] --> B["2. Plan<br/>Create migration checklist, estimate effort"]
+    B --> C["3. Migrate<br/>One test class at a time, verify green"]
+    C --> D["4. Review<br/>PR review with focus on patterns"]
+    D --> E["5. Document<br/>Update examples, note learnings"]
 ```
 
 ### 11.3 Acceptance Criteria Per Phase

@@ -219,36 +219,16 @@ Complete CI pipeline with build, test, analysis, and packaging.
 
 #### Pipeline Stages
 
-```text
-┌─────────────────┐
-│  Build & Analyze │
-│  - Restore       │
-│  - Format check  │
-│  - Build         │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-┌─────────┐ ┌─────────────────┐
-│ Unit    │ │ Integration     │
-│ Tests   │ │ Tests (optional)│
-└────┬────┘ └────────┬────────┘
-     │               │
-     └───────┬───────┘
-             │
-    ┌────────┼────────┐
-    ▼        ▼        ▼
-┌───────┐ ┌───────┐ ┌─────────┐
-│ Arch  │ │Mutation│ │ Pack    │
-│ Tests │ │ Tests  │ │ NuGet   │
-└───────┘ └───────┘ └────┬────┘
-                         │
-                    ┌────┴────┐
-                    ▼         │
-               ┌─────────┐   │
-               │ Publish │◄──┘ (on tag)
-               │ NuGet   │
-               └─────────┘
+```mermaid
+flowchart TD
+    Build["Build & Analyze<br/>Restore · Format check · Build"] --> UT["Unit Tests"]
+    Build --> IT["Integration Tests<br/>(optional)"]
+    UT --> Merge{" "}
+    IT --> Merge
+    Merge --> Arch["Arch Tests"]
+    Merge --> Mut["Mutation Tests"]
+    Merge --> Pack["Pack NuGet"]
+    Pack -->|"on tag"| Pub["Publish NuGet"]
 ```
 
 #### Artifacts

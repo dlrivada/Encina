@@ -19,25 +19,22 @@ Test new shard topologies under real production traffic without risk. Shadow sha
 
 ## Overview
 
-Shadow sharding decorates the existing `IShardRouter` with a `ShadowShardRouterDecorator` that transparently routes operations to both the production and a shadow topology. The production path is never modified—shadow operations run as fire-and-forget side-effects:
+Shadow sharding decorates the existing `IShardRouter` with a `ShadowShardRouterDecorator` that transparently routes operations to both the production and a shadow topology. The production path is never modified--shadow operations run as fire-and-forget side-effects:
 
-```text
-                      Shadow Sharding Decorator
-  ┌──────────────────────────────────────────────────────────┐
-  │                                                          │
-  │  Production Router (primary path)                        │
-  │  ┌──────────────┐         ┌──────────────┐               │
-  │  │ GetShardId() │────────►│  Production  │──► Response   │
-  │  └──────────────┘         │  Shard       │               │
-  │                           └──────────────┘               │
-  │                                                          │
-  │  Shadow Router (fire-and-forget)                         │
-  │  ┌──────────────┐         ┌──────────────┐               │
-  │  │ GetShardId() │- - - - ►│  Shadow      │──► Compare    │
-  │  └──────────────┘         │  Shard       │   & Log       │
-  │                           └──────────────┘               │
-  │                                                          │
-  └──────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Decorator["Shadow Sharding Decorator"]
+        direction TB
+        subgraph ProdPath["Production Router (primary path)"]
+            P1["GetShardId()"] --> P2["Production<br/>Shard"]
+        end
+        P2 --> P3["Response"]
+
+        subgraph ShadowPath["Shadow Router (fire-and-forget)"]
+            S1["GetShardId()"] -.-> S2["Shadow<br/>Shard"]
+        end
+        S2 -.-> S3["Compare<br/>& Log"]
+    end
 ```
 
 The decorator implements `IShadowShardRouter` which extends `IShardRouter`, so any code that depends on `IShardRouter` continues to work unchanged. Shadow-specific operations (`RouteShadowAsync`, `CompareAsync`) are available via `IShadowShardRouter`.
@@ -99,7 +96,7 @@ services.AddEncinaSharding<Order>(options =>
 |----------|------|---------|-------------|
 | `ShadowTopology` | `ShardTopology` | `null` (required) | The shadow topology to test |
 | `DualWriteEnabled` | `bool` | `true` | Fire-and-forget shadow writes after production writes |
-| `ShadowReadPercentage` | `int` | `0` | Percentage of reads also executed against the shadow (0–100) |
+| `ShadowReadPercentage` | `int` | `0` | Percentage of reads also executed against the shadow (0--100) |
 | `CompareResults` | `bool` | `true` | Compare production and shadow query results |
 | `ShadowWriteTimeout` | `TimeSpan` | `5s` | Maximum time for a shadow write before cancellation |
 | `ShadowRouterFactory` | `Func<ShardTopology, IShardRouter>?` | `null` | Custom router factory (defaults to `HashShardRouter`) |
@@ -139,11 +136,12 @@ shadow.DiscrepancyHandler = async (result, context, ct) =>
 
 When `DualWriteEnabled` is `true`, the `ShadowWritePipelineBehavior<TCommand, TResponse>` intercepts all command pipeline executions. After a successful production write (`Right` result), it fires a shadow routing comparison as a fire-and-forget task:
 
-```text
-Command ──► Production Write ──► Success? ──► Return result
-                                    │
-                                    └──► Fire-and-forget shadow comparison
-                                         (bounded by ShadowWriteTimeout)
+```mermaid
+flowchart LR
+    CMD["Command"] --> PW["Production Write"]
+    PW --> CHK{"Success?"}
+    CHK --> RET["Return result"]
+    CHK -.-> FF["Fire-and-forget<br/>shadow comparison<br/>(bounded by ShadowWriteTimeout)"]
 ```
 
 The shadow write verifies that the shadow router can process the same key. Failures are logged but never propagate.
@@ -152,13 +150,14 @@ The shadow write verifies that the shadow router can process the same key. Failu
 
 When `ShadowReadPercentage > 0`, the `ShadowReadPipelineBehavior<TQuery, TResponse>` samples a percentage of queries for shadow comparison:
 
-```text
-Query ──► ShouldShadowRead? ──► No  ──► Production only
-              │
-              └──► Yes ──► Production Read ──► Success? ──► Return result
-                                                   │
-                                                   └──► Fire-and-forget shadow comparison
-                                                        + result hash comparison
+```mermaid
+flowchart TD
+    Q["Query"] --> SR{"ShouldShadowRead?"}
+    SR -- "No" --> PO["Production only"]
+    SR -- "Yes" --> PR["Production Read"]
+    PR --> CHK{"Success?"}
+    CHK --> RET["Return result"]
+    CHK -.-> FF["Fire-and-forget<br/>shadow comparison<br/>+ result hash comparison"]
 ```
 
 The sampling uses `Random.Shared.Next(100) < ShadowReadPercentage` for thread-safe, low-overhead selection.
@@ -200,9 +199,9 @@ All metrics use the `Encina` meter. Available via `ShadowShardingMetrics`:
 | `encina.sharding.shadow.routing_total` | Counter | `routing_match` | Total shadow routing comparisons |
 | `encina.sharding.shadow.routing_mismatches_total` | Counter | `shard_key_prefix` | Routing mismatches by key prefix |
 | `encina.sharding.shadow.write_total` | Counter | `outcome` | Shadow writes by outcome (success/failure) |
-| `encina.sharding.shadow.write_latency_diff_ms` | Histogram | `db.shard.id` | Write latency difference (shadow − production) |
+| `encina.sharding.shadow.write_latency_diff_ms` | Histogram | `db.shard.id` | Write latency difference (shadow - production) |
 | `encina.sharding.shadow.read_comparison_total` | Counter | `results_match` | Shadow read comparisons by result match |
-| `encina.sharding.shadow.read_latency_diff_ms` | Histogram | — | Read latency difference (shadow − production) |
+| `encina.sharding.shadow.read_latency_diff_ms` | Histogram | -- | Read latency difference (shadow - production) |
 
 ### Traces
 
@@ -218,7 +217,7 @@ All metrics use the `Encina` meter. Available via `ShadowShardingMetrics`:
 
 ### Logs
 
-High-performance structured logging via `LoggerMessage` source generators (zero-allocation). EventId range: **700–749**.
+High-performance structured logging via `LoggerMessage` source generators (zero-allocation). EventId range: **700--749**.
 
 | EventId | Level | Message |
 |---------|-------|---------|
@@ -244,7 +243,7 @@ Shadow sharding is designed with multiple layers of production isolation:
 
 3. **Timeout protection**: Shadow writes are bounded by `ShadowWriteTimeout` (default: 5 seconds). After timeout, the `CancellationTokenSource` cancels the shadow operation.
 
-4. **Exception swallowing**: All shadow operations are wrapped in try/catch. Exceptions—including `OperationCanceledException`—are logged but never propagated to the caller.
+4. **Exception swallowing**: All shadow operations are wrapped in try/catch. Exceptions--including `OperationCanceledException`--are logged but never propagated to the caller.
 
 5. **Discrepancy handler isolation**: Even the custom `DiscrepancyHandler` is wrapped in try/catch. A failing handler cannot affect the production path.
 
@@ -388,7 +387,7 @@ Yes. Both `RouteShadowAsync(string, CancellationToken)` and `RouteShadowAsync(Co
 
 **Q: How do I know when it's safe to cut over?**
 
-Monitor these signals over a sustained period (recommended: 48–72 hours at 100% shadow reads):
+Monitor these signals over a sustained period (recommended: 48--72 hours at 100% shadow reads):
 
 - `routing_mismatches_total` is stable and understood
 - `write_total{outcome=failure}` is zero

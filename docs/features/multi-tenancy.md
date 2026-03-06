@@ -37,19 +37,15 @@ Multi-tenancy allows a single application instance to serve multiple customers (
 
 All tenants share the same database and tables. Each row contains a `TenantId` column.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Database: AppDb                       │
-├─────────────────────────────────────────────────────────┤
-│ Orders Table                                             │
-│ ┌──────────┬───────────┬────────────┬─────────────┐     │
-│ │ OrderId  │ TenantId  │ CustomerId │ Total       │     │
-│ ├──────────┼───────────┼────────────┼─────────────┤     │
-│ │ 1        │ tenant-A  │ C001       │ 150.00      │     │
-│ │ 2        │ tenant-B  │ C002       │ 200.00      │     │
-│ │ 3        │ tenant-A  │ C003       │ 75.00       │     │
-│ └──────────┴───────────┴────────────┴─────────────┘     │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph AppDb["Database: AppDb"]
+        subgraph Orders["Orders Table"]
+            R1["OrderId: 1 | TenantId: tenant-A | CustomerId: C001 | Total: 150.00"]
+            R2["OrderId: 2 | TenantId: tenant-B | CustomerId: C002 | Total: 200.00"]
+            R3["OrderId: 3 | TenantId: tenant-A | CustomerId: C003 | Total: 75.00"]
+        end
+    end
 ```
 
 **Pros:**
@@ -70,20 +66,16 @@ All tenants share the same database and tables. Each row contains a `TenantId` c
 
 Each tenant has a dedicated schema within the same database.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Database: AppDb                       │
-├─────────────────────────────────────────────────────────┤
-│ Schema: tenant_a                                         │
-│ ┌──────────────────────────────────────────────────┐    │
-│ │ Orders, Customers, Products tables               │    │
-│ └──────────────────────────────────────────────────┘    │
-├─────────────────────────────────────────────────────────┤
-│ Schema: tenant_b                                         │
-│ ┌──────────────────────────────────────────────────┐    │
-│ │ Orders, Customers, Products tables               │    │
-│ └──────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph AppDb["Database: AppDb"]
+        subgraph TenantA["Schema: tenant_a"]
+            TA["Orders, Customers, Products tables"]
+        end
+        subgraph TenantB["Schema: tenant_b"]
+            TB["Orders, Customers, Products tables"]
+        end
+    end
 ```
 
 **Pros:**
@@ -104,14 +96,17 @@ Each tenant has a dedicated schema within the same database.
 
 Each tenant has a completely separate database.
 
-```
-┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
-│ Database: TenantA   │ │ Database: TenantB   │ │ Database: TenantC   │
-├─────────────────────┤ ├─────────────────────┤ ├─────────────────────┤
-│ Orders              │ │ Orders              │ │ Orders              │
-│ Customers           │ │ Customers           │ │ Customers           │
-│ Products            │ │ Products            │ │ Products            │
-└─────────────────────┘ └─────────────────────┘ └─────────────────────┘
+```mermaid
+flowchart LR
+    subgraph DBA["Database: TenantA"]
+        A1["Orders<br/>Customers<br/>Products"]
+    end
+    subgraph DBB["Database: TenantB"]
+        B1["Orders<br/>Customers<br/>Products"]
+    end
+    subgraph DBC["Database: TenantC"]
+        C1["Orders<br/>Customers<br/>Products"]
+    end
 ```
 
 **Pros:**

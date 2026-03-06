@@ -34,69 +34,54 @@ ADR-010 introduced database sharding with four routing strategies and 13-provide
 
 The sharded read/write separation adds a replica selection layer between shard resolution and connection creation:
 
-```text
-Application Request
-        │
-        ▼
-┌───────────────────────────────┐
-│  Pipeline Behavior            │
-│  Sets DatabaseRoutingContext  │
-│  (Read / Write / ForceWrite)  │
-└───────────────┬───────────────┘
-                │
-                ▼
-┌───────────────────────────────┐
-│  IShardRouter                 │
-│  Entity → ShardId             │
-│  (Hash/Range/Directory/Geo)   │
-└───────────────┬───────────────┘
-                │
-                ▼
-┌───────────────────────────────┐
-│  ShardTopology.GetShard()     │
-│  ShardId → ShardInfo          │
-│  (primary + replicas + config)│
-└───────────────┬───────────────┘
-                │
-        ┌───────┴───────┐
-        ▼               ▼
-   Write Intent     Read Intent
-        │               │
-        ▼               ▼
-   Return Primary   ┌─────────────────────────────┐
-   Connection       │  IReplicaHealthTracker      │
-        │           │  Filter unhealthy replicas  │
-        │           │  Filter by replication lag  │
-        │           └─────────────┬───────────────┘
-        │                         │
-        │                         ▼
-        │           ┌──────────────────────────────┐
-        │           │  IShardReplicaSelector       │
-        │           │  (per-shard or default)      │
-        │           │  Select from healthy replicas│
-        │           └─────────────┬────────────────┘
-        │                         │
-        └────────┬────────────────┘
-                 │
-                 ▼
-        Open Connection / Create DbContext
-                 │
-                 ▼
-        Report Health (MarkHealthy/MarkUnhealthy)
+```mermaid
+flowchart TB
+    AppReq["Application Request"]
+    Pipeline["Pipeline Behavior<br/>Sets DatabaseRoutingContext<br/>(Read / Write / ForceWrite)"]
+    Router["IShardRouter<br/>Entity &rarr; ShardId<br/>(Hash/Range/Directory/Geo)"]
+    Topology["ShardTopology.GetShard()<br/>ShardId &rarr; ShardInfo<br/>(primary + replicas + config)"]
+    WriteIntent["Write Intent"]
+    ReadIntent["Read Intent"]
+    PrimaryConn["Return Primary Connection"]
+    HealthTracker["IReplicaHealthTracker<br/>Filter unhealthy replicas<br/>Filter by replication lag"]
+    Selector["IShardReplicaSelector<br/>(per-shard or default)<br/>Select from healthy replicas"]
+    OpenConn["Open Connection / Create DbContext"]
+    ReportHealth["Report Health<br/>(MarkHealthy / MarkUnhealthy)"]
+
+    AppReq --> Pipeline --> Router --> Topology
+    Topology --> WriteIntent
+    Topology --> ReadIntent
+    WriteIntent --> PrimaryConn
+    ReadIntent --> HealthTracker --> Selector
+    PrimaryConn --> OpenConn
+    Selector --> OpenConn
+    OpenConn --> ReportHealth
 ```
 
 ### Core Abstraction: IShardedReadWriteConnectionFactory
 
 Two factory variants serve different provider categories:
 
-```text
-IShardedReadWriteConnectionFactory              IShardedReadWriteDbContextFactory<TContext>
-(ADO.NET + Dapper)                              (EF Core)
-├─ GetConnectionAsync(shardId)                  ├─ CreateContextForShard(shardId)
-├─ GetReadConnectionAsync(shardId)              ├─ CreateReadContextForShard(shardId)
-├─ GetWriteConnectionAsync(shardId)             ├─ CreateWriteContextForShard(shardId)
-├─ GetAllReadConnectionsAsync()                 ├─ CreateContextsForAllShards()
-└─ GetAllWriteConnectionsAsync()                └─ CreateWriteContextsForAllShards()
+```mermaid
+classDiagram
+    class IShardedReadWriteConnectionFactory {
+        &lt;&lt;interface&gt;&gt;
+        ADO.NET + Dapper
+        +GetConnectionAsync(shardId)
+        +GetReadConnectionAsync(shardId)
+        +GetWriteConnectionAsync(shardId)
+        +GetAllReadConnectionsAsync()
+        +GetAllWriteConnectionsAsync()
+    }
+    class IShardedReadWriteDbContextFactory~TContext~ {
+        &lt;&lt;interface&gt;&gt;
+        EF Core
+        +CreateContextForShard(shardId)
+        +CreateReadContextForShard(shardId)
+        +CreateWriteContextForShard(shardId)
+        +CreateContextsForAllShards()
+        +CreateWriteContextsForAllShards()
+    }
 ```
 
 **Key design choice**: `GetConnectionAsync(shardId)` reads the ambient `DatabaseRoutingContext` to determine intent. `GetReadConnectionAsync` and `GetWriteConnectionAsync` bypass context detection for explicit control.
@@ -127,20 +112,23 @@ Selectors are created by `ShardReplicaSelectorFactory` and cached per shard in t
 
 ### Health Tracking
 
-```text
-IReplicaHealthTracker
-├─ MarkHealthy(shardId, connectionString)
-├─ MarkUnhealthy(shardId, connectionString)
-├─ ReportReplicationLag(shardId, connectionString, lag)
-├─ GetAvailableReplicas(shardId, allReplicas) → healthy only
-├─ GetHealthState(shardId, connectionString) → HealthState
-└─ GetAllHealthStates(shardId) → all states
-
-ReplicaHealthTracker (default implementation)
-├─ ConcurrentDictionary<(shardId, connectionString), HealthEntry>
-├─ Recovery delay: UnhealthyReplicaRecoveryDelay (default 60s)
-├─ Lag filtering: MaxAcceptableReplicationLag (optional)
-└─ Thread-safe: all operations use ConcurrentDictionary
+```mermaid
+classDiagram
+    class IReplicaHealthTracker {
+        +MarkHealthy(shardId, connectionString)
+        +MarkUnhealthy(shardId, connectionString)
+        +ReportReplicationLag(shardId, connectionString, lag)
+        +GetAvailableReplicas(shardId, allReplicas) healthy only
+        +GetHealthState(shardId, connectionString) HealthState
+        +GetAllHealthStates(shardId) all states
+    }
+    class ReplicaHealthTracker {
+        -ConcurrentDictionary entries
+        +Recovery delay: 60s default
+        +Lag filtering: optional
+        +Thread-safe operations
+    }
+    IReplicaHealthTracker <|.. ReplicaHealthTracker
 ```
 
 **Health check integration**: `ShardReplicaHealthCheck` extends `EncinaHealthCheck` and evaluates aggregate health across all shards:
@@ -155,14 +143,11 @@ ReplicaHealthTracker (default implementation)
 
 When no healthy replicas are available for a read:
 
-```text
-Requested Read → No Healthy Replicas?
-        │
-        ├─ FallbackToPrimaryWhenNoReplicas = true
-        │   └─ Route to shard primary
-        │
-        └─ FallbackToPrimaryWhenNoReplicas = false
-            └─ Return EncinaError (no available replicas)
+```mermaid
+flowchart TD
+    A["Requested Read"] --> B{"No Healthy Replicas?"}
+    B -->|"FallbackToPrimary = true"| C["Route to shard primary"]
+    B -->|"FallbackToPrimary = false"| D["Return EncinaError<br/>(no available replicas)"]
 ```
 
 ### Staleness Tolerance
@@ -176,21 +161,23 @@ The staleness tolerance interacts with health tracking by filtering replicas who
 
 ### Configuration Model
 
-```text
-ShardedReadWriteOptions
-├─ DefaultReplicaStrategy: ReplicaSelectionStrategy (default: RoundRobin)
-├─ FallbackToPrimaryWhenNoReplicas: bool (default: true)
-├─ DefaultMaxStaleness: TimeSpan? (default: null = unlimited)
-├─ ReplicaHealthCheckInterval: TimeSpan (default: 30s)
-├─ UnhealthyReplicaRecoveryDelay: TimeSpan (default: 60s)
-├─ MaxAcceptableReplicationLag: TimeSpan? (default: null)
-└─ WeightedRandomWeights: IReadOnlyList<int>? (default: null = equal)
-
-ShardInfo (extended from ADR-010)
-├─ ConnectionString: string (primary)
-├─ ReplicaConnectionStrings: IReadOnlyList<string>
-├─ ReplicaStrategy: ReplicaSelectionStrategy? (per-shard override)
-└─ ReplicaWeights: IReadOnlyList<int>? (per-shard weights)
+```mermaid
+classDiagram
+    class ShardedReadWriteOptions {
+        +DefaultReplicaStrategy: RoundRobin
+        +FallbackToPrimaryWhenNoReplicas: true
+        +DefaultMaxStaleness: null (unlimited)
+        +ReplicaHealthCheckInterval: 30s
+        +UnhealthyReplicaRecoveryDelay: 60s
+        +MaxAcceptableReplicationLag: null
+        +WeightedRandomWeights: null (equal)
+    }
+    class ShardInfo {
+        +ConnectionString: string (primary)
+        +ReplicaConnectionStrings: IReadOnlyList
+        +ReplicaStrategy: per-shard override
+        +ReplicaWeights: per-shard weights
+    }
 ```
 
 ### Provider Implementation Matrix
@@ -232,29 +219,11 @@ All instruments tagged with `shard.id`, `replica.strategy`, and `database.provid
 
 The sharded read/write separation layer composes cleanly with features from ADR-010 and subsequent issues:
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    Application Layer                        │
-│   IQuery<T>  →  DatabaseRoutingContext (Read)               │
-│   ICommand   →  DatabaseRoutingContext (Write)              │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│              Sharding Infrastructure (ADR-010)              │
-│   ShardKeyExtractor → IShardRouter → ShardTopology          │
-│   CompoundShardKey (#641)  Co-location Groups (#647)        │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│           Read/Write Separation (THIS ADR, #644)          │
-│   ShardInfo.Replicas → HealthTracker → ReplicaSelector      │
-│   Staleness tolerance, per-shard strategy overrides         │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│              Provider Layer (13 implementations)            │
-│   ADO.NET (4) │ Dapper (4) │ EF Core (4) │ MongoDB (1)      │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["Application Layer<br/>IQuery → Read | ICommand → Write"] --> B["Sharding Infrastructure (ADR-010)<br/>ShardKeyExtractor → IShardRouter → ShardTopology<br/>CompoundShardKey · Co-location Groups"]
+    B --> C["Read/Write Separation (THIS ADR, #644)<br/>ShardInfo.Replicas → HealthTracker → ReplicaSelector<br/>Staleness tolerance · per-shard strategy overrides"]
+    C --> D["Provider Layer (13 implementations)<br/>ADO.NET (4) | Dapper (4) | EF Core (4) | MongoDB (1)"]
 ```
 
 **Scatter-gather reads**: `GetAllReadConnectionsAsync()` opens replica connections across ALL shards for cross-shard queries. Used by specification-based scatter-gather (#652).

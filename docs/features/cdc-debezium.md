@@ -20,25 +20,22 @@ Debezium is a distributed platform for CDC that supports a wide range of databas
 
 ### HTTP Mode (Debezium Server)
 
-```text
-┌───────────┐      ┌─────────────────┐     ┌──────────────────────┐      ┌────────────────┐
-│ Database  │────▶│ Debezium Server │────▶│ DebeziumHttpListener │────▶│ DebeziumCdc    │
-│ (any DB)  │      │ (Java process)  │     │ (ASP.NET endpoint)   │      │ Connector      │
-└───────────┘      └─────────────────┘     └──────────────────────┘      └────────────────┘
-                                                     │
-                                              Channel<JsonElement>
-                                              (bounded, backpressure)
+```mermaid
+flowchart LR
+    A["Database<br/>(any DB)"] --> B["Debezium Server<br/>(Java process)"]
+    B --> C["DebeziumHttpListener<br/>(ASP.NET endpoint)"]
+    C -->|"Channel JsonElement<br/>(bounded, backpressure)"| D["DebeziumCdc<br/>Connector"]
 ```
 
 Debezium Server runs as a standalone Java process and pushes events via HTTP POST to the `DebeziumHttpListener`, which is registered as a `BackgroundService`. Events are buffered in a bounded `Channel<JsonElement>` and read by the connector.
 
 ### Kafka Mode (Debezium Connect)
 
-```text
-┌───────────┐      ┌──────────────────┐     ┌────────────┐      ┌─────────────────┐
-│ Database  │────▶│ Debezium Connect │────▶│   Kafka    │────▶│ DebeziumKafka   │
-│ (any DB)  │      │ (Kafka Connect)  │     │  Broker(s) │      │ Connector       │
-└───────────┘      └──────────────────┘     └────────────┘      └─────────────────┘
+```mermaid
+flowchart LR
+    A["Database<br/>(any DB)"] --> B["Debezium Connect<br/>(Kafka Connect)"]
+    B --> C["Kafka<br/>Broker(s)"]
+    C --> D["DebeziumKafka<br/>Connector"]
 ```
 
 Debezium Connect is a Kafka Connect connector that writes change events to Kafka topics. The `DebeziumKafkaConnector` subscribes to those topics as a standard Kafka consumer and yields `ChangeEvent` instances.

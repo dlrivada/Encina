@@ -20,34 +20,38 @@ This guide explains how to configure and use database sharding in Encina applica
 
 Encina sharding distributes data across multiple database instances using application-level routing:
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│                        Application                                │
-├──────────────────────────────────────────────────────────────────┤
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │                   Encina Sharding Pipeline                  │  │
-│  │                                                              │  │
-│  │  Entity ──► ShardKeyExtractor ──► IShardRouter               │  │
-│  │                                        │                      │  │
-│  │                          ┌─────────────┼───────────┐          │  │
-│  │                        Hash        Range     Directory  Geo   │  │
-│  │                          │             │           │      │   │  │
-│  │                          └─────────────┼───────────┘      │   │  │
-│  │                                        ▼                      │  │
-│  │                               ShardTopology                   │  │
-│  │                                        │                      │  │
-│  │                          ┌─────────────┼───────────┐          │  │
-│  │                          ▼             ▼           ▼          │  │
-│  │                     Connection    DbContext    Collection      │  │
-│  │                      Factory      Factory      Factory        │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│         │                     │                   │               │
-│         ▼                     ▼                   ▼               │
-│  ┌────────────┐       ┌────────────┐       ┌────────────┐        │
-│  │  Shard 1   │       │  Shard 2   │       │  Shard 3   │        │
-│  │  Database  │       │  Database  │       │  Database  │        │
-│  └────────────┘       └────────────┘       └────────────┘        │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Application
+        entity["Entity"]
+        extractor["ShardKeyExtractor"]
+        router["IShardRouter"]
+        hash["Hash"]
+        range["Range"]
+        directory["Directory"]
+        geo["Geo"]
+        topology["ShardTopology"]
+        connFactory["Connection<br/>Factory"]
+        dbCtxFactory["DbContext<br/>Factory"]
+        collFactory["Collection<br/>Factory"]
+
+        entity --> extractor --> router
+        router --> hash
+        router --> range
+        router --> directory
+        router --> geo
+        hash --> topology
+        range --> topology
+        directory --> topology
+        geo --> topology
+        topology --> connFactory
+        topology --> dbCtxFactory
+        topology --> collFactory
+    end
+
+    connFactory --> shard1[("Shard 1<br/>Database")]
+    dbCtxFactory --> shard2[("Shard 2<br/>Database")]
+    collFactory --> shard3[("Shard 3<br/>Database")]
 ```
 
 ### Key Concepts

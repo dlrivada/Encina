@@ -65,17 +65,23 @@ GDPR Article 6 requires that every processing operation has a valid lawful basis
 
 Encina solves this with a single attribute and pipeline behavior:
 
-```text
-Request → [LawfulBasisValidationPipelineBehavior] → Handler
-                    │
-                    ├── No [LawfulBasis]? → Skip (zero overhead)
-                    ├── Disabled mode? → Skip
-                    ├── Lookup registry for declared basis
-                    ├── Basis = Consent? → Verify via IConsentStatusProvider
-                    ├── Basis = LegitimateInterests? → Validate LIA via ILIAStore
-                    ├── Valid? → Proceed to handler
-                    ├── Invalid + Block mode? → Return EncinaError
-                    └── Invalid + Warn mode? → Log warning, proceed
+```mermaid
+flowchart TD
+    Request["Request"] --> Behavior["LawfulBasisValidationPipelineBehavior"]
+    Behavior --> CheckAttr{"Has [LawfulBasis]?"}
+    CheckAttr -- No --> Skip["Skip (zero overhead)"]
+    CheckAttr -- Yes --> CheckDisabled{"Disabled mode?"}
+    CheckDisabled -- Yes --> Skip
+    CheckDisabled -- No --> Lookup["Lookup registry<br/>for declared basis"]
+    Lookup --> CheckBasis{"Basis type?"}
+    CheckBasis -- Consent --> VerifyConsent["Verify via<br/>IConsentStatusProvider"]
+    CheckBasis -- LegitimateInterests --> ValidateLIA["Validate LIA<br/>via ILIAStore"]
+    CheckBasis -- Other --> IsValid{"Valid?"}
+    VerifyConsent --> IsValid
+    ValidateLIA --> IsValid
+    IsValid -- Yes --> Handler["Proceed to handler"]
+    IsValid -- "No + Block mode" --> BlockError["Return EncinaError"]
+    IsValid -- "No + Warn mode" --> WarnProceed["Log warning, proceed"]
 ```
 
 ---

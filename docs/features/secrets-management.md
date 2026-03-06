@@ -129,61 +129,63 @@ public class PaymentService(ISecretReader secretReader)
 
 ### Core Types
 
-```
-Encina.Security.Secrets
-├── Abstractions/
-│   ├── ISecretReader           — GetSecretAsync(name), GetSecretAsync<T>(name)
-│   ├── ISecretWriter           — SetSecretAsync(name, value)
-│   ├── ISecretRotator          — RotateSecretAsync(name)
-│   └── ISecretRotationHandler  — GenerateNewSecretAsync + OnRotationAsync
-├── Providers/
-│   ├── EnvironmentSecretProvider    — Reads from environment variables
-│   ├── ConfigurationSecretProvider  — Reads from IConfiguration sections
-│   └── FailoverSecretReader         — Multi-provider chain
-├── Caching/
-│   └── CachedSecretReaderDecorator  — IMemoryCache decorator with TTL
-├── Auditing/
-│   ├── AuditedSecretReaderDecorator  — Read audit trail
-│   ├── AuditedSecretWriterDecorator  — Write audit trail
-│   └── AuditedSecretRotatorDecorator — Rotate audit trail
-├── Injection/
-│   ├── InjectSecretAttribute             — [InjectSecret("name")] attribute
-│   ├── SecretInjectionPipelineBehavior   — Pipeline behavior
-│   ├── SecretInjectionOrchestrator       — Discovers and injects secrets
-│   └── SecretPropertyCache              — Reflection cache
-├── Rotation/
-│   └── SecretRotationCoordinator — generate → rotate → notify
-├── Configuration/
-│   ├── SecretsConfigurationSource    — IConfigurationSource bridge
-│   ├── SecretsConfigurationProvider  — IConfigurationProvider implementation
-│   └── SecretsConfigurationOptions   — Prefix, delimiter, reload
-├── Diagnostics/
-│   ├── SecretsActivitySource   — OpenTelemetry activities
-│   ├── SecretsMetrics          — Counters and histograms
-│   └── SecretsDiagnostics      — Internal facade
-├── Health/
-│   └── SecretsHealthCheck      — IHealthCheck implementation
-├── SecretsOptions              — Configuration for all features
-├── SecretsErrors               — 9 error codes + factory methods
-├── SecretReference             — Immutable secret descriptor
-└── ServiceCollectionExtensions — DI registration
+```mermaid
+flowchart TD
+    Root["Encina.Security.Secrets"]
+
+    Root --> Abs["Abstractions"]
+    Abs --> A1["ISecretReader"]
+    Abs --> A2["ISecretWriter"]
+    Abs --> A3["ISecretRotator"]
+    Abs --> A4["ISecretRotationHandler"]
+
+    Root --> Prov["Providers"]
+    Prov --> P1["EnvironmentSecretProvider"]
+    Prov --> P2["ConfigurationSecretProvider"]
+    Prov --> P3["FailoverSecretReader"]
+
+    Root --> Cache["Caching"]
+    Cache --> C1["CachedSecretReaderDecorator"]
+
+    Root --> Audit["Auditing"]
+    Audit --> Au1["AuditedSecretReaderDecorator"]
+    Audit --> Au2["AuditedSecretWriterDecorator"]
+    Audit --> Au3["AuditedSecretRotatorDecorator"]
+
+    Root --> Inj["Injection"]
+    Inj --> I1["InjectSecretAttribute"]
+    Inj --> I2["SecretInjectionPipelineBehavior"]
+    Inj --> I3["SecretInjectionOrchestrator"]
+    Inj --> I4["SecretPropertyCache"]
+
+    Root --> Rot["Rotation"]
+    Rot --> R1["SecretRotationCoordinator"]
+
+    Root --> Conf["Configuration"]
+    Conf --> Co1["SecretsConfigurationSource"]
+    Conf --> Co2["SecretsConfigurationProvider"]
+    Conf --> Co3["SecretsConfigurationOptions"]
+
+    Root --> Diag["Diagnostics"]
+    Diag --> D1["SecretsActivitySource"]
+    Diag --> D2["SecretsMetrics"]
+    Diag --> D3["SecretsDiagnostics"]
+
+    Root --> Health["Health"]
+    Health --> H1["SecretsHealthCheck"]
+
+    Root --> Opts["SecretsOptions / SecretsErrors / SecretReference / ServiceCollectionExtensions"]
 ```
 
 ### Decorator Pipeline
 
 Decorators are applied transparently by `AddEncinaSecrets()` based on `SecretsOptions`:
 
-```
-Application Code (ISecretReader)
-    │
-    ▼
-AuditedSecretReaderDecorator   ← EnableAccessAuditing = true
-    │
-    ▼
-CachedSecretReaderDecorator    ← EnableCaching = true (default)
-    │
-    ▼
-EnvironmentSecretProvider      ← Default provider (or custom TReader)
+```mermaid
+flowchart TD
+    A["Application Code<br/>(ISecretReader)"] --> B["AuditedSecretReaderDecorator<br/>EnableAccessAuditing = true"]
+    B --> C["CachedSecretReaderDecorator<br/>EnableCaching = true (default)"]
+    C --> D["EnvironmentSecretProvider<br/>Default provider (or custom TReader)"]
 ```
 
 ---

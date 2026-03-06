@@ -40,36 +40,20 @@ Read/write separation routes database operations based on their intent:
 
 ### How It Works
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Application                                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    Encina Mediator Pipeline                       │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐ │   │
-│  │  │         ReadWriteRoutingPipelineBehavior                    │ │   │
-│  │  │                                                             │ │   │
-│  │  │  ICommand<T>  ──────────►  DatabaseIntent.Write             │ │   │
-│  │  │  IQuery<T>    ──────────►  DatabaseIntent.Read              │ │   │
-│  │  │  [ForceWrite] ──────────►  DatabaseIntent.ForceWrite        │ │   │
-│  │  └─────────────────────────────────────────────────────────────┘ │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│         │                           │                    │              │
-│         ▼                           ▼                    ▼              │
-│  ┌─────────────┐           ┌─────────────┐      ┌─────────────┐        │
-│  │   Write     │           │    Read     │      │ ForceWrite  │        │
-│  │   Intent    │           │   Intent    │      │   Intent    │        │
-│  └──────┬──────┘           └──────┬──────┘      └──────┬──────┘        │
-│         │                         │                    │               │
-│  ═══════╪═════════════════════════╪════════════════════╪═══  Routing   │
-│         │                         │                    │               │
-│         ▼                         ▼                    ▼               │
-│  ┌─────────────┐           ┌─────────────┐      ┌─────────────┐        │
-│  │   PRIMARY   │           │   REPLICA   │      │   PRIMARY   │        │
-│  │  Database   │───sync───►│  Database   │      │  Database   │        │
-│  │  (writes)   │           │  (reads)    │      │ (consistent)│        │
-│  └─────────────┘           └─────────────┘      └─────────────┘        │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Pipeline["Encina Mediator Pipeline"]
+        subgraph Routing["ReadWriteRoutingPipelineBehavior"]
+            CMD["ICommand&lt;T&gt;"] -->|"Write"| WI["Write Intent"]
+            QRY["IQuery&lt;T&gt;"] -->|"Read"| RI["Read Intent"]
+            FW["[ForceWrite]"] -->|"ForceWrite"| FWI["ForceWrite Intent"]
+        end
+    end
+
+    WI --> PRIMARY1[("PRIMARY<br/>Database<br/>(writes)")]
+    RI --> REPLICA[("REPLICA<br/>Database<br/>(reads)")]
+    FWI --> PRIMARY2[("PRIMARY<br/>Database<br/>(consistent)")]
+    PRIMARY1 -->|"sync"| REPLICA
 ```
 
 ---
@@ -536,19 +520,14 @@ Replication lag is the delay between writes on the primary and their visibility 
 
 ### Understanding Replication Lag
 
+```mermaid
+flowchart LR
+    P["PRIMARY<br/>T0: Write Order #1"] -->|"Replication Delay<br/>(5-500ms)"| R["REPLICA<br/>T0+Δ: Read Order #1"]
 ```
-┌─────────────┐                              ┌─────────────┐
-│   PRIMARY   │                              │   REPLICA   │
-│             │                              │             │
-│ T0: Write   │───── Replication Delay ─────►│ T0+Δ: Read  │
-│    Order #1 │         (5-500ms)            │    Order #1 │
-│             │                              │             │
-└─────────────┘                              └─────────────┘
 
 During lag window (T0 to T0+Δ):
 - Primary: Order #1 exists
 - Replica: Order #1 does NOT exist yet
-```
 
 ### Typical Lag Values
 
@@ -703,25 +682,11 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(options =>
 
 When both features are enabled, the routing order is:
 
-```
-Request
-   │
-   ▼
-┌─────────────────────────┐
-│ TenantRoutingBehavior   │  ← Determines tenant context
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│ ReadWriteRoutingBehavior│  ← Determines read/write intent
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│ Connection Selection    │
-│ - Tenant's connection   │
-│ - Primary or Replica    │
-└─────────────────────────┘
+```mermaid
+flowchart TD
+    A["Request"] --> B["TenantRoutingBehavior<br/>Determines tenant context"]
+    B --> C["ReadWriteRoutingBehavior<br/>Determines read/write intent"]
+    C --> D["Connection Selection<br/>Tenant's connection +<br/>Primary or Replica"]
 ```
 
 ### Per-Tenant Replica Configuration
@@ -770,18 +735,11 @@ services.AddEncinaDapper(options =>
 
 ### Connection Resolution
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Connection Resolution                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. Module Context    →  Determines allowed schemas              │
-│  2. Read/Write Intent →  Selects primary or replica              │
-│  3. Replica Strategy  →  Selects specific replica (if multiple)  │
-│                                                                  │
-│  Result: Connection with correct permissions + target server     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["1. Module Context<br/>Determines allowed schemas"] --> B["2. Read/Write Intent<br/>Selects primary or replica"]
+    B --> C["3. Replica Strategy<br/>Selects specific replica (if multiple)"]
+    C --> D["Result: Connection with correct<br/>permissions + target server"]
 ```
 
 ---

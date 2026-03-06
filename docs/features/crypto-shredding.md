@@ -94,62 +94,63 @@ await keyProvider.DeleteSubjectKeysAsync("user-123");
 
 ### Dependency Diagram
 
-```
-Encina.Marten.GDPR
-├── Encina.Marten                         (Marten event sourcing integration)
-├── Encina.Security.Encryption            (IFieldEncryptor, AES-256-GCM)
-└── Encina.Compliance.DataSubjectRights   ([PersonalData], DSR workflows)
+```mermaid
+flowchart TB
+    GDPR["Encina.Marten.GDPR"]
+    GDPR --> Marten["Encina.Marten<br/>Marten event sourcing integration"]
+    GDPR --> Encryption["Encina.Security.Encryption<br/>IFieldEncryptor, AES-256-GCM"]
+    GDPR --> DSR["Encina.Compliance.DataSubjectRights<br/>[PersonalData], DSR workflows"]
 ```
 
 ### Encryption Flow (Event Serialization)
 
-```
-Domain Event → CryptoShredderSerializer
-                 │
-                 ├── CryptoShreddedPropertyCache.HasCryptoShreddedFields(type)?
-                 │     └── No → delegate to inner ISerializer (zero overhead)
-                 │
-                 ├── Yes → for each [CryptoShredded] property:
-                 │     ├── Extract SubjectId from SubjectIdProperty
-                 │     ├── ISubjectKeyProvider.GetOrCreateSubjectKeyAsync(subjectId)
-                 │     ├── IFieldEncryptor.Encrypt(plaintext, key) → ciphertext
-                 │     ├── Replace property value with encrypted JSON envelope
-                 │     └── Restore original value after serialization
-                 │
-                 └── Delegate to inner ISerializer → JSON output
+```mermaid
+flowchart TD
+    A["Domain Event"] --> B["CryptoShredderSerializer"]
+    B --> C{"HasCryptoShreddedFields?"}
+    C -- "No" --> D["Delegate to inner ISerializer<br/>(zero overhead)"]
+    C -- "Yes" --> E["For each [CryptoShredded] property"]
+    E --> F["Extract SubjectId from SubjectIdProperty"]
+    F --> G["ISubjectKeyProvider.GetOrCreateSubjectKeyAsync"]
+    G --> H["IFieldEncryptor.Encrypt plaintext, key"]
+    H --> I["Replace property value with<br/>encrypted JSON envelope"]
+    I --> J["Restore original value after serialization"]
+    J --> K["Delegate to inner ISerializer"]
+    K --> L["JSON output"]
 ```
 
 ### Forget Flow (Key Deletion)
 
-```
-GDPR Art. 17 Request → ISubjectKeyProvider.DeleteSubjectKeysAsync(subjectId)
-                          │
-                          ├── Delete ALL key versions for the subject
-                          ├── Mark subject as "Forgotten" (SubjectForgottenMarker)
-                          ├── Publish SubjectForgottenEvent
-                          └── Return CryptoShreddingResult { KeysDeleted, ... }
+```mermaid
+flowchart TD
+    subgraph forget ["Key Deletion"]
+        A["GDPR Art. 17 Request"] --> B["ISubjectKeyProvider<br/>.DeleteSubjectKeysAsync"]
+        B --> C["Delete ALL key versions"]
+        B --> D["Mark subject as Forgotten"]
+        B --> E["Publish SubjectForgottenEvent"]
+        B --> F["Return CryptoShreddingResult"]
+    end
 
-Subsequent Deserialization:
-  CryptoShredderSerializer
-    ├── Detect encrypted field with kid = "subject:{subjectId}:v{N}"
-    ├── ISubjectKeyProvider.GetSubjectKeyAsync(subjectId, version)
-    │     └── Returns Left(crypto.subject_forgotten)
-    ├── IForgottenSubjectHandler handles the error
-    └── Replace field value with AnonymizedPlaceholder ("[REDACTED]")
+    subgraph deser ["Subsequent Deserialization"]
+        G["CryptoShredderSerializer"] --> H["Detect encrypted field<br/>kid = subject:subjectId:vN"]
+        H --> I["ISubjectKeyProvider<br/>.GetSubjectKeyAsync"]
+        I --> J["Returns Left: crypto.subject_forgotten"]
+        J --> K["IForgottenSubjectHandler<br/>handles the error"]
+        K --> L["Replace field value with<br/>AnonymizedPlaceholder: REDACTED"]
+    end
+
+    forget --> deser
 ```
 
 ### DSR Integration Flow
 
-```
-IDataErasureService.EraseSubjectDataAsync("user-123", scope)
-  │
-  ├── MartenEventPersonalDataLocator.LocateAllDataAsync("user-123")
-  │     └── Scans Marten event stream for [CryptoShredded] properties
-  │
-  ├── CryptoShredErasureStrategy.EraseFieldAsync(location)
-  │     └── ISubjectKeyProvider.DeleteSubjectKeysAsync(subjectId)
-  │
-  └── Returns ErasureResult with per-field status
+```mermaid
+flowchart TD
+    A["IDataErasureService<br/>.EraseSubjectDataAsync"] --> B["MartenEventPersonalDataLocator<br/>.LocateAllDataAsync"]
+    B --> B1["Scans Marten event stream<br/>for [CryptoShredded] properties"]
+    A --> C["CryptoShredErasureStrategy<br/>.EraseFieldAsync"]
+    C --> C1["ISubjectKeyProvider<br/>.DeleteSubjectKeysAsync"]
+    A --> D["Returns ErasureResult<br/>with per-field status"]
 ```
 
 ---

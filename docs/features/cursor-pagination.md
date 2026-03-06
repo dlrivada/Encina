@@ -78,36 +78,29 @@ Dataset Size    | Offset (Page 1000) | Cursor (Any Position)
 
 Encina uses a layered architecture to support both REST and GraphQL use cases:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         PUBLIC TYPES                             │
-├─────────────────────────────────────────────────────────────────┤
-│  CursorPaginatedResult<T>     - REST API response type           │
-│  CursorPaginationOptions      - Query parameters                 │
-│  ICursorPaginatedQuery<T>     - Query interface for handlers     │
-│  ICursorEncoder               - Cursor encoding abstraction      │
-│  CursorDirection              - Forward/Backward enum            │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        INTERNAL TYPES                            │
-│                    (Preserve cursor-per-item)                    │
-├─────────────────────────────────────────────────────────────────┤
-│  CursorPagedData<T>           - Internal pagination result       │
-│  CursorItem<T>                - Item + its cursor                │
-│  CursorPageInfo               - Navigation metadata              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    GRAPHQL TYPES (Optional)                      │
-│                   Encina.HotChocolate package                    │
-├─────────────────────────────────────────────────────────────────┤
-│  Connection<T>                - Relay-compliant connection       │
-│  Edge<T>                      - Node + cursor                    │
-│  PageInfo                     - GraphQL page info                │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph public["PUBLIC TYPES"]
+    P1["CursorPaginatedResult&lt;T&gt; — REST API response type"]
+    P2["CursorPaginationOptions — Query parameters"]
+    P3["ICursorPaginatedQuery&lt;T&gt; — Query interface for handlers"]
+    P4["ICursorEncoder — Cursor encoding abstraction"]
+    P5["CursorDirection — Forward / Backward enum"]
+  end
+
+  subgraph internal["INTERNAL TYPES (Preserve cursor-per-item)"]
+    I1["CursorPagedData&lt;T&gt; — Internal pagination result"]
+    I2["CursorItem&lt;T&gt; — Item + its cursor"]
+    I3["CursorPageInfo — Navigation metadata"]
+  end
+
+  subgraph graphql["GRAPHQL TYPES (Optional — Encina.HotChocolate package)"]
+    G1["Connection&lt;T&gt; — Relay-compliant connection"]
+    G2["Edge&lt;T&gt; — Node + cursor"]
+    G3["PageInfo — GraphQL page info"]
+  end
+
+  public --> internal --> graphql
 ```
 
 ### When to Use Each Type

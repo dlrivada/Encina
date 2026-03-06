@@ -78,13 +78,18 @@ var shardResult = snowflake.ExtractShardId(existingOrderId);
 
 Default: 41 timestamp + 10 shard + 12 sequence = 63 bits (sign bit always 0)
 
-```
-┌─ sign (1 bit, always 0)
-│ ┌─────────────── timestamp (41 bits: ~69 years from epoch)
-│ │                              ┌──── shard/machine (10 bits: 0-1023)
-│ │                              │          ┌── sequence (12 bits: 0-4095/ms)
-│ │                              │          │
-0 TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT SSSSSSSSSS CCCCCCCCCCCC
+```mermaid
+---
+config:
+  block:
+    padding: 8
+---
+block-beta
+  columns 4
+  sign["Sign<br/>1 bit<br/>(always 0)"]:1
+  timestamp["Timestamp<br/>41 bits<br/>(~69 years from epoch)"]:1
+  shard["Shard / Machine<br/>10 bits<br/>(0–1023)"]:1
+  sequence["Sequence<br/>12 bits<br/>(0–4095/ms)"]:1
 ```
 
 Configurable via `SnowflakeOptions`:

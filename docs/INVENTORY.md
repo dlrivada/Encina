@@ -2215,16 +2215,14 @@ Los nuevos transportes y patrones fueron identificados tras investigación exhau
 
 #### Arquitectura de Validación
 
-```
-IValidationProvider (interface)
-    │
-    ├── FluentValidationProvider
-    ├── DataAnnotationsValidationProvider
-    └── MiniValidationProvider
+```mermaid
+flowchart TD
+    IVP["IValidationProvider<br/>(interface)"]
+    IVP --> FVP["FluentValidationProvider"]
+    IVP --> DAVP["DataAnnotationsValidationProvider"]
+    IVP --> MVP["MiniValidationProvider"]
 
-ValidationOrchestrator (coordina validación)
-    │
-    └── ValidationPipelineBehavior<TRequest, TResponse>
+    VO["ValidationOrchestrator<br/>(coordina validación)"] --> VPB["ValidationPipelineBehavior&lt;TRequest, TResponse&gt;"]
 ```
 
 #### GuardClauses (Validación de Invariantes)
@@ -6548,16 +6546,16 @@ var api = builder.AddProject<Projects.MyApi>("api")
 - Spectre.Console integration opcional
 - Labels: `area-diagnostics`, `area-developer-experience`, `area-cli`, `industry-best-practice`
 
-```
-╭─ EncinaError ──────────────────────────────────────────╮
-│ Code: VALIDATION_FAILED                                │
-│ Message: Order validation failed                       │
-├─ Details ──────────────────────────────────────────────┤
-│ • OrderId: Cannot be empty                             │
-│   └─ at OrderCommand.OrderId                           │
-│ • Amount: Must be greater than 0                       │
-│   └─ at OrderCommand.Amount                            │
-╰────────────────────────────────────────────────────────╯
+```mermaid
+flowchart TD
+    subgraph Error["EncinaError"]
+        Code["Code: VALIDATION_FAILED"]
+        Msg["Message: Order validation failed"]
+        subgraph Details["Details"]
+            D1["OrderId: Cannot be empty<br/>at OrderCommand.OrderId"]
+            D2["Amount: Must be greater than 0<br/>at OrderCommand.Amount"]
+        end
+    end
 ```
 
 **#442 - Hot Reload Support** (Media Prioridad):

@@ -19,33 +19,35 @@ This guide covers MongoDB-specific sharding configuration in Encina, including t
 
 Encina's MongoDB sharding supports two distinct modes controlled by `MongoDbShardingOptions.UseNativeSharding`:
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                 Native Mode (UseNativeSharding = true)            │
-│                                                                   │
-│  Application ──► mongos ──┬──► shard1 (mongod/replica set)       │
-│                           ├──► shard2 (mongod/replica set)       │
-│                           └──► shard3 (mongod/replica set)       │
-│                                                                   │
-│  • MongoDB handles all routing transparently                      │
-│  • Application sees a single logical database                     │
-│  • Chunk balancing, migrations handled by MongoDB                 │
-│  • Recommended for production                                     │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│          App-Level Mode (UseNativeSharding = false)               │
-│                                                                   │
-│  Application ──► IShardRouter ──┬──► mongod1 (standalone/RS)     │
-│                                 ├──► mongod2 (standalone/RS)     │
-│                                 └──► mongod3 (standalone/RS)     │
-│                                                                   │
-│  • Encina routes at application level via IShardRouter            │
-│  • Each shard is a separate MongoDB instance                      │
-│  • No mongos required                                             │
-│  • Use for dev/test or when mongos is unavailable                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Native["Native Mode (UseNativeSharding = true)"]
+        A1["Application"] --> M["mongos"]
+        M --> S1["shard1<br/>(mongod/replica set)"]
+        M --> S2["shard2<br/>(mongod/replica set)"]
+        M --> S3["shard3<br/>(mongod/replica set)"]
+    end
 ```
+
+- MongoDB handles all routing transparently
+- Application sees a single logical database
+- Chunk balancing, migrations handled by MongoDB
+- Recommended for production
+
+```mermaid
+flowchart LR
+    subgraph AppLevel["App-Level Mode (UseNativeSharding = false)"]
+        A2["Application"] --> R["IShardRouter"]
+        R --> D1["mongod1<br/>(standalone/RS)"]
+        R --> D2["mongod2<br/>(standalone/RS)"]
+        R --> D3["mongod3<br/>(standalone/RS)"]
+    end
+```
+
+- Encina routes at application level via IShardRouter
+- Each shard is a separate MongoDB instance
+- No mongos required
+- Use for dev/test or when mongos is unavailable
 
 ### Decision Criteria
 
@@ -100,13 +102,13 @@ Connect to the `mongos` instance (or multiple for HA):
 
 Native sharding requires a MongoDB sharded cluster:
 
-```text
-Config Servers (3-node replica set)
-    ├── mongos router 1
-    ├── mongos router 2
-    ├── Shard 1 (replica set: primary + 2 secondaries)
-    ├── Shard 2 (replica set: primary + 2 secondaries)
-    └── Shard 3 (replica set: primary + 2 secondaries)
+```mermaid
+flowchart TD
+    CS["Config Servers<br/>(3-node replica set)"] --> MR1["mongos router 1"]
+    CS --> MR2["mongos router 2"]
+    CS --> S1["Shard 1<br/>(primary + 2 secondaries)"]
+    CS --> S2["Shard 2<br/>(primary + 2 secondaries)"]
+    CS --> S3["Shard 3<br/>(primary + 2 secondaries)"]
 ```
 
 Enable sharding on the database and collection:

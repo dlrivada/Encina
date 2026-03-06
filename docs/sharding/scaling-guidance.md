@@ -150,26 +150,14 @@ public class UserProfile : IShardable
 
 ### When to Choose Each Strategy
 
-```text
-                     Do you need data residency compliance?
-                                    │
-                           ┌────────┴────────┐
-                          Yes               No
-                           │                 │
-                       Use Geo         Do specific entities need
-                       Routing         dedicated shard placement?
-                                            │
-                                   ┌────────┴────────┐
-                                  Yes               No
-                                   │                 │
-                              Use Directory    Are queries range-based?
-                              Routing          (time-series, alphabetical)
-                                                    │
-                                           ┌────────┴────────┐
-                                          Yes               No
-                                           │                 │
-                                      Use Range         Use Hash
-                                      Routing           Routing
+```mermaid
+flowchart TD
+    A{"Data residency<br/>compliance needed?"} -->|"Yes"| B["Use Geo Routing"]
+    A -->|"No"| C{"Dedicated shard<br/>placement needed?"}
+    C -->|"Yes"| D["Use Directory Routing"]
+    C -->|"No"| E{"Range-based queries?<br/>(time-series, alphabetical)"}
+    E -->|"Yes"| F["Use Range Routing"]
+    E -->|"No"| G["Use Hash Routing"]
 ```
 
 ---

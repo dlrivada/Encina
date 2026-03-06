@@ -326,16 +326,13 @@ public sealed class TenantAwareKeyProvider : IKeyProvider
 
 The recommended pipeline order when combining encryption with other behaviors:
 
-```text
-Request Flow (top → bottom):
-┌─────────────────────────────────┐
-│ 1. Validation                   │  ← Validate plaintext BEFORE encryption
-│ 2. Security (RBAC/ABAC)         │  ← Authorize BEFORE encryption
-│ 3. Encryption (encrypt request) │  ← Encrypt sensitive fields
-│ 4. Audit Trail                  │  ← Log encrypted values (safe)
-│ 5. Handler                      │  ← Business logic with encrypted data
-│ 6. Encryption (decrypt response)│  ← Decrypt response fields
-└─────────────────────────────────┘
+```mermaid
+flowchart TD
+    Validation["1. Validation<br/>Validate plaintext BEFORE encryption"] --> Security["2. Security (RBAC/ABAC)<br/>Authorize BEFORE encryption"]
+    Security --> EncryptReq["3. Encryption (encrypt request)<br/>Encrypt sensitive fields"]
+    EncryptReq --> Audit["4. Audit Trail<br/>Log encrypted values (safe)"]
+    Audit --> Handler["5. Handler<br/>Business logic with encrypted data"]
+    Handler --> DecryptResp["6. Encryption (decrypt response)<br/>Decrypt response fields"]
 ```
 
 This ensures:

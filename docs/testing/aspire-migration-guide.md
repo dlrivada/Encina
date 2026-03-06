@@ -15,51 +15,20 @@ This guide helps developers choose the right integration testing approach and pr
 
 ### Decision Flowchart
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Which Testing Approach Should I Use?                  │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │ Do you need AppHost           │
-                    │ orchestration (multiple       │
-                    │ services, dependencies)?      │
-                    └───────────────────────────────┘
-                           │               │
-                          YES              NO
-                           │               │
-                           ▼               ▼
-        ┌──────────────────────┐   ┌──────────────────────┐
-        │ Is this testing a    │   │ Do you need Oracle,  │
-        │ full Aspire AppHost  │   │ NATS, or MQTT?       │
-        │ configuration?       │   └──────────────────────┘
-        └──────────────────────┘          │        │
-              │           │              YES       NO
-             YES          NO              │        │
-              │           │               ▼        ▼
-              ▼           │    ┌────────────┐ ┌────────────────────┐
-    ┌─────────────────┐   │    │TESTCONTAIN-│ │ Is it a component- │
-    │ USE ASPIRE      │   │    │ERS (only   │ │ level DB/service   │
-    │ HOSTING.TESTING │   │    │ option)    │ │ test?              │
-    └─────────────────┘   │    └────────────┘ └────────────────────┘
-                          │                          │        │
-                          │                         YES       NO
-                          │                          │        │
-                          │                          ▼        ▼
-                          │              ┌────────────┐ ┌────────────┐
-                          │              │TESTCONTAIN-│ │ USE ASPIRE │
-                          │              │ERS         │ │ HOSTING    │
-                          │              │(DatabaseFix│ │ .TESTING   │
-                          │              │ture<T>)   │ └────────────┘
-                          │              └────────────┘
-                          │
-                          ▼
-        ┌──────────────────────────────────────────────┐
-        │ Consider Testcontainers for fine-grained     │
-        │ control, or Aspire if testing multi-service  │
-        │ communication (evaluate case by case)        │
-        └──────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Q1{"Do you need AppHost<br/>orchestration (multiple<br/>services, dependencies)?"}
+    Q1 -->|"YES"| Q2{"Is this testing a<br/>full Aspire AppHost<br/>configuration?"}
+    Q1 -->|"NO"| Q3{"Do you need Oracle,<br/>NATS, or MQTT?"}
+
+    Q2 -->|"YES"| A1["USE ASPIRE<br/>HOSTING.TESTING"]
+    Q2 -->|"NO"| A5["Consider Testcontainers<br/>for fine-grained control,<br/>or Aspire if testing<br/>multi-service communication"]
+
+    Q3 -->|"YES"| A2["TESTCONTAINERS<br/>(only option)"]
+    Q3 -->|"NO"| Q4{"Is it a component-level<br/>DB/service test?"}
+
+    Q4 -->|"YES"| A3["TESTCONTAINERS<br/>(DatabaseFixture)"]
+    Q4 -->|"NO"| A4["USE ASPIRE<br/>HOSTING.TESTING"]
 ```
 
 ### Quick Reference Table
@@ -654,23 +623,17 @@ public sealed class MqttFixture : IAsyncLifetime
 
 ### When to Use Each
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Testing ASP.NET Core Applications                    │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌───────────────────────┐  ┌───────────────────────┐  ┌───────────────────┐
-│  Single API Endpoint  │  │  Multi-Service        │  │  Component with   │
-│  Testing              │  │  Orchestration        │  │  External Deps    │
-├───────────────────────┤  ├───────────────────────┤  ├───────────────────┤
-│                       │  │                       │  │                   │
-│  WebApplicationFactory│  │  Aspire.Hosting       │  │  Testcontainers   │
-│                       │  │  .Testing             │  │                   │
-│  - HttpClient access  │  │  - AppHost validation │  │  - DatabaseFixture│
-│  - DI overrides       │  │  - Service discovery  │  │  - Schema setup   │
-│  - In-memory server   │  │  - Cross-service calls│  │  - Connection mgmt│
-│                       │  │                       │  │                   │
-└───────────────────────┘  └───────────────────────┘  └───────────────────┘
+```mermaid
+flowchart LR
+    subgraph WAF["Single API Endpoint Testing"]
+        A1["WebApplicationFactory<br/>• HttpClient access<br/>• DI overrides<br/>• In-memory server"]
+    end
+    subgraph Aspire["Multi-Service Orchestration"]
+        A2["Aspire.Hosting.Testing<br/>• AppHost validation<br/>• Service discovery<br/>• Cross-service calls"]
+    end
+    subgraph TC["Component with External Deps"]
+        A3["Testcontainers<br/>• DatabaseFixture<br/>• Schema setup<br/>• Connection mgmt"]
+    end
 ```
 
 ### Combining Approaches

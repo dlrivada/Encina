@@ -26,19 +26,14 @@ This guide explains how to use time-based sharding to partition data by time per
 
 Time-based sharding partitions data into shards based on time periods. Each shard covers a contiguous range (daily, weekly, monthly, quarterly, or yearly) and belongs to a storage tier that reflects how actively the data is used:
 
-```text
-                           Tier Lifecycle
-  ┌─────────────────────────────────────────────────────────┐
-  │                                                         │
-  │   HOT          WARM          COLD         ARCHIVED      │
-  │   (writes +    (read-only,   (read-only,  (read-only,   │
-  │    reads)      recent data)  infrequent)  long-term)    │
-  │                                                         │
-  │   SSD/Memory   Standard      HDD/Compressed  S3/Blob    │
-  │                                                         │
-  │   ──30 days──► ──90 days──► ──365 days──►               │
-  │                                                         │
-  └─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    HOT["HOT<br/>(writes + reads)<br/>SSD / Memory"]
+    WARM["WARM<br/>(read-only, recent data)<br/>Standard"]
+    COLD["COLD<br/>(read-only, infrequent)<br/>HDD / Compressed"]
+    ARCHIVED["ARCHIVED<br/>(read-only, long-term)<br/>S3 / Blob"]
+
+    HOT -- "30 days" --> WARM -- "90 days" --> COLD -- "365 days" --> ARCHIVED
 ```
 
 Only Hot-tier shards accept writes. The `TierTransitionScheduler` background service automatically transitions shards between tiers based on configurable age thresholds.
@@ -193,17 +188,25 @@ new TierTransition(ShardTier.Hot, ShardTier.Warm, TimeSpan.FromDays(30))
 
 ### Tier Transition Lifecycle Diagram
 
-```text
-  Period Start    Period End     +30 days      +90 days      +365 days
-       │              │             │              │              │
-       ▼              ▼             ▼              ▼              ▼
-  ┌─────────┐    ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌──────────┐
-  │   HOT   │───►│   HOT   │─►│  WARM   │─►│   COLD   │─►│ ARCHIVED │
-  │ (write) │    │(read+wr)│  │  (r/o)  │  │   (r/o)  │  │   (r/o)  │
-  └─────────┘    └─────────┘  └─────────┘  └──────────┘  └──────────┘
-  Active shard    Still active   Read-only    Read-only     Long-term
-  for writes      until period   enforcement  optimized     retention
-                  ends           applied      storage
+```mermaid
+flowchart LR
+    subgraph PeriodActive["Active Period"]
+        A1["HOT<br/>(write + read)"]
+    end
+    subgraph PeriodEnd["Period Ends"]
+        A2["HOT<br/>(read + write)"]
+    end
+    subgraph After30["+ 30 days"]
+        B["WARM<br/>(read-only)"]
+    end
+    subgraph After90["+ 90 days"]
+        C["COLD<br/>(read-only)"]
+    end
+    subgraph After365["+ 365 days"]
+        D["ARCHIVED<br/>(read-only)"]
+    end
+
+    A1 --> A2 --> B --> C --> D
 ```
 
 ---

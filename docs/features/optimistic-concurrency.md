@@ -123,19 +123,13 @@ public class Order : IVersionedEntity
 
 ### 2. Consistent Conflict Detection
 
-```text
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  UpdateAsync()  │────►│ Version Check    │────►│   Database      │
-│  version = 2    │     │ WHERE v = 1      │     │   v = 1 → 2?    │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │ rowsAffected == 0?   │
-                    │                      │
-                    │ EXISTS → Conflict    │
-                    │ NOT EXISTS → NotFound│
-                    └──────────────────────┘
+```mermaid
+flowchart LR
+    UpdateAsync["UpdateAsync()<br/>version = 2"] --> VersionCheck["Version Check<br/>WHERE v = 1"]
+    VersionCheck --> Database["Database<br/>v = 1 → 2?"]
+    VersionCheck --> RowCheck{"rowsAffected == 0?"}
+    RowCheck -->|EXISTS| Conflict["Conflict"]
+    RowCheck -->|NOT EXISTS| NotFound["NotFound"]
 ```
 
 ### 3. Rich Error Information

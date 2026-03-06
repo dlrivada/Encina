@@ -795,32 +795,16 @@ await result;
 
 ### How Patterns Work Together
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Encina Pattern                         │
-│  (Encina coordinates all communication)              │
-└────────────┬────────────────────────────────────────────────┘
-             │
-             ├─► Railway Oriented Programming
-             │   (All operations return Either<Error, Success>)
-             │
-             ├─► Dependency Injection
-             │   (Resolve handlers and behaviors from DI)
-             │
-             ├─► Factory Pattern
-             │   (RequestHandlerWrapper creates pipeline)
-             │
-             └─► Chain of Responsibility + Decorator
-                 (Behaviors wrap handler in nested chain)
-                     │
-                     ├─► Guard Clauses
-                     │   (Validate inputs early)
-                     │
-                     ├─► Observer Pattern
-                     │   (Notifications broadcast to handlers)
-                     │
-                     └─► Expression Tree Compilation
-                         (Fast handler invocation)
+```mermaid
+flowchart TD
+    E["Encina Pattern<br/>(coordinates all communication)"]
+    E --> ROP["Railway Oriented Programming<br/>All operations return Either"]
+    E --> DI["Dependency Injection<br/>Resolve handlers and behaviors"]
+    E --> FP["Factory Pattern<br/>RequestHandlerWrapper creates pipeline"]
+    E --> CoR["Chain of Responsibility + Decorator<br/>Behaviors wrap handler in nested chain"]
+    CoR --> GC["Guard Clauses<br/>Validate inputs early"]
+    CoR --> OP["Observer Pattern<br/>Notifications broadcast to handlers"]
+    CoR --> ETC["Expression Tree Compilation<br/>Fast handler invocation"]
 ```
 
 ### Example: Complete Request Flow

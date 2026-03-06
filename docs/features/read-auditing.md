@@ -13,17 +13,11 @@ Read auditing answers critical compliance questions:
 
 ## Architecture
 
-```text
-┌───────────────────┐     ┌──────────────────────┐     ┌───────────────────┐
-│   Application     │────▶│  AuditedRepository  │────▶│  Inner Repository │
-│   Code            │     │  (Decorator)         │     │  (Real DB Access) │
-└───────────────────┘     └────────┬─────────────┘     └───────────────────┘
-                                   │ fire-and-forget
-                                   ▼
-                         ┌──────────────────────┐
-                         │  IReadAuditStore     │
-                         │  (13 Providers)      │
-                         └──────────────────────┘
+```mermaid
+flowchart LR
+    A["Application<br/>Code"] --> B["AuditedRepository<br/>(Decorator)"]
+    B --> C["Inner Repository<br/>(Real DB Access)"]
+    B -- "fire-and-forget" --> D["IReadAuditStore<br/>(13 Providers)"]
 ```
 
 ### Key Design Decisions

@@ -30,24 +30,25 @@ This guide covers how to work with data that spans multiple shards, including sc
 
 Each shard operates as an independent database. ACID transactions apply only within a single shard:
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    Transaction Boundaries                       │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
-│  │   Shard 1    │    │   Shard 2    │    │   Shard 3    │       │
-│  │              │    │              │    │              │       │
-│  │  BEGIN       │    │  BEGIN       │    │  BEGIN       │       │
-│  │  INSERT ...  │    │  UPDATE ...  │    │  DELETE ...  │       │
-│  │  UPDATE ...  │    │  INSERT ...  │    │  INSERT ...  │       │
-│  │  COMMIT ✓    │    │  COMMIT ✓   │    │  ROLLBACK ✗  │       │
-│  │              │    │              │    │              │       │
-│  │  Atomic ✓    │    │  Atomic ✓   │    │  Atomic ✓    │       │
-│  └──────────────┘    └──────────────┘    └──────────────┘       │
-│                                                                 │
-│  ✗ No cross-shard ACID guarantees                               │
-│  ✗ Shard 3 rolled back while Shard 1 & 2 committed              │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph txBoundaries["Transaction Boundaries"]
+        subgraph shard1["Shard 1"]
+            s1["BEGIN<br/>INSERT ...<br/>UPDATE ...<br/>COMMIT ✓<br/>Atomic ✓"]
+        end
+        subgraph shard2["Shard 2"]
+            s2["BEGIN<br/>UPDATE ...<br/>INSERT ...<br/>COMMIT ✓<br/>Atomic ✓"]
+        end
+        subgraph shard3["Shard 3"]
+            s3["BEGIN<br/>DELETE ...<br/>INSERT ...<br/>ROLLBACK ✗<br/>Atomic ✓"]
+        end
+    end
+
+    note["No cross-shard ACID guarantees.<br/>Shard 3 rolled back while Shard 1 &amp; 2 committed."]
+
+    txBoundaries ~~~ note
+
+    style note fill:#fff3cd,stroke:#856404,color:#856404
 ```
 
 **Why no two-phase commit?** Distributed transactions (2PC) add significant latency (2-3x), require lock coordination across shards, and create availability risks when coordinators fail. Encina prioritizes availability and performance over strict cross-shard consistency.
@@ -70,21 +71,26 @@ For write operations that span multiple shards, use the Saga pattern from `Encin
 
 ### Architecture
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    Saga Orchestrator                               │
-│                                                                   │
-│  Step 1: Debit source account (Shard A)                           │
-│       │                                                           │
-│       ├── Success ──► Step 2: Credit target account (Shard B)     │
-│       │                   │                                       │
-│       │                   ├── Success ──► Complete ✓               │
-│       │                   │                                       │
-│       │                   └── Failure ──► Compensate Step 1       │
-│       │                                   (Refund source)         │
-│       │                                                           │
-│       └── Failure ──► Abort (nothing to compensate)               │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    step1["Step 1: Debit source account<br/>(Shard A)"]
+    step1success{"Success?"}
+    step2["Step 2: Credit target account<br/>(Shard B)"]
+    step2success{"Success?"}
+    complete["Complete ✓"]
+    compensate["Compensate Step 1<br/>(Refund source)"]
+    abort["Abort<br/>(nothing to compensate)"]
+
+    step1 --> step1success
+    step1success -- "Success" --> step2
+    step1success -- "Failure" --> abort
+    step2 --> step2success
+    step2success -- "Success" --> complete
+    step2success -- "Failure" --> compensate
+
+    style complete fill:#d4edda,stroke:#28a745,color:#155724
+    style abort fill:#f8d7da,stroke:#dc3545,color:#721c24
+    style compensate fill:#fff3cd,stroke:#856404,color:#856404
 ```
 
 `SagaRunner` from `Encina.Messaging.Sagas.LowCeremony` handles the full lifecycle automatically:
@@ -828,14 +834,30 @@ var enrichedOrders = from o in orders.Results
 
 Replicate small, rarely-changing tables to all shards:
 
-```text
-┌──────────┐  ┌──────────┐  ┌──────────┐
-│ Shard 1  │  │ Shard 2  │  │ Shard 3  │
-│          │  │          │  │          │
-│ orders   │  │ orders   │  │ orders   │
-│ countries│  │ countries│  │ countries│  ◄── Same data on every shard
-│ currencies│ │ currencies│ │ currencies│
-└──────────┘  └──────────┘  └──────────┘
+```mermaid
+flowchart LR
+    subgraph shard1["Shard 1"]
+        s1_orders["orders"]
+        s1_countries["countries"]
+        s1_currencies["currencies"]
+    end
+    subgraph shard2["Shard 2"]
+        s2_orders["orders"]
+        s2_countries["countries"]
+        s2_currencies["currencies"]
+    end
+    subgraph shard3["Shard 3"]
+        s3_orders["orders"]
+        s3_countries["countries"]
+        s3_currencies["currencies"]
+    end
+
+    refNote["countries &amp; currencies:<br/>Same data on every shard"]
+
+    shard1 ~~~ shard2 ~~~ shard3
+    shard3 ~~~ refNote
+
+    style refNote fill:#e2e3e5,stroke:#6c757d,color:#383d41
 ```
 
 Reference tables enable local JOINs with lookup data. Keep them small and update infrequently.
@@ -848,11 +870,16 @@ Reference tables enable local JOINs with lookup data. Keep them small and update
 
 Cross-shard operations create a trace hierarchy:
 
-```text
-ScatterGather [span]
-  ├── ShardQuery: shard-1 [span, ActivityKind.Client]
-  ├── ShardQuery: shard-2 [span, ActivityKind.Client]
-  └── ShardQuery: shard-3 [span, ActivityKind.Client]
+```mermaid
+flowchart TD
+    scatter["ScatterGather<br/>[span]"]
+    sq1["ShardQuery: shard-1<br/>[span, ActivityKind.Client]"]
+    sq2["ShardQuery: shard-2<br/>[span, ActivityKind.Client]"]
+    sq3["ShardQuery: shard-3<br/>[span, ActivityKind.Client]"]
+
+    scatter --> sq1
+    scatter --> sq2
+    scatter --> sq3
 ```
 
 Each span includes:

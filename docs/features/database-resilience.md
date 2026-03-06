@@ -197,21 +197,61 @@ All relational providers execute `SELECT 1` via the base class `DatabaseHealthMo
 
 ## Architecture
 
-```
-IDatabaseHealthMonitor (core interface, Encina package)
-│
-├── DatabaseHealthMonitorBase (abstract, Encina.Messaging)
-│   ├── SqliteDatabaseHealthMonitor (Encina.ADO.Sqlite)
-│   ├── SqlServerDatabaseHealthMonitor (Encina.ADO.SqlServer)
-│   ├── PostgreSqlDatabaseHealthMonitor (Encina.ADO.PostgreSQL)
-│   ├── MySqlDatabaseHealthMonitor (Encina.ADO.MySQL)
-│   ├── DapperSqliteDatabaseHealthMonitor (Encina.Dapper.Sqlite)
-│   ├── DapperSqlServerDatabaseHealthMonitor (Encina.Dapper.SqlServer)
-│   ├── DapperPostgreSqlDatabaseHealthMonitor (Encina.Dapper.PostgreSQL)
-│   ├── DapperMySqlDatabaseHealthMonitor (Encina.Dapper.MySQL)
-│   └── EfCoreDatabaseHealthMonitor (Encina.EntityFrameworkCore)
-│
-└── MongoDbDatabaseHealthMonitor (Encina.MongoDB, direct implementation)
+```mermaid
+classDiagram
+    class IDatabaseHealthMonitor {
+        <<interface>>
+        core interface, Encina package
+    }
+
+    class DatabaseHealthMonitorBase {
+        <<abstract>>
+        Encina.Messaging
+    }
+
+    class SqliteDatabaseHealthMonitor {
+        Encina.ADO.Sqlite
+    }
+    class SqlServerDatabaseHealthMonitor {
+        Encina.ADO.SqlServer
+    }
+    class PostgreSqlDatabaseHealthMonitor {
+        Encina.ADO.PostgreSQL
+    }
+    class MySqlDatabaseHealthMonitor {
+        Encina.ADO.MySQL
+    }
+    class DapperSqliteDatabaseHealthMonitor {
+        Encina.Dapper.Sqlite
+    }
+    class DapperSqlServerDatabaseHealthMonitor {
+        Encina.Dapper.SqlServer
+    }
+    class DapperPostgreSqlDatabaseHealthMonitor {
+        Encina.Dapper.PostgreSQL
+    }
+    class DapperMySqlDatabaseHealthMonitor {
+        Encina.Dapper.MySQL
+    }
+    class EfCoreDatabaseHealthMonitor {
+        Encina.EntityFrameworkCore
+    }
+    class MongoDbDatabaseHealthMonitor {
+        Encina.MongoDB
+        direct implementation
+    }
+
+    IDatabaseHealthMonitor <|.. DatabaseHealthMonitorBase
+    IDatabaseHealthMonitor <|.. MongoDbDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- SqliteDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- SqlServerDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- PostgreSqlDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- MySqlDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- DapperSqliteDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- DapperSqlServerDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- DapperPostgreSqlDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- DapperMySqlDatabaseHealthMonitor
+    DatabaseHealthMonitorBase <|-- EfCoreDatabaseHealthMonitor
 ```
 
 ### Design Decisions

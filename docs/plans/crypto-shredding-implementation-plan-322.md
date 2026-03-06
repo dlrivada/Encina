@@ -1055,17 +1055,28 @@ REFERENCE FILES:
 
 ### Dependency Graph
 
-```
-Encina.Marten.GDPR
-├── Encina.Marten (event sourcing, ISerializer, IDocumentSession)
-├── Encina.Security.Encryption (IFieldEncryptor, EncryptedValue, EncryptionContext)
-│   └── Encina (core: EncinaError, Either<,>)
-├── Encina.Compliance.DataSubjectRights (IDataErasureStrategy, IPersonalDataLocator, [PersonalData])
-│   └── Encina.Compliance.GDPR (shared GDPR types)
-├── LanguageExt.Core (Either, Option, Unit)
-├── Microsoft.Extensions.Logging.Abstractions
-├── Microsoft.Extensions.Options
-└── Microsoft.Extensions.Diagnostics.HealthChecks
+```mermaid
+flowchart TD
+    MartenGDPR["Encina.Marten.GDPR"]
+    Marten["Encina.Marten<br/>(event sourcing, ISerializer,<br/>IDocumentSession)"]
+    SecurityEncryption["Encina.Security.Encryption<br/>(IFieldEncryptor, EncryptedValue,<br/>EncryptionContext)"]
+    Core["Encina<br/>(core: EncinaError, Either&lt;,&gt;)"]
+    DSR["Encina.Compliance.DataSubjectRights<br/>(IDataErasureStrategy,<br/>IPersonalDataLocator, [PersonalData])"]
+    GDPR["Encina.Compliance.GDPR<br/>(shared GDPR types)"]
+    LanguageExt["LanguageExt.Core<br/>(Either, Option, Unit)"]
+    Logging["Microsoft.Extensions<br/>.Logging.Abstractions"]
+    Options["Microsoft.Extensions<br/>.Options"]
+    HealthChecks["Microsoft.Extensions<br/>.Diagnostics.HealthChecks"]
+
+    MartenGDPR --> Marten
+    MartenGDPR --> SecurityEncryption
+    SecurityEncryption --> Core
+    MartenGDPR --> DSR
+    DSR --> GDPR
+    MartenGDPR --> LanguageExt
+    MartenGDPR --> Logging
+    MartenGDPR --> Options
+    MartenGDPR --> HealthChecks
 ```
 
 ### Usage Example

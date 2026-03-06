@@ -57,12 +57,13 @@ Encina provides four strategies, each addressing these challenges differently:
 
 Best for high-throughput systems where a compact `long` primary key is needed and shard information must be embedded.
 
-```text
-┌─ sign (1 bit, always 0)
-│ ┌─────────────── timestamp (41 bits: ~69 years from epoch)
-│ │                              ┌──── shard/machine (10 bits: 0-1023)
-│ │                              │          ┌── sequence (12 bits: 0-4095/ms)
-0 TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT SSSSSSSSSS CCCCCCCCCCCC
+```mermaid
+block-beta
+  columns 4
+  sign["Sign<br/>1 bit<br/>always 0"]:1
+  timestamp["Timestamp<br/>41 bits<br/>~69 years from epoch"]:1
+  shard["Shard / Machine<br/>10 bits<br/>0–1023"]:1
+  sequence["Sequence<br/>12 bits<br/>0–4095/ms"]:1
 ```
 
 ### 2. ULID (128-bit, Crockford Base32)
@@ -96,15 +97,21 @@ shard-01:01ARZ3NDEKTSV4RRFFQ69G5FAV
 
 ### Interface Hierarchy
 
-```text
-IIdGenerator (marker)
-├── IIdGenerator<TId>
-│   ├── Generate() → Either<EncinaError, TId>
-│   └── StrategyName → string
-│
-└── IShardedIdGenerator<TId> : IIdGenerator<TId>
-    ├── Generate(string shardId) → Either<EncinaError, TId>
-    └── ExtractShardId(TId id) → Either<EncinaError, string>
+```mermaid
+classDiagram
+  class IIdGenerator {
+    &lt;&lt;marker&gt;&gt;
+  }
+  class IIdGenerator_TId["IIdGenerator&lt;TId&gt;"] {
+    +Generate() Either~EncinaError, TId~
+    +StrategyName string
+  }
+  class IShardedIdGenerator_TId["IShardedIdGenerator&lt;TId&gt;"] {
+    +Generate(string shardId) Either~EncinaError, TId~
+    +ExtractShardId(TId id) Either~EncinaError, string~
+  }
+  IIdGenerator <|-- IIdGenerator_TId
+  IIdGenerator_TId <|-- IShardedIdGenerator_TId
 ```
 
 ### Type Mapping by Strategy

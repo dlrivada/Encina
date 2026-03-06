@@ -70,19 +70,22 @@ GDPR Article 7 requires explicit, informed, freely given consent for processing 
 
 Encina solves this with a single attribute and pipeline behavior:
 
-```text
-Request → [ConsentRequiredPipelineBehavior] → Handler
-                    │
-                    ├── No [RequireConsent]? → Skip (zero overhead)
-                    ├── Disabled mode? → Skip
-                    ├── Extract SubjectId via cached reflection
-                    ├── Validate consent via IConsentValidator
-                    │   ├── Check IConsentStore for active consent
-                    │   ├── Check expiration
-                    │   └── Check version currency
-                    ├── Valid? → Proceed to handler
-                    ├── Invalid + Block mode? → Return EncinaError
-                    └── Invalid + Warn mode? → Log warning, proceed
+```mermaid
+flowchart TD
+    Request["Request"] --> Behavior["ConsentRequiredPipelineBehavior"]
+    Behavior --> CheckAttr{"Has [RequireConsent]?"}
+    CheckAttr -- No --> Skip["Skip (zero overhead)"]
+    CheckAttr -- Yes --> CheckDisabled{"Disabled mode?"}
+    CheckDisabled -- Yes --> Skip
+    CheckDisabled -- No --> Extract["Extract SubjectId<br/>via cached reflection"]
+    Extract --> Validate["Validate consent<br/>via IConsentValidator"]
+    Validate --> CheckStore["Check IConsentStore<br/>for active consent"]
+    CheckStore --> CheckExpiration["Check expiration"]
+    CheckExpiration --> CheckVersion["Check version currency"]
+    CheckVersion --> IsValid{"Valid?"}
+    IsValid -- Yes --> Handler["Proceed to handler"]
+    IsValid -- "No + Block mode" --> BlockError["Return EncinaError"]
+    IsValid -- "No + Warn mode" --> WarnProceed["Log warning, proceed"]
 ```
 
 ---
@@ -220,10 +223,11 @@ await store.WithdrawConsentAsync("user-123", ConsentPurposes.Marketing);
 
 ### Consent Status Lifecycle
 
-```text
-Active → Withdrawn (via WithdrawConsentAsync)
-Active → Expired (automatic, based on ExpiresAtUtc)
-Active → RequiresReconsent (via version change)
+```mermaid
+stateDiagram-v2
+    Active --> Withdrawn : via WithdrawConsentAsync
+    Active --> Expired : automatic, based on ExpiresAtUtc
+    Active --> RequiresReconsent : via version change
 ```
 
 ---

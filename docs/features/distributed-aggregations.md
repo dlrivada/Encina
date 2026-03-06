@@ -23,28 +23,25 @@ This guide explains how to perform distributed aggregation operations (Count, Su
 
 When data is distributed across multiple shards, computing aggregates like counts, sums, and averages requires querying every shard and combining the results correctly. Encina provides extension methods on `IFunctionalShardedRepository<TEntity, TId>` that handle this automatically:
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                   Distributed Aggregation Flow                      │
-│                                                                     │
-│  Client: repo.SumAcrossShardsAsync(o => o.Amount, o => o.IsActive)  │
-│                           │                                         │
-│              ┌────────────┼────────────┐                            │
-│              ▼            ▼            ▼                            │
-│          Shard-1      Shard-2      Shard-3                          │
-│         SUM(Amount)  SUM(Amount)  SUM(Amount)                       │
-│         WHERE Active WHERE Active WHERE Active                      │
-│           = 500        = 300        = 200                           │
-│              │            │            │                            │
-│              └────────────┼────────────┘                            │
-│                           ▼                                         │
-│                 AggregationCombiner                                 │
-│                 CombineSum → 1000                                   │
-│                           │                                         │
-│                           ▼                                         │
-│              AggregationResult<decimal>                             │
-│              Value = 1000, ShardsQueried = 3                        │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  client["Client<br/>repo.SumAcrossShardsAsync(o =&gt; o.Amount, o =&gt; o.IsActive)"]
+
+  client --> shard1 & shard2 & shard3
+
+  subgraph scatter["Phase 1 — Per-Shard Execution (parallel)"]
+    shard1["Shard-1<br/>SUM(Amount) WHERE Active<br/>= 500"]
+    shard2["Shard-2<br/>SUM(Amount) WHERE Active<br/>= 300"]
+    shard3["Shard-3<br/>SUM(Amount) WHERE Active<br/>= 200"]
+  end
+
+  shard1 --> combiner
+  shard2 --> combiner
+  shard3 --> combiner
+
+  combiner["AggregationCombiner<br/>CombineSum = 1000"]
+
+  combiner --> result["AggregationResult&lt;decimal&gt;<br/>Value = 1000, ShardsQueried = 3"]
 ```
 
 ---

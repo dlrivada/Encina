@@ -82,35 +82,25 @@ result.Match(
 
 ## Architecture
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                   Specification-Based Scatter-Gather Flow                        │
-│                                                                                  │
-│  Application: repo.QueryAllShardsAsync(spec, ct)                                 │
-│                           │                                                      │
-│              ┌────────────┼────────────┐                                         │
-│              │            │            │                                         │
-│              ▼            ▼            ▼                                         │
-│          Shard-1      Shard-2      Shard-3                                       │
-│       ┌──────────┐ ┌──────────┐ ┌──────────┐                                     │
-│       │ Provider  │ │ Provider  │ │ Provider  │                                  │
-│       │ translates│ │ translates│ │ translates│                                  │
-│       │ spec to   │ │ spec to   │ │ spec to   │                                  │
-│       │ native    │ │ native    │ │ native    │                                  │
-│       │ query     │ │ query     │ │ query     │                                  │
-│       └──────────┘ └──────────┘ └──────────┘                                     │
-│           │ 5 items    │ 8 items    │ 3 items                                    │
-│              └────────────┼────────────┘                                         │
-│                           ▼                                                      │
-│              ScatterGatherResultMerger                                           │
-│              MergeAndOrder(perShardItems, spec)                                  │
-│              → 16 items, ordered by spec                                         │
-│                           │                                                      │
-│                           ▼                                                      │
-│              ShardedSpecificationResult<Order>                                   │
-│              Items = 16, ShardsQueried = 3                                       │
-│              ItemsPerShard = { S1:5, S2:8, S3:3 }                                │
-└──────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  app["Application<br/>repo.QueryAllShardsAsync(spec, ct)"]
+
+  app --> shard1 & shard2 & shard3
+
+  subgraph scatter["Phase 1 — Scatter (parallel)"]
+    shard1["Shard-1<br/>Provider translates<br/>spec to native query"]
+    shard2["Shard-2<br/>Provider translates<br/>spec to native query"]
+    shard3["Shard-3<br/>Provider translates<br/>spec to native query"]
+  end
+
+  shard1 -- "5 items" --> merger
+  shard2 -- "8 items" --> merger
+  shard3 -- "3 items" --> merger
+
+  merger["ScatterGatherResultMerger<br/>MergeAndOrder(perShardItems, spec)<br/>16 items, ordered by spec"]
+
+  merger --> result["ShardedSpecificationResult&lt;Order&gt;<br/>Items = 16, ShardsQueried = 3<br/>ItemsPerShard = S1:5, S2:8, S3:3"]
 ```
 
 ### Key Components

@@ -6,11 +6,10 @@ This example shows how to replace the polling-based `OutboxProcessor` with CDC-d
 
 The traditional outbox pattern uses polling to check for pending messages:
 
-```text
-┌───────────┐  poll every N sec  ┌──────────────────┐  publish   ┌───────────┐
-│ Outbox DB │◀──────────────────│ OutboxProcessor   │──────────▶│ Transport │
-│ (table)   │                    │ (polling-based)  │            │ (broker)  │
-└───────────┘                    └──────────────────┘            └───────────┘
+```mermaid
+flowchart LR
+    A[("Outbox DB<br/>(table)")] <-->|"poll every N sec"| B["OutboxProcessor<br/>(polling-based)"]
+    B -->|"publish"| C["Transport<br/>(broker)"]
 ```
 
 Polling introduces latency (up to `PollingInterval` delay) and constant database load even when no new messages exist.
@@ -19,11 +18,10 @@ Polling introduces latency (up to `PollingInterval` delay) and constant database
 
 CDC-driven outbox processing publishes notifications immediately when new outbox rows are inserted:
 
-```text
-┌───────────┐  CDC stream   ┌─────────────────┐  publish  ┌───────────┐
-│ Outbox DB │─────────────▶│ OutboxCdcHandler│──────────▶│ IEncina   │
-│ (table)   │               │ (real-time)     │           │ .Publish()│
-└───────────┘               └─────────────────┘           └───────────┘
+```mermaid
+flowchart LR
+    A[("Outbox DB<br/>(table)")] -->|"CDC stream"| B["OutboxCdcHandler<br/>(real-time)"]
+    B -->|"publish"| C["IEncina<br/>.Publish()"]
 ```
 
 ## Configuration

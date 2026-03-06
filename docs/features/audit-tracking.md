@@ -114,38 +114,22 @@ Encina provides two complementary approaches:
 
 For EF Core, the `AuditInterceptor` automatically populates audit fields during `SaveChanges`:
 
-```text
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Application    │────►│ AuditInterceptor │────►│   Database      │
-│  SaveChanges()  │     │ Populates fields │     │   Persists      │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                               │
-                               ▼
-                        ┌──────────────────┐
-                        │ Detects:         │
-                        │ - ICreatedAtUtc  │
-                        │ - ICreatedBy     │
-                        │ - IModifiedAtUtc │
-                        │ - IModifiedBy    │
-                        └──────────────────┘
+```mermaid
+flowchart LR
+    App["Application<br/>SaveChanges()"] --> Interceptor["AuditInterceptor<br/>Populates fields"]
+    Interceptor --> DB["Database<br/>Persists"]
+    Interceptor --> Detects["Detects:<br/>- ICreatedAtUtc<br/>- ICreatedBy<br/>- IModifiedAtUtc<br/>- IModifiedBy"]
 ```
 
 ### 2. Automatic Population via Repository (Dapper/ADO.NET/MongoDB)
 
 Starting with v0.12.0, Dapper, ADO.NET, and MongoDB repositories **automatically populate audit fields** when the repository is configured with `IRequestContext` and/or `TimeProvider`:
 
-```text
-┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
-│  Application    │────►│ Repository.AddAsync  │────►│   Database      │
-│  AddAsync()     │     │ Calls Populator      │     │   Persists      │
-└─────────────────┘     └──────────────────────┘     └─────────────────┘
-                               │
-                               ▼
-                        ┌─────────────────────────────┐
-                        │ AuditFieldPopulator:        │
-                        │ - PopulateForCreate(entity) │
-                        │ - PopulateForUpdate(entity) │
-                        └─────────────────────────────┘
+```mermaid
+flowchart LR
+    App["Application<br/>AddAsync()"] --> Repo["Repository.AddAsync<br/>Calls Populator"]
+    Repo --> DB["Database<br/>Persists"]
+    Repo --> Populator["AuditFieldPopulator:<br/>- PopulateForCreate(entity)<br/>- PopulateForUpdate(entity)"]
 ```
 
 This provides feature parity with EF Core's `AuditInterceptor` for non-EF Core providers.

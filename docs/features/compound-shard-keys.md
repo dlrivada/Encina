@@ -21,16 +21,15 @@ This guide explains how to use compound shard keys for multi-field routing decis
 
 Standard shard keys use a single field for routing (e.g., `customerId`). Compound shard keys extend this by using **multiple ordered fields**, where each field can be routed by a different strategy:
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│                    Compound Shard Key                             │
-│                {region, customerId}                               │
-│                                                                   │
-│  Component 0: "us-east"  ──► RangeShardRouter   ──► "shard-us"  │
-│  Component 1: "cust-42"  ──► HashShardRouter    ──► "shard-3"   │
-│                                                                   │
-│  ShardIdCombiner: ("shard-us", "shard-3") ──► "shard-us-3"      │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph CSK["Compound Shard Key {region, customerId}"]
+        C0["Component 0: us-east"] -->|"RangeShardRouter"| S0["shard-us"]
+        C1["Component 1: cust-42"] -->|"HashShardRouter"| S1["shard-3"]
+    end
+    S0 --> Combiner["ShardIdCombiner"]
+    S1 --> Combiner
+    Combiner --> Result["shard-us-3"]
 ```
 
 Each component is routed independently, and the results are combined via a configurable `ShardIdCombiner` (default: hyphen-join).

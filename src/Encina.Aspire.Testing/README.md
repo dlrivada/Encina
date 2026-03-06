@@ -22,25 +22,25 @@ dotnet add package Encina.Aspire.Testing
 
 ### When to Use Each
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                    Encina Testing Package Selection                       │
-└──────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    title["Encina Testing Package Selection"]
+    style title fill:none,stroke:none
 
-┌─────────────────────────┐  ┌─────────────────────────┐  ┌────────────────┐
-│ Messaging Pattern Tests │  │ Distributed App Tests   │  │ Database Tests │
-│ (No real database)      │  │ (Real containers)       │  │ (Real DB)      │
-├─────────────────────────┤  ├─────────────────────────┤  ├────────────────┤
-│                         │  │                         │  │                │
-│ Encina.Aspire.Testing   │  │ Aspire.Hosting.Testing  │  │ Testcontainers │
-│                         │  │                         │  │                │
-│ - FakeOutboxStore       │  │ - DistributedApp        │  │ - SqlServer    │
-│ - FakeInboxStore        │  │   TestingBuilder        │  │ - PostgreSQL   │
-│ - FakeSagaStore         │  │ - CreateAsync<T>()      │  │ - MySQL        │
-│ - AssertOutboxAsync     │  │ - GetConnectionString   │  │ - Oracle       │
-│ - SimulateFailure       │  │ - WaitForResource       │  │ - Redis        │
-│                         │  │                         │  │                │
-└─────────────────────────┘  └─────────────────────────┘  └────────────────┘
+    subgraph messaging["Messaging Pattern Tests<br/>(No real database)"]
+        M1["Encina.Aspire.Testing"]
+        M2["- FakeOutboxStore<br/>- FakeInboxStore<br/>- FakeSagaStore<br/>- AssertOutboxAsync<br/>- SimulateFailure"]
+    end
+
+    subgraph distributed["Distributed App Tests<br/>(Real containers)"]
+        D1["Aspire.Hosting.Testing"]
+        D2["- DistributedApp<br/>&nbsp;&nbsp;TestingBuilder<br/>- CreateAsync&lt;T&gt;()<br/>- GetConnectionString<br/>- WaitForResource"]
+    end
+
+    subgraph database["Database Tests<br/>(Real DB)"]
+        DB1["Testcontainers"]
+        DB2["- SqlServer<br/>- PostgreSQL<br/>- MySQL<br/>- Oracle<br/>- Redis"]
+    end
 ```
 
 ### Typical Combinations

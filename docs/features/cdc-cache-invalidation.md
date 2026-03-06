@@ -49,10 +49,11 @@ CDC-driven cache invalidation detects database changes from **any source** and i
 
 ### Challenge: Stale Cache Across Instances
 
-```
-Instance A: SaveChanges(Order) → Cache invalidated locally ✅
-Instance B: Still serving cached Order data → STALE ❌
-Instance C: Still serving cached Order data → STALE ❌
+```mermaid
+flowchart LR
+    A["Instance A"] -->|"SaveChanges(Order)"| A1["Cache invalidated locally"]
+    B["Instance B"] -.->|"Still serving cached data"| B1["STALE"]
+    C["Instance C"] -.->|"Still serving cached data"| C1["STALE"]
 ```
 
 The `QueryCacheInterceptor` only invalidates cache entries on the instance that made the change. In multi-instance deployments, other instances continue serving stale data until their cache entries expire naturally.
@@ -67,24 +68,16 @@ Direct SQL updates, database migrations, and writes from external microservices 
 
 CDC captures every database change at the database level, translates it into a cache invalidation pattern, and broadcasts it to all instances via pub/sub:
 
-```
-Database Change (any source)
-    │
-    ▼
-CDC Connector (detects change)
-    │
-    ▼
-QueryCacheInvalidationCdcHandler
-    ├── 1. Resolve entity type from table name
-    ├── 2. Generate pattern: {prefix}:*:{entityType}:*
-    ├── 3. Invalidate LOCAL cache via ICacheProvider.RemoveByPatternAsync()
-    └── 4. Broadcast pattern via IPubSubProvider.PublishAsync()
-              │
-              ▼
-    CacheInvalidationSubscriberService (all instances)
-              │
-              ▼
-    ICacheProvider.RemoveByPatternAsync() on each instance
+```mermaid
+flowchart TD
+    A["Database Change<br/>(any source)"] --> B["CDC Connector<br/>(detects change)"]
+    B --> C["QueryCacheInvalidationCdcHandler"]
+    C --> C1["1. Resolve entity type from table name"]
+    C --> C2["2. Generate pattern: prefix:*:entityType:*"]
+    C --> C3["3. Invalidate LOCAL cache via<br/>ICacheProvider.RemoveByPatternAsync"]
+    C --> C4["4. Broadcast pattern via<br/>IPubSubProvider.PublishAsync"]
+    C4 --> D["CacheInvalidationSubscriberService<br/>(all instances)"]
+    D --> E["ICacheProvider.RemoveByPatternAsync<br/>on each instance"]
 ```
 
 ---

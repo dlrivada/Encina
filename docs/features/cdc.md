@@ -215,18 +215,14 @@ The `CdcProcessor` runs as a `BackgroundService` and starts automatically with y
 
 ## Architecture
 
-```text
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐      ┌───────────────────────┐
-│  Database    │────▶│ ICdcConnector │────▶│ CdcProcessor │────▶│ ICdcDispatcher        │
-│  (changes)   │      │ (provider)   │      │ (background) │      │ (routes by table)     │
-└──────────────┘      └──────────────┘      └──────────────┘      └───────┬───────────────┘
-                                                                          │
-                                              ┌───────────────────────────┼────────────────┐
-                                              ▼                           ▼                ▼
-                                    ┌────────────────────┐  ┌─────────────────────┐  ┌──────────────────┐
-                                    │ IChangeEventHandler│  │ ICdcEventInterceptor│  │ ICdcPositionStore│
-                                    │ <Order>            │  │ (MessagingBridge)   │  │ (saves progress) │
-                                    └────────────────────┘  └─────────────────────┘  └──────────────────┘
+```mermaid
+flowchart LR
+    A["Database<br/>(changes)"] --> B["ICdcConnector<br/>(provider)"]
+    B --> C["CdcProcessor<br/>(background)"]
+    C --> D["ICdcDispatcher<br/>(routes by table)"]
+    D --> E["IChangeEventHandler<br/>(Order)"]
+    D --> F["ICdcEventInterceptor<br/>(MessagingBridge)"]
+    D --> G["ICdcPositionStore<br/>(saves progress)"]
 ```
 
 ### Processing Loop

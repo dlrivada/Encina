@@ -250,25 +250,16 @@ POST|/api/orders|a1b2c3d4e5f6...(SHA-256 hex)|2026-02-21T10:30:00.0000000+00:00|
 
 The `HMACValidationPipelineBehavior` automatically validates incoming requests decorated with `[RequireSignature]`:
 
-```
-Incoming HTTP Request
-        │
-        ▼
-┌──────────────────────────────────┐
-│  HMACValidationPipelineBehavior  │
-│                                  │
-│  1. Check [RequireSignature]     │
-│  2. Extract HTTP headers         │
-│  3. Validate timestamp tolerance │
-│  4. Validate nonce uniqueness    │
-│  5. Verify HMAC signature        │
-│                                  │
-│  ✅ Pass → next pipeline step    │
-│  ❌ Fail → return EncinaError    │
-└──────────────────────────────────┘
-        │
-        ▼
-   Command Handler
+```mermaid
+flowchart TD
+    A["Incoming HTTP Request"] --> B["HMACValidationPipelineBehavior"]
+    B --> B1["1. Check RequireSignature"]
+    B1 --> B2["2. Extract HTTP headers"]
+    B2 --> B3["3. Validate timestamp tolerance"]
+    B3 --> B4["4. Validate nonce uniqueness"]
+    B4 --> B5["5. Verify HMAC signature"]
+    B5 -->|Pass| C["Command Handler"]
+    B5 -->|Fail| D["Return EncinaError"]
 ```
 
 ### RequireSignature Attribute Options

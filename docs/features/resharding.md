@@ -26,35 +26,21 @@ Online data resharding across shards with a 6-phase workflow, crash recovery, au
 
 When a shard topology changes (adding, removing, or rebalancing shards), the data distributed across shards must be migrated to match the new topology. Doing this manually is error-prone, slow, and risks downtime. Encina provides `IReshardingOrchestrator` to automate the full data migration workflow with minimal downtime, crash recovery, automatic rollback, and real-time progress tracking.
 
-```text
-+---------------------------------------------------------------------+
-|              Online Resharding Workflow (6 Phases)                  |
-|                                                                     |
-|  orchestrator.PlanAsync(request, ct)                                |
-|              |                                                      |
-|              v                                                      |
-|  Phase 1: Planning ─── Generate migration steps from topology diff  |
-|              |                                                      |
-|  orchestrator.ExecuteAsync(plan, options, ct)                       |
-|              |                                                      |
-|              v                                                      |
-|  Phase 2: Copying ──── Bulk copy rows (batched, resumable)          |
-|              |                                                      |
-|              v                                                      |
-|  Phase 3: Replicating ─ CDC catch-up for changes during copy        |
-|              |                                                      |
-|              v                                                      |
-|  Phase 4: Verifying ── Row count + checksum validation              |
-|              |                                                      |
-|              v                                                      |
-|  Phase 5: CuttingOver ─ Atomic topology switch (brief read-only)    |
-|              |                                                      |
-|              v                                                      |
-|  Phase 6: CleaningUp ─ Remove migrated rows from source shards      |
-|              |                                                      |
-|              v                                                      |
-|          Completed                                                  |
-+---------------------------------------------------------------------+
+```mermaid
+flowchart TD
+    PLAN["orchestrator.PlanAsync(request, ct)"]
+    P1["Phase 1: Planning<br/>Generate migration steps from topology diff"]
+    EXEC["orchestrator.ExecuteAsync(plan, options, ct)"]
+    P2["Phase 2: Copying<br/>Bulk copy rows (batched, resumable)"]
+    P3["Phase 3: Replicating<br/>CDC catch-up for changes during copy"]
+    P4["Phase 4: Verifying<br/>Row count + checksum validation"]
+    P5["Phase 5: CuttingOver<br/>Atomic topology switch (brief read-only)"]
+    P6["Phase 6: CleaningUp<br/>Remove migrated rows from source shards"]
+    DONE["Completed"]
+
+    PLAN --> P1
+    P1 --> EXEC
+    EXEC --> P2 --> P3 --> P4 --> P5 --> P6 --> DONE
 ```
 
 All operations return `Either<EncinaError, T>` following Encina's Railway Oriented Programming pattern.
@@ -115,10 +101,15 @@ The resharding workflow progresses through six sequential phases. Each phase per
 
 Generates the resharding plan by analyzing the difference between the old and new topologies.
 
-```text
-Old Topology: [shard-0, shard-1]        New Topology: [shard-0, shard-1, shard-2]
-    Hash Ring: 0────────50%────────100%      Hash Ring: 0────33%────66%────100%
-               ├── shard-0 ──┤── shard-1 ─┤             ├─ s0 ─┤─ s1 ─┤─ s2 ─┤
+```mermaid
+flowchart LR
+    subgraph Old["Old Topology: shard-0, shard-1"]
+        OH["Hash Ring: 0% --- 50% --- 100%<br/>shard-0: 0-50% | shard-1: 50-100%"]
+    end
+    subgraph New["New Topology: shard-0, shard-1, shard-2"]
+        NH["Hash Ring: 0% --- 33% --- 66% --- 100%<br/>s0: 0-33% | s1: 33-66% | s2: 66-100%"]
+    end
+    Old --> New
 ```
 
 The planner produces a `ReshardingPlan` containing `ShardMigrationStep` records, each describing a source shard, target shard, key range, and estimated row count.
@@ -237,17 +228,13 @@ All methods return `Either<EncinaError, T>`.
 
 ### Recovery Flow
 
-```text
-Process restarts
-       |
-       v
-stateStore.GetActiveReshardingsAsync()
-       |
-       v
-For each active state:
-  - Read LastCompletedPhase
-  - Read Checkpoint (batch position, CDC position)
-  - Resume from next phase after LastCompletedPhase
+```mermaid
+flowchart TD
+    A["Process restarts"] --> B["stateStore.GetActiveReshardingsAsync()"]
+    B --> C["For each active state"]
+    C --> D["Read LastCompletedPhase"]
+    D --> E["Read Checkpoint<br/>(batch position, CDC position)"]
+    E --> F["Resume from next phase<br/>after LastCompletedPhase"]
 ```
 
 ---

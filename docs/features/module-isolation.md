@@ -41,26 +41,27 @@ In a modular monolith architecture, modules represent bounded contexts with thei
 
 ### How It Works
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Application                                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                   │
-│  │ Orders Module│  │Payments Module│  │Inventory Module│                │
-│  │              │  │              │  │              │                   │
-│  │ [orders_user]│  │[payments_user]│  │[inventory_user]│                │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                   │
-│         │                 │                 │                            │
-│  ═══════╪═════════════════╪═════════════════╪═══════  Isolation Layer   │
-│         │                 │                 │                            │
-│  ┌──────▼───────┐  ┌──────▼───────┐  ┌──────▼───────┐  ┌──────────────┐ │
-│  │ orders schema│  │payments schema│  │inventory     │  │ shared schema│ │
-│  │              │  │              │  │ schema       │  │  (read-only) │ │
-│  │ ✓ FULL ACCESS│  │ ✓ FULL ACCESS│  │ ✓ FULL ACCESS│  │ ✓ SELECT only│ │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
-│                                                                          │
-│                            Database                                      │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph App["Application"]
+        OM["Orders Module<br/>(orders_user)"]
+        PM["Payments Module<br/>(payments_user)"]
+        IM["Inventory Module<br/>(inventory_user)"]
+    end
+
+    subgraph DB["Database"]
+        OS["orders schema<br/>FULL ACCESS"]
+        PS["payments schema<br/>FULL ACCESS"]
+        IS["inventory schema<br/>FULL ACCESS"]
+        SS["shared schema<br/>SELECT only"]
+    end
+
+    OM --> OS
+    PM --> PS
+    IM --> IS
+    OM -.-> SS
+    PM -.-> SS
+    IM -.-> SS
 ```
 
 ---
@@ -71,22 +72,17 @@ In a modular monolith architecture, modules represent bounded contexts with thei
 
 SQL statements are validated at runtime using regex pattern matching. No database-level permissions are required.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Application                              │
-├─────────────────────────────────────────────────────────────────┤
-│  Orders Module                                                   │
-│  ┌───────────────┐                                              │
-│  │ SELECT * FROM │  ──► SqlSchemaExtractor validates schemas    │
-│  │ orders.Orders │                                               │
-│  └───────────────┘      ✓ Valid: "orders" is allowed            │
-│                                                                  │
-│  ┌───────────────┐                                              │
-│  │ SELECT * FROM │  ──► SqlSchemaExtractor validates schemas    │
-│  │payments.Payments│                                             │
-│  └───────────────┘      ✗ Invalid: "payments" not allowed       │
-│                         → Throws ModuleIsolationViolationException│
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph App["Application — Orders Module"]
+        Q1["SELECT * FROM<br/>orders.Orders"]
+        Q2["SELECT * FROM<br/>payments.Payments"]
+    end
+    Q1 -->|"SqlSchemaExtractor<br/>validates"| V1["Valid: orders is allowed"]
+    Q2 -->|"SqlSchemaExtractor<br/>validates"| V2["Invalid: payments not allowed<br/>Throws ModuleIsolationViolationException"]
+
+    style V1 fill:#d4edda,stroke:#28a745
+    style V2 fill:#f8d7da,stroke:#dc3545
 ```
 
 **Pros:**
@@ -107,19 +103,18 @@ SQL statements are validated at runtime using regex pattern matching. No databas
 
 Each module has a dedicated database user with limited permissions. The database itself enforces isolation.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Application                              │
-├─────────────────────────────────────────────────────────────────┤
-│  Orders Module                                                   │
-│  ┌───────────────┐                                              │
-│  │ Connection:   │                                              │
-│  │ orders_user   │  ──► Database: orders_user permissions       │
-│  └───────────────┘                                               │
-│                         ✓ orders schema: FULL ACCESS            │
-│                         ✓ shared schema: SELECT only            │
-│                         ✗ payments schema: NO ACCESS            │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph App["Application — Orders Module"]
+        C["Connection:<br/>orders_user"]
+    end
+    C -->|"DB permissions"| P1["orders schema: FULL ACCESS"]
+    C -->|"DB permissions"| P2["shared schema: SELECT only"]
+    C -.-x P3["payments schema: NO ACCESS"]
+
+    style P1 fill:#d4edda,stroke:#28a745
+    style P2 fill:#fff3cd,stroke:#ffc107
+    style P3 fill:#f8d7da,stroke:#dc3545
 ```
 
 **Pros:**
@@ -141,24 +136,14 @@ Each module has a dedicated database user with limited permissions. The database
 
 Each module uses a completely separate connection string, enabling different servers/databases.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Application                              │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐  ┌──────────────────┐                     │
-│  │   Orders Module   │  │  Payments Module  │                    │
-│  │                   │  │                   │                    │
-│  │ Connection String:│  │ Connection String:│                    │
-│  │ Server=orders-db  │  │ Server=payments-db│                    │
-│  │ User=orders_user  │  │ User=payments_user│                    │
-│  └─────────┬─────────┘  └─────────┬─────────┘                    │
-│            │                       │                              │
-│            ▼                       ▼                              │
-│  ┌─────────────────┐    ┌─────────────────┐                      │
-│  │  orders-db      │    │  payments-db    │                      │
-│  │  (dedicated)    │    │  (dedicated)    │                      │
-│  └─────────────────┘    └─────────────────┘                      │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph App["Application"]
+        OM["Orders Module<br/>Server=orders-db<br/>User=orders_user"]
+        PM["Payments Module<br/>Server=payments-db<br/>User=payments_user"]
+    end
+    OM --> ODB[("orders-db<br/>(dedicated)")]
+    PM --> PDB[("payments-db<br/>(dedicated)")]
 ```
 
 **Pros:**
@@ -922,33 +907,13 @@ CREATE INDEX IX_Orders_TenantId ON [orders].[Orders] ([TenantId]);
 
 ### Request Flow
 
-```
-HTTP Request
-    │
-    ▼
-┌─────────────────┐
-│ Tenant Resolver │  ──► TenantId = "acme"
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Module Context  │  ──► ModuleName = "Orders"
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  SQL Generator  │  ──► WHERE TenantId = 'acme'
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  SQL Validator  │  ──► Validates schema access
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│    Database     │  ──► Uses orders_user credentials
-└─────────────────┘
+```mermaid
+flowchart TD
+    A["HTTP Request"] --> B["Tenant Resolver<br/>TenantId = acme"]
+    B --> C["Module Context<br/>ModuleName = Orders"]
+    C --> D["SQL Generator<br/>WHERE TenantId = 'acme'"]
+    D --> E["SQL Validator<br/>Validates schema access"]
+    E --> F["Database<br/>Uses orders_user credentials"]
 ```
 
 ---

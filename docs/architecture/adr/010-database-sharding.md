@@ -38,11 +38,13 @@ Sharding is a well-established pattern, but implementations vary significantly:
 
 ### Core Abstraction Chain
 
-```text
-Entity  →  ShardKeyExtractor  →  IShardRouter  →  ShardTopology  →  Factory  →  Connection/Context
-                                       │
-                           ┌────────────┼────────────┐──────────────┐
-                     HashShardRouter  RangeShardRouter  DirectoryShardRouter  GeoShardRouter
+```mermaid
+flowchart LR
+    Entity --> ShardKeyExtractor --> IShardRouter --> ShardTopology --> Factory --> ConnectionContext["Connection / Context"]
+    IShardRouter --> HashShardRouter
+    IShardRouter --> RangeShardRouter
+    IShardRouter --> DirectoryShardRouter
+    IShardRouter --> GeoShardRouter
 ```
 
 The sharding architecture is a pipeline:
@@ -118,22 +120,28 @@ All steps return `Either<EncinaError, T>` following the project's Railway Orient
 
 MongoDB supports two distinct sharding modes controlled by `MongoDbShardingOptions.UseNativeSharding`:
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    Native Mode (default)                     │
-│  App ──► mongos ──► shard1 / shard2 / shard3                │
-│  • MongoDB handles routing transparently                     │
-│  • Configure shard key via ConfigureShardKey                 │
-│  • Recommended for production                                │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph native["Native Mode (default)"]
+        direction LR
+        A1["App"] --> A2["mongos"] --> A3["shard1 / shard2 / shard3"]
+    end
+    subgraph native_notes [" "]
+        direction TB
+        N1["MongoDB handles routing transparently<br/>Configure shard key via ConfigureShardKey<br/>Recommended for production"]
+    end
 
-┌─────────────────────────────────────────────────────────────┐
-│                  App-Level Mode (fallback)                    │
-│  App ──► IShardRouter ──► mongod1 / mongod2 / mongod3       │
-│  • Encina routes at application level                        │
-│  • Requires AddEncinaSharding<TEntity>() topology            │
-│  • Use for dev/test or when mongos is unavailable            │
-└─────────────────────────────────────────────────────────────┘
+    subgraph applevel["App-Level Mode (fallback)"]
+        direction LR
+        B1["App"] --> B2["IShardRouter"] --> B3["mongod1 / mongod2 / mongod3"]
+    end
+    subgraph applevel_notes [" "]
+        direction TB
+        N2["Encina routes at application level<br/>Requires AddEncinaSharding&lt;TEntity&gt;() topology<br/>Use for dev/test or when mongos is unavailable"]
+    end
+
+    native --- native_notes
+    applevel --- applevel_notes
 ```
 
 ### Cross-Shard Query Execution

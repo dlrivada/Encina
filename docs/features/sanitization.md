@@ -327,8 +327,14 @@ options.UseHtmlSanitizer(sanitizer =>
 
 The sanitization behaviors integrate with the Encina CQRS pipeline:
 
-```
-Request → Validation → Security → [Input Sanitization] → Handler → [Output Encoding] → Response
+```mermaid
+flowchart LR
+    A["Request"] --> B["Validation"]
+    B --> C["Security"]
+    C --> D["Input Sanitization"]
+    D --> E["Handler"]
+    E --> F["Output Encoding"]
+    F --> G["Response"]
 ```
 
 1. **Input Sanitization** (pre-handler): Cleans request properties before the handler sees them

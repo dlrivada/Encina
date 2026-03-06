@@ -307,11 +307,20 @@ When the lawful basis is `Consent`, the pipeline behavior can validate that the 
 
 ### Architecture
 
-```
-Encina.Compliance.GDPR                    Encina.Compliance.Consent
-├── IConsentStatusProvider (interface)     ├── ConsentStatusProviderAdapter (implements IConsentStatusProvider)
-├── ILawfulBasisSubjectIdExtractor        └── Registered automatically by AddEncinaConsent()
-└── LawfulBasisValidationPipelineBehavior
+```mermaid
+flowchart LR
+    subgraph GDPR["Encina.Compliance.GDPR"]
+        A["IConsentStatusProvider<br/>(interface)"]
+        B["ILawfulBasisSubjectIdExtractor"]
+        C["LawfulBasisValidation<br/>PipelineBehavior"]
+    end
+
+    subgraph Consent["Encina.Compliance.Consent"]
+        D["ConsentStatusProviderAdapter<br/>(implements IConsentStatusProvider)"]
+        E["Registered automatically<br/>by AddEncinaConsent()"]
+    end
+
+    D -.->|implements| A
 ```
 
 ### Setup

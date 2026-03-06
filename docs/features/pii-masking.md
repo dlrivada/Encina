@@ -230,15 +230,18 @@ options.AddSensitiveFieldPattern("accessToken");
 
 The `PIIMaskingPipelineBehavior` operates as a post-handler behavior:
 
-```
-Request → Handler → Response → PIIMaskingPipelineBehavior → Masked Response
-                                    ↓
-                              1. Check MaskInResponses option
-                              2. Check for PII attributes on response type
-                              3. JSON deep-copy response
-                              4. Apply strategies to decorated properties
-                              5. Apply sensitive field patterns
-                              6. Return masked copy
+```mermaid
+flowchart LR
+    A["Request"] --> B["Handler"]
+    B --> C["Response"]
+    C --> D["PIIMaskingPipelineBehavior"]
+    D --> E["Masked Response"]
+
+    D --- D1["1. Check MaskInResponses option"]
+    D --- D2["2. Check for PII attributes on response type"]
+    D --- D3["3. JSON deep-copy response"]
+    D --- D4["4. Apply strategies to decorated properties"]
+    D --- D5["5. Apply sensitive field patterns"]
 ```
 
 **Skip conditions** (zero overhead):

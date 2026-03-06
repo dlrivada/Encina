@@ -4,21 +4,16 @@ Production-ready observability solution using OpenTelemetry, Prometheus, Jaeger,
 
 ## 🎯 Stack Overview
 
-```
-.NET Application
-      ↓
-OpenTelemetry SDK
-      ↓
-OpenTelemetry Collector (OTLP receiver)
-      ↓
-   ┌──┴──────┬──────────┐
-   ↓         ↓          ↓
-Prometheus  Jaeger     Loki
-(Metrics)   (Traces)   (Logs)
-   └──┬──────┴──────────┘
-      ↓
-   Grafana
-(Unified Dashboards)
+```mermaid
+flowchart TD
+    App[".NET Application"] --> SDK["OpenTelemetry SDK"]
+    SDK --> Collector["OpenTelemetry Collector<br/>(OTLP receiver)"]
+    Collector --> Prometheus["Prometheus<br/>(Metrics)"]
+    Collector --> Jaeger["Jaeger<br/>(Traces)"]
+    Collector --> Loki["Loki<br/>(Logs)"]
+    Prometheus --> Grafana["Grafana<br/>(Unified Dashboards)"]
+    Jaeger --> Grafana
+    Loki --> Grafana
 ```
 
 ## 🚀 Quick Start
