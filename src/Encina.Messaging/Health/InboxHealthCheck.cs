@@ -1,5 +1,7 @@
 using Encina.Messaging.Inbox;
 
+using LanguageExt;
+
 namespace Encina.Messaging.Health;
 
 /// <summary>
@@ -33,9 +35,19 @@ public class InboxHealthCheck : EncinaHealthCheck
     protected override async Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
         // Try to query expired messages as a connectivity check
-        var expiredMessages = await _store.GetExpiredMessagesAsync(
+        var expiredResult = await _store.GetExpiredMessagesAsync(
             batchSize: 1,
             cancellationToken).ConfigureAwait(false);
+
+        if (expiredResult.IsLeft)
+        {
+            var storeError = expiredResult.LeftToArray()[0];
+            return HealthCheckResult.Unhealthy(
+                $"Failed to query inbox store: {storeError.Message}",
+                data: new Dictionary<string, object> { ["error"] = storeError.Message });
+        }
+
+        var expiredMessages = expiredResult.Match(Right: msgs => msgs, Left: _ => Enumerable.Empty<IInboxMessage>());
 
         var data = new Dictionary<string, object>
         {

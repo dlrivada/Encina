@@ -87,8 +87,9 @@ public sealed class InboxStoreEFMySqlTests : IAsyncLifetime
         var result = await store.GetMessageAsync(messageId);
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.MessageId.ShouldBe(messageId);
+        var option = result.ShouldBeRight();
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(msg => msg.MessageId.ShouldBe(messageId));
     }
 
     [Fact]

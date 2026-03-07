@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Messaging.Scheduling;
 
 /// <summary>
@@ -13,6 +15,10 @@ namespace Encina.Messaging.Scheduling;
 /// <item><description><b>Custom</b>: Redis, distributed schedulers, etc.</description></item>
 /// </list>
 /// </para>
+/// <para>
+/// All methods return <c>Either&lt;EncinaError, T&gt;</c> following the Railway Oriented Programming
+/// pattern. Infrastructure failures are captured as <c>Left</c> values instead of throwing exceptions.
+/// </para>
 /// </remarks>
 public interface IScheduledMessageStore
 {
@@ -21,7 +27,8 @@ public interface IScheduledMessageStore
     /// </summary>
     /// <param name="message">The scheduled message to add.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets messages that are due for execution.
@@ -29,8 +36,8 @@ public interface IScheduledMessageStore
     /// <param name="batchSize">Maximum number of messages to retrieve.</param>
     /// <param name="maxRetries">Maximum number of retries before dead lettering.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of due messages.</returns>
-    Task<IEnumerable<IScheduledMessage>> GetDueMessagesAsync(
+    /// <returns>Right(messages) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, IEnumerable<IScheduledMessage>>> GetDueMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default);
@@ -40,7 +47,8 @@ public interface IScheduledMessageStore
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a message as failed and schedules retry.
@@ -49,7 +57,8 @@ public interface IScheduledMessageStore
     /// <param name="errorMessage">The error message.</param>
     /// <param name="nextRetryAtUtc">When to retry next (UTC).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task MarkAsFailedAsync(
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -61,7 +70,8 @@ public interface IScheduledMessageStore
     /// <param name="messageId">The message ID.</param>
     /// <param name="nextScheduledAtUtc">When to execute next (UTC).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task RescheduleRecurringMessageAsync(
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> RescheduleRecurringMessageAsync(
         Guid messageId,
         DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default);
@@ -71,11 +81,13 @@ public interface IScheduledMessageStore
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Saves all pending changes (for stores that support it like EF Core).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task SaveChangesAsync(CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

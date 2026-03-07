@@ -24,9 +24,10 @@ namespace Encina.Security.Encryption.Abstractions;
 /// // Encrypting a string field
 /// var context = new EncryptionContext { Purpose = "UserProfile.Email" };
 /// var result = await encryptor.EncryptStringAsync("user@example.com", context);
-/// var encrypted = result.Match(
-///     Right: value => value,
-///     Left: error => throw new InvalidOperationException(error.Message));
+/// // Handle the result with pattern matching
+/// result.Match(
+///     Right: value => ProcessEncrypted(value),
+///     Left: error => logger.LogError("Encryption failed: {Error}", error.Message));
 ///
 /// // Decrypting back
 /// var decrypted = await encryptor.DecryptStringAsync(encrypted, context);

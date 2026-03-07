@@ -24,9 +24,10 @@ public sealed class FakeSagaStoreTests
         };
 
         // Act
-        await _sut.AddAsync(saga);
+        var result = await _sut.AddAsync(saga);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         _sut.GetSagas().Count.ShouldBe(1);
         _sut.GetAddedSagas().Count.ShouldBe(1);
         _sut.GetSaga(saga.SagaId).ShouldNotBeNull();
@@ -56,18 +57,22 @@ public sealed class FakeSagaStoreTests
         var result = await _sut.GetAsync(saga.SagaId);
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.SagaId.ShouldBe(saga.SagaId);
+        result.IsRight.ShouldBeTrue();
+        var option = result.Match(Right: r => r, Left: _ => default);
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(s => s.SagaId.ShouldBe(saga.SagaId));
     }
 
     [Fact]
-    public async Task GetAsync_ReturnsNullForNonExistent()
+    public async Task GetAsync_ReturnsNoneForNonExistent()
     {
         // Act
         var result = await _sut.GetAsync(Guid.NewGuid());
 
         // Assert
-        result.ShouldBeNull();
+        result.IsRight.ShouldBeTrue();
+        var option = result.Match(Right: r => r, Left: _ => default);
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -88,9 +93,10 @@ public sealed class FakeSagaStoreTests
         saga.Status = "Completed";
         saga.CurrentStep = 3;
         saga.CompletedAtUtc = DateTime.UtcNow;
-        await _sut.UpdateAsync(saga);
+        var result = await _sut.UpdateAsync(saga);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         var updated = _sut.GetSaga(saga.SagaId);
         updated!.Status.ShouldBe("Completed");
         updated.CurrentStep.ShouldBe(3);
@@ -131,9 +137,11 @@ public sealed class FakeSagaStoreTests
         await _sut.AddAsync(activeSaga);
 
         // Act
-        var stuck = await _sut.GetStuckSagasAsync(olderThan: TimeSpan.FromHours(1), batchSize: 10);
+        var result = await _sut.GetStuckSagasAsync(olderThan: TimeSpan.FromHours(1), batchSize: 10);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var stuck = result.Match(Right: r => r, Left: _ => default!);
         stuck.Count().ShouldBe(1);
         stuck.First().SagaId.ShouldBe(stuckSaga.SagaId);
     }
@@ -164,9 +172,11 @@ public sealed class FakeSagaStoreTests
         await _sut.AddAsync(activeSaga);
 
         // Act
-        var expired = await _sut.GetExpiredSagasAsync(batchSize: 10);
+        var result = await _sut.GetExpiredSagasAsync(batchSize: 10);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var expired = result.Match(Right: r => r, Left: _ => default!);
         expired.Count().ShouldBe(1);
         expired.First().SagaId.ShouldBe(expiredSaga.SagaId);
     }

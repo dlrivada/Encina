@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Inbox;
+using LanguageExt;
 using MySqlConnector;
 
 namespace Encina.ADO.MySQL.Inbox;
@@ -58,113 +59,122 @@ public sealed class InboxStoreADO : IInboxStore
     }
 
     /// <inheritdoc />
-    public async Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-        var sql = $@"
-            SELECT *
-            FROM {_tableName}
-            WHERE {ColumnMessageId} = {ParamMessageId}";
-
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, ParamMessageId, messageId);
-
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
-
-        using var reader = await ExecuteReaderAsync(command, cancellationToken);
-        if (await ReadAsync(reader, cancellationToken))
+        return await EitherHelpers.TryAsync(async () =>
         {
-            return new InboxMessage
-            {
-                MessageId = reader.GetString(reader.GetOrdinal(ColumnMessageId)),
-                RequestType = reader.GetString(reader.GetOrdinal(ColumnRequestType)),
-                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnReceivedAtUtc)),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnProcessedAtUtc))
-                    ? null
-                    : reader.GetDateTime(reader.GetOrdinal(ColumnProcessedAtUtc)),
-                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnExpiresAtUtc)),
-                Response = reader.IsDBNull(reader.GetOrdinal(ColumnResponse))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal(ColumnResponse)),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal(ColumnErrorMessage))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal(ColumnErrorMessage)),
-                RetryCount = reader.GetInt32(reader.GetOrdinal(ColumnRetryCount)),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnNextRetryAtUtc))
-                    ? null
-                    : reader.GetDateTime(reader.GetOrdinal(ColumnNextRetryAtUtc)),
-                Metadata = reader.IsDBNull(reader.GetOrdinal(ColumnMetadata))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal(ColumnMetadata))
-            };
-        }
+            var sql = $@"
+                SELECT *
+                FROM {_tableName}
+                WHERE {ColumnMessageId} = {ParamMessageId}";
 
-        return null;
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, ParamMessageId, messageId);
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            if (await ReadAsync(reader, cancellationToken))
+            {
+                return Option<IInboxMessage>.Some(new InboxMessage
+                {
+                    MessageId = reader.GetString(reader.GetOrdinal(ColumnMessageId)),
+                    RequestType = reader.GetString(reader.GetOrdinal(ColumnRequestType)),
+                    ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnReceivedAtUtc)),
+                    ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnProcessedAtUtc))
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal(ColumnProcessedAtUtc)),
+                    ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnExpiresAtUtc)),
+                    Response = reader.IsDBNull(reader.GetOrdinal(ColumnResponse))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal(ColumnResponse)),
+                    ErrorMessage = reader.IsDBNull(reader.GetOrdinal(ColumnErrorMessage))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal(ColumnErrorMessage)),
+                    RetryCount = reader.GetInt32(reader.GetOrdinal(ColumnRetryCount)),
+                    NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnNextRetryAtUtc))
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal(ColumnNextRetryAtUtc)),
+                    Metadata = reader.IsDBNull(reader.GetOrdinal(ColumnMetadata))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal(ColumnMetadata))
+                });
+            }
+
+            return Option<IInboxMessage>.None;
+        }, "inbox.get_message_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var sql = $@"
-            INSERT INTO {_tableName}
-            ({ColumnMessageId}, {ColumnRequestType}, {ColumnReceivedAtUtc}, {ColumnProcessedAtUtc}, {ColumnExpiresAtUtc}, {ColumnResponse}, {ColumnErrorMessage}, {ColumnRetryCount}, {ColumnNextRetryAtUtc}, {ColumnMetadata})
-            VALUES
-            ({ParamMessageId}, {ParamRequestType}, {ParamReceivedAtUtc}, {ParamProcessedAtUtc}, {ParamExpiresAtUtc}, {ParamResponse}, {ParamErrorMessage}, {ParamRetryCount}, {ParamNextRetryAtUtc}, {ParamMetadata})";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                INSERT INTO {_tableName}
+                ({ColumnMessageId}, {ColumnRequestType}, {ColumnReceivedAtUtc}, {ColumnProcessedAtUtc}, {ColumnExpiresAtUtc}, {ColumnResponse}, {ColumnErrorMessage}, {ColumnRetryCount}, {ColumnNextRetryAtUtc}, {ColumnMetadata})
+                VALUES
+                ({ParamMessageId}, {ParamRequestType}, {ParamReceivedAtUtc}, {ParamProcessedAtUtc}, {ParamExpiresAtUtc}, {ParamResponse}, {ParamErrorMessage}, {ParamRetryCount}, {ParamNextRetryAtUtc}, {ParamMetadata})";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, ParamMessageId, message.MessageId);
-        AddParameter(command, ParamRequestType, message.RequestType);
-        AddParameter(command, ParamReceivedAtUtc, message.ReceivedAtUtc);
-        AddParameter(command, ParamProcessedAtUtc, message.ProcessedAtUtc);
-        AddParameter(command, ParamExpiresAtUtc, message.ExpiresAtUtc);
-        AddParameter(command, ParamResponse, message.Response);
-        AddParameter(command, ParamErrorMessage, message.ErrorMessage);
-        AddParameter(command, ParamRetryCount, message.RetryCount);
-        AddParameter(command, ParamNextRetryAtUtc, message.NextRetryAtUtc);
-        AddParameter(command, ParamMetadata, (message as InboxMessage)?.Metadata);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, ParamMessageId, message.MessageId);
+            AddParameter(command, ParamRequestType, message.RequestType);
+            AddParameter(command, ParamReceivedAtUtc, message.ReceivedAtUtc);
+            AddParameter(command, ParamProcessedAtUtc, message.ProcessedAtUtc);
+            AddParameter(command, ParamExpiresAtUtc, message.ExpiresAtUtc);
+            AddParameter(command, ParamResponse, message.Response);
+            AddParameter(command, ParamErrorMessage, message.ErrorMessage);
+            AddParameter(command, ParamRetryCount, message.RetryCount);
+            AddParameter(command, ParamNextRetryAtUtc, message.NextRetryAtUtc);
+            AddParameter(command, ParamMetadata, (message as InboxMessage)?.Metadata);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "inbox.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(
         string messageId,
-        string? response,
+        string response,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageId);
 
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var sql = $@"
-            UPDATE {_tableName}
-            SET {ColumnProcessedAtUtc} = @NowUtc,
-                {ColumnResponse} = {ParamResponse},
-                {ColumnErrorMessage} = NULL
-            WHERE {ColumnMessageId} = {ParamMessageId}";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET {ColumnProcessedAtUtc} = @NowUtc,
+                    {ColumnResponse} = {ParamResponse},
+                    {ColumnErrorMessage} = NULL
+                WHERE {ColumnMessageId} = {ParamMessageId}";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, ParamMessageId, messageId);
-        AddParameter(command, ParamResponse, response);
-        AddParameter(command, "@NowUtc", nowUtc);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, ParamMessageId, messageId);
+            AddParameter(command, ParamResponse, response);
+            AddParameter(command, "@NowUtc", nowUtc);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "inbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -173,131 +183,143 @@ public sealed class InboxStoreADO : IInboxStore
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
-        var sql = $@"
-            UPDATE {_tableName}
-            SET {ColumnErrorMessage} = {ParamErrorMessage},
-                {ColumnRetryCount} = {ColumnRetryCount} + 1,
-                {ColumnNextRetryAtUtc} = {ParamNextRetryAtUtc}
-            WHERE {ColumnMessageId} = {ParamMessageId}";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET {ColumnErrorMessage} = {ParamErrorMessage},
+                    {ColumnRetryCount} = {ColumnRetryCount} + 1,
+                    {ColumnNextRetryAtUtc} = {ParamNextRetryAtUtc}
+                WHERE {ColumnMessageId} = {ParamMessageId}";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, ParamMessageId, messageId);
-        AddParameter(command, ParamErrorMessage, errorMessage);
-        AddParameter(command, ParamNextRetryAtUtc, nextRetryAtUtc);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, ParamMessageId, messageId);
+            AddParameter(command, ParamErrorMessage, errorMessage);
+            AddParameter(command, ParamNextRetryAtUtc, nextRetryAtUtc);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "inbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IInboxMessage>> GetExpiredMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
         if (batchSize <= 0)
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var sql = $@"
-            SELECT *
-            FROM {_tableName}
-            WHERE {ColumnExpiresAtUtc} < @NowUtc
-              AND {ColumnProcessedAtUtc} IS NOT NULL
-            ORDER BY {ColumnExpiresAtUtc}
-            LIMIT {ParamBatchSize}";
-
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, ParamBatchSize, batchSize);
-        AddParameter(command, "@NowUtc", nowUtc);
-
-        var messages = new List<InboxMessage>();
-
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
-
-        using var reader = await ExecuteReaderAsync(command, cancellationToken);
-        while (await ReadAsync(reader, cancellationToken))
+        return await EitherHelpers.TryAsync(async () =>
         {
-            messages.Add(new InboxMessage
-            {
-                MessageId = reader.GetString(reader.GetOrdinal(ColumnMessageId)),
-                RequestType = reader.GetString(reader.GetOrdinal(ColumnRequestType)),
-                ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnReceivedAtUtc)),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnProcessedAtUtc))
-                    ? null
-                    : reader.GetDateTime(reader.GetOrdinal(ColumnProcessedAtUtc)),
-                ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnExpiresAtUtc)),
-                Response = reader.IsDBNull(reader.GetOrdinal(ColumnResponse))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal(ColumnResponse)),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal(ColumnErrorMessage))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal(ColumnErrorMessage)),
-                RetryCount = reader.GetInt32(reader.GetOrdinal(ColumnRetryCount)),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnNextRetryAtUtc))
-                    ? null
-                    : reader.GetDateTime(reader.GetOrdinal(ColumnNextRetryAtUtc)),
-                Metadata = reader.IsDBNull(reader.GetOrdinal(ColumnMetadata))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal(ColumnMetadata))
-            });
-        }
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                SELECT *
+                FROM {_tableName}
+                WHERE {ColumnExpiresAtUtc} < @NowUtc
+                  AND {ColumnProcessedAtUtc} IS NOT NULL
+                ORDER BY {ColumnExpiresAtUtc}
+                LIMIT {ParamBatchSize}";
 
-        return messages;
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, ParamBatchSize, batchSize);
+            AddParameter(command, "@NowUtc", nowUtc);
+
+            var messages = new List<InboxMessage>();
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            while (await ReadAsync(reader, cancellationToken))
+            {
+                messages.Add(new InboxMessage
+                {
+                    MessageId = reader.GetString(reader.GetOrdinal(ColumnMessageId)),
+                    RequestType = reader.GetString(reader.GetOrdinal(ColumnRequestType)),
+                    ReceivedAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnReceivedAtUtc)),
+                    ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnProcessedAtUtc))
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal(ColumnProcessedAtUtc)),
+                    ExpiresAtUtc = reader.GetDateTime(reader.GetOrdinal(ColumnExpiresAtUtc)),
+                    Response = reader.IsDBNull(reader.GetOrdinal(ColumnResponse))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal(ColumnResponse)),
+                    ErrorMessage = reader.IsDBNull(reader.GetOrdinal(ColumnErrorMessage))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal(ColumnErrorMessage)),
+                    RetryCount = reader.GetInt32(reader.GetOrdinal(ColumnRetryCount)),
+                    NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal(ColumnNextRetryAtUtc))
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal(ColumnNextRetryAtUtc)),
+                    Metadata = reader.IsDBNull(reader.GetOrdinal(ColumnMetadata))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal(ColumnMetadata))
+                });
+            }
+
+            return (IEnumerable<IInboxMessage>)messages;
+        }, "inbox.get_expired_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task RemoveExpiredMessagesAsync(
+    public async Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(
         IEnumerable<string> messageIds,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
         if (!messageIds.Any())
-            return;
+            return Unit.Default;
 
-        var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
-        var sql = $@"
-            DELETE FROM {_tableName}
-            WHERE {ColumnMessageId} IN ({idList})";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var idList = string.Join(",", messageIds.Select(id => $"'{id.Replace("'", "''", StringComparison.Ordinal)}'"));
+            var sql = $@"
+                DELETE FROM {_tableName}
+                WHERE {ColumnMessageId} IN ({idList})";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-        var sql = $@"
-            UPDATE {_tableName}
-            SET {ColumnRetryCount} = {ColumnRetryCount} + 1
-            WHERE {ColumnMessageId} = {ParamMessageId}";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET {ColumnRetryCount} = {ColumnRetryCount} + 1
+                WHERE {ColumnMessageId} = {ParamMessageId}";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, ParamMessageId, messageId);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, ParamMessageId, messageId);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "inbox.increment_retry_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // ADO.NET executes SQL immediately, no need for SaveChanges
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 
     private static void AddParameter(IDbCommand command, string name, object? value)

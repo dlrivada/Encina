@@ -125,7 +125,7 @@ public sealed class InboxStoreDapperTests
 
         // Act & Assert
         await Should.ThrowAsync<ArgumentException>(async () =>
-            await store.MarkAsProcessedAsync(messageId!, null));
+            await store.MarkAsProcessedAsync(messageId!, string.Empty));
     }
 
     #endregion

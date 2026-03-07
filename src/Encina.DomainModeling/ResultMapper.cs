@@ -200,9 +200,8 @@ public static class ResultMapperExtensions
 
             if (result.IsLeft)
             {
-                return result.Match(
-                    Right: _ => throw new InvalidOperationException("Expected Left"),
-                    Left: error => error);
+                // Extract Left value without throwing — we already confirmed IsLeft above
+                return result.LeftToArray()[0];
             }
 
             result.IfRight(dto => results.Add(dto));
@@ -271,9 +270,8 @@ public static class ResultMapperExtensions
 
             if (result.IsLeft)
             {
-                return result.Match(
-                    Right: _ => throw new InvalidOperationException("Expected Left"),
-                    Left: error => error);
+                // Extract Left value without throwing — we already confirmed IsLeft above
+                return result.LeftToArray()[0];
             }
 
             result.IfRight(dto => results.Add(dto));

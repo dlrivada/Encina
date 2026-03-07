@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -40,8 +43,8 @@ public abstract class ScheduledMessageStoreEFTestsBase<TFixture, TContext> : EFC
         };
 
         // Act
-        await store.AddAsync(message);
-        await store.SaveChangesAsync();
+        (await store.AddAsync(message)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -96,10 +99,11 @@ public abstract class ScheduledMessageStoreEFTestsBase<TFixture, TContext> : EFC
         await context.SaveChangesAsync();
 
         // Act
-        var dueMessages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
+        var dueResult = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        var messageList = dueMessages.ToList();
+        dueResult.IsRight.ShouldBeTrue();
+        var messageList = dueResult.Match(Right: r => r.ToList(), Left: _ => []);
         messageList.Count.ShouldBe(1);
         messageList.ShouldContain(m => m.Id == dueMessage.Id);
     }
@@ -126,8 +130,8 @@ public abstract class ScheduledMessageStoreEFTestsBase<TFixture, TContext> : EFC
         await context.SaveChangesAsync();
 
         // Act
-        await store.MarkAsProcessedAsync(message.Id);
-        await store.SaveChangesAsync();
+        (await store.MarkAsProcessedAsync(message.Id)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -159,8 +163,8 @@ public abstract class ScheduledMessageStoreEFTestsBase<TFixture, TContext> : EFC
         var nextRetry = DateTime.UtcNow.AddMinutes(5);
 
         // Act
-        await store.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
-        await store.SaveChangesAsync();
+        (await store.MarkAsFailedAsync(message.Id, "Test error", nextRetry)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -192,8 +196,8 @@ public abstract class ScheduledMessageStoreEFTestsBase<TFixture, TContext> : EFC
         await context.SaveChangesAsync();
 
         // Act
-        await store.CancelAsync(message.Id);
-        await store.SaveChangesAsync();
+        (await store.CancelAsync(message.Id)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -226,8 +230,8 @@ public abstract class ScheduledMessageStoreEFTestsBase<TFixture, TContext> : EFC
         var nextScheduledTime = DateTime.UtcNow.AddHours(1);
 
         // Act
-        await store.RescheduleRecurringMessageAsync(originalMessage.Id, nextScheduledTime);
-        await store.SaveChangesAsync();
+        (await store.RescheduleRecurringMessageAsync(originalMessage.Id, nextScheduledTime)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();

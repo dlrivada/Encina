@@ -1,5 +1,6 @@
 using Encina.Testing;
 using Encina.Testing.Messaging;
+using LanguageExt;
 
 namespace Encina.UnitTests.Testing.Base.Messaging;
 
@@ -286,7 +287,9 @@ public sealed class InboxTestHelperTests : IDisposable
         _helper.AdvanceTimeByDays(8); // Default expiry is 7 days
 
         // Assert
-        var expiredMessages = await _helper.Store.GetExpiredMessagesAsync(10);
+        var result = await _helper.Store.GetExpiredMessagesAsync(10);
+        result.IsRight.ShouldBeTrue();
+        var expiredMessages = result.Match(Right: r => r, Left: _ => default!);
         expiredMessages.ShouldNotBeEmpty();
     }
 

@@ -1,5 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using Encina.EntityFrameworkCore.Scheduling;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Benchmarks;
@@ -182,7 +183,10 @@ public class ScheduledMessageStoreEFBenchmarks
         await _context.SaveChangesAsync();
 
         // Benchmark: Get all recurring messages
-        var allMessages = await _store.GetDueMessagesAsync(1000, 5);
-        var _ = allMessages.Where(m => m.IsRecurring).ToList();
+        var allResult = await _store.GetDueMessagesAsync(1000, 5);
+        var allMessages = allResult.Match(
+            Right: messages => messages,
+            Left: _ => []);
+        var __ = allMessages.Where(m => m.IsRecurring).ToList();
     }
 }

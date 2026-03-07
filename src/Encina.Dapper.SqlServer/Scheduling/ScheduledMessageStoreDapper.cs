@@ -2,6 +2,8 @@ using System.Data;
 using Dapper;
 using Encina.Messaging;
 using Encina.Messaging.Scheduling;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
 namespace Encina.Dapper.SqlServer.Scheduling;
 
@@ -21,7 +23,12 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     /// <param name="connection">The database connection.</param>
     /// <param name="tableName">The scheduled messages table name (default: ScheduledMessages).</param>
     /// <param name="timeProvider">Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.</param>
-    public ScheduledMessageStoreDapper(IDbConnection connection, string tableName = "ScheduledMessages", TimeProvider? timeProvider = null)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="connection"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="tableName"/> is null or whitespace.</exception>
+    public ScheduledMessageStoreDapper(
+        IDbConnection connection,
+        string tableName = "ScheduledMessages",
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
@@ -30,23 +37,26 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var sql = $@"
-            INSERT INTO {_tableName}
-            (Id, RequestType, Content, ScheduledAtUtc, CreatedAtUtc, ProcessedAtUtc, LastExecutedAtUtc,
-             ErrorMessage, RetryCount, NextRetryAtUtc, IsRecurring, CronExpression)
-            VALUES
-            (@Id, @RequestType, @Content, @ScheduledAtUtc, @CreatedAtUtc, @ProcessedAtUtc, @LastExecutedAtUtc,
-             @ErrorMessage, @RetryCount, @NextRetryAtUtc, @IsRecurring, @CronExpression)";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                INSERT INTO {_tableName}
+                (Id, RequestType, Content, ScheduledAtUtc, CreatedAtUtc, ProcessedAtUtc, LastExecutedAtUtc,
+                 ErrorMessage, RetryCount, NextRetryAtUtc, IsRecurring, CronExpression)
+                VALUES
+                (@Id, @RequestType, @Content, @ScheduledAtUtc, @CreatedAtUtc, @ProcessedAtUtc, @LastExecutedAtUtc,
+                 @ErrorMessage, @RetryCount, @NextRetryAtUtc, @IsRecurring, @CronExpression)";
 
-        await _connection.ExecuteAsync(sql, message);
+            await _connection.ExecuteAsync(sql, message);
+        }, "scheduling.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IScheduledMessage>> GetDueMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IScheduledMessage>>> GetDueMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
@@ -56,42 +66,50 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
         if (maxRetries < 0)
             throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
 
-        var sql = $@"
-            SELECT TOP (@BatchSize) *
-            FROM {_tableName}
-            WHERE (ProcessedAtUtc IS NULL OR IsRecurring = 1)
-              AND RetryCount < @MaxRetries
-              AND (
-                  (NextRetryAtUtc IS NOT NULL AND NextRetryAtUtc <= GETUTCDATE())
-                  OR (NextRetryAtUtc IS NULL AND ScheduledAtUtc <= GETUTCDATE())
-              )
-            ORDER BY ScheduledAtUtc";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                SELECT TOP (@BatchSize) *
+                FROM {_tableName}
+                WHERE (ProcessedAtUtc IS NULL OR IsRecurring = 1)
+                  AND RetryCount < @MaxRetries
+                  AND (
+                      (NextRetryAtUtc IS NOT NULL AND NextRetryAtUtc <= @NowUtc)
+                      OR (NextRetryAtUtc IS NULL AND ScheduledAtUtc <= @NowUtc)
+                  )
+                ORDER BY ScheduledAtUtc";
 
-        var messages = await _connection.QueryAsync<ScheduledMessage>(
-            sql,
-            new { BatchSize = batchSize, MaxRetries = maxRetries });
+            var messages = await _connection.QueryAsync<ScheduledMessage>(
+                sql,
+                new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
 
-        return messages.Cast<IScheduledMessage>();
+            return (IEnumerable<IScheduledMessage>)messages.Cast<IScheduledMessage>();
+        }, "scheduling.get_due_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
 
-        var sql = $@"
-            UPDATE {_tableName}
-            SET ProcessedAtUtc = GETUTCDATE(),
-                LastExecutedAtUtc = GETUTCDATE(),
-                ErrorMessage = NULL
-            WHERE Id = @MessageId";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ProcessedAtUtc = @NowUtc,
+                    LastExecutedAtUtc = @NowUtc,
+                    ErrorMessage = NULL
+                WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+            await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
+        }, "scheduling.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -101,26 +119,31 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
-        var sql = $@"
-            UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc,
-                LastExecutedAtUtc = GETUTCDATE()
-            WHERE Id = @MessageId";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ErrorMessage = @ErrorMessage,
+                    RetryCount = RetryCount + 1,
+                    NextRetryAtUtc = @NextRetryAtUtc,
+                    LastExecutedAtUtc = @NowUtc
+                WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(
-            sql,
-            new
-            {
-                MessageId = messageId,
-                ErrorMessage = errorMessage,
-                NextRetryAtUtc = nextRetryAtUtc
-            });
+            await _connection.ExecuteAsync(
+                sql,
+                new
+                {
+                    MessageId = messageId,
+                    ErrorMessage = errorMessage,
+                    NextRetryAtUtc = nextRetryAtUtc,
+                    NowUtc = nowUtc
+                });
+        }, "scheduling.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task RescheduleRecurringMessageAsync(
+    public async Task<Either<EncinaError, Unit>> RescheduleRecurringMessageAsync(
         Guid messageId,
         DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
@@ -130,41 +153,47 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
         if (nextScheduledAtUtc < _timeProvider.GetUtcNow().UtcDateTime)
             throw new ArgumentException(StoreValidationMessages.NextScheduledDateCannotBeInPast, nameof(nextScheduledAtUtc));
 
-        var sql = $@"
-            UPDATE {_tableName}
-            SET ScheduledAtUtc = @NextScheduledAtUtc,
-                ProcessedAtUtc = NULL,
-                ErrorMessage = NULL,
-                RetryCount = 0,
-                NextRetryAtUtc = NULL
-            WHERE Id = @MessageId";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ScheduledAtUtc = @NextScheduledAtUtc,
+                    ProcessedAtUtc = NULL,
+                    ErrorMessage = NULL,
+                    RetryCount = 0,
+                    NextRetryAtUtc = NULL
+                WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(
-            sql,
-            new
-            {
-                MessageId = messageId,
-                NextScheduledAtUtc = nextScheduledAtUtc
-            });
+            await _connection.ExecuteAsync(
+                sql,
+                new
+                {
+                    MessageId = messageId,
+                    NextScheduledAtUtc = nextScheduledAtUtc
+                });
+        }, "scheduling.reschedule_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmptyGuid, nameof(messageId));
 
-        var sql = $@"
-            DELETE FROM {_tableName}
-            WHERE Id = @MessageId";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                DELETE FROM {_tableName}
+                WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+            await _connection.ExecuteAsync(sql, new { MessageId = messageId });
+        }, "scheduling.cancel_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // Dapper executes SQL immediately, no need for SaveChanges
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 }

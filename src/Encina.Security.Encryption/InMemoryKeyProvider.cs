@@ -38,7 +38,7 @@ namespace Encina.Security.Encryption;
 ///
 /// // Or auto-generate via rotation
 /// var result = await keyProvider.RotateKeyAsync();
-/// var newKeyId = result.Match(Right: id => id, Left: _ => throw new Exception());
+/// var newKeyId = result.Match(Right: id => id, Left: error => { logger.LogError("{Error}", error.Message); return ""; });
 /// </code>
 /// </example>
 public sealed class InMemoryKeyProvider : IKeyProvider

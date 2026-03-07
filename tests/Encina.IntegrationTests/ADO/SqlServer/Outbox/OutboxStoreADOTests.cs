@@ -1,6 +1,7 @@
 using Encina.ADO.SqlServer.Outbox;
 using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
+using LanguageExt;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Xunit;
@@ -55,10 +56,10 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         Assert.Single(pending);
     }
 
@@ -84,10 +85,10 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Assert
-        var messages = await _store.GetPendingMessagesAsync(10, 5);
+        var messages = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         var retrieved = messages.Single();
 
         Assert.Equal(messageId, retrieved.Id);
@@ -131,12 +132,12 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message1);
-        await _store.AddAsync(message2);
-        await _store.AddAsync(message3);
+        (await _store.AddAsync(message1)).ShouldBeRight();
+        (await _store.AddAsync(message2)).ShouldBeRight();
+        (await _store.AddAsync(message3)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         Assert.Equal(3, pending.Count());
     }
 
@@ -169,11 +170,11 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             ProcessedAtUtc = DateTime.UtcNow.AddSeconds(10)
         };
 
-        await _store.AddAsync(pendingMessage);
-        await _store.AddAsync(processedMessage);
+        (await _store.AddAsync(pendingMessage)).ShouldBeRight();
+        (await _store.AddAsync(processedMessage)).ShouldBeRight();
 
         // Act
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
 
         // Assert
         Assert.Single(pending);
@@ -196,11 +197,11 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
                 Content = "{}",
                 CreatedAtUtc = DateTime.UtcNow.AddSeconds(i)
             };
-            await _store.AddAsync(message);
+            (await _store.AddAsync(message)).ShouldBeRight();
         }
 
         // Act
-        var batch = await _store.GetPendingMessagesAsync(batchSize: 3, maxRetries: 5);
+        var batch = (await _store.GetPendingMessagesAsync(batchSize: 3, maxRetries: 5)).ShouldBeRight();
 
         // Assert
         Assert.Equal(3, batch.Count());
@@ -231,11 +232,11 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             RetryCount = 5 // Equals max retries
         };
 
-        await _store.AddAsync(normalMessage);
-        await _store.AddAsync(exceededMessage);
+        (await _store.AddAsync(normalMessage)).ShouldBeRight();
+        (await _store.AddAsync(exceededMessage)).ShouldBeRight();
 
         // Act
-        var pending = await _store.GetPendingMessagesAsync(10, maxRetries: 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, maxRetries: 5)).ShouldBeRight();
 
         // Assert
         Assert.Single(pending);
@@ -267,11 +268,11 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             NextRetryAtUtc = DateTime.UtcNow.AddHours(1) // Future retry
         };
 
-        await _store.AddAsync(readyMessage);
-        await _store.AddAsync(notReadyMessage);
+        (await _store.AddAsync(readyMessage)).ShouldBeRight();
+        (await _store.AddAsync(notReadyMessage)).ShouldBeRight();
 
         // Act
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
 
         // Assert
         Assert.Single(pending);
@@ -294,10 +295,10 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             NextRetryAtUtc = DateTime.UtcNow.AddMinutes(-5) // Past retry time
         };
 
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
 
         // Assert
         Assert.Single(pending);
@@ -335,12 +336,12 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             CreatedAtUtc = DateTime.UtcNow.AddSeconds(3)
         };
 
-        await _store.AddAsync(message1);
-        await _store.AddAsync(message2);
-        await _store.AddAsync(message3);
+        (await _store.AddAsync(message1)).ShouldBeRight();
+        (await _store.AddAsync(message2)).ShouldBeRight();
+        (await _store.AddAsync(message3)).ShouldBeRight();
 
         // Act
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
 
         // Assert
         var orderedIds = pending.Select(m => m.Id).ToList();
@@ -356,7 +357,7 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
     public async Task GetPendingMessagesAsync_NoMessages_ShouldReturnEmpty()
     {
         // Act
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
 
         // Assert
         Assert.Empty(pending);
@@ -381,13 +382,13 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsProcessedAsync(message.Id);
+        (await _store.MarkAsProcessedAsync(message.Id)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         Assert.Empty(pending); // Should not appear in pending anymore
     }
 
@@ -408,13 +409,13 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             RetryCount = 2
         };
 
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsProcessedAsync(message.Id);
+        (await _store.MarkAsProcessedAsync(message.Id)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         Assert.Empty(pending);
     }
 
@@ -441,14 +442,14 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             CreatedAtUtc = DateTime.UtcNow.AddSeconds(1)
         };
 
-        await _store.AddAsync(message1);
-        await _store.AddAsync(message2);
+        (await _store.AddAsync(message1)).ShouldBeRight();
+        (await _store.AddAsync(message2)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsProcessedAsync(message1.Id);
+        (await _store.MarkAsProcessedAsync(message1.Id)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         Assert.Single(pending);
         Assert.Equal(message2.Id, pending.First().Id);
     }
@@ -473,13 +474,13 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             RetryCount = 0
         };
 
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsFailedAsync(message.Id, "Test error", null);
+        (await _store.MarkAsFailedAsync(message.Id, "Test error", null)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         var updated = pending.First();
         Assert.Equal(1, updated.RetryCount);
     }
@@ -499,14 +500,14 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
         var errorMessage = "Network timeout after 30 seconds";
-        await _store.MarkAsFailedAsync(message.Id, errorMessage, null);
+        (await _store.MarkAsFailedAsync(message.Id, errorMessage, null)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         var updated = pending.First();
         Assert.Equal(errorMessage, updated.ErrorMessage);
     }
@@ -526,14 +527,14 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
         var nextRetry = DateTime.UtcNow.AddMinutes(5);
-        await _store.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
+        (await _store.MarkAsFailedAsync(message.Id, "Test error", nextRetry)).ShouldBeRight();
 
         // Assert - Should not appear in pending yet (retry time in future)
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         Assert.Empty(pending);
     }
 
@@ -553,15 +554,15 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             RetryCount = 0
         };
 
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsFailedAsync(message.Id, "Error 1", null);
-        await _store.MarkAsFailedAsync(message.Id, "Error 2", null);
-        await _store.MarkAsFailedAsync(message.Id, "Error 3", null);
+        (await _store.MarkAsFailedAsync(message.Id, "Error 1", null)).ShouldBeRight();
+        (await _store.MarkAsFailedAsync(message.Id, "Error 2", null)).ShouldBeRight();
+        (await _store.MarkAsFailedAsync(message.Id, "Error 3", null)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         var updated = pending.First();
         Assert.Equal(3, updated.RetryCount);
         Assert.Equal("Error 3", updated.ErrorMessage); // Latest error
@@ -592,14 +593,14 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
             RetryCount = 0
         };
 
-        await _store.AddAsync(message1);
-        await _store.AddAsync(message2);
+        (await _store.AddAsync(message1)).ShouldBeRight();
+        (await _store.AddAsync(message2)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsFailedAsync(message1.Id, "Error", null);
+        (await _store.MarkAsFailedAsync(message1.Id, "Error", null)).ShouldBeRight();
 
         // Assert
-        var pending = await _store.GetPendingMessagesAsync(10, 5);
+        var pending = (await _store.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         var message2Updated = pending.First(m => m.Id == message2.Id);
         Assert.Equal(0, message2Updated.RetryCount); // Should not be affected
         Assert.Null(message2Updated.ErrorMessage);
@@ -615,12 +616,8 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
     [Fact]
     public async Task SaveChangesAsync_ShouldReturnCompletedTask()
     {
-        // Act
-        var task = _store.SaveChangesAsync();
-
-        // Assert
-        Assert.True(task.IsCompleted);
-        await task; // Should not throw
+        // Act & Assert
+        (await _store.SaveChangesAsync()).ShouldBeRight();
     }
 
     #endregion
@@ -668,10 +665,10 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
         };
 
         // Act
-        await customStore.AddAsync(message);
+        (await customStore.AddAsync(message)).ShouldBeRight();
 
         // Assert
-        var pending = await customStore.GetPendingMessagesAsync(10, 5);
+        var pending = (await customStore.GetPendingMessagesAsync(10, 5)).ShouldBeRight();
         Assert.Single(pending);
     }
 

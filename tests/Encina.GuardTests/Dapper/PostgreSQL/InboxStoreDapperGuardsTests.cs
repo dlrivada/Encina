@@ -153,7 +153,7 @@ public class InboxStoreDapperGuardsTests
         string messageId = null!;
 
         // Act & Assert
-        var act = () => store.MarkAsProcessedAsync(messageId, null);
+        var act = () => store.MarkAsProcessedAsync(messageId, string.Empty);
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("messageId");
     }
@@ -170,7 +170,7 @@ public class InboxStoreDapperGuardsTests
         var messageId = string.Empty;
 
         // Act & Assert
-        var act = () => store.MarkAsProcessedAsync(messageId, null);
+        var act = () => store.MarkAsProcessedAsync(messageId, string.Empty);
         var ex = await Should.ThrowAsync<ArgumentException>(act);
         ex.ParamName.ShouldBe("messageId");
     }

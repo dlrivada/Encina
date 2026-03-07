@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes.Models;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Fakes.Stores;
 
@@ -82,7 +84,7 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
     public int SaveChangesCallCount { get; private set; }
 
     /// <inheritdoc />
-    public Task AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -108,11 +110,11 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
             _addedMessages.Add(fakeMessage.Clone());
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<IScheduledMessage>> GetDueMessagesAsync(
+    public Task<Either<EncinaError, IEnumerable<IScheduledMessage>>> GetDueMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
@@ -130,11 +132,11 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
             .Cast<IScheduledMessage>()
             .ToList();
 
-        return Task.FromResult<IEnumerable<IScheduledMessage>>(dueMessages);
+        return Task.FromResult<Either<EncinaError, IEnumerable<IScheduledMessage>>>(dueMessages);
     }
 
     /// <inheritdoc />
-    public Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         lock (_lock)
         {
@@ -147,11 +149,11 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task MarkAsFailedAsync(
+    public Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -168,11 +170,11 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task RescheduleRecurringMessageAsync(
+    public Task<Either<EncinaError, Unit>> RescheduleRecurringMessageAsync(
         Guid messageId,
         DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
@@ -190,11 +192,11 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         lock (_lock)
         {
@@ -205,14 +207,14 @@ public sealed class FakeScheduledMessageStore : IScheduledMessageStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         SaveChangesCallCount++;
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <summary>

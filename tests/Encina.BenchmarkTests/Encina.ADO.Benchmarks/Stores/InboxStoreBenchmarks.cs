@@ -2,6 +2,7 @@ using BenchmarkDotNet.Attributes;
 using Encina.ADO.Benchmarks.Infrastructure;
 using Encina.ADO.Sqlite.Inbox;
 using Encina.Messaging.Inbox;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 
 namespace Encina.ADO.Benchmarks.Stores;
@@ -100,7 +101,10 @@ public class InboxStoreBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<IInboxMessage?> GetMessageAsync()
     {
-        return await _store.GetMessageAsync(_existingMessageId);
+        var result = await _store.GetMessageAsync(_existingMessageId);
+        return result.Match(
+            Right: option => option.Match(Some: msg => msg, None: () => (IInboxMessage?)null),
+            Left: _ => null);
     }
 
     /// <summary>
@@ -129,8 +133,10 @@ public class InboxStoreBenchmarks
     [Benchmark]
     public async Task<List<IInboxMessage>> GetExpiredMessagesAsync()
     {
-        var messages = await _store.GetExpiredMessagesAsync(BatchSize);
-        return messages.ToList();
+        var result = await _store.GetExpiredMessagesAsync(BatchSize);
+        return result.Match(
+            Right: messages => messages.ToList(),
+            Left: _ => []);
     }
 
     /// <summary>
@@ -142,7 +148,10 @@ public class InboxStoreBenchmarks
         var messageId = $"idempotent-{_newMessageCounter}-{Guid.NewGuid()}";
 
         // Check if exists
-        var existing = await _store.GetMessageAsync(messageId);
+        var existingResult = await _store.GetMessageAsync(messageId);
+        var existing = existingResult.Match(
+            Right: option => option.Match(Some: msg => msg, None: () => (IInboxMessage?)null),
+            Left: _ => null);
         if (existing == null)
         {
             // Add if not exists

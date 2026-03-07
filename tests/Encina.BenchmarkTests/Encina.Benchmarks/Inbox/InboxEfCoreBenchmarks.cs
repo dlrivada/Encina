@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using Encina.Benchmarks.Infrastructure;
 using Encina.EntityFrameworkCore.Inbox;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -344,7 +345,10 @@ public class InboxEfCoreBenchmarks
         await _context.SaveChangesAsync();
 
         // Benchmark: Duplicate request
-        var existing = await _store.GetMessageAsync("idempotent-bench");
-        _ = existing?.Response;
+        var existingResult = await _store.GetMessageAsync("idempotent-bench");
+        var existing = existingResult.Match(
+            Right: option => option.Match(Some: msg => msg.Response, None: () => (string?)null),
+            Left: _ => null);
+        _ = existing;
     }
 }

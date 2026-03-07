@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Outbox;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 
 namespace Encina.ADO.Sqlite.Outbox;
@@ -33,7 +34,7 @@ public sealed class OutboxStoreADO : IOutboxStore
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IOutboxMessage>> GetPendingMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IOutboxMessage>>> GetPendingMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
@@ -42,105 +43,116 @@ public sealed class OutboxStoreADO : IOutboxStore
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
         if (maxRetries < 0)
             throw new ArgumentException(StoreValidationMessages.MaxRetriesCannotBeNegative, nameof(maxRetries));
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var sql = $@"
-            SELECT *
-            FROM {_tableName}
-            WHERE ProcessedAtUtc IS NULL
-              AND RetryCount < @MaxRetries
-              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= @NowUtc)
-            ORDER BY CreatedAtUtc
-            LIMIT @BatchSize";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@BatchSize", batchSize);
-        AddParameter(command, "@MaxRetries", maxRetries);
-        AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
-
-        var messages = new List<OutboxMessage>();
-
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
-
-        using var reader = await ExecuteReaderAsync(command, cancellationToken);
-        while (await ReadAsync(reader, cancellationToken))
+        return await EitherHelpers.TryAsync(async () =>
         {
-            messages.Add(new OutboxMessage
-            {
-                Id = reader.GetGuid(reader.GetOrdinal("Id")),
-                NotificationType = reader.GetString(reader.GetOrdinal("NotificationType")),
-                Content = reader.GetString(reader.GetOrdinal("Content")),
-                CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
-                ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
-                    ? null
-                    : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
-                ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal("ErrorMessage")),
-                RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
-                NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
-                    ? null
-                    : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc"))
-            });
-        }
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                SELECT *
+                FROM {_tableName}
+                WHERE ProcessedAtUtc IS NULL
+                  AND RetryCount < @MaxRetries
+                  AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= @NowUtc)
+                ORDER BY CreatedAtUtc
+                LIMIT @BatchSize";
 
-        return messages;
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@BatchSize", batchSize);
+            AddParameter(command, "@MaxRetries", maxRetries);
+            AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
+
+            var messages = new List<OutboxMessage>();
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            while (await ReadAsync(reader, cancellationToken))
+            {
+                messages.Add(new OutboxMessage
+                {
+                    Id = reader.GetGuid(reader.GetOrdinal("Id")),
+                    NotificationType = reader.GetString(reader.GetOrdinal("NotificationType")),
+                    Content = reader.GetString(reader.GetOrdinal("Content")),
+                    CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
+                    ProcessedAtUtc = reader.IsDBNull(reader.GetOrdinal("ProcessedAtUtc"))
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal("ProcessedAtUtc")),
+                    ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("ErrorMessage")),
+                    RetryCount = reader.GetInt32(reader.GetOrdinal("RetryCount")),
+                    NextRetryAtUtc = reader.IsDBNull(reader.GetOrdinal("NextRetryAtUtc"))
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal("NextRetryAtUtc"))
+                });
+            }
+
+            return (IEnumerable<IOutboxMessage>)messages;
+        }, "outbox.get_pending_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var sql = $@"
-            INSERT INTO {_tableName}
-            (Id, NotificationType, Content, CreatedAtUtc, ProcessedAtUtc, ErrorMessage, RetryCount, NextRetryAtUtc)
-            VALUES
-            (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                INSERT INTO {_tableName}
+                (Id, NotificationType, Content, CreatedAtUtc, ProcessedAtUtc, ErrorMessage, RetryCount, NextRetryAtUtc)
+                VALUES
+                (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@Id", message.Id);
-        AddParameter(command, "@NotificationType", message.NotificationType);
-        AddParameter(command, "@Content", message.Content);
-        AddParameter(command, "@CreatedAtUtc", message.CreatedAtUtc);
-        AddParameter(command, "@ProcessedAtUtc", message.ProcessedAtUtc);
-        AddParameter(command, "@ErrorMessage", message.ErrorMessage);
-        AddParameter(command, "@RetryCount", message.RetryCount);
-        AddParameter(command, "@NextRetryAtUtc", message.NextRetryAtUtc);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@Id", message.Id);
+            AddParameter(command, "@NotificationType", message.NotificationType);
+            AddParameter(command, "@Content", message.Content);
+            AddParameter(command, "@CreatedAtUtc", message.CreatedAtUtc);
+            AddParameter(command, "@ProcessedAtUtc", message.ProcessedAtUtc);
+            AddParameter(command, "@ErrorMessage", message.ErrorMessage);
+            AddParameter(command, "@RetryCount", message.RetryCount);
+            AddParameter(command, "@NextRetryAtUtc", message.NextRetryAtUtc);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "outbox.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var sql = $@"
-            UPDATE {_tableName}
-            SET ProcessedAtUtc = @NowUtc,
-                ErrorMessage = NULL
-            WHERE Id = @Id";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@Id", messageId);
-        AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ProcessedAtUtc = @NowUtc,
+                    ErrorMessage = NULL
+                WHERE Id = @Id";
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@Id", messageId);
+            AddParameter(command, "@NowUtc", nowUtc.ToString("O"));
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "outbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -150,30 +162,33 @@ public sealed class OutboxStoreADO : IOutboxStore
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
-        var sql = $@"
-            UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc
-            WHERE Id = @Id";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ErrorMessage = @ErrorMessage,
+                    RetryCount = RetryCount + 1,
+                    NextRetryAtUtc = @NextRetryAtUtc
+                WHERE Id = @Id";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@Id", messageId);
-        AddParameter(command, "@ErrorMessage", errorMessage);
-        AddParameter(command, "@NextRetryAtUtc", nextRetryAtUtc);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@Id", messageId);
+            AddParameter(command, "@ErrorMessage", errorMessage);
+            AddParameter(command, "@NextRetryAtUtc", nextRetryAtUtc);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "outbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // ADO.NET executes SQL immediately, no need for SaveChanges
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 
     private static void AddParameter(IDbCommand command, string name, object? value)

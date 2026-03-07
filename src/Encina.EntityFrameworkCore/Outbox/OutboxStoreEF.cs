@@ -1,4 +1,5 @@
 using Encina.Messaging.Outbox;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Outbox;
@@ -36,56 +37,63 @@ public sealed class OutboxStoreEF : IOutboxStore
     }
 
     /// <inheritdoc/>
-    public async Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        // Cast to concrete type for EF Core
         if (message is not OutboxMessage efMessage)
         {
-            throw new InvalidOperationException(
-                $"OutboxStoreEF requires messages of type {nameof(OutboxMessage)}, " +
-                $"but received {message.GetType().Name}");
+            return EncinaErrors.Create("outbox.invalid_type",
+                $"OutboxStoreEF requires messages of type {nameof(OutboxMessage)}, got {message.GetType().Name}");
         }
 
-        await _dbContext.Set<OutboxMessage>().AddAsync(efMessage, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            await _dbContext.Set<OutboxMessage>().AddAsync(efMessage, cancellationToken);
+        }, "outbox.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<IOutboxMessage>> GetPendingMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IOutboxMessage>>> GetPendingMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var messages = await _dbContext.Set<OutboxMessage>()
-            .Where(m =>
-                m.ProcessedAtUtc == null &&
-                (m.NextRetryAtUtc == null || m.NextRetryAtUtc <= now) &&
-                m.RetryCount < maxRetries)
-            .OrderBy(m => m.CreatedAtUtc)
-            .Take(batchSize)
-            .ToListAsync(cancellationToken);
+            var messages = await _dbContext.Set<OutboxMessage>()
+                .Where(m =>
+                    m.ProcessedAtUtc == null &&
+                    (m.NextRetryAtUtc == null || m.NextRetryAtUtc <= now) &&
+                    m.RetryCount < maxRetries)
+                .OrderBy(m => m.CreatedAtUtc)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
 
-        return messages;
+            return (IEnumerable<IOutboxMessage>)messages;
+        }, "outbox.get_pending_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
-        var message = await _dbContext.Set<OutboxMessage>()
-            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<OutboxMessage>()
+                .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
 
-        if (message == null)
-            return;
+            if (message == null)
+                return;
 
-        message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        message.ErrorMessage = null;
+            message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            message.ErrorMessage = null;
+        }, "outbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -93,20 +101,26 @@ public sealed class OutboxStoreEF : IOutboxStore
     {
         ArgumentNullException.ThrowIfNull(errorMessage);
 
-        var message = await _dbContext.Set<OutboxMessage>()
-            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<OutboxMessage>()
+                .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
 
-        if (message == null)
-            return;
+            if (message == null)
+                return;
 
-        message.ErrorMessage = errorMessage;
-        message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAtUtc;
+            message.ErrorMessage = errorMessage;
+            message.RetryCount++;
+            message.NextRetryAtUtc = nextRetryAtUtc;
+        }, "outbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }, "outbox.save_failed").ConfigureAwait(false);
     }
 }

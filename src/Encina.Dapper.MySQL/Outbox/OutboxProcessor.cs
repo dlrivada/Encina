@@ -77,12 +77,21 @@ public sealed class OutboxProcessor : BackgroundService
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
         var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
 
-        var messages = await store.GetPendingMessagesAsync(
+        var messagesResult = await store.GetPendingMessagesAsync(
             _options.BatchSize,
             _options.MaxRetries,
             cancellationToken).ConfigureAwait(false);
 
-        var messagesList = messages.ToList();
+        if (messagesResult.IsLeft)
+        {
+            var error = messagesResult.LeftToArray()[0];
+            MessagingLog.ErrorProcessingOutboxMessages(_logger, new InvalidOperationException(error.Message));
+            return;
+        }
+
+        var messagesList = messagesResult.Match(
+            Right: m => m.ToList(),
+            Left: _ => new List<IOutboxMessage>());
         if (messagesList.Count == 0)
         {
             return;

@@ -103,7 +103,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        var messageList = messages.ToList();
+        var messageList = messages.ShouldBeRight().ToList();
         messageList.ShouldHaveSingleItem();
         messageList.First().Id.ShouldBe(dueMessage.Id);
     }
@@ -134,7 +134,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        messages.ShouldBeRight().ShouldBeEmpty();
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var dueMessages = await store.GetDueMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        dueMessages.Count().ShouldBe(5);
+        dueMessages.ShouldBeRight().Count().ShouldBe(5);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        messages.ShouldBeRight().ShouldBeEmpty();
     }
 
     [Fact]
@@ -376,7 +376,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        messages.ShouldBeRight().ShouldBeEmpty();
     }
 
     [Fact]
@@ -405,8 +405,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldHaveSingleItem();
-        messages.First().Id.ShouldBe(pastRetry.Id);
+        var messageList = messages.ShouldBeRight().ToList();
+        messageList.ShouldHaveSingleItem();
+        messageList.First().Id.ShouldBe(pastRetry.Id);
     }
 
     [Fact]
@@ -442,7 +443,7 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var store = CreateStore();
 
         // Act
-        var messages = (await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ToList();
+        var messages = (await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight().ToList();
 
         // Assert
         messages[0].Id.ShouldBe(older.Id);
@@ -511,8 +512,9 @@ public sealed class ScheduledMessageStoreMongoDBIntegrationTests : IAsyncLifetim
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldHaveSingleItem();
-        messages.First().Id.ShouldBe(exactlyDue.Id);
+        var messageList = messages.ShouldBeRight().ToList();
+        messageList.ShouldHaveSingleItem();
+        messageList.First().Id.ShouldBe(exactlyDue.Id);
     }
 
     private ScheduledMessageStoreMongoDB CreateStore()

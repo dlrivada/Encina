@@ -219,6 +219,7 @@ public static class ServiceCollectionExtensions
         // Build mapping
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configure(builder);
+        // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
         var mapping = builder.Build()
             .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
@@ -286,6 +287,7 @@ public static class ServiceCollectionExtensions
         // Build mapping
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configure(builder);
+        // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
         var mapping = builder.Build()
             .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 

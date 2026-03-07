@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Encina.Messaging.Outbox;
+using LanguageExt;
 
 namespace Encina.OpenTelemetry.MessagingStores;
 
@@ -35,87 +36,60 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
     {
         using var activity = StartAdd(message.NotificationType, message.Id.ToString());
-
-        try
-        {
-            await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IOutboxMessage>> GetPendingMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IOutboxMessage>>> GetPendingMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartProcessBatch(batchSize);
-
-        try
+        var result = await _inner.GetPendingMessagesAsync(batchSize, maxRetries, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(messages =>
         {
-            var messages = await _inner.GetPendingMessagesAsync(batchSize, maxRetries, cancellationToken)
-                .ConfigureAwait(false);
-
-            var messageList = messages as IList<IOutboxMessage> ?? messages.ToList();
-            CompleteBatch(activity, messageList.Count);
-            return messageList;
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+            var count = messages is ICollection<IOutboxMessage> col ? col.Count : messages.Count();
+            CompleteBatch(activity, count);
+        });
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         using var activity = StartMarkProcessed(messageId.ToString());
-
-        try
-        {
-            await _inner.MarkAsProcessedAsync(messageId, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.MarkAsProcessedAsync(messageId, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartMarkFailed(messageId.ToString());
-
-        try
-        {
-            await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
-                .ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _inner.SaveChangesAsync(cancellationToken);
 
     #region Activity Helpers

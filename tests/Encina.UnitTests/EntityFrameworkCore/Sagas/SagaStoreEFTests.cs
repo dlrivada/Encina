@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Sagas;
+using Encina.TestInfrastructure.Extensions;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -41,21 +44,21 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var result = await _store.GetAsync(sagaId);
+        var result = (await _store.GetAsync(sagaId)).ShouldBeRight();
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.SagaId.ShouldBe(sagaId);
+        var sagaState = result.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
+        sagaState.SagaId.ShouldBe(sagaId);
     }
 
     [Fact]
-    public async Task GetAsync_ShouldReturnNullForNonExistentSaga()
+    public async Task GetAsync_ShouldReturnNoneForNonExistentSaga()
     {
         // Act
-        var result = await _store.GetAsync(Guid.NewGuid());
+        var result = (await _store.GetAsync(Guid.NewGuid())).ShouldBeRight();
 
         // Assert
-        result.ShouldBeNull();
+        result.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -75,8 +78,8 @@ public class SagaStoreEFTests : IDisposable
         };
 
         // Act
-        await _store.AddAsync(saga);
-        await _store.SaveChangesAsync();
+        (await _store.AddAsync(saga)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var stored = await _dbContext.SagaStates.FindAsync(sagaId);
@@ -106,8 +109,8 @@ public class SagaStoreEFTests : IDisposable
 
         // Act
         saga.CurrentStep = 2;
-        await _store.UpdateAsync(saga);
-        await _store.SaveChangesAsync();
+        (await _store.UpdateAsync(saga)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.SagaStates.FindAsync(sagaId);
@@ -157,9 +160,9 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var stuck = await _store.GetStuckSagasAsync(
+        var stuck = (await _store.GetStuckSagasAsync(
             olderThan: TimeSpan.FromHours(1),
-            batchSize: 10);
+            batchSize: 10)).ShouldBeRight();
 
         // Assert
         stuck.Count().ShouldBe(1);
@@ -185,9 +188,9 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var stuck = await _store.GetStuckSagasAsync(
+        var stuck = (await _store.GetStuckSagasAsync(
             olderThan: TimeSpan.FromHours(1),
-            batchSize: 10);
+            batchSize: 10)).ShouldBeRight();
 
         // Assert
         stuck.Count().ShouldBe(1);
@@ -214,9 +217,9 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var stuck = await _store.GetStuckSagasAsync(
+        var stuck = (await _store.GetStuckSagasAsync(
             olderThan: TimeSpan.FromHours(1),
-            batchSize: 5);
+            batchSize: 5)).ShouldBeRight();
 
         // Assert
         stuck.Count().ShouldBe(5);
@@ -266,7 +269,7 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
+        var expired = (await _store.GetExpiredSagasAsync(batchSize: 10)).ShouldBeRight();
 
         // Assert
         expired.Count().ShouldBe(1);
@@ -294,7 +297,7 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
+        var expired = (await _store.GetExpiredSagasAsync(batchSize: 10)).ShouldBeRight();
 
         // Assert
         expired.ShouldBeEmpty();
@@ -320,7 +323,7 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var expired = await _store.GetExpiredSagasAsync(batchSize: 10);
+        var expired = (await _store.GetExpiredSagasAsync(batchSize: 10)).ShouldBeRight();
 
         // Assert
         expired.Count().ShouldBe(1);
@@ -348,7 +351,7 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var expired = await _store.GetExpiredSagasAsync(batchSize: 5);
+        var expired = (await _store.GetExpiredSagasAsync(batchSize: 5)).ShouldBeRight();
 
         // Assert
         expired.Count().ShouldBe(5);
@@ -387,7 +390,7 @@ public class SagaStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var expired = (await _store.GetExpiredSagasAsync(batchSize: 10)).ToList();
+        var expired = (await _store.GetExpiredSagasAsync(batchSize: 10)).ShouldBeRight().ToList();
 
         // Assert
         expired.Count.ShouldBe(2);

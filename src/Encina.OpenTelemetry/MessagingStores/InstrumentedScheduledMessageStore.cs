@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Encina.Messaging.Scheduling;
+using LanguageExt;
 
 namespace Encina.OpenTelemetry.MessagingStores;
 
@@ -36,125 +37,84 @@ internal sealed class InstrumentedScheduledMessageStore : IScheduledMessageStore
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
     {
         using var activity = StartSchedule(message.RequestType, message.Id, message.ScheduledAtUtc);
-
-        try
-        {
-            await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IScheduledMessage>> GetDueMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IScheduledMessage>>> GetDueMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartProcessDue(batchSize);
-
-        try
+        var result = await _inner.GetDueMessagesAsync(batchSize, maxRetries, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(messages =>
         {
-            var messages = await _inner.GetDueMessagesAsync(batchSize, maxRetries, cancellationToken)
-                .ConfigureAwait(false);
-
-            var messageList = messages as IList<IScheduledMessage> ?? messages.ToList();
-            CompleteBatch(activity, messageList.Count);
-            return messageList;
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+            var count = messages is ICollection<IScheduledMessage> col ? col.Count : messages.Count();
+            CompleteBatch(activity, count);
+        });
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         using var activity = StartExecute(messageId);
-
-        try
-        {
-            await _inner.MarkAsProcessedAsync(messageId, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.MarkAsProcessedAsync(messageId, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartMarkFailed(messageId);
-
-        try
-        {
-            await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
-                .ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task RescheduleRecurringMessageAsync(
+    public async Task<Either<EncinaError, Unit>> RescheduleRecurringMessageAsync(
         Guid messageId,
         DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartReschedule(messageId, nextScheduledAtUtc);
-
-        try
-        {
-            await _inner.RescheduleRecurringMessageAsync(messageId, nextScheduledAtUtc, cancellationToken)
-                .ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.RescheduleRecurringMessageAsync(messageId, nextScheduledAtUtc, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         using var activity = StartCancel(messageId);
-
-        try
-        {
-            await _inner.CancelAsync(messageId, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.CancelAsync(messageId, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _inner.SaveChangesAsync(cancellationToken);
 
     private static Activity? StartSchedule(string messageType, Guid messageId, DateTime scheduledAtUtc)

@@ -2,6 +2,7 @@ using BenchmarkDotNet.Attributes;
 using Encina.Dapper.Benchmarks.Infrastructure;
 using Encina.Dapper.Sqlite.Sagas;
 using Encina.Messaging.Sagas;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 
 namespace Encina.Dapper.Benchmarks.Stores;
@@ -107,7 +108,10 @@ public class SagaStoreBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<ISagaState?> GetAsync()
     {
-        return await _store.GetAsync(_existingSagaId);
+        var result = await _store.GetAsync(_existingSagaId);
+        return result.Match(
+            Right: option => option.Match(Some: saga => saga, None: () => (ISagaState?)null),
+            Left: _ => null);
     }
 
     /// <summary>
@@ -138,8 +142,10 @@ public class SagaStoreBenchmarks
     [Benchmark]
     public async Task<List<ISagaState>> GetStuckSagasAsync()
     {
-        var sagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), BatchSize);
-        return sagas.ToList();
+        var result = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), BatchSize);
+        return result.Match(
+            Right: sagas => sagas.ToList(),
+            Left: _ => []);
     }
 
     /// <summary>
@@ -148,8 +154,10 @@ public class SagaStoreBenchmarks
     [Benchmark]
     public async Task<List<ISagaState>> GetExpiredSagasAsync()
     {
-        var sagas = await _store.GetExpiredSagasAsync(BatchSize);
-        return sagas.ToList();
+        var result = await _store.GetExpiredSagasAsync(BatchSize);
+        return result.Match(
+            Right: sagas => sagas.ToList(),
+            Left: _ => []);
     }
 
     private BenchmarkSagaState CreateSagaWithPayload(string status)

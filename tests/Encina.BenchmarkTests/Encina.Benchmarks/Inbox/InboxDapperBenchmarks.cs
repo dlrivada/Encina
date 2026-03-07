@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using Encina.Benchmarks.Infrastructure;
 using Encina.Dapper.Sqlite.Inbox;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 
 namespace Encina.Benchmarks.Inbox;
@@ -312,7 +313,10 @@ public class InboxDapperBenchmarks
         await _store.MarkAsProcessedAsync("idempotent-bench", "{\"orderId\":123}");
 
         // Benchmark: Duplicate request
-        var existing = await _store.GetMessageAsync("idempotent-bench");
-        _ = existing?.Response;
+        var existingResult = await _store.GetMessageAsync("idempotent-bench");
+        var existing = existingResult.Match(
+            Right: option => option.Match(Some: msg => msg.Response, None: () => (string?)null),
+            Left: _ => null);
+        _ = existing;
     }
 }

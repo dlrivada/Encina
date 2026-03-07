@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore.Inbox;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -38,8 +41,8 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
         };
 
         // Act
-        await store.AddAsync(message);
-        await store.SaveChangesAsync();
+        (await store.AddAsync(message)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -72,8 +75,10 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
         var result = await store.GetMessageAsync(messageId);
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.MessageId.ShouldBe(messageId);
+        result.IsRight.ShouldBeTrue();
+        var option = result.Match(Right: r => r, Left: _ => default);
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(msg => msg.MessageId.ShouldBe(messageId));
     }
 
     [Fact]
@@ -87,7 +92,9 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
         var result = await store.GetMessageAsync("non-existing-id");
 
         // Assert
-        result.ShouldBeNull();
+        result.IsRight.ShouldBeTrue();
+        var option = result.Match(Right: r => r, Left: _ => default);
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -111,8 +118,8 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
         await context.SaveChangesAsync();
 
         // Act
-        await store.MarkAsProcessedAsync(messageId, "{\"result\":\"success\"}");
-        await store.SaveChangesAsync();
+        (await store.MarkAsProcessedAsync(messageId, "{\"result\":\"success\"}")).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -144,8 +151,8 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
         var nextRetry = DateTime.UtcNow.AddMinutes(5);
 
         // Act
-        await store.MarkAsFailedAsync(messageId, "Test error", nextRetry);
-        await store.SaveChangesAsync();
+        (await store.MarkAsFailedAsync(messageId, "Test error", nextRetry)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -184,10 +191,11 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
         await context.SaveChangesAsync();
 
         // Act
-        var expiredMessages = await store.GetExpiredMessagesAsync(batchSize: 10);
+        var expiredResult = await store.GetExpiredMessagesAsync(batchSize: 10);
 
         // Assert
-        var messageList = expiredMessages.ToList();
+        expiredResult.IsRight.ShouldBeTrue();
+        var messageList = expiredResult.Match(Right: r => r.ToList(), Left: _ => []);
         messageList.Count.ShouldBe(1);
         messageList.ShouldContain(m => m.MessageId == expired.MessageId);
     }
@@ -221,12 +229,13 @@ public abstract class InboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase
         await context.SaveChangesAsync();
 
         // Get the expired message IDs first
-        var expiredMessages = await store.GetExpiredMessagesAsync(batchSize: 10);
+        var expiredResult = await store.GetExpiredMessagesAsync(batchSize: 10);
+        var expiredMessages = expiredResult.Match(Right: r => r, Left: _ => []);
         var expiredIds = expiredMessages.Select(m => m.MessageId).ToList();
 
         // Act
-        await store.RemoveExpiredMessagesAsync(expiredIds);
-        await store.SaveChangesAsync();
+        (await store.RemoveExpiredMessagesAsync(expiredIds)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();

@@ -146,7 +146,7 @@ public sealed class TenantDbContextFactory<TContext>
             return;
         }
 
-        // Default behavior: validate connection string resolution (throws on failure since this is startup)
+        // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
         _ = GetConnectionStringForTenant(tenantInfo)
             .Match(
                 Right: cs => cs,

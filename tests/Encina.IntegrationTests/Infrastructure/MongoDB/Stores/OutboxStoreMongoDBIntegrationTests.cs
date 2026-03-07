@@ -138,7 +138,7 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        var messageList = messages.ToList();
+        var messageList = messages.ShouldBeRight().ToList();
         messageList.Count.ShouldBe(2);
         messageList.ShouldContain(m => m.Id == pending1.Id);
         messageList.ShouldContain(m => m.Id == pending2.Id);
@@ -168,7 +168,7 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var pending = await store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
-        pending.Count().ShouldBe(5);
+        pending.ShouldBeRight().Count().ShouldBe(5);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        messages.ShouldBeRight().ShouldBeEmpty();
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var store = CreateStore();
 
         // Act
-        var messages = (await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ToList();
+        var messages = (await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight().ToList();
 
         // Assert
         messages[0].Id.ShouldBe(older.Id);
@@ -261,7 +261,7 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        messages.ShouldBeRight().ShouldBeEmpty();
     }
 
     [Fact]
@@ -289,8 +289,9 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldHaveSingleItem();
-        messages.First().Id.ShouldBe(pastRetry.Id);
+        var messageList = messages.ShouldBeRight().ToList();
+        messageList.ShouldHaveSingleItem();
+        messageList.First().Id.ShouldBe(pastRetry.Id);
     }
 
     [Fact]

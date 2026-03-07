@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore.Outbox;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -38,8 +41,8 @@ public abstract class OutboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBas
         };
 
         // Act
-        await store.AddAsync(message);
-        await store.SaveChangesAsync();
+        (await store.AddAsync(message)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -89,10 +92,11 @@ public abstract class OutboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBas
         await context.SaveChangesAsync();
 
         // Act
-        var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        var messageList = messages.ToList();
+        result.IsRight.ShouldBeTrue();
+        var messageList = result.Match(Right: r => r.ToList(), Left: _ => []);
         messageList.Count.ShouldBe(2);
         messageList.ShouldContain(m => m.Id == pending1.Id);
         messageList.ShouldContain(m => m.Id == pending2.Id);
@@ -120,9 +124,11 @@ public abstract class OutboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBas
         await context.SaveChangesAsync();
 
         // Act
-        var messages = await store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
+        var result = await store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var messages = result.Match(Right: r => r, Left: _ => []);
         messages.Count().ShouldBe(5);
     }
 
@@ -146,9 +152,11 @@ public abstract class OutboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBas
         await context.SaveChangesAsync();
 
         // Act
-        var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var messages = result.Match(Right: r => r, Left: _ => []);
         messages.ShouldBeEmpty();
     }
 
@@ -173,8 +181,8 @@ public abstract class OutboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBas
         await context.SaveChangesAsync();
 
         // Act
-        await store.MarkAsProcessedAsync(message.Id);
-        await store.SaveChangesAsync();
+        (await store.MarkAsProcessedAsync(message.Id)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -205,8 +213,8 @@ public abstract class OutboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBas
         var nextRetry = DateTime.UtcNow.AddMinutes(5);
 
         // Act
-        await store.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
-        await store.SaveChangesAsync();
+        (await store.MarkAsFailedAsync(message.Id, "Test error", nextRetry)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -235,8 +243,8 @@ public abstract class OutboxStoreEFTestsBase<TFixture, TContext> : EFCoreTestBas
                 RetryCount = 0
             };
 
-            await store.AddAsync(message);
-            await store.SaveChangesAsync();
+            (await store.AddAsync(message)).ShouldBeRight();
+            (await store.SaveChangesAsync()).ShouldBeRight();
             return message.Id;
         });
 

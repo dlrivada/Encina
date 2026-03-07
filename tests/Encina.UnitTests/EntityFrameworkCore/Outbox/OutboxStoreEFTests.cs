@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Outbox;
+using Encina.TestInfrastructure.Extensions;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -40,8 +43,8 @@ public class OutboxStoreEFTests : IDisposable
         };
 
         // Act
-        await _store.AddAsync(message);
-        await _store.SaveChangesAsync();
+        (await _store.AddAsync(message)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var stored = await _dbContext.OutboxMessages.FindAsync(message.Id);
@@ -85,7 +88,7 @@ public class OutboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.Count().ShouldBe(2);
@@ -112,7 +115,7 @@ public class OutboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3);
+        var messages = (await _store.GetPendingMessagesAsync(batchSize: 5, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.Count().ShouldBe(5);
@@ -135,7 +138,7 @@ public class OutboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.ShouldBeEmpty();
@@ -158,8 +161,8 @@ public class OutboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        await _store.MarkAsProcessedAsync(message.Id);
-        await _store.SaveChangesAsync();
+        (await _store.MarkAsProcessedAsync(message.Id)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.OutboxMessages.FindAsync(message.Id);
@@ -187,8 +190,8 @@ public class OutboxStoreEFTests : IDisposable
         var nextRetry = DateTime.UtcNow.AddMinutes(5);
 
         // Act
-        await _store.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
-        await _store.SaveChangesAsync();
+        (await _store.MarkAsFailedAsync(message.Id, "Test error", nextRetry)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.OutboxMessages.FindAsync(message.Id);
@@ -225,7 +228,7 @@ public class OutboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = (await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ToList();
+        var messages = (await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight().ToList();
 
         // Assert
         messages[0].Id.ShouldBe(older.Id);

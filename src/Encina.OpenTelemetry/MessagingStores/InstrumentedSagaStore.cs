@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Encina.Messaging.Sagas;
+using LanguageExt;
 
 namespace Encina.OpenTelemetry.MessagingStores;
 
@@ -35,113 +36,77 @@ internal sealed class InstrumentedSagaStore : ISagaStore
     }
 
     /// <inheritdoc />
-    public async Task<ISagaState?> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Option<ISagaState>>> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
     {
         using var activity = StartSagaGet(sagaId);
-
-        try
+        var result = await _inner.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        result.IfRight(opt => opt.IfSome(saga =>
         {
-            var saga = await _inner.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
-
-            if (saga is not null)
-            {
-                activity?.SetTag("saga.type", saga.SagaType);
-                activity?.SetTag("saga.status", saga.Status);
-            }
-
-            Complete(activity);
-            return saga;
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+            activity?.SetTag("saga.type", saga.SagaType);
+            activity?.SetTag("saga.status", saga.Status);
+        }));
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
         using var activity = StartSagaCreate(sagaState.SagaType, sagaState.SagaId);
-
-        try
-        {
-            await _inner.AddAsync(sagaState, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.AddAsync(sagaState, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
         using var activity = StartSagaUpdate(sagaState.SagaType, sagaState.SagaId, sagaState.Status);
-
-        try
-        {
-            await _inner.UpdateAsync(sagaState, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.UpdateAsync(sagaState, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<ISagaState>> GetStuckSagasAsync(
+    public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetStuckSagasAsync(
         TimeSpan olderThan,
         int batchSize,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartGetStuckSagas(batchSize, olderThan);
-
-        try
+        var result = await _inner.GetStuckSagasAsync(olderThan, batchSize, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(sagas =>
         {
-            var sagas = await _inner.GetStuckSagasAsync(olderThan, batchSize, cancellationToken)
-                .ConfigureAwait(false);
-
-            var sagaList = sagas as IList<ISagaState> ?? sagas.ToList();
-            CompleteBatch(activity, sagaList.Count);
-            return sagaList;
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+            var count = sagas is ICollection<ISagaState> col ? col.Count : sagas.Count();
+            CompleteBatch(activity, count);
+        });
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+    public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetExpiredSagasAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartGetExpiredSagas(batchSize);
-
-        try
+        var result = await _inner.GetExpiredSagasAsync(batchSize, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(sagas =>
         {
-            var sagas = await _inner.GetExpiredSagasAsync(batchSize, cancellationToken)
-                .ConfigureAwait(false);
-
-            var sagaList = sagas as IList<ISagaState> ?? sagas.ToList();
-            CompleteBatch(activity, sagaList.Count);
-            return sagaList;
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+            var count = sagas is ICollection<ISagaState> col ? col.Count : sagas.Count();
+            CompleteBatch(activity, count);
+        });
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _inner.SaveChangesAsync(cancellationToken);
 
     private static Activity? StartSagaGet(Guid sagaId)

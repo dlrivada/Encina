@@ -1,4 +1,5 @@
 using Encina.Messaging.DeadLetter;
+using Encina.Testing.Shouldly;
 
 using LanguageExt;
 
@@ -7,6 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 using Shouldly;
+
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.DeadLetter;
 
@@ -91,7 +94,7 @@ public sealed class DeadLetterManagerTests
         var messageId = Guid.NewGuid();
 
         store.GetAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns((IDeadLetterMessage?)null);
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.None));
 
         // Act
         var result = await manager.ReplayAsync(messageId);
@@ -112,7 +115,7 @@ public sealed class DeadLetterManagerTests
 
         var message = CreateMockMessage(messageId, isReplayed: true);
         store.GetAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(message);
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
 
         // Act
         var result = await manager.ReplayAsync(messageId);
@@ -133,7 +136,7 @@ public sealed class DeadLetterManagerTests
 
         var message = CreateMockMessage(messageId, isExpired: true);
         store.GetAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(message);
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
 
         // Act
         var result = await manager.ReplayAsync(messageId);
@@ -154,7 +157,7 @@ public sealed class DeadLetterManagerTests
 
         var message = CreateMockMessage(messageId, requestType: "NonExistent.Type, NonExistent.Assembly");
         store.GetAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(message);
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
 
         // Act
         var result = await manager.ReplayAsync(messageId);
@@ -179,13 +182,16 @@ public sealed class DeadLetterManagerTests
         var message = CreateMockMessage(messageId);
 
         store.GetAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(message);
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
 
         // Act
         var result = await manager.GetMessageAsync(messageId);
 
         // Assert
-        result.ShouldBe(message);
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: opt => opt.IsSome.ShouldBeTrue(),
+            Left: _ => Assert.Fail("Expected Right"));
         await store.Received(1).GetAsync(messageId, Arg.Any<CancellationToken>());
     }
 
@@ -202,7 +208,7 @@ public sealed class DeadLetterManagerTests
         var messages = new List<IDeadLetterMessage>();
 
         store.GetMessagesAsync(filter, 0, 100, Arg.Any<CancellationToken>())
-            .Returns(messages);
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(messages));
 
         // Act
         var result = await manager.GetMessagesAsync(filter, 0, 100);
@@ -227,7 +233,7 @@ public sealed class DeadLetterManagerTests
         var filter = new DeadLetterFilter();
 
         store.GetCountAsync(filter, Arg.Any<CancellationToken>())
-            .Returns(42);
+            .Returns(Right<EncinaError, int>(42));
 
         // Act
         var result = await manager.GetCountAsync(filter);
@@ -252,7 +258,7 @@ public sealed class DeadLetterManagerTests
         var messageId = Guid.NewGuid();
 
         store.DeleteAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(true);
+            .Returns(Right<EncinaError, bool>(true));
 
         // Act
         var result = await manager.DeleteAsync(messageId);
@@ -291,9 +297,9 @@ public sealed class DeadLetterManagerTests
         var messages = new List<IDeadLetterMessage> { message1, message2 };
 
         store.GetMessagesAsync(filter, 0, int.MaxValue, Arg.Any<CancellationToken>())
-            .Returns(messages);
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(messages));
         store.DeleteAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(true);
+            .Returns(Right<EncinaError, bool>(true));
 
         // Act
         var result = await manager.DeleteAllAsync(filter);
@@ -315,7 +321,7 @@ public sealed class DeadLetterManagerTests
         var filter = new DeadLetterFilter();
 
         store.GetMessagesAsync(filter, 0, int.MaxValue, Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IDeadLetterMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         // Act
         var result = await manager.DeleteAllAsync(filter);
@@ -340,12 +346,8 @@ public sealed class DeadLetterManagerTests
         // which delegates to the mocked store
         var (manager, store, _, _) = CreateManager();
 
-        store.GetMessagesAsync(
-            Arg.Any<DeadLetterFilter>(),
-            Arg.Any<int>(),
-            Arg.Any<int>(),
-            Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IDeadLetterMessage>());
+        store.DeleteExpiredAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(0));
 
         // Act
         var result = await manager.CleanupExpiredAsync();
@@ -371,10 +373,13 @@ public sealed class DeadLetterManagerTests
 
         // Total count uses null filter
         store.GetCountAsync(null, Arg.Any<CancellationToken>())
-            .Returns(10);
+            .Returns(Right<EncinaError, int>(10));
         // Other counts use various filter combinations
         store.GetCountAsync(Arg.Is<DeadLetterFilter>(f => f != null), Arg.Any<CancellationToken>())
-            .Returns(5);
+            .Returns(Right<EncinaError, int>(5));
+        // GetMessagesAsync is called for oldest/newest pending messages and expired count
+        store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         // Act
         var result = await manager.GetStatisticsAsync();
@@ -411,7 +416,7 @@ public sealed class DeadLetterManagerTests
         var filter = new DeadLetterFilter();
 
         store.GetMessagesAsync(filter, 0, 100, Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IDeadLetterMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         // Act
         var result = await manager.ReplayAllAsync(filter);

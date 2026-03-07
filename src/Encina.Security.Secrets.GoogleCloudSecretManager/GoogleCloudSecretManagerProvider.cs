@@ -54,7 +54,7 @@ namespace Encina.Security.Secrets.GoogleCloudSecretManager;
 ///         var result = await secretReader.GetSecretAsync("api-key", ct);
 ///         return result.Match(
 ///             Right: value =&gt; value,
-///             Left: error =&gt; throw new InvalidOperationException(error.Message));
+///             Left: error =&gt; { logger.LogError("Failed: {Error}", error.Message); return ""; });
 ///     }
 /// }
 /// </code>

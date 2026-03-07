@@ -67,8 +67,13 @@ public abstract class DomainBuilder<T, TBuilder>
     /// </summary>
     /// <returns>The built object.</returns>
     /// <exception cref="InvalidOperationException">Thrown when build fails.</exception>
+    /// <remarks>
+    /// ROP boundary: Intentional dual API. Use <see cref="Build"/> for ROP-style error handling.
+    /// This method provides a convenience for callers that prefer exception-based flow.
+    /// </remarks>
     public T BuildOrThrow()
     {
+        // ROP boundary: Intentional dual API — Build() returns Either, BuildOrThrow() converts Left to exception.
         return Build().Match(
             Right: value => value,
             Left: error => throw new InvalidOperationException(error.Message));

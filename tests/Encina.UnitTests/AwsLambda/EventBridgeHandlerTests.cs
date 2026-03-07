@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Amazon.Lambda.CloudWatchEvents;
 using Encina.AwsLambda;
 using Encina.TestInfrastructure.Extensions;
+using Encina.Testing.Shouldly;
 using LanguageExt;
 
 namespace Encina.UnitTests.AwsLambda;

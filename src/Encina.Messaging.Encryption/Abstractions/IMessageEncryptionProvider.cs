@@ -38,9 +38,10 @@ namespace Encina.Messaging.Encryption.Abstractions;
 /// var context = new MessageEncryptionContext { KeyId = "msg-key-2024" };
 /// var plaintext = Encoding.UTF8.GetBytes(serializedJson);
 /// var result = await provider.EncryptAsync(plaintext, context);
-/// var encrypted = result.Match(
-///     Right: payload => payload,
-///     Left: error => throw new InvalidOperationException(error.Message));
+/// // Handle the result with pattern matching
+/// result.Match(
+///     Right: payload => UseEncryptedPayload(payload),
+///     Left: error => logger.LogError("Encryption failed: {Error}", error.Message));
 ///
 /// // Decrypting back
 /// var decrypted = await provider.DecryptAsync(encrypted, context);

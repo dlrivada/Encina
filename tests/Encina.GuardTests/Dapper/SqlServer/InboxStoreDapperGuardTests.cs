@@ -165,7 +165,7 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = () => store.MarkAsProcessedAsync(null!, null, CancellationToken.None);
+        var act = () => store.MarkAsProcessedAsync(null!, string.Empty, CancellationToken.None);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(act);
@@ -183,7 +183,7 @@ public sealed class InboxStoreDapperGuardTests
         var store = new InboxStoreDapper(connection);
 
         // Act
-        var act = () => store.MarkAsProcessedAsync("", null, CancellationToken.None);
+        var act = () => store.MarkAsProcessedAsync("", string.Empty, CancellationToken.None);
 
         // Assert
         var ex = await Should.ThrowAsync<ArgumentException>(act);

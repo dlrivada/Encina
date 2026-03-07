@@ -3,6 +3,7 @@ using Encina.Messaging.Sagas;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
 using Encina.Testing.Time;
+using LanguageExt;
 
 namespace Encina.Testing.Messaging;
 
@@ -357,11 +358,8 @@ public sealed class SagaTestHelper : IDisposable
     {
         return WhenAsync(async () =>
         {
-            var saga = await _store.GetAsync(sagaId);
-            if (saga is null)
-            {
-                throw new InvalidOperationException($"Saga {sagaId} not found");
-            }
+            var result = await _store.GetAsync(sagaId);
+            var saga = UnwrapSaga(result, sagaId);
 
             var updated = new FakeSagaState
             {
@@ -395,11 +393,8 @@ public sealed class SagaTestHelper : IDisposable
 
         return WhenAsync(async () =>
         {
-            var saga = await _store.GetAsync(sagaId);
-            if (saga is null)
-            {
-                throw new InvalidOperationException($"Saga {sagaId} not found");
-            }
+            var result = await _store.GetAsync(sagaId);
+            var saga = UnwrapSaga(result, sagaId);
 
             var updated = new FakeSagaState
             {
@@ -428,11 +423,8 @@ public sealed class SagaTestHelper : IDisposable
     {
         return WhenAsync(async () =>
         {
-            var saga = await _store.GetAsync(sagaId);
-            if (saga is null)
-            {
-                throw new InvalidOperationException($"Saga {sagaId} not found");
-            }
+            var result = await _store.GetAsync(sagaId);
+            var saga = UnwrapSaga(result, sagaId);
 
             var updated = new FakeSagaState
             {
@@ -462,11 +454,8 @@ public sealed class SagaTestHelper : IDisposable
     {
         return WhenAsync(async () =>
         {
-            var saga = await _store.GetAsync(sagaId);
-            if (saga is null)
-            {
-                throw new InvalidOperationException($"Saga {sagaId} not found");
-            }
+            var result = await _store.GetAsync(sagaId);
+            var saga = UnwrapSaga(result, sagaId);
 
             var updated = new FakeSagaState
             {
@@ -496,11 +485,8 @@ public sealed class SagaTestHelper : IDisposable
     {
         return WhenAsync(async () =>
         {
-            var saga = await _store.GetAsync(sagaId);
-            if (saga is null)
-            {
-                throw new InvalidOperationException($"Saga {sagaId} not found");
-            }
+            var result = await _store.GetAsync(sagaId);
+            var saga = UnwrapSaga(result, sagaId);
 
             var updated = new FakeSagaState
             {
@@ -529,11 +515,8 @@ public sealed class SagaTestHelper : IDisposable
     {
         return WhenAsync(async () =>
         {
-            var saga = await _store.GetAsync(sagaId);
-            if (saga is null)
-            {
-                throw new InvalidOperationException($"Saga {sagaId} not found");
-            }
+            var result = await _store.GetAsync(sagaId);
+            var saga = UnwrapSaga(result, sagaId);
 
             var updated = new FakeSagaState
             {
@@ -917,6 +900,15 @@ public sealed class SagaTestHelper : IDisposable
             throw new InvalidOperationException(
                 "When() must be called before Then assertions");
         }
+    }
+
+    private static ISagaState UnwrapSaga(Either<EncinaError, Option<ISagaState>> result, Guid sagaId)
+    {
+        return result.Match(
+            Right: option => option.Match(
+                Some: saga => saga,
+                None: () => throw new InvalidOperationException($"Saga {sagaId} not found")),
+            Left: error => throw new InvalidOperationException($"Error retrieving saga {sagaId}: {error}"));
     }
 
     /// <inheritdoc />

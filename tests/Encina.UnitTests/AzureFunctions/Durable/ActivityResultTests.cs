@@ -1,5 +1,6 @@
 using Encina.AzureFunctions.Durable;
 using Encina.TestInfrastructure.Extensions;
+using Encina.Testing.Shouldly;
 
 namespace Encina.UnitTests.AzureFunctions.Durable;
 

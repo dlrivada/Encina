@@ -1,5 +1,7 @@
 using Encina.EntityFrameworkCore.Inbox;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -47,8 +49,8 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
         };
 
         // Act
-        await store.AddAsync(message);
-        await store.SaveChangesAsync();
+        (await store.AddAsync(message)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -79,11 +81,11 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Act
-        var result = await store.GetMessageAsync(messageId);
+        var resultOption = (await store.GetMessageAsync(messageId)).ShouldBeRight();
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.MessageId.ShouldBe(messageId);
+        resultOption.IsSome.ShouldBeTrue();
+        resultOption.IfSome(msg => msg.MessageId.ShouldBe(messageId));
     }
 
     [Fact]
@@ -108,8 +110,8 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Act
-        await store.MarkAsProcessedAsync(messageId, "{\"result\":\"success\"}");
-        await store.SaveChangesAsync();
+        (await store.MarkAsProcessedAsync(messageId, "{\"result\":\"success\"}")).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -148,7 +150,7 @@ public sealed class InboxStoreEFSqlServerTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Act
-        var expiredMessages = await store.GetExpiredMessagesAsync(batchSize: 10);
+        var expiredMessages = (await store.GetExpiredMessagesAsync(batchSize: 10)).ShouldBeRight();
 
         // Assert
         var messageList = expiredMessages.ToList();

@@ -1,5 +1,7 @@
 using Encina.Messaging.Sagas;
 
+using LanguageExt;
+
 namespace Encina.Messaging.Health;
 
 /// <summary>
@@ -41,19 +43,23 @@ public class SagaHealthCheck : EncinaHealthCheck
     protected override async Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
         // Check for stuck sagas
-        var stuckSagas = await _store.GetStuckSagasAsync(
+        var stuckSagasResult = await _store.GetStuckSagasAsync(
             _options.StuckSagaThreshold,
             _options.SagaCriticalThreshold + 1,
             cancellationToken).ConfigureAwait(false);
 
-        var stuckCount = stuckSagas.Count();
+        var stuckCount = stuckSagasResult.Match(
+            Right: sagas => sagas.Count(),
+            Left: _ => 0);
 
         // Check for expired sagas
-        var expiredSagas = await _store.GetExpiredSagasAsync(
+        var expiredSagasResult = await _store.GetExpiredSagasAsync(
             _options.SagaCriticalThreshold + 1,
             cancellationToken).ConfigureAwait(false);
 
-        var expiredCount = expiredSagas.Count();
+        var expiredCount = expiredSagasResult.Match(
+            Right: sagas => sagas.Count(),
+            Left: _ => 0);
 
         var data = new Dictionary<string, object>
         {

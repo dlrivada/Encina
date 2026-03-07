@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Sagas;
+using LanguageExt;
 using Npgsql;
 
 namespace Encina.ADO.PostgreSQL.Sagas;
@@ -35,100 +36,109 @@ public sealed class SagaStoreADO : ISagaStore
     }
 
     /// <inheritdoc />
-    public async Task<ISagaState?> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Option<ISagaState>>> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
     {
         if (sagaId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.SagaIdCannotBeEmpty, nameof(sagaId));
 
-        var sql = $@"
-            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
-            FROM {_tableName}
-            WHERE sagaid = @SagaId";
-
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@SagaId", sagaId);
-
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
-
-        using var reader = await ExecuteReaderAsync(command, cancellationToken);
-        if (await ReadAsync(reader, cancellationToken))
+        return await EitherHelpers.TryAsync(async () =>
         {
-            return MapToSagaState(reader);
-        }
+            var sql = $@"
+                SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
+                FROM {_tableName}
+                WHERE sagaid = @SagaId";
 
-        return null;
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@SagaId", sagaId);
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            if (await ReadAsync(reader, cancellationToken))
+            {
+                return Option<ISagaState>.Some(MapToSagaState(reader));
+            }
+
+            return Option<ISagaState>.None;
+        }, "saga.get_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sagaState);
 
-        var sql = $@"
-            INSERT INTO {_tableName}
-            (sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc)
-            VALUES
-            (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep, @TimeoutAtUtc)";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                INSERT INTO {_tableName}
+                (sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc)
+                VALUES
+                (@SagaId, @SagaType, @Data, @Status, @StartedAtUtc, @LastUpdatedAtUtc, @CompletedAtUtc, @ErrorMessage, @CurrentStep, @TimeoutAtUtc)";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@SagaId", sagaState.SagaId);
-        AddParameter(command, "@SagaType", sagaState.SagaType);
-        AddParameter(command, "@Data", sagaState.Data);
-        AddParameter(command, "@Status", sagaState.Status);
-        AddParameter(command, "@StartedAtUtc", sagaState.StartedAtUtc);
-        AddParameter(command, "@LastUpdatedAtUtc", sagaState.LastUpdatedAtUtc);
-        AddParameter(command, "@CompletedAtUtc", sagaState.CompletedAtUtc);
-        AddParameter(command, "@ErrorMessage", sagaState.ErrorMessage);
-        AddParameter(command, "@CurrentStep", sagaState.CurrentStep);
-        AddParameter(command, "@TimeoutAtUtc", sagaState.TimeoutAtUtc);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@SagaId", sagaState.SagaId);
+            AddParameter(command, "@SagaType", sagaState.SagaType);
+            AddParameter(command, "@Data", sagaState.Data);
+            AddParameter(command, "@Status", sagaState.Status);
+            AddParameter(command, "@StartedAtUtc", sagaState.StartedAtUtc);
+            AddParameter(command, "@LastUpdatedAtUtc", sagaState.LastUpdatedAtUtc);
+            AddParameter(command, "@CompletedAtUtc", sagaState.CompletedAtUtc);
+            AddParameter(command, "@ErrorMessage", sagaState.ErrorMessage);
+            AddParameter(command, "@CurrentStep", sagaState.CurrentStep);
+            AddParameter(command, "@TimeoutAtUtc", sagaState.TimeoutAtUtc);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "saga.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sagaState);
 
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var sql = $@"
-            UPDATE {_tableName}
-            SET sagatype = @SagaType,
-                data = @Data,
-                status = @Status,
-                lastupdatedatutc = @NowUtc,
-                completedatutc = @CompletedAtUtc,
-                errormessage = @ErrorMessage,
-                currentstep = @CurrentStep,
-                timeoutatutc = @TimeoutAtUtc
-            WHERE sagaid = @SagaId";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET sagatype = @SagaType,
+                    data = @Data,
+                    status = @Status,
+                    lastupdatedatutc = @NowUtc,
+                    completedatutc = @CompletedAtUtc,
+                    errormessage = @ErrorMessage,
+                    currentstep = @CurrentStep,
+                    timeoutatutc = @TimeoutAtUtc
+                WHERE sagaid = @SagaId";
 
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@SagaId", sagaState.SagaId);
-        AddParameter(command, "@SagaType", sagaState.SagaType);
-        AddParameter(command, "@Data", sagaState.Data);
-        AddParameter(command, "@Status", sagaState.Status);
-        AddParameter(command, "@NowUtc", nowUtc);
-        AddParameter(command, "@CompletedAtUtc", sagaState.CompletedAtUtc);
-        AddParameter(command, "@ErrorMessage", sagaState.ErrorMessage);
-        AddParameter(command, "@CurrentStep", sagaState.CurrentStep);
-        AddParameter(command, "@TimeoutAtUtc", sagaState.TimeoutAtUtc);
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@SagaId", sagaState.SagaId);
+            AddParameter(command, "@SagaType", sagaState.SagaType);
+            AddParameter(command, "@Data", sagaState.Data);
+            AddParameter(command, "@Status", sagaState.Status);
+            AddParameter(command, "@NowUtc", nowUtc);
+            AddParameter(command, "@CompletedAtUtc", sagaState.CompletedAtUtc);
+            AddParameter(command, "@ErrorMessage", sagaState.ErrorMessage);
+            AddParameter(command, "@CurrentStep", sagaState.CurrentStep);
+            AddParameter(command, "@TimeoutAtUtc", sagaState.TimeoutAtUtc);
 
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
 
-        await ExecuteNonQueryAsync(command, cancellationToken);
+            await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "saga.update_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<ISagaState>> GetStuckSagasAsync(
+    public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetStuckSagasAsync(
         TimeSpan olderThan,
         int batchSize,
         CancellationToken cancellationToken = default)
@@ -138,82 +148,88 @@ public sealed class SagaStoreADO : ISagaStore
         if (batchSize <= 0)
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
-        var thresholdUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
-
-        var sql = $@"
-            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
-            FROM {_tableName}
-            WHERE (status = @Running OR status = @Compensating)
-              AND lastupdatedatutc < @ThresholdUtc
-            ORDER BY lastupdatedatutc
-            LIMIT @BatchSize";
-
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@Running", "Running");
-        AddParameter(command, "@Compensating", "Compensating");
-        AddParameter(command, "@ThresholdUtc", thresholdUtc);
-        AddParameter(command, "@BatchSize", batchSize);
-
-        var sagas = new List<ISagaState>();
-
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
-
-        using var reader = await ExecuteReaderAsync(command, cancellationToken);
-        while (await ReadAsync(reader, cancellationToken))
+        return await EitherHelpers.TryAsync(async () =>
         {
-            sagas.Add(MapToSagaState(reader));
-        }
+            var thresholdUtc = _timeProvider.GetUtcNow().UtcDateTime.Subtract(olderThan);
 
-        return sagas;
+            var sql = $@"
+                SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
+                FROM {_tableName}
+                WHERE (status = @Running OR status = @Compensating)
+                  AND lastupdatedatutc < @ThresholdUtc
+                ORDER BY lastupdatedatutc
+                LIMIT @BatchSize";
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@Running", "Running");
+            AddParameter(command, "@Compensating", "Compensating");
+            AddParameter(command, "@ThresholdUtc", thresholdUtc);
+            AddParameter(command, "@BatchSize", batchSize);
+
+            var sagas = new List<ISagaState>();
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            while (await ReadAsync(reader, cancellationToken))
+            {
+                sagas.Add(MapToSagaState(reader));
+            }
+
+            return (IEnumerable<ISagaState>)sagas;
+        }, "saga.get_stuck_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+    public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetExpiredSagasAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
         if (batchSize <= 0)
             throw new ArgumentException(StoreValidationMessages.BatchSizeMustBeGreaterThanZero, nameof(batchSize));
 
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-
-        var sql = $@"
-            SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
-            FROM {_tableName}
-            WHERE (status = @Running OR status = @Compensating)
-              AND timeoutatutc IS NOT NULL
-              AND timeoutatutc <= @NowUtc
-            ORDER BY timeoutatutc
-            LIMIT @BatchSize";
-
-        using var command = _connection.CreateCommand();
-        command.CommandText = sql;
-        AddParameter(command, "@Running", "Running");
-        AddParameter(command, "@Compensating", "Compensating");
-        AddParameter(command, "@NowUtc", nowUtc);
-        AddParameter(command, "@BatchSize", batchSize);
-
-        var sagas = new List<ISagaState>();
-
-        if (_connection.State != ConnectionState.Open)
-            await OpenConnectionAsync(cancellationToken);
-
-        using var reader = await ExecuteReaderAsync(command, cancellationToken);
-        while (await ReadAsync(reader, cancellationToken))
+        return await EitherHelpers.TryAsync(async () =>
         {
-            sagas.Add(MapToSagaState(reader));
-        }
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        return sagas;
+            var sql = $@"
+                SELECT sagaid, sagatype, data, status, startedatutc, lastupdatedatutc, completedatutc, errormessage, currentstep, timeoutatutc
+                FROM {_tableName}
+                WHERE (status = @Running OR status = @Compensating)
+                  AND timeoutatutc IS NOT NULL
+                  AND timeoutatutc <= @NowUtc
+                ORDER BY timeoutatutc
+                LIMIT @BatchSize";
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@Running", "Running");
+            AddParameter(command, "@Compensating", "Compensating");
+            AddParameter(command, "@NowUtc", nowUtc);
+            AddParameter(command, "@BatchSize", batchSize);
+
+            var sagas = new List<ISagaState>();
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            while (await ReadAsync(reader, cancellationToken))
+            {
+                sagas.Add(MapToSagaState(reader));
+            }
+
+            return (IEnumerable<ISagaState>)sagas;
+        }, "saga.get_expired_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // ADO.NET executes SQL immediately, no need for SaveChanges
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 
     private static SagaState MapToSagaState(IDataReader reader)

@@ -92,8 +92,9 @@ public sealed class SagaStoreEFMySqlTests : IAsyncLifetime
         var result = await store.GetAsync(sagaId);
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.SagaId.ShouldBe(sagaId);
+        var option = result.ShouldBeRight();
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(s => s.SagaId.ShouldBe(sagaId));
     }
 
     [Fact]
@@ -137,7 +138,7 @@ public sealed class SagaStoreEFMySqlTests : IAsyncLifetime
             batchSize: 10);
 
         // Assert
-        var sagaList = stuckSagas.ToList();
+        var sagaList = stuckSagas.ShouldBeRight().ToList();
         sagaList.Count.ShouldBe(1);
         sagaList.ShouldContain(s => s.SagaId == stuckSaga.SagaId);
     }

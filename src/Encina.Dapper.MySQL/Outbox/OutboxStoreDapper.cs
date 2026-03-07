@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Encina.Messaging;
 using Encina.Messaging.Outbox;
+using LanguageExt;
 
 namespace Encina.Dapper.MySQL.Outbox;
 
@@ -33,61 +34,72 @@ public sealed class OutboxStoreDapper : IOutboxStore
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var sql = $@"
-            INSERT INTO {_tableName}
-            (Id, NotificationType, Content, CreatedAtUtc, ProcessedAtUtc, ErrorMessage, RetryCount, NextRetryAtUtc)
-            VALUES
-            (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                INSERT INTO {_tableName}
+                (Id, NotificationType, Content, CreatedAtUtc, ProcessedAtUtc, ErrorMessage, RetryCount, NextRetryAtUtc)
+                VALUES
+                (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
 
-        await _connection.ExecuteAsync(sql, message);
+            await _connection.ExecuteAsync(sql, message);
+        }, "outbox.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IOutboxMessage>> GetPendingMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IOutboxMessage>>> GetPendingMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(batchSize, 0);
         ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var sql = $@"
-            SELECT *
-            FROM {_tableName}
-            WHERE ProcessedAtUtc IS NULL
-              AND RetryCount < @MaxRetries
-              AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= @NowUtc)
-            ORDER BY CreatedAtUtc
-            LIMIT @BatchSize";
 
-        var messages = await _connection.QueryAsync<OutboxMessage>(
-            sql,
-            new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
+        return await EitherHelpers.TryAsync<IEnumerable<IOutboxMessage>>(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                SELECT *
+                FROM {_tableName}
+                WHERE ProcessedAtUtc IS NULL
+                  AND RetryCount < @MaxRetries
+                  AND (NextRetryAtUtc IS NULL OR NextRetryAtUtc <= @NowUtc)
+                ORDER BY CreatedAtUtc
+                LIMIT @BatchSize";
 
-        return messages.Cast<IOutboxMessage>();
+            var messages = await _connection.QueryAsync<OutboxMessage>(
+                sql,
+                new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
+
+            return messages.Cast<IOutboxMessage>();
+        }, "outbox.get_pending_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (messageId == Guid.Empty)
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var sql = $@"
-            UPDATE {_tableName}
-            SET ProcessedAtUtc = @NowUtc,
-                ErrorMessage = NULL
-            WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ProcessedAtUtc = @NowUtc,
+                    ErrorMessage = NULL
+                WHERE Id = @MessageId";
+
+            await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
+        }, "outbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -97,27 +109,30 @@ public sealed class OutboxStoreDapper : IOutboxStore
             throw new ArgumentException(StoreValidationMessages.MessageIdCannotBeEmpty, nameof(messageId));
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
-        var sql = $@"
-            UPDATE {_tableName}
-            SET ErrorMessage = @ErrorMessage,
-                RetryCount = RetryCount + 1,
-                NextRetryAtUtc = @NextRetryAtUtc
-            WHERE Id = @MessageId";
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET ErrorMessage = @ErrorMessage,
+                    RetryCount = RetryCount + 1,
+                    NextRetryAtUtc = @NextRetryAtUtc
+                WHERE Id = @MessageId";
 
-        await _connection.ExecuteAsync(
-            sql,
-            new
-            {
-                MessageId = messageId,
-                ErrorMessage = errorMessage,
-                NextRetryAtUtc = nextRetryAtUtc
-            });
+            await _connection.ExecuteAsync(
+                sql,
+                new
+                {
+                    MessageId = messageId,
+                    ErrorMessage = errorMessage,
+                    NextRetryAtUtc = nextRetryAtUtc
+                });
+        }, "outbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // Dapper executes SQL immediately, no need for SaveChanges
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 }

@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Serialization;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Outbox;
 
@@ -174,7 +176,7 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns([]);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(Enumerable.Empty<IOutboxMessage>()));
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(
@@ -198,7 +200,7 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns([message]);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message }));
 
         var publishedMessages = new List<object>();
         Func<IOutboxMessage, Type, object, Task> callback = (msg, type, obj) =>
@@ -228,7 +230,7 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns([message]);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message }));
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(
@@ -257,7 +259,7 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns([message]);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message }));
 
         Func<IOutboxMessage, Type, object, Task> callback = (msg, type, obj) =>
             Task.FromException(new InvalidOperationException("Publish failed"));
@@ -302,7 +304,7 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns([message1, message2]);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message1, message2 }));
 
         using var cts = new CancellationTokenSource();
         var processedCount = 0;
@@ -338,7 +340,7 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns([]);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(Enumerable.Empty<IOutboxMessage>()));
 
         // Act
         var result = await fixture.Orchestrator.GetPendingCountAsync();
@@ -364,7 +366,7 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns(messages);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(messages.AsEnumerable()));
 
         // Act
         var result = await fixture.Orchestrator.GetPendingCountAsync();

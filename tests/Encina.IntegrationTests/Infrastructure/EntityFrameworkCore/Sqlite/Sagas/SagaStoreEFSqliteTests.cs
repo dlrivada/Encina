@@ -1,5 +1,7 @@
 using Encina.EntityFrameworkCore.Sagas;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -49,8 +51,8 @@ public sealed class SagaStoreEFSqliteTests : IAsyncLifetime
         };
 
         // Act
-        await store.AddAsync(saga);
-        await store.SaveChangesAsync();
+        (await store.AddAsync(saga)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = _fixture.CreateDbContext<TestEFDbContext>();
@@ -84,11 +86,11 @@ public sealed class SagaStoreEFSqliteTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Act
-        var result = await store.GetAsync(sagaId);
+        var resultOption = (await store.GetAsync(sagaId)).ShouldBeRight();
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.SagaId.ShouldBe(sagaId);
+        resultOption.IsSome.ShouldBeTrue();
+        resultOption.IfSome(s => s.SagaId.ShouldBe(sagaId));
     }
 
     [Fact]
@@ -125,9 +127,9 @@ public sealed class SagaStoreEFSqliteTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Act
-        var stuckSagas = await store.GetStuckSagasAsync(
+        var stuckSagas = (await store.GetStuckSagasAsync(
             olderThan: TimeSpan.FromHours(1),
-            batchSize: 10);
+            batchSize: 10)).ShouldBeRight();
 
         // Assert
         var sagaList = stuckSagas.ToList();

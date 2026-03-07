@@ -1,6 +1,7 @@
 using Encina.Dapper.Sqlite.Inbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 
 namespace Encina.IntegrationTests.Dapper.Sqlite.Inbox;
 
@@ -49,11 +50,11 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetMessageAsync(message.MessageId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetMessageAsync(message.MessageId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
     }
 
     [Fact]
@@ -72,11 +73,12 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetMessageAsync(messageId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal(messageId, retrieved.MessageId);
         Assert.Equal("ProcessOrderCommand", retrieved.RequestType);
         Assert.Equal(0, retrieved.RetryCount);
@@ -101,11 +103,12 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetMessageAsync(message.MessageId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetMessageAsync(message.MessageId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal("{\"orderId\":12345,\"status\":\"completed\"}", retrieved.Response);
         Assert.NotNull(retrieved.ProcessedAtUtc);
     }
@@ -127,13 +130,14 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        var result = await _store.GetMessageAsync(messageId);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
 
         // Assert
-        Assert.NotNull(result);
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal(messageId, result.MessageId);
     }
 
@@ -141,10 +145,10 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
     public async Task GetMessageAsync_NonExistentMessage_ShouldReturnNull()
     {
         // Act
-        var result = await _store.GetMessageAsync("non-existent-id");
+        var resultOpt = (await _store.GetMessageAsync("non-existent-id")).ShouldBeRight();
 
         // Assert
-        Assert.Null(result);
+        Assert.True(resultOpt.IsNone);
     }
 
     [Fact]
@@ -160,14 +164,15 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
-        await _store.MarkAsProcessedAsync(messageId, "{\"result\":\"success\"}");
+        (await _store.AddAsync(message)).ShouldBeRight();
+        (await _store.MarkAsProcessedAsync(messageId, "{\"result\":\"success\"}")).ShouldBeRight();
 
         // Act
-        var result = await _store.GetMessageAsync(messageId);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
 
         // Assert
-        Assert.NotNull(result);
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.NotNull(result.ProcessedAtUtc);
         Assert.Equal("{\"result\":\"success\"}", result.Response);
         Assert.Null(result.ErrorMessage);
@@ -190,14 +195,15 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsProcessedAsync(messageId, null);
+        (await _store.MarkAsProcessedAsync(messageId, null!)).ShouldBeRight();
 
         // Assert
-        var result = await _store.GetMessageAsync(messageId);
-        Assert.NotNull(result);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.NotNull(result.ProcessedAtUtc);
     }
 
@@ -214,15 +220,16 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
         var response = "{\"orderId\":999,\"total\":249.99}";
 
         // Act
-        await _store.MarkAsProcessedAsync(messageId, response);
+        (await _store.MarkAsProcessedAsync(messageId, response)).ShouldBeRight();
 
         // Assert
-        var result = await _store.GetMessageAsync(messageId);
-        Assert.NotNull(result);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal(response, result.Response);
         Assert.NotNull(result.ProcessedAtUtc);
     }
@@ -241,14 +248,15 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ErrorMessage = "Previous error",
             RetryCount = 1
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsProcessedAsync(messageId, "{\"status\":\"recovered\"}");
+        (await _store.MarkAsProcessedAsync(messageId, "{\"status\":\"recovered\"}")).ShouldBeRight();
 
         // Assert
-        var result = await _store.GetMessageAsync(messageId);
-        Assert.NotNull(result);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Null(result.ErrorMessage);
         Assert.NotNull(result.ProcessedAtUtc);
     }
@@ -270,14 +278,15 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsFailedAsync(messageId, "Processing failed", null);
+        (await _store.MarkAsFailedAsync(messageId, "Processing failed", null)).ShouldBeRight();
 
         // Assert
-        var result = await _store.GetMessageAsync(messageId);
-        Assert.NotNull(result);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal("Processing failed", result.ErrorMessage);
     }
 
@@ -294,15 +303,16 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsFailedAsync(messageId, "First failure", DateTime.UtcNow.AddMinutes(5));
-        await _store.MarkAsFailedAsync(messageId, "Second failure", DateTime.UtcNow.AddMinutes(10));
+        (await _store.MarkAsFailedAsync(messageId, "First failure", DateTime.UtcNow.AddMinutes(5))).ShouldBeRight();
+        (await _store.MarkAsFailedAsync(messageId, "Second failure", DateTime.UtcNow.AddMinutes(10))).ShouldBeRight();
 
         // Assert
-        var result = await _store.GetMessageAsync(messageId);
-        Assert.NotNull(result);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal(2, result.RetryCount);
     }
 
@@ -319,15 +329,16 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
         var nextRetry = DateTime.UtcNow.AddMinutes(15);
 
         // Act
-        await _store.MarkAsFailedAsync(messageId, "Temporary failure", nextRetry);
+        (await _store.MarkAsFailedAsync(messageId, "Temporary failure", nextRetry)).ShouldBeRight();
 
         // Assert
-        var result = await _store.GetMessageAsync(messageId);
-        Assert.NotNull(result);
+        var resultOpt = (await _store.GetMessageAsync(messageId)).ShouldBeRight();
+        Assert.True(resultOpt.IsSome);
+        var result = resultOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.NotNull(result.NextRetryAtUtc);
         // Allow small tolerance for DateTime comparison
         Assert.True(Math.Abs((result.NextRetryAtUtc.Value - nextRetry).TotalSeconds) < 2);
@@ -350,10 +361,10 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30), // Future expiry
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        var results = await _store.GetExpiredMessagesAsync(10);
+        var results = (await _store.GetExpiredMessagesAsync(10)).ShouldBeRight();
 
         // Assert
         Assert.Empty(results);
@@ -372,10 +383,10 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-5), // Expired
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        var results = await _store.GetExpiredMessagesAsync(10);
+        var results = (await _store.GetExpiredMessagesAsync(10)).ShouldBeRight();
 
         // Assert
         Assert.Single(results);
@@ -395,10 +406,10 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-5), // Expired
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        var results = await _store.GetExpiredMessagesAsync(10);
+        var results = (await _store.GetExpiredMessagesAsync(10)).ShouldBeRight();
 
         // Assert
         Assert.Empty(results); // Should not return unprocessed messages
@@ -419,11 +430,11 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
                 ExpiresAtUtc = DateTime.UtcNow.AddDays(-i - 1), // Different expiry times
                 RetryCount = 0
             };
-            await _store.AddAsync(message);
+            (await _store.AddAsync(message)).ShouldBeRight();
         }
 
         // Act
-        var results = await _store.GetExpiredMessagesAsync(3);
+        var results = (await _store.GetExpiredMessagesAsync(3)).ShouldBeRight();
 
         // Assert
         Assert.Equal(3, results.Count());
@@ -455,17 +466,17 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(-5),
             RetryCount = 0
         };
-        await _store.AddAsync(message1);
-        await _store.AddAsync(message2);
+        (await _store.AddAsync(message1)).ShouldBeRight();
+        (await _store.AddAsync(message2)).ShouldBeRight();
 
         // Act
-        await _store.RemoveExpiredMessagesAsync(s_twoMessageIds);
+        (await _store.RemoveExpiredMessagesAsync(s_twoMessageIds)).ShouldBeRight();
 
         // Assert
-        var msg1 = await _store.GetMessageAsync("msg-1");
-        var msg2 = await _store.GetMessageAsync("msg-2");
-        Assert.Null(msg1);
-        Assert.Null(msg2);
+        var msg1Opt = (await _store.GetMessageAsync("msg-1")).ShouldBeRight();
+        var msg2Opt = (await _store.GetMessageAsync("msg-2")).ShouldBeRight();
+        Assert.True(msg1Opt.IsNone);
+        Assert.True(msg2Opt.IsNone);
     }
 
     [Fact]
@@ -488,17 +499,17 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message1);
-        await _store.AddAsync(message2);
+        (await _store.AddAsync(message1)).ShouldBeRight();
+        (await _store.AddAsync(message2)).ShouldBeRight();
 
         // Act
-        await _store.RemoveExpiredMessagesAsync(s_oneMessageId);
+        (await _store.RemoveExpiredMessagesAsync(s_oneMessageId)).ShouldBeRight();
 
         // Assert
-        var msg1 = await _store.GetMessageAsync("msg-1");
-        var msg2 = await _store.GetMessageAsync("msg-2");
-        Assert.Null(msg1); // Deleted
-        Assert.NotNull(msg2); // Still exists
+        var msg1Opt = (await _store.GetMessageAsync("msg-1")).ShouldBeRight();
+        var msg2Opt = (await _store.GetMessageAsync("msg-2")).ShouldBeRight();
+        Assert.True(msg1Opt.IsNone); // Deleted
+        Assert.True(msg2Opt.IsSome); // Still exists
     }
 
     [Fact]
@@ -513,14 +524,14 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
             ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
             RetryCount = 0
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.RemoveExpiredMessagesAsync(Array.Empty<string>());
+        (await _store.RemoveExpiredMessagesAsync(Array.Empty<string>())).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetMessageAsync(message.MessageId);
-        Assert.NotNull(retrieved); // Should still exist
+        var retrievedOpt = (await _store.GetMessageAsync(message.MessageId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome); // Should still exist
     }
 
     #endregion
@@ -531,7 +542,7 @@ public sealed class InboxStoreDapperTests : IAsyncLifetime
     public async Task SaveChangesAsync_ShouldCompleteSuccessfully()
     {
         // Act
-        await _store.SaveChangesAsync();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert - Operation completed without throwing
         Assert.True(true, "SaveChangesAsync completed successfully");

@@ -69,8 +69,9 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetMessageAsync(message.MessageId);
 
         // Assert
-        retrieved.ShouldNotBeNull();
-        retrieved!.MessageId.ShouldBe("existing-message");
+        var option = retrieved.ShouldBeRight();
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(msg => msg.MessageId.ShouldBe("existing-message"));
     }
 
     [Fact]
@@ -84,7 +85,8 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetMessageAsync("non-existent-message");
 
         // Assert
-        retrieved.ShouldBeNull();
+        var option = retrieved.ShouldBeRight();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -128,7 +130,7 @@ public sealed class InboxStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var messages = await store.GetExpiredMessagesAsync(batchSize: 10);
 
         // Assert
-        var messageList = messages.ToList();
+        var messageList = messages.ShouldBeRight().ToList();
         messageList.Count.ShouldBe(2);
         messageList.ShouldContain(m => m.MessageId == expired1.MessageId);
         messageList.ShouldContain(m => m.MessageId == expired2.MessageId);

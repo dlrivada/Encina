@@ -7,10 +7,14 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 
+using LanguageExt;
+
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
 using Shouldly;
+
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Health;
 
@@ -102,7 +106,7 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IOutboxMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(System.Array.Empty<IOutboxMessage>().AsEnumerable()));
 
         var healthCheck = new OutboxHealthCheck(store);
 
@@ -122,7 +126,7 @@ public sealed class HealthChecksTests
         var store = Substitute.For<IOutboxStore>();
         var messages = Enumerable.Range(0, 100).Select(_ => Substitute.For<IOutboxMessage>());
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(messages);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(messages));
 
         var options = new OutboxHealthCheckOptions
         {
@@ -145,7 +149,7 @@ public sealed class HealthChecksTests
         var store = Substitute.For<IOutboxStore>();
         var messages = Enumerable.Range(0, 200).Select(_ => Substitute.For<IOutboxMessage>());
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(messages);
+            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(messages));
 
         var options = new OutboxHealthCheckOptions
         {
@@ -178,7 +182,7 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IInboxStore>();
         store.GetExpiredMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IInboxMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IInboxMessage>>(System.Array.Empty<IInboxMessage>()));
 
         var healthCheck = new InboxHealthCheck(store);
 
@@ -223,9 +227,9 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IDeadLetterStore>();
         store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
-            .Returns(0);
+            .Returns(Right<EncinaError, int>(0));
         store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IDeadLetterMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         var healthCheck = new DeadLetterHealthCheck(store);
 
@@ -242,9 +246,9 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IDeadLetterStore>();
         store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
-            .Returns(50);
+            .Returns(Right<EncinaError, int>(50));
         store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IDeadLetterMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         var options = new DeadLetterHealthCheckOptions
         {
@@ -267,9 +271,9 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IDeadLetterStore>();
         store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
-            .Returns(100);
+            .Returns(Right<EncinaError, int>(100));
         store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IDeadLetterMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         var options = new DeadLetterHealthCheckOptions
         {
@@ -292,11 +296,11 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IDeadLetterStore>();
         store.GetCountAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<CancellationToken>())
-            .Returns(5); // Below warning threshold
+            .Returns(Right<EncinaError, int>(5)); // Below warning threshold
 
         var oldMessage = Substitute.For<IDeadLetterMessage>();
         store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { oldMessage }); // Has old messages
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(new[] { oldMessage })); // Has old messages
 
         var options = new DeadLetterHealthCheckOptions
         {
@@ -330,9 +334,9 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<ISagaStore>();
         store.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<ISagaState>());
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(System.Array.Empty<ISagaState>()));
         store.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<ISagaState>());
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(System.Array.Empty<ISagaState>()));
 
         var healthCheck = new SagaHealthCheck(store);
 
@@ -350,9 +354,9 @@ public sealed class HealthChecksTests
         var store = Substitute.For<ISagaStore>();
         var stuckSagas = Enumerable.Range(0, 15).Select(_ => Substitute.For<ISagaState>());
         store.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(stuckSagas);
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(stuckSagas));
         store.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<ISagaState>());
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(System.Array.Empty<ISagaState>()));
 
         var options = new SagaHealthCheckOptions
         {
@@ -376,9 +380,9 @@ public sealed class HealthChecksTests
         var stuckSagas = Enumerable.Range(0, 30).Select(_ => Substitute.For<ISagaState>());
         var expiredSagas = Enumerable.Range(0, 25).Select(_ => Substitute.For<ISagaState>());
         store.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(stuckSagas);
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(stuckSagas));
         store.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(expiredSagas);
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(expiredSagas));
 
         var options = new SagaHealthCheckOptions
         {
@@ -411,7 +415,7 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IScheduledMessageStore>();
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<IScheduledMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(System.Array.Empty<IScheduledMessage>()));
 
         var healthCheck = new SchedulingHealthCheck(store);
 
@@ -434,7 +438,7 @@ public sealed class HealthChecksTests
             return msg;
         });
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(overdueMessages);
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(overdueMessages));
 
         var options = new SchedulingHealthCheckOptions
         {
@@ -463,7 +467,7 @@ public sealed class HealthChecksTests
             return msg;
         });
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(overdueMessages);
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(overdueMessages));
 
         var options = new SchedulingHealthCheckOptions
         {
@@ -492,7 +496,7 @@ public sealed class HealthChecksTests
             return msg;
         });
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(dueMessages);
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(dueMessages));
 
         var options = new SchedulingHealthCheckOptions
         {

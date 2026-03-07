@@ -69,6 +69,7 @@ public static class TenancyServiceCollectionExtensions
             var factory = sp.GetRequiredService<ITenantConnectionFactory>();
             // Note: This is synchronous for DI, but the factory can be used directly for async
             var result = factory.CreateConnectionAsync().AsTask().GetAwaiter().GetResult();
+            // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
             return result.Match(
                 Right: connection => connection,
                 Left: error => throw new InvalidOperationException(error.Message));
@@ -126,6 +127,7 @@ public static class TenancyServiceCollectionExtensions
         // Build the mapping once at registration time
         var builder = new TenantEntityMappingBuilder<TEntity, TId>();
         configure(builder);
+        // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
         var mapping = builder.Build()
             .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 
@@ -196,6 +198,7 @@ public static class TenancyServiceCollectionExtensions
         // Build the mapping once at registration time
         var builder = new TenantEntityMappingBuilder<TEntity, TId>();
         configure(builder);
+        // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
         var mapping = builder.Build()
             .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 

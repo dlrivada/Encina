@@ -48,12 +48,17 @@ public sealed class DeadLetterManager : IDeadLetterManager
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        var message = await _store.GetAsync(messageId, cancellationToken);
+        var messageResult = await _store.GetAsync(messageId, cancellationToken).ConfigureAwait(false);
+        if (messageResult.IsLeft)
+            return messageResult.LeftToArray()[0];
 
-        if (message is null)
+        var messageOpt = messageResult.Match(Right: o => o, Left: _ => Option<IDeadLetterMessage>.None);
+        if (messageOpt.IsNone)
         {
             return EncinaError.New($"[{DeadLetterErrorCodes.NotFound}] Dead letter message {messageId} not found");
         }
+
+        var message = messageOpt.Match(Some: m => m, None: () => default!);
 
         if (message.IsReplayed)
         {
@@ -199,7 +204,11 @@ public sealed class DeadLetterManager : IDeadLetterManager
         // Ensure we only get non-replayed messages
         filter.ExcludeReplayed = true;
 
-        var messages = await _store.GetMessagesAsync(filter, 0, maxMessages, cancellationToken);
+        var messagesResult = await _store.GetMessagesAsync(filter, 0, maxMessages, cancellationToken).ConfigureAwait(false);
+        if (messagesResult.IsLeft)
+            return messagesResult.LeftToArray()[0];
+
+        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IDeadLetterMessage>());
         var results = new List<ReplayResult>();
 
         DeadLetterLog.BatchReplayStarted(_logger, messages.Count());
@@ -229,7 +238,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     }
 
     /// <inheritdoc />
-    public Task<IDeadLetterMessage?> GetMessageAsync(
+    public Task<Either<EncinaError, Option<IDeadLetterMessage>>> GetMessageAsync(
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
@@ -243,8 +252,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         int take = 100,
         CancellationToken cancellationToken = default)
     {
-        var messages = await _store.GetMessagesAsync(filter, skip, take, cancellationToken).ConfigureAwait(false);
-        return Either<EncinaError, IEnumerable<IDeadLetterMessage>>.Right(messages);
+        return await _store.GetMessagesAsync(filter, skip, take, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -267,7 +275,11 @@ public sealed class DeadLetterManager : IDeadLetterManager
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        var deleted = await _store.DeleteAsync(messageId, cancellationToken).ConfigureAwait(false);
+        var deleteResult = await _store.DeleteAsync(messageId, cancellationToken).ConfigureAwait(false);
+        if (deleteResult.IsLeft)
+            return deleteResult.LeftToArray()[0];
+
+        var deleted = deleteResult.Match(Right: d => d, Left: _ => false);
 
         if (!deleted)
         {
@@ -284,12 +296,18 @@ public sealed class DeadLetterManager : IDeadLetterManager
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var messages = await _store.GetMessagesAsync(filter, 0, int.MaxValue, cancellationToken);
+        var messagesResult = await _store.GetMessagesAsync(filter, 0, int.MaxValue, cancellationToken).ConfigureAwait(false);
+        if (messagesResult.IsLeft)
+            return messagesResult.LeftToArray()[0];
+
+        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IDeadLetterMessage>());
         var count = 0;
 
         foreach (var message in messages)
         {
-            if (await _store.DeleteAsync(message.Id, cancellationToken))
+            var deleteResult = await _store.DeleteAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            var deleted = deleteResult.Match(Right: d => d, Left: _ => false);
+            if (deleted)
             {
                 count++;
             }
@@ -297,7 +315,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
 
         if (count > 0)
         {
-            await _store.SaveChangesAsync(cancellationToken);
+            await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             DeadLetterLog.MessagesDeleted(_logger, count);
         }
 

@@ -2,6 +2,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Encina.Benchmarks.Infrastructure;
 using Encina.Messaging.Sagas;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using DapperSagas = Encina.Dapper.Sqlite.Sagas;
@@ -164,7 +165,10 @@ public class SagaProviderComparisonBenchmarks
         await _store.SaveChangesAsync();
 
         // Retrieve and update
-        var retrieved = await _store.GetAsync(sagaId);
+        var result = await _store.GetAsync(sagaId);
+        var retrieved = result.Match(
+            Right: option => option.Match(Some: s => s, None: () => (ISagaState?)null),
+            Left: _ => null);
         if (retrieved != null)
         {
             retrieved.CurrentStep = 1;
@@ -199,7 +203,10 @@ public class SagaProviderComparisonBenchmarks
         // Benchmark: Progress through 5 steps
         for (var step = 1; step <= 5; step++)
         {
-            var retrieved = await _store.GetAsync(sagaId);
+            var stepResult = await _store.GetAsync(sagaId);
+            var retrieved = stepResult.Match(
+                Right: option => option.Match(Some: s => s, None: () => (ISagaState?)null),
+                Left: _ => null);
             if (retrieved != null)
             {
                 retrieved.CurrentStep = step;

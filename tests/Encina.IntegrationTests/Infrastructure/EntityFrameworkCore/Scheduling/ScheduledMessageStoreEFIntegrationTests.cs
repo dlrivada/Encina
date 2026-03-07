@@ -87,7 +87,7 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        var messageList = messages.ToList();
+        var messageList = messages.ShouldBeRight().ToList();
         messageList.Count.ShouldBe(2);
         messageList.ShouldContain(m => m.Id == dueNow.Id);
         messageList.ShouldContain(m => m.Id == dueSoon.Id);
@@ -118,7 +118,7 @@ public sealed class ScheduledMessageStoreEFIntegrationTests : IClassFixture<EFCo
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        messages.ShouldBeRight().ShouldBeEmpty();
     }
 
     [Fact]

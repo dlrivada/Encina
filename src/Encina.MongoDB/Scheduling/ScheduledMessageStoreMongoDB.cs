@@ -1,4 +1,5 @@
 using Encina.Messaging.Scheduling;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -39,150 +40,168 @@ public sealed class ScheduledMessageStoreMongoDB : IScheduledMessageStore
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var mongoMessage = message as ScheduledMessage ?? new ScheduledMessage
+        return await EitherHelpers.TryAsync(async () =>
         {
-            Id = message.Id,
-            RequestType = message.RequestType,
-            Content = message.Content,
-            ScheduledAtUtc = message.ScheduledAtUtc,
-            CreatedAtUtc = message.CreatedAtUtc,
-            ProcessedAtUtc = message.ProcessedAtUtc,
-            ErrorMessage = message.ErrorMessage,
-            RetryCount = message.RetryCount,
-            NextRetryAtUtc = message.NextRetryAtUtc,
-            IsRecurring = message.IsRecurring,
-            CronExpression = message.CronExpression,
-            LastExecutedAtUtc = message.LastExecutedAtUtc
-        };
+            var mongoMessage = message as ScheduledMessage ?? new ScheduledMessage
+            {
+                Id = message.Id,
+                RequestType = message.RequestType,
+                Content = message.Content,
+                ScheduledAtUtc = message.ScheduledAtUtc,
+                CreatedAtUtc = message.CreatedAtUtc,
+                ProcessedAtUtc = message.ProcessedAtUtc,
+                ErrorMessage = message.ErrorMessage,
+                RetryCount = message.RetryCount,
+                NextRetryAtUtc = message.NextRetryAtUtc,
+                IsRecurring = message.IsRecurring,
+                CronExpression = message.CronExpression,
+                LastExecutedAtUtc = message.LastExecutedAtUtc
+            };
 
-        await _collection.InsertOneAsync(mongoMessage, cancellationToken: cancellationToken).ConfigureAwait(false);
-        Log.AddedScheduledMessage(_logger, message.Id, message.ScheduledAtUtc);
+            await _collection.InsertOneAsync(mongoMessage, cancellationToken: cancellationToken).ConfigureAwait(false);
+            Log.AddedScheduledMessage(_logger, message.Id, message.ScheduledAtUtc);
+        }, "scheduling.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IScheduledMessage>> GetDueMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IScheduledMessage>>> GetDueMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var filter = Builders<ScheduledMessage>.Filter.And(
-            Builders<ScheduledMessage>.Filter.Eq(m => m.ProcessedAtUtc, null),
-            Builders<ScheduledMessage>.Filter.Lte(m => m.ScheduledAtUtc, now),
-            Builders<ScheduledMessage>.Filter.Lt(m => m.RetryCount, maxRetries),
-            Builders<ScheduledMessage>.Filter.Or(
-                Builders<ScheduledMessage>.Filter.Eq(m => m.NextRetryAtUtc, null),
-                Builders<ScheduledMessage>.Filter.Lte(m => m.NextRetryAtUtc, now)
-            )
-        );
+            var filter = Builders<ScheduledMessage>.Filter.And(
+                Builders<ScheduledMessage>.Filter.Eq(m => m.ProcessedAtUtc, null),
+                Builders<ScheduledMessage>.Filter.Lte(m => m.ScheduledAtUtc, now),
+                Builders<ScheduledMessage>.Filter.Lt(m => m.RetryCount, maxRetries),
+                Builders<ScheduledMessage>.Filter.Or(
+                    Builders<ScheduledMessage>.Filter.Eq(m => m.NextRetryAtUtc, null),
+                    Builders<ScheduledMessage>.Filter.Lte(m => m.NextRetryAtUtc, now)
+                )
+            );
 
-        var messages = await _collection
-            .Find(filter)
-            .SortBy(m => m.ScheduledAtUtc)
-            .Limit(batchSize)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            var messages = await _collection
+                .Find(filter)
+                .SortBy(m => m.ScheduledAtUtc)
+                .Limit(batchSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-        Log.RetrievedDueScheduledMessages(_logger, messages.Count);
-        return messages;
+            Log.RetrievedDueScheduledMessages(_logger, messages.Count);
+            return (IEnumerable<IScheduledMessage>)messages;
+        }, "scheduling.get_due_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
-        var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
-        var update = Builders<ScheduledMessage>.Update
-            .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
-            .Set(m => m.LastExecutedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
-
-        var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        if (result.ModifiedCount == 0)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            Log.ScheduledMessageNotFoundForProcessed(_logger, messageId);
-        }
-        else
-        {
-            Log.MarkedScheduledMessageAsProcessed(_logger, messageId);
-        }
+            var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
+            var update = Builders<ScheduledMessage>.Update
+                .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
+                .Set(m => m.LastExecutedAtUtc, _timeProvider.GetUtcNow().UtcDateTime);
+
+            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            if (result.ModifiedCount == 0)
+            {
+                Log.ScheduledMessageNotFoundForProcessed(_logger, messageId);
+            }
+            else
+            {
+                Log.MarkedScheduledMessageAsProcessed(_logger, messageId);
+            }
+        }, "scheduling.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
-        var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
-        var update = Builders<ScheduledMessage>.Update
-            .Set(m => m.ErrorMessage, errorMessage)
-            .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
-            .Inc(m => m.RetryCount, 1);
-
-        var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        if (result.ModifiedCount == 0)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            Log.ScheduledMessageNotFoundForFailed(_logger, messageId);
-        }
-        else
-        {
-            Log.MarkedScheduledMessageAsFailed(_logger, messageId, errorMessage);
-        }
+            var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
+            var update = Builders<ScheduledMessage>.Update
+                .Set(m => m.ErrorMessage, errorMessage)
+                .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
+                .Inc(m => m.RetryCount, 1);
+
+            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            if (result.ModifiedCount == 0)
+            {
+                Log.ScheduledMessageNotFoundForFailed(_logger, messageId);
+            }
+            else
+            {
+                Log.MarkedScheduledMessageAsFailed(_logger, messageId, errorMessage);
+            }
+        }, "scheduling.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task RescheduleRecurringMessageAsync(
+    public async Task<Either<EncinaError, Unit>> RescheduleRecurringMessageAsync(
         Guid messageId,
         DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
     {
-        var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
-        var update = Builders<ScheduledMessage>.Update
-            .Set(m => m.ScheduledAtUtc, nextScheduledAtUtc)
-            .Set(m => m.ProcessedAtUtc, null)
-            .Set(m => m.ErrorMessage, null)
-            .Set(m => m.RetryCount, 0)
-            .Set(m => m.NextRetryAtUtc, null);
-
-        var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        if (result.ModifiedCount == 0)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            Log.ScheduledMessageNotFoundForRescheduling(_logger, messageId);
-        }
-        else
-        {
-            Log.RescheduledMessage(_logger, messageId, nextScheduledAtUtc);
-        }
+            var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
+            var update = Builders<ScheduledMessage>.Update
+                .Set(m => m.ScheduledAtUtc, nextScheduledAtUtc)
+                .Set(m => m.ProcessedAtUtc, null)
+                .Set(m => m.ErrorMessage, null)
+                .Set(m => m.RetryCount, 0)
+                .Set(m => m.NextRetryAtUtc, null);
+
+            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            if (result.ModifiedCount == 0)
+            {
+                Log.ScheduledMessageNotFoundForRescheduling(_logger, messageId);
+            }
+            else
+            {
+                Log.RescheduledMessage(_logger, messageId, nextScheduledAtUtc);
+            }
+        }, "scheduling.reschedule_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
-        var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
-        var result = await _collection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var filter = Builders<ScheduledMessage>.Filter.Eq(m => m.Id, messageId);
+            var result = await _collection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 
-        if (result.DeletedCount == 0)
-        {
-            Log.ScheduledMessageNotFoundForCancellation(_logger, messageId);
-        }
-        else
-        {
-            Log.CancelledScheduledMessage(_logger, messageId);
-        }
+            if (result.DeletedCount == 0)
+            {
+                Log.ScheduledMessageNotFoundForCancellation(_logger, messageId);
+            }
+            else
+            {
+                Log.CancelledScheduledMessage(_logger, messageId);
+            }
+        }, "scheduling.cancel_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // MongoDB operations are immediately persisted, no SaveChanges needed
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 }

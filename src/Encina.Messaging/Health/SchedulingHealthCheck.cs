@@ -1,4 +1,5 @@
 using Encina.Messaging.Scheduling;
+using LanguageExt;
 
 namespace Encina.Messaging.Health;
 
@@ -43,10 +44,20 @@ public class SchedulingHealthCheck : EncinaHealthCheck
     protected override async Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
         // Get due messages to check for overdue ones
-        var dueMessages = await _store.GetDueMessagesAsync(
+        var dueResult = await _store.GetDueMessagesAsync(
             batchSize: _options.OverdueCriticalThreshold + 1,
             maxRetries: int.MaxValue,
             cancellationToken).ConfigureAwait(false);
+
+        if (dueResult.IsLeft)
+        {
+            var storeError = dueResult.LeftToArray()[0];
+            return HealthCheckResult.Unhealthy(
+                $"Failed to query scheduling store: {storeError.Message}",
+                data: new Dictionary<string, object> { ["error"] = storeError.Message });
+        }
+
+        var dueMessages = dueResult.Match(Right: msgs => msgs, Left: _ => Enumerable.Empty<IScheduledMessage>());
 
         var overdueCount = 0;
         var now = _timeProvider.GetUtcNow().UtcDateTime;

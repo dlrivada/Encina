@@ -124,6 +124,13 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
 
             return result;
         }
+        catch (OperationCanceledException)
+        {
+            if (transaction != null)
+                await transaction.RollbackAsync(cancellationToken);
+
+            throw;
+        }
         catch (Exception ex)
         {
             Log.RollingBackTransactionDueToException(_logger, ex, typeof(TRequest).Name, context.CorrelationId);
@@ -131,7 +138,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             if (transaction != null)
                 await transaction.RollbackAsync(cancellationToken);
 
-            throw;
+            return EncinaErrors.FromException("transaction.failed", ex);
         }
         finally
         {

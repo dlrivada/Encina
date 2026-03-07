@@ -407,7 +407,7 @@ public sealed class SchedulerOrchestratorTests
         // Arrange
         var (orchestrator, store, _) = CreateOrchestratorWithDependencies();
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Enumerable.Empty<IScheduledMessage>());
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(Enumerable.Empty<IScheduledMessage>()));
 
         // Act
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
@@ -428,7 +428,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("{\"value\":42}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         var executed = false;
 
@@ -459,7 +459,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("{}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
@@ -485,7 +485,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("null"); // Will deserialize to null
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
@@ -511,7 +511,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("{\"value\":42}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) =>
@@ -540,7 +540,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("{\"value\":42}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         cronParser.GetNextOccurrence(Arg.Any<string>(), Arg.Any<DateTime>())
             .Returns(Right<EncinaError, DateTime>(nextExecution));
@@ -569,7 +569,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("{\"value\":42}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         var error = EncinaErrors.Create(SchedulingErrorCodes.InvalidCronExpression, "No more occurrences");
         cronParser.GetNextOccurrence(Arg.Any<string>(), Arg.Any<DateTime>())
@@ -596,7 +596,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("{\"value\":42}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
@@ -619,7 +619,7 @@ public sealed class SchedulerOrchestratorTests
         mockMessage.Content.Returns("{\"value\":42}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { mockMessage });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
         var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
@@ -647,7 +647,7 @@ public sealed class SchedulerOrchestratorTests
         message2.Content.Returns("{\"value\":2}");
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new[] { message1, message2 });
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { message1, message2 }));
 
         var processedCount = 0;
 
@@ -685,7 +685,7 @@ public sealed class SchedulerOrchestratorTests
         };
 
         store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(messages);
+            .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(messages));
 
         // Act
         var count = await orchestrator.GetPendingCountAsync();

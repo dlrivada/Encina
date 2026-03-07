@@ -2,6 +2,7 @@ using System.Text.Json;
 using Encina.Messaging.Sagas;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Sagas;
 
@@ -201,7 +202,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 1);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.AdvanceAsync<TestSagaData>(sagaId);
@@ -226,7 +227,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 1, initialData);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.AdvanceAsync<TestSagaData>(
@@ -244,7 +245,7 @@ public sealed class SagaOrchestratorTests
         // Arrange
         var sagaId = Guid.NewGuid();
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns((ISagaState?)null);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.None));
 
         // Act
         var result = await _orchestrator.AdvanceAsync<TestSagaData>(sagaId);
@@ -262,7 +263,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Completed, 3);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.AdvanceAsync<TestSagaData>(sagaId);
@@ -284,7 +285,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 3);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.CompleteAsync(sagaId);
@@ -302,7 +303,7 @@ public sealed class SagaOrchestratorTests
         // Arrange
         var sagaId = Guid.NewGuid();
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns((ISagaState?)null);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.None));
 
         // Act
         var result = await _orchestrator.CompleteAsync(sagaId);
@@ -320,7 +321,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Compensating, 2);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.CompleteAsync(sagaId);
@@ -342,7 +343,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 3);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.StartCompensationAsync(sagaId, "Order failed");
@@ -374,7 +375,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Completed, 3);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.StartCompensationAsync(sagaId, "Too late");
@@ -396,7 +397,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Compensating, 3);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.CompensateStepAsync(sagaId);
@@ -414,7 +415,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Compensating, 1);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.CompensateStepAsync(sagaId);
@@ -436,7 +437,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 2);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.CompensateStepAsync(sagaId);
@@ -457,7 +458,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Compensating, 2);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.FailAsync(sagaId, "Compensation failed");
@@ -475,7 +476,7 @@ public sealed class SagaOrchestratorTests
         // Arrange
         var sagaId = Guid.NewGuid();
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns((ISagaState?)null);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.None));
 
         // Act
         var result = await _orchestrator.FailAsync(sagaId, "Error");
@@ -498,7 +499,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 2, data);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.GetAsync<TestSagaData>(sagaId);
@@ -518,7 +519,7 @@ public sealed class SagaOrchestratorTests
         // Arrange
         var sagaId = Guid.NewGuid();
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns((ISagaState?)null);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.None));
 
         // Act
         var result = await _orchestrator.GetAsync<TestSagaData>(sagaId);
@@ -539,7 +540,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 2);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.TimeoutAsync(sagaId);
@@ -561,7 +562,7 @@ public sealed class SagaOrchestratorTests
         var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Completed, 3);
 
         _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
-            .Returns(sagaState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
         var result = await _orchestrator.TimeoutAsync(sagaId);
@@ -589,7 +590,7 @@ public sealed class SagaOrchestratorTests
             _options.StuckSagaThreshold,
             _options.StuckSagaBatchSize,
             Arg.Any<CancellationToken>())
-            .Returns(stuckSagas);
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(stuckSagas.AsEnumerable()));
 
         // Act
         var result = await _orchestrator.GetStuckSagasAsync();
@@ -615,7 +616,7 @@ public sealed class SagaOrchestratorTests
         _store.GetExpiredSagasAsync(
             _options.ExpiredSagaBatchSize,
             Arg.Any<CancellationToken>())
-            .Returns(expiredSagas);
+            .Returns(Right<EncinaError, IEnumerable<ISagaState>>(expiredSagas.AsEnumerable()));
 
         // Act
         var result = await _orchestrator.GetExpiredSagasAsync();

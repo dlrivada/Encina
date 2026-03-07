@@ -600,6 +600,7 @@ public static class ServiceCollectionExtensions
         // Build soft delete mapping
         var mappingBuilder = new SoftDeleteEntityMappingBuilder<TEntity, TId>();
         mappingConfigure(mappingBuilder);
+        // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
         var mapping = mappingBuilder.Build()
             .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 

@@ -73,6 +73,7 @@ public static class ShardingServiceCollectionExtensions
         // Build entity mapping
         var builder = new EntityMappingBuilder<TEntity, TId>();
         configureMapping(builder);
+        // ROP boundary: DI configuration errors must prevent application startup per .NET conventions.
         var mapping = builder.Build()
             .Match(Right: m => m, Left: error => throw new InvalidOperationException(error.Message));
 

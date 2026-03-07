@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Scheduling;
+using Encina.TestInfrastructure.Extensions;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -38,8 +41,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
         };
 
         // Act
-        await _store.AddAsync(message);
-        await _store.SaveChangesAsync();
+        (await _store.AddAsync(message)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var stored = await _dbContext.ScheduledMessages.FindAsync(message.Id);
@@ -101,7 +104,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.Count().ShouldBe(2);
@@ -130,7 +133,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(batchSize: 5, maxRetries: 3);
+        var messages = (await _store.GetDueMessagesAsync(batchSize: 5, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.Count().ShouldBe(5);
@@ -156,7 +159,7 @@ public class ScheduledMessageStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.ShouldBeEmpty();
@@ -182,8 +185,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        await _store.MarkAsProcessedAsync(message.Id);
-        await _store.SaveChangesAsync();
+        (await _store.MarkAsProcessedAsync(message.Id)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
@@ -214,8 +217,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
         var nextRetry = now.AddMinutes(5);
 
         // Act
-        await _store.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
-        await _store.SaveChangesAsync();
+        (await _store.MarkAsFailedAsync(message.Id, "Test error", nextRetry)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
@@ -248,8 +251,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
         var nextScheduled = now.AddHours(24);
 
         // Act
-        await _store.RescheduleRecurringMessageAsync(message.Id, nextScheduled);
-        await _store.SaveChangesAsync();
+        (await _store.RescheduleRecurringMessageAsync(message.Id, nextScheduled)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
@@ -279,8 +282,8 @@ public class ScheduledMessageStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        await _store.CancelAsync(message.Id);
-        await _store.SaveChangesAsync();
+        (await _store.CancelAsync(message.Id)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var removed = await _dbContext.ScheduledMessages.FindAsync(message.Id);

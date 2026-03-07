@@ -96,9 +96,13 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         var result = await store.GetAsync(sagaId);
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.SagaId.ShouldBe(sagaId);
-        result.SagaType.ShouldBe("TestSaga");
+        var option = result.ShouldBeRight();
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(s =>
+        {
+            s.SagaId.ShouldBe(sagaId);
+            s.SagaType.ShouldBe("TestSaga");
+        });
     }
 
     [Fact]
@@ -112,7 +116,8 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         var result = await store.GetAsync(Guid.NewGuid());
 
         // Assert
-        result.ShouldBeNull();
+        var option = result.ShouldBeRight();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -265,7 +270,7 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         var stuckSagas = await store.GetStuckSagasAsync(TimeSpan.FromHours(1), batchSize: 10);
 
         // Assert
-        var sagaList = stuckSagas.ToList();
+        var sagaList = stuckSagas.ShouldBeRight().ToList();
         sagaList.ShouldHaveSingleItem();
         sagaList.First().SagaId.ShouldBe(stuckSaga.SagaId);
     }
@@ -321,7 +326,7 @@ public sealed class SagaStoreMongoDBIntegrationTests : IAsyncLifetime
         var expiredSagas = await store.GetExpiredSagasAsync(batchSize: 10);
 
         // Assert
-        var sagaList = expiredSagas.ToList();
+        var sagaList = expiredSagas.ShouldBeRight().ToList();
         sagaList.ShouldHaveSingleItem();
         sagaList.First().SagaId.ShouldBe(expiredSaga.SagaId);
     }

@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Inbox;
+using Encina.TestInfrastructure.Extensions;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -39,21 +42,21 @@ public class InboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var result = await _store.GetMessageAsync("test-message-id");
+        var result = (await _store.GetMessageAsync("test-message-id")).ShouldBeRight();
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.MessageId.ShouldBe("test-message-id");
+        var msg = result.Match(Some: m => m, None: () => throw new InvalidOperationException("Expected Some"));
+        msg.MessageId.ShouldBe("test-message-id");
     }
 
     [Fact]
-    public async Task GetMessageAsync_ShouldReturnNullForNonExistentMessage()
+    public async Task GetMessageAsync_ShouldReturnNoneForNonExistentMessage()
     {
         // Act
-        var result = await _store.GetMessageAsync("non-existent-id");
+        var result = (await _store.GetMessageAsync("non-existent-id")).ShouldBeRight();
 
         // Assert
-        result.ShouldBeNull();
+        result.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -70,8 +73,8 @@ public class InboxStoreEFTests : IDisposable
         };
 
         // Act
-        await _store.AddAsync(message);
-        await _store.SaveChangesAsync();
+        (await _store.AddAsync(message)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var stored = await _dbContext.InboxMessages.FindAsync("new-message-id");
@@ -95,8 +98,8 @@ public class InboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        await _store.MarkAsProcessedAsync("process-test-id", "{\"result\":\"success\"}");
-        await _store.SaveChangesAsync();
+        (await _store.MarkAsProcessedAsync("process-test-id", "{\"result\":\"success\"}")).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.InboxMessages.FindAsync("process-test-id");
@@ -124,8 +127,8 @@ public class InboxStoreEFTests : IDisposable
         var nextRetry = DateTime.UtcNow.AddMinutes(5);
 
         // Act
-        await _store.MarkAsFailedAsync("fail-test-id", "Test error", nextRetry);
-        await _store.SaveChangesAsync();
+        (await _store.MarkAsFailedAsync("fail-test-id", "Test error", nextRetry)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.InboxMessages.FindAsync("fail-test-id");
@@ -162,7 +165,7 @@ public class InboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetExpiredMessagesAsync(batchSize: 10);
+        var messages = (await _store.GetExpiredMessagesAsync(batchSize: 10)).ShouldBeRight();
 
         // Assert
         messages.Count().ShouldBe(1);
@@ -195,8 +198,8 @@ public class InboxStoreEFTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        await _store.RemoveExpiredMessagesAsync(RemoveTestIds);
-        await _store.SaveChangesAsync();
+        (await _store.RemoveExpiredMessagesAsync(RemoveTestIds)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var remaining = await _dbContext.InboxMessages.ToListAsync();

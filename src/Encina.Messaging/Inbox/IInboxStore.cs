@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Messaging.Inbox;
 
 /// <summary>
@@ -13,6 +15,10 @@ namespace Encina.Messaging.Inbox;
 /// <item><description><b>Custom</b>: Redis, distributed cache, etc.</description></item>
 /// </list>
 /// </para>
+/// <para>
+/// All methods return <c>Either&lt;EncinaError, T&gt;</c> following the Railway Oriented Programming
+/// pattern. Infrastructure failures are captured as <c>Left</c> values instead of throwing exceptions.
+/// </para>
 /// </remarks>
 public interface IInboxStore
 {
@@ -21,15 +27,16 @@ public interface IInboxStore
     /// </summary>
     /// <param name="messageId">The message ID (IdempotencyKey).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The existing message if found, otherwise null.</returns>
-    Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default);
+    /// <returns>Right(Some(message)) if found; Right(None) if not found; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Adds a new message to the inbox.
     /// </summary>
     /// <param name="message">The inbox message to add.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task AddAsync(IInboxMessage message, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> AddAsync(IInboxMessage message, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a message as processed with a successful response.
@@ -37,7 +44,8 @@ public interface IInboxStore
     /// <param name="messageId">The message ID.</param>
     /// <param name="response">The serialized response.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a message as failed.
@@ -46,7 +54,8 @@ public interface IInboxStore
     /// <param name="errorMessage">The error message.</param>
     /// <param name="nextRetryAtUtc">When to retry next (UTC).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task MarkAsFailedAsync(
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -57,15 +66,16 @@ public interface IInboxStore
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets expired messages that can be cleaned up.
     /// </summary>
     /// <param name="batchSize">Maximum number of messages to retrieve.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of expired messages.</returns>
-    Task<IEnumerable<IInboxMessage>> GetExpiredMessagesAsync(
+    /// <returns>Right(messages) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default);
 
@@ -74,7 +84,8 @@ public interface IInboxStore
     /// </summary>
     /// <param name="messageIds">The message IDs to remove.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task RemoveExpiredMessagesAsync(
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(
         IEnumerable<string> messageIds,
         CancellationToken cancellationToken = default);
 
@@ -82,5 +93,6 @@ public interface IInboxStore
     /// Saves all pending changes (for stores that support it like EF Core).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task SaveChangesAsync(CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -3,6 +3,7 @@ using Dapper;
 using Encina.Dapper.Benchmarks.Infrastructure;
 using Encina.Dapper.Sqlite.Scheduling;
 using Encina.Messaging.Scheduling;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 
 namespace Encina.Dapper.Benchmarks.Stores;
@@ -124,8 +125,10 @@ public class ScheduledMessageStoreBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<List<IScheduledMessage>> GetDueMessagesAsync()
     {
-        var messages = await _store.GetDueMessagesAsync(BatchSize, maxRetries: 5);
-        return messages.ToList();
+        var result = await _store.GetDueMessagesAsync(BatchSize, maxRetries: 5);
+        return result.Match(
+            Right: messages => messages.ToList(),
+            Left: _ => []);
     }
 
     /// <summary>

@@ -407,13 +407,13 @@ public sealed class SagaRunnerTests
             .Returns(mockState);
 
         sagaStore.AddAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(LanguageExt.Unit.Default));
 
         sagaStore.GetAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(mockState);
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(mockState)));
 
         sagaStore.UpdateAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(LanguageExt.Unit.Default));
 
         return new SagaOrchestrator(sagaStore, options, logger, stateFactory);
     }

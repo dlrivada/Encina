@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Encina.Messaging.Inbox;
 using Encina.Testing.Fakes.Models;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Fakes.Stores;
 
@@ -69,14 +71,17 @@ public sealed class FakeInboxStore : IInboxStore
     public int SaveChangesCallCount { get; private set; }
 
     /// <inheritdoc />
-    public Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
     {
         _messages.TryGetValue(messageId, out var message);
-        return Task.FromResult<IInboxMessage?>(message);
+        var option = message is not null
+            ? Option<IInboxMessage>.Some(message)
+            : Option<IInboxMessage>.None;
+        return Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(option);
     }
 
     /// <inheritdoc />
-    public Task AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -100,11 +105,11 @@ public sealed class FakeInboxStore : IInboxStore
             _addedMessages.Add(fakeMessage.Clone());
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
@@ -118,11 +123,11 @@ public sealed class FakeInboxStore : IInboxStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task MarkAsFailedAsync(
+    public Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -139,22 +144,22 @@ public sealed class FakeInboxStore : IInboxStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
             message.RetryCount++;
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<IInboxMessage>> GetExpiredMessagesAsync(
+    public Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
@@ -164,11 +169,11 @@ public sealed class FakeInboxStore : IInboxStore
             .Cast<IInboxMessage>()
             .ToList();
 
-        return Task.FromResult<IEnumerable<IInboxMessage>>(expiredMessages);
+        return Task.FromResult<Either<EncinaError, IEnumerable<IInboxMessage>>>(expiredMessages);
     }
 
     /// <inheritdoc />
-    public Task RemoveExpiredMessagesAsync(
+    public Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(
         IEnumerable<string> messageIds,
         CancellationToken cancellationToken = default)
     {
@@ -183,14 +188,14 @@ public sealed class FakeInboxStore : IInboxStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         SaveChangesCallCount++;
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <summary>

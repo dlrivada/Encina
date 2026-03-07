@@ -1,4 +1,5 @@
 using Encina.Messaging.Inbox;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -39,69 +40,79 @@ public sealed class InboxStoreMongoDB : IInboxStore
     }
 
     /// <inheritdoc />
-    public async Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        var message = await _collection
-            .Find(m => m.MessageId == messageId)
-            .FirstOrDefaultAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        if (message is not null)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            Log.FoundInboxMessage(_logger, messageId);
-        }
+            var message = await _collection
+                .Find(m => m.MessageId == messageId)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-        return message;
+            if (message is not null)
+            {
+                Log.FoundInboxMessage(_logger, messageId);
+                return Option<IInboxMessage>.Some(message);
+            }
+
+            return Option<IInboxMessage>.None;
+        }, "inbox.get_message_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var mongoMessage = message as InboxMessage ?? new InboxMessage
+        return await EitherHelpers.TryAsync(async () =>
         {
-            MessageId = message.MessageId,
-            RequestType = message.RequestType,
-            Response = message.Response,
-            ErrorMessage = message.ErrorMessage,
-            ReceivedAtUtc = message.ReceivedAtUtc,
-            ProcessedAtUtc = message.ProcessedAtUtc,
-            ExpiresAtUtc = message.ExpiresAtUtc,
-            RetryCount = message.RetryCount,
-            NextRetryAtUtc = message.NextRetryAtUtc
-        };
+            var mongoMessage = message as InboxMessage ?? new InboxMessage
+            {
+                MessageId = message.MessageId,
+                RequestType = message.RequestType,
+                Response = message.Response,
+                ErrorMessage = message.ErrorMessage,
+                ReceivedAtUtc = message.ReceivedAtUtc,
+                ProcessedAtUtc = message.ProcessedAtUtc,
+                ExpiresAtUtc = message.ExpiresAtUtc,
+                RetryCount = message.RetryCount,
+                NextRetryAtUtc = message.NextRetryAtUtc
+            };
 
-        await _collection.InsertOneAsync(mongoMessage, cancellationToken: cancellationToken).ConfigureAwait(false);
-        Log.AddedInboxMessage(_logger, message.MessageId);
+            await _collection.InsertOneAsync(mongoMessage, cancellationToken: cancellationToken).ConfigureAwait(false);
+            Log.AddedInboxMessage(_logger, message.MessageId);
+        }, "inbox.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
-        var update = Builders<InboxMessage>.Update
-            .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
-            .Set(m => m.Response, response);
-
-        var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        if (result.ModifiedCount == 0)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            Log.InboxMessageNotFoundForProcessed(_logger, messageId);
-        }
-        else
-        {
-            Log.MarkedInboxMessageAsProcessed(_logger, messageId);
-        }
+            var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
+            var update = Builders<InboxMessage>.Update
+                .Set(m => m.ProcessedAtUtc, _timeProvider.GetUtcNow().UtcDateTime)
+                .Set(m => m.Response, response);
+
+            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            if (result.ModifiedCount == 0)
+            {
+                Log.InboxMessageNotFoundForProcessed(_logger, messageId);
+            }
+            else
+            {
+                Log.MarkedInboxMessageAsProcessed(_logger, messageId);
+            }
+        }, "inbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -109,77 +120,89 @@ public sealed class InboxStoreMongoDB : IInboxStore
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
-        var update = Builders<InboxMessage>.Update
-            .Set(m => m.ErrorMessage, errorMessage)
-            .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
-            .Inc(m => m.RetryCount, 1);
-
-        var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        if (result.ModifiedCount == 0)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            Log.InboxMessageNotFoundForFailed(_logger, messageId);
-        }
-        else
-        {
-            Log.MarkedInboxMessageAsFailed(_logger, messageId, errorMessage);
-        }
+            var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
+            var update = Builders<InboxMessage>.Update
+                .Set(m => m.ErrorMessage, errorMessage)
+                .Set(m => m.NextRetryAtUtc, nextRetryAtUtc)
+                .Inc(m => m.RetryCount, 1);
+
+            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            if (result.ModifiedCount == 0)
+            {
+                Log.InboxMessageNotFoundForFailed(_logger, messageId);
+            }
+            else
+            {
+                Log.MarkedInboxMessageAsFailed(_logger, messageId, errorMessage);
+            }
+        }, "inbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IInboxMessage>> GetExpiredMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var filter = Builders<InboxMessage>.Filter.Lt(m => m.ExpiresAtUtc, now);
+            var filter = Builders<InboxMessage>.Filter.Lt(m => m.ExpiresAtUtc, now);
 
-        var messages = await _collection
-            .Find(filter)
-            .Limit(batchSize)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            var messages = await _collection
+                .Find(filter)
+                .Limit(batchSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-        Log.RetrievedExpiredInboxMessages(_logger, messages.Count);
-        return messages;
+            Log.RetrievedExpiredInboxMessages(_logger, messages.Count);
+            return (IEnumerable<IInboxMessage>)messages;
+        }, "inbox.get_expired_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task RemoveExpiredMessagesAsync(
+    public async Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(
         IEnumerable<string> messageIds,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
-        var idList = messageIds.ToList();
-        if (idList.Count == 0)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            return;
-        }
+            var idList = messageIds.ToList();
+            if (idList.Count == 0)
+            {
+                return;
+            }
 
-        var filter = Builders<InboxMessage>.Filter.In(m => m.MessageId, idList);
-        var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+            var filter = Builders<InboxMessage>.Filter.In(m => m.MessageId, idList);
+            var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 
-        Log.RemovedExpiredInboxMessages(_logger, result.DeletedCount);
+            Log.RemovedExpiredInboxMessages(_logger, result.DeletedCount);
+        }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(messageId);
 
-        var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
-        var update = Builders<InboxMessage>.Update.Inc(m => m.RetryCount, 1);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var filter = Builders<InboxMessage>.Filter.Eq(m => m.MessageId, messageId);
+            var update = Builders<InboxMessage>.Update.Inc(m => m.RetryCount, 1);
 
-        await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }, "inbox.increment_retry_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // MongoDB operations are immediately persisted, no SaveChanges needed
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 }

@@ -76,8 +76,9 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetAsync(saga.SagaId);
 
         // Assert
-        retrieved.ShouldNotBeNull();
-        retrieved!.SagaId.ShouldBe(saga.SagaId);
+        var option = retrieved.ShouldBeRight();
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(s => s.SagaId.ShouldBe(saga.SagaId));
     }
 
     [Fact]
@@ -91,7 +92,8 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var retrieved = await store.GetAsync(Guid.NewGuid());
 
         // Assert
-        retrieved.ShouldBeNull();
+        var option = retrieved.ShouldBeRight();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -245,7 +247,7 @@ public sealed class SagaStoreEFIntegrationTests : IClassFixture<EFCoreFixture>
         var stuckSagas = await store.GetStuckSagasAsync(olderThan: TimeSpan.FromHours(1), batchSize: 10);
 
         // Assert
-        var sagaList = stuckSagas.ToList();
+        var sagaList = stuckSagas.ShouldBeRight().ToList();
         sagaList.Count.ShouldBe(2);
         sagaList.ShouldContain(s => s.SagaId == stuck1.SagaId);
         sagaList.ShouldContain(s => s.SagaId == stuck2.SagaId);

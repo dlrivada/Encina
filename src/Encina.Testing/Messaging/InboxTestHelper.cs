@@ -3,6 +3,7 @@ using Encina.Messaging.Inbox;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
 using Encina.Testing.Time;
+using LanguageExt;
 
 namespace Encina.Testing.Messaging;
 
@@ -242,7 +243,10 @@ public sealed class InboxTestHelper : IDisposable
 
         return WhenAsync(async () =>
         {
-            _lastRetrievedMessage = await _store.GetMessageAsync(messageId);
+            var result = await _store.GetMessageAsync(messageId);
+            _lastRetrievedMessage = result.Match(
+                Right: option => option.Match(Some: msg => msg, None: () => (IInboxMessage?)null),
+                Left: _ => null);
         });
     }
 

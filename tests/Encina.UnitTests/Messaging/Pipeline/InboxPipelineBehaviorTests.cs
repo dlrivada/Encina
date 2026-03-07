@@ -9,6 +9,8 @@ using NSubstitute;
 
 using Shouldly;
 
+using static LanguageExt.Prelude;
+
 namespace Encina.UnitTests.Messaging.Pipeline;
 
 /// <summary>
@@ -137,7 +139,7 @@ public sealed class InboxPipelineBehaviorTests
         // Arrange
         var store = Substitute.For<IInboxStore>();
         store.GetMessageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns((IInboxMessage?)null);
+            .Returns(Right<EncinaError, Option<IInboxMessage>>(Option<IInboxMessage>.None));
 
         var orchestrator = CreateOrchestrator(store);
         var behavior = new InboxPipelineBehavior<IdempotentTestRequest, TestResponse>(orchestrator);
@@ -171,7 +173,7 @@ public sealed class InboxPipelineBehaviorTests
 
         var store = Substitute.For<IInboxStore>();
         store.GetMessageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(existingMessage);
+            .Returns(Right<EncinaError, Option<IInboxMessage>>(Option<IInboxMessage>.Some(existingMessage)));
 
         var orchestrator = CreateOrchestrator(store);
         var behavior = new InboxPipelineBehavior<IdempotentTestRequest, TestResponse>(orchestrator);

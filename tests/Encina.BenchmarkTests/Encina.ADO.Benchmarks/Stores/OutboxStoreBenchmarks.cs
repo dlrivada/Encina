@@ -2,6 +2,7 @@ using BenchmarkDotNet.Attributes;
 using Encina.ADO.Benchmarks.Infrastructure;
 using Encina.ADO.Sqlite.Outbox;
 using Encina.Messaging.Outbox;
+using LanguageExt;
 using Microsoft.Data.Sqlite;
 
 namespace Encina.ADO.Benchmarks.Stores;
@@ -80,8 +81,10 @@ public class OutboxStoreBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<List<IOutboxMessage>> GetPendingMessagesAsync()
     {
-        var messages = await _store.GetPendingMessagesAsync(BatchSize, maxRetries: 3);
-        return messages.ToList();
+        var result = await _store.GetPendingMessagesAsync(BatchSize, maxRetries: 3);
+        return result.Match(
+            Right: messages => messages.ToList(),
+            Left: _ => []);
     }
 
     /// <summary>

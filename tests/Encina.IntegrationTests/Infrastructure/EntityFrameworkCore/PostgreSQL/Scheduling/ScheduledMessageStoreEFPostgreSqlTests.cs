@@ -88,7 +88,7 @@ public sealed class ScheduledMessageStoreEFPostgreSqlTests : IAsyncLifetime
         var messages = await store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        var messageList = messages.ToList();
+        var messageList = messages.ShouldBeRight().ToList();
         messageList.ShouldContain(m => m.Id == dueNow.Id);
         messageList.ShouldNotContain(m => m.Id == futureMessage.Id);
     }

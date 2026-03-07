@@ -1,5 +1,8 @@
 using Encina.EntityFrameworkCore.Sagas;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -40,8 +43,8 @@ public abstract class SagaStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase<
         };
 
         // Act
-        await store.AddAsync(saga);
-        await store.SaveChangesAsync();
+        (await store.AddAsync(saga)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -77,8 +80,10 @@ public abstract class SagaStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase<
         var result = await store.GetAsync(sagaId);
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.SagaId.ShouldBe(sagaId);
+        result.IsRight.ShouldBeTrue();
+        var option = result.Match(Right: r => r, Left: _ => default);
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(saga => saga.SagaId.ShouldBe(sagaId));
     }
 
     [Fact]
@@ -92,7 +97,9 @@ public abstract class SagaStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase<
         var result = await store.GetAsync(Guid.NewGuid());
 
         // Assert
-        result.ShouldBeNull();
+        result.IsRight.ShouldBeTrue();
+        var option = result.Match(Right: r => r, Left: _ => default);
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -123,8 +130,8 @@ public abstract class SagaStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase<
         saga.CompletedAtUtc = DateTime.UtcNow;
 
         // Act
-        await store.UpdateAsync(saga);
-        await store.SaveChangesAsync();
+        (await store.UpdateAsync(saga)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = CreateDbContext<TContext>();
@@ -179,12 +186,13 @@ public abstract class SagaStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase<
         await context.SaveChangesAsync();
 
         // Act
-        var stuckSagas = await store.GetStuckSagasAsync(
+        var stuckResult = await store.GetStuckSagasAsync(
             olderThan: TimeSpan.FromHours(1),
             batchSize: 10);
 
         // Assert
-        var sagaList = stuckSagas.ToList();
+        stuckResult.IsRight.ShouldBeTrue();
+        var sagaList = stuckResult.Match(Right: r => r.ToList(), Left: _ => []);
         sagaList.Count.ShouldBe(1);
         sagaList.ShouldContain(s => s.SagaId == stuckSaga.SagaId);
     }
@@ -224,10 +232,11 @@ public abstract class SagaStoreEFTestsBase<TFixture, TContext> : EFCoreTestBase<
         await context.SaveChangesAsync();
 
         // Act
-        var expiredSagas = await store.GetExpiredSagasAsync(batchSize: 10);
+        var expiredResult = await store.GetExpiredSagasAsync(batchSize: 10);
 
         // Assert
-        var sagaList = expiredSagas.ToList();
+        expiredResult.IsRight.ShouldBeTrue();
+        var sagaList = expiredResult.Match(Right: r => r.ToList(), Left: _ => []);
         sagaList.Count.ShouldBe(1);
         sagaList.ShouldContain(s => s.SagaId == expiredSaga.SagaId);
     }

@@ -115,7 +115,9 @@ public sealed class SagaOrchestrator
             now,
             timeoutAtUtc);
 
-        await _store.AddAsync(state, cancellationToken).ConfigureAwait(false);
+        var addResult = await _store.AddAsync(state, cancellationToken).ConfigureAwait(false);
+        if (addResult.IsLeft)
+            return addResult.LeftToArray()[0];
 
         if (timeoutAtUtc.HasValue)
         {
@@ -143,13 +145,18 @@ public sealed class SagaOrchestrator
         CancellationToken cancellationToken = default)
         where TSagaData : class
     {
-        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return stateResult.LeftToArray()[0];
 
-        if (state == null)
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
         {
             Log.SagaNotFound(_logger, sagaId);
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
+
+        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status != SagaStatus.Running)
         {
@@ -172,7 +179,9 @@ public sealed class SagaOrchestrator
         state.CurrentStep++;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
 
         Log.SagaAdvanced(_logger, sagaId, state.CurrentStep);
 
@@ -189,12 +198,17 @@ public sealed class SagaOrchestrator
         Guid sagaId,
         CancellationToken cancellationToken = default)
     {
-        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return stateResult.LeftToArray()[0];
 
-        if (state == null)
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
         {
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
+
+        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status != SagaStatus.Running)
         {
@@ -205,7 +219,9 @@ public sealed class SagaOrchestrator
         state.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
 
         Log.SagaCompleted(_logger, sagaId);
 
@@ -226,12 +242,17 @@ public sealed class SagaOrchestrator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 
-        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return stateResult.LeftToArray()[0];
 
-        if (state == null)
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
         {
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
+
+        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
         {
@@ -242,7 +263,9 @@ public sealed class SagaOrchestrator
         state.ErrorMessage = errorMessage;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
 
         Log.SagaCompensating(_logger, sagaId, state.CurrentStep, errorMessage);
 
@@ -259,12 +282,17 @@ public sealed class SagaOrchestrator
         Guid sagaId,
         CancellationToken cancellationToken = default)
     {
-        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return stateResult.LeftToArray()[0];
 
-        if (state == null)
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
         {
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
+
+        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status != SagaStatus.Compensating)
         {
@@ -285,7 +313,9 @@ public sealed class SagaOrchestrator
             Log.SagaCompensationStep(_logger, sagaId, state.CurrentStep);
         }
 
-        await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
 
         return state.CurrentStep;
     }
@@ -302,19 +332,26 @@ public sealed class SagaOrchestrator
         string errorMessage,
         CancellationToken cancellationToken = default)
     {
-        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return stateResult.LeftToArray()[0];
 
-        if (state == null)
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
         {
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
+
+        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         state.Status = SagaStatus.Failed;
         state.ErrorMessage = errorMessage;
         state.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
 
         Log.SagaFailed(_logger, sagaId, errorMessage);
 
@@ -333,12 +370,17 @@ public sealed class SagaOrchestrator
         CancellationToken cancellationToken = default)
         where TSagaData : class
     {
-        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return None;
 
-        if (state == null)
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
         {
             return None;
         }
+
+        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         var data = JsonSerializer.Deserialize<TSagaData>(state.Data, JsonOptions);
         if (data == null)
@@ -364,12 +406,10 @@ public sealed class SagaOrchestrator
     /// <returns>A collection of stuck sagas, or an error if retrieval failed.</returns>
     public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetStuckSagasAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _store.GetStuckSagasAsync(
+        return await _store.GetStuckSagasAsync(
             _options.StuckSagaThreshold,
             _options.StuckSagaBatchSize,
             cancellationToken).ConfigureAwait(false);
-
-        return Either<EncinaError, IEnumerable<ISagaState>>.Right(result);
     }
 
     /// <summary>
@@ -382,13 +422,18 @@ public sealed class SagaOrchestrator
         Guid sagaId,
         CancellationToken cancellationToken = default)
     {
-        var state = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return stateResult.LeftToArray()[0];
 
-        if (state == null)
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
         {
             Log.SagaNotFound(_logger, sagaId);
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
+
+        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
         {
@@ -400,7 +445,9 @@ public sealed class SagaOrchestrator
         state.ErrorMessage = "Saga exceeded its configured timeout";
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
 
         Log.SagaTimedOut(_logger, sagaId, state.CurrentStep);
 
@@ -414,11 +461,9 @@ public sealed class SagaOrchestrator
     /// <returns>A collection of expired sagas, or an error if retrieval failed.</returns>
     public async Task<Either<EncinaError, IEnumerable<ISagaState>>> GetExpiredSagasAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _store.GetExpiredSagasAsync(
+        return await _store.GetExpiredSagasAsync(
             _options.ExpiredSagaBatchSize,
             cancellationToken).ConfigureAwait(false);
-
-        return Either<EncinaError, IEnumerable<ISagaState>>.Right(result);
     }
 }
 

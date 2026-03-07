@@ -293,6 +293,7 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
 
                         if (_options.StopOnFirstError)
                         {
+                            // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
                             throw new DomainEventDispatchException(
                                 $"Failed to dispatch domain event {domainEvent.GetType().Name}: {error.Message}",
                                 domainEvent,
@@ -315,6 +316,7 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
 
                 if (_options.StopOnFirstError)
                 {
+                    // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
                     throw new DomainEventDispatchException(
                         $"Exception while dispatching domain event {domainEvent.GetType().Name}",
                         domainEvent,

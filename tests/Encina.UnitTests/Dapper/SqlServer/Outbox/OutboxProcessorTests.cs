@@ -102,7 +102,7 @@ public sealed class OutboxProcessorTests
         // Arrange
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<IOutboxMessage>>([]))
+            .Returns(Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>())))
             .AndDoes(_ => Thread.Sleep(10)); // Small delay to simulate work
 
         var encina = Substitute.For<IEncina>();
@@ -151,7 +151,7 @@ public sealed class OutboxProcessorTests
             .Returns(_ =>
             {
                 callCount++;
-                return Task.FromResult<IEnumerable<IOutboxMessage>>([]);
+                return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
 
         var encina = Substitute.For<IEncina>();
@@ -209,10 +209,15 @@ public sealed class OutboxProcessorTests
                 if (!messagesReturned)
                 {
                     messagesReturned = true;
-                    return Task.FromResult<IEnumerable<IOutboxMessage>>([message]);
+                    return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(new List<IOutboxMessage> { message }));
                 }
-                return Task.FromResult<IEnumerable<IOutboxMessage>>([]);
+                return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
+
+        store.MarkAsProcessedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
         var encina = Substitute.For<IEncina>();
         encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
@@ -274,10 +279,14 @@ public sealed class OutboxProcessorTests
                 if (!messagesReturned)
                 {
                     messagesReturned = true;
-                    return Task.FromResult<IEnumerable<IOutboxMessage>>([message]);
+                    return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(new List<IOutboxMessage> { message }));
                 }
-                return Task.FromResult<IEnumerable<IOutboxMessage>>([]);
+                return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
+        store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
         var encina = Substitute.For<IEncina>();
         var scope = Substitute.For<IServiceScope>();
@@ -339,10 +348,14 @@ public sealed class OutboxProcessorTests
                 if (!messagesReturned)
                 {
                     messagesReturned = true;
-                    return Task.FromResult<IEnumerable<IOutboxMessage>>([message]);
+                    return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(new List<IOutboxMessage> { message }));
                 }
-                return Task.FromResult<IEnumerable<IOutboxMessage>>([]);
+                return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
+        store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
         var encina = Substitute.For<IEncina>();
         encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
@@ -407,10 +420,14 @@ public sealed class OutboxProcessorTests
                 if (!messagesReturned)
                 {
                     messagesReturned = true;
-                    return Task.FromResult<IEnumerable<IOutboxMessage>>([message]);
+                    return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(new List<IOutboxMessage> { message }));
                 }
-                return Task.FromResult<IEnumerable<IOutboxMessage>>([]);
+                return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
+        store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+        store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
         var encina = Substitute.For<IEncina>();
         var scope = Substitute.For<IServiceScope>();
@@ -464,7 +481,7 @@ public sealed class OutboxProcessorTests
                 {
                     throw new InvalidOperationException("Simulated error");
                 }
-                return Task.FromResult<IEnumerable<IOutboxMessage>>([]);
+                return Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
 
         var encina = Substitute.For<IEncina>();

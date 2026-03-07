@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Encina.Messaging.Outbox;
 using Encina.Testing.Fakes.Models;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Fakes.Stores;
 
@@ -70,7 +72,7 @@ public sealed class FakeOutboxStore : IOutboxStore
     public int SaveChangesCallCount { get; private set; }
 
     /// <inheritdoc />
-    public Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -93,11 +95,11 @@ public sealed class FakeOutboxStore : IOutboxStore
             _addedMessages.Add(fakeMessage.Clone());
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<IOutboxMessage>> GetPendingMessagesAsync(
+    public Task<Either<EncinaError, IEnumerable<IOutboxMessage>>> GetPendingMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
@@ -113,11 +115,11 @@ public sealed class FakeOutboxStore : IOutboxStore
             .Cast<IOutboxMessage>()
             .ToList();
 
-        return Task.FromResult<IEnumerable<IOutboxMessage>>(pendingMessages);
+        return Task.FromResult<Either<EncinaError, IEnumerable<IOutboxMessage>>>(pendingMessages);
     }
 
     /// <inheritdoc />
-    public Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
@@ -130,11 +132,11 @@ public sealed class FakeOutboxStore : IOutboxStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task MarkAsFailedAsync(
+    public Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -152,14 +154,14 @@ public sealed class FakeOutboxStore : IOutboxStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         SaveChangesCallCount++;
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <summary>

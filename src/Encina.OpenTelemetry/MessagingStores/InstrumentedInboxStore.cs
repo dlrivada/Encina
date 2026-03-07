@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Encina.Messaging.Inbox;
+using LanguageExt;
 
 namespace Encina.OpenTelemetry.MessagingStores;
 
@@ -36,152 +37,96 @@ internal sealed class InstrumentedInboxStore : IInboxStore
     }
 
     /// <inheritdoc />
-    public async Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
     {
         using var activity = StartDuplicateCheck(messageId);
-
-        try
-        {
-            var message = await _inner.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
-
-            if (message is not null)
-            {
-                CompleteDuplicateFound(activity);
-            }
-            else
-            {
-                Complete(activity);
-            }
-
-            return message;
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
+        result.IfRight(opt => opt.Match(
+            Some: _ => CompleteDuplicateFound(activity),
+            None: () => Complete(activity)));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
     {
         using var activity = StartReceive(message.RequestType, message.MessageId);
-
-        try
-        {
-            await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task MarkAsProcessedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(
         string messageId,
         string response,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartMarkProcessed(messageId);
-
-        try
-        {
-            await _inner.MarkAsProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.MarkAsProcessedAsync(messageId, response, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartMarkFailed(messageId);
-
-        try
-        {
-            await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
-                .ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.MarkAsFailedAsync(messageId, errorMessage, nextRetryAtUtc, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
     {
         using var activity = StartIncrementRetry(messageId);
-
-        try
-        {
-            await _inner.IncrementRetryCountAsync(messageId, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.IncrementRetryCountAsync(messageId, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<IInboxMessage>> GetExpiredMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartGetExpired(batchSize);
-
-        try
+        var result = await _inner.GetExpiredMessagesAsync(batchSize, cancellationToken)
+            .ConfigureAwait(false);
+        result.IfRight(messages =>
         {
-            var messages = await _inner.GetExpiredMessagesAsync(batchSize, cancellationToken)
-                .ConfigureAwait(false);
-
-            var messageList = messages as IList<IInboxMessage> ?? messages.ToList();
-            CompleteBatch(activity, messageList.Count);
-            return messageList;
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+            var count = messages is ICollection<IInboxMessage> col ? col.Count : messages.Count();
+            CompleteBatch(activity, count);
+        });
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public async Task RemoveExpiredMessagesAsync(
+    public async Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(
         IEnumerable<string> messageIds,
         CancellationToken cancellationToken = default)
     {
         using var activity = StartRemoveExpired();
-
-        try
-        {
-            await _inner.RemoveExpiredMessagesAsync(messageIds, cancellationToken).ConfigureAwait(false);
-            Complete(activity);
-        }
-        catch (Exception ex)
-        {
-            Failed(activity, ex.Message);
-            throw;
-        }
+        var result = await _inner.RemoveExpiredMessagesAsync(messageIds, cancellationToken).ConfigureAwait(false);
+        result.IfRight(_ => Complete(activity));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _inner.SaveChangesAsync(cancellationToken);
 
     private static Activity? StartReceive(string messageType, string messageId)

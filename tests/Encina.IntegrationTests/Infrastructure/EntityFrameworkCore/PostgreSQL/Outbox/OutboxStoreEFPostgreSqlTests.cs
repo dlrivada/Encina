@@ -1,5 +1,7 @@
 using Encina.EntityFrameworkCore.Outbox;
+using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
@@ -46,8 +48,8 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         };
 
         // Act
-        await store.AddAsync(message);
-        await store.SaveChangesAsync();
+        (await store.AddAsync(message)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
@@ -96,7 +98,7 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Act
-        var messages = await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         var messageList = messages.ToList();
@@ -127,8 +129,8 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         // Act
-        await store.MarkAsProcessedAsync(message.Id);
-        await store.SaveChangesAsync();
+        (await store.MarkAsProcessedAsync(message.Id)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         await using var verifyContext = _fixture.CreateDbContext<TestPostgreSqlDbContext>();

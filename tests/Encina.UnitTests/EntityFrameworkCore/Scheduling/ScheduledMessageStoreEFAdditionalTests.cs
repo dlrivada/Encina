@@ -1,6 +1,9 @@
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Scheduling;
 using Encina.Messaging.Scheduling;
+using Encina.TestInfrastructure.Extensions;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
@@ -49,15 +52,18 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     }
 
     [Fact]
-    public async Task AddAsync_WrongMessageType_ThrowsInvalidOperationException()
+    public async Task AddAsync_WrongMessageType_ReturnsLeftError()
     {
         // Arrange
         var wrongMessage = Substitute.For<IScheduledMessage>();
 
-        // Act & Assert
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-            _store.AddAsync(wrongMessage));
-        ex.Message.ShouldContain("ScheduledMessageStoreEF requires messages of type ScheduledMessage");
+        // Act
+        var result = await _store.AddAsync(wrongMessage);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var error = result.ShouldBeLeft();
+        error.Message.ShouldContain("ScheduledMessageStoreEF requires messages of type ScheduledMessage");
     }
 
     #endregion
@@ -65,14 +71,13 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     #region MarkAsProcessedAsync Tests
 
     [Fact]
-    public async Task MarkAsProcessedAsync_NonExistentMessage_DoesNotThrow()
+    public async Task MarkAsProcessedAsync_NonExistentMessage_ReturnsRight()
     {
         // Act
-        var exception = await Record.ExceptionAsync(() =>
-            _store.MarkAsProcessedAsync(Guid.NewGuid()));
+        var result = await _store.MarkAsProcessedAsync(Guid.NewGuid());
 
         // Assert
-        Assert.Null(exception);
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -88,14 +93,13 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     }
 
     [Fact]
-    public async Task MarkAsFailedAsync_NonExistentMessage_DoesNotThrow()
+    public async Task MarkAsFailedAsync_NonExistentMessage_ReturnsRight()
     {
         // Act
-        var exception = await Record.ExceptionAsync(() =>
-            _store.MarkAsFailedAsync(Guid.NewGuid(), "Error", DateTime.UtcNow));
+        var result = await _store.MarkAsFailedAsync(Guid.NewGuid(), "Error", DateTime.UtcNow);
 
         // Assert
-        Assert.Null(exception);
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -118,8 +122,8 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        await _store.MarkAsFailedAsync(message.Id, "Test error", null);
-        await _store.SaveChangesAsync();
+        (await _store.MarkAsFailedAsync(message.Id, "Test error", null)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
@@ -133,14 +137,13 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     #region RescheduleRecurringMessageAsync Tests
 
     [Fact]
-    public async Task RescheduleRecurringMessageAsync_NonExistentMessage_DoesNotThrow()
+    public async Task RescheduleRecurringMessageAsync_NonExistentMessage_ReturnsRight()
     {
         // Act
-        var exception = await Record.ExceptionAsync(() =>
-            _store.RescheduleRecurringMessageAsync(Guid.NewGuid(), DateTime.UtcNow.AddDays(1)));
+        var result = await _store.RescheduleRecurringMessageAsync(Guid.NewGuid(), DateTime.UtcNow.AddDays(1));
 
         // Assert
-        Assert.Null(exception);
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -169,8 +172,8 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
         var nextScheduled = now.AddHours(24);
 
         // Act
-        await _store.RescheduleRecurringMessageAsync(message.Id, nextScheduled);
-        await _store.SaveChangesAsync();
+        (await _store.RescheduleRecurringMessageAsync(message.Id, nextScheduled)).ShouldBeRight();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
 
         // Assert
         var updated = await _dbContext.ScheduledMessages.FindAsync(message.Id);
@@ -186,14 +189,13 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     #region CancelAsync Tests
 
     [Fact]
-    public async Task CancelAsync_NonExistentMessage_DoesNotThrow()
+    public async Task CancelAsync_NonExistentMessage_ReturnsRight()
     {
         // Act
-        var exception = await Record.ExceptionAsync(() =>
-            _store.CancelAsync(Guid.NewGuid()));
+        var result = await _store.CancelAsync(Guid.NewGuid());
 
         // Assert
-        Assert.Null(exception);
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -221,7 +223,7 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.ShouldBeEmpty();
@@ -248,7 +250,7 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.Count().ShouldBe(1);
@@ -258,7 +260,7 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
     public async Task GetDueMessagesAsync_ReturnsEmptyWhenNoMessages()
     {
         // Act
-        var messages = await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3);
+        var messages = (await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight();
 
         // Assert
         messages.ShouldBeEmpty();
@@ -296,7 +298,7 @@ public class ScheduledMessageStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = (await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ToList();
+        var messages = (await _store.GetDueMessagesAsync(batchSize: 10, maxRetries: 3)).ShouldBeRight().ToList();
 
         // Assert
         messages.Count.ShouldBe(2);

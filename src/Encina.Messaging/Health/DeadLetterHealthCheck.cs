@@ -1,5 +1,7 @@
 using Encina.Messaging.DeadLetter;
 
+using LanguageExt;
+
 namespace Encina.Messaging.Health;
 
 /// <summary>
@@ -42,9 +44,13 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
     protected override async Task<HealthCheckResult> CheckHealthCoreAsync(
         CancellationToken cancellationToken)
     {
-        var pendingCount = await _store.GetCountAsync(
+        var pendingCountResult = await _store.GetCountAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
             cancellationToken);
+
+        var pendingCount = pendingCountResult.Match(
+            Right: count => count,
+            Left: _ => 0);
 
         var data = new Dictionary<string, object>
         {
@@ -56,7 +62,7 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
         // Check for old messages
         if (_options.OldMessageThreshold.HasValue)
         {
-            var oldMessages = await _store.GetMessagesAsync(
+            var oldMessagesResult = await _store.GetMessagesAsync(
                 new DeadLetterFilter
                 {
                     ExcludeReplayed = true,
@@ -66,7 +72,9 @@ public sealed class DeadLetterHealthCheck : EncinaHealthCheck
                 take: 1,
                 cancellationToken);
 
-            var hasOldMessages = oldMessages.Any();
+            var hasOldMessages = oldMessagesResult.Match(
+                Right: messages => messages.Any(),
+                Left: _ => false);
             data["has_old_messages"] = hasOldMessages;
             data["old_message_threshold"] = _options.OldMessageThreshold.Value.ToString();
 

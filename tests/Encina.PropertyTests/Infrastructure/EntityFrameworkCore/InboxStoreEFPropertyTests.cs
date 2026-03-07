@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.Messaging.Inbox;
+using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 
@@ -73,10 +75,14 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
             await _store.SaveChangesAsync();
 
             // Assert
-            var retrieved = await _store.GetMessageAsync(testCase.MessageId);
-            retrieved.ShouldNotBeNull("added message must ALWAYS be retrievable");
-            retrieved.MessageId.ShouldBe(testCase.MessageId);
-            retrieved.RequestType.ShouldBe(testCase.RequestType);
+            var result = await _store.GetMessageAsync(testCase.MessageId);
+            var option = result.ShouldBeRight("added message must ALWAYS be retrievable");
+            option.IsSome.ShouldBeTrue("added message must ALWAYS be retrievable");
+            option.IfSome(retrieved =>
+            {
+                retrieved.MessageId.ShouldBe(testCase.MessageId);
+                retrieved.RequestType.ShouldBe(testCase.RequestType);
+            });
         }
     }
 
@@ -115,7 +121,8 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
             await _store.SaveChangesAsync();
 
             // Act
-            var expired = await _store.GetExpiredMessagesAsync(100);
+            var expiredResult = await _store.GetExpiredMessagesAsync(100);
+            var expired = expiredResult.ShouldBeRight();
 
             // Assert
             if (shouldAppear)
@@ -157,12 +164,15 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
         // Retrieve multiple times
         for (int i = 0; i < 10; i++)
         {
-            var retrieved = await _store.GetMessageAsync(messageId);
-
-            retrieved.ShouldNotBeNull();
-            retrieved!.MessageId.ShouldBe(messageId,
-                "same MessageId must ALWAYS return the same message");
-            retrieved.RequestType.ShouldBe("TestIdempotency");
+            var result = await _store.GetMessageAsync(messageId);
+            var option = result.ShouldBeRight();
+            option.IsSome.ShouldBeTrue();
+            option.IfSome(retrieved =>
+            {
+                retrieved.MessageId.ShouldBe(messageId,
+                    "same MessageId must ALWAYS return the same message");
+                retrieved.RequestType.ShouldBe("TestIdempotency");
+            });
         }
     }
 
@@ -198,13 +208,17 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
             await _store.SaveChangesAsync();
 
             // Assert
-            var processed = await _store.GetMessageAsync(testCase.MessageId);
-            processed.ShouldNotBeNull();
-            processed!.ProcessedAtUtc.ShouldNotBeNull(
-                "processed message must ALWAYS have ProcessedAtUtc set");
-            processed.Response.ShouldBe(testCase.Response);
-            processed.ErrorMessage.ShouldBeNull(
-                "successful processing must ALWAYS clear ErrorMessage");
+            var processedResult = await _store.GetMessageAsync(testCase.MessageId);
+            var option = processedResult.ShouldBeRight();
+            option.IsSome.ShouldBeTrue();
+            option.IfSome(processed =>
+            {
+                processed.ProcessedAtUtc.ShouldNotBeNull(
+                    "processed message must ALWAYS have ProcessedAtUtc set");
+                processed.Response.ShouldBe(testCase.Response);
+                processed.ErrorMessage.ShouldBeNull(
+                    "successful processing must ALWAYS clear ErrorMessage");
+            });
         }
     }
 
@@ -238,7 +252,8 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
             await _store!.SaveChangesAsync();
 
             // Act
-            var expired = await _store!.GetExpiredMessagesAsync(batchSize);
+            var expiredResult = await _store!.GetExpiredMessagesAsync(batchSize);
+            var expired = expiredResult.ShouldBeRight();
 
             // Assert
             expired.Count().ShouldBeLessThanOrEqualTo(batchSize,
@@ -275,7 +290,8 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
         await _store!.SaveChangesAsync();
 
         // Act
-        var expired = (await _store!.GetExpiredMessagesAsync(100)).ToList();
+        var expiredResult = await _store!.GetExpiredMessagesAsync(100);
+        var expired = expiredResult.ShouldBeRight().ToList();
 
         // Assert - must be ordered by ExpiresAtUtc ascending
         for (int i = 1; i < expired.Count; i++)
@@ -324,8 +340,9 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
         // Assert - removed messages should be gone
         foreach (var messageId in toRemove)
         {
-            var retrieved = await _store.GetMessageAsync(messageId);
-            retrieved.ShouldBeNull(
+            var result = await _store.GetMessageAsync(messageId);
+            var option = result.ShouldBeRight();
+            option.IsNone.ShouldBeTrue(
                 $"removed message {messageId} must NOT be retrievable");
         }
 
@@ -333,8 +350,9 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
         var notRemoved = messageIds.Except(toRemove);
         foreach (var messageId in notRemoved)
         {
-            var retrieved = await _store.GetMessageAsync(messageId);
-            retrieved.ShouldNotBeNull(
+            var result = await _store.GetMessageAsync(messageId);
+            var option = result.ShouldBeRight();
+            option.IsSome.ShouldBeTrue(
                 $"non-removed message {messageId} must still be retrievable");
         }
     }
@@ -375,12 +393,16 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
             await _store.SaveChangesAsync();
 
             // Assert
-            var failed = await _store.GetMessageAsync(messageId);
-            failed.ShouldNotBeNull();
-            failed!.RetryCount.ShouldBe(testCase.InitialRetryCount + 1,
-                "MarkAsFailed must ALWAYS increment RetryCount by exactly 1");
-            failed.ErrorMessage.ShouldBe(testCase.ErrorMessage);
-            failed.NextRetryAtUtc.ShouldNotBeNull();
+            var failedResult = await _store.GetMessageAsync(messageId);
+            var option = failedResult.ShouldBeRight();
+            option.IsSome.ShouldBeTrue();
+            option.IfSome(failed =>
+            {
+                failed.RetryCount.ShouldBe(testCase.InitialRetryCount + 1,
+                    "MarkAsFailed must ALWAYS increment RetryCount by exactly 1");
+                failed.ErrorMessage.ShouldBe(testCase.ErrorMessage);
+                failed.NextRetryAtUtc.ShouldNotBeNull();
+            });
 
             await ClearDatabase();
         }
@@ -486,8 +508,9 @@ public sealed class InboxStoreEFPropertyTests : IAsyncLifetime
         // Assert - all messages must be present
         foreach (var original in messages)
         {
-            var retrieved = await _store!.GetMessageAsync(original.MessageId);
-            retrieved.ShouldNotBeNull(
+            var result = await _store!.GetMessageAsync(original.MessageId);
+            var option = result.ShouldBeRight();
+            option.IsSome.ShouldBeTrue(
                 $"message {original.MessageId} must be retrievable after concurrent add");
         }
     }

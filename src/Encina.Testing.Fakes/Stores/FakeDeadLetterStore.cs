@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Encina.Messaging.DeadLetter;
 using Encina.Testing.Fakes.Models;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Fakes.Stores;
 
@@ -102,7 +104,7 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     public int SaveChangesCallCount { get; private set; }
 
     /// <inheritdoc />
-    public Task AddAsync(IDeadLetterMessage message, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> AddAsync(IDeadLetterMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -131,18 +133,21 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
             _addedMessages.Add(fakeMessage.Clone());
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task<IDeadLetterMessage?> GetAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Option<IDeadLetterMessage>>> GetAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         _messages.TryGetValue(messageId, out var message);
-        return Task.FromResult<IDeadLetterMessage?>(message);
+        var option = message is not null
+            ? Option<IDeadLetterMessage>.Some(message)
+            : Option<IDeadLetterMessage>.None;
+        return Task.FromResult<Either<EncinaError, Option<IDeadLetterMessage>>>(option);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<IDeadLetterMessage>> GetMessagesAsync(
+    public Task<Either<EncinaError, IEnumerable<IDeadLetterMessage>>> GetMessagesAsync(
         DeadLetterFilter? filter = null,
         int skip = 0,
         int take = 100,
@@ -157,15 +162,15 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
             .Cast<IDeadLetterMessage>()
             .ToList();
 
-        return Task.FromResult<IEnumerable<IDeadLetterMessage>>(messages);
+        return Task.FromResult<Either<EncinaError, IEnumerable<IDeadLetterMessage>>>(messages);
     }
 
     /// <inheritdoc />
-    public Task<int> GetCountAsync(DeadLetterFilter? filter = null, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, int>> GetCountAsync(DeadLetterFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var query = ApplyFilter(_messages.Values, filter);
 
-        return Task.FromResult(query.Count());
+        return Task.FromResult<Either<EncinaError, int>>(query.Count());
     }
 
     private static IEnumerable<FakeDeadLetterMessage> ApplyFilter(
@@ -217,7 +222,7 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
     }
 
     /// <inheritdoc />
-    public Task MarkAsReplayedAsync(Guid messageId, string replayResult, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> MarkAsReplayedAsync(Guid messageId, string replayResult, CancellationToken cancellationToken = default)
     {
         if (_messages.TryGetValue(messageId, out var message))
         {
@@ -230,11 +235,11 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
             }
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task<bool> DeleteAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, bool>> DeleteAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
         var removed = _messages.TryRemove(messageId, out _);
         if (removed)
@@ -245,11 +250,11 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
             }
         }
 
-        return Task.FromResult(removed);
+        return Task.FromResult<Either<EncinaError, bool>>(removed);
     }
 
     /// <inheritdoc />
-    public Task<int> DeleteExpiredAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, int>> DeleteExpiredAsync(CancellationToken cancellationToken = default)
     {
         var expiredIds = _messages.Values
             .Where(m => m.IsExpired)
@@ -267,14 +272,14 @@ public sealed class FakeDeadLetterStore : IDeadLetterStore
             }
         }
 
-        return Task.FromResult(expiredIds.Count);
+        return Task.FromResult<Either<EncinaError, int>>(expiredIds.Count);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         SaveChangesCallCount++;
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <summary>

@@ -88,7 +88,9 @@ public sealed class OutboxOrchestrator
             content,
             _timeProvider.GetUtcNow().UtcDateTime);
 
-        await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        if (addResult.IsLeft)
+            return addResult.LeftToArray()[0];
 
         Log.MessageAddedToOutbox(_logger, message.Id, notificationType);
 
@@ -107,11 +109,15 @@ public sealed class OutboxOrchestrator
     {
         ArgumentNullException.ThrowIfNull(publishCallback);
 
-        var messages = await _store.GetPendingMessagesAsync(
+        var messagesResult = await _store.GetPendingMessagesAsync(
             _options.BatchSize,
             _options.MaxRetries,
             cancellationToken).ConfigureAwait(false);
 
+        if (messagesResult.IsLeft)
+            return messagesResult.LeftToArray()[0];
+
+        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IOutboxMessage>());
         var processedCount = 0;
 
         foreach (var message in messages)
@@ -161,12 +167,12 @@ public sealed class OutboxOrchestrator
     /// <returns>The count of pending messages, or an error.</returns>
     public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
     {
-        var messages = await _store.GetPendingMessagesAsync(
+        var messagesResult = await _store.GetPendingMessagesAsync(
             int.MaxValue,
             _options.MaxRetries,
             cancellationToken).ConfigureAwait(false);
 
-        return messages.Count();
+        return messagesResult.Map(messages => messages.Count());
     }
 
     private async Task MarkAsFailedAsync(Guid messageId, string errorMessage, CancellationToken cancellationToken)

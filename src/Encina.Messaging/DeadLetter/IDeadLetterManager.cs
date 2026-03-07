@@ -44,8 +44,8 @@ public interface IDeadLetterManager
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The message if found, otherwise null.</returns>
-    Task<IDeadLetterMessage?> GetMessageAsync(
+    /// <returns>Right(Some(message)) if found; Right(None) if not found; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Option<IDeadLetterMessage>>> GetMessageAsync(
         Guid messageId,
         CancellationToken cancellationToken = default);
 

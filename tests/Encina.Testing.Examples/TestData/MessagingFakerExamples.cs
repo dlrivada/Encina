@@ -1,6 +1,7 @@
 using Encina.Testing.Bogus;
 using Encina.Testing.Examples.Domain;
 using Encina.Testing.Messaging;
+using LanguageExt;
 using Shouldly;
 using FakeInbox = Encina.Testing.Fakes.Stores.FakeInboxStore;
 using FakeInboxMsg = Encina.Testing.Fakes.Models.FakeInboxMessage;
@@ -168,9 +169,11 @@ public sealed class MessagingFakerExamples
         }
 
         // Act
-        var pending = await store.GetPendingMessagesAsync(batchSize: 3, maxRetries: 5);
+        var result = await store.GetPendingMessagesAsync(batchSize: 3, maxRetries: 5);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var pending = result.Match(Right: r => r, Left: _ => default!);
         pending.Count().ShouldBe(3); // Respects batch size
     }
 
@@ -222,10 +225,15 @@ public sealed class MessagingFakerExamples
         store.IsMessageProcessed(messageId).ShouldBeTrue();
 
         // Second request with same ID should return cached response
-        var cachedMessage = await store.GetMessageAsync(messageId);
-        cachedMessage.ShouldNotBeNull();
-        cachedMessage.Response.ShouldNotBeNull();
-        cachedMessage.Response.ShouldContain("ORD-001");
+        var getResult = await store.GetMessageAsync(messageId);
+        getResult.IsRight.ShouldBeTrue();
+        var cachedOption = getResult.Match(Right: r => r, Left: _ => default);
+        cachedOption.IsSome.ShouldBeTrue();
+        cachedOption.IfSome(cachedMessage =>
+        {
+            cachedMessage.Response.ShouldNotBeNull();
+            cachedMessage.Response.ShouldContain("ORD-001");
+        });
     }
 
     /// <summary>

@@ -28,7 +28,7 @@ namespace Encina.Security.Secrets.Abstractions;
 ///         var result = await secretReader.GetSecretAsync("api-key", ct);
 ///         return result.Match(
 ///             Right: value => value,
-///             Left: error => throw new InvalidOperationException(error.Message));
+///             Left: error => { logger.LogError("Failed: {Error}", error.Message); return ""; });
 ///     }
 /// }
 /// </code>

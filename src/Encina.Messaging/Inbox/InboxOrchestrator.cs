@@ -94,10 +94,16 @@ public sealed class InboxOrchestrator
         Log.ProcessingIdempotentRequest(_logger, requestType, messageId, correlationId);
 
         // Check if message already exists in inbox
-        var existingMessage = await _store.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
+        var existingResult = await _store.GetMessageAsync(messageId, cancellationToken).ConfigureAwait(false);
 
-        if (existingMessage != null)
+        if (existingResult.IsLeft)
+            return existingResult.LeftToArray()[0];
+
+        var existingOption = existingResult.Match(Right: o => o, Left: _ => Option<IInboxMessage>.None);
+
+        if (existingOption.IsSome)
         {
+            var existingMessage = existingOption.Match(Some: m => m, None: () => default!);
             return await HandleExistingMessageAsync<TResponse>(
                 existingMessage, messageId, correlationId, processCallback, cancellationToken).ConfigureAwait(false);
         }
@@ -111,7 +117,9 @@ public sealed class InboxOrchestrator
             now.Add(_options.MessageRetentionPeriod),
             metadata);
 
-        await _store.AddAsync(newMessage, cancellationToken).ConfigureAwait(false);
+        var addResult = await _store.AddAsync(newMessage, cancellationToken).ConfigureAwait(false);
+        if (addResult.IsLeft)
+            return addResult.LeftToArray()[0];
 
         return await ProcessAndCacheResponseAsync(
             messageId, correlationId, processCallback, cancellationToken).ConfigureAwait(false);
@@ -195,7 +203,8 @@ public sealed class InboxOrchestrator
                 _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(1), // Simple backoff, can be made configurable
                 cancellationToken).ConfigureAwait(false);
 
-            throw;
+            return EncinaErrors.FromException("inbox.processing_failed", ex,
+                $"Error processing inbox message {messageId}");
         }
     }
 

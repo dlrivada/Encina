@@ -1,6 +1,7 @@
 using Encina.Dapper.MySQL.Scheduling;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 using Xunit;
 
 namespace Encina.IntegrationTests.Dapper.MySQL.Scheduling;
@@ -46,10 +47,10 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Assert - Retrieve via GetDueMessagesAsync with future time
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         var retrieved = messages.FirstOrDefault(m => m.Id == messageId);
         Assert.Null(retrieved); // Not due yet
 
@@ -64,9 +65,9 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(dueMessage);
+        (await _store.AddAsync(dueMessage)).ShouldBeRight();
 
-        var dueMessages = await _store.GetDueMessagesAsync(10, 3);
+        var dueMessages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         Assert.Single(dueMessages);
         Assert.Equal(dueMessage.Id, dueMessages.First().Id);
     }
@@ -85,7 +86,7 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(dueMessage);
+        (await _store.AddAsync(dueMessage)).ShouldBeRight();
 
         var futureMessage = new ScheduledMessage
         {
@@ -97,10 +98,10 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(futureMessage);
+        (await _store.AddAsync(futureMessage)).ShouldBeRight();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
 
         // Assert
         Assert.Single(messages);
@@ -123,11 +124,11 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
                 RetryCount = 0,
                 IsRecurring = false
             };
-            await _store.AddAsync(message);
+            (await _store.AddAsync(message)).ShouldBeRight();
         }
 
         // Act - Request only 3
-        var messages = await _store.GetDueMessagesAsync(3, 5);
+        var messages = (await _store.GetDueMessagesAsync(3, 5)).ShouldBeRight();
 
         // Assert
         Assert.Equal(3, messages.Count());
@@ -147,7 +148,7 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 2,
             IsRecurring = false
         };
-        await _store.AddAsync(lowRetry);
+        (await _store.AddAsync(lowRetry)).ShouldBeRight();
 
         var highRetry = new ScheduledMessage
         {
@@ -159,10 +160,10 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 5,
             IsRecurring = false
         };
-        await _store.AddAsync(highRetry);
+        (await _store.AddAsync(highRetry)).ShouldBeRight();
 
         // Act - Max retries = 3
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
 
         // Assert - Only lowRetry should be returned
         Assert.Single(messages);
@@ -184,13 +185,13 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.MarkAsProcessedAsync(messageId);
+        (await _store.MarkAsProcessedAsync(messageId)).ShouldBeRight();
 
         // Assert - Should no longer appear in due messages
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         Assert.Empty(messages);
     }
 
@@ -209,14 +210,14 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act - Mark as failed twice
-        await _store.MarkAsFailedAsync(messageId, "Error 1", DateTime.UtcNow.AddMinutes(10));
-        await _store.MarkAsFailedAsync(messageId, "Error 2", DateTime.UtcNow.AddMinutes(20));
+        (await _store.MarkAsFailedAsync(messageId, "Error 1", DateTime.UtcNow.AddMinutes(10))).ShouldBeRight();
+        (await _store.MarkAsFailedAsync(messageId, "Error 2", DateTime.UtcNow.AddMinutes(20))).ShouldBeRight();
 
         // Assert - RetryCount should be 2, and not appear in due messages
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         Assert.Empty(messages); // NextRetryAtUtc is in the future
     }
 
@@ -235,13 +236,13 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act - Mark as failed with past retry time
-        await _store.MarkAsFailedAsync(messageId, "Retry now", DateTime.UtcNow.AddSeconds(-10));
+        (await _store.MarkAsFailedAsync(messageId, "Retry now", DateTime.UtcNow.AddSeconds(-10))).ShouldBeRight();
 
         // Assert - Should appear in due messages
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         Assert.Single(messages);
         Assert.Equal(messageId, messages.First().Id);
     }
@@ -265,14 +266,14 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             IsRecurring = true,
             CronExpression = "0 * * * *"
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act - Reschedule for next hour
         var nextRun = DateTime.UtcNow.AddHours(1);
-        await _store.RescheduleRecurringMessageAsync(messageId, nextRun);
+        (await _store.RescheduleRecurringMessageAsync(messageId, nextRun)).ShouldBeRight();
 
         // Assert - Should not appear in due messages (future time)
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         Assert.Empty(messages);
     }
 
@@ -293,10 +294,10 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             IsRecurring = true,
             CronExpression = "0 * * * *"
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
 
         // Assert - Recurring messages appear even if processed
         Assert.Single(messages);
@@ -318,13 +319,13 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(message);
+        (await _store.AddAsync(message)).ShouldBeRight();
 
         // Act
-        await _store.CancelAsync(messageId);
+        (await _store.CancelAsync(messageId)).ShouldBeRight();
 
         // Assert - Should not appear in any query
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         Assert.Empty(messages);
     }
 
@@ -342,7 +343,7 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(oldest);
+        (await _store.AddAsync(oldest)).ShouldBeRight();
 
         var newer = new ScheduledMessage
         {
@@ -354,10 +355,10 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(newer);
+        (await _store.AddAsync(newer)).ShouldBeRight();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
 
         // Assert - Oldest first
         var list = messages.ToList();
@@ -370,7 +371,7 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
     public async Task SaveChangesAsync_ShouldComplete()
     {
         // Act & Assert - Should not throw
-        await _store.SaveChangesAsync();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
     }
 
     [Fact]
@@ -400,11 +401,11 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(message1);
-        await _store.AddAsync(message2);
+        (await _store.AddAsync(message1)).ShouldBeRight();
+        (await _store.AddAsync(message2)).ShouldBeRight();
 
         // Assert
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
         Assert.Equal(2, messages.Count());
     }
 
@@ -422,10 +423,10 @@ public sealed class ScheduledMessageStoreDapperTests : IAsyncLifetime
             RetryCount = 0,
             IsRecurring = false
         };
-        await _store.AddAsync(futureMessage);
+        (await _store.AddAsync(futureMessage)).ShouldBeRight();
 
         // Act
-        var messages = await _store.GetDueMessagesAsync(10, 3);
+        var messages = (await _store.GetDueMessagesAsync(10, 3)).ShouldBeRight();
 
         // Assert
         Assert.Empty(messages);

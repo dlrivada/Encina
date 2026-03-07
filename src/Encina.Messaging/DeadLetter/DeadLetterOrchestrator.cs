@@ -117,8 +117,13 @@ public sealed class DeadLetterOrchestrator
 
         var message = _messageFactory.Create(data);
 
-        await _store.AddAsync(message, cancellationToken);
-        await _store.SaveChangesAsync(cancellationToken);
+        var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        if (addResult.IsLeft)
+            return addResult.LeftToArray()[0];
+
+        var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+            return saveResult.LeftToArray()[0];
 
         DeadLetterLog.MessageAddedToDLQ(
             _logger,
@@ -167,8 +172,13 @@ public sealed class DeadLetterOrchestrator
 
         var message = _messageFactory.CreateFromFailedMessage(failedMessage, sourcePattern, expiresAt);
 
-        await _store.AddAsync(message, cancellationToken);
-        await _store.SaveChangesAsync(cancellationToken);
+        var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        if (addResult.IsLeft)
+            return addResult.LeftToArray()[0];
+
+        var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+            return saveResult.LeftToArray()[0];
 
         DeadLetterLog.MessageAddedToDLQ(
             _logger,
@@ -200,8 +210,8 @@ public sealed class DeadLetterOrchestrator
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The message if found.</returns>
-    public Task<IDeadLetterMessage?> GetAsync(
+    /// <returns>The message if found, or an error.</returns>
+    public Task<Either<EncinaError, Option<IDeadLetterMessage>>> GetAsync(
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
@@ -215,11 +225,9 @@ public sealed class DeadLetterOrchestrator
     /// <returns>The count of pending messages, or an error.</returns>
     public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
     {
-        var count = await _store.GetCountAsync(
+        return await _store.GetCountAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
-            cancellationToken);
-
-        return count;
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -230,10 +238,18 @@ public sealed class DeadLetterOrchestrator
     public async Task<Either<EncinaError, DeadLetterStatistics>> GetStatisticsAsync(
         CancellationToken cancellationToken = default)
     {
-        var totalCount = await _store.GetCountAsync(null, cancellationToken);
-        var pendingCount = await _store.GetCountAsync(
+        var totalCountResult = await _store.GetCountAsync(null, cancellationToken).ConfigureAwait(false);
+        if (totalCountResult.IsLeft)
+            return totalCountResult.LeftToArray()[0];
+        var totalCount = totalCountResult.Match(Right: c => c, Left: _ => 0);
+
+        var pendingCountResult = await _store.GetCountAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+        if (pendingCountResult.IsLeft)
+            return pendingCountResult.LeftToArray()[0];
+        var pendingCount = pendingCountResult.Match(Right: c => c, Left: _ => 0);
+
         // Get count by source pattern
         var sourcePatterns = new[]
         {
@@ -248,9 +264,12 @@ public sealed class DeadLetterOrchestrator
         var countBySource = new Dictionary<string, int>();
         foreach (var pattern in sourcePatterns)
         {
-            var count = await _store.GetCountAsync(
+            var countResult = await _store.GetCountAsync(
                 new DeadLetterFilter { SourcePattern = pattern, ExcludeReplayed = true },
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
+            if (countResult.IsLeft)
+                return countResult.LeftToArray()[0];
+            var count = countResult.Match(Right: c => c, Left: _ => 0);
             if (count > 0)
             {
                 countBySource[pattern] = count;
@@ -258,11 +277,14 @@ public sealed class DeadLetterOrchestrator
         }
 
         // Get oldest and newest pending messages
-        var pendingMessages = await _store.GetMessagesAsync(
+        var pendingMessagesResult = await _store.GetMessagesAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
             skip: 0,
             take: 1,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+        if (pendingMessagesResult.IsLeft)
+            return pendingMessagesResult.LeftToArray()[0];
+        var pendingMessages = pendingMessagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IDeadLetterMessage>());
         var oldestPending = pendingMessages.FirstOrDefault();
 
         DateTime? oldestPendingAtUtc = oldestPending?.DeadLetteredAtUtc;
@@ -270,11 +292,14 @@ public sealed class DeadLetterOrchestrator
 
         if (pendingCount > 1)
         {
-            var newestMessages = await _store.GetMessagesAsync(
+            var newestMessagesResult = await _store.GetMessagesAsync(
                 new DeadLetterFilter { ExcludeReplayed = true },
                 skip: pendingCount - 1,
                 take: 1,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
+            if (newestMessagesResult.IsLeft)
+                return newestMessagesResult.LeftToArray()[0];
+            var newestMessages = newestMessagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IDeadLetterMessage>());
             newestPendingAtUtc = newestMessages.FirstOrDefault()?.DeadLetteredAtUtc;
         }
         else if (pendingCount == 1)
@@ -283,11 +308,14 @@ public sealed class DeadLetterOrchestrator
         }
 
         // Count expired (non-replayed messages past expiration)
-        var expiredMessages = await _store.GetMessagesAsync(
+        var expiredMessagesResult = await _store.GetMessagesAsync(
             new DeadLetterFilter { ExcludeReplayed = true },
             skip: 0,
             take: int.MaxValue,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+        if (expiredMessagesResult.IsLeft)
+            return expiredMessagesResult.LeftToArray()[0];
+        var expiredMessages = expiredMessagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IDeadLetterMessage>());
         var expiredCount = expiredMessages.Count(m => m.IsExpired);
 
         return new DeadLetterStatistics
@@ -309,7 +337,11 @@ public sealed class DeadLetterOrchestrator
     /// <returns>The number of messages deleted, or an error.</returns>
     public async Task<Either<EncinaError, int>> CleanupExpiredAsync(CancellationToken cancellationToken = default)
     {
-        var count = await _store.DeleteExpiredAsync(cancellationToken);
+        var countResult = await _store.DeleteExpiredAsync(cancellationToken).ConfigureAwait(false);
+        if (countResult.IsLeft)
+            return countResult;
+
+        var count = countResult.Match(Right: c => c, Left: _ => 0);
 
         if (count > 0)
         {

@@ -1,3 +1,4 @@
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -53,12 +54,18 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 var store = scope.ServiceProvider.GetRequiredService<IDeadLetterStore>();
 
-                var count = await store.DeleteExpiredAsync(stoppingToken);
+                var deleteResult = await store.DeleteExpiredAsync(stoppingToken);
 
-                if (count > 0)
-                {
-                    DeadLetterLog.ExpiredMessagesCleanedUp(_logger, count);
-                }
+                deleteResult.Match(
+                    Right: count =>
+                    {
+                        if (count > 0)
+                        {
+                            DeadLetterLog.ExpiredMessagesCleanedUp(_logger, count);
+                        }
+                    },
+                    Left: error => DeadLetterLog.CleanupError(
+                        _logger, new InvalidOperationException(error.Message)));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

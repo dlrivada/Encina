@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Messaging.Sagas;
 
 /// <summary>
@@ -13,6 +15,10 @@ namespace Encina.Messaging.Sagas;
 /// <item><description><b>Custom</b>: Document stores, event stores, etc.</description></item>
 /// </list>
 /// </para>
+/// <para>
+/// All methods return <c>Either&lt;EncinaError, T&gt;</c> following the Railway Oriented Programming
+/// pattern. Infrastructure failures are captured as <c>Left</c> values instead of throwing exceptions.
+/// </para>
 /// </remarks>
 public interface ISagaStore
 {
@@ -21,22 +27,24 @@ public interface ISagaStore
     /// </summary>
     /// <param name="sagaId">The saga ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The saga state if found, otherwise null.</returns>
-    Task<ISagaState?> GetAsync(Guid sagaId, CancellationToken cancellationToken = default);
+    /// <returns>Right(Some(saga)) if found; Right(None) if not found; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Option<ISagaState>>> GetAsync(Guid sagaId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Adds a new saga to the store.
     /// </summary>
     /// <param name="sagaState">The saga state to add.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates an existing saga's state.
     /// </summary>
     /// <param name="sagaState">The saga state to update.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets sagas that are stuck or need retry.
@@ -44,8 +52,8 @@ public interface ISagaStore
     /// <param name="olderThan">Get sagas not updated since this time.</param>
     /// <param name="batchSize">Maximum number of sagas to retrieve.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of saga states that may need intervention.</returns>
-    Task<IEnumerable<ISagaState>> GetStuckSagasAsync(
+    /// <returns>Right(sagas) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, IEnumerable<ISagaState>>> GetStuckSagasAsync(
         TimeSpan olderThan,
         int batchSize,
         CancellationToken cancellationToken = default);
@@ -55,8 +63,8 @@ public interface ISagaStore
     /// </summary>
     /// <param name="batchSize">Maximum number of sagas to retrieve.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of saga states that have expired.</returns>
-    Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+    /// <returns>Right(sagas) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, IEnumerable<ISagaState>>> GetExpiredSagasAsync(
         int batchSize,
         CancellationToken cancellationToken = default);
 
@@ -64,5 +72,6 @@ public interface ISagaStore
     /// Saves all pending changes (for stores that support it like EF Core).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task SaveChangesAsync(CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

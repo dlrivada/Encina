@@ -1,4 +1,5 @@
 using Encina.Messaging.Scheduling;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Scheduling;
@@ -31,58 +32,66 @@ public sealed class ScheduledMessageStoreEF : IScheduledMessageStore
     }
 
     /// <inheritdoc/>
-    public async Task AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IScheduledMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         if (message is not ScheduledMessage efMessage)
         {
-            throw new InvalidOperationException(
-                $"ScheduledMessageStoreEF requires messages of type {nameof(ScheduledMessage)}, " +
-                $"but received {message.GetType().Name}");
+            return EncinaErrors.Create("scheduling.invalid_type",
+                $"ScheduledMessageStoreEF requires messages of type {nameof(ScheduledMessage)}, got {message.GetType().Name}");
         }
 
-        await _dbContext.Set<ScheduledMessage>().AddAsync(efMessage, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            await _dbContext.Set<ScheduledMessage>().AddAsync(efMessage, cancellationToken);
+        }, "scheduling.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<IScheduledMessage>> GetDueMessagesAsync(
+    public async Task<Either<EncinaError, IEnumerable<IScheduledMessage>>> GetDueMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default)
     {
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var messages = await _dbContext.Set<ScheduledMessage>()
-            .Where(m =>
-                m.ProcessedAtUtc == null &&
-                m.ScheduledAtUtc <= now &&
-                (m.NextRetryAtUtc == null || m.NextRetryAtUtc <= now) &&
-                m.RetryCount < maxRetries)
-            .OrderBy(m => m.ScheduledAtUtc)
-            .Take(batchSize)
-            .ToListAsync(cancellationToken);
+            var messages = await _dbContext.Set<ScheduledMessage>()
+                .Where(m =>
+                    m.ProcessedAtUtc == null &&
+                    m.ScheduledAtUtc <= now &&
+                    (m.NextRetryAtUtc == null || m.NextRetryAtUtc <= now) &&
+                    m.RetryCount < maxRetries)
+                .OrderBy(m => m.ScheduledAtUtc)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
 
-        return messages;
+            return (IEnumerable<IScheduledMessage>)messages;
+        }, "scheduling.get_due_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
-        var message = await _dbContext.Set<ScheduledMessage>()
-            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<ScheduledMessage>()
+                .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
 
-        if (message == null)
-            return;
+            if (message == null)
+                return;
 
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-        message.ProcessedAtUtc = now;
-        message.LastExecutedAtUtc = now;
-        message.ErrorMessage = null;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            message.ProcessedAtUtc = now;
+            message.LastExecutedAtUtc = now;
+            message.ErrorMessage = null;
+        }, "scheduling.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -90,51 +99,63 @@ public sealed class ScheduledMessageStoreEF : IScheduledMessageStore
     {
         ArgumentNullException.ThrowIfNull(errorMessage);
 
-        var message = await _dbContext.Set<ScheduledMessage>()
-            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<ScheduledMessage>()
+                .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
 
-        if (message == null)
-            return;
+            if (message == null)
+                return;
 
-        message.ErrorMessage = errorMessage;
-        message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAtUtc;
+            message.ErrorMessage = errorMessage;
+            message.RetryCount++;
+            message.NextRetryAtUtc = nextRetryAtUtc;
+        }, "scheduling.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task RescheduleRecurringMessageAsync(
+    public async Task<Either<EncinaError, Unit>> RescheduleRecurringMessageAsync(
         Guid messageId,
         DateTime nextScheduledAtUtc,
         CancellationToken cancellationToken = default)
     {
-        var message = await _dbContext.Set<ScheduledMessage>()
-            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
-
-        if (message == null)
-            return;
-
-        message.ScheduledAtUtc = nextScheduledAtUtc;
-        message.ProcessedAtUtc = null;
-        message.ErrorMessage = null;
-        message.RetryCount = 0;
-        message.NextRetryAtUtc = null;
-    }
-
-    /// <inheritdoc/>
-    public async Task CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
-    {
-        var message = await _dbContext.Set<ScheduledMessage>()
-            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
-
-        if (message != null)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            _dbContext.Set<ScheduledMessage>().Remove(message);
-        }
+            var message = await _dbContext.Set<ScheduledMessage>()
+                .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+
+            if (message == null)
+                return;
+
+            message.ScheduledAtUtc = nextScheduledAtUtc;
+            message.ProcessedAtUtc = null;
+            message.ErrorMessage = null;
+            message.RetryCount = 0;
+            message.NextRetryAtUtc = null;
+        }, "scheduling.reschedule_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<ScheduledMessage>()
+                .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+
+            if (message != null)
+            {
+                _dbContext.Set<ScheduledMessage>().Remove(message);
+            }
+        }, "scheduling.cancel_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }, "scheduling.save_failed").ConfigureAwait(false);
     }
 }

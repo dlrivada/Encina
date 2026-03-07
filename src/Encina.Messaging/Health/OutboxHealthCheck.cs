@@ -1,4 +1,5 @@
 using Encina.Messaging.Outbox;
+using LanguageExt;
 
 namespace Encina.Messaging.Health;
 
@@ -40,12 +41,21 @@ public class OutboxHealthCheck : EncinaHealthCheck
     protected override async Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
         // Get pending messages count
-        var pendingMessages = await _store.GetPendingMessagesAsync(
+        var pendingResult = await _store.GetPendingMessagesAsync(
             batchSize: 1,
             maxRetries: int.MaxValue,
             cancellationToken).ConfigureAwait(false);
 
+        if (pendingResult.IsLeft)
+        {
+            var storeError = pendingResult.LeftToArray()[0];
+            return HealthCheckResult.Unhealthy(
+                $"Failed to query outbox store: {storeError.Message}",
+                data: new Dictionary<string, object> { ["error"] = storeError.Message });
+        }
+
         // If we can query the store, it's at least accessible
+        var pendingMessages = pendingResult.Match(Right: msgs => msgs, Left: _ => Enumerable.Empty<IOutboxMessage>());
         var pendingCount = pendingMessages.Count();
 
         var data = new Dictionary<string, object>

@@ -90,9 +90,13 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var result = await store.GetMessageAsync(messageId);
 
         // Assert
-        result.ShouldNotBeNull();
-        result!.MessageId.ShouldBe(messageId);
-        result.RequestType.ShouldBe("TestRequest");
+        var option = result.ShouldBeRight();
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(msg =>
+        {
+            msg.MessageId.ShouldBe(messageId);
+            msg.RequestType.ShouldBe("TestRequest");
+        });
     }
 
     [Fact]
@@ -106,7 +110,8 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var result = await store.GetMessageAsync("non-existent-id");
 
         // Assert
-        result.ShouldBeNull();
+        var option = result.ShouldBeRight();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -140,7 +145,7 @@ public sealed class InboxStoreMongoDBIntegrationTests : IAsyncLifetime
         var messages = await store.GetExpiredMessagesAsync(batchSize: 10);
 
         // Assert
-        var messageList = messages.ToList();
+        var messageList = messages.ShouldBeRight().ToList();
         messageList.ShouldHaveSingleItem();
         messageList.First().MessageId.ShouldBe(expired.MessageId);
     }

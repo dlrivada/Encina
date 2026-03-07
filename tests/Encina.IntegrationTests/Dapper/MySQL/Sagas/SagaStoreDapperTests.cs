@@ -2,6 +2,7 @@ using Encina.Dapper.MySQL.Sagas;
 using Encina.Messaging.Sagas;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 using Xunit;
 
 namespace Encina.IntegrationTests.Dapper.MySQL.Sagas;
@@ -47,11 +48,12 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(saga);
+        (await _store.AddAsync(saga)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetAsync(sagaId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal(sagaId, retrieved.SagaId);
         Assert.Equal("OrderSaga", retrieved.SagaType);
         Assert.Equal("{\"orderId\":123}", retrieved.Data);
@@ -66,10 +68,10 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
         var nonExistentId = Guid.NewGuid();
 
         // Act
-        var result = await _store.GetAsync(nonExistentId);
+        var resultOpt = (await _store.GetAsync(nonExistentId)).ShouldBeRight();
 
         // Assert
-        Assert.Null(result);
+        Assert.True(resultOpt.IsNone);
     }
 
     [Fact]
@@ -87,18 +89,19 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow,
             CurrentStep = 1
         };
-        await _store.AddAsync(saga);
+        (await _store.AddAsync(saga)).ShouldBeRight();
 
         // Act - Update saga
         saga.Status = "Completed";
         saga.CurrentStep = 5;
         saga.Data = "{\"orderId\":123,\"completed\":true}";
         saga.CompletedAtUtc = DateTime.UtcNow;
-        await _store.UpdateAsync(saga);
+        (await _store.UpdateAsync(saga)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetAsync(sagaId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal("Completed", retrieved.Status);
         Assert.Equal(5, retrieved.CurrentStep);
         Assert.Equal("{\"orderId\":123,\"completed\":true}", retrieved.Data);
@@ -120,16 +123,17 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow,
             CurrentStep = 2
         };
-        await _store.AddAsync(saga);
+        (await _store.AddAsync(saga)).ShouldBeRight();
 
         // Act - Mark as failed
         saga.Status = "Failed";
         saga.ErrorMessage = "Payment gateway timeout";
-        await _store.UpdateAsync(saga);
+        (await _store.UpdateAsync(saga)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetAsync(sagaId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal("Failed", retrieved.Status);
         Assert.Equal("Payment gateway timeout", retrieved.ErrorMessage);
     }
@@ -149,7 +153,7 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-2),
             CurrentStep = 1
         };
-        await _store.AddAsync(stuckSaga);
+        (await _store.AddAsync(stuckSaga)).ShouldBeRight();
 
         // Create recent saga (should not be stuck)
         var recentSagaId = Guid.NewGuid();
@@ -163,10 +167,10 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow,
             CurrentStep = 1
         };
-        await _store.AddAsync(recentSaga);
+        (await _store.AddAsync(recentSaga)).ShouldBeRight();
 
         // Act - Get sagas older than 1 hour
-        var stuckSagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
+        var stuckSagas = (await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10)).ShouldBeRight();
 
         // Assert
         var stuckList = stuckSagas.ToList();
@@ -189,10 +193,10 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-3),
             CurrentStep = 2
         };
-        await _store.AddAsync(compensatingSaga);
+        (await _store.AddAsync(compensatingSaga)).ShouldBeRight();
 
         // Act
-        var stuckSagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
+        var stuckSagas = (await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10)).ShouldBeRight();
 
         // Assert
         var stuckList = stuckSagas.ToList();
@@ -217,10 +221,10 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             CompletedAtUtc = DateTime.UtcNow.AddHours(-4),
             CurrentStep = 5
         };
-        await _store.AddAsync(completedSaga);
+        (await _store.AddAsync(completedSaga)).ShouldBeRight();
 
         // Act
-        var stuckSagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
+        var stuckSagas = (await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10)).ShouldBeRight();
 
         // Assert
         Assert.Empty(stuckSagas);
@@ -242,11 +246,11 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
                 LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-2 - i),
                 CurrentStep = 1
             };
-            await _store.AddAsync(saga);
+            (await _store.AddAsync(saga)).ShouldBeRight();
         }
 
         // Act - Request only 3
-        var stuckSagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 3);
+        var stuckSagas = (await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 3)).ShouldBeRight();
 
         // Assert
         Assert.Equal(3, stuckSagas.Count());
@@ -267,7 +271,7 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-10),
             CurrentStep = 1
         };
-        await _store.AddAsync(oldestSaga);
+        (await _store.AddAsync(oldestSaga)).ShouldBeRight();
 
         var newerSaga = new SagaState
         {
@@ -279,10 +283,10 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow.AddHours(-5),
             CurrentStep = 1
         };
-        await _store.AddAsync(newerSaga);
+        (await _store.AddAsync(newerSaga)).ShouldBeRight();
 
         // Act
-        var stuckSagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
+        var stuckSagas = (await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10)).ShouldBeRight();
 
         // Assert
         var stuckList = stuckSagas.ToList();
@@ -294,7 +298,7 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
     public async Task SaveChangesAsync_ShouldComplete()
     {
         // Act & Assert - Should not throw
-        await _store.SaveChangesAsync();
+        (await _store.SaveChangesAsync()).ShouldBeRight();
     }
 
     [Fact]
@@ -325,14 +329,16 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(saga1);
-        await _store.AddAsync(saga2);
+        (await _store.AddAsync(saga1)).ShouldBeRight();
+        (await _store.AddAsync(saga2)).ShouldBeRight();
 
         // Assert
-        var retrieved1 = await _store.GetAsync(saga1.SagaId);
-        var retrieved2 = await _store.GetAsync(saga2.SagaId);
-        Assert.NotNull(retrieved1);
-        Assert.NotNull(retrieved2);
+        var retrieved1Opt = (await _store.GetAsync(saga1.SagaId)).ShouldBeRight();
+        var retrieved2Opt = (await _store.GetAsync(saga2.SagaId)).ShouldBeRight();
+        Assert.True(retrieved1Opt.IsSome);
+        var retrieved1 = retrieved1Opt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
+        Assert.True(retrieved2Opt.IsSome);
+        var retrieved2 = retrieved2Opt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal("Running", retrieved1.Status);
         Assert.Equal("Completed", retrieved2.Status);
     }
@@ -353,16 +359,17 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = startedTime,
             CurrentStep = 1
         };
-        await _store.AddAsync(saga);
+        (await _store.AddAsync(saga)).ShouldBeRight();
 
         // Act - Update saga
         saga.Status = "Completed";
         saga.CompletedAtUtc = DateTime.UtcNow;
-        await _store.UpdateAsync(saga);
+        (await _store.UpdateAsync(saga)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetAsync(sagaId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         // Compare with tolerance due to database datetime precision differences
         var timeDifference = Math.Abs((startedTime - retrieved.StartedAtUtc).TotalMilliseconds);
         Assert.True(timeDifference < 1, $"StartedAtUtc should be preserved. Expected: {startedTime:O}, Actual: {retrieved.StartedAtUtc:O}, Diff: {timeDifference}ms");
@@ -382,10 +389,10 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             LastUpdatedAtUtc = DateTime.UtcNow,
             CurrentStep = 1
         };
-        await _store.AddAsync(recentSaga);
+        (await _store.AddAsync(recentSaga)).ShouldBeRight();
 
         // Act
-        var stuckSagas = await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10);
+        var stuckSagas = (await _store.GetStuckSagasAsync(TimeSpan.FromHours(1), 10)).ShouldBeRight();
 
         // Assert
         Assert.Empty(stuckSagas);
@@ -411,11 +418,12 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
         };
 
         // Act
-        await _store.AddAsync(saga);
+        (await _store.AddAsync(saga)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetAsync(sagaId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal("ComprehensiveSaga", retrieved.SagaType);
         Assert.Equal("{\"key\":\"value\",\"number\":42}", retrieved.Data);
         Assert.Equal("Running", retrieved.Status);
@@ -440,17 +448,18 @@ public sealed class SagaStoreDapperTests : IAsyncLifetime
             ErrorMessage = "Previous error",
             CurrentStep = 2
         };
-        await _store.AddAsync(saga);
+        (await _store.AddAsync(saga)).ShouldBeRight();
 
         // Act - Recover saga
         saga.Status = "Running";
         saga.ErrorMessage = null;
         saga.CurrentStep = 3;
-        await _store.UpdateAsync(saga);
+        (await _store.UpdateAsync(saga)).ShouldBeRight();
 
         // Assert
-        var retrieved = await _store.GetAsync(sagaId);
-        Assert.NotNull(retrieved);
+        var retrievedOpt = (await _store.GetAsync(sagaId)).ShouldBeRight();
+        Assert.True(retrievedOpt.IsSome);
+        var retrieved = retrievedOpt.Match(Some: s => s, None: () => throw new InvalidOperationException("Expected Some"));
         Assert.Equal("Running", retrieved.Status);
         Assert.Null(retrieved.ErrorMessage);
         Assert.Equal(3, retrieved.CurrentStep);

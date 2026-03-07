@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Encina.Messaging.Sagas;
 using Encina.Testing.Fakes.Models;
+using LanguageExt;
+using static LanguageExt.Prelude;
 
 namespace Encina.Testing.Fakes.Stores;
 
@@ -55,14 +57,17 @@ public sealed class FakeSagaStore : ISagaStore
     public int SaveChangesCallCount { get; private set; }
 
     /// <inheritdoc />
-    public Task<ISagaState?> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Option<ISagaState>>> GetAsync(Guid sagaId, CancellationToken cancellationToken = default)
     {
         _sagas.TryGetValue(sagaId, out var saga);
-        return Task.FromResult<ISagaState?>(saga);
+        var option = saga is not null
+            ? Option<ISagaState>.Some(saga)
+            : Option<ISagaState>.None;
+        return Task.FromResult<Either<EncinaError, Option<ISagaState>>>(option);
     }
 
     /// <inheritdoc />
-    public Task AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> AddAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sagaState);
 
@@ -83,11 +88,11 @@ public sealed class FakeSagaStore : ISagaStore
         _sagas[fakeSaga.SagaId] = fakeSaga;
         _addedSagas.Add(fakeSaga.Clone());
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> UpdateAsync(ISagaState sagaState, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sagaState);
 
@@ -105,11 +110,11 @@ public sealed class FakeSagaStore : ISagaStore
             _updatedSagas.Add(existing.Clone());
         }
 
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<ISagaState>> GetStuckSagasAsync(
+    public Task<Either<EncinaError, IEnumerable<ISagaState>>> GetStuckSagasAsync(
         TimeSpan olderThan,
         int batchSize,
         CancellationToken cancellationToken = default)
@@ -122,11 +127,11 @@ public sealed class FakeSagaStore : ISagaStore
             .Cast<ISagaState>()
             .ToList();
 
-        return Task.FromResult<IEnumerable<ISagaState>>(stuckSagas);
+        return Task.FromResult<Either<EncinaError, IEnumerable<ISagaState>>>(stuckSagas);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<ISagaState>> GetExpiredSagasAsync(
+    public Task<Either<EncinaError, IEnumerable<ISagaState>>> GetExpiredSagasAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
@@ -140,14 +145,14 @@ public sealed class FakeSagaStore : ISagaStore
             .Cast<ISagaState>()
             .ToList();
 
-        return Task.FromResult<IEnumerable<ISagaState>>(expiredSagas);
+        return Task.FromResult<Either<EncinaError, IEnumerable<ISagaState>>>(expiredSagas);
     }
 
     /// <inheritdoc />
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         SaveChangesCallCount++;
-        return Task.CompletedTask;
+        return Task.FromResult<Either<EncinaError, Unit>>(Right(unit));
     }
 
     /// <summary>

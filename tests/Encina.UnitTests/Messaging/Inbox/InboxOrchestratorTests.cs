@@ -2,6 +2,7 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Inbox;
 
@@ -172,7 +173,7 @@ public sealed class InboxOrchestratorTests
         var expectedResponse = "Success";
 
         _store.GetMessageAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns((IInboxMessage?)null);
+            .Returns(Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(Option<IInboxMessage>.None));
 
         var inboxMessage = CreateTestInboxMessage(messageId, FixedUtcNow);
         _messageFactory.Create(
@@ -212,7 +213,7 @@ public sealed class InboxOrchestratorTests
         };
 
         _store.GetMessageAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns((IInboxMessage?)null);
+            .Returns(Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(Option<IInboxMessage>.None));
 
         var inboxMessage = CreateTestInboxMessage(messageId, FixedUtcNow);
         _messageFactory.Create(
@@ -254,7 +255,7 @@ public sealed class InboxOrchestratorTests
         existingMessage.Response = cachedResponse;
 
         _store.GetMessageAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(existingMessage);
+            .Returns(Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(Option<IInboxMessage>.Some(existingMessage)));
 
         var callbackInvoked = false;
         var callback = () =>
@@ -292,7 +293,7 @@ public sealed class InboxOrchestratorTests
         existingMessage.Response = null;
 
         _store.GetMessageAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(existingMessage);
+            .Returns(Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(Option<IInboxMessage>.Some(existingMessage)));
 
         var callback = () => ValueTask.FromResult<Either<EncinaError, string>>(expectedResponse);
 
@@ -321,7 +322,7 @@ public sealed class InboxOrchestratorTests
         existingMessage.Response = null;
 
         _store.GetMessageAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(existingMessage);
+            .Returns(Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(Option<IInboxMessage>.Some(existingMessage)));
 
         var callbackInvoked = false;
         var callback = () =>
@@ -353,7 +354,7 @@ public sealed class InboxOrchestratorTests
         var messageId = "msg-123";
 
         _store.GetMessageAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns((IInboxMessage?)null);
+            .Returns(Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(Option<IInboxMessage>.None));
 
         var inboxMessage = CreateTestInboxMessage(messageId, FixedUtcNow);
         _messageFactory.Create(

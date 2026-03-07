@@ -3,6 +3,7 @@ using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
 using Encina.Testing.Time;
+using LanguageExt;
 
 namespace Encina.Testing.Messaging;
 
@@ -860,7 +861,10 @@ public sealed class SchedulingTestHelper : IDisposable
     public async Task<IEnumerable<IScheduledMessage>> GetDueMessagesAsync(int batchSize = 100, int maxRetries = 3)
     {
         EnsureWhenExecuted();
-        return await _store.GetDueMessagesAsync(batchSize, maxRetries);
+        var result = await _store.GetDueMessagesAsync(batchSize, maxRetries);
+        return result.Match(
+            Right: messages => messages,
+            Left: error => throw new InvalidOperationException($"Error retrieving due messages: {error}"));
     }
 
     #endregion

@@ -23,9 +23,10 @@ public sealed class FakeOutboxStoreTests
         };
 
         // Act
-        await _sut.AddAsync(message);
+        var result = await _sut.AddAsync(message);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         _sut.GetMessages().Count.ShouldBe(1);
         _sut.GetAddedMessages().Count.ShouldBe(1);
         _sut.GetMessage(message.Id).ShouldNotBeNull();
@@ -62,9 +63,11 @@ public sealed class FakeOutboxStoreTests
         await _sut.AddAsync(processedMessage);
 
         // Act
-        var pending = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var pending = result.Match(Right: r => r, Left: _ => default!);
         pending.Count().ShouldBe(1);
         pending.First().Id.ShouldBe(pendingMessage.Id);
     }
@@ -84,9 +87,11 @@ public sealed class FakeOutboxStoreTests
         await _sut.AddAsync(message);
 
         // Act
-        var pending = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var pending = result.Match(Right: r => r, Left: _ => default!);
         pending.ShouldBeEmpty();
     }
 
@@ -105,9 +110,11 @@ public sealed class FakeOutboxStoreTests
         await _sut.AddAsync(futureRetryMessage);
 
         // Act
-        var pending = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await _sut.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var pending = result.Match(Right: r => r, Left: _ => default!);
         pending.ShouldBeEmpty();
     }
 
@@ -127,9 +134,11 @@ public sealed class FakeOutboxStoreTests
         }
 
         // Act
-        var pending = await _sut.GetPendingMessagesAsync(batchSize: 3, maxRetries: 3);
+        var result = await _sut.GetPendingMessagesAsync(batchSize: 3, maxRetries: 3);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
+        var pending = result.Match(Right: r => r, Left: _ => default!);
         pending.Count().ShouldBe(3);
     }
 
@@ -146,9 +155,10 @@ public sealed class FakeOutboxStoreTests
         await _sut.AddAsync(message);
 
         // Act
-        await _sut.MarkAsProcessedAsync(message.Id);
+        var result = await _sut.MarkAsProcessedAsync(message.Id);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         var updated = _sut.GetMessage(message.Id);
         updated!.IsProcessed.ShouldBeTrue();
         updated.ProcessedAtUtc.ShouldNotBeNull();
@@ -169,9 +179,10 @@ public sealed class FakeOutboxStoreTests
         var nextRetry = DateTime.UtcNow.AddMinutes(5);
 
         // Act
-        await _sut.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
+        var result = await _sut.MarkAsFailedAsync(message.Id, "Test error", nextRetry);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         var updated = _sut.GetMessage(message.Id);
         updated!.ErrorMessage.ShouldBe("Test error");
         updated.RetryCount.ShouldBe(1);
@@ -270,15 +281,17 @@ public sealed class FakeOutboxStoreTests
     [Fact]
     public async Task MarkAsProcessedAsync_NonExistentId_DoesNotThrow()
     {
-        // Act & Assert — should not throw
-        await _sut.MarkAsProcessedAsync(Guid.NewGuid());
+        // Act & Assert — should not throw, returns Right(Unit)
+        var result = await _sut.MarkAsProcessedAsync(Guid.NewGuid());
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
     public async Task MarkAsFailedAsync_NonExistentId_DoesNotThrow()
     {
-        // Act & Assert — should not throw
-        await _sut.MarkAsFailedAsync(Guid.NewGuid(), "error", DateTime.UtcNow);
+        // Act & Assert — should not throw, returns Right(Unit)
+        var result = await _sut.MarkAsFailedAsync(Guid.NewGuid(), "error", DateTime.UtcNow);
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]

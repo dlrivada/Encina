@@ -76,10 +76,15 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
 
             return result;
         }
-        catch
+        catch (OperationCanceledException)
         {
             transaction.Rollback();
             throw;
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            return EncinaErrors.FromException("transaction.failed", ex);
         }
     }
 }

@@ -108,7 +108,9 @@ public sealed class SchedulerOrchestrator
             isRecurring: false,
             cronExpression: null);
 
-        await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        if (addResult.IsLeft)
+            return addResult.LeftToArray()[0];
 
         Log.MessageScheduled(_logger, message.Id, requestType, executeAt);
 
@@ -208,7 +210,10 @@ public sealed class SchedulerOrchestrator
     /// <returns>Unit on success, or an error if cancellation failed.</returns>
     public async Task<Either<EncinaError, Unit>> CancelAsync(Guid messageId, CancellationToken cancellationToken = default)
     {
-        await _store.CancelAsync(messageId, cancellationToken).ConfigureAwait(false);
+        var cancelResult = await _store.CancelAsync(messageId, cancellationToken).ConfigureAwait(false);
+        if (cancelResult.IsLeft)
+            return cancelResult.LeftToArray()[0];
+
         Log.MessageCancelled(_logger, messageId);
 
         return Unit.Default;
@@ -226,11 +231,15 @@ public sealed class SchedulerOrchestrator
     {
         ArgumentNullException.ThrowIfNull(executeCallback);
 
-        var messages = await _store.GetDueMessagesAsync(
+        var messagesResult = await _store.GetDueMessagesAsync(
             _options.BatchSize,
             _options.MaxRetries,
             cancellationToken).ConfigureAwait(false);
 
+        if (messagesResult.IsLeft)
+            return messagesResult.LeftToArray()[0];
+
+        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IScheduledMessage>());
         var processedCount = 0;
 
         foreach (var message in messages)
@@ -287,12 +296,12 @@ public sealed class SchedulerOrchestrator
     /// <returns>The count of pending messages, or an error.</returns>
     public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
     {
-        var messages = await _store.GetDueMessagesAsync(
+        var messagesResult = await _store.GetDueMessagesAsync(
             int.MaxValue,
             _options.MaxRetries,
             cancellationToken).ConfigureAwait(false);
 
-        return messages.Count();
+        return messagesResult.Map(messages => messages.Count());
     }
 
     private async Task HandleRecurringMessageAsync(IScheduledMessage message, CancellationToken cancellationToken)

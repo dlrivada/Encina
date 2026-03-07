@@ -80,12 +80,12 @@ public static class EitherExtensions
         {
             if (result.IsLeft)
             {
-                return result.Match(
-                    Right: _ => throw new InvalidOperationException(),
-                    Left: error => Left<TError, IReadOnlyList<T>>(error)); // NOSONAR S6966: LanguageExt Left is a pure function
+                // Extract Left value without throwing — we already confirmed IsLeft above
+                var error = result.LeftToArray()[0];
+                return Left<TError, IReadOnlyList<T>>(error);
             }
 
-            list.Add(result.Match(Right: x => x, Left: _ => default!));
+            result.IfRight(v => list.Add(v));
         }
 
         return list.AsReadOnly();

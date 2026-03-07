@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Messaging.Outbox;
 
 /// <summary>
@@ -13,6 +15,10 @@ namespace Encina.Messaging.Outbox;
 /// <item><description><b>Custom</b>: NoSQL, message queues, etc.</description></item>
 /// </list>
 /// </para>
+/// <para>
+/// All methods return <c>Either&lt;EncinaError, T&gt;</c> following the Railway Oriented Programming
+/// pattern. Infrastructure failures are captured as <c>Left</c> values instead of throwing exceptions.
+/// </para>
 /// </remarks>
 public interface IOutboxStore
 {
@@ -21,7 +27,8 @@ public interface IOutboxStore
     /// </summary>
     /// <param name="message">The outbox message to add.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> AddAsync(IOutboxMessage message, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets pending messages that are ready to be processed.
@@ -29,8 +36,8 @@ public interface IOutboxStore
     /// <param name="batchSize">Maximum number of messages to retrieve.</param>
     /// <param name="maxRetries">Maximum number of retries before dead lettering.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A collection of pending messages.</returns>
-    Task<IEnumerable<IOutboxMessage>> GetPendingMessagesAsync(
+    /// <returns>Right(messages) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, IEnumerable<IOutboxMessage>>> GetPendingMessagesAsync(
         int batchSize,
         int maxRetries,
         CancellationToken cancellationToken = default);
@@ -40,7 +47,8 @@ public interface IOutboxStore
     /// </summary>
     /// <param name="messageId">The message ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(Guid messageId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a message as failed and schedules retry.
@@ -49,7 +57,8 @@ public interface IOutboxStore
     /// <param name="errorMessage">The error message.</param>
     /// <param name="nextRetryAtUtc">When to retry next (UTC).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task MarkAsFailedAsync(
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         Guid messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -59,5 +68,6 @@ public interface IOutboxStore
     /// Saves all pending changes (for stores that support it like EF Core).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task SaveChangesAsync(CancellationToken cancellationToken = default);
+    /// <returns>Right(Unit) on success; Left(error) on infrastructure failure.</returns>
+    Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

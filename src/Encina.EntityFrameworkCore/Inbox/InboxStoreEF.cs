@@ -1,4 +1,5 @@
 using Encina.Messaging.Inbox;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.EntityFrameworkCore.Inbox;
@@ -31,47 +32,60 @@ public sealed class InboxStoreEF : IInboxStore
     }
 
     /// <inheritdoc/>
-    public async Task<IInboxMessage?> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Option<IInboxMessage>>> GetMessageAsync(string messageId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageId);
-        return await _dbContext.Set<InboxMessage>()
-            .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<InboxMessage>()
+                .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+
+            return message is not null
+                ? Option<IInboxMessage>.Some(message)
+                : Option<IInboxMessage>.None;
+        }, "inbox.get_message_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> AddAsync(IInboxMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         if (message is not InboxMessage efMessage)
         {
-            throw new InvalidOperationException(
-                $"InboxStoreEF requires messages of type {nameof(InboxMessage)}, " +
-                $"but received {message.GetType().Name}");
+            return EncinaErrors.Create("inbox.invalid_type",
+                $"InboxStoreEF requires messages of type {nameof(InboxMessage)}, got {message.GetType().Name}");
         }
 
-        await _dbContext.Set<InboxMessage>().AddAsync(efMessage, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            await _dbContext.Set<InboxMessage>().AddAsync(efMessage, cancellationToken);
+        }, "inbox.add_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> MarkAsProcessedAsync(string messageId, string response, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageId);
         ArgumentNullException.ThrowIfNull(response);
 
-        var message = await _dbContext.Set<InboxMessage>()
-            .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<InboxMessage>()
+                .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
 
-        if (message == null)
-            return;
+            if (message == null)
+                return;
 
-        message.Response = response;
-        message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        message.ErrorMessage = null;
+            message.Response = response;
+            message.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+            message.ErrorMessage = null;
+        }, "inbox.mark_processed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task MarkAsFailedAsync(
+    public async Task<Either<EncinaError, Unit>> MarkAsFailedAsync(
         string messageId,
         string errorMessage,
         DateTime? nextRetryAtUtc,
@@ -80,64 +94,79 @@ public sealed class InboxStoreEF : IInboxStore
         ArgumentNullException.ThrowIfNull(messageId);
         ArgumentNullException.ThrowIfNull(errorMessage);
 
-        var message = await _dbContext.Set<InboxMessage>()
-            .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<InboxMessage>()
+                .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
 
-        if (message == null)
-            return;
+            if (message == null)
+                return;
 
-        message.ErrorMessage = errorMessage;
-        message.RetryCount++;
-        message.NextRetryAtUtc = nextRetryAtUtc;
+            message.ErrorMessage = errorMessage;
+            message.RetryCount++;
+            message.NextRetryAtUtc = nextRetryAtUtc;
+        }, "inbox.mark_failed_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<IInboxMessage>> GetExpiredMessagesAsync(
+    public async Task<Either<EncinaError, Unit>> IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageId);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var message = await _dbContext.Set<InboxMessage>()
+                .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+
+            if (message != null)
+            {
+                message.RetryCount++;
+            }
+        }, "inbox.increment_retry_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, IEnumerable<IInboxMessage>>> GetExpiredMessagesAsync(
         int batchSize,
         CancellationToken cancellationToken = default)
     {
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var messages = await _dbContext.Set<InboxMessage>()
-            .Where(m => m.ExpiresAtUtc <= now)
-            .OrderBy(m => m.ExpiresAtUtc)
-            .Take(batchSize)
-            .ToListAsync(cancellationToken);
+            var messages = await _dbContext.Set<InboxMessage>()
+                .Where(m => m.ExpiresAtUtc <= now)
+                .OrderBy(m => m.ExpiresAtUtc)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
 
-        return messages;
+            return (IEnumerable<IInboxMessage>)messages;
+        }, "inbox.get_expired_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task RemoveExpiredMessagesAsync(
+    public async Task<Either<EncinaError, Unit>> RemoveExpiredMessagesAsync(
         IEnumerable<string> messageIds,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(messageIds);
 
-        var messages = await _dbContext.Set<InboxMessage>()
-            .Where(m => messageIds.Contains(m.MessageId))
-            .ToListAsync(cancellationToken);
-
-        _dbContext.Set<InboxMessage>().RemoveRange(messages);
-    }
-
-    /// <inheritdoc/>
-    public async Task IncrementRetryCountAsync(string messageId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(messageId);
-
-        var message = await _dbContext.Set<InboxMessage>()
-            .FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
-
-        if (message != null)
+        return await EitherHelpers.TryAsync(async () =>
         {
-            message.RetryCount++;
-        }
+            var messages = await _dbContext.Set<InboxMessage>()
+                .Where(m => messageIds.Contains(m.MessageId))
+                .ToListAsync(cancellationToken);
+
+            _dbContext.Set<InboxMessage>().RemoveRange(messages);
+        }, "inbox.remove_expired_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
-    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }, "inbox.save_failed").ConfigureAwait(false);
     }
 }

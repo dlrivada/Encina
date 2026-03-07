@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Encina.Messaging.DeadLetter;
 using Encina.Testing.Shouldly;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.DeadLetter;
 
@@ -261,28 +263,33 @@ public sealed class DeadLetterOrchestratorTests
         var expectedMessage = CreateTestDeadLetterMessage(messageId);
 
         _store.GetAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns(expectedMessage);
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(expectedMessage)));
 
         // Act
         var result = await _orchestrator.GetAsync(messageId);
 
         // Assert
-        result.ShouldBe(expectedMessage);
+        var option = result.ShouldBeRight();
+        option.IsSome.ShouldBeTrue();
+        option.Match(
+            Some: msg => msg.ShouldBe(expectedMessage),
+            None: () => Assert.Fail("Expected Some"));
     }
 
     [Fact]
-    public async Task GetAsync_NonExistentMessage_ReturnsNull()
+    public async Task GetAsync_NonExistentMessage_ReturnsNone()
     {
         // Arrange
         var messageId = Guid.NewGuid();
         _store.GetAsync(messageId, Arg.Any<CancellationToken>())
-            .Returns((IDeadLetterMessage?)null);
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.None));
 
         // Act
         var result = await _orchestrator.GetAsync(messageId);
 
         // Assert
-        result.ShouldBeNull();
+        var option = result.ShouldBeRight();
+        option.IsNone.ShouldBeTrue();
     }
 
     #endregion
@@ -296,7 +303,7 @@ public sealed class DeadLetterOrchestratorTests
         _store.GetCountAsync(
             Arg.Is<DeadLetterFilter>(f => f.ExcludeReplayed == true),
             Arg.Any<CancellationToken>())
-            .Returns(5);
+            .Returns(Right<EncinaError, int>(5));
 
         // Act
         var result = await _orchestrator.GetPendingCountAsync();
@@ -314,7 +321,7 @@ public sealed class DeadLetterOrchestratorTests
     {
         // Arrange
         _store.DeleteExpiredAsync(Arg.Any<CancellationToken>())
-            .Returns(10);
+            .Returns(Right<EncinaError, int>(10));
 
         // Act
         var result = await _orchestrator.CleanupExpiredAsync();
@@ -329,7 +336,7 @@ public sealed class DeadLetterOrchestratorTests
     {
         // Arrange
         _store.DeleteExpiredAsync(Arg.Any<CancellationToken>())
-            .Returns(0);
+            .Returns(Right<EncinaError, int>(0));
 
         // Act
         var result = await _orchestrator.CleanupExpiredAsync();
@@ -347,21 +354,21 @@ public sealed class DeadLetterOrchestratorTests
     {
         // Arrange
         _store.GetCountAsync(null, Arg.Any<CancellationToken>())
-            .Returns(100);
+            .Returns(Right<EncinaError, int>(100));
         _store.GetCountAsync(
             Arg.Is<DeadLetterFilter>(f => f.ExcludeReplayed == true),
             Arg.Any<CancellationToken>())
-            .Returns(80);
+            .Returns(Right<EncinaError, int>(80));
         _store.GetCountAsync(
             Arg.Is<DeadLetterFilter>(f => f.ExcludeReplayed == false),
             Arg.Any<CancellationToken>())
-            .Returns(100);
+            .Returns(Right<EncinaError, int>(100));
         _store.GetMessagesAsync(
             Arg.Any<DeadLetterFilter>(),
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>())
-            .Returns([]);
+            .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>(System.Array.Empty<IDeadLetterMessage>()));
 
         // Act
         var result = await _orchestrator.GetStatisticsAsync();

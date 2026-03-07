@@ -400,7 +400,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         var services = new ServiceCollection();
         var outboxStore = Substitute.For<IOutboxStore>();
         outboxStore.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<IOutboxMessage>>([]));
+            .Returns(Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Array.Empty<IOutboxMessage>())));
         services.AddSingleton(outboxStore);
         var builder = services.AddHealthChecks();
         var options = new OutboxHealthCheckOptions { PendingMessageWarningThreshold = 100 };
@@ -430,9 +430,9 @@ public sealed class HealthCheckBuilderExtensionsTests
         var services = new ServiceCollection();
         var sagaStore = Substitute.For<ISagaStore>();
         sagaStore.GetStuckSagasAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<ISagaState>>([]));
+            .Returns(Task.FromResult(Either<EncinaError, IEnumerable<ISagaState>>.Right(Array.Empty<ISagaState>())));
         sagaStore.GetExpiredSagasAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<ISagaState>>([]));
+            .Returns(Task.FromResult(Either<EncinaError, IEnumerable<ISagaState>>.Right(Array.Empty<ISagaState>())));
         services.AddSingleton(sagaStore);
         var builder = services.AddHealthChecks();
         var options = new SagaHealthCheckOptions { SagaWarningThreshold = 50 };
@@ -462,7 +462,7 @@ public sealed class HealthCheckBuilderExtensionsTests
         var services = new ServiceCollection();
         var scheduledMessageStore = Substitute.For<IScheduledMessageStore>();
         scheduledMessageStore.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IEnumerable<IScheduledMessage>>([]));
+            .Returns(Task.FromResult(Either<EncinaError, IEnumerable<IScheduledMessage>>.Right(Array.Empty<IScheduledMessage>())));
         services.AddSingleton(scheduledMessageStore);
         var builder = services.AddHealthChecks();
         var options = new SchedulingHealthCheckOptions { OverdueWarningThreshold = 10 };
