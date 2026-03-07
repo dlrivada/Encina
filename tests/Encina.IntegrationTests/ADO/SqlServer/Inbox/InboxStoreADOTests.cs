@@ -1,7 +1,7 @@
 using Encina.ADO.SqlServer.Inbox;
 using Encina.TestInfrastructure.Extensions;
-using LanguageExt;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 using Xunit;
 
 namespace Encina.IntegrationTests.ADO.SqlServer.Inbox;

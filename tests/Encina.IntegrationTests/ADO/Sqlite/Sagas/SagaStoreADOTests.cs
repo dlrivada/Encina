@@ -1,8 +1,8 @@
 using Encina.ADO.Sqlite.Sagas;
 using Encina.TestInfrastructure.Extensions;
+using Encina.TestInfrastructure.Fixtures;
 using LanguageExt;
 using Shouldly;
-using Encina.TestInfrastructure.Fixtures;
 
 namespace Encina.IntegrationTests.ADO.Sqlite.Sagas;
 

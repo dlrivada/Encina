@@ -1,7 +1,7 @@
 using Encina.ADO.Sqlite.Scheduling;
 using Encina.TestInfrastructure.Extensions;
-using LanguageExt;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 
 namespace Encina.IntegrationTests.ADO.Sqlite.Scheduling;
 

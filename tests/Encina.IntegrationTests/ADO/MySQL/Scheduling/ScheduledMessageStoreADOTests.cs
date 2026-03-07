@@ -1,7 +1,7 @@
 using Encina.ADO.MySQL.Scheduling;
 using Encina.TestInfrastructure.Extensions;
-using LanguageExt;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 
 namespace Encina.IntegrationTests.ADO.MySQL.Scheduling;
 

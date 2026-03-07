@@ -1,7 +1,7 @@
 using Encina.ADO.SqlServer.Scheduling;
 using Encina.TestInfrastructure.Extensions;
-using LanguageExt;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 
 namespace Encina.IntegrationTests.ADO.SqlServer.Scheduling;
 

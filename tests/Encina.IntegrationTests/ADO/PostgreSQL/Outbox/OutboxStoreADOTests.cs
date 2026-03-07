@@ -1,8 +1,8 @@
 using Encina.ADO.PostgreSQL.Outbox;
 using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
-using LanguageExt;
 using Encina.TestInfrastructure.Fixtures;
+using LanguageExt;
 using Npgsql;
 using Xunit;
 
