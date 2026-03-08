@@ -1573,6 +1573,72 @@ services.AddEncinaMessageEncryption(options =>
 
 ---
 
+#### Encina.Security.ABAC — XACML 3.0 Attribute-Based Access Control Engine (#401)
+
+Added the `Encina.Security.ABAC` package providing a full XACML 3.0-compliant ABAC engine for fine-grained, context-aware authorization. Implements the OASIS XACML 3.0 evaluation model using C#-idiomatic sealed records and fluent builders — no XML.
+
+**XACML 3.0 Core Implementation**:
+
+- **PolicySet/Policy/Rule hierarchy**: Full recursive evaluation model (sections 5.1-5.3)
+- **Target matching**: Structured `AnyOf` → `AllOf` → `Match` with `AttributeDesignator` and `AttributeValue` (section 5.4)
+- **Four-effect model**: Permit, Deny, NotApplicable, Indeterminate (section 7.1)
+- **8 combining algorithms**: DenyOverrides, PermitOverrides, FirstApplicable, OnlyOneApplicable, DenyUnlessPermit, PermitUnlessDeny, OrderedDenyOverrides, OrderedPermitOverrides (Appendix C)
+- **Obligations & Advice**: Mandatory post-decision actions with `FulfillOn` semantics, failure-to-deny override per XACML 3.0 section 7.18
+- **Variable definitions**: Reusable sub-expressions scoped to policy level (section 5.8)
+- **70+ standard functions**: Equality (7), comparison (24), arithmetic (13), string (8), logical (4), bag (32), set (15), higher-order (6), type conversion (7), regex (1) (Appendix A.3)
+- **12 data types**: String, Boolean, Integer, Double, Date, DateTime, Time, AnyURI, HexBinary, Base64Binary, DayTimeDuration, YearMonthDuration (Appendix B)
+
+**EEL (Encina Expression Language)**:
+
+- **`[RequireCondition]`**: Inline C# boolean expressions compiled by Roslyn at startup
+- **`EELCompiler`**: Roslyn Scripting API compilation with `ConcurrentDictionary` caching
+- **Four context variables**: `user`, `resource`, `environment`, `action` (mapped to XACML attribute categories)
+- **Startup validation**: Optional pre-compilation of all expressions via `ValidateExpressionsAtStartup`
+- **IDE support**: `[StringSyntax("csharp")]` enables syntax highlighting
+
+**Fluent Builder DSL**:
+
+- **`PolicySetBuilder`**: Hierarchical policy set construction with nested policy sets
+- **`PolicyBuilder`**: Policy construction with `ForResourceType<T>()` shortcut
+- **`RuleBuilder`**: Rule construction with target, condition, obligations, and advice
+- **`TargetBuilder`**: Structured matching with `AllOfBuilder` and 3 `Match` overloads
+- **`ConditionBuilder`**: Static factory methods for typed convenience (`Equal`, `GreaterThan`, `And`, `Or`, etc.)
+- **`ObligationBuilder` / `AdviceBuilder`**: Post-decision action configuration with `OnPermit`/`OnDeny`
+
+**Architecture (XACML Component Mapping)**:
+
+- **PEP**: `ABACPipelineBehavior<TRequest, TResponse>` — CQRS pipeline integration
+- **PDP**: `XACMLPolicyDecisionPoint` (implements `IPolicyDecisionPoint`) — recursive policy evaluation
+- **PAP**: `InMemoryPolicyAdministrationPoint` (implements `IPolicyAdministrationPoint`) — policy CRUD with seeding
+- **PIP**: `DefaultPolicyInformationPoint` with composite `IAttributeProvider` pattern
+- **Context**: `AttributeContextBuilder` — request-to-attribute resolution
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Security.ABAC` ActivitySource with `ABAC.Evaluate` spans
+- 9 counters: `abac.evaluation.total`, `.permitted`, `.denied`, `.not_applicable`, `.indeterminate`, `abac.obligation.executed`, `.failed`, `.no_handler`, `abac.advice.executed`
+- 2 histograms: `abac.evaluation.duration` (ms), `abac.obligation.duration` (ms)
+- 23 structured log events (EventId 9000-9022) via `[LoggerMessage]` source generator
+- Optional `ABACHealthCheck` with tags `encina`, `security`, `abac`, `ready`
+
+**Error Codes** (17 structured errors via `ABACErrors`):
+
+- `abac.access_denied`, `abac.evaluation_failed`, `abac.missing_context`, `abac.obligation_failed`
+- `abac.attribute_resolution_failed`, `abac.function_not_found`, `abac.invalid_condition`
+- `abac.variable_not_found`, `abac.combining_failed`, `abac.duplicate_policy`
+- All errors include structured metadata (`stage`, `requestType`, `policyId`, `reason`, etc.)
+
+**DI Registration**:
+
+- `services.AddEncinaABAC()` with `TryAdd` semantics — register custom providers before calling to override defaults
+- Configurable via `Action<ABACOptions>` delegate with enforcement mode, seeding, custom functions
+
+**Testing**: 764 unit tests across 9 test classes covering all models, builders, combining algorithms, functions, condition evaluator, PDP evaluation, pipeline behavior, obligation executor, EEL compiler, health check, diagnostics, and DI registration.
+
+**Documentation**: 3 ADRs (ADR-015 through ADR-017), 22 documentation files covering XACML concepts, EEL guide, fluent DSL, tutorials, security guide, conformance, and reference materials.
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

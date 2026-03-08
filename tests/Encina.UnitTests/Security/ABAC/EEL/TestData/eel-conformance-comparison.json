@@ -1,0 +1,53 @@
+{
+  "category": "comparison",
+  "tests": [
+    {
+      "name": "greater_than_true",
+      "expression": "user.age > 18",
+      "globals": { "user": { "age": 25 }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "greater_than_false",
+      "expression": "user.age > 18",
+      "globals": { "user": { "age": 15 }, "resource": {}, "environment": {}, "action": {} },
+      "expected": false
+    },
+    {
+      "name": "less_than_true",
+      "expression": "user.age < 65",
+      "globals": { "user": { "age": 30 }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "greater_or_equal_boundary",
+      "expression": "user.age >= 18",
+      "globals": { "user": { "age": 18 }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "less_or_equal_boundary",
+      "expression": "resource.amount <= 1000",
+      "globals": { "user": {}, "resource": { "amount": 1000 }, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "string_equality_with_attribute",
+      "expression": "user.role == \"admin\"",
+      "globals": { "user": { "role": "admin" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "string_inequality",
+      "expression": "user.role != \"admin\"",
+      "globals": { "user": { "role": "viewer" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "cross_category_comparison",
+      "expression": "resource.owner == user.id",
+      "globals": { "user": { "id": "user-42" }, "resource": { "owner": "user-42" }, "environment": {}, "action": {} },
+      "expected": true
+    }
+  ]
+}

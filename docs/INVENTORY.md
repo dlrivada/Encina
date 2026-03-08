@@ -30,7 +30,7 @@
 | **Patrones DDD & Workflow** | 0 (+ 10 planificados) |
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
-| **Patrones Security** | 7 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management) (+ 1 planificado: #401 ABAC) |
+| **Patrones Security** | 8 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management, #401 ABAC) |
 | **Patrones Compliance (GDPR/EU)** | 5 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #413 Lawful Basis Validation) (+ 9 planificados: #404, #407-#412, #414-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |

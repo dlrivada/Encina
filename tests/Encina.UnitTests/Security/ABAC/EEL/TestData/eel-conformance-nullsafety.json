@@ -1,0 +1,23 @@
+{
+  "category": "nullsafety",
+  "tests": [
+    {
+      "name": "null_check_not_null",
+      "expression": "user.email != null",
+      "globals": { "user": { "email": "test@test.com" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "null_check_is_null",
+      "expression": "user.email == null",
+      "globals": { "user": { "email": null }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "null_with_and",
+      "expression": "user.email != null && user.email.Contains(\"@\")",
+      "globals": { "user": { "email": "test@test.com" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    }
+  ]
+}

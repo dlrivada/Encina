@@ -195,6 +195,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Anti-Tampering [#398](https://github.com/dlrivada/Encina/issues/398) - `Encina.Security.AntiTampering` with HMAC request signing and integrity verification
 - ✅ Input Sanitization [#399](https://github.com/dlrivada/Encina/issues/399) - `Encina.Security.Sanitization` with attribute-based input sanitization and output encoding
 - ✅ Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) - `Encina.Security.Secrets` with ISP-compliant secrets management and vault integration (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager)
+- ✅ ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) - `Encina.Security.ABAC` with XACML 3.0 evaluation model, 70+ standard functions, 8 combining algorithms, EEL (Encina Expression Language), fluent builder DSL, obligations/advice, 764 unit tests, 22 documentation files, 3 ADRs
 
 **Remaining:**
 
@@ -203,6 +204,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ~~PII Masking~~ (Completed as #397)
 - ~~Data Subject Rights~~ (Completed as #404)
 - ~~Data Residency enforcement~~ (Completed as #405)
+- ~~ABAC Engine~~ (Completed as #401)
 - NIS2 Directive compliance
 - AI Act compliance
 
@@ -501,7 +503,7 @@ Key areas already completed:
   - Anti-Tampering [#398](https://github.com/dlrivada/Encina/issues/398) — `IRequestSigner`, HMAC/RSA signatures, replay attack prevention (HIGH - API security)
   - Input Sanitization [#399](https://github.com/dlrivada/Encina/issues/399) — `ISanitizer<T>`, XSS/SQL injection/command injection prevention (HIGH - OWASP Top 10)
   - ~~Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) — `ISecretProvider`, Vault/Azure/AWS/GCP integration, rotation (MEDIUM - cloud-native)~~ ✅ **COMPLETADO** (v0.13.0, #603)
-  - ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) — `IAbacEngine`, policy DSL, PDP/PEP pattern (MEDIUM - complex enterprise)
+  - ~~ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) — `Encina.Security.ABAC` with XACML 3.0 engine, EEL, fluent DSL, 70+ functions, 764 tests~~ ✅ **COMPLETADO** (v0.13.0)
   - New packages planned: `Encina.Security`, `Encina.Security.Audit`, `Encina.Security.Encryption`, `Encina.Security.PII`, `Encina.Security.AntiTampering`, `Encina.Security.Sanitization`, `Encina.Security.ABAC`
   - Secrets packages (✅ implemented): `Encina.Secrets`, `Encina.Secrets.AzureKeyVault`, `Encina.Secrets.AWSSecretsManager`, `Encina.Secrets.HashiCorpVault`, `Encina.Secrets.GoogleSecretManager`
 - **Compliance Patterns - GDPR & EU Laws** (new - based on December 29, 2025 research):

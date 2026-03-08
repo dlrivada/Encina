@@ -1,0 +1,41 @@
+{
+  "category": "complex",
+  "tests": [
+    {
+      "name": "finance_read_policy",
+      "expression": "(user.role == \"admin\" || user.department == \"Finance\") && action.name == \"read\"",
+      "globals": { "user": { "role": "user", "department": "Finance" }, "resource": {}, "environment": {}, "action": { "name": "read" } },
+      "expected": true
+    },
+    {
+      "name": "classification_check",
+      "expression": "(user.clearanceLevel >= 3 || user.role == \"admin\") && resource.classification != \"top-secret\"",
+      "globals": { "user": { "clearanceLevel": 2, "role": "admin" }, "resource": { "classification": "confidential" }, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "owner_or_admin_check",
+      "expression": "resource.owner == user.id || user.role == \"admin\"",
+      "globals": { "user": { "id": "user-7", "role": "user" }, "resource": { "owner": "user-7" }, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "amount_threshold_with_department",
+      "expression": "resource.amount <= 10000 || (resource.amount > 10000 && user.department == \"Finance\")",
+      "globals": { "user": { "department": "Engineering" }, "resource": { "amount": 15000 }, "environment": {}, "action": {} },
+      "expected": false
+    },
+    {
+      "name": "triple_and_condition",
+      "expression": "user.active && !user.banned && user.emailVerified",
+      "globals": { "user": { "active": true, "banned": false, "emailVerified": true }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "nested_parentheses",
+      "expression": "((user.age >= 18) && ((user.role == \"admin\") || (user.role == \"manager\")))",
+      "globals": { "user": { "age": 30, "role": "manager" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    }
+  ]
+}

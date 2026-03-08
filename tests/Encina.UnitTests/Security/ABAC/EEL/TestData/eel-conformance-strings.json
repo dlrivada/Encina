@@ -1,0 +1,41 @@
+{
+  "category": "strings",
+  "tests": [
+    {
+      "name": "contains_true",
+      "expression": "user.email.Contains(\"@company.com\")",
+      "globals": { "user": { "email": "john@company.com" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "contains_false",
+      "expression": "user.email.Contains(\"@company.com\")",
+      "globals": { "user": { "email": "john@other.com" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": false
+    },
+    {
+      "name": "starts_with",
+      "expression": "resource.path.StartsWith(\"/api/\")",
+      "globals": { "user": {}, "resource": { "path": "/api/users" }, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "ends_with",
+      "expression": "resource.filename.EndsWith(\".pdf\")",
+      "globals": { "user": {}, "resource": { "filename": "report.pdf" }, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "string_length",
+      "expression": "user.password.Length >= 8",
+      "globals": { "user": { "password": "SecurePass123" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "to_lower_comparison",
+      "expression": "user.role.ToLower() == \"admin\"",
+      "globals": { "user": { "role": "Admin" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    }
+  ]
+}

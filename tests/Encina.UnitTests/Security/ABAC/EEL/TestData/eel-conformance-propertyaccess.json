@@ -1,0 +1,35 @@
+{
+  "category": "propertyaccess",
+  "tests": [
+    {
+      "name": "user_attribute_access",
+      "expression": "user.department == \"Finance\"",
+      "globals": { "user": { "department": "Finance" }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "resource_attribute_access",
+      "expression": "resource.classification == \"public\"",
+      "globals": { "user": {}, "resource": { "classification": "public" }, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "environment_attribute_access",
+      "expression": "environment.isBusinessHours == true",
+      "globals": { "user": {}, "resource": {}, "environment": { "isBusinessHours": true }, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "action_attribute_access",
+      "expression": "action.name == \"read\"",
+      "globals": { "user": {}, "resource": {}, "environment": {}, "action": { "name": "read" } },
+      "expected": true
+    },
+    {
+      "name": "cross_category_attributes",
+      "expression": "user.department == \"Finance\" && resource.type == \"report\" && action.name == \"read\"",
+      "globals": { "user": { "department": "Finance" }, "resource": { "type": "report" }, "environment": {}, "action": { "name": "read" } },
+      "expected": true
+    }
+  ]
+}

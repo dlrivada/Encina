@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PackageId>Encina.Security.ABAC.Analyzers</PackageId>
+    <Description>Roslyn analyzers for EEL (Encina Expression Language) expressions used in [RequireCondition] attributes. Provides compile-time diagnostics and code fixes for ABAC condition expressions.</Description>
+    <PackageTags>encina;analyzers;abac;eel;roslyn;diagnostics</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <!-- Disable analyzers that don't apply to netstandard2.0 analyzer projects -->
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <!-- Suppress warnings specific to netstandard2.0 constraints -->
+    <NoWarn>$(NoWarn);IDE0130;CA1014;RS1038</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

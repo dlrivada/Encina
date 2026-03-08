@@ -1,0 +1,693 @@
+#nullable enable
+Encina.Security.ABAC.ABACEnforcementMode
+Encina.Security.ABAC.ABACEnforcementMode.Block = 0 -> Encina.Security.ABAC.ABACEnforcementMode
+Encina.Security.ABAC.ABACEnforcementMode.Disabled = 2 -> Encina.Security.ABAC.ABACEnforcementMode
+Encina.Security.ABAC.ABACEnforcementMode.Warn = 1 -> Encina.Security.ABAC.ABACEnforcementMode
+Encina.Security.ABAC.ABACAttributeInfo
+Encina.Security.ABAC.ABACAttributeInfo.ConditionAttributes.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RequireConditionAttribute!>!
+Encina.Security.ABAC.ABACAttributeInfo.ConditionAttributes.init -> void
+Encina.Security.ABAC.ABACAttributeInfo.HasConditionAttributes.get -> bool
+Encina.Security.ABAC.ABACAttributeInfo.HasPolicyAttributes.get -> bool
+Encina.Security.ABAC.ABACAttributeInfo.PolicyAttributes.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RequirePolicyAttribute!>!
+Encina.Security.ABAC.ABACAttributeInfo.PolicyAttributes.init -> void
+Encina.Security.ABAC.ABACErrors
+Encina.Security.ABAC.ABACOptions
+Encina.Security.ABAC.ABACOptions.ABACOptions() -> void
+Encina.Security.ABAC.ABACOptions.DefaultNotApplicableEffect.get -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.ABACOptions.DefaultNotApplicableEffect.set -> void
+Encina.Security.ABAC.ABACOptions.EnforcementMode.get -> Encina.Security.ABAC.ABACEnforcementMode
+Encina.Security.ABAC.ABACOptions.EnforcementMode.set -> void
+Encina.Security.ABAC.ABACOptions.AddFunction(string! functionId, Encina.Security.ABAC.IXACMLFunction! function) -> Encina.Security.ABAC.ABACOptions!
+Encina.Security.ABAC.ABACOptions.AddHealthCheck.get -> bool
+Encina.Security.ABAC.ABACOptions.AddHealthCheck.set -> void
+Encina.Security.ABAC.ABACOptions.CustomFunctions.get -> System.Collections.Generic.List<(string! FunctionId, Encina.Security.ABAC.IXACMLFunction! Function)>!
+Encina.Security.ABAC.ABACOptions.FailOnMissingObligationHandler.get -> bool
+Encina.Security.ABAC.ABACOptions.FailOnMissingObligationHandler.set -> void
+Encina.Security.ABAC.ABACOptions.IncludeAdvice.get -> bool
+Encina.Security.ABAC.ABACOptions.IncludeAdvice.set -> void
+Encina.Security.ABAC.ABACOptions.SeedPolicies.get -> System.Collections.Generic.List<Encina.Security.ABAC.Policy!>!
+Encina.Security.ABAC.ABACOptions.SeedPolicySets.get -> System.Collections.Generic.List<Encina.Security.ABAC.PolicySet!>!
+Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>
+Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ISecurityContextAccessor! securityContextAccessor, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.AddPolicyAsync(Encina.Security.ABAC.Policy! policy, string? parentPolicySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.AddPolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.Clear() -> void
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.GetPoliciesAsync(string? policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Policy!>!>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.GetPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.Policy!>>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.GetPolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.PolicySet!>>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.GetPolicySetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicySet!>!>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.InMemoryPolicyAdministrationPoint(Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint!>! logger) -> void
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.PolicySetCount.get -> int
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.RemovePolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.RemovePolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.StandalonePolicyCount.get -> int
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.UpdatePolicyAsync(Encina.Security.ABAC.Policy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.UpdatePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.AdviceExpression
+Encina.Security.ABAC.AdviceExpression.AppliesTo.get -> Encina.Security.ABAC.FulfillOn
+Encina.Security.ABAC.AdviceExpression.AppliesTo.init -> void
+Encina.Security.ABAC.AdviceExpression.AttributeAssignments.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AttributeAssignment!>!
+Encina.Security.ABAC.AdviceExpression.AttributeAssignments.init -> void
+Encina.Security.ABAC.AdviceExpression.Id.get -> string!
+Encina.Security.ABAC.AdviceExpression.Id.init -> void
+Encina.Security.ABAC.AllOf
+Encina.Security.ABAC.AllOf.Matches.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Match!>!
+Encina.Security.ABAC.AllOf.Matches.init -> void
+Encina.Security.ABAC.AnyOf
+Encina.Security.ABAC.AnyOf.AllOfElements.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AllOf!>!
+Encina.Security.ABAC.AnyOf.AllOfElements.init -> void
+Encina.Security.ABAC.Apply
+Encina.Security.ABAC.Apply.Arguments.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.IExpression!>!
+Encina.Security.ABAC.Apply.Arguments.init -> void
+Encina.Security.ABAC.Apply.FunctionId.get -> string!
+Encina.Security.ABAC.Apply.FunctionId.init -> void
+Encina.Security.ABAC.AttributeAssignment
+Encina.Security.ABAC.AttributeAssignment.AttributeId.get -> string!
+Encina.Security.ABAC.AttributeAssignment.AttributeId.init -> void
+Encina.Security.ABAC.AttributeAssignment.Category.get -> Encina.Security.ABAC.AttributeCategory?
+Encina.Security.ABAC.AttributeAssignment.Category.init -> void
+Encina.Security.ABAC.AttributeAssignment.Value.get -> Encina.Security.ABAC.IExpression!
+Encina.Security.ABAC.AttributeAssignment.Value.init -> void
+Encina.Security.ABAC.AttributeBag
+Encina.Security.ABAC.AttributeBag.Count.get -> int
+Encina.Security.ABAC.AttributeBag.IsEmpty.get -> bool
+Encina.Security.ABAC.AttributeBag.SingleValue() -> Encina.Security.ABAC.AttributeValue!
+Encina.Security.ABAC.AttributeBag.Values.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AttributeValue!>!
+Encina.Security.ABAC.AttributeCategory
+Encina.Security.ABAC.AttributeCategory.Action = 3 -> Encina.Security.ABAC.AttributeCategory
+Encina.Security.ABAC.AttributeCategory.Environment = 2 -> Encina.Security.ABAC.AttributeCategory
+Encina.Security.ABAC.AttributeCategory.Resource = 1 -> Encina.Security.ABAC.AttributeCategory
+Encina.Security.ABAC.AttributeCategory.Subject = 0 -> Encina.Security.ABAC.AttributeCategory
+Encina.Security.ABAC.AttributeContextBuilder
+Encina.Security.ABAC.AttributeDesignator
+Encina.Security.ABAC.AttributeDesignator.AttributeId.get -> string!
+Encina.Security.ABAC.AttributeDesignator.AttributeId.init -> void
+Encina.Security.ABAC.AttributeDesignator.Category.get -> Encina.Security.ABAC.AttributeCategory
+Encina.Security.ABAC.AttributeDesignator.Category.init -> void
+Encina.Security.ABAC.AttributeDesignator.DataType.get -> string!
+Encina.Security.ABAC.AttributeDesignator.DataType.init -> void
+Encina.Security.ABAC.AttributeDesignator.MustBePresent.get -> bool
+Encina.Security.ABAC.AttributeDesignator.MustBePresent.init -> void
+Encina.Security.ABAC.AttributeValue
+Encina.Security.ABAC.AttributeValue.DataType.get -> string!
+Encina.Security.ABAC.AttributeValue.DataType.init -> void
+Encina.Security.ABAC.AttributeValue.Value.get -> object?
+Encina.Security.ABAC.AttributeValue.Value.init -> void
+Encina.Security.ABAC.Builders.AdviceBuilder
+Encina.Security.ABAC.Builders.AdviceBuilder.AdviceBuilder(string! id) -> void
+Encina.Security.ABAC.Builders.AdviceBuilder.Build() -> Encina.Security.ABAC.AdviceExpression!
+Encina.Security.ABAC.Builders.AdviceBuilder.OnDeny() -> Encina.Security.ABAC.Builders.AdviceBuilder!
+Encina.Security.ABAC.Builders.AdviceBuilder.OnPermit() -> Encina.Security.ABAC.Builders.AdviceBuilder!
+Encina.Security.ABAC.Builders.AdviceBuilder.WithAttribute(string! attributeId, Encina.Security.ABAC.AttributeCategory category, Encina.Security.ABAC.IExpression! value) -> Encina.Security.ABAC.Builders.AdviceBuilder!
+Encina.Security.ABAC.Builders.AdviceBuilder.WithAttribute(string! attributeId, Encina.Security.ABAC.IExpression! value) -> Encina.Security.ABAC.Builders.AdviceBuilder!
+Encina.Security.ABAC.Builders.AdviceBuilder.WithAttribute(string! attributeId, object? value) -> Encina.Security.ABAC.Builders.AdviceBuilder!
+Encina.Security.ABAC.Builders.AllOfBuilder
+Encina.Security.ABAC.Builders.AllOfBuilder.AllOfBuilder() -> void
+Encina.Security.ABAC.Builders.AllOfBuilder.Match(Encina.Security.ABAC.AttributeCategory category, string! attributeId, string! dataType, Encina.Security.ABAC.ConditionOperator op, object? value) -> Encina.Security.ABAC.Builders.AllOfBuilder!
+Encina.Security.ABAC.Builders.AllOfBuilder.Match(string! functionId, Encina.Security.ABAC.AttributeDesignator! designator, Encina.Security.ABAC.AttributeValue! value) -> Encina.Security.ABAC.Builders.AllOfBuilder!
+Encina.Security.ABAC.Builders.AllOfBuilder.MatchAttribute(Encina.Security.ABAC.AttributeCategory category, string! attributeId, Encina.Security.ABAC.ConditionOperator op, object? value) -> Encina.Security.ABAC.Builders.AllOfBuilder!
+Encina.Security.ABAC.Builders.AnyOfBuilder
+Encina.Security.ABAC.Builders.AnyOfBuilder.AllOf(System.Action<Encina.Security.ABAC.Builders.AllOfBuilder!>! configure) -> Encina.Security.ABAC.Builders.AnyOfBuilder!
+Encina.Security.ABAC.Builders.AnyOfBuilder.AnyOfBuilder() -> void
+Encina.Security.ABAC.Builders.ConditionBuilder
+Encina.Security.ABAC.Builders.ObligationBuilder
+Encina.Security.ABAC.Builders.ObligationBuilder.Build() -> Encina.Security.ABAC.Obligation!
+Encina.Security.ABAC.Builders.ObligationBuilder.ObligationBuilder(string! id) -> void
+Encina.Security.ABAC.Builders.ObligationBuilder.OnDeny() -> Encina.Security.ABAC.Builders.ObligationBuilder!
+Encina.Security.ABAC.Builders.ObligationBuilder.OnPermit() -> Encina.Security.ABAC.Builders.ObligationBuilder!
+Encina.Security.ABAC.Builders.ObligationBuilder.WithAttribute(string! attributeId, Encina.Security.ABAC.AttributeCategory category, Encina.Security.ABAC.IExpression! value) -> Encina.Security.ABAC.Builders.ObligationBuilder!
+Encina.Security.ABAC.Builders.ObligationBuilder.WithAttribute(string! attributeId, Encina.Security.ABAC.IExpression! value) -> Encina.Security.ABAC.Builders.ObligationBuilder!
+Encina.Security.ABAC.Builders.ObligationBuilder.WithAttribute(string! attributeId, object? value) -> Encina.Security.ABAC.Builders.ObligationBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder
+Encina.Security.ABAC.Builders.PolicyBuilder.AddAdvice(Encina.Security.ABAC.AdviceExpression! advice) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.AddAdvice(string! adviceId, System.Action<Encina.Security.ABAC.Builders.AdviceBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.AddObligation(Encina.Security.ABAC.Obligation! obligation) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.AddObligation(string! obligationId, System.Action<Encina.Security.ABAC.Builders.ObligationBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.AddRule(Encina.Security.ABAC.Rule! rule) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.AddRule(string! ruleId, Encina.Security.ABAC.Effect effect, System.Action<Encina.Security.ABAC.Builders.RuleBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.Build() -> Encina.Security.ABAC.Policy!
+Encina.Security.ABAC.Builders.PolicyBuilder.DefineVariable(string! variableId, Encina.Security.ABAC.IExpression! expression) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.Disabled() -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.ForResourceType<T>() -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.PolicyBuilder(string! id) -> void
+Encina.Security.ABAC.Builders.PolicyBuilder.WithAlgorithm(Encina.Security.ABAC.CombiningAlgorithmId algorithm) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.WithDescription(string! description) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.WithPriority(int priority) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.WithTarget(Encina.Security.ABAC.Target! target) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.WithTarget(System.Action<Encina.Security.ABAC.Builders.TargetBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicyBuilder.WithVersion(string! version) -> Encina.Security.ABAC.Builders.PolicyBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddAdvice(Encina.Security.ABAC.AdviceExpression! advice) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddAdvice(string! adviceId, System.Action<Encina.Security.ABAC.Builders.AdviceBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddObligation(Encina.Security.ABAC.Obligation! obligation) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddObligation(string! obligationId, System.Action<Encina.Security.ABAC.Builders.ObligationBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddPolicy(Encina.Security.ABAC.Policy! policy) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddPolicy(string! policyId, System.Action<Encina.Security.ABAC.Builders.PolicyBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddPolicySet(Encina.Security.ABAC.PolicySet! policySet) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.AddPolicySet(string! policySetId, System.Action<Encina.Security.ABAC.Builders.PolicySetBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.Build() -> Encina.Security.ABAC.PolicySet!
+Encina.Security.ABAC.Builders.PolicySetBuilder.Disabled() -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.PolicySetBuilder(string! id) -> void
+Encina.Security.ABAC.Builders.PolicySetBuilder.WithAlgorithm(Encina.Security.ABAC.CombiningAlgorithmId algorithm) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.WithDescription(string! description) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.WithPriority(int priority) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.WithTarget(Encina.Security.ABAC.Target! target) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.WithTarget(System.Action<Encina.Security.ABAC.Builders.TargetBuilder!>! configure) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.PolicySetBuilder.WithVersion(string! version) -> Encina.Security.ABAC.Builders.PolicySetBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder
+Encina.Security.ABAC.Builders.RuleBuilder.AddAdvice(Encina.Security.ABAC.AdviceExpression! advice) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder.AddAdvice(string! adviceId, System.Action<Encina.Security.ABAC.Builders.AdviceBuilder!>! configure) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder.AddObligation(Encina.Security.ABAC.Obligation! obligation) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder.AddObligation(string! obligationId, System.Action<Encina.Security.ABAC.Builders.ObligationBuilder!>! configure) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder.Build() -> Encina.Security.ABAC.Rule!
+Encina.Security.ABAC.Builders.RuleBuilder.RuleBuilder(string! id, Encina.Security.ABAC.Effect effect) -> void
+Encina.Security.ABAC.Builders.RuleBuilder.WithCondition(Encina.Security.ABAC.Apply! condition) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder.WithDescription(string! description) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder.WithTarget(Encina.Security.ABAC.Target! target) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.RuleBuilder.WithTarget(System.Action<Encina.Security.ABAC.Builders.TargetBuilder!>! configure) -> Encina.Security.ABAC.Builders.RuleBuilder!
+Encina.Security.ABAC.Builders.TargetBuilder
+Encina.Security.ABAC.Builders.TargetBuilder.AnyOf(System.Action<Encina.Security.ABAC.Builders.AnyOfBuilder!>! configure) -> Encina.Security.ABAC.Builders.TargetBuilder!
+Encina.Security.ABAC.Builders.TargetBuilder.Build() -> Encina.Security.ABAC.Target!
+Encina.Security.ABAC.Builders.TargetBuilder.TargetBuilder() -> void
+Encina.Security.ABAC.CombiningAlgorithms.CombiningAlgorithmFactory
+Encina.Security.ABAC.CombiningAlgorithms.CombiningAlgorithmFactory.CombiningAlgorithmFactory() -> void
+Encina.Security.ABAC.CombiningAlgorithms.CombiningAlgorithmFactory.GetAlgorithm(Encina.Security.ABAC.CombiningAlgorithmId algorithmId) -> Encina.Security.ABAC.ICombiningAlgorithm!
+Encina.Security.ABAC.CombiningAlgorithms.DenyOverridesAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.DenyOverridesAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.DenyOverridesAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.DenyOverridesAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.DenyOverridesAlgorithm.DenyOverridesAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithms.DenyUnlessPermitAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.DenyUnlessPermitAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.DenyUnlessPermitAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.DenyUnlessPermitAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.DenyUnlessPermitAlgorithm.DenyUnlessPermitAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithms.FirstApplicableAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.FirstApplicableAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.FirstApplicableAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.FirstApplicableAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.FirstApplicableAlgorithm.FirstApplicableAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithms.OnlyOneApplicableAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.OnlyOneApplicableAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.OnlyOneApplicableAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.OnlyOneApplicableAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.OnlyOneApplicableAlgorithm.OnlyOneApplicableAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithms.OrderedDenyOverridesAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.OrderedDenyOverridesAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.OrderedDenyOverridesAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.OrderedDenyOverridesAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.OrderedDenyOverridesAlgorithm.OrderedDenyOverridesAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithms.OrderedPermitOverridesAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.OrderedPermitOverridesAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.OrderedPermitOverridesAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.OrderedPermitOverridesAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.OrderedPermitOverridesAlgorithm.OrderedPermitOverridesAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithms.PermitOverridesAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.PermitOverridesAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.PermitOverridesAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.PermitOverridesAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.PermitOverridesAlgorithm.PermitOverridesAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithms.PermitUnlessDenyAlgorithm
+Encina.Security.ABAC.CombiningAlgorithms.PermitUnlessDenyAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithms.PermitUnlessDenyAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.CombiningAlgorithms.PermitUnlessDenyAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.CombiningAlgorithms.PermitUnlessDenyAlgorithm.PermitUnlessDenyAlgorithm() -> void
+Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.DenyOverrides = 0 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.DenyUnlessPermit = 4 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.FirstApplicable = 2 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.OnlyOneApplicable = 3 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.OrderedDenyOverrides = 6 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.OrderedPermitOverrides = 7 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.PermitOverrides = 1 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.CombiningAlgorithmId.PermitUnlessDeny = 5 -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.Contains = 6 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.DoesNotExist = 13 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.EndsWith = 9 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.Equals = 0 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.Exists = 12 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.GreaterThan = 2 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.GreaterThanOrEqual = 3 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.In = 10 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.LessThan = 4 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.LessThanOrEqual = 5 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.NotContains = 7 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.NotEquals = 1 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.NotIn = 11 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.RegexMatch = 14 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.ConditionOperator.StartsWith = 8 -> Encina.Security.ABAC.ConditionOperator
+Encina.Security.ABAC.DecisionStatus
+Encina.Security.ABAC.DecisionStatus.StatusCode.get -> string!
+Encina.Security.ABAC.DecisionStatus.StatusCode.init -> void
+Encina.Security.ABAC.DecisionStatus.StatusMessage.get -> string?
+Encina.Security.ABAC.DecisionStatus.StatusMessage.init -> void
+Encina.Security.ABAC.DefaultFunctionRegistry
+Encina.Security.ABAC.DefaultFunctionRegistry.DefaultFunctionRegistry() -> void
+Encina.Security.ABAC.DefaultFunctionRegistry.GetAllFunctionIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.ABAC.DefaultFunctionRegistry.GetFunction(string! functionId) -> Encina.Security.ABAC.IXACMLFunction?
+Encina.Security.ABAC.DefaultFunctionRegistry.Register(string! functionId, Encina.Security.ABAC.IXACMLFunction! xacmlFunction) -> void
+Encina.Security.ABAC.EEL.EELCompiler
+Encina.Security.ABAC.EEL.EELCompiler.CompileAsync(string! expression, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Microsoft.CodeAnalysis.Scripting.ScriptRunner<bool>!>>
+Encina.Security.ABAC.EEL.EELCompiler.Dispose() -> void
+Encina.Security.ABAC.EEL.EELCompiler.EELCompiler() -> void
+Encina.Security.ABAC.EEL.EELCompiler.EvaluateAsync(string! expression, Encina.Security.ABAC.EEL.EELGlobals! globals, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Security.ABAC.EEL.EELGlobals
+Encina.Security.ABAC.EEL.EELGlobals.EELGlobals() -> void
+Encina.Security.ABAC.EEL.EELGlobals.action.get -> dynamic!
+Encina.Security.ABAC.EEL.EELGlobals.action.set -> void
+Encina.Security.ABAC.EEL.EELGlobals.environment.get -> dynamic!
+Encina.Security.ABAC.EEL.EELGlobals.environment.set -> void
+Encina.Security.ABAC.EEL.EELGlobals.resource.get -> dynamic!
+Encina.Security.ABAC.EEL.EELGlobals.resource.set -> void
+Encina.Security.ABAC.EEL.EELGlobals.user.get -> dynamic!
+Encina.Security.ABAC.EEL.EELGlobals.user.set -> void
+Encina.Security.ABAC.Effect
+Encina.Security.ABAC.Effect.Deny = 1 -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.Effect.Indeterminate = 3 -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.Effect.NotApplicable = 2 -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.Effect.Permit = 0 -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.EnvironmentAttributes
+Encina.Security.ABAC.Evaluation.ConditionEvaluator
+Encina.Security.ABAC.Evaluation.ConditionEvaluator.ConditionEvaluator(Encina.Security.ABAC.IFunctionRegistry! functionRegistry) -> void
+Encina.Security.ABAC.Evaluation.ConditionEvaluator.Evaluate(Encina.Security.ABAC.IExpression! expression, Encina.Security.ABAC.PolicyEvaluationContext! context, System.Collections.Generic.IReadOnlyDictionary<string!, Encina.Security.ABAC.VariableDefinition!>? variables = null) -> LanguageExt.Either<Encina.EncinaError, object?>
+Encina.Security.ABAC.Evaluation.TargetEvaluator
+Encina.Security.ABAC.Evaluation.TargetEvaluator.EvaluateTarget(Encina.Security.ABAC.Target? target, Encina.Security.ABAC.PolicyEvaluationContext! context) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.Evaluation.TargetEvaluator.TargetEvaluator(Encina.Security.ABAC.IFunctionRegistry! functionRegistry) -> void
+Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint
+Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint.EvaluateAsync(Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Security.ABAC.PolicyDecision!>
+Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint.XACMLPolicyDecisionPoint(Encina.Security.ABAC.IPolicyAdministrationPoint! pap, Encina.Security.ABAC.Evaluation.TargetEvaluator! targetEvaluator, Encina.Security.ABAC.Evaluation.ConditionEvaluator! conditionEvaluator, Encina.Security.ABAC.CombiningAlgorithms.CombiningAlgorithmFactory! algorithmFactory, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint!>! logger) -> void
+Encina.Security.ABAC.FulfillOn
+Encina.Security.ABAC.FulfillOn.Deny = 1 -> Encina.Security.ABAC.FulfillOn
+Encina.Security.ABAC.FulfillOn.Permit = 0 -> Encina.Security.ABAC.FulfillOn
+Encina.Security.ABAC.Health.ABACHealthCheck
+Encina.Security.ABAC.Health.ABACHealthCheck.ABACHealthCheck(Encina.Security.ABAC.IPolicyAdministrationPoint! pap) -> void
+Encina.Security.ABAC.Health.ABACHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+const Encina.Security.ABAC.Health.ABACHealthCheck.DefaultName = "encina-abac" -> string!
+Encina.Security.ABAC.IAttributeProvider
+Encina.Security.ABAC.IAttributeProvider.GetEnvironmentAttributesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>
+Encina.Security.ABAC.IAttributeProvider.GetResourceAttributesAsync<TResource>(TResource resource, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>
+Encina.Security.ABAC.IAttributeProvider.GetSubjectAttributesAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>
+Encina.Security.ABAC.ICombiningAlgorithm
+Encina.Security.ABAC.ICombiningAlgorithm.AlgorithmId.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.ICombiningAlgorithm.CombinePolicyResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicyEvaluationResult!>! results) -> Encina.Security.ABAC.PolicyEvaluationResult!
+Encina.Security.ABAC.ICombiningAlgorithm.CombineRuleResults(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.RuleEvaluationResult!>! results) -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.IExpression
+Encina.Security.ABAC.IFunctionRegistry
+Encina.Security.ABAC.IFunctionRegistry.GetAllFunctionIds() -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Security.ABAC.IFunctionRegistry.GetFunction(string! functionId) -> Encina.Security.ABAC.IXACMLFunction?
+Encina.Security.ABAC.IFunctionRegistry.Register(string! functionId, Encina.Security.ABAC.IXACMLFunction! xacmlFunction) -> void
+Encina.Security.ABAC.IObligationHandler
+Encina.Security.ABAC.IObligationHandler.CanHandle(string! obligationId) -> bool
+Encina.Security.ABAC.IObligationHandler.HandleAsync(Encina.Security.ABAC.Obligation! obligation, Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.IPolicyAdministrationPoint
+Encina.Security.ABAC.IPolicyAdministrationPoint.AddPolicyAsync(Encina.Security.ABAC.Policy! policy, string? parentPolicySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.AddPolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.GetPoliciesAsync(string? policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Policy!>!>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.GetPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.Policy!>>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.GetPolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.PolicySet!>>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.GetPolicySetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicySet!>!>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.RemovePolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.RemovePolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.UpdatePolicyAsync(Encina.Security.ABAC.Policy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.IPolicyAdministrationPoint.UpdatePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.IPolicyDecisionPoint
+Encina.Security.ABAC.IPolicyDecisionPoint.EvaluateAsync(Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Security.ABAC.PolicyDecision!>
+Encina.Security.ABAC.IPolicyInformationPoint
+Encina.Security.ABAC.IPolicyInformationPoint.ResolveAttributeAsync(Encina.Security.ABAC.AttributeDesignator! designator, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Security.ABAC.AttributeBag!>
+Encina.Security.ABAC.IXACMLFunction
+Encina.Security.ABAC.IXACMLFunction.Evaluate(System.Collections.Generic.IReadOnlyList<object?>! arguments) -> object?
+Encina.Security.ABAC.IXACMLFunction.ReturnType.get -> string!
+Encina.Security.ABAC.Match
+Encina.Security.ABAC.Match.AttributeDesignator.get -> Encina.Security.ABAC.AttributeDesignator!
+Encina.Security.ABAC.Match.AttributeDesignator.init -> void
+Encina.Security.ABAC.Match.AttributeValue.get -> Encina.Security.ABAC.AttributeValue!
+Encina.Security.ABAC.Match.AttributeValue.init -> void
+Encina.Security.ABAC.Match.FunctionId.get -> string!
+Encina.Security.ABAC.Match.FunctionId.init -> void
+Encina.Security.ABAC.Obligation
+Encina.Security.ABAC.Obligation.AttributeAssignments.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AttributeAssignment!>!
+Encina.Security.ABAC.Obligation.AttributeAssignments.init -> void
+Encina.Security.ABAC.Obligation.FulfillOn.get -> Encina.Security.ABAC.FulfillOn
+Encina.Security.ABAC.Obligation.FulfillOn.init -> void
+Encina.Security.ABAC.Obligation.Id.get -> string!
+Encina.Security.ABAC.Obligation.Id.init -> void
+Encina.Security.ABAC.ObligationExecutor
+Encina.Security.ABAC.ObligationExecutor.ExecuteAdviceAsync(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AdviceExpression!>! adviceExpressions, Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Encina.Security.ABAC.ObligationExecutor.ExecuteObligationsAsync(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Obligation!>! obligations, Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.ObligationExecutor.ObligationExecutor(System.Collections.Generic.IEnumerable<Encina.Security.ABAC.IObligationHandler!>! handlers, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ObligationExecutor!>! logger) -> void
+Encina.Security.ABAC.Policy
+Encina.Security.ABAC.Policy.Advice.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AdviceExpression!>!
+Encina.Security.ABAC.Policy.Advice.init -> void
+Encina.Security.ABAC.Policy.Algorithm.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.Policy.Algorithm.init -> void
+Encina.Security.ABAC.Policy.Description.get -> string?
+Encina.Security.ABAC.Policy.Description.init -> void
+Encina.Security.ABAC.Policy.Id.get -> string!
+Encina.Security.ABAC.Policy.Id.init -> void
+Encina.Security.ABAC.Policy.IsEnabled.get -> bool
+Encina.Security.ABAC.Policy.IsEnabled.init -> void
+Encina.Security.ABAC.Policy.Obligations.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Obligation!>!
+Encina.Security.ABAC.Policy.Obligations.init -> void
+Encina.Security.ABAC.Policy.Priority.get -> int
+Encina.Security.ABAC.Policy.Priority.init -> void
+Encina.Security.ABAC.Policy.Rules.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Rule!>!
+Encina.Security.ABAC.Policy.Rules.init -> void
+Encina.Security.ABAC.Policy.Target.get -> Encina.Security.ABAC.Target?
+Encina.Security.ABAC.Policy.Target.init -> void
+Encina.Security.ABAC.Policy.VariableDefinitions.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.VariableDefinition!>!
+Encina.Security.ABAC.Policy.VariableDefinitions.init -> void
+Encina.Security.ABAC.Policy.Version.get -> string?
+Encina.Security.ABAC.Policy.Version.init -> void
+Encina.Security.ABAC.PolicyDecision
+Encina.Security.ABAC.PolicyDecision.Advice.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AdviceExpression!>!
+Encina.Security.ABAC.PolicyDecision.Advice.init -> void
+Encina.Security.ABAC.PolicyDecision.Effect.get -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.PolicyDecision.Effect.init -> void
+Encina.Security.ABAC.PolicyDecision.EvaluationDuration.get -> System.TimeSpan
+Encina.Security.ABAC.PolicyDecision.EvaluationDuration.init -> void
+Encina.Security.ABAC.PolicyDecision.Obligations.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Obligation!>!
+Encina.Security.ABAC.PolicyDecision.Obligations.init -> void
+Encina.Security.ABAC.PolicyDecision.PolicyId.get -> string?
+Encina.Security.ABAC.PolicyDecision.PolicyId.init -> void
+Encina.Security.ABAC.PolicyDecision.Reason.get -> string?
+Encina.Security.ABAC.PolicyDecision.Reason.init -> void
+Encina.Security.ABAC.PolicyDecision.RuleId.get -> string?
+Encina.Security.ABAC.PolicyDecision.RuleId.init -> void
+Encina.Security.ABAC.PolicyDecision.Status.get -> Encina.Security.ABAC.DecisionStatus?
+Encina.Security.ABAC.PolicyDecision.Status.init -> void
+Encina.Security.ABAC.PolicyEvaluationContext
+Encina.Security.ABAC.PolicyEvaluationContext.ActionAttributes.get -> Encina.Security.ABAC.AttributeBag!
+Encina.Security.ABAC.PolicyEvaluationContext.ActionAttributes.init -> void
+Encina.Security.ABAC.PolicyEvaluationContext.EnvironmentAttributes.get -> Encina.Security.ABAC.AttributeBag!
+Encina.Security.ABAC.PolicyEvaluationContext.EnvironmentAttributes.init -> void
+Encina.Security.ABAC.PolicyEvaluationContext.IncludeAdvice.get -> bool
+Encina.Security.ABAC.PolicyEvaluationContext.IncludeAdvice.init -> void
+Encina.Security.ABAC.PolicyEvaluationContext.RequestType.get -> System.Type!
+Encina.Security.ABAC.PolicyEvaluationContext.RequestType.init -> void
+Encina.Security.ABAC.PolicyEvaluationContext.ResourceAttributes.get -> Encina.Security.ABAC.AttributeBag!
+Encina.Security.ABAC.PolicyEvaluationContext.ResourceAttributes.init -> void
+Encina.Security.ABAC.PolicyEvaluationContext.SubjectAttributes.get -> Encina.Security.ABAC.AttributeBag!
+Encina.Security.ABAC.PolicyEvaluationContext.SubjectAttributes.init -> void
+Encina.Security.ABAC.PolicyEvaluationResult
+Encina.Security.ABAC.PolicyEvaluationResult.Advice.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AdviceExpression!>!
+Encina.Security.ABAC.PolicyEvaluationResult.Advice.init -> void
+Encina.Security.ABAC.PolicyEvaluationResult.Effect.get -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.PolicyEvaluationResult.Effect.init -> void
+Encina.Security.ABAC.PolicyEvaluationResult.Obligations.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Obligation!>!
+Encina.Security.ABAC.PolicyEvaluationResult.Obligations.init -> void
+Encina.Security.ABAC.PolicyEvaluationResult.PolicyId.get -> string!
+Encina.Security.ABAC.PolicyEvaluationResult.PolicyId.init -> void
+Encina.Security.ABAC.PolicySet
+Encina.Security.ABAC.PolicySet.Advice.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AdviceExpression!>!
+Encina.Security.ABAC.PolicySet.Advice.init -> void
+Encina.Security.ABAC.PolicySet.Algorithm.get -> Encina.Security.ABAC.CombiningAlgorithmId
+Encina.Security.ABAC.PolicySet.Algorithm.init -> void
+Encina.Security.ABAC.PolicySet.Description.get -> string?
+Encina.Security.ABAC.PolicySet.Description.init -> void
+Encina.Security.ABAC.PolicySet.Id.get -> string!
+Encina.Security.ABAC.PolicySet.Id.init -> void
+Encina.Security.ABAC.PolicySet.IsEnabled.get -> bool
+Encina.Security.ABAC.PolicySet.IsEnabled.init -> void
+Encina.Security.ABAC.PolicySet.Obligations.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Obligation!>!
+Encina.Security.ABAC.PolicySet.Obligations.init -> void
+Encina.Security.ABAC.PolicySet.Policies.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Policy!>!
+Encina.Security.ABAC.PolicySet.Policies.init -> void
+Encina.Security.ABAC.PolicySet.PolicySets.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicySet!>!
+Encina.Security.ABAC.PolicySet.PolicySets.init -> void
+Encina.Security.ABAC.PolicySet.Priority.get -> int
+Encina.Security.ABAC.PolicySet.Priority.init -> void
+Encina.Security.ABAC.PolicySet.Target.get -> Encina.Security.ABAC.Target?
+Encina.Security.ABAC.PolicySet.Target.init -> void
+Encina.Security.ABAC.PolicySet.Version.get -> string?
+Encina.Security.ABAC.PolicySet.Version.init -> void
+Encina.Security.ABAC.Providers.DefaultAttributeProvider
+Encina.Security.ABAC.Providers.DefaultAttributeProvider.DefaultAttributeProvider() -> void
+Encina.Security.ABAC.Providers.DefaultAttributeProvider.GetEnvironmentAttributesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>
+Encina.Security.ABAC.Providers.DefaultAttributeProvider.GetResourceAttributesAsync<TResource>(TResource resource, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>
+Encina.Security.ABAC.Providers.DefaultAttributeProvider.GetSubjectAttributesAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>
+Encina.Security.ABAC.Providers.DefaultPolicyInformationPoint
+Encina.Security.ABAC.Providers.DefaultPolicyInformationPoint.DefaultPolicyInformationPoint() -> void
+Encina.Security.ABAC.Providers.DefaultPolicyInformationPoint.ResolveAttributeAsync(Encina.Security.ABAC.AttributeDesignator! designator, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Security.ABAC.AttributeBag!>
+Encina.Security.ABAC.RequireConditionAttribute
+Encina.Security.ABAC.RequireConditionAttribute.Expression.get -> string!
+Encina.Security.ABAC.RequireConditionAttribute.RequireConditionAttribute(string! expression) -> void
+Encina.Security.ABAC.RequirePolicyAttribute
+Encina.Security.ABAC.RequirePolicyAttribute.AllMustPass.get -> bool
+Encina.Security.ABAC.RequirePolicyAttribute.AllMustPass.set -> void
+Encina.Security.ABAC.RequirePolicyAttribute.PolicyName.get -> string!
+Encina.Security.ABAC.RequirePolicyAttribute.RequirePolicyAttribute(string! policyName) -> void
+Encina.Security.ABAC.Rule
+Encina.Security.ABAC.Rule.Advice.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AdviceExpression!>!
+Encina.Security.ABAC.Rule.Advice.init -> void
+Encina.Security.ABAC.Rule.Condition.get -> Encina.Security.ABAC.Apply?
+Encina.Security.ABAC.Rule.Condition.init -> void
+Encina.Security.ABAC.Rule.Description.get -> string?
+Encina.Security.ABAC.Rule.Description.init -> void
+Encina.Security.ABAC.Rule.Effect.get -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.Rule.Effect.init -> void
+Encina.Security.ABAC.Rule.Id.get -> string!
+Encina.Security.ABAC.Rule.Id.init -> void
+Encina.Security.ABAC.Rule.Obligations.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Obligation!>!
+Encina.Security.ABAC.Rule.Obligations.init -> void
+Encina.Security.ABAC.Rule.Target.get -> Encina.Security.ABAC.Target?
+Encina.Security.ABAC.Rule.Target.init -> void
+Encina.Security.ABAC.RuleEvaluationResult
+Encina.Security.ABAC.RuleEvaluationResult.Advice.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AdviceExpression!>!
+Encina.Security.ABAC.RuleEvaluationResult.Advice.init -> void
+Encina.Security.ABAC.RuleEvaluationResult.Effect.get -> Encina.Security.ABAC.Effect
+Encina.Security.ABAC.RuleEvaluationResult.Effect.init -> void
+Encina.Security.ABAC.RuleEvaluationResult.Obligations.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Obligation!>!
+Encina.Security.ABAC.RuleEvaluationResult.Obligations.init -> void
+Encina.Security.ABAC.RuleEvaluationResult.Rule.get -> Encina.Security.ABAC.Rule!
+Encina.Security.ABAC.RuleEvaluationResult.Rule.init -> void
+Encina.Security.ABAC.ServiceCollectionExtensions
+Encina.Security.ABAC.Target
+Encina.Security.ABAC.Target.AnyOfElements.get -> System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AnyOf!>!
+Encina.Security.ABAC.Target.AnyOfElements.init -> void
+Encina.Security.ABAC.VariableDefinition
+Encina.Security.ABAC.VariableDefinition.Expression.get -> Encina.Security.ABAC.IExpression!
+Encina.Security.ABAC.VariableDefinition.Expression.init -> void
+Encina.Security.ABAC.VariableDefinition.VariableId.get -> string!
+Encina.Security.ABAC.VariableDefinition.VariableId.init -> void
+Encina.Security.ABAC.VariableReference
+Encina.Security.ABAC.VariableReference.VariableId.get -> string!
+Encina.Security.ABAC.VariableReference.VariableId.init -> void
+Encina.Security.ABAC.XACMLDataTypes
+Encina.Security.ABAC.XACMLFunctionIds
+Encina.Security.ABAC.XACMLStatusCodes
+const Encina.Security.ABAC.ABACErrors.AccessDeniedCode = "abac.access_denied" -> string!
+const Encina.Security.ABAC.ABACErrors.AttributeResolutionFailedCode = "abac.attribute_resolution_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.CombiningFailedCode = "abac.combining_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.DuplicatePolicyCode = "abac.duplicate_policy" -> string!
+const Encina.Security.ABAC.ABACErrors.DuplicatePolicySetCode = "abac.duplicate_policy_set" -> string!
+const Encina.Security.ABAC.ABACErrors.EvaluationFailedCode = "abac.evaluation_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.FunctionErrorCode = "abac.function_error" -> string!
+const Encina.Security.ABAC.ABACErrors.FunctionNotFoundCode = "abac.function_not_found" -> string!
+const Encina.Security.ABAC.ABACErrors.IndeterminateCode = "abac.indeterminate" -> string!
+const Encina.Security.ABAC.ABACErrors.InvalidConditionCode = "abac.invalid_condition" -> string!
+const Encina.Security.ABAC.ABACErrors.InvalidPolicyCode = "abac.invalid_policy" -> string!
+const Encina.Security.ABAC.ABACErrors.InvalidPolicySetCode = "abac.invalid_policy_set" -> string!
+const Encina.Security.ABAC.ABACErrors.MissingContextCode = "abac.missing_context" -> string!
+const Encina.Security.ABAC.ABACErrors.ObligationFailedCode = "abac.obligation_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode = "abac.policy_not_found" -> string!
+const Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode = "abac.policy_set_not_found" -> string!
+const Encina.Security.ABAC.ABACErrors.VariableNotFoundCode = "abac.variable_not_found" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.CurrentTime = "currentTime" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.DayOfWeek = "dayOfWeek" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.HttpMethod = "httpMethod" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.IpAddress = "ipAddress" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.IsBusinessHours = "isBusinessHours" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.Region = "region" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.RequestPath = "requestPath" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.TenantId = "tenantId" -> string!
+const Encina.Security.ABAC.EnvironmentAttributes.UserAgent = "userAgent" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.AnyURI = "http://www.w3.org/2001/XMLSchema#anyURI" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.Base64Binary = "http://www.w3.org/2001/XMLSchema#base64Binary" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.Boolean = "http://www.w3.org/2001/XMLSchema#boolean" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.Date = "http://www.w3.org/2001/XMLSchema#date" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.DateTime = "http://www.w3.org/2001/XMLSchema#dateTime" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.DayTimeDuration = "http://www.w3.org/2001/XMLSchema#dayTimeDuration" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.Double = "http://www.w3.org/2001/XMLSchema#double" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.HexBinary = "http://www.w3.org/2001/XMLSchema#hexBinary" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.Integer = "http://www.w3.org/2001/XMLSchema#integer" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.String = "http://www.w3.org/2001/XMLSchema#string" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.Time = "http://www.w3.org/2001/XMLSchema#time" -> string!
+const Encina.Security.ABAC.XACMLDataTypes.YearMonthDuration = "http://www.w3.org/2001/XMLSchema#yearMonthDuration" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AllOfAll = "all-of-all" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AllOfAny = "all-of-any" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AllOfFunc = "all-of" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.And = "and" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AnyOfAny = "any-of-any" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AnyOfFunc = "any-of" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AnyURIBag = "anyURI-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AnyURIBagSize = "anyURI-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AnyURIIsIn = "anyURI-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.AnyURIOneAndOnly = "anyURI-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.BooleanBag = "boolean-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.BooleanBagSize = "boolean-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.BooleanEqual = "boolean-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.BooleanFromString = "boolean-from-string" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.BooleanIsIn = "boolean-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.BooleanOneAndOnly = "boolean-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateBag = "date-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateBagSize = "date-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateEqual = "date-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateGreaterThan = "date-greater-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateGreaterThanOrEqual = "date-greater-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateIsIn = "date-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateLessThan = "date-less-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateLessThanOrEqual = "date-less-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateOneAndOnly = "date-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeBag = "dateTime-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeBagSize = "dateTime-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeEqual = "dateTime-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeGreaterThan = "dateTime-greater-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeGreaterThanOrEqual = "dateTime-greater-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeIsIn = "dateTime-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeLessThan = "dateTime-less-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeLessThanOrEqual = "dateTime-less-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DateTimeOneAndOnly = "dateTime-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleAbs = "double-abs" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleAdd = "double-add" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleAtLeastOneMemberOf = "double-at-least-one-member-of" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleBag = "double-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleBagSize = "double-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleDivide = "double-divide" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleEqual = "double-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleFromString = "double-from-string" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleGreaterThan = "double-greater-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleGreaterThanOrEqual = "double-greater-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleIntersection = "double-intersection" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleIsIn = "double-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleLessThan = "double-less-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleLessThanOrEqual = "double-less-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleMultiply = "double-multiply" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleOneAndOnly = "double-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleSetEquals = "double-set-equals" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleSubset = "double-subset" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleSubtract = "double-subtract" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.DoubleUnion = "double-union" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.Floor = "floor" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerAbs = "integer-abs" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerAdd = "integer-add" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerAtLeastOneMemberOf = "integer-at-least-one-member-of" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerBag = "integer-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerBagSize = "integer-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerDivide = "integer-divide" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerEqual = "integer-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerFromString = "integer-from-string" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerGreaterThan = "integer-greater-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerGreaterThanOrEqual = "integer-greater-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerIntersection = "integer-intersection" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerIsIn = "integer-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerLessThan = "integer-less-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerLessThanOrEqual = "integer-less-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerMod = "integer-mod" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerMultiply = "integer-multiply" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerOneAndOnly = "integer-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerSetEquals = "integer-set-equals" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerSubset = "integer-subset" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerSubtract = "integer-subtract" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.IntegerUnion = "integer-union" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.Map = "map" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.NOf = "n-of" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.Not = "not" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.Or = "or" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.Round = "round" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringAtLeastOneMemberOf = "string-at-least-one-member-of" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringBag = "string-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringBagSize = "string-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringConcatenate = "string-concatenate" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringContains = "string-contains" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringEndsWith = "string-ends-with" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringEqual = "string-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringFromBoolean = "string-from-boolean" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringFromDateTime = "string-from-dateTime" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringFromDouble = "string-from-double" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringFromInteger = "string-from-integer" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringGreaterThan = "string-greater-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringGreaterThanOrEqual = "string-greater-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringIntersection = "string-intersection" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringIsIn = "string-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringLength = "string-length" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringLessThan = "string-less-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringLessThanOrEqual = "string-less-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringNormalizeSpace = "string-normalize-space" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringNormalizeToLowerCase = "string-normalize-to-lower-case" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringOneAndOnly = "string-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringRegexpMatch = "string-regexp-match" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringSetEquals = "string-set-equals" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringStartsWith = "string-starts-with" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringSubset = "string-subset" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringSubstring = "string-substring" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.StringUnion = "string-union" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeBag = "time-bag" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeBagSize = "time-bag-size" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeEqual = "time-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeGreaterThan = "time-greater-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeGreaterThanOrEqual = "time-greater-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeIsIn = "time-is-in" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeLessThan = "time-less-than" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeLessThanOrEqual = "time-less-than-or-equal" -> string!
+const Encina.Security.ABAC.XACMLFunctionIds.TimeOneAndOnly = "time-one-and-only" -> string!
+const Encina.Security.ABAC.XACMLStatusCodes.MissingAttribute = "urn:oasis:names:tc:xacml:1.0:status:missing-attribute" -> string!
+const Encina.Security.ABAC.XACMLStatusCodes.Ok = "urn:oasis:names:tc:xacml:1.0:status:ok" -> string!
+const Encina.Security.ABAC.XACMLStatusCodes.ProcessingError = "urn:oasis:names:tc:xacml:1.0:status:processing-error" -> string!
+const Encina.Security.ABAC.XACMLStatusCodes.SyntaxError = "urn:oasis:names:tc:xacml:1.0:status:syntax-error" -> string!
+static Encina.Security.ABAC.ABACAttributeInfo.Resolve<TRequest>() -> Encina.Security.ABAC.ABACAttributeInfo?
+static Encina.Security.ABAC.ABACErrors.AccessDenied(System.Type! requestType, string? policyId = null) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.AttributeResolutionFailed(string! attributeId, Encina.Security.ABAC.AttributeCategory category) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.CombiningFailed(string! algorithmId, string? reason = null) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.DuplicatePolicy(string! policyId) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.DuplicatePolicySet(string! policySetId) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.EvaluationFailed(System.Type! requestType, System.Exception! exception) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.FunctionError(string! functionId, System.Exception! exception) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.FunctionNotFound(string! functionId) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.Indeterminate(System.Type! requestType, string? reason = null) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.InvalidCondition(string! expression, string? reason = null) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.InvalidPolicy(string! policyId, string! reason) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.InvalidPolicySet(string! policySetId, string! reason) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.MissingContext(System.Type! requestType) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.ObligationFailed(string! obligationId, string? reason = null) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.PolicyNotFound(string! policyId) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.PolicySetNotFound(string! policySetId) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.VariableNotFound(string! variableId) -> Encina.EncinaError
+static Encina.Security.ABAC.AttributeBag.Empty.get -> Encina.Security.ABAC.AttributeBag!
+static Encina.Security.ABAC.AttributeBag.FromValues(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AttributeValue!>! values) -> Encina.Security.ABAC.AttributeBag!
+static Encina.Security.ABAC.AttributeBag.Of(params Encina.Security.ABAC.AttributeValue![]! values) -> Encina.Security.ABAC.AttributeBag!
+static Encina.Security.ABAC.AttributeContextBuilder.Build(System.Collections.Generic.IReadOnlyDictionary<string!, object!>! subjectAttributes, System.Collections.Generic.IReadOnlyDictionary<string!, object!>! resourceAttributes, System.Collections.Generic.IReadOnlyDictionary<string!, object!>! environmentAttributes, System.Type! requestType, bool includeAdvice = true) -> Encina.Security.ABAC.PolicyEvaluationContext!
+static Encina.Security.ABAC.AttributeContextBuilder.ToBag(System.Collections.Generic.IReadOnlyDictionary<string!, object!>! attributes) -> Encina.Security.ABAC.AttributeBag!
+static Encina.Security.ABAC.Builders.ConditionBuilder.And(params Encina.Security.ABAC.Apply![]! conditions) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.Attribute(Encina.Security.ABAC.AttributeCategory category, string! attributeId, string! dataType, bool mustBePresent = false) -> Encina.Security.ABAC.AttributeDesignator!
+static Encina.Security.ABAC.Builders.ConditionBuilder.BoolValue(bool val) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.DateTimeValue(System.DateTime val) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.DateValue(System.DateOnly val) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.DoubleValue(double val) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.Equal(Encina.Security.ABAC.IExpression! left, Encina.Security.ABAC.IExpression! right) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.Function(string! functionId, params Encina.Security.ABAC.IExpression![]! args) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.GreaterThan(Encina.Security.ABAC.IExpression! left, Encina.Security.ABAC.IExpression! right) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.GreaterThanOrEqual(Encina.Security.ABAC.IExpression! left, Encina.Security.ABAC.IExpression! right) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.IntValue(int val) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.LessThan(Encina.Security.ABAC.IExpression! left, Encina.Security.ABAC.IExpression! right) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.LessThanOrEqual(Encina.Security.ABAC.IExpression! left, Encina.Security.ABAC.IExpression! right) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.Not(Encina.Security.ABAC.Apply! condition) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.Or(params Encina.Security.ABAC.Apply![]! conditions) -> Encina.Security.ABAC.Apply!
+static Encina.Security.ABAC.Builders.ConditionBuilder.StringValue(string! val) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.TimeValue(System.TimeOnly val) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.Value(string! dataType, object? value) -> Encina.Security.ABAC.AttributeValue!
+static Encina.Security.ABAC.Builders.ConditionBuilder.Variable(string! variableId) -> Encina.Security.ABAC.VariableReference!
+static Encina.Security.ABAC.ServiceCollectionExtensions.AddEncinaABAC(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.ABAC.ABACOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Security.ABAC.ABACOptions.ExpressionScanAssemblies.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!
+Encina.Security.ABAC.ABACOptions.ValidateExpressionsAtStartup.get -> bool
+Encina.Security.ABAC.ABACOptions.ValidateExpressionsAtStartup.set -> void
+Encina.Security.ABAC.Testing.EELTestHelper
+static Encina.Security.ABAC.Testing.EELTestHelper.AssertCompiles(string! expression) -> void
+static Encina.Security.ABAC.Testing.EELTestHelper.AssertCompilesAsync(string! expression, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+static Encina.Security.ABAC.Testing.EELTestHelper.AssertDoesNotCompile(string! expression) -> void
+static Encina.Security.ABAC.Testing.EELTestHelper.AssertDoesNotCompileAsync(string! expression, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+static Encina.Security.ABAC.Testing.EELTestHelper.EvaluateAsync(string! expression, object! anonymousGlobals, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+static Encina.Security.ABAC.Testing.EELTestHelper.ValidateAllExpressions(System.Reflection.Assembly! assembly) -> void
+static Encina.Security.ABAC.Testing.EELTestHelper.ValidateAllExpressionsAsync(System.Reflection.Assembly! assembly, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

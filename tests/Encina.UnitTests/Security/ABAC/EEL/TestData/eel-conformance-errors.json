@@ -1,0 +1,29 @@
+{
+  "category": "errors",
+  "tests": [
+    {
+      "name": "invalid_syntax",
+      "expression": "user.age >>>",
+      "globals": { "user": {}, "resource": {}, "environment": {}, "action": {} },
+      "expectedError": "abac.invalid_condition"
+    },
+    {
+      "name": "undefined_variable",
+      "expression": "undefinedVar == true",
+      "globals": { "user": {}, "resource": {}, "environment": {}, "action": {} },
+      "expectedError": "abac.invalid_condition"
+    },
+    {
+      "name": "method_call_not_bool",
+      "expression": "user.name.ToUpper()",
+      "globals": { "user": { "name": "test" }, "resource": {}, "environment": {}, "action": {} },
+      "expectedError": "abac.invalid_condition"
+    },
+    {
+      "name": "assignment_rejected",
+      "expression": "user.age = 25",
+      "globals": { "user": { "age": 20 }, "resource": {}, "environment": {}, "action": {} },
+      "expectedError": "abac.invalid_condition"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "category": "logical",
+  "tests": [
+    {
+      "name": "and_both_true",
+      "expression": "user.active && user.verified",
+      "globals": { "user": { "active": true, "verified": true }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "and_one_false",
+      "expression": "user.active && user.verified",
+      "globals": { "user": { "active": true, "verified": false }, "resource": {}, "environment": {}, "action": {} },
+      "expected": false
+    },
+    {
+      "name": "or_one_true",
+      "expression": "user.isAdmin || user.isModerator",
+      "globals": { "user": { "isAdmin": false, "isModerator": true }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "or_both_false",
+      "expression": "user.isAdmin || user.isModerator",
+      "globals": { "user": { "isAdmin": false, "isModerator": false }, "resource": {}, "environment": {}, "action": {} },
+      "expected": false
+    },
+    {
+      "name": "not_operator",
+      "expression": "!user.banned",
+      "globals": { "user": { "banned": false }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "complex_logical",
+      "expression": "(user.active && !user.banned) || user.isAdmin",
+      "globals": { "user": { "active": true, "banned": false, "isAdmin": false }, "resource": {}, "environment": {}, "action": {} },
+      "expected": true
+    },
+    {
+      "name": "short_circuit_and",
+      "expression": "false && user.nonExistent",
+      "globals": { "user": {}, "resource": {}, "environment": {}, "action": {} },
+      "expected": false
+    }
+  ]
+}
