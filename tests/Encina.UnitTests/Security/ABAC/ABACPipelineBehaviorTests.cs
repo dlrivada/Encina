@@ -1,17 +1,13 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-
 using FluentAssertions;
-
 using LanguageExt;
-using static LanguageExt.Prelude;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
-using ISecurityContextAccessor = global::Encina.Security.ISecurityContextAccessor;
+using static LanguageExt.Prelude;
 using ISecurityContext = global::Encina.Security.ISecurityContext;
+using ISecurityContextAccessor = global::Encina.Security.ISecurityContextAccessor;
 
 namespace Encina.UnitTests.Security.ABAC;
 

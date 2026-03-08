@@ -1,12 +1,9 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-
 using FluentAssertions;
-
 using LanguageExt;
-using static LanguageExt.Prelude;
-
 using Microsoft.Extensions.Logging.Abstractions;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.ABAC;
 
