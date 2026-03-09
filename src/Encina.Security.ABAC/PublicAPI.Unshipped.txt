@@ -30,6 +30,8 @@ Encina.Security.ABAC.ABACOptions.PolicyCaching.get -> Encina.Security.ABAC.Polic
 Encina.Security.ABAC.ABACOptions.SeedPolicySets.get -> System.Collections.Generic.List<Encina.Security.ABAC.PolicySet!>!
 Encina.Security.ABAC.ABACOptions.UsePersistentPAP.get -> bool
 Encina.Security.ABAC.ABACOptions.UsePersistentPAP.set -> void
+Encina.Security.ABAC.ABACOptions.UseXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
+Encina.Security.ABAC.ABACOptions.RegisterXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ISecurityContextAccessor! securityContextAccessor, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
@@ -709,6 +711,12 @@ Encina.Security.ABAC.Persistence.DefaultPolicySerializer.Serialize(Encina.Securi
 Encina.Security.ABAC.Persistence.DefaultPolicySerializer.Serialize(Encina.Security.ABAC.Policy! policy) -> string!
 Encina.Security.ABAC.Persistence.DefaultPolicySerializer.DeserializePolicySet(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.PolicySet!>
 Encina.Security.ABAC.Persistence.DefaultPolicySerializer.DeserializePolicy(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.Policy!>
+Encina.Security.ABAC.Persistence.Xacml.XacmlXmlPolicySerializer
+Encina.Security.ABAC.Persistence.Xacml.XacmlXmlPolicySerializer.XacmlXmlPolicySerializer(Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Persistence.Xacml.XacmlXmlPolicySerializer!>! logger) -> void
+Encina.Security.ABAC.Persistence.Xacml.XacmlXmlPolicySerializer.Serialize(Encina.Security.ABAC.PolicySet! policySet) -> string!
+Encina.Security.ABAC.Persistence.Xacml.XacmlXmlPolicySerializer.Serialize(Encina.Security.ABAC.Policy! policy) -> string!
+Encina.Security.ABAC.Persistence.Xacml.XacmlXmlPolicySerializer.DeserializePolicySet(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.PolicySet!>
+Encina.Security.ABAC.Persistence.Xacml.XacmlXmlPolicySerializer.DeserializePolicy(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.Policy!>
 Encina.Security.ABAC.Persistence.ExpressionJsonConverter
 Encina.Security.ABAC.Persistence.ExpressionJsonConverter.ExpressionJsonConverter() -> void
 override Encina.Security.ABAC.Persistence.ExpressionJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Encina.Security.ABAC.IExpression?

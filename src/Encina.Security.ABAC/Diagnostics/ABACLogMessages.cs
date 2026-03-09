@@ -230,4 +230,48 @@ internal static partial class ABACLogMessages
         Message = "Persistent PAP store connectivity check failed: {ErrorMessage}")]
     internal static partial void PapStoreConnectivityFailed(
         ILogger logger, string errorMessage);
+
+    // ── XACML XML Serialization Messages (9050-9059) ─────────────────
+
+    [LoggerMessage(
+        EventId = 9050,
+        Level = LogLevel.Debug,
+        Message = "XACML XML serialization completed for {EntityType} '{EntityId}' ({XmlSizeBytes} bytes, {DurationMs:F2}ms)")]
+    internal static partial void XacmlXmlSerializationCompleted(
+        ILogger logger, string entityType, string entityId, long xmlSizeBytes, double durationMs);
+
+    [LoggerMessage(
+        EventId = 9051,
+        Level = LogLevel.Debug,
+        Message = "XACML XML deserialization completed for {EntityType} '{EntityId}' ({DurationMs:F2}ms)")]
+    internal static partial void XacmlXmlDeserializationCompleted(
+        ILogger logger, string entityType, string entityId, double durationMs);
+
+    [LoggerMessage(
+        EventId = 9052,
+        Level = LogLevel.Warning,
+        Message = "XACML XML deserialization failed for {EntityType}: {ErrorMessage}")]
+    internal static partial void XacmlXmlDeserializationFailed(
+        ILogger logger, string entityType, string errorMessage);
+
+    [LoggerMessage(
+        EventId = 9053,
+        Level = LogLevel.Information,
+        Message = "XACML document has no Encina extensions for {EntityType} '{EntityId}'. Applying defaults (IsEnabled=true, Priority=0)")]
+    internal static partial void XacmlXmlExtensionsMissing(
+        ILogger logger, string entityType, string entityId);
+
+    [LoggerMessage(
+        EventId = 9054,
+        Level = LogLevel.Warning,
+        Message = "Unknown XACML function URN '{FunctionUrn}' encountered during deserialization. Passing through as-is")]
+    internal static partial void XacmlXmlUnknownFunction(
+        ILogger logger, string functionUrn);
+
+    [LoggerMessage(
+        EventId = 9055,
+        Level = LogLevel.Debug,
+        Message = "Unknown XACML expression element '{ElementName}' encountered. Treating as string AttributeValue")]
+    internal static partial void XacmlXmlUnknownElement(
+        ILogger logger, string elementName);
 }

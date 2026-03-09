@@ -235,6 +235,91 @@ public sealed class ABACOptions
     public List<Policy> SeedPolicies { get; } = [];
 
     /// <summary>
+    /// Gets or sets whether to use <see cref="Persistence.Xacml.XacmlXmlPolicySerializer"/>
+    /// as the primary <see cref="Persistence.IPolicySerializer"/> instead of
+    /// <see cref="Persistence.DefaultPolicySerializer"/>.
+    /// </summary>
+    /// <remarks>
+    /// Set by <see cref="UseXacmlXmlSerializer()"/>. When <c>true</c>, policies are serialized
+    /// to XACML 3.0 XML format instead of the default JSON format. Default is <c>false</c>.
+    /// </remarks>
+    internal bool UseXacmlXml { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to additionally register <see cref="Persistence.Xacml.XacmlXmlPolicySerializer"/>
+    /// as a keyed service alongside the primary serializer.
+    /// </summary>
+    /// <remarks>
+    /// Set by <see cref="RegisterXacmlXmlSerializer()"/>. When <c>true</c>, the XACML XML serializer
+    /// is registered with the service key <c>"xacml-xml"</c>, allowing both JSON and XML serializers
+    /// to coexist for import/export scenarios. Default is <c>false</c>.
+    /// </remarks>
+    internal bool RegisterXacmlXmlAsKeyed { get; set; }
+
+    /// <summary>
+    /// Configures the ABAC module to use XACML 3.0 XML as the primary policy serialization format.
+    /// </summary>
+    /// <returns>This options instance for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// When enabled, <see cref="Persistence.Xacml.XacmlXmlPolicySerializer"/> replaces
+    /// <see cref="Persistence.DefaultPolicySerializer"/> as the <see cref="Persistence.IPolicySerializer"/>
+    /// implementation. All policies stored via the persistent PAP will use XACML 3.0 XML format.
+    /// </para>
+    /// <para>
+    /// This is useful for interoperability with external XACML tools (AuthzForce, WSO2 Balana)
+    /// or compliance with standards that require XACML XML format (NIST SP 800-162).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaABAC(options =>
+    /// {
+    ///     options.UsePersistentPAP = true;
+    ///     options.UseXacmlXmlSerializer();
+    /// });
+    /// </code>
+    /// </example>
+    public ABACOptions UseXacmlXmlSerializer()
+    {
+        UseXacmlXml = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the XACML 3.0 XML serializer as an additional keyed service alongside the
+    /// primary serializer, enabling import/export scenarios where both JSON and XML formats are needed.
+    /// </summary>
+    /// <returns>This options instance for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// The XML serializer is registered with the service key <c>"xacml-xml"</c> and can be
+    /// resolved via <c>IServiceProvider.GetKeyedService&lt;IPolicySerializer&gt;("xacml-xml")</c>.
+    /// The primary <see cref="Persistence.IPolicySerializer"/> registration is not affected.
+    /// </para>
+    /// <para>
+    /// This allows applications to use JSON for storage while supporting XML import/export:
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaABAC(options =>
+    /// {
+    ///     options.UsePersistentPAP = true;
+    ///     options.RegisterXacmlXmlSerializer(); // Keep JSON as primary, add XML for import/export
+    /// });
+    ///
+    /// // Later, resolve the XML serializer for import/export:
+    /// var xmlSerializer = serviceProvider.GetKeyedService&lt;IPolicySerializer&gt;("xacml-xml");
+    /// </code>
+    /// </example>
+    public ABACOptions RegisterXacmlXmlSerializer()
+    {
+        RegisterXacmlXmlAsKeyed = true;
+        return this;
+    }
+
+    /// <summary>
     /// Registers a custom XACML function for use in policy conditions.
     /// </summary>
     /// <param name="functionId">The unique function identifier.</param>

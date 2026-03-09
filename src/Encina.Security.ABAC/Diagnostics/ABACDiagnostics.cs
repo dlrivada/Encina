@@ -98,6 +98,27 @@ internal static class ABACDiagnostics
             unit: "By",
             description: "Size of serialized policy JSON in bytes.");
 
+    // ── XACML XML Serialization Counters ────────────────────────────
+
+    internal static readonly Counter<long> XacmlXmlSerializeTotal =
+        Meter.CreateCounter<long>("abac.pap.serialize.xacml_xml.total",
+            description: "Total number of XACML XML serialization operations.");
+
+    internal static readonly Counter<long> XacmlXmlDeserializeTotal =
+        Meter.CreateCounter<long>("abac.pap.deserialize.xacml_xml.total",
+            description: "Total number of XACML XML deserialization operations.");
+
+    internal static readonly Counter<long> XacmlXmlErrorTotal =
+        Meter.CreateCounter<long>("abac.pap.xacml_xml.errors",
+            description: "Total number of XACML XML serialization/deserialization errors.");
+
+    // ── XACML XML Histograms ─────────────────────────────────────────
+
+    internal static readonly Histogram<long> XacmlXmlSizeBytes =
+        Meter.CreateHistogram<long>("abac.pap.xacml_xml.size_bytes",
+            unit: "By",
+            description: "Size of serialized XACML XML documents in bytes.");
+
     // ── Tag Names ───────────────────────────────────────────────────
 
     internal const string TagRequestType = "abac.request_type";
@@ -217,5 +238,33 @@ internal static class ABACDiagnostics
     {
         activity?.SetTag(TagStatus, "failure");
         activity?.SetStatus(ActivityStatusCode.Error, reason);
+    }
+
+    // ── XACML XML Activity Helpers ──────────────────────────────────
+
+    internal static Activity? StartXacmlXmlSerialize(string entityType)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("ABAC.PAP.XacmlXml.Serialize", ActivityKind.Internal);
+        activity?.SetTag(TagOperation, "serialize");
+        activity?.SetTag(TagEntityType, entityType);
+        return activity;
+    }
+
+    internal static Activity? StartXacmlXmlDeserialize(string entityType)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("ABAC.PAP.XacmlXml.Deserialize", ActivityKind.Internal);
+        activity?.SetTag(TagOperation, "deserialize");
+        activity?.SetTag(TagEntityType, entityType);
+        return activity;
     }
 }

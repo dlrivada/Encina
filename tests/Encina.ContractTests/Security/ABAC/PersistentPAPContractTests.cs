@@ -3,6 +3,7 @@ using System.Reflection;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
+using Encina.Security.ABAC.Persistence.Xacml;
 
 namespace Encina.ContractTests.Security.ABAC;
 
@@ -252,6 +253,61 @@ public sealed class PersistentPAPContractTests
     {
         typeof(DefaultPolicySerializer).IsSealed.ShouldBeTrue(
             "DefaultPolicySerializer must be sealed for performance");
+    }
+
+    [Fact]
+    public void XacmlXmlPolicySerializer_ShouldImplement_IPolicySerializer()
+    {
+        typeof(IPolicySerializer)
+            .IsAssignableFrom(typeof(XacmlXmlPolicySerializer))
+            .ShouldBeTrue(
+                "XacmlXmlPolicySerializer must implement IPolicySerializer");
+    }
+
+    [Fact]
+    public void XacmlXmlPolicySerializer_ShouldBeSealed()
+    {
+        typeof(XacmlXmlPolicySerializer).IsSealed.ShouldBeTrue(
+            "XacmlXmlPolicySerializer must be sealed for performance");
+    }
+
+    [Fact]
+    public void XacmlXmlPolicySerializer_ShouldHave_SingleParameterConstructor()
+    {
+        // Arrange
+        var type = typeof(XacmlXmlPolicySerializer);
+        var constructors = type.GetConstructors();
+
+        // Assert
+        constructors.Length.ShouldBe(1,
+            "XacmlXmlPolicySerializer must have exactly one public constructor");
+
+        var ctor = constructors[0];
+        var parameters = ctor.GetParameters();
+        parameters.Length.ShouldBe(1,
+            "Constructor must accept exactly one parameter (ILogger)");
+        parameters[0].ParameterType.FullName!.Contains("ILogger").ShouldBeTrue(
+            "Constructor parameter must be ILogger<XacmlXmlPolicySerializer>");
+    }
+
+    [Fact]
+    public void AllIPolicySerializer_Implementations_ShouldBeSealed()
+    {
+        // Arrange — All known IPolicySerializer implementations
+        var implementations = new[]
+        {
+            typeof(DefaultPolicySerializer),
+            typeof(XacmlXmlPolicySerializer)
+        };
+
+        // Assert
+        foreach (var type in implementations)
+        {
+            type.IsSealed.ShouldBeTrue(
+                $"{type.Name} must be sealed for performance");
+            typeof(IPolicySerializer).IsAssignableFrom(type).ShouldBeTrue(
+                $"{type.Name} must implement IPolicySerializer");
+        }
     }
 
     #endregion

@@ -5,6 +5,7 @@ using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
 using Encina.Security.ABAC.Health;
 using Encina.Security.ABAC.Persistence;
+using Encina.Security.ABAC.Persistence.Xacml;
 using Encina.Security.ABAC.Providers;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -139,7 +140,21 @@ public static class ServiceCollectionExtensions
         if (optionsInstance.UsePersistentPAP)
         {
             // Register serializer (TryAdd — allows user to register a custom serializer first)
-            services.TryAddSingleton<IPolicySerializer, DefaultPolicySerializer>();
+            if (optionsInstance.UseXacmlXml)
+            {
+                // Use XACML 3.0 XML as the primary serializer
+                services.TryAddSingleton<IPolicySerializer, XacmlXmlPolicySerializer>();
+            }
+            else
+            {
+                services.TryAddSingleton<IPolicySerializer, DefaultPolicySerializer>();
+            }
+
+            // Optionally register XACML XML serializer as a keyed service for import/export
+            if (optionsInstance.RegisterXacmlXmlAsKeyed)
+            {
+                services.TryAddKeyedSingleton<IPolicySerializer, XacmlXmlPolicySerializer>("xacml-xml");
+            }
 
             // Register PersistentPAP with factory for startup validation.
             // Uses AddSingleton (not TryAdd) to override any prior InMemoryPAP registration.
