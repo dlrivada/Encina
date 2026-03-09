@@ -103,7 +103,7 @@ graph TB
 |-----------------|-------------|----------------|
 | PEP | `ABACPipelineBehavior<TRequest, TResponse>` | Intercepts requests, coordinates evaluation, enforces decisions |
 | PDP | `XACMLPolicyDecisionPoint` | Evaluates policies, applies combining algorithms, returns decisions |
-| PAP | `InMemoryPolicyAdministrationPoint` | Stores and manages policy sets and policies |
+| PAP | `InMemoryPolicyAdministrationPoint` / `PersistentPolicyAdministrationPoint` | Stores and manages policy sets and policies |
 | PIP | `IAttributeProvider` + `IPolicyInformationPoint` | Resolves subject, resource, and environment attributes |
 | Context Handler | `AttributeContextBuilder` | Transforms raw attributes into `PolicyEvaluationContext` |
 
@@ -265,7 +265,55 @@ public sealed class InMemoryPolicyAdministrationPoint : IPolicyAdministrationPoi
 }
 ```
 
-> **Note**: `InMemoryPolicyAdministrationPoint` is not suitable for production -- policies are lost on process restart. For production use, implement a database-backed `IPolicyAdministrationPoint`. See [Extensibility Points](#10-extensibility-points).
+> **Note**: `InMemoryPolicyAdministrationPoint` is not suitable for production -- policies are lost on process restart. Use `PersistentPolicyAdministrationPoint` for production deployments.
+
+### Production Implementation: PersistentPolicyAdministrationPoint
+
+The `PersistentPolicyAdministrationPoint` delegates storage to an `IPolicyStore` provider, enabling database-backed policy persistence. It replicates the same business logic as the in-memory implementation while persisting policies across application restarts.
+
+**Architecture (two-layer design):**
+
+```mermaid
+graph TB
+    PPAP["<b>PersistentPolicyAdministrationPoint</b><br/><i>(business rules)</i>"]
+    IPS["<b>IPolicyStore</b><br/><i>(persistence contract)</i>"]
+    EF["PolicyStoreEF<br/><i>(EF Core)</i>"]
+    DAP["PolicyStoreDapper<br/><i>(Dapper)</i>"]
+    ADO["PolicyStoreADO<br/><i>(ADO.NET)</i>"]
+    MONGO["PolicyStoreMongoDB<br/><i>(MongoDB)</i>"]
+
+    PPAP --> IPS
+    IPS --> EF
+    IPS --> DAP
+    IPS --> ADO
+    IPS --> MONGO
+```
+
+**Key behaviors:**
+
+- **Duplicate detection**: Checks standalone policies and all nested policies within policy sets before adding.
+- **Parent-child management**: Policies can be nested within a policy set or stored standalone. The PAP loads the parent, mutates, and saves back.
+- **Upsert semantics**: The underlying store uses upsert (insert or update). The PAP layer enforces business constraints on top.
+
+**Configuration:**
+
+```csharp
+services.AddEncinaEntityFrameworkCore<AppDbContext>(c => c.UseABACPolicyStore = true);
+
+services.AddEncinaABAC(options =>
+{
+    options.UsePersistentPAP = true;
+
+    // Optional: enable policy caching
+    options.PolicyCaching.Enabled = true;
+    options.PolicyCaching.Duration = TimeSpan.FromMinutes(15);
+    options.PolicyCaching.EnablePubSubInvalidation = true;
+});
+```
+
+**Caching decorator**: When `PolicyCaching.Enabled = true`, a `CachingPolicyStoreDecorator` wraps the inner store with cache-aside reads (stampede protection) and write-through invalidation. Cross-instance cache eviction is handled via PubSub when `EnablePubSubInvalidation = true`.
+
+> See [Persistent PAP Reference](../reference/persistent-pap.md) for the complete configuration guide.
 
 ### Policy Seeding
 

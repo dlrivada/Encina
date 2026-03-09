@@ -1639,6 +1639,42 @@ Added the `Encina.Security.ABAC` package providing a full XACML 3.0-compliant AB
 
 ---
 
+#### Encina.Security.ABAC — Persistent PAP with Database-Backed Policy Storage (#691)
+
+Added persistent policy storage for the ABAC engine, enabling production deployment with policies that survive application restarts and are shared across instances.
+
+**Persistence Layer**:
+
+- **`IPolicyStore`**: Provider-agnostic persistence contract with upsert semantics, CRUD operations for policy sets and standalone policies, existence checks, and count queries. All methods return `Either<EncinaError, T>` (ROP).
+- **`PersistentPolicyAdministrationPoint`**: Production-ready `IPolicyAdministrationPoint` implementation with duplicate detection across standalone and nested policies, parent-child policy set management, and search-then-mutate pattern.
+- **`IPolicySerializer` / `DefaultPolicySerializer`**: System.Text.Json serializer with polymorphic `$type` discriminator for `IExpression` tree serialization. Customizable via `TryAdd` DI semantics.
+- **`PolicyEntityMapper`**: Bidirectional mapper between domain models (`PolicySet`, `Policy`) and database entities (`PolicySetEntity`, `PolicyEntity`) with metadata extraction for SQL-level filtering.
+- **`PolicySetEntity` / `PolicyEntity`**: Database POCOs with extracted metadata columns (`Id`, `Version`, `Description`, `IsEnabled`, `Priority`, `CreatedAtUtc`, `UpdatedAtUtc`) and a `PolicyJson` column storing the full serialized policy graph.
+
+**Policy Caching**:
+
+- **`CachingPolicyStoreDecorator`**: Decorator wrapping `IPolicyStore` with cache-aside reads (stampede protection via `ICacheProvider.GetOrSetAsync`) and write-through invalidation.
+- **`PolicyCachingOptions`**: Configuration for cache duration, PubSub invalidation channel, cache key prefix, and cache tags.
+- **`PolicyCachePubSubHostedService`**: Background service subscribing to the PubSub invalidation channel for cross-instance cache eviction.
+- **`PolicyCacheInvalidationMessage`**: Message record for PubSub-based cache invalidation with entity type, ID, operation, and timestamp.
+
+**Provider Implementations** (11 providers across 3 categories + MongoDB):
+
+- **EF Core**: `PolicyStoreEF` with `PolicySetEntityConfiguration` / `PolicyEntityConfiguration` and `ABACModelBuilderExtensions.ConfigureABACPolicyStore()` for SqlServer, PostgreSQL, SQLite (MySQL provider pending Pomelo v10.0).
+- **Dapper**: `PolicyStoreDapper` with provider-specific SQL for SqlServer, PostgreSQL, MySQL, SQLite.
+- **ADO.NET**: `PolicyStoreADO` with provider-specific SQL for SqlServer, PostgreSQL, MySQL, SQLite.
+- **MongoDB**: `PolicyStoreMongoDB` with native BSON document storage.
+
+**Configuration**:
+
+- `ABACOptions.UsePersistentPAP`: Enables the persistent PAP (default: `false`).
+- `ABACOptions.PolicyCaching`: Configuration object for the caching decorator.
+- `ServiceCollectionExtensions`: Factory-based registration with startup validation (throws `InvalidOperationException` if no `IPolicyStore` is registered).
+
+**Testing**: 182 integration tests across 11 providers, unit tests for all persistence components, serialization benchmarks (12 benchmarks), guard tests, property tests, and contract tests.
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

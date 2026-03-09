@@ -66,6 +66,21 @@ public static class ABACErrors
     /// <summary>Error code when a VariableReference references an undefined VariableDefinition.</summary>
     public const string VariableNotFoundCode = "abac.variable_not_found";
 
+    /// <summary>Error code when policy serialization fails.</summary>
+    public const string SerializationFailedCode = "abac.serialization_failed";
+
+    /// <summary>Error code when policy deserialization fails.</summary>
+    public const string DeserializationFailedCode = "abac.deserialization_failed";
+
+    /// <summary>Error code when a policy store operation fails due to an infrastructure error.</summary>
+    public const string StoreOperationFailedCode = "abac.store_operation_failed";
+
+    /// <summary>Error code when <see cref="ABACOptions.UsePersistentPAP"/> is enabled but no <see cref="Persistence.IPolicyStore"/> is registered.</summary>
+    public const string PersistentStoreNotRegisteredCode = "abac.persistent_store_not_registered";
+
+    /// <summary>Error code when policy caching is enabled but no <c>ICacheProvider</c> is registered.</summary>
+    public const string CacheProviderNotRegisteredCode = "abac.cache_provider_not_registered";
+
     // ── Factory Methods ─────────────────────────────────────────────
 
     /// <summary>
@@ -352,5 +367,88 @@ public static class ABACErrors
             {
                 [MetadataKeyStage] = MetadataStageAbac,
                 ["variableId"] = variableId
+            });
+
+    /// <summary>
+    /// Creates an error when policy serialization fails.
+    /// </summary>
+    /// <param name="targetType">The type being serialized (e.g., "PolicySet", "Policy").</param>
+    /// <param name="reason">A description of why serialization failed.</param>
+    /// <returns>An error indicating serialization failure.</returns>
+    public static EncinaError SerializationFailed(string targetType, string reason) =>
+        EncinaErrors.Create(
+            code: SerializationFailedCode,
+            message: $"Failed to serialize {targetType}: {reason}",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["targetType"] = targetType,
+                ["reason"] = reason
+            });
+
+    /// <summary>
+    /// Creates an error when policy deserialization fails.
+    /// </summary>
+    /// <param name="targetType">The type being deserialized (e.g., "PolicySet", "Policy").</param>
+    /// <param name="reason">A description of why deserialization failed.</param>
+    /// <returns>An error indicating deserialization failure.</returns>
+    public static EncinaError DeserializationFailed(string targetType, string reason) =>
+        EncinaErrors.Create(
+            code: DeserializationFailedCode,
+            message: $"Failed to deserialize {targetType}: {reason}",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["targetType"] = targetType,
+                ["reason"] = reason
+            });
+
+    /// <summary>
+    /// Creates an error when a policy store operation fails due to an infrastructure error.
+    /// </summary>
+    /// <param name="operation">The store operation that failed (e.g., "SavePolicySetAsync").</param>
+    /// <param name="reason">A description of the failure reason.</param>
+    /// <returns>An error indicating a store infrastructure failure.</returns>
+    public static EncinaError StoreOperationFailed(string operation, string reason) =>
+        EncinaErrors.Create(
+            code: StoreOperationFailedCode,
+            message: $"Policy store operation '{operation}' failed: {reason}",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["operation"] = operation,
+                ["reason"] = reason
+            });
+
+    /// <summary>
+    /// Creates an error when <see cref="ABACOptions.UsePersistentPAP"/> is enabled but
+    /// no <see cref="Persistence.IPolicyStore"/> implementation is registered.
+    /// </summary>
+    /// <returns>An error indicating the persistent store is not registered.</returns>
+    public static EncinaError PersistentStoreNotRegistered() =>
+        EncinaErrors.Create(
+            code: PersistentStoreNotRegisteredCode,
+            message: "UsePersistentPAP is enabled but no IPolicyStore implementation is registered. " +
+                     "Register a provider package (e.g., AddEncinaEntityFrameworkCore with UseABACPolicyStore = true).",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "IPolicyStore"
+            });
+
+    /// <summary>
+    /// Creates an error when policy caching is enabled but no <c>ICacheProvider</c>
+    /// implementation is registered.
+    /// </summary>
+    /// <returns>An error indicating the cache provider is not registered.</returns>
+    public static EncinaError CacheProviderNotRegistered() =>
+        EncinaErrors.Create(
+            code: CacheProviderNotRegisteredCode,
+            message: "Policy caching is enabled but no ICacheProvider implementation is registered. " +
+                     "Register a caching package (e.g., AddEncinaRedisCache, AddEncinaMemoryCache).",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["requirement"] = "ICacheProvider"
             });
 }

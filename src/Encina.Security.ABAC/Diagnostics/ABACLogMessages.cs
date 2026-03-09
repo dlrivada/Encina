@@ -151,4 +151,83 @@ internal static partial class ABACLogMessages
         Message = "Advice {AdviceId} executed successfully")]
     internal static partial void AdviceExecuted(
         ILogger logger, string adviceId);
+
+    // ── PAP Store Messages (9030-9040) ────────────────────────────────
+
+    [LoggerMessage(
+        EventId = 9030,
+        Level = LogLevel.Debug,
+        Message = "PAP loading {EntityType} from persistent store")]
+    internal static partial void PapLoadStarting(
+        ILogger logger, string entityType);
+
+    [LoggerMessage(
+        EventId = 9031,
+        Level = LogLevel.Debug,
+        Message = "PAP loaded {Count} {EntityType} from persistent store ({DurationMs:F2}ms)")]
+    internal static partial void PapLoadCompleted(
+        ILogger logger, int count, string entityType, double durationMs);
+
+    [LoggerMessage(
+        EventId = 9032,
+        Level = LogLevel.Debug,
+        Message = "PAP saving {EntityType} '{EntityId}' to persistent store")]
+    internal static partial void PapSaveStarting(
+        ILogger logger, string entityType, string entityId);
+
+    [LoggerMessage(
+        EventId = 9033,
+        Level = LogLevel.Debug,
+        Message = "PAP saved {EntityType} '{EntityId}' to persistent store ({DurationMs:F2}ms)")]
+    internal static partial void PapSaveCompleted(
+        ILogger logger, string entityType, string entityId, double durationMs);
+
+    [LoggerMessage(
+        EventId = 9034,
+        Level = LogLevel.Debug,
+        Message = "PAP deleting {EntityType} '{EntityId}' from persistent store")]
+    internal static partial void PapDeleteStarting(
+        ILogger logger, string entityType, string entityId);
+
+    [LoggerMessage(
+        EventId = 9035,
+        Level = LogLevel.Debug,
+        Message = "PAP deleted {EntityType} '{EntityId}' from persistent store ({DurationMs:F2}ms)")]
+    internal static partial void PapDeleteCompleted(
+        ILogger logger, string entityType, string entityId, double durationMs);
+
+    [LoggerMessage(
+        EventId = 9036,
+        Level = LogLevel.Error,
+        Message = "PAP {Operation} operation failed for {EntityType}: {ErrorMessage}")]
+    internal static partial void PapOperationFailed(
+        ILogger logger, string operation, string entityType, string errorMessage);
+
+    [LoggerMessage(
+        EventId = 9037,
+        Level = LogLevel.Error,
+        Message = "PAP {Operation} operation failed for {EntityType} '{EntityId}'")]
+    internal static partial void PapOperationFailedWithException(
+        ILogger logger, Exception exception, string operation, string entityType, string entityId);
+
+    [LoggerMessage(
+        EventId = 9038,
+        Level = LogLevel.Debug,
+        Message = "PAP serialized {EntityType} to JSON ({JsonSize} bytes, {DurationMs:F2}ms)")]
+    internal static partial void PapSerializeCompleted(
+        ILogger logger, string entityType, int jsonSize, double durationMs);
+
+    [LoggerMessage(
+        EventId = 9039,
+        Level = LogLevel.Information,
+        Message = "Persistent PAP store connectivity verified ({PolicySetCount} policy sets, {PolicyCount} standalone policies)")]
+    internal static partial void PapStoreConnectivityVerified(
+        ILogger logger, int policySetCount, int policyCount);
+
+    [LoggerMessage(
+        EventId = 9040,
+        Level = LogLevel.Warning,
+        Message = "Persistent PAP store connectivity check failed: {ErrorMessage}")]
+    internal static partial void PapStoreConnectivityFailed(
+        ILogger logger, string errorMessage);
 }

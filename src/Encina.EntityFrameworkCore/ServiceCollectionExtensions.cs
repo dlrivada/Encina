@@ -35,6 +35,7 @@ using Encina.Messaging.ReadWriteSeparation;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Modules.Isolation;
+using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using Encina.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -380,6 +381,12 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreEF>();
             services.TryAddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreEF>();
+        }
+
+        // Register ABAC Policy Store if enabled
+        if (config.UseABACPolicyStore)
+        {
+            services.TryAddScoped<IPolicyStore, ABAC.PolicyStoreEF>();
         }
 
         if (config.UseTemporalTables)

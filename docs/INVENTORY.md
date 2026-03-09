@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322, ABAC #401, Persistent PAP #691 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -5796,7 +5796,8 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 | `Encina.Security.Secrets.AwsSecretsManager` | #677 ✅ | AWS Secrets Manager provider (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.HashiCorpVault` | #678 ✅ | HashiCorp Vault provider (IMPLEMENTADO) | Media |
 | `Encina.Security.Secrets.GoogleCloudSecretManager` | #679 ✅ | Google Cloud Secret Manager provider (IMPLEMENTADO) | Media |
-| `Encina.Security.ABAC` | #401 | Attribute-Based Access Control | Media |
+| `Encina.Security.ABAC` | #401 ✅ | Attribute-Based Access Control with XACML 3.0 (IMPLEMENTADO) | Media |
+| `Encina.Security.ABAC` (Persistent PAP) | #691 ✅ | Database-backed PAP with IPolicyStore, caching, 11 providers (IMPLEMENTADO) | Media |
 
 #### Labels Nuevas Creadas (Security - 2)
 

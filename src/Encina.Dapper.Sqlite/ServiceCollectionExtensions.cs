@@ -20,6 +20,7 @@ using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.Messaging;
 using Encina.Messaging.Health;
+using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -128,6 +129,12 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreDapper>();
             services.TryAddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreDapper>();
+        }
+
+        // Register ABAC Policy Store if enabled
+        if (config.UseABACPolicyStore)
+        {
+            services.TryAddScoped<IPolicyStore, ABAC.PolicyStoreDapper>();
         }
 
         return services;

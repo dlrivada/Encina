@@ -196,6 +196,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Input Sanitization [#399](https://github.com/dlrivada/Encina/issues/399) - `Encina.Security.Sanitization` with attribute-based input sanitization and output encoding
 - ✅ Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) - `Encina.Security.Secrets` with ISP-compliant secrets management and vault integration (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager)
 - ✅ ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) - `Encina.Security.ABAC` with XACML 3.0 evaluation model, 70+ standard functions, 8 combining algorithms, EEL (Encina Expression Language), fluent builder DSL, obligations/advice, 764 unit tests, 22 documentation files, 3 ADRs
+- ✅ Persistent PAP [#691](https://github.com/dlrivada/Encina/issues/691) - Database-backed `PersistentPolicyAdministrationPoint` with `IPolicyStore`, `IPolicySerializer`, `CachingPolicyStoreDecorator` (cache-aside + PubSub invalidation), `PolicyEntityMapper`, 11 provider implementations (EF Core, Dapper, ADO.NET, MongoDB), 182 integration tests, serialization benchmarks
 
 **Remaining:**
 

@@ -114,5 +114,45 @@ CREATE INDEX IF NOT EXISTS IX_ReadAuditEntries_CorrelationId
 CREATE INDEX IF NOT EXISTS IX_ReadAuditEntries_AccessMethod
     ON ReadAuditEntries (AccessMethod);
 
+-- =============================================
+-- abac_policy_sets - ABAC Policy Set Storage
+-- =============================================
+CREATE TABLE IF NOT EXISTS "abac_policy_sets"
+(
+    "Id" TEXT NOT NULL,
+    "Version" TEXT NULL,
+    "Description" TEXT NULL,
+    "PolicyJson" TEXT NOT NULL,
+    "IsEnabled" INTEGER NOT NULL DEFAULT 1,
+    "Priority" INTEGER NOT NULL DEFAULT 0,
+    "CreatedAtUtc" TEXT NOT NULL,
+    "UpdatedAtUtc" TEXT NOT NULL,
+
+    PRIMARY KEY ("Id")
+);
+
+CREATE INDEX IF NOT EXISTS "IX_abac_policy_sets_IsEnabled_Priority"
+    ON "abac_policy_sets" ("IsEnabled", "Priority");
+
+-- =============================================
+-- abac_policies - ABAC Standalone Policy Storage
+-- =============================================
+CREATE TABLE IF NOT EXISTS "abac_policies"
+(
+    "Id" TEXT NOT NULL,
+    "Version" TEXT NULL,
+    "Description" TEXT NULL,
+    "PolicyJson" TEXT NOT NULL,
+    "IsEnabled" INTEGER NOT NULL DEFAULT 1,
+    "Priority" INTEGER NOT NULL DEFAULT 0,
+    "CreatedAtUtc" TEXT NOT NULL,
+    "UpdatedAtUtc" TEXT NOT NULL,
+
+    PRIMARY KEY ("Id")
+);
+
+CREATE INDEX IF NOT EXISTS "IX_abac_policies_IsEnabled_Priority"
+    ON "abac_policies" ("IsEnabled", "Priority");
+
 -- Encina.ADO.Sqlite schema installation complete!
 -- You can now use all messaging patterns with ADO.NET.

@@ -316,6 +316,49 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the ABAC policy sets and policies table schemas for ABAC integration tests.
+    /// </summary>
+    public static async Task CreateAbacSchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS "abac_policy_sets"
+            (
+                "Id" TEXT NOT NULL,
+                "Version" TEXT NULL,
+                "Description" TEXT NULL,
+                "PolicyJson" TEXT NOT NULL,
+                "IsEnabled" INTEGER NOT NULL DEFAULT 1,
+                "Priority" INTEGER NOT NULL DEFAULT 0,
+                "CreatedAtUtc" TEXT NOT NULL,
+                "UpdatedAtUtc" TEXT NOT NULL,
+                PRIMARY KEY ("Id")
+            );
+
+            CREATE INDEX IF NOT EXISTS "IX_abac_policy_sets_IsEnabled_Priority"
+                ON "abac_policy_sets" ("IsEnabled", "Priority");
+
+            CREATE TABLE IF NOT EXISTS "abac_policies"
+            (
+                "Id" TEXT NOT NULL,
+                "Version" TEXT NULL,
+                "Description" TEXT NULL,
+                "PolicyJson" TEXT NOT NULL,
+                "IsEnabled" INTEGER NOT NULL DEFAULT 1,
+                "Priority" INTEGER NOT NULL DEFAULT 0,
+                "CreatedAtUtc" TEXT NOT NULL,
+                "UpdatedAtUtc" TEXT NOT NULL,
+                PRIMARY KEY ("Id")
+            );
+
+            CREATE INDEX IF NOT EXISTS "IX_abac_policies_IsEnabled_Priority"
+                ON "abac_policies" ("IsEnabled", "Priority");
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Creates the ProcessingActivities table schema for GDPR processing activity integration tests.
     /// </summary>
     public static async Task CreateProcessingActivitySchemaAsync(SqliteConnection connection)
@@ -353,7 +396,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "ProcessingActivities", "LIARecords", "LawfulBasisRegistrations", "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
+        var tables = new[] { "abac_policies", "abac_policy_sets", "ProcessingActivities", "LIARecords", "LawfulBasisRegistrations", "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

@@ -28,6 +28,7 @@ using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
 using Encina.MongoDB.SoftDelete;
 using Encina.MongoDB.UnitOfWork;
+using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -166,6 +167,13 @@ public static class ServiceCollectionExtensions
         {
             services.AddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreMongoDB>();
             services.AddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreMongoDB>();
+        }
+
+        // Register ABAC Policy Store if enabled
+        if (options.UseABACPolicyStore)
+        {
+            ABAC.ABACBsonClassMapRegistration.EnsureRegistered();
+            services.AddScoped<IPolicyStore, ABAC.PolicyStoreMongo>();
         }
 
         // Create indexes if configured
@@ -308,6 +316,13 @@ public static class ServiceCollectionExtensions
         {
             services.AddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreMongoDB>();
             services.AddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreMongoDB>();
+        }
+
+        // Register ABAC Policy Store if enabled
+        if (options.UseABACPolicyStore)
+        {
+            ABAC.ABACBsonClassMapRegistration.EnsureRegistered();
+            services.AddScoped<IPolicyStore, ABAC.PolicyStoreMongo>();
         }
 
         // Create indexes if configured

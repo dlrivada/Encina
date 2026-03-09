@@ -174,6 +174,18 @@ public sealed class EncinaMongoDbOptions
     public bool UseBreachNotification { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the ABAC Policy Store.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Security.ABAC.Persistence.IPolicyStore"/>
+    /// implemented by <c>PolicyStoreMongo</c> for persistent XACML policy storage
+    /// using native BSON document storage (no JSON serialization).
+    /// </para>
+    /// </remarks>
+    public bool UseABACPolicyStore { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to create indexes automatically.
     /// </summary>
     public bool CreateIndexes { get; set; } = true;
@@ -373,4 +385,14 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for breach audit entries (breach notification).
     /// </summary>
     public string BreachAuditEntries { get; set; } = "breach_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for ABAC policy sets.
+    /// </summary>
+    public string ABACPolicySets { get; set; } = "abac_policy_sets";
+
+    /// <summary>
+    /// Gets or sets the collection name for ABAC standalone policies.
+    /// </summary>
+    public string ABACPolicies { get; set; } = "abac_policies";
 }

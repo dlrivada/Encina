@@ -26,7 +26,10 @@ Encina.Security.ABAC.ABACOptions.FailOnMissingObligationHandler.set -> void
 Encina.Security.ABAC.ABACOptions.IncludeAdvice.get -> bool
 Encina.Security.ABAC.ABACOptions.IncludeAdvice.set -> void
 Encina.Security.ABAC.ABACOptions.SeedPolicies.get -> System.Collections.Generic.List<Encina.Security.ABAC.Policy!>!
+Encina.Security.ABAC.ABACOptions.PolicyCaching.get -> Encina.Security.ABAC.PolicyCachingOptions!
 Encina.Security.ABAC.ABACOptions.SeedPolicySets.get -> System.Collections.Generic.List<Encina.Security.ABAC.PolicySet!>!
+Encina.Security.ABAC.ABACOptions.UsePersistentPAP.get -> bool
+Encina.Security.ABAC.ABACOptions.UsePersistentPAP.set -> void
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ISecurityContextAccessor! securityContextAccessor, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
@@ -45,6 +48,18 @@ Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.RemovePoli
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.StandalonePolicyCount.get -> int
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.UpdatePolicyAsync(Encina.Security.ABAC.Policy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.UpdatePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.PersistentPolicyAdministrationPoint(Encina.Security.ABAC.Persistence.IPolicyStore! store, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint!>! logger) -> void
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.AddPolicyAsync(Encina.Security.ABAC.Policy! policy, string? parentPolicySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.AddPolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.GetPoliciesAsync(string? policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Policy!>!>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.GetPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.Policy!>>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.GetPolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.PolicySet!>>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.GetPolicySetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicySet!>!>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.RemovePolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.RemovePolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.UpdatePolicyAsync(Encina.Security.ABAC.Policy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.UpdatePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.ABAC.AdviceExpression
 Encina.Security.ABAC.AdviceExpression.AppliesTo.get -> Encina.Security.ABAC.FulfillOn
 Encina.Security.ABAC.AdviceExpression.AppliesTo.init -> void
@@ -283,7 +298,7 @@ Encina.Security.ABAC.FulfillOn
 Encina.Security.ABAC.FulfillOn.Deny = 1 -> Encina.Security.ABAC.FulfillOn
 Encina.Security.ABAC.FulfillOn.Permit = 0 -> Encina.Security.ABAC.FulfillOn
 Encina.Security.ABAC.Health.ABACHealthCheck
-Encina.Security.ABAC.Health.ABACHealthCheck.ABACHealthCheck(Encina.Security.ABAC.IPolicyAdministrationPoint! pap) -> void
+Encina.Security.ABAC.Health.ABACHealthCheck.ABACHealthCheck(Encina.Security.ABAC.IPolicyAdministrationPoint! pap, System.IServiceProvider! serviceProvider) -> void
 Encina.Security.ABAC.Health.ABACHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
 const Encina.Security.ABAC.Health.ABACHealthCheck.DefaultName = "encina-abac" -> string!
 Encina.Security.ABAC.IAttributeProvider
@@ -494,6 +509,8 @@ const Encina.Security.ABAC.ABACErrors.MissingContextCode = "abac.missing_context
 const Encina.Security.ABAC.ABACErrors.ObligationFailedCode = "abac.obligation_failed" -> string!
 const Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode = "abac.policy_not_found" -> string!
 const Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode = "abac.policy_set_not_found" -> string!
+const Encina.Security.ABAC.ABACErrors.DeserializationFailedCode = "abac.deserialization_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.SerializationFailedCode = "abac.serialization_failed" -> string!
 const Encina.Security.ABAC.ABACErrors.VariableNotFoundCode = "abac.variable_not_found" -> string!
 const Encina.Security.ABAC.EnvironmentAttributes.CurrentTime = "currentTime" -> string!
 const Encina.Security.ABAC.EnvironmentAttributes.DayOfWeek = "dayOfWeek" -> string!
@@ -654,6 +671,8 @@ static Encina.Security.ABAC.ABACErrors.MissingContext(System.Type! requestType) 
 static Encina.Security.ABAC.ABACErrors.ObligationFailed(string! obligationId, string? reason = null) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.PolicyNotFound(string! policyId) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.PolicySetNotFound(string! policySetId) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.DeserializationFailed(string! targetType, string! reason) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.SerializationFailed(string! targetType, string! reason) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.VariableNotFound(string! variableId) -> Encina.EncinaError
 static Encina.Security.ABAC.AttributeBag.Empty.get -> Encina.Security.ABAC.AttributeBag!
 static Encina.Security.ABAC.AttributeBag.FromValues(System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.AttributeValue!>! values) -> Encina.Security.ABAC.AttributeBag!
@@ -684,6 +703,75 @@ Encina.Security.ABAC.ABACOptions.ExpressionScanAssemblies.get -> System.Collecti
 Encina.Security.ABAC.ABACOptions.ValidateExpressionsAtStartup.get -> bool
 Encina.Security.ABAC.ABACOptions.ValidateExpressionsAtStartup.set -> void
 Encina.Security.ABAC.Testing.EELTestHelper
+Encina.Security.ABAC.Persistence.DefaultPolicySerializer
+Encina.Security.ABAC.Persistence.DefaultPolicySerializer.DefaultPolicySerializer() -> void
+Encina.Security.ABAC.Persistence.DefaultPolicySerializer.Serialize(Encina.Security.ABAC.PolicySet! policySet) -> string!
+Encina.Security.ABAC.Persistence.DefaultPolicySerializer.Serialize(Encina.Security.ABAC.Policy! policy) -> string!
+Encina.Security.ABAC.Persistence.DefaultPolicySerializer.DeserializePolicySet(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.PolicySet!>
+Encina.Security.ABAC.Persistence.DefaultPolicySerializer.DeserializePolicy(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.Policy!>
+Encina.Security.ABAC.Persistence.ExpressionJsonConverter
+Encina.Security.ABAC.Persistence.ExpressionJsonConverter.ExpressionJsonConverter() -> void
+override Encina.Security.ABAC.Persistence.ExpressionJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Encina.Security.ABAC.IExpression?
+override Encina.Security.ABAC.Persistence.ExpressionJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Encina.Security.ABAC.IExpression! value, System.Text.Json.JsonSerializerOptions! options) -> void
+Encina.Security.ABAC.Persistence.IPolicySerializer
+Encina.Security.ABAC.Persistence.IPolicySerializer.Serialize(Encina.Security.ABAC.PolicySet! policySet) -> string!
+Encina.Security.ABAC.Persistence.IPolicySerializer.Serialize(Encina.Security.ABAC.Policy! policy) -> string!
+Encina.Security.ABAC.Persistence.IPolicySerializer.DeserializePolicySet(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.PolicySet!>
+Encina.Security.ABAC.Persistence.IPolicySerializer.DeserializePolicy(string! data) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.Policy!>
+Encina.Security.ABAC.Persistence.IPolicyStore
+Encina.Security.ABAC.Persistence.IPolicyStore.GetAllPolicySetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicySet!>!>>
+Encina.Security.ABAC.Persistence.IPolicyStore.GetPolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.PolicySet!>>>
+Encina.Security.ABAC.Persistence.IPolicyStore.SavePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.IPolicyStore.DeletePolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.IPolicyStore.ExistsPolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Security.ABAC.Persistence.IPolicyStore.GetPolicySetCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Security.ABAC.Persistence.IPolicyStore.GetAllStandalonePoliciesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Policy!>!>>
+Encina.Security.ABAC.Persistence.IPolicyStore.GetPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.Policy!>>>
+Encina.Security.ABAC.Persistence.IPolicyStore.SavePolicyAsync(Encina.Security.ABAC.Policy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.IPolicyStore.DeletePolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.IPolicyStore.ExistsPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Security.ABAC.Persistence.IPolicyStore.GetPolicyCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Security.ABAC.Persistence.PolicySetEntity
+Encina.Security.ABAC.Persistence.PolicySetEntity.PolicySetEntity() -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.Id.get -> string!
+Encina.Security.ABAC.Persistence.PolicySetEntity.Id.set -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.Version.get -> string?
+Encina.Security.ABAC.Persistence.PolicySetEntity.Version.set -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.Description.get -> string?
+Encina.Security.ABAC.Persistence.PolicySetEntity.Description.set -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.PolicyJson.get -> string!
+Encina.Security.ABAC.Persistence.PolicySetEntity.PolicyJson.set -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.IsEnabled.get -> bool
+Encina.Security.ABAC.Persistence.PolicySetEntity.IsEnabled.set -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.Priority.get -> int
+Encina.Security.ABAC.Persistence.PolicySetEntity.Priority.set -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.CreatedAtUtc.get -> System.DateTime
+Encina.Security.ABAC.Persistence.PolicySetEntity.CreatedAtUtc.set -> void
+Encina.Security.ABAC.Persistence.PolicySetEntity.UpdatedAtUtc.get -> System.DateTime
+Encina.Security.ABAC.Persistence.PolicySetEntity.UpdatedAtUtc.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity
+Encina.Security.ABAC.Persistence.PolicyEntity.PolicyEntity() -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.Id.get -> string!
+Encina.Security.ABAC.Persistence.PolicyEntity.Id.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.Version.get -> string?
+Encina.Security.ABAC.Persistence.PolicyEntity.Version.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.Description.get -> string?
+Encina.Security.ABAC.Persistence.PolicyEntity.Description.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.PolicyJson.get -> string!
+Encina.Security.ABAC.Persistence.PolicyEntity.PolicyJson.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.IsEnabled.get -> bool
+Encina.Security.ABAC.Persistence.PolicyEntity.IsEnabled.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.Priority.get -> int
+Encina.Security.ABAC.Persistence.PolicyEntity.Priority.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.CreatedAtUtc.get -> System.DateTime
+Encina.Security.ABAC.Persistence.PolicyEntity.CreatedAtUtc.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntity.UpdatedAtUtc.get -> System.DateTime
+Encina.Security.ABAC.Persistence.PolicyEntity.UpdatedAtUtc.set -> void
+Encina.Security.ABAC.Persistence.PolicyEntityMapper
+static Encina.Security.ABAC.Persistence.PolicyEntityMapper.ToPolicySetEntity(Encina.Security.ABAC.PolicySet! policySet, Encina.Security.ABAC.Persistence.IPolicySerializer! serializer, System.TimeProvider! timeProvider, Encina.Security.ABAC.Persistence.PolicySetEntity? existingEntity = null) -> Encina.Security.ABAC.Persistence.PolicySetEntity!
+static Encina.Security.ABAC.Persistence.PolicyEntityMapper.ToPolicySet(Encina.Security.ABAC.Persistence.PolicySetEntity! entity, Encina.Security.ABAC.Persistence.IPolicySerializer! serializer) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.PolicySet!>
+static Encina.Security.ABAC.Persistence.PolicyEntityMapper.ToPolicyEntity(Encina.Security.ABAC.Policy! policy, Encina.Security.ABAC.Persistence.IPolicySerializer! serializer, System.TimeProvider! timeProvider, Encina.Security.ABAC.Persistence.PolicyEntity? existingEntity = null) -> Encina.Security.ABAC.Persistence.PolicyEntity!
+static Encina.Security.ABAC.Persistence.PolicyEntityMapper.ToPolicy(Encina.Security.ABAC.Persistence.PolicyEntity! entity, Encina.Security.ABAC.Persistence.IPolicySerializer! serializer) -> LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.Policy!>
 static Encina.Security.ABAC.Testing.EELTestHelper.AssertCompiles(string! expression) -> void
 static Encina.Security.ABAC.Testing.EELTestHelper.AssertCompilesAsync(string! expression, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static Encina.Security.ABAC.Testing.EELTestHelper.AssertDoesNotCompile(string! expression) -> void
@@ -691,3 +779,47 @@ static Encina.Security.ABAC.Testing.EELTestHelper.AssertDoesNotCompileAsync(stri
 static Encina.Security.ABAC.Testing.EELTestHelper.EvaluateAsync(string! expression, object! anonymousGlobals, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
 static Encina.Security.ABAC.Testing.EELTestHelper.ValidateAllExpressions(System.Reflection.Assembly! assembly) -> void
 static Encina.Security.ABAC.Testing.EELTestHelper.ValidateAllExpressionsAsync(System.Reflection.Assembly! assembly, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Security.ABAC.PolicyCachingOptions
+Encina.Security.ABAC.PolicyCachingOptions.PolicyCachingOptions() -> void
+Encina.Security.ABAC.PolicyCachingOptions.Enabled.get -> bool
+Encina.Security.ABAC.PolicyCachingOptions.Enabled.set -> void
+Encina.Security.ABAC.PolicyCachingOptions.Duration.get -> System.TimeSpan
+Encina.Security.ABAC.PolicyCachingOptions.Duration.set -> void
+Encina.Security.ABAC.PolicyCachingOptions.EnablePubSubInvalidation.get -> bool
+Encina.Security.ABAC.PolicyCachingOptions.EnablePubSubInvalidation.set -> void
+Encina.Security.ABAC.PolicyCachingOptions.InvalidationChannel.get -> string!
+Encina.Security.ABAC.PolicyCachingOptions.InvalidationChannel.set -> void
+Encina.Security.ABAC.PolicyCachingOptions.CacheTag.get -> string!
+Encina.Security.ABAC.PolicyCachingOptions.CacheTag.set -> void
+Encina.Security.ABAC.PolicyCachingOptions.CacheKeyPrefix.get -> string!
+Encina.Security.ABAC.PolicyCachingOptions.CacheKeyPrefix.set -> void
+const Encina.Security.ABAC.ABACErrors.StoreOperationFailedCode = "abac.store_operation_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.PersistentStoreNotRegisteredCode = "abac.persistent_store_not_registered" -> string!
+const Encina.Security.ABAC.ABACErrors.CacheProviderNotRegisteredCode = "abac.cache_provider_not_registered" -> string!
+static Encina.Security.ABAC.ABACErrors.StoreOperationFailed(string! operation, string! reason) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.PersistentStoreNotRegistered() -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.CacheProviderNotRegistered() -> Encina.EncinaError
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.PolicyCacheInvalidationMessage(string! EntityType, string? EntityId, string! Operation, System.DateTime TimestampUtc) -> void
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.EntityType.get -> string!
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.EntityType.init -> void
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.EntityId.get -> string?
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.EntityId.init -> void
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.Operation.get -> string!
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.Operation.init -> void
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.TimestampUtc.get -> System.DateTime
+Encina.Security.ABAC.Persistence.PolicyCacheInvalidationMessage.TimestampUtc.init -> void
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.CachingPolicyStoreDecorator(Encina.Security.ABAC.Persistence.IPolicyStore! inner, Encina.Caching.ICacheProvider! cache, Encina.Caching.IPubSubProvider? pubSub, Encina.Security.ABAC.PolicyCachingOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator!>! logger) -> void
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.GetAllPolicySetsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.PolicySet!>!>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.GetPolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.PolicySet!>>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.SavePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.DeletePolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.ExistsPolicySetAsync(string! policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.GetPolicySetCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.GetAllStandalonePoliciesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Policy!>!>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.GetPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Security.ABAC.Policy!>>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.SavePolicyAsync(Encina.Security.ABAC.Policy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.DeletePolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.ExistsPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Security.ABAC.Persistence.CachingPolicyStoreDecorator.GetPolicyCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, int>>

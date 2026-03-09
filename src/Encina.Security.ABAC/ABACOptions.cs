@@ -140,6 +140,70 @@ public sealed class ABACOptions
     public List<Assembly> ExpressionScanAssemblies { get; } = [];
 
     /// <summary>
+    /// Gets or sets whether to use a persistent (database-backed)
+    /// <see cref="IPolicyAdministrationPoint"/> instead of the default in-memory implementation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When <c>true</c>, <see cref="Administration.PersistentPolicyAdministrationPoint"/> is
+    /// registered as the <see cref="IPolicyAdministrationPoint"/> implementation, delegating
+    /// policy storage to an <see cref="Persistence.IPolicyStore"/> provided by a database
+    /// provider package (EF Core, Dapper, ADO.NET, or MongoDB).
+    /// </para>
+    /// <para>
+    /// An <see cref="Persistence.IPolicySerializer"/> is also registered (default:
+    /// <see cref="Persistence.DefaultPolicySerializer"/>) using <c>TryAdd</c>, allowing
+    /// custom serializer implementations to be registered before calling
+    /// <c>AddEncinaABAC</c>.
+    /// </para>
+    /// <para>
+    /// <b>Prerequisite</b>: A provider package must register an <see cref="Persistence.IPolicyStore"/>
+    /// implementation (e.g., <c>services.AddEncinaEntityFrameworkCore(c => c.UseABACPolicyStore = true)</c>).
+    /// An <see cref="InvalidOperationException"/> is thrown at resolution time if no store is registered.
+    /// </para>
+    /// <para>
+    /// Default is <c>false</c> (uses <see cref="Administration.InMemoryPolicyAdministrationPoint"/>).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaABAC(options =>
+    /// {
+    ///     options.UsePersistentPAP = true;
+    /// });
+    /// </code>
+    /// </example>
+    public bool UsePersistentPAP { get; set; }
+
+    /// <summary>
+    /// Gets the policy caching configuration for the persistent PAP.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only applicable when <see cref="UsePersistentPAP"/> is <c>true</c>. Configures
+    /// the <c>CachingPolicyStoreDecorator</c> that wraps the underlying
+    /// <see cref="Persistence.IPolicyStore"/> with cache-aside reads and
+    /// write-through invalidation.
+    /// </para>
+    /// <para>
+    /// Set <see cref="PolicyCachingOptions.Enabled"/> to <c>true</c> to activate caching.
+    /// Requires an <c>ICacheProvider</c> from an Encina caching package.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaABAC(options =>
+    /// {
+    ///     options.UsePersistentPAP = true;
+    ///     options.PolicyCaching.Enabled = true;
+    ///     options.PolicyCaching.Duration = TimeSpan.FromMinutes(15);
+    ///     options.PolicyCaching.EnablePubSubInvalidation = true;
+    /// });
+    /// </code>
+    /// </example>
+    public PolicyCachingOptions PolicyCaching { get; } = new();
+
+    /// <summary>
     /// Gets the list of custom functions to register in the <see cref="IFunctionRegistry"/>
     /// at startup, in addition to the standard XACML 3.0 functions.
     /// </summary>

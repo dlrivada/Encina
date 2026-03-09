@@ -706,6 +706,23 @@ public sealed class MessagingConfiguration
     public bool UseBreachNotification { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to register ABAC Policy Store.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <c>IPolicyStore</c> from <c>Encina.Security.ABAC</c>
+    /// with the provider-specific ADO.NET, Dapper, or EF Core implementation for
+    /// database-backed XACML 3.0 policy storage.
+    /// </para>
+    /// <para>
+    /// Requires <c>Encina.Security.ABAC</c> to be configured with
+    /// <c>options.UsePersistentPAP = true</c> in <c>AddEncinaABAC</c>.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseABACPolicyStore { get; set; }
+
+    /// <summary>
     /// Gets the configuration options for the Outbox Pattern.
     /// </summary>
     public OutboxOptions OutboxOptions { get; } = new();

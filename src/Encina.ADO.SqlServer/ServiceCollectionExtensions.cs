@@ -24,6 +24,7 @@ using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.ReadWriteSeparation;
 using Encina.Modules.Isolation;
+using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
@@ -134,6 +135,12 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreADO>();
             services.TryAddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreADO>();
+        }
+
+        // Register ABAC Policy Store if enabled
+        if (config.UseABACPolicyStore)
+        {
+            services.TryAddScoped<IPolicyStore, ABAC.PolicyStoreADO>();
         }
 
         // Register provider health check if enabled

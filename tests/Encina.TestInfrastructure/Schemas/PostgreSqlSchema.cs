@@ -403,11 +403,56 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the ABAC policy tables schema.
+    /// </summary>
+    public static async Task CreateAbacSchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS "abac_policy_sets"
+            (
+                "Id" VARCHAR(256) NOT NULL,
+                "Version" VARCHAR(256) NULL,
+                "Description" TEXT NULL,
+                "PolicyJson" JSONB NOT NULL,
+                "IsEnabled" BOOLEAN NOT NULL DEFAULT TRUE,
+                "Priority" INTEGER NOT NULL DEFAULT 0,
+                "CreatedAtUtc" TIMESTAMPTZ NOT NULL,
+                "UpdatedAtUtc" TIMESTAMPTZ NOT NULL,
+                CONSTRAINT "PK_abac_policy_sets" PRIMARY KEY ("Id")
+            );
+
+            CREATE INDEX IF NOT EXISTS "IX_abac_policy_sets_IsEnabled_Priority"
+                ON "abac_policy_sets" ("IsEnabled", "Priority");
+
+            CREATE TABLE IF NOT EXISTS "abac_policies"
+            (
+                "Id" VARCHAR(256) NOT NULL,
+                "Version" VARCHAR(256) NULL,
+                "Description" TEXT NULL,
+                "PolicyJson" JSONB NOT NULL,
+                "IsEnabled" BOOLEAN NOT NULL DEFAULT TRUE,
+                "Priority" INTEGER NOT NULL DEFAULT 0,
+                "CreatedAtUtc" TIMESTAMPTZ NOT NULL,
+                "UpdatedAtUtc" TIMESTAMPTZ NOT NULL,
+                CONSTRAINT "PK_abac_policies" PRIMARY KEY ("Id")
+            );
+
+            CREATE INDEX IF NOT EXISTS "IX_abac_policies_IsEnabled_Priority"
+                ON "abac_policies" ("IsEnabled", "Priority");
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DROP TABLE IF EXISTS "abac_policies" CASCADE;
+            DROP TABLE IF EXISTS "abac_policy_sets" CASCADE;
             DROP TABLE IF EXISTS "LIARecords" CASCADE;
             DROP TABLE IF EXISTS "LawfulBasisRegistrations" CASCADE;
             DROP TABLE IF EXISTS lia_records CASCADE;
@@ -465,6 +510,8 @@ public static class PostgreSqlSchema
     public static async Task ClearAllDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DELETE FROM "abac_policies";
+            DELETE FROM "abac_policy_sets";
             DELETE FROM processingactivities;
             DELETE FROM "LIARecords";
             DELETE FROM "LawfulBasisRegistrations";

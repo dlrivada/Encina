@@ -1,20 +1,46 @@
+#pragma warning disable CA2012 // Use ValueTasks correctly — NSubstitute mock setup pattern
+
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Health;
+using Encina.Security.ABAC.Persistence;
 
 using FluentAssertions;
 
 using LanguageExt;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Encina.UnitTests.Security.ABAC.Health;
 
 /// <summary>
 /// Unit tests for <see cref="ABACHealthCheck"/>: verifies the ABAC engine health
-/// by checking for loaded policies and policy sets in the PAP.
+/// by checking for loaded policies and policy sets in the PAP, and optionally
+/// verifying persistent store connectivity when <see cref="IPolicyStore"/> is registered.
 /// </summary>
 public sealed class ABACHealthCheckTests
 {
+    /// <summary>
+    /// Builds a real <see cref="IServiceProvider"/> from a <see cref="ServiceCollection"/>,
+    /// optionally registering a given <see cref="IPolicyStore"/> for persistent store tests.
+    /// </summary>
+    /// <remarks>
+    /// Uses a real DI container instead of mocking <see cref="IServiceProvider"/> directly,
+    /// because <c>CreateScope()</c> extension methods rely on <see cref="IServiceScopeFactory"/>
+    /// resolution which is fragile to mock with NSubstitute proxies.
+    /// </remarks>
+    private static ServiceProvider CreateServiceProvider(IPolicyStore? policyStore = null)
+    {
+        var services = new ServiceCollection();
+
+        if (policyStore is not null)
+        {
+            services.AddSingleton(policyStore);
+        }
+
+        return services.BuildServiceProvider();
+    }
+
     #region Healthy — Policy Sets Loaded
 
     [Fact]
@@ -37,7 +63,7 @@ public sealed class ABACHealthCheckTests
                     }
                 }));
 
-        var healthCheck = new ABACHealthCheck(pap);
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider());
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
@@ -73,7 +99,7 @@ public sealed class ABACHealthCheckTests
                     }
                 }));
 
-        var healthCheck = new ABACHealthCheck(pap);
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider());
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
@@ -97,7 +123,7 @@ public sealed class ABACHealthCheckTests
             .Returns(Either<EncinaError, IReadOnlyList<Policy>>.Right(
                 new List<Policy>()));
 
-        var healthCheck = new ABACHealthCheck(pap);
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider());
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
@@ -121,7 +147,7 @@ public sealed class ABACHealthCheckTests
             .Returns(Either<EncinaError, IReadOnlyList<Policy>>.Right(
                 new List<Policy>()));
 
-        var healthCheck = new ABACHealthCheck(pap);
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider());
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
@@ -142,13 +168,122 @@ public sealed class ABACHealthCheckTests
             .Returns<Either<EncinaError, IReadOnlyList<PolicySet>>>(_ =>
                 throw new InvalidOperationException("Connection failed"));
 
-        var healthCheck = new ABACHealthCheck(pap);
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider());
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.Should().Be(HealthStatus.Unhealthy);
         result.Description.Should().Contain("Failed to query");
         result.Exception.Should().BeOfType<InvalidOperationException>();
+    }
+
+    #endregion
+
+    #region Persistent Store — Healthy
+
+    [Fact]
+    public async Task CheckHealthAsync_WithPersistentStore_StoreReachable_ReturnsHealthy()
+    {
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IReadOnlyList<PolicySet>>.Right(
+                new List<PolicySet>
+                {
+                    new()
+                    {
+                        Id = "ps-1",
+                        Target = null,
+                        Algorithm = CombiningAlgorithmId.DenyOverrides,
+                        Policies = [],
+                        PolicySets = [],
+                        Obligations = [],
+                        Advice = []
+                    }
+                }));
+
+        var store = Substitute.For<IPolicyStore>();
+        store.GetPolicySetCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(Either<EncinaError, int>.Right(1)));
+        store.GetPolicyCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(Either<EncinaError, int>.Right(0)));
+
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider(store));
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.Should().Be(HealthStatus.Healthy);
+    }
+
+    #endregion
+
+    #region Persistent Store — Unhealthy (Store Error)
+
+    [Fact]
+    public async Task CheckHealthAsync_WithPersistentStore_StoreError_ReturnsUnhealthy()
+    {
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        // PAP should not be queried when store fails
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IReadOnlyList<PolicySet>>.Right(
+                new List<PolicySet>()));
+
+        var store = Substitute.For<IPolicyStore>();
+        store.GetPolicySetCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(
+                Either<EncinaError, int>.Left(EncinaError.New("Database connection failed"))));
+        store.GetPolicyCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(Either<EncinaError, int>.Right(0)));
+
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider(store));
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Description.Should().Contain("Persistent policy store connectivity check failed");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WithPersistentStore_PolicyCountError_ReturnsUnhealthy()
+    {
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+
+        var store = Substitute.For<IPolicyStore>();
+        store.GetPolicySetCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(Either<EncinaError, int>.Right(0)));
+        store.GetPolicyCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(
+                Either<EncinaError, int>.Left(EncinaError.New("Query timeout"))));
+
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider(store));
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Description.Should().Contain("Persistent policy store connectivity check failed");
+    }
+
+    #endregion
+
+    #region No Persistent Store — Skips Store Check
+
+    [Fact]
+    public async Task CheckHealthAsync_NoPersistentStore_SkipsStoreCheck_ReturnsDegraded()
+    {
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IReadOnlyList<PolicySet>>.Right(
+                new List<PolicySet>()));
+        pap.GetPoliciesAsync(null, Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IReadOnlyList<Policy>>.Right(
+                new List<Policy>()));
+
+        // No IPolicyStore registered (in-memory mode)
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider());
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        // Should reach PAP check and return Degraded (no policies)
+        result.Status.Should().Be(HealthStatus.Degraded);
     }
 
     #endregion
@@ -177,7 +312,16 @@ public sealed class ABACHealthCheckTests
     [Fact]
     public void Constructor_NullPap_Throws()
     {
-        var act = () => new ABACHealthCheck(null!);
+        var act = () => new ABACHealthCheck(null!, CreateServiceProvider());
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void Constructor_NullServiceProvider_Throws()
+    {
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        var act = () => new ABACHealthCheck(pap, null!);
 
         act.Should().Throw<ArgumentNullException>();
     }

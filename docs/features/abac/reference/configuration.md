@@ -25,7 +25,7 @@ The method accepts an optional `Action<ABACOptions>` delegate. When omitted, all
 | `CombiningAlgorithmFactory` | Self | Singleton |
 | `TargetEvaluator` | Self | Singleton |
 | `ConditionEvaluator` | Self | Singleton |
-| `IPolicyAdministrationPoint` | `InMemoryPolicyAdministrationPoint` | Singleton |
+| `IPolicyAdministrationPoint` | `InMemoryPolicyAdministrationPoint` or `PersistentPolicyAdministrationPoint` | Singleton |
 | `IPolicyDecisionPoint` | `XACMLPolicyDecisionPoint` | Singleton |
 | `IPolicyInformationPoint` | `DefaultPolicyInformationPoint` | Singleton |
 | `IAttributeProvider` | `DefaultAttributeProvider` | Scoped |
@@ -42,6 +42,9 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 | `SeedPolicySets` or `SeedPolicies` is non-empty | `ABACPolicySeedingHostedService` (IHostedService) |
 | `ValidateExpressionsAtStartup` is `true` and `ExpressionScanAssemblies` is non-empty | `EELExpressionPrecompilationService` (IHostedService) |
 | `AddHealthCheck` is `true` | `ABACHealthCheck` via `IHealthChecksBuilder` |
+| `UsePersistentPAP` is `true` | `IPolicySerializer` → `DefaultPolicySerializer` (Singleton), `PersistentPolicyAdministrationPoint` (Singleton) |
+| `UsePersistentPAP` is `true` and `PolicyCaching.Enabled` is `true` | `CachingPolicyStoreDecorator` wraps `IPolicyStore` |
+| `PolicyCaching.EnablePubSubInvalidation` is `true` | `PolicyCachePubSubHostedService` (IHostedService) |
 
 ## ABACOptions Properties
 
@@ -55,6 +58,8 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 | `ValidateExpressionsAtStartup` | `bool` | `false` | When `true`, scans assemblies in `ExpressionScanAssemblies` for `RequireConditionAttribute` and compiles all EEL expressions at startup. Throws `InvalidOperationException` on failure. |
 | `ExpressionScanAssemblies` | `List<Assembly>` | `[]` | Assemblies to scan for `RequireConditionAttribute` when `ValidateExpressionsAtStartup` is `true`. If the list is empty, a debug log is emitted and no validation occurs. |
 | `CustomFunctions` | `List<(string FunctionId, IXACMLFunction Function)>` | `[]` | Custom XACML functions registered into `IFunctionRegistry` at startup, in addition to the standard XACML 3.0 built-in functions. |
+| `UsePersistentPAP` | `bool` | `false` | When `true`, registers `PersistentPolicyAdministrationPoint` backed by `IPolicyStore`. Requires a provider package. See [Persistent PAP](persistent-pap.md). |
+| `PolicyCaching` | `PolicyCachingOptions` | See below | Configuration for the caching decorator. Only applicable when `UsePersistentPAP = true`. |
 | `SeedPolicySets` | `List<PolicySet>` | `[]` | Policy sets to seed into the PAP at application startup via `ABACPolicySeedingHostedService`. Duplicates are logged as warnings and skipped. |
 | `SeedPolicies` | `List<Policy>` | `[]` | Standalone policies to seed into the PAP at startup. Duplicates are logged as warnings and skipped. |
 
@@ -193,19 +198,42 @@ services.AddEncinaABAC(options =>
 });
 ```
 
-### Custom PAP Implementation
+### Persistent PAP (Database-Backed)
 
-Register a custom implementation before calling `AddEncinaABAC()`. The `TryAdd` semantics will preserve your registration:
+Enable database-backed policy storage with optional caching:
 
 ```csharp
-// Database-backed PAP
-services.AddSingleton<IPolicyAdministrationPoint, DatabasePolicyAdministrationPoint>();
+// 1. Register a provider with ABAC policy store
+services.AddEncinaEntityFrameworkCore<AppDbContext>(c => c.UseABACPolicyStore = true);
 
-// AddEncinaABAC will not overwrite the PAP registration
+// 2. Configure ABAC with persistent PAP
 services.AddEncinaABAC(options =>
 {
-    options.EnforcementMode = ABACEnforcementMode.Block;
+    options.UsePersistentPAP = true;
+
+    // Optional: enable caching with cross-instance invalidation
+    options.PolicyCaching.Enabled = true;
+    options.PolicyCaching.Duration = TimeSpan.FromMinutes(15);
+    options.PolicyCaching.EnablePubSubInvalidation = true;
+
+    options.SeedPolicySets.Add(myOrganizationPolicies);
 });
 ```
 
-This pattern applies to any service registered by `AddEncinaABAC()`: `IFunctionRegistry`, `IPolicyDecisionPoint`, `IPolicyInformationPoint`, `IAttributeProvider`, or `ObligationExecutor`.
+When `UsePersistentPAP = true`, the `PersistentPolicyAdministrationPoint` is registered instead of `InMemoryPolicyAdministrationPoint`. An `IPolicyStore` must be provided by a database provider package (EF Core, Dapper, ADO.NET, or MongoDB).
+
+> See [Persistent PAP Reference](persistent-pap.md) for full details including schema, caching options, and supported providers.
+
+### Custom Implementation Override
+
+Register a custom implementation before calling `AddEncinaABAC()`. The `TryAdd` semantics will preserve your registration for most services:
+
+```csharp
+// Custom serializer (overrides DefaultPolicySerializer)
+services.AddSingleton<IPolicySerializer, MyCustomSerializer>();
+
+// AddEncinaABAC preserves the custom serializer
+services.AddEncinaABAC(options => { options.UsePersistentPAP = true; });
+```
+
+This pattern applies to: `IFunctionRegistry`, `IPolicyDecisionPoint`, `IPolicyInformationPoint`, `IAttributeProvider`, `IPolicySerializer`, or `ObligationExecutor`.

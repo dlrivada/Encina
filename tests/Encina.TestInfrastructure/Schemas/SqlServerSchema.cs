@@ -357,11 +357,57 @@ public static class SqlServerSchema
     }
 
     /// <summary>
+    /// Creates the ABAC policy sets and policies table schemas for ABAC integration tests.
+    /// </summary>
+    public static async Task CreateAbacSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[abac_policy_sets]') AND type in (N'U'))
+            BEGIN
+                CREATE TABLE [dbo].[abac_policy_sets]
+                (
+                    [Id] NVARCHAR(256) NOT NULL,
+                    [Version] NVARCHAR(256) NULL,
+                    [Description] NVARCHAR(MAX) NULL,
+                    [PolicyJson] NVARCHAR(MAX) NOT NULL,
+                    [IsEnabled] BIT NOT NULL DEFAULT 1,
+                    [Priority] INT NOT NULL DEFAULT 0,
+                    [CreatedAtUtc] DATETIME2(7) NOT NULL,
+                    [UpdatedAtUtc] DATETIME2(7) NOT NULL,
+                    CONSTRAINT [PK_abac_policy_sets] PRIMARY KEY CLUSTERED ([Id]),
+                    INDEX [IX_abac_policy_sets_IsEnabled_Priority] ([IsEnabled], [Priority])
+                );
+            END
+
+            IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[abac_policies]') AND type in (N'U'))
+            BEGIN
+                CREATE TABLE [dbo].[abac_policies]
+                (
+                    [Id] NVARCHAR(256) NOT NULL,
+                    [Version] NVARCHAR(256) NULL,
+                    [Description] NVARCHAR(MAX) NULL,
+                    [PolicyJson] NVARCHAR(MAX) NOT NULL,
+                    [IsEnabled] BIT NOT NULL DEFAULT 1,
+                    [Priority] INT NOT NULL DEFAULT 0,
+                    [CreatedAtUtc] DATETIME2(7) NOT NULL,
+                    [UpdatedAtUtc] DATETIME2(7) NOT NULL,
+                    CONSTRAINT [PK_abac_policies] PRIMARY KEY CLUSTERED ([Id]),
+                    INDEX [IX_abac_policies_IsEnabled_Priority] ([IsEnabled], [Priority])
+                );
+            END
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            DROP TABLE IF EXISTS abac_policies;
+            DROP TABLE IF EXISTS abac_policy_sets;
             DROP TABLE IF EXISTS LIARecords;
             DROP TABLE IF EXISTS LawfulBasisRegistrations;
             DROP TABLE IF EXISTS ConsentRecords;
@@ -416,6 +462,8 @@ public static class SqlServerSchema
     public static async Task ClearAllDataAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            IF OBJECT_ID('abac_policies', 'U') IS NOT NULL DELETE FROM abac_policies;
+            IF OBJECT_ID('abac_policy_sets', 'U') IS NOT NULL DELETE FROM abac_policy_sets;
             IF OBJECT_ID('ProcessingActivities', 'U') IS NOT NULL DELETE FROM ProcessingActivities;
             IF OBJECT_ID('LIARecords', 'U') IS NOT NULL DELETE FROM LIARecords;
             IF OBJECT_ID('LawfulBasisRegistrations', 'U') IS NOT NULL DELETE FROM LawfulBasisRegistrations;
