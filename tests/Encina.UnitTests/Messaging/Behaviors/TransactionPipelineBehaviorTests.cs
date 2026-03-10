@@ -130,7 +130,7 @@ public sealed class TransactionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_HandlerThrows_RollsBackTransactionAndRethrows()
+    public async Task Handle_HandlerThrows_RollsBackTransactionAndReturnsLeft()
     {
         // Arrange
         var request = new TestRequest(Guid.NewGuid());
@@ -140,11 +140,10 @@ public sealed class TransactionPipelineBehaviorTests
             throw new InvalidOperationException("Handler failed");
 
         // Act
-        var act = async () => await _behavior.Handle(request, context, nextStep, CancellationToken.None);
+        var result = await _behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        var exception = await act.ShouldThrowAsync<InvalidOperationException>();
-        exception.Message.ShouldBe("Handler failed");
+        result.IsLeft.ShouldBeTrue();
         _transaction.Received(1).Rollback();
         _transaction.DidNotReceive().Commit();
     }
@@ -232,10 +231,10 @@ public sealed class TransactionPipelineBehaviorTests
             throw new InvalidOperationException("Handler failed");
 
         // Act
-        var act = async () => await _behavior.Handle(request, context, nextStep, CancellationToken.None);
+        var result = await _behavior.Handle(request, context, nextStep, CancellationToken.None);
 
         // Assert
-        await act.ShouldThrowAsync<InvalidOperationException>();
+        result.IsLeft.ShouldBeTrue();
         _transaction.Received(1).Dispose();
     }
 

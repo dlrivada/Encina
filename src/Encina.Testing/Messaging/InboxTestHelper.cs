@@ -244,9 +244,9 @@ public sealed class InboxTestHelper : IDisposable
         return WhenAsync(async () =>
         {
             var result = await _store.GetMessageAsync(messageId);
-            _lastRetrievedMessage = result.Match(
-                Right: option => option.Match(Some: msg => msg, None: () => (IInboxMessage?)null),
-                Left: _ => null);
+            _lastRetrievedMessage = result.MatchUnsafe(
+                Right: option => option.MatchUnsafe(Some: msg => msg, None: () => (IInboxMessage?)null),
+                Left: _ => (IInboxMessage?)null);
         });
     }
 

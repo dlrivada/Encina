@@ -115,4 +115,4 @@ The `[RequireCondition]` attribute is intentionally not prefixed with "EEL" beca
 
 - [Spring Expression Language (SpEL)](https://docs.spring.io/spring-framework/reference/core/expressions.html)
 - [Jakarta Expression Language (EL)](https://jakarta.ee/specifications/expression-language/)
-- [Object Graph Navigation Language (OGNL)](https://commons.apache.org/proper/commons-ognl/)
+- [Object Graph Navigation Language (OGNL)](https://commons.apache.org/dormant/commons-ognl/)

@@ -287,21 +287,21 @@ public sealed class TransactionPipelineBehaviorIntegrationTests : IDisposable
     #region Exception Handling Tests
 
     [Fact]
-    public async Task Handle_ExceptionInPipeline_RollsBackAndRethrows()
+    public async Task Handle_ExceptionInPipeline_RollsBackAndReturnsLeft()
     {
         // Arrange
         var command = new TestTransactionalCommand();
         var expectedException = new InvalidOperationException("Test exception");
 
-        // Act & Assert
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-            _behavior.Handle(
-                command,
-                _context,
-                () => throw expectedException,
-                CancellationToken.None).AsTask());
+        // Act
+        var result = await _behavior.Handle(
+            command,
+            _context,
+            () => throw expectedException,
+            CancellationToken.None);
 
-        ex.Message.ShouldBe("Test exception");
+        // Assert
+        result.IsLeft.ShouldBeTrue();
         // No transaction should be active after rollback
         _dbContext.Database.CurrentTransaction.ShouldBeNull();
     }

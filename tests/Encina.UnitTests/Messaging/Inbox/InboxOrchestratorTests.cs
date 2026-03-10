@@ -348,7 +348,7 @@ public sealed class InboxOrchestratorTests
     #region ProcessAsync Tests - Error Handling
 
     [Fact]
-    public async Task ProcessAsync_CallbackThrows_MarksAsFailedAndRethrows()
+    public async Task ProcessAsync_CallbackThrows_MarksAsFailedAndReturnsLeft()
     {
         // Arrange
         var messageId = "msg-123";
@@ -368,11 +368,12 @@ public sealed class InboxOrchestratorTests
         Func<ValueTask<Either<EncinaError, string>>> callback = () =>
             ValueTask.FromException<Either<EncinaError, string>>(new InvalidOperationException("Processing failed"));
 
-        // Act & Assert
-        var act = async () => await _orchestrator.ProcessAsync(
+        // Act
+        var result = await _orchestrator.ProcessAsync(
             messageId, "TestRequest", "corr-123", null, callback);
 
-        await act.ShouldThrowAsync<InvalidOperationException>();
+        // Assert
+        result.IsLeft.ShouldBeTrue();
 
         await _store.Received(1).MarkAsFailedAsync(
             messageId,

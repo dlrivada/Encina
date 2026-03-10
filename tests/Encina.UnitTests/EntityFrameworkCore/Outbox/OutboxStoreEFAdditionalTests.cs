@@ -1,6 +1,7 @@
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Outbox;
 using Encina.Messaging.Outbox;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
@@ -49,15 +50,17 @@ public class OutboxStoreEFAdditionalTests : IDisposable
     }
 
     [Fact]
-    public async Task AddAsync_WrongMessageType_ThrowsInvalidOperationException()
+    public async Task AddAsync_WrongMessageType_ReturnsLeftWithError()
     {
         // Arrange
         var wrongMessage = Substitute.For<IOutboxMessage>();
 
-        // Act & Assert
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-            _store.AddAsync(wrongMessage));
-        ex.Message.ShouldContain("OutboxStoreEF requires messages of type OutboxMessage");
+        // Act
+        var result = await _store.AddAsync(wrongMessage);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.Message.ShouldContain("OutboxStoreEF requires messages of type OutboxMessage"));
     }
 
     #endregion
@@ -147,10 +150,11 @@ public class OutboxStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(messages => messages.ShouldBeEmpty());
     }
 
     [Fact]
@@ -171,20 +175,22 @@ public class OutboxStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.Count().ShouldBe(1);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(messages => messages.Count().ShouldBe(1));
     }
 
     [Fact]
     public async Task GetPendingMessagesAsync_ReturnsEmptyWhenNoMessages()
     {
         // Act
-        var messages = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
+        var result = await _store.GetPendingMessagesAsync(batchSize: 10, maxRetries: 3);
 
         // Assert
-        messages.ShouldBeEmpty();
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(messages => messages.ShouldBeEmpty());
     }
 
     #endregion

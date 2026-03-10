@@ -1,6 +1,7 @@
 using Encina.EntityFrameworkCore;
 using Encina.EntityFrameworkCore.Inbox;
 using Encina.Messaging.Inbox;
+using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
@@ -61,15 +62,17 @@ public class InboxStoreEFAdditionalTests : IDisposable
     }
 
     [Fact]
-    public async Task AddAsync_WrongMessageType_ThrowsInvalidOperationException()
+    public async Task AddAsync_WrongMessageType_ReturnsLeftWithError()
     {
         // Arrange
         var wrongMessage = Substitute.For<IInboxMessage>();
 
-        // Act & Assert
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-            _store.AddAsync(wrongMessage));
-        ex.Message.ShouldContain("InboxStoreEF requires messages of type InboxMessage");
+        // Act
+        var result = await _store.AddAsync(wrongMessage);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.Message.ShouldContain("InboxStoreEF requires messages of type InboxMessage"));
     }
 
     #endregion
@@ -254,10 +257,11 @@ public class InboxStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetExpiredMessagesAsync(batchSize: 5);
+        var result = await _store.GetExpiredMessagesAsync(batchSize: 5);
 
         // Assert
-        messages.Count().ShouldBe(5);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(messages => messages.Count().ShouldBe(5));
     }
 
     [Fact]
@@ -277,10 +281,11 @@ public class InboxStoreEFAdditionalTests : IDisposable
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var messages = await _store.GetExpiredMessagesAsync(batchSize: 10);
+        var result = await _store.GetExpiredMessagesAsync(batchSize: 10);
 
         // Assert
-        messages.ShouldBeEmpty();
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(messages => messages.ShouldBeEmpty());
     }
 
     #endregion

@@ -386,7 +386,7 @@ dotnet test Encina.slnx --filter "FullyQualifiedName~Functions" --configuration 
 
 - **REST Profile**: [XACML REST Profile v1.1](https://docs.oasis-open.org/xacml/xacml-rest/v1.1/xacml-rest-v1.1.html)
 - **Multiple Decision Profile**: [XACML 3.0 Multiple Decision Profile](https://docs.oasis-open.org/xacml/3.0/xacml-3.0-multiple-v1-spec-cd-03-en.html)
-- **Administrative and Delegation Profile**: [XACML 3.0 Administration](https://docs.oasis-open.org/xacml/3.0/xacml-3.0-administration-v1-spec-cd-04-en.html)
+- **Administrative and Delegation Profile**: [XACML 3.0 Administration](https://docs.oasis-open.org/xacml/3.0/xacml-3.0-administration-v1-spec-en.html)
 
 ### Encina ABAC Documentation
 

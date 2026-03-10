@@ -41,7 +41,8 @@ public static class Program
             .WithArtifactsPath(Path.Combine(
                 FindRepositoryRoot(),
                 "artifacts",
-                "performance"));
+                "performance"))
+            .WithBuildTimeout(TimeSpan.FromMinutes(5));
 
         // Use BenchmarkSwitcher to discover all benchmark classes in the assembly
         // and respect --filter arguments from the command line
