@@ -354,7 +354,7 @@ Core remains minimal, integrations via satellite packages:
 
 2. `Encina.FluentValidation`
    - `ValidationBehavior<,>`
-   - Extension: `cfg.AddFluentValidation()`
+   - Extension: `services.AddEncinaFluentValidation(assemblies)`
    - Auto-validator discovery
 
 **Priority 2 (Week 4):**

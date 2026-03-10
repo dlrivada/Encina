@@ -358,7 +358,7 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
 **Satellite Package Opportunity:** `Encina.FluentValidation`
 
 - Pre-built `ValidationBehavior<,>`
-- Extension method: `cfg.AddFluentValidation()`
+- Extension method: `services.AddEncinaFluentValidation(assemblies)`
 - Automatic validator discovery
 
 ### 2.3 Database Transactions (EF Core, Dapper)

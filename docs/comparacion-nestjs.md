@@ -470,7 +470,7 @@ public class CreateOrderCommand : IRequest<Either<EncinaError, Order>>
 services.AddEncina(cfg =>
 {
     cfg.AddDataAnnotationsValidation();
-    cfg.AddFluentValidation();
+    cfg.AddEncinaFluentValidation(typeof(Program).Assembly);
 });
 ```
 
@@ -2006,8 +2006,8 @@ services.AddEncinaADOOracle(connectionString);
 
 ```csharp
 // Mix and match - all coexist
-services.AddDataAnnotationsValidation();  // Built-in .NET
-services.AddFluentValidation();            // Complex rules
+services.AddDataAnnotationsValidation();           // Built-in .NET
+services.AddEncinaFluentValidation(assemblies);   // Complex rules
 services.AddMiniValidator();               // Lightweight (~20KB)
 services.AddGuardClauses();                // Defensive programming
 ```

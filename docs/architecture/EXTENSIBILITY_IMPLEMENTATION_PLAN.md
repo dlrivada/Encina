@@ -273,7 +273,7 @@ public sealed class RequestContext : IRequestContext
 **Tasks:**
 
 1. ✅ Create `ValidationBehavior<,>`
-2. ✅ Extension: `cfg.AddFluentValidation()`
+2. ✅ Extension: `services.AddEncinaFluentValidation(assemblies)`
 3. ✅ Auto-discover validators from assemblies
 4. ✅ Return validation errors as `Left<EncinaError>`
 5. ✅ Tests

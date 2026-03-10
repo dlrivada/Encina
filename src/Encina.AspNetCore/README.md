@@ -515,11 +515,8 @@ Encina.AspNetCore works seamlessly with other Encina satellite packages:
 ### With FluentValidation
 
 ```csharp
-builder.Services.AddEncina(cfg =>
-{
-    cfg.AddFluentValidation(); // Validation happens before authorization
-}, assemblies);
-
+builder.Services.AddEncinaFluentValidation(assemblies); // Validation happens before authorization
+builder.Services.AddEncina(cfg => { }, assemblies);
 builder.Services.AddEncinaAspNetCore();
 ```
 

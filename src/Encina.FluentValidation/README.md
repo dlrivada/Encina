@@ -299,14 +299,14 @@ Test validation separately using the validator directly:
 
 ```csharp
 [Fact]
-public void CreateUserValidator_Fails_WhenEmailIsInvalid()
+public async Task CreateUserValidator_Fails_WhenEmailIsInvalid()
 {
     // Arrange
     var validator = new CreateUserValidator();
     var request = new CreateUser("invalid-email", "John", 25);
 
     // Act
-    var result = validator.Validate(request);
+    var result = await validator.ValidateAsync(request);
 
     // Assert
     result.IsValid.ShouldBeFalse();

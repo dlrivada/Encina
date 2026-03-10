@@ -441,7 +441,7 @@ Priority order:
 
 1. **`Encina.FluentValidation`** (Critical)
    - `ValidationBehavior<,>`
-   - Extension method: `cfg.AddFluentValidation()`
+   - Extension method: `services.AddEncinaFluentValidation(assemblies)`
    - Auto-validator discovery
 
 2. **`Encina.EntityFrameworkCore`** (Critical)
@@ -525,10 +525,10 @@ We'll know this decision is successful when:
 // Install: dotnet add package Encina.FluentValidation
 
 // Startup
-services.AddValidatorsFromAssembly(typeof(CreateOrderValidator).Assembly);
+services.AddEncinaFluentValidation(typeof(CreateOrderValidator).Assembly); // Registers validators + ValidationPipelineBehavior
 services.AddEncina(cfg =>
 {
-    cfg.AddFluentValidation();  // Registers ValidationBehavior<,>
+    // FluentValidation is already configured above
 }, assemblies);
 
 // Validator
