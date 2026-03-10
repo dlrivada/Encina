@@ -317,6 +317,45 @@ Use this matrix to determine which providers apply to each feature type:
 
 > **Rule of thumb**: If a feature touches provider-specific code, it must be implemented consistently across ALL providers in that category.
 
+#### Cross-Cutting Integration Rule (MANDATORY)
+
+> **CRITICAL**: Every new feature MUST be evaluated against ALL cross-cutting (transversal) functions. Missing integrations create invisible gaps that compound over time. See [ADR-018](docs/architecture/adr/018-cross-cutting-integration-principle.md) for the architectural decision behind this rule.
+
+**The 12 Transversal Functions:**
+
+| # | Function | Key Question | Integration Pattern |
+|---|----------|-------------|-------------------|
+| 1 | **Caching** | Does this feature read data that benefits from caching? | `ICacheProvider`, decorator pattern, `[Cache]` attribute |
+| 2 | **OpenTelemetry** | Does this feature perform operations worth tracing/metering? | `ActivitySource`, `Meter`, semantic attributes |
+| 3 | **Structured Logging** | Does this feature need operational visibility? | `Log.cs` with `[LoggerMessage]`, EventId range |
+| 4 | **Health Checks** | Does this feature have a health-checkable dependency? | `IEncinaHealthCheck` implementation |
+| 5 | **Validation** | Does this feature receive input that needs validation? | `IValidationProvider`, pipeline behavior |
+| 6 | **Resilience** | Does this feature call external systems that can fail? | Polly retry, circuit breaker, timeout |
+| 7 | **Distributed Locks** | Does this feature have concurrent access to shared state? | `IDistributedLockProvider` |
+| 8 | **Transactions** | Does this feature need atomic multi-operation guarantees? | `IUnitOfWork`, `TransactionPipelineBehavior` |
+| 9 | **Idempotency** | Can this feature receive duplicate requests? | `InboxPipelineBehavior`, deduplication key |
+| 10 | **Multi-Tenancy** | Does this feature store/query data that belongs to a tenant? | `TenantId` field, `ITenantContext` |
+| 11 | **Module Isolation** | In modular monolith, does this feature need module scoping? | `ModuleId` field, `IModuleContext` |
+| 12 | **Audit Trail** | Does this feature perform operations with compliance/security implications? | `IAuditStore`, audit events |
+
+**When this rule applies:** Every feature that creates new entities, stores, pipeline behaviors, background services, or external integrations.
+
+**Required outcome for each of the 12 functions:**
+
+- ✅ **Integrate** — Implement the integration in the current feature
+- ⏭️ **Defer** — Create a GitHub Issue for future integration (reference it in the plan/PR)
+- ❌ **Not Applicable** — Document WHY in the plan or PR description (1 sentence)
+
+**Examples of common misses this rule prevents:**
+
+| New Feature | Commonly Missed Integrations |
+|-------------|------------------------------|
+| New store/entity | OpenTelemetry, TenantId, ModuleId, Health Check |
+| New background service | Distributed Locks, Leader Election, Structured Logging |
+| New external integration | Resilience (retry/circuit breaker), Health Check, OpenTelemetry |
+| New pipeline behavior | Validation, Idempotency, Audit Trail |
+| New messaging pattern | Transactions, Distributed Locks, Multi-Tenancy |
+
 #### Opt-In Configuration
 
 All messaging patterns are disabled by default:

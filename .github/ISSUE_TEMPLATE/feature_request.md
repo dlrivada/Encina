@@ -93,29 +93,35 @@ Example of 13 database providers matrix:
 | EFCore-MySQL | | | |
 | MongoDB | | | |
 
-## Observability
+## Cross-Cutting Integration
 
-> Define the observability strategy for this feature. All non-trivial features should have OpenTelemetry instrumentation.
+> Per CLAUDE.md Cross-Cutting Integration Rule: Every new feature MUST be evaluated against ALL 12 transversal functions.
+> Mark each: ✅ Included in this feature | ⏭️ Deferred (separate issue) | ❌ N/A (explain why)
 
-### Metrics (OpenTelemetry)
+| # | Function | Status | Notes |
+|---|----------|--------|-------|
+| 1 | **Caching** (`ICacheProvider`, decorator, `[Cache]`) | | |
+| 2 | **OpenTelemetry** (`ActivitySource`, `Meter`) | | |
+| 3 | **Structured Logging** (`[LoggerMessage]`, `Log.cs`) | | |
+| 4 | **Health Checks** (`IEncinaHealthCheck`) | | |
+| 5 | **Validation** (`IValidationProvider`, pipeline) | | |
+| 6 | **Resilience** (retry, circuit breaker, timeout) | | |
+| 7 | **Distributed Locks** (`IDistributedLockProvider`) | | |
+| 8 | **Transactions** (`IUnitOfWork`, atomicity) | | |
+| 9 | **Idempotency** (`InboxPipelineBehavior`, dedup) | | |
+| 10 | **Multi-Tenancy** (`TenantId`, `ITenantContext`) | | |
+| 11 | **Module Isolation** (`ModuleId`, `IModuleContext`) | | |
+| 12 | **Audit Trail** (`IAuditStore`, audit events) | | |
+
+### Observability Details (if applicable)
 
 | Metric Name | Type | Description |
 |-------------|------|-------------|
 | `encina.feature.operation_count` | Counter | Example metric |
 
-### Traces / Spans
-
 | Span Name | Attributes | Description |
 |-----------|------------|-------------|
 | `encina.feature.operation` | `feature.key` | Example span |
-
-### Health Checks
-
-- Describe any health check endpoints or probes this feature adds.
-
-### Structured Logging
-
-- Key log events and their severity levels.
 
 ## Test Matrix
 

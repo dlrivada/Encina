@@ -19,6 +19,7 @@ Gracias por contribuir. Este proyecto prioriza código limpio, rail funcional (s
 - [ ] Tests en Release pasan.
 - [ ] Cobertura no cae bajo el umbral CI (90% líneas) y, si cambia, actualiza badge.
 - [ ] Cambios en behaviors/pipelines siguen el rail funcional; sin excepciones operativas.
+- [ ] **Cross-cutting integration**: Si añades una feature nueva, evalúa contra las 12 funciones transversales (Caching, OpenTelemetry, Logging, Health Checks, Validation, Resilience, Distributed Locks, Transactions, Idempotency, Multi-Tenancy, Module Isolation, Audit Trail). Ver CLAUDE.md "Cross-Cutting Integration Rule".
 - [ ] Documentación/badges actualizados si aplica.
 
 ## Flujo de CI

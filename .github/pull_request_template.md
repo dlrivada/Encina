@@ -21,6 +21,15 @@ Brief description of what this PR does.
 - [ ] XML documentation added for public APIs
 - [ ] CHANGELOG.md updated (if applicable)
 
+## Cross-Cutting Integration
+
+> For new features: verify integration with all 12 transversal functions (see CLAUDE.md "Cross-Cutting Integration Rule").
+> Skip this section for bug fixes, documentation updates, and refactoring PRs.
+
+- [ ] Evaluated against all 12 transversal functions (Caching, OpenTelemetry, Logging, Health Checks, Validation, Resilience, Distributed Locks, Transactions, Idempotency, Multi-Tenancy, Module Isolation, Audit Trail)
+- [ ] Missing integrations either implemented or tracked as GitHub Issues
+- [ ] N/A items documented with rationale in the plan or this PR
+
 ## Related Issues
 
 Closes #

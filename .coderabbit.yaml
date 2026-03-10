@@ -41,6 +41,12 @@ reviews:
         - Ensure Railway Oriented Programming pattern (Either<EncinaError, T>) is used correctly
         - No backward compatibility concerns - this is pre-1.0
         - All messaging patterns (Outbox, Inbox, Saga, Scheduling) must be opt-in
+        - Cross-cutting integration: When reviewing new features, verify that the implementation
+          considers Encina's 12 transversal functions (Caching, OpenTelemetry, Structured Logging,
+          Health Checks, Validation, Resilience, Distributed Locks, Transactions, Idempotency,
+          Multi-Tenancy, Module Isolation, Audit Trail). Flag if a new store or entity is missing
+          TenantId/ModuleId, a new background service lacks distributed locking, a new external
+          integration has no resilience, or a new provider has no OpenTelemetry instrumentation.
 
     - path: "tests/**/*.cs"
       instructions: |
