@@ -687,12 +687,12 @@ public sealed class DPIAPipelineIntegrationTests
     private static DPIAAssessment CreateAssessment(
         string requestTypeName,
         DPIAAssessmentStatus status = DPIAAssessmentStatus.Draft) => new()
-    {
-        Id = Guid.NewGuid(),
-        RequestTypeName = requestTypeName,
-        Status = status,
-        CreatedAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            Id = Guid.NewGuid(),
+            RequestTypeName = requestTypeName,
+            Status = status,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
 
     #endregion
 }

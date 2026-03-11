@@ -52,12 +52,12 @@ public class DefaultDPIAAssessmentEngineTests
         string? processingType = null,
         IReadOnlyList<string>? dataCategories = null,
         IReadOnlyList<string>? triggers = null) => new()
-    {
-        RequestType = requestType ?? typeof(object),
-        ProcessingType = processingType,
-        DataCategories = dataCategories ?? [],
-        HighRiskTriggers = triggers ?? [],
-    };
+        {
+            RequestType = requestType ?? typeof(object),
+            ProcessingType = processingType,
+            DataCategories = dataCategories ?? [],
+            HighRiskTriggers = triggers ?? [],
+        };
 
     private static IRiskCriterion CreateCriterion(RiskItem? result, string name = "TestCriterion")
     {

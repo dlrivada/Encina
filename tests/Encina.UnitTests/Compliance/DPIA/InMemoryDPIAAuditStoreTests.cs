@@ -20,14 +20,14 @@ public class InMemoryDPIAAuditStoreTests
         Guid? assessmentId = null,
         string action = "TestAction",
         DateTimeOffset? occurredAtUtc = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        AssessmentId = assessmentId ?? Guid.NewGuid(),
-        Action = action,
-        PerformedBy = "tester",
-        OccurredAtUtc = occurredAtUtc ?? DateTimeOffset.UtcNow,
-        Details = "Test details",
-    };
+        {
+            Id = Guid.NewGuid(),
+            AssessmentId = assessmentId ?? Guid.NewGuid(),
+            Action = action,
+            PerformedBy = "tester",
+            OccurredAtUtc = occurredAtUtc ?? DateTimeOffset.UtcNow,
+            Details = "Test details",
+        };
 
     #region RecordAuditEntryAsync Tests
 

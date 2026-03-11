@@ -16,13 +16,13 @@ public class DPIAAssessmentTests
     private static DPIAAssessment CreateDefaultAssessment(
         DPIAAssessmentStatus status = DPIAAssessmentStatus.Draft,
         DateTimeOffset? nextReviewAtUtc = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        RequestTypeName = "TestNamespace.TestCommand",
-        Status = status,
-        CreatedAtUtc = FixedNow.AddDays(-30),
-        NextReviewAtUtc = nextReviewAtUtc,
-    };
+        {
+            Id = Guid.NewGuid(),
+            RequestTypeName = "TestNamespace.TestCommand",
+            Status = status,
+            CreatedAtUtc = FixedNow.AddDays(-30),
+            NextReviewAtUtc = nextReviewAtUtc,
+        };
 
     #region IsCurrent Tests
 

@@ -17,11 +17,11 @@ public class SpecialCategoryDataCriterionTests
     private static DPIAContext CreateContext(
         IReadOnlyList<string> dataCategories,
         params string[] triggers) => new()
-    {
-        RequestType = typeof(object),
-        DataCategories = dataCategories,
-        HighRiskTriggers = triggers,
-    };
+        {
+            RequestType = typeof(object),
+            DataCategories = dataCategories,
+            HighRiskTriggers = triggers,
+        };
 
     #region Name Tests
 

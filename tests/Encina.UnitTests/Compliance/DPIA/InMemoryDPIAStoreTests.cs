@@ -24,13 +24,13 @@ public class InMemoryDPIAStoreTests
         string requestTypeName = "Ns.TestCommand",
         DPIAAssessmentStatus status = DPIAAssessmentStatus.Draft,
         DateTimeOffset? nextReviewAtUtc = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        RequestTypeName = requestTypeName,
-        Status = status,
-        CreatedAtUtc = FixedNow,
-        NextReviewAtUtc = nextReviewAtUtc,
-    };
+        {
+            Id = Guid.NewGuid(),
+            RequestTypeName = requestTypeName,
+            Status = status,
+            CreatedAtUtc = FixedNow,
+            NextReviewAtUtc = nextReviewAtUtc,
+        };
 
     #region SaveAssessmentAsync Tests
 

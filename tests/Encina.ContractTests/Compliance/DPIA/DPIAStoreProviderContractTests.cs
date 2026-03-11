@@ -1,15 +1,13 @@
 using System.Reflection;
-
 using Encina.Compliance.DPIA;
-
+using ADOMySQLDPIA = Encina.ADO.MySQL.DPIA;
+using ADOPostgreSQLDPIA = Encina.ADO.PostgreSQL.DPIA;
 using ADOSqliteDPIA = Encina.ADO.Sqlite.DPIA;
 using ADOSqlServerDPIA = Encina.ADO.SqlServer.DPIA;
-using ADOPostgreSQLDPIA = Encina.ADO.PostgreSQL.DPIA;
-using ADOMySQLDPIA = Encina.ADO.MySQL.DPIA;
+using DapperMySQLDPIA = Encina.Dapper.MySQL.DPIA;
+using DapperPostgreSQLDPIA = Encina.Dapper.PostgreSQL.DPIA;
 using DapperSqliteDPIA = Encina.Dapper.Sqlite.DPIA;
 using DapperSqlServerDPIA = Encina.Dapper.SqlServer.DPIA;
-using DapperPostgreSQLDPIA = Encina.Dapper.PostgreSQL.DPIA;
-using DapperMySQLDPIA = Encina.Dapper.MySQL.DPIA;
 using EFCoreDPIA = Encina.EntityFrameworkCore.DPIA;
 using MongoDBDPIA = Encina.MongoDB.DPIA;
 

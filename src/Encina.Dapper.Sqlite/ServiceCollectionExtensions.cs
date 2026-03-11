@@ -1,10 +1,10 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
-using Encina.Compliance.DPIA;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
+using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.Sqlite.Auditing;

@@ -1,11 +1,8 @@
 using System.Diagnostics;
-
 using Encina.Compliance.DPIA;
-
-using LanguageExt;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
-
+using LanguageExt;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

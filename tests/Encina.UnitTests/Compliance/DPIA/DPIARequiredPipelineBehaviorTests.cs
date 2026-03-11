@@ -56,14 +56,14 @@ public class DPIARequiredPipelineBehaviorTests
 
     private static DPIAAssessment CreateApprovedAssessment(
         DateTimeOffset? nextReviewAtUtc = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        RequestTypeName = typeof(TestCommandWithDPIA).FullName!,
-        Status = DPIAAssessmentStatus.Approved,
-        CreatedAtUtc = FixedNow.AddDays(-30),
-        ApprovedAtUtc = FixedNow.AddDays(-5),
-        NextReviewAtUtc = nextReviewAtUtc,
-    };
+        {
+            Id = Guid.NewGuid(),
+            RequestTypeName = typeof(TestCommandWithDPIA).FullName!,
+            Status = DPIAAssessmentStatus.Approved,
+            CreatedAtUtc = FixedNow.AddDays(-30),
+            ApprovedAtUtc = FixedNow.AddDays(-5),
+            NextReviewAtUtc = nextReviewAtUtc,
+        };
 
     #region Disabled Enforcement Mode Tests
 
