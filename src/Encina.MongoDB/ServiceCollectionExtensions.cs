@@ -1,6 +1,7 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.Consent;
+using Encina.Compliance.DPIA;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.GDPR;
@@ -169,6 +170,12 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreMongoDB>();
         }
 
+        if (options.UseDPIA)
+        {
+            services.AddScoped<IDPIAStore, DPIA.DPIAStoreMongoDB>();
+            services.AddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreMongoDB>();
+        }
+
         // Register ABAC Policy Store if enabled
         if (options.UseABACPolicyStore)
         {
@@ -316,6 +323,12 @@ public static class ServiceCollectionExtensions
         {
             services.AddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreMongoDB>();
             services.AddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreMongoDB>();
+        }
+
+        if (options.UseDPIA)
+        {
+            services.AddScoped<IDPIAStore, DPIA.DPIAStoreMongoDB>();
+            services.AddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreMongoDB>();
         }
 
         // Register ABAC Policy Store if enabled

@@ -1428,6 +1428,97 @@ Added the `Encina.Compliance.BreachNotification` package implementing GDPR Artic
 
 ---
 
+#### Encina.Compliance.DPIA — GDPR Data Protection Impact Assessment with Risk Scoring and DPO Consultation (#409)
+
+Added the `Encina.Compliance.DPIA` package implementing GDPR Articles 35 and 36 for mandatory Data Protection Impact Assessments. Provides a complete DPIA lifecycle with risk evaluation, template-based assessment creation, DPO consultation workflow, expiration tracking, and immutable audit trail.
+
+**Core Abstractions**:
+
+- **`IDPIAAssessmentEngine`**: Full assessment lifecycle with `AssessAsync`, `EvaluateRisksAsync`, `SubmitForReviewAsync`, `ApproveAsync`, `RejectAsync`, `RequestRevisionAsync`
+- **`IDPIAStore`**: Assessment persistence with `SaveAssessmentAsync`, `GetAssessmentAsync`, `GetAssessmentByIdAsync`, `GetExpiredAssessmentsAsync`, `GetAllAssessmentsAsync`, `DeleteAssessmentAsync`
+- **`IDPIAAuditStore`**: Immutable audit trail with `RecordAuditEntryAsync` and `GetAuditTrailAsync` for GDPR Article 5(2) accountability
+- **`IDPIATemplateProvider`**: Template management with `GetTemplateAsync` and `GetAllTemplatesAsync`
+- **`IRiskCriterion`**: Extensible risk evaluation returning `Either<EncinaError, RiskItem>` (Railway Oriented Programming)
+
+**Six Built-In Risk Criteria** (GDPR Article 35(3)):
+
+- **`SystematicProfilingCriterion`**: Art. 35(3)(a) — systematic evaluation of personal aspects
+- **`SpecialCategoryDataCriterion`**: Art. 9/10 — special category or criminal offence data
+- **`SystematicMonitoringCriterion`**: Art. 35(3)(c) — large-scale systematic monitoring of public areas
+- **`AutomatedDecisionMakingCriterion`**: Art. 22 — automated individual decision-making with legal effects
+- **`LargeScaleProcessingCriterion`**: Large-scale processing of personal data
+- **`VulnerableSubjectsCriterion`**: Processing involving vulnerable data subjects (children, employees, patients)
+
+**Domain Model**:
+
+- **`DPIAAssessment`**: Sealed record with Id, Status, ProcessingType, Reason, Result, DPOConsultation, CreatedAtUtc, ApprovedAtUtc, NextReviewAtUtc
+- **`DPIAAssessmentStatus`**: Draft / InReview / Approved / Rejected / RequiresRevision / Expired
+- **`DPIAResult`**: Overall risk level, risk items, mitigations, recommendations
+- **`DPOConsultation`**: Consultation workflow with DPO name, decision (Pending/Approved/Rejected/ConditionallyApproved), conditions, decided date
+- **`DPIATemplate`**: Pre-configured templates with sections for common processing types
+- **`RiskLevel`**: Low / Medium / High / VeryHigh
+- **`RiskItem`**: Individual risk with category, level, description, likelihood, impact
+- **`Mitigation`**: Remediation action with description, status, responsible person
+- **`HighRiskTriggers`**: Constants for the nine EDPB/WP29 high-risk criteria
+
+**Pipeline Behavior**:
+
+- **`DPIARequiredPipelineBehavior<TRequest, TResponse>`**: Attribute-based DPIA enforcement at the CQRS pipeline level
+- **`[RequiresDPIA]`** attribute with configurable processing type and description
+- Three enforcement modes: `Block` (reject without approved DPIA), `Warn` (log and continue), `Disabled` (no-op)
+- Requests without `[RequiresDPIA]` attribute bypass all checks (zero overhead)
+
+**DPO Consultation Workflow**:
+
+- Automatic consultation triggering when `RequireDPOConsultation = true` and risk is High/VeryHigh
+- `DPOConsultationRequested` notification published for integration with external workflows
+- Four decisions: `Pending`, `Approved`, `Rejected`, `ConditionallyApproved`
+- Conditional approval with conditions text and re-review capability
+
+**Assessment Expiration and Review**:
+
+- `DPIAReviewReminderService` background service monitors expired assessments
+- Configurable review interval via `ReviewIntervalDays` (default: 365)
+- `DPIAAssessmentExpired` notification published when assessments pass review date
+- Expired assessments queryable via `GetExpiredAssessmentsAsync`
+
+**In-Memory Implementations** (development/testing):
+
+- **`InMemoryDPIAStore`**: ConcurrentDictionary-based with expiration query support
+- **`InMemoryDPIAAuditStore`**: Thread-safe audit trail with chronological ordering
+
+**Error Codes** (8 structured errors via `DPIAErrors`):
+
+- `dpia.not_found`, `dpia.already_exists`, `dpia.assessment_failed`, `dpia.store_error`
+- `dpia.audit_store_error`, `dpia.template_not_found`, `dpia.invalid_status_transition`, `dpia.dpo_consultation_required`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.DPIA` ActivitySource with assessment-specific tags
+- Meter with instruments: assessments completed, risks evaluated, DPO consultations requested
+- Structured log events using `LoggerMessage.Define` (zero-allocation)
+- Optional health check (`DPIAHealthCheck`) verifying DI configuration and store connectivity
+
+**DI Registration**:
+
+- `services.AddEncinaDPIA()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+
+**Database Provider Infrastructure** (13 providers):
+
+- Entity classes: `DPIAAssessmentEntity`, `DPIAAuditEntryEntity` with bidirectional mappers
+- SQL migration scripts for all ADO.NET and Dapper providers (Sqlite, SqlServer, PostgreSQL, MySQL)
+- EF Core entity configuration via `ModelBuilderExtensions.ApplyDPIAConfiguration()`
+- MongoDB document mapping with `UseDPIA = true` option
+- Store implementations for all 13 providers: `DPIAStoreADO`, `DPIAAuditStoreADO` (×4 databases), `DPIAStoreDapper`, `DPIAAuditStoreDapper` (×4), `DPIAStoreEF`, `DPIAAuditStoreEF` (×4 via shared implementation), `DPIAStoreMongoDB`, `DPIAAuditStoreMongoDB`
+
+**ASP.NET Core Integration**:
+
+- `DPIAEndpointExtensions.MapDPIAEndpoints()` — Minimal API endpoints for assessment CRUD, risk evaluation, DPO consultation, and audit trail queries
+
+**Testing**: 166 integration tests across 13 providers (ADO ×4: 48 tests, Dapper ×4: 48 tests, EFCore ×4: 48 tests, MongoDB: 22 tests) + unit tests, guard tests, contract tests, property tests.
+
+---
+
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)
 
 - All orchestrator public methods now return `Either<EncinaError, T>` instead of throwing exceptions (#670)

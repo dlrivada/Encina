@@ -61,6 +61,7 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
         await SqliteSchema.CreateLawfulBasisSchemaAsync(sqliteConnection);
         await SqliteSchema.CreateProcessingActivitySchemaAsync(sqliteConnection);
         await SqliteSchema.CreateAbacSchemaAsync(sqliteConnection);
+        await SqliteSchema.CreateDpiaSchemaAsync(sqliteConnection);
     }
 
     /// <inheritdoc />
@@ -102,6 +103,7 @@ public sealed class SqliteFixture : DatabaseFixture<SqliteConnection>
             SqliteSchema.CreateLawfulBasisSchemaAsync(_connection).GetAwaiter().GetResult();
             SqliteSchema.CreateProcessingActivitySchemaAsync(_connection).GetAwaiter().GetResult();
             SqliteSchema.CreateAbacSchemaAsync(_connection).GetAwaiter().GetResult();
+            SqliteSchema.CreateDpiaSchemaAsync(_connection).GetAwaiter().GetResult();
 
             _initialized = true;
         }

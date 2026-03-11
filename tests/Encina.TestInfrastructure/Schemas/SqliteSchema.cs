@@ -389,6 +389,55 @@ public static class SqliteSchema
     }
 
     /// <summary>
+    /// Creates the DPIA Assessment and Audit tables schema.
+    /// </summary>
+    public static async Task CreateDpiaSchemaAsync(SqliteConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS DPIAAssessments (
+                Id                TEXT    NOT NULL PRIMARY KEY,
+                RequestTypeName   TEXT    NOT NULL,
+                StatusValue       INTEGER NOT NULL,
+                ProcessingType    TEXT    NULL,
+                Reason            TEXT    NULL,
+                ResultJson        TEXT    NULL,
+                DPOConsultationJson TEXT  NULL,
+                CreatedAtUtc      TEXT    NOT NULL,
+                ApprovedAtUtc     TEXT    NULL,
+                NextReviewAtUtc   TEXT    NULL,
+                TenantId          TEXT    NULL,
+                ModuleId          TEXT    NULL
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS UX_DPIAAssessments_RequestTypeName
+                ON DPIAAssessments (RequestTypeName);
+
+            CREATE INDEX IF NOT EXISTS IX_DPIAAssessments_StatusValue
+                ON DPIAAssessments (StatusValue);
+
+            CREATE INDEX IF NOT EXISTS IX_DPIAAssessments_NextReviewAtUtc
+                ON DPIAAssessments (NextReviewAtUtc);
+
+            CREATE TABLE IF NOT EXISTS DPIAAuditEntries (
+                Id            TEXT NOT NULL PRIMARY KEY,
+                AssessmentId  TEXT NOT NULL,
+                Action        TEXT NOT NULL,
+                PerformedBy   TEXT NULL,
+                OccurredAtUtc TEXT NOT NULL,
+                Details       TEXT NULL,
+                TenantId      TEXT NULL,
+                ModuleId      TEXT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS IX_DPIAAuditEntries_AssessmentId
+                ON DPIAAuditEntries (AssessmentId);
+            """;
+
+        using var command = new SqliteCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
     /// Uses conditional deletion to handle cases where tables may not exist.
@@ -396,7 +445,7 @@ public static class SqliteSchema
     public static async Task ClearAllDataAsync(SqliteConnection connection)
     {
         // Delete from each table individually, ignoring errors for missing tables
-        var tables = new[] { "abac_policies", "abac_policy_sets", "ProcessingActivities", "LIARecords", "LawfulBasisRegistrations", "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
+        var tables = new[] { "DPIAAuditEntries", "DPIAAssessments", "abac_policies", "abac_policy_sets", "ProcessingActivities", "LIARecords", "LawfulBasisRegistrations", "ConsentRecords", "TenantTestEntities", "ReadWriteTestEntities", "Orders", "ScheduledMessages", "SagaStates", "InboxMessages", "OutboxMessages", "TestRepositoryEntities" };
         foreach (var table in tables)
         {
             try

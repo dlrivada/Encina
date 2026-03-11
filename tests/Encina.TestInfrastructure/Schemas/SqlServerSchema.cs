@@ -401,6 +401,57 @@ public static class SqlServerSchema
     }
 
     /// <summary>
+    /// Creates the DPIA Assessment and Audit tables schema.
+    /// </summary>
+    public static async Task CreateDpiaSchemaAsync(SqlConnection connection, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            DROP TABLE IF EXISTS DPIAAuditEntries;
+            DROP TABLE IF EXISTS DPIAAssessments;
+
+            CREATE TABLE DPIAAssessments (
+                    Id                  NVARCHAR(36)   NOT NULL PRIMARY KEY,
+                    RequestTypeName     NVARCHAR(450)  NOT NULL,
+                    StatusValue         INT            NOT NULL,
+                    ProcessingType      NVARCHAR(256)  NULL,
+                    Reason              NVARCHAR(MAX)  NULL,
+                    ResultJson          NVARCHAR(MAX)  NULL,
+                    DPOConsultationJson NVARCHAR(MAX)  NULL,
+                    CreatedAtUtc        DATETIME2(7)   NOT NULL,
+                    ApprovedAtUtc       DATETIME2(7)   NULL,
+                    NextReviewAtUtc     DATETIME2(7)   NULL,
+                    TenantId            NVARCHAR(256)  NULL,
+                    ModuleId            NVARCHAR(256)  NULL
+                );
+
+            CREATE UNIQUE INDEX UX_DPIAAssessments_RequestTypeName
+                ON DPIAAssessments(RequestTypeName);
+
+            CREATE INDEX IX_DPIAAssessments_StatusValue
+                ON DPIAAssessments(StatusValue);
+
+            CREATE INDEX IX_DPIAAssessments_NextReviewAtUtc
+                ON DPIAAssessments(NextReviewAtUtc);
+
+            CREATE TABLE DPIAAuditEntries (
+                    Id            NVARCHAR(36)   NOT NULL PRIMARY KEY,
+                    AssessmentId  NVARCHAR(36)   NOT NULL,
+                    [Action]      NVARCHAR(256)  NOT NULL,
+                    PerformedBy   NVARCHAR(256)  NULL,
+                    OccurredAtUtc DATETIME2(7)   NOT NULL,
+                    Details       NVARCHAR(MAX)  NULL,
+                    TenantId      NVARCHAR(256)  NULL,
+                    ModuleId      NVARCHAR(256)  NULL
+                );
+
+            CREATE INDEX IX_DPIAAuditEntries_AssessmentId
+                ON DPIAAuditEntries(AssessmentId);
+            """;
+
+        await ExecuteInTransactionAsync(connection, sql, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Drops all Encina tables.
     /// </summary>
     public static async Task DropAllSchemasAsync(SqlConnection connection, CancellationToken cancellationToken = default)
@@ -462,6 +513,8 @@ public static class SqlServerSchema
     public static async Task ClearAllDataAsync(SqlConnection connection, CancellationToken cancellationToken = default)
     {
         const string sql = """
+            IF OBJECT_ID('DPIAAuditEntries', 'U') IS NOT NULL DELETE FROM DPIAAuditEntries;
+            IF OBJECT_ID('DPIAAssessments', 'U') IS NOT NULL DELETE FROM DPIAAssessments;
             IF OBJECT_ID('abac_policies', 'U') IS NOT NULL DELETE FROM abac_policies;
             IF OBJECT_ID('abac_policy_sets', 'U') IS NOT NULL DELETE FROM abac_policy_sets;
             IF OBJECT_ID('ProcessingActivities', 'U') IS NOT NULL DELETE FROM ProcessingActivities;

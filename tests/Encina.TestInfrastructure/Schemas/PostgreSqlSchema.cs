@@ -504,12 +504,63 @@ public static class PostgreSqlSchema
     }
 
     /// <summary>
+    /// Creates the DPIA Assessment and Audit tables schema.
+    /// </summary>
+    public static async Task CreateDpiaSchemaAsync(NpgsqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS dpiaassessments (
+                id                  VARCHAR(36)   NOT NULL PRIMARY KEY,
+                requesttypename     TEXT          NOT NULL,
+                statusvalue         INT           NOT NULL,
+                processingtype      VARCHAR(256)  NULL,
+                reason              TEXT          NULL,
+                resultjson          JSONB         NULL,
+                dpoconsultationjson JSONB         NULL,
+                createdatutc        TIMESTAMPTZ   NOT NULL,
+                approvedatutc       TIMESTAMPTZ   NULL,
+                nextreviewatutc     TIMESTAMPTZ   NULL,
+                tenantid            VARCHAR(256)  NULL,
+                moduleid            VARCHAR(256)  NULL
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_dpiaassessments_requesttypename
+                ON dpiaassessments (requesttypename);
+
+            CREATE INDEX IF NOT EXISTS ix_dpiaassessments_statusvalue
+                ON dpiaassessments (statusvalue);
+
+            CREATE INDEX IF NOT EXISTS ix_dpiaassessments_nextreviewatutc
+                ON dpiaassessments (nextreviewatutc);
+
+            CREATE TABLE IF NOT EXISTS dpiaauditentries (
+                id            VARCHAR(36)   NOT NULL PRIMARY KEY,
+                assessmentid  VARCHAR(36)   NOT NULL,
+                action        VARCHAR(256)  NOT NULL,
+                performedby   VARCHAR(256)  NULL,
+                occurredatutc TIMESTAMPTZ   NOT NULL,
+                details       TEXT          NULL,
+                tenantid      VARCHAR(256)  NULL,
+                moduleid      VARCHAR(256)  NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_dpiaauditentries_assessmentid
+                ON dpiaauditentries (assessmentid);
+            """;
+
+        using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
     /// </summary>
     public static async Task ClearAllDataAsync(NpgsqlConnection connection)
     {
         const string sql = """
+            DELETE FROM dpiaauditentries;
+            DELETE FROM dpiaassessments;
             DELETE FROM "abac_policies";
             DELETE FROM "abac_policy_sets";
             DELETE FROM processingactivities;

@@ -8,6 +8,7 @@ using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
+using Encina.Compliance.DPIA;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
@@ -113,6 +114,12 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreADO>();
             services.TryAddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreADO>();
+        }
+
+        if (config.UseDPIA)
+        {
+            services.TryAddScoped<IDPIAStore, DPIA.DPIAStoreADO>();
+            services.TryAddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreADO>();
         }
 
         // Register ABAC Policy Store if enabled

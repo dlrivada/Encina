@@ -363,12 +363,55 @@ public static class MySqlSchema
     }
 
     /// <summary>
+    /// Creates the DPIA Assessment and Audit tables schema.
+    /// </summary>
+    public static async Task CreateDpiaSchemaAsync(MySqlConnection connection)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS `DPIAAssessments` (
+                `Id`                  VARCHAR(36)   NOT NULL PRIMARY KEY,
+                `RequestTypeName`     VARCHAR(450)  NOT NULL,
+                `StatusValue`         INT           NOT NULL,
+                `ProcessingType`      VARCHAR(256)  NULL,
+                `Reason`              TEXT          NULL,
+                `ResultJson`          JSON          NULL,
+                `DPOConsultationJson` JSON          NULL,
+                `CreatedAtUtc`        DATETIME(6)   NOT NULL,
+                `ApprovedAtUtc`       DATETIME(6)   NULL,
+                `NextReviewAtUtc`     DATETIME(6)   NULL,
+                `TenantId`            VARCHAR(256)  NULL,
+                `ModuleId`            VARCHAR(256)  NULL,
+                UNIQUE INDEX `UX_DPIAAssessments_RequestTypeName` (`RequestTypeName`),
+                INDEX `IX_DPIAAssessments_StatusValue` (`StatusValue`),
+                INDEX `IX_DPIAAssessments_NextReviewAtUtc` (`NextReviewAtUtc`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS `DPIAAuditEntries` (
+                `Id`            VARCHAR(36)   NOT NULL PRIMARY KEY,
+                `AssessmentId`  VARCHAR(36)   NOT NULL,
+                `Action`        VARCHAR(256)  NOT NULL,
+                `PerformedBy`   VARCHAR(256)  NULL,
+                `OccurredAtUtc` DATETIME(6)   NOT NULL,
+                `Details`       TEXT          NULL,
+                `TenantId`      VARCHAR(256)  NULL,
+                `ModuleId`      VARCHAR(256)  NULL,
+                INDEX `IX_DPIAAuditEntries_AssessmentId` (`AssessmentId`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """;
+
+        using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Clears all data from Encina tables without dropping schemas.
     /// Useful for cleaning between tests that share a database fixture.
     /// </summary>
     public static async Task ClearAllDataAsync(MySqlConnection connection)
     {
         const string sql = """
+            DELETE FROM `DPIAAuditEntries`;
+            DELETE FROM `DPIAAssessments`;
             DELETE FROM `abac_policies`;
             DELETE FROM `abac_policy_sets`;
             DELETE FROM `ProcessingActivities`;

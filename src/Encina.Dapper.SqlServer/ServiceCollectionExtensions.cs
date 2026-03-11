@@ -1,6 +1,7 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
+using Encina.Compliance.DPIA;
 using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
@@ -147,6 +148,12 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreDapper>();
             services.TryAddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreDapper>();
+        }
+
+        if (config.UseDPIA)
+        {
+            services.TryAddScoped<IDPIAStore, DPIA.DPIAStoreDapper>();
+            services.TryAddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreDapper>();
         }
 
         // Register ABAC Policy Store if enabled

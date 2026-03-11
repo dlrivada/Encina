@@ -53,6 +53,7 @@ public sealed class PostgreSqlFixture : DatabaseFixture<PostgreSqlContainer>
         await PostgreSqlSchema.CreateLawfulBasisSchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateProcessingActivitySchemaAsync(npgsqlConnection);
         await PostgreSqlSchema.CreateAbacSchemaAsync(npgsqlConnection);
+        await PostgreSqlSchema.CreateDpiaSchemaAsync(npgsqlConnection);
     }
 
     /// <inheritdoc />

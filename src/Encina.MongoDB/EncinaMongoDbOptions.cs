@@ -174,6 +174,19 @@ public sealed class EncinaMongoDbOptions
     public bool UseBreachNotification { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the DPIA (Data Protection Impact Assessment) stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.DPIA.IDPIAStore"/>
+    /// and <see cref="Compliance.DPIA.IDPIAAuditStore"/>
+    /// implemented by their MongoDB store classes for GDPR Article 35 compliant
+    /// data protection impact assessment management and audit trail.
+    /// </para>
+    /// </remarks>
+    public bool UseDPIA { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to use the ABAC Policy Store.
     /// </summary>
     /// <remarks>
@@ -385,6 +398,16 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for breach audit entries (breach notification).
     /// </summary>
     public string BreachAuditEntries { get; set; } = "breach_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for DPIA assessments.
+    /// </summary>
+    public string DPIAAssessments { get; set; } = "dpia_assessments";
+
+    /// <summary>
+    /// Gets or sets the collection name for DPIA audit entries.
+    /// </summary>
+    public string DPIAAuditEntries { get; set; } = "dpia_audit_entries";
 
     /// <summary>
     /// Gets or sets the collection name for ABAC policy sets.

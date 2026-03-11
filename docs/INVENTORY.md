@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 8 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management, #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 5 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #413 Lawful Basis Validation) (+ 9 planificados: #404, #407-#412, #414-#415) |
+| **Patrones Compliance (GDPR/EU)** | 7 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #413 Lawful Basis Validation) (+ 8 planificados: #404, #407, #410-#412, #414-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -6058,16 +6058,27 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 
 ##### Tier 3: Media Prioridad (Advanced Compliance)
 
-**#409 - Encina.Compliance.DPIA - Impact Assessment Automation**:
+**#409 - Encina.Compliance.DPIA - Impact Assessment Automation** ✅ **IMPLEMENTADO**:
 
-- `IDPIAService` con `AssessAsync`, `GenerateReportAsync`, `ReviewAsync`
-- `DPIA` con ProcessingDescription, NecessityAssessment, RiskAssessment, Measures
-- Automatic DPIA triggering for high-risk processing (Art. 35)
-- Risk scoring algorithms
-- Consultation workflow con DPO
-- Report generation para DPA submission
-- **Nuevo paquete planificado**: `Encina.Compliance.DPIA`
-- **Demanda de comunidad**: MEDIA-ALTA - Required for high-risk processing
+- ✅ `IDPIAAssessmentEngine` con `AssessAsync`, `EvaluateRisksAsync`, `SubmitForReviewAsync`, `ApproveAsync`, `RejectAsync`, `RequestRevisionAsync` — full DPIA lifecycle management
+- ✅ `IDPIAStore` con `SaveAssessmentAsync`, `GetAssessmentAsync`, `GetAssessmentByIdAsync`, `GetExpiredAssessmentsAsync`, `GetAllAssessmentsAsync`, `DeleteAssessmentAsync`
+- ✅ `IDPIAAuditStore` con `RecordAuditEntryAsync`, `GetAuditTrailAsync` — immutable audit trail for GDPR Art. 5(2)
+- ✅ `IDPIATemplateProvider` con `GetTemplateAsync`, `GetAllTemplatesAsync` — pre-configured assessment templates
+- ✅ `IRiskCriterion` con 6 criterios integrados: `SystematicProfilingCriterion`, `SpecialCategoryDataCriterion`, `SystematicMonitoringCriterion`, `AutomatedDecisionMakingCriterion`, `LargeScaleProcessingCriterion`, `VulnerableSubjectsCriterion`
+- ✅ `DPIARequiredPipelineBehavior<TRequest, TResponse>` con `[RequiresDPIA]` attribute y modos Block/Warn/Disabled
+- ✅ `DPIAAssessment` con status lifecycle (Draft → InReview → Approved/Rejected/RequiresRevision → Expired)
+- ✅ `DPIAResult` con overall risk level, risk items, mitigations, recommendations
+- ✅ `DPOConsultation` workflow con decisions (Pending/Approved/Rejected/ConditionallyApproved)
+- ✅ `DPIAReviewReminderService` background service para expiración automática de assessments
+- ✅ `DPIAOptions` con MinimumRiskCriteria, ReviewIntervalDays, RequireDPOConsultation, EnforcementMode
+- ✅ `DPIAErrors` con 8 error codes estructurados (`dpia.not_found`, `dpia.already_exists`, etc.)
+- ✅ InMemory implementations: `InMemoryDPIAStore`, `InMemoryDPIAAuditStore`
+- ✅ 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
+- ✅ ASP.NET Core endpoints via `MapDPIAEndpoints()`
+- ✅ OpenTelemetry: ActivitySource + Meter + structured log events (zero-allocation)
+- ✅ 166+ tests: integration tests across 13 providers + unit, guard, contract, property tests
+- **Paquete**: `Encina.Compliance.DPIA`
+- **Documentación**: [Feature Guide](features/dpia.md), [README](../src/Encina.Compliance.DPIA/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `industry-best-practice`
 - Referencias: [GDPR Article 35](https://gdpr-info.eu/art-35-gdpr/), [ICO DPIA Guidance](https://ico.org.uk/for-organisations/guide-to-data-protection/guide-to-the-general-data-protection-regulation-gdpr/data-protection-impact-assessments-dpias/)
 
@@ -6178,8 +6189,8 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | `Encina.Compliance.DataResidency` | #405 | Data sovereignty ✅ | Crítica |
 | `Encina.Compliance.Retention` | #406 | Data retention policies ✅ | Alta |
 | `Encina.Compliance.Anonymization` | #407 | Pseudonymization & anonymization | Alta |
-| `Encina.Compliance.BreachNotification` | #408 | 72-hour breach notification | Alta |
-| `Encina.Compliance.DPIA` | #409 | Impact assessment automation | Media |
+| `Encina.Compliance.BreachNotification` | #408 | 72-hour breach notification ✅ | Alta |
+| `Encina.Compliance.DPIA` | #409 | Impact assessment automation ✅ | Media |
 | `Encina.Compliance.ProcessorAgreements` | #410 | DPA management | Media |
 | `Encina.Compliance.PrivacyByDesign` | #411 | Privacy by Design enforcement | Media |
 | `Encina.Compliance.CrossBorderTransfer` | #412 | International transfers | Media |
