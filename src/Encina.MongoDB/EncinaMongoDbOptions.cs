@@ -174,6 +174,20 @@ public sealed class EncinaMongoDbOptions
     public bool UseBreachNotification { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to use the Processor Agreements stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.ProcessorAgreements.IProcessorRegistry"/>,
+    /// <see cref="Compliance.ProcessorAgreements.IDPAStore"/>, and
+    /// <see cref="Compliance.ProcessorAgreements.IProcessorAuditStore"/>
+    /// implemented by their MongoDB store classes for GDPR Article 28 compliant
+    /// processor agreement management, DPA lifecycle tracking, and audit trail.
+    /// </para>
+    /// </remarks>
+    public bool UseProcessorAgreements { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to use the DPIA (Data Protection Impact Assessment) stores.
     /// </summary>
     /// <remarks>
@@ -398,6 +412,21 @@ public sealed class MongoDbCollectionNames
     /// Gets or sets the collection name for breach audit entries (breach notification).
     /// </summary>
     public string BreachAuditEntries { get; set; } = "breach_audit_entries";
+
+    /// <summary>
+    /// Gets or sets the collection name for processors (processor agreements).
+    /// </summary>
+    public string Processors { get; set; } = "processors";
+
+    /// <summary>
+    /// Gets or sets the collection name for data processing agreements.
+    /// </summary>
+    public string ProcessorAgreements { get; set; } = "processor_agreements";
+
+    /// <summary>
+    /// Gets or sets the collection name for processor agreement audit entries.
+    /// </summary>
+    public string ProcessorAgreementAuditEntries { get; set; } = "processor_agreement_audit_entries";
 
     /// <summary>
     /// Gets or sets the collection name for DPIA assessments.

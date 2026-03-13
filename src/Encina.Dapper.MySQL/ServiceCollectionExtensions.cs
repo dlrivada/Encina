@@ -5,6 +5,7 @@ using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
+using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.MySQL.Auditing;
@@ -134,6 +135,14 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IDPIAStore, DPIA.DPIAStoreDapper>();
             services.TryAddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreDapper>();
+        }
+
+        // Register Processor Agreements stores if enabled
+        if (config.UseProcessorAgreements)
+        {
+            services.TryAddScoped<IProcessorRegistry, ProcessorAgreements.ProcessorRegistryDapper>();
+            services.TryAddScoped<IDPAStore, ProcessorAgreements.DPAStoreDapper>();
+            services.TryAddScoped<IProcessorAuditStore, ProcessorAgreements.ProcessorAuditStoreDapper>();
         }
 
         // Register ABAC Policy Store if enabled

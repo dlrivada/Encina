@@ -1,0 +1,26 @@
+CREATE TABLE [dbo].[DataProcessingAgreements] (
+    [Id]                              NVARCHAR(256)  NOT NULL PRIMARY KEY,
+    [ProcessorId]                     NVARCHAR(256)  NOT NULL,
+    [StatusValue]                     INT            NOT NULL,
+    [SignedAtUtc]                     DATETIME2(7)   NOT NULL,
+    [ExpiresAtUtc]                    DATETIME2(7)   NULL,
+    [HasSCCs]                         BIT            NOT NULL,
+    [ProcessingPurposesJson]          NVARCHAR(MAX)  NOT NULL,
+    [ProcessOnDocumentedInstructions] BIT            NOT NULL,
+    [ConfidentialityObligations]      BIT            NOT NULL,
+    [SecurityMeasures]                BIT            NOT NULL,
+    [SubProcessorRequirements]        BIT            NOT NULL,
+    [DataSubjectRightsAssistance]     BIT            NOT NULL,
+    [ComplianceAssistance]            BIT            NOT NULL,
+    [DataDeletionOrReturn]            BIT            NOT NULL,
+    [AuditRights]                     BIT            NOT NULL,
+    [TenantId]                        NVARCHAR(256)  NULL,
+    [ModuleId]                        NVARCHAR(256)  NULL,
+    [CreatedAtUtc]                    DATETIME2(7)   NOT NULL,
+    [LastUpdatedAtUtc]                DATETIME2(7)   NOT NULL,
+    INDEX [IX_DataProcessingAgreements_ProcessorId] ([ProcessorId]),
+    INDEX [IX_DataProcessingAgreements_StatusValue] ([StatusValue]),
+    INDEX [IX_DataProcessingAgreements_ExpiresAtUtc] ([ExpiresAtUtc]),
+    INDEX [IX_DataProcessingAgreements_TenantId] ([TenantId])
+);
+GO

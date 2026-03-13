@@ -1519,6 +1519,75 @@ Added the `Encina.Compliance.DPIA` package implementing GDPR Articles 35 and 36 
 
 ---
 
+#### Encina.Compliance.ProcessorAgreements — GDPR Article 28 Data Processing Agreements with Sub-Processor Tracking (#410)
+
+Added the `Encina.Compliance.ProcessorAgreements` package implementing GDPR Article 28 for Data Processing Agreement lifecycle management. Provides processor registry, DPA validation engine, sub-processor hierarchy tracking, mandatory terms compliance, SCC verification, expiration monitoring, and pipeline enforcement.
+
+**Core Abstractions**:
+
+- **`IProcessorRegistry`**: Processor identity management with `RegisterProcessorAsync`, `GetProcessorAsync`, `UpdateProcessorAsync`, `RemoveProcessorAsync`, `GetSubProcessorsAsync`, `GetFullSubProcessorChainAsync` (recursive hierarchy)
+- **`IDPAStore`**: DPA lifecycle management with `AddAsync`, `GetByIdAsync`, `GetByProcessorIdAsync`, `GetActiveByProcessorIdAsync`, `UpdateAsync`, `GetByStatusAsync`, `GetExpiringAsync`
+- **`IDPAValidator`**: Compliance validation with `ValidateAsync` (detailed result), `HasValidDPAAsync` (hot path), `ValidateAllAsync` (bulk audit)
+- **`IProcessorAuditStore`**: Immutable audit trail with `RecordAsync` and `GetAuditTrailAsync` per Article 5(2) accountability
+
+**Domain Model**:
+
+- **`Processor`**: Identity entity with hierarchy tracking (`ParentProcessorId`, `Depth`), `SubProcessorAuthorizationType` (Specific/General per Art. 28(2)), multi-tenancy support
+- **`DataProcessingAgreement`**: Temporal contractual record with `DPAStatus` lifecycle, `MandatoryTerms`, `HasSCCs`, processing purposes, expiration tracking
+- **`DPAMandatoryTerms`**: Eight Article 28(3)(a)-(h) compliance flags with `IsFullyCompliant` and `MissingTerms` computed properties
+- **`DPAValidationResult`**: Detailed validation output with missing terms, warnings, days until expiration
+- **`ProcessorAgreementAuditEntry`**: Audit record with action, user tracking, timestamps
+
+**Enums**: `DPAStatus` (Active/Expired/PendingRenewal/Terminated), `ProcessorAgreementEnforcementMode` (Block/Warn/Disabled), `SubProcessorAuthorizationType` (Specific/General)
+
+**Pipeline Behavior**:
+
+- **`ProcessorValidationPipelineBehavior<TRequest, TResponse>`**: Attribute-driven DPA enforcement at the CQRS pipeline level
+- **`[RequiresProcessor(ProcessorId = "...")]`** attribute for declarative processor requirements
+- Three enforcement modes: `Block` (reject without valid DPA), `Warn` (log and continue), `Disabled` (no-op)
+- Two-level validation: attribute-level for individual requests, then DPA completeness check
+
+**Scheduling**:
+
+- **`CheckDPAExpirationCommand`**: Scheduled command for periodic expiration monitoring
+- **`CheckDPAExpirationHandler`**: Identifies expiring/expired agreements, updates statuses, publishes notifications, records audit trail
+
+**Seven Domain Notifications**:
+
+- `ProcessorRegisteredNotification`, `DPASignedNotification`, `DPAExpiringNotification`, `DPAExpiredNotification`, `DPATerminatedNotification`, `SubProcessorAddedNotification`, `SubProcessorRemovedNotification`
+
+**Error Codes** (13 structured errors via `ProcessorAgreementErrors`):
+
+- `processor.not_found`, `processor.already_exists`, `processor.dpa_not_found`, `processor.dpa_missing`, `processor.dpa_expired`, `processor.dpa_terminated`, `processor.dpa_pending_renewal`, `processor.dpa_incomplete`, `processor.sub_processor_unauthorized`, `processor.sub_processor_depth_exceeded`, `processor.scc_required`, `processor.store_error`, `processor.validation_failed`
+
+**Configuration** (`ProcessorAgreementOptions`):
+
+- `EnforcementMode` (Block/Warn/Disabled), `BlockWithoutValidDPA` (convenience alias), `MaxSubProcessorDepth` (default: 3, range: 1-10)
+- `EnableExpirationMonitoring`, `ExpirationCheckInterval`, `ExpirationWarningDays` (default: 30)
+- `TrackAuditTrail` (default: true), `AddHealthCheck` (default: false)
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.ProcessorAgreements` ActivitySource with processor-specific tags
+- Structured log events using `[LoggerMessage]` source generator (zero-allocation)
+- Optional health check (`ProcessorAgreementHealthCheck`) verifying DI configuration and store connectivity
+
+**DI Registration**:
+
+- `services.AddEncinaProcessorAgreements()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+
+**Database Provider Infrastructure** (13 providers):
+
+- Entity classes: `ProcessorEntity`, `DataProcessingAgreementEntity`, `ProcessorAgreementAuditEntryEntity` with bidirectional mappers
+- SQL migration scripts for all ADO.NET and Dapper providers (SQLite, SQL Server, PostgreSQL, MySQL)
+- EF Core entity configuration via `ModelBuilderExtensions.ApplyProcessorAgreementsConfiguration()`
+- MongoDB document mapping with `UseProcessorAgreements = true` option
+- Store implementations for all 13 providers: `ProcessorRegistryADO`, `DPAStoreADO`, `ProcessorAuditStoreADO` (×4), `ProcessorRegistryDapper`, `DPAStoreDapper`, `ProcessorAuditStoreDapper` (×4), `ProcessorRegistryEF`, `DPAStoreEF`, `ProcessorAuditStoreEF` (×4 via shared), `ProcessorRegistryMongoDB`, `DPAStoreMongoDB`, `ProcessorAuditStoreMongoDB`
+
+**Testing**: 360+ tests across 6 test projects — unit tests (165), guard tests (47), contract tests (25), property tests (54), integration tests (42 pipeline tests) + load test and benchmark justification documents.
+
+---
+
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)
 
 - All orchestrator public methods now return `Either<EncinaError, T>` instead of throwing exceptions (#670)
@@ -6260,10 +6329,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - `IDPIAService` with risk assessment and report generation
     - New package planned: `Encina.Compliance.DPIA`
     - Priority: MEDIUM
-  - **Processor Agreements** (Issue #410) - Art. 28 compliance
-    - `IProcessorAgreementService` for DPA management
-    - New package planned: `Encina.Compliance.ProcessorAgreements`
-    - Priority: MEDIUM
+  - ~~**Processor Agreements** (Issue #410)~~ ✅ Implemented — see `Encina.Compliance.ProcessorAgreements` above
   - **Privacy by Design** (Issue #411) - Art. 25 enforcement
     - `IPrivacyByDesignValidator`, Roslyn analyzer
     - New package planned: `Encina.Compliance.PrivacyByDesign`

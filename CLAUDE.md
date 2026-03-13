@@ -33,6 +33,86 @@
 - **Breaking Changes**: Expected and acceptable in .NET 10 APIs
 - **Nullable Reference Types**: Enabled everywhere
 
+### Scripting & Tooling Policy (MANDATORY)
+
+> **CRITICAL**: Claude MUST use only PowerShell (`pwsh`) or C# 14 scripts (`.cs` files via `dotnet run`) for any scripting or automation tasks. Python and direct bash/shell scripting are **PROHIBITED**.
+
+#### Allowed Execution Methods
+
+| Method | Usage | Example |
+|--------|-------|---------|
+| **PowerShell** | Automation, file operations, text processing | `pwsh -Command "Get-ChildItem -Recurse -Filter '*.cs'"` |
+| **C# 14 scripts** | Complex logic, code generation, data processing | `dotnet run script.cs` (no .csproj needed) |
+| **CLI tools** | Direct invocation only (no bash piping/scripting) | `dotnet build`, `git status`, `gh issue list`, `docker ps` |
+
+#### Prohibited
+
+- ❌ `python` or `python3` for any purpose
+- ❌ Bash scripting constructs: `for`/`do`/`done` loops, `if`/`then`/`fi`, bash pipes (`|`), subshells (`$(...)`)
+- ❌ Unix commands via Git Bash: `grep`, `find`, `cat`, `ls`, `sed`, `awk`, `head`, `tail`, `wc`, `sort`, `xargs`, `curl`, `tee`, `cut`, `paste`, `shuf`, `unzip`, `basename`, `xxd`, `dd`
+- ❌ Here-docs in bash (`<< 'EOF'`) for file creation — use PowerShell `Set-Content` or C# `File.WriteAllText`
+- ❌ Inline bash scripts with `sh -c` or `bash -c`
+
+#### PowerShell Equivalents for Common Operations
+
+| Operation | ❌ Unix/Bash | ✅ PowerShell |
+|-----------|-------------|--------------|
+| Search file contents | `grep -r "pattern" src/` | `Get-ChildItem -Recurse src/ -Filter *.cs \| Select-String "pattern"` |
+| Find files | `find . -name "*.cs" -type f` | `Get-ChildItem -Recurse -Filter "*.cs" -File` |
+| Read file | `cat file.txt` | `Get-Content file.txt` |
+| List directory | `ls -la` | `Get-ChildItem` |
+| Count lines | `wc -l file.txt` | `(Get-Content file.txt).Count` |
+| Replace text | `sed -i 's/old/new/g' file.txt` | `(Get-Content file.txt) -replace 'old','new' \| Set-Content file.txt` |
+| First N lines | `head -n 10 file.txt` | `Get-Content file.txt \| Select-Object -First 10` |
+| Download URL | `curl -s https://...` | `Invoke-RestMethod https://...` |
+| Write file | `echo "content" > file.txt` | `Set-Content -Path file.txt -Value "content"` |
+| Append to file | `echo "line" >> file.txt` | `Add-Content -Path file.txt -Value "line"` |
+| Loop over files | `for f in *.cs; do ...; done` | `Get-ChildItem *.cs \| ForEach-Object { ... }` |
+| Check file exists | `if [ -f "file" ]; then ...` | `if (Test-Path "file") { ... }` |
+| Delete file | `rm file.txt` | `Remove-Item file.txt` |
+| JSON processing | `jq '.data'` | `(Get-Content file.json \| ConvertFrom-Json).data` |
+| Process kill | `kill -9 PID` | `Stop-Process -Id PID -Force` |
+
+#### C# 14 Script Examples (No .csproj Required)
+
+**Simple file processing:**
+
+```csharp
+// process-files.cs
+var files = Directory.GetFiles("src", "*.cs", SearchOption.AllDirectories);
+foreach (var file in files)
+{
+    var content = File.ReadAllText(file);
+    if (content.Contains("TODO"))
+        Console.WriteLine($"Found TODO in: {file}");
+}
+```
+
+Run: `dotnet run process-files.cs`
+
+**API generation / code scaffolding:**
+
+```csharp
+// append-api.cs
+var lines = new List<string>
+{
+    "Namespace.Type.Method(params) -> ReturnType",
+    "Namespace.Type.Property.get -> string!"
+};
+File.AppendAllLines("src/Package/PublicAPI.Unshipped.txt", lines);
+Console.WriteLine($"Appended {lines.Count} entries");
+```
+
+Run: `dotnet run append-api.cs`
+
+#### Why This Policy Exists
+
+1. **Consistency**: One scripting language (PowerShell) + one programming language (C#) instead of bash+python+PowerShell
+2. **Windows-native**: PowerShell is the natural shell for Windows development
+3. **Type safety**: C# 14 scripts provide compile-time checks that bash/python lack
+4. **Maintainability**: C# scripts can reference the same NuGet packages as the project
+5. **Alignment**: Project is 100% .NET — scripting should be too
+
 ### Code Quality Standards
 
 - **No Obsolete Attributes**: Never mark code as `[Obsolete]` for backward compatibility

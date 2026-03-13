@@ -720,6 +720,21 @@ public sealed class MessagingConfiguration
     public bool UseDPIA { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to register Processor Agreement stores.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers <see cref="Compliance.ProcessorAgreements.IProcessorRegistry"/>,
+    /// <see cref="Compliance.ProcessorAgreements.IDPAStore"/>,
+    /// and <see cref="Compliance.ProcessorAgreements.IProcessorAuditStore"/>
+    /// with the provider-specific implementation for GDPR Article 28 compliant
+    /// processor agreement management, DPA lifecycle tracking, and audit trail.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseProcessorAgreements { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to register ABAC Policy Store.
     /// </summary>
     /// <remarks>
