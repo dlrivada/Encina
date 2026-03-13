@@ -126,14 +126,14 @@ public abstract class ProcessorAuditStoreContractTestsBase
 
     protected static ProcessorAgreementAuditEntry CreateAuditEntry(
         string processorId, string action) => new()
-    {
-        Id = Guid.NewGuid().ToString(),
-        ProcessorId = processorId,
-        Action = action,
-        Detail = $"Test audit entry: {action}",
-        PerformedByUserId = "test-user",
-        OccurredAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            Id = Guid.NewGuid().ToString(),
+            ProcessorId = processorId,
+            Action = action,
+            Detail = $"Test audit entry: {action}",
+            PerformedByUserId = "test-user",
+            OccurredAtUtc = DateTimeOffset.UtcNow
+        };
 
     #endregion
 }

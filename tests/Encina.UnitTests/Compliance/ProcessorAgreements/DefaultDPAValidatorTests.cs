@@ -386,18 +386,18 @@ public class DefaultDPAValidatorTests
         DateTimeOffset? expiresAtUtc,
         bool fullyCompliant,
         bool hasSCCs) => new()
-    {
-        Id = id,
-        ProcessorId = processorId,
-        Status = status,
-        SignedAtUtc = FixedNow.AddYears(-1),
-        ExpiresAtUtc = expiresAtUtc,
-        MandatoryTerms = CreateMandatoryTerms(fullyCompliant),
-        HasSCCs = hasSCCs,
-        ProcessingPurposes = ["Data processing"],
-        CreatedAtUtc = FixedNow.AddYears(-1),
-        LastUpdatedAtUtc = FixedNow.AddMonths(-1)
-    };
+        {
+            Id = id,
+            ProcessorId = processorId,
+            Status = status,
+            SignedAtUtc = FixedNow.AddYears(-1),
+            ExpiresAtUtc = expiresAtUtc,
+            MandatoryTerms = CreateMandatoryTerms(fullyCompliant),
+            HasSCCs = hasSCCs,
+            ProcessingPurposes = ["Data processing"],
+            CreatedAtUtc = FixedNow.AddYears(-1),
+            LastUpdatedAtUtc = FixedNow.AddMonths(-1)
+        };
 
     private static DPAMandatoryTerms CreateMandatoryTerms(bool allCompliant) => new()
     {

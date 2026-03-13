@@ -264,18 +264,18 @@ public abstract class DPAStoreContractTestsBase
 
     protected static DataProcessingAgreement CreateDPA(
         string id, string processorId, DPAStatus status) => new()
-    {
-        Id = id,
-        ProcessorId = processorId,
-        Status = status,
-        SignedAtUtc = DateTimeOffset.UtcNow.AddDays(-30),
-        ExpiresAtUtc = DateTimeOffset.UtcNow.AddYears(1),
-        MandatoryTerms = FullyCompliantTerms,
-        HasSCCs = true,
-        ProcessingPurposes = ["Payment processing", "Analytics"],
-        CreatedAtUtc = DateTimeOffset.UtcNow,
-        LastUpdatedAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            Id = id,
+            ProcessorId = processorId,
+            Status = status,
+            SignedAtUtc = DateTimeOffset.UtcNow.AddDays(-30),
+            ExpiresAtUtc = DateTimeOffset.UtcNow.AddYears(1),
+            MandatoryTerms = FullyCompliantTerms,
+            HasSCCs = true,
+            ProcessingPurposes = ["Payment processing", "Analytics"],
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            LastUpdatedAtUtc = DateTimeOffset.UtcNow
+        };
 
     #endregion
 }

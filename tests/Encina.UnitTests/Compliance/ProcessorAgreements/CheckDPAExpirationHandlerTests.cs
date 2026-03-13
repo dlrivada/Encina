@@ -317,28 +317,28 @@ public class CheckDPAExpirationHandlerTests
         string processorId,
         DPAStatus status,
         DateTimeOffset? expiresAtUtc) => new()
-    {
-        Id = id,
-        ProcessorId = processorId,
-        Status = status,
-        SignedAtUtc = FixedNow.AddYears(-1),
-        ExpiresAtUtc = expiresAtUtc,
-        MandatoryTerms = new DPAMandatoryTerms
         {
-            ProcessOnDocumentedInstructions = true,
-            ConfidentialityObligations = true,
-            SecurityMeasures = true,
-            SubProcessorRequirements = true,
-            DataSubjectRightsAssistance = true,
-            ComplianceAssistance = true,
-            DataDeletionOrReturn = true,
-            AuditRights = true
-        },
-        HasSCCs = true,
-        ProcessingPurposes = ["Data processing"],
-        CreatedAtUtc = FixedNow.AddYears(-1),
-        LastUpdatedAtUtc = FixedNow.AddMonths(-1)
-    };
+            Id = id,
+            ProcessorId = processorId,
+            Status = status,
+            SignedAtUtc = FixedNow.AddYears(-1),
+            ExpiresAtUtc = expiresAtUtc,
+            MandatoryTerms = new DPAMandatoryTerms
+            {
+                ProcessOnDocumentedInstructions = true,
+                ConfidentialityObligations = true,
+                SecurityMeasures = true,
+                SubProcessorRequirements = true,
+                DataSubjectRightsAssistance = true,
+                ComplianceAssistance = true,
+                DataDeletionOrReturn = true,
+                AuditRights = true
+            },
+            HasSCCs = true,
+            ProcessingPurposes = ["Data processing"],
+            CreatedAtUtc = FixedNow.AddYears(-1),
+            LastUpdatedAtUtc = FixedNow.AddMonths(-1)
+        };
 
     private void SetupExpiringAgreements(DataProcessingAgreement[] agreements)
     {

@@ -247,16 +247,16 @@ public abstract class ProcessorRegistryContractTestsBase
 
     protected static Processor CreateSubProcessor(
         string id, string name, string parentId, int depth) => new()
-    {
-        Id = id,
-        Name = name,
-        Country = "DE",
-        ParentProcessorId = parentId,
-        Depth = depth,
-        SubProcessorAuthorizationType = SubProcessorAuthorizationType.Specific,
-        CreatedAtUtc = DateTimeOffset.UtcNow,
-        LastUpdatedAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            Id = id,
+            Name = name,
+            Country = "DE",
+            ParentProcessorId = parentId,
+            Depth = depth,
+            SubProcessorAuthorizationType = SubProcessorAuthorizationType.Specific,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            LastUpdatedAtUtc = DateTimeOffset.UtcNow
+        };
 
     #endregion
 }

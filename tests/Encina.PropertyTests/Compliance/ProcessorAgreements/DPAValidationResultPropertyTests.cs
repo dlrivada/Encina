@@ -187,16 +187,16 @@ public class DPAValidationResultPropertyTests
         IReadOnlyList<string> missingTerms,
         IReadOnlyList<string>? warnings = null,
         int? daysUntilExpiration = 30) => new()
-    {
-        ProcessorId = Guid.NewGuid().ToString(),
-        DPAId = isValid ? Guid.NewGuid().ToString() : null,
-        IsValid = isValid,
-        Status = isValid ? DPAStatus.Active : null,
-        MissingTerms = missingTerms,
-        Warnings = warnings ?? [],
-        DaysUntilExpiration = daysUntilExpiration,
-        ValidatedAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            ProcessorId = Guid.NewGuid().ToString(),
+            DPAId = isValid ? Guid.NewGuid().ToString() : null,
+            IsValid = isValid,
+            Status = isValid ? DPAStatus.Active : null,
+            MissingTerms = missingTerms,
+            Warnings = warnings ?? [],
+            DaysUntilExpiration = daysUntilExpiration,
+            ValidatedAtUtc = DateTimeOffset.UtcNow
+        };
 
     #endregion
 }

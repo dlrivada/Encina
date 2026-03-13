@@ -119,16 +119,16 @@ public class DPAMandatoryTermsPropertyTests
 
     private static DPAMandatoryTerms CreateTerms(
         bool a, bool b, bool c, bool d, bool e, bool f, bool g, bool h) => new()
-    {
-        ProcessOnDocumentedInstructions = a,
-        ConfidentialityObligations = b,
-        SecurityMeasures = c,
-        SubProcessorRequirements = d,
-        DataSubjectRightsAssistance = e,
-        ComplianceAssistance = f,
-        DataDeletionOrReturn = g,
-        AuditRights = h
-    };
+        {
+            ProcessOnDocumentedInstructions = a,
+            ConfidentialityObligations = b,
+            SecurityMeasures = c,
+            SubProcessorRequirements = d,
+            DataSubjectRightsAssistance = e,
+            ComplianceAssistance = f,
+            DataDeletionOrReturn = g,
+            AuditRights = h
+        };
 
     #endregion
 }
