@@ -198,6 +198,10 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) - `Encina.Security.ABAC` with XACML 3.0 evaluation model, 70+ standard functions, 8 combining algorithms, EEL (Encina Expression Language), fluent builder DSL, obligations/advice, 764 unit tests, 22 documentation files, 3 ADRs
 - ✅ Persistent PAP [#691](https://github.com/dlrivada/Encina/issues/691) - Database-backed `PersistentPolicyAdministrationPoint` with `IPolicyStore`, `IPolicySerializer`, `CachingPolicyStoreDecorator` (cache-aside + PubSub invalidation), `PolicyEntityMapper`, 11 provider implementations (EF Core, Dapper, ADO.NET, MongoDB), 182 integration tests, serialization benchmarks
 - ✅ Processor Agreements [#410](https://github.com/dlrivada/Encina/issues/410) - `Encina.Compliance.ProcessorAgreements` with Art. 28 DPA management, `IProcessorRegistry`, `IDPAStore`, `IDPAValidator`, sub-processor hierarchy, mandatory terms compliance, 7 notifications, expiration scheduling, pipeline enforcement, 13 database providers, 360+ tests
+- ✅ Breach Notification [#408](https://github.com/dlrivada/Encina/issues/408) - `Encina.Compliance.BreachNotification` with GDPR Art. 33-34, 72-hour workflow, severity assessment, SIEM integration, 13 database providers
+- ✅ DPIA Automation [#409](https://github.com/dlrivada/Encina/issues/409) - `Encina.Compliance.DPIA` with Art. 35 risk assessment, necessity/proportionality analysis, DPA consultation workflow, 13 database providers
+- ✅ Privacy by Design [#411](https://github.com/dlrivada/Encina/issues/411) - `Encina.Compliance.PrivacyByDesign` with Art. 25 enforcement, data minimization, purpose limitation, privacy-by-default pipeline behavior
+- ✅ ADR-019: Compliance Event Sourcing Strategy [#776](https://github.com/dlrivada/Encina/issues/776) - Architectural decision to migrate stateful compliance modules from entity-based 13-provider persistence to Marten event sourcing for GDPR Art. 5(2) accountability
 
 **Remaining:**
 
@@ -207,6 +211,8 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ~~Data Subject Rights~~ (Completed as #404)
 - ~~Data Residency enforcement~~ (Completed as #405)
 - ~~ABAC Engine~~ (Completed as #401)
+- Cross-Border Transfer [#412](https://github.com/dlrivada/Encina/issues/412) - First compliance module with Marten event sourcing (reference implementation per ADR-019)
+- Compliance ES Migration [#777-#784] - Migrate existing compliance modules to Marten event sourcing (per ADR-019)
 - NIS2 Directive compliance
 - AI Act compliance
 
