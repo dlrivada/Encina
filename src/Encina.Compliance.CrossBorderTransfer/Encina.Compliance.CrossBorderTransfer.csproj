@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Encina.Compliance.CrossBorderTransfer</PackageId>
+    <Description>International data transfer compliance for Encina - Transfer Impact Assessments (TIA), Standard Contractual Clauses (SCC) validation, adequacy decision registry, supplementary measures management, and transfer blocking pipeline behavior. Implements GDPR Articles 44-49 and Schrems II (CJEU C-311/18).</Description>
+    <PackageTags>encina;cqrs;gdpr;cross-border;international-transfer;schrems-ii;tia;scc;compliance;privacy;article-44;article-46;article-49</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Encina\Encina.csproj" />
+    <ProjectReference Include="..\Encina.DomainModeling\Encina.DomainModeling.csproj" />
+    <ProjectReference Include="..\Encina.Compliance.DataResidency\Encina.Compliance.DataResidency.csproj" />
+    <ProjectReference Include="..\Encina.Caching\Encina.Caching.csproj" />
+    <ProjectReference Include="..\Encina.Marten\Encina.Marten.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.IntegrationTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.ContractTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.PropertyTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.GuardTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

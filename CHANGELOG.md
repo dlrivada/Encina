@@ -1924,6 +1924,99 @@ Added persistent policy storage for the ABAC engine, enabling production deploym
 
 ---
 
+#### Encina.Compliance.CrossBorderTransfer — GDPR Chapter V Cross-Border Data Transfer Compliance (#412)
+
+Added the `Encina.Compliance.CrossBorderTransfer` package implementing GDPR Articles 44-49 and the Schrems II judgment (CJEU C-311/18) for international personal data transfer validation. Uses event-sourced aggregates via Marten and enforces transfer compliance at the CQRS pipeline level.
+
+**Core Abstractions**:
+
+- **`ITransferValidator`**: Orchestrates cascading validation: adequacy decision → approved transfer → SCC agreement → TIA requirement → derogation evaluation
+- **`ITIAService`**: Full Transfer Impact Assessment lifecycle (Create, AssessRisk, RequireSupplementary, SubmitForDPO, CompleteDPOReview, Get, GetByRoute)
+- **`ISCCService`**: SCC agreement management (Register, AddSupplementary, Revoke, Get, Validate)
+- **`IApprovedTransferService`**: Approved transfer lifecycle (Approve, Revoke, Renew, Get, IsApproved)
+- **`ITIARiskAssessor`**: Pluggable risk assessment with country-category scoring (default: `DefaultTIARiskAssessor`)
+- **`ITransferExpirationQueryService`**: Query interface for expiration monitoring
+
+**Three Event-Sourced Aggregates** (Marten):
+
+- **`TIAAggregate`**: Transfer Impact Assessment with status workflow (Draft → RiskAssessed → PendingDPOReview → Approved/Rejected), supplementary measures, risk assessment
+- **`SCCAgreementAggregate`**: Standard Contractual Clauses with module types (Controller-Controller, Controller-Processor, Processor-Processor, Processor-SubProcessor), supplementary measures, revocation
+- **`ApprovedTransferAggregate`**: Transfer authorization with basis tracking, expiration, revocation, renewal
+
+**Declarative Attribute**:
+
+- **`[RequiresCrossBorderTransfer]`**: Attribute-based transfer declaration with static/dynamic destination via `Destination` or `DestinationProperty` (cached reflection), `DataCategory`, `SourceProperty`
+
+**Pipeline Behavior**:
+
+- **`TransferBlockingPipelineBehavior<TRequest, TResponse>`**: Validates transfers at pipeline level with caching support
+- Three enforcement modes: `Block` (reject non-compliant), `Warn` (log and proceed), `Disabled` (no-op)
+- Requests without `[RequiresCrossBorderTransfer]` bypass all checks (zero overhead)
+
+**Model Types**:
+
+- **`TransferRequest`**: Transfer request with source/destination country codes and data category
+- **`TransferValidationOutcome`**: Validation result with `IsAllowed`, `Basis`, `Warnings`, `SccAgreementId`, `TiaId`
+- **`TransferBasis`**: Enum — AdequacyDecision, StandardContractualClauses, BindingCorporateRules, ExplicitConsent, Derogation, Blocked
+- **`TIARiskAssessment`**: Risk score with country category and supplementary measure requirements
+- **`SCCValidationResult`**: SCC agreement validity assessment
+- **`SupplementaryMeasure`**: Record with type (Technical, Organizational, Contractual), description, implementation date
+
+**6 Domain Events** (per aggregate):
+
+- TIA: `TIACreated`, `TIARiskAssessed`, `TIASupplementaryMeasureRequired`, `TIASubmittedForDPOReview`, `TIADPOReviewCompleted`
+- SCC: `SCCAgreementRegistered`, `SCCAgreementSupplementaryMeasureAdded`, `SCCAgreementRevoked`
+- Approved Transfer: `TransferApproved`, `TransferRevoked`, `TransferRenewed`
+
+**6 Expiration Notification Events**:
+
+- **`TransferExpiringNotification`** / **`TransferExpiredNotification`**: Approved transfer expiration alerts
+- **`TIAExpiringNotification`** / **`TIAExpiredNotification`**: TIA expiration alerts
+- **`SCCAgreementExpiringNotification`** / **`SCCAgreementExpiredNotification`**: SCC agreement expiration alerts
+
+**Background Expiration Monitor**:
+
+- **`TransferExpirationMonitor`**: `BackgroundService` that periodically checks for expiring/expired transfers, TIAs, and SCC agreements
+- Configurable check interval, alert window (days before expiration), opt-in notification publishing via `IEncina`
+
+**Error Codes** (10 structured errors via `CrossBorderTransferErrors`):
+
+- `crossborder.tia_not_found`, `crossborder.tia_already_completed`, `crossborder.tia_not_assessed`
+- `crossborder.scc_not_found`, `crossborder.scc_already_revoked`
+- `crossborder.transfer_not_found`, `crossborder.transfer_already_revoked`, `crossborder.transfer_blocked`
+- `crossborder.invalid_state_transition`, `crossborder.store_error`
+- All errors include structured metadata (`tiaId`, `sccAgreementId`, `transferId`, `stage`, `requirement`)
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.CrossBorderTransfer` ActivitySource with tags: `crossborder.source`, `crossborder.destination`, `crossborder.data_category`, `crossborder.outcome`, `crossborder.basis`
+- 12 metric instruments under `Encina.Compliance.CrossBorderTransfer` Meter: pipeline checks (total, passed, blocked, warned, skipped), check duration histogram, service-level counters (TIA created/completed, SCC registered/revoked, transfer approved/revoked)
+- 26 structured log events (EventId 8500–8555) using `LoggerMessage.Define` for zero-allocation logging
+
+**Health Check**:
+
+- **`CrossBorderTransferHealthCheck`**: Verifies all cross-border transfer services are registered and resolvable from DI
+- Opt-in via `CrossBorderTransferOptions.AddHealthCheck = true`
+- Tags: `encina`, `compliance`, `cross-border-transfer`, `ready`
+
+**Configuration** (`CrossBorderTransferOptions`):
+
+- `EnforcementMode` (Block/Warn/Disabled), `DefaultSourceCountryCode`, `TIARiskThreshold`
+- `DefaultTIAExpirationDays`, `DefaultSCCExpirationDays`, `DefaultTransferExpirationDays`
+- `AutoDetectTransfers`, `CacheEnabled`, `CacheTTLMinutes`, `RequireTIAForNonAdequate`, `RequireSCCForNonAdequate`
+- Expiration monitoring: `EnableExpirationMonitoring`, `ExpirationCheckInterval`, `AlertBeforeExpirationDays`, `PublishExpirationNotifications`
+- Options validation via `IValidateOptions<CrossBorderTransferOptions>`
+
+**DI Registration**:
+
+- `services.AddEncinaCrossBorderTransfer()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+- `services.AddCrossBorderTransferAggregates()` for Marten aggregate registration
+- Configurable via `Action<CrossBorderTransferOptions>` delegate
+
+**Testing**: 160 tests across 5 test projects (87 unit, 30 guard, 14 property, 42 contract). Justification documents for LoadTests and BenchmarkTests.
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

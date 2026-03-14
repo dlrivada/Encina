@@ -692,6 +692,20 @@ public sealed class MessagingConfiguration
     public bool UseDataResidency { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to register Cross-Border Transfer compliance services.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When enabled, registers the event-sourced aggregate repositories for TIA assessments,
+    /// SCC agreements, and approved transfers, along with the
+    /// <see cref="Compliance.CrossBorderTransfer.Pipeline.TransferBlockingPipelineBehavior{TRequest, TResponse}"/>
+    /// pipeline behavior for GDPR Chapter V (Articles 44–49) and Schrems II compliance enforcement.
+    /// </para>
+    /// </remarks>
+    /// <value>Default: false (opt-in)</value>
+    public bool UseCrossBorderTransfer { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether to register Breach Notification stores.
     /// </summary>
     /// <remarks>
@@ -1025,5 +1039,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseReadAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency || UseBreachNotification;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseReadAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseConsent || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency || UseCrossBorderTransfer || UseBreachNotification;
 }

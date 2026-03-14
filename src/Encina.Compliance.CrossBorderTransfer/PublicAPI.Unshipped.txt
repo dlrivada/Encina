@@ -1,0 +1,582 @@
+#nullable enable
+Encina.Compliance.CrossBorderTransfer.Abstractions.IApprovedTransferService
+Encina.Compliance.CrossBorderTransfer.Abstractions.IApprovedTransferService.ApproveTransferAsync(string! sourceCountryCode, string! destinationCountryCode, string! dataCategory, Encina.Compliance.CrossBorderTransfer.Model.TransferBasis basis, System.Guid? sccAgreementId = null, System.Guid? tiaId = null, string! approvedBy = "", System.DateTimeOffset? expiresAtUtc = null, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.IApprovedTransferService.GetApprovedTransferAsync(string! sourceCountryCode, string! destinationCountryCode, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.IApprovedTransferService.IsTransferApprovedAsync(string! sourceCountryCode, string! destinationCountryCode, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.IApprovedTransferService.RenewTransferAsync(System.Guid transferId, System.DateTimeOffset newExpiresAtUtc, string! renewedBy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.IApprovedTransferService.RevokeTransferAsync(System.Guid transferId, string! reason, string! revokedBy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ISCCService
+Encina.Compliance.CrossBorderTransfer.Abstractions.ISCCService.AddSupplementaryMeasureAsync(System.Guid agreementId, Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType type, string! description, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ISCCService.GetAgreementAsync(System.Guid agreementId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ISCCService.RegisterAgreementAsync(string! processorId, Encina.Compliance.CrossBorderTransfer.Model.SCCModule sccModule, string! version, System.DateTimeOffset executedAtUtc, System.DateTimeOffset? expiresAtUtc = null, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ISCCService.RevokeAgreementAsync(System.Guid agreementId, string! reason, string! revokedBy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ISCCService.ValidateAgreementAsync(string! processorId, Encina.Compliance.CrossBorderTransfer.Model.SCCModule sccModule, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIARiskAssessor
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIARiskAssessor.AssessRiskAsync(string! destinationCountryCode, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService.AssessRiskAsync(System.Guid tiaId, double riskScore, string? findings, string! assessorId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService.CompleteDPOReviewAsync(System.Guid tiaId, bool approved, string! reviewedBy, string? reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService.CreateTIAAsync(string! sourceCountryCode, string! destinationCountryCode, string! dataCategory, string! createdBy, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService.GetTIAAsync(System.Guid tiaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService.GetTIAByRouteAsync(string! sourceCountryCode, string! destinationCountryCode, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService.RequireSupplementaryMeasureAsync(System.Guid tiaId, Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType type, string! description, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITIAService.SubmitForDPOReviewAsync(System.Guid tiaId, string! submittedBy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITransferValidator
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITransferValidator.ValidateAsync(Encina.Compliance.CrossBorderTransfer.Model.TransferRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome!>>
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.ApprovedTransferAggregate() -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.ApprovedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.Basis.get -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.Expire() -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.IsExpired.get -> bool
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.IsRevoked.get -> bool
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.IsValid(System.DateTimeOffset nowUtc) -> bool
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.Renew(System.DateTimeOffset newExpiresAtUtc, string! renewedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.Revoke(string! reason, string! revokedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.RevokedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.SCCAgreementId.get -> System.Guid?
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.TIAId.get -> System.Guid?
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.AddSupplementaryMeasure(System.Guid measureId, Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType type, string! description) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.ExecutedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.Expire() -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.IsExpired.get -> bool
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.IsRevoked.get -> bool
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.IsValid(System.DateTimeOffset nowUtc) -> bool
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.Module.get -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.ProcessorId.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.Revoke(string! reason, string! revokedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.RevokedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.SCCAgreementAggregate() -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.SCCVersion.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.SupplementaryMeasures.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure!>!
+Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.ApproveDPOReview(string! reviewedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.AssessorId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.AssessRisk(double riskScore, string? findings, string! assessorId) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.Complete() -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.CompletedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.DPOReviewedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.Expire() -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.Findings.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.RejectDPOReview(string! reviewedBy, string! reason) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.RequiredSupplementaryMeasures.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure!>!
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.RequireSupplementaryMeasure(System.Guid measureId, Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType type, string! description) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.RiskScore.get -> double?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.Status.get -> Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.SubmitForDPOReview(string! submittedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.TIAAggregate() -> void
+Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementExpired
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementExpired.AgreementId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementExpired.AgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementExpired.SCCAgreementExpired(System.Guid AgreementId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.AgreementId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.AgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ExecutedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ExecutedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.Module.get -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.Module.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ModuleId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ProcessorId.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.ProcessorId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.SCCAgreementRegistered(System.Guid AgreementId, string! ProcessorId, Encina.Compliance.CrossBorderTransfer.Model.SCCModule Module, string! Version, System.DateTimeOffset ExecutedAtUtc, System.DateTimeOffset? ExpiresAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.TenantId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.Version.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRegistered.Version.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked.AgreementId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked.AgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked.Reason.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked.Reason.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked.RevokedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked.RevokedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCAgreementRevoked.SCCAgreementRevoked(System.Guid AgreementId, string! Reason, string! RevokedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.AgreementId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.AgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.Description.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.Description.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.MeasureId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.MeasureId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.MeasureType.get -> Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.MeasureType.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.SCCSupplementaryMeasureAdded.SCCSupplementaryMeasureAdded(System.Guid AgreementId, System.Guid MeasureId, Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType MeasureType, string! Description) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACompleted
+Encina.Compliance.CrossBorderTransfer.Events.TIACompleted.TIACompleted(System.Guid TIAId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACompleted.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIACompleted.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.CreatedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.CreatedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.ModuleId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.TenantId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.TIACreated(System.Guid TIAId, string! SourceCountryCode, string! DestinationCountryCode, string! DataCategory, string! CreatedBy, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIACreated.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIADPOApproved
+Encina.Compliance.CrossBorderTransfer.Events.TIADPOApproved.ReviewedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIADPOApproved.ReviewedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIADPOApproved.TIADPOApproved(System.Guid TIAId, string! ReviewedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIADPOApproved.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIADPOApproved.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected.Reason.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected.Reason.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected.ReviewedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected.ReviewedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected.TIADPORejected(System.Guid TIAId, string! ReviewedBy, string! Reason) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIADPORejected.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIAExpired
+Encina.Compliance.CrossBorderTransfer.Events.TIAExpired.TIAExpired(System.Guid TIAId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIAExpired.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIAExpired.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.AssessorId.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.AssessorId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.Findings.get -> string?
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.Findings.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.RiskScore.get -> double
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.RiskScore.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIARiskAssessed.TIARiskAssessed(System.Guid TIAId, double RiskScore, string? Findings, string! AssessorId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASubmittedForDPOReview
+Encina.Compliance.CrossBorderTransfer.Events.TIASubmittedForDPOReview.SubmittedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIASubmittedForDPOReview.SubmittedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASubmittedForDPOReview.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIASubmittedForDPOReview.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASubmittedForDPOReview.TIASubmittedForDPOReview(System.Guid TIAId, string! SubmittedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.Description.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.Description.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.MeasureId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.MeasureId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.MeasureType.get -> Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.MeasureType.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TIASupplementaryMeasureRequired.TIASupplementaryMeasureRequired(System.Guid TIAId, System.Guid MeasureId, Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType MeasureType, string! Description) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.ApprovedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.ApprovedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.Basis.get -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.Basis.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.ModuleId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.SCCAgreementId.get -> System.Guid?
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.SCCAgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.TenantId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.TIAId.get -> System.Guid?
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.TransferApproved(System.Guid TransferId, string! SourceCountryCode, string! DestinationCountryCode, string! DataCategory, Encina.Compliance.CrossBorderTransfer.Model.TransferBasis Basis, System.Guid? SCCAgreementId, System.Guid? TIAId, string! ApprovedBy, System.DateTimeOffset? ExpiresAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.TransferId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TransferApproved.TransferId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferExpired
+Encina.Compliance.CrossBorderTransfer.Events.TransferExpired.TransferExpired(System.Guid TransferId) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferExpired.TransferId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TransferExpired.TransferId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed.NewExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed.NewExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed.RenewedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed.RenewedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed.TransferId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed.TransferId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRenewed.TransferRenewed(System.Guid TransferId, System.DateTimeOffset NewExpiresAtUtc, string! RenewedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked.Reason.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked.Reason.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked.RevokedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked.RevokedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked.TransferId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked.TransferId.init -> void
+Encina.Compliance.CrossBorderTransfer.Events.TransferRevoked.TransferRevoked(System.Guid TransferId, string! Reason, string! RevokedBy) -> void
+Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.Model.SCCModule.ControllerToController = 0 -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.Model.SCCModule.ControllerToProcessor = 1 -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.Model.SCCModule.ProcessorToController = 3 -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.Model.SCCModule.ProcessorToProcessor = 2 -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.AgreementId.get -> System.Guid?
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.AgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.IsValid.get -> bool
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.IsValid.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.Issues.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.Issues.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.MissingMeasures.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.MissingMeasures.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.Module.get -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule?
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.Module.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.Version.get -> string?
+Encina.Compliance.CrossBorderTransfer.Model.SCCValidationResult.Version.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.Description.get -> string!
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.Description.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.Id.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.Id.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.ImplementedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.ImplementedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.IsImplemented.get -> bool
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.IsImplemented.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.Type.get -> Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure.Type.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType.Contractual = 1 -> Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType.Organizational = 2 -> Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType
+Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType.Technical = 0 -> Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasureType
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment.Factors.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment.Factors.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment.Recommendations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment.Recommendations.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment.Score.get -> double
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment.Score.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TIARiskAssessment.TIARiskAssessment(double Score, System.Collections.Generic.IReadOnlyList<string!>! Factors, System.Collections.Generic.IReadOnlyList<string!>! Recommendations) -> void
+Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.Model.TIAStatus.Completed = 3 -> Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.Model.TIAStatus.Draft = 0 -> Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.Model.TIAStatus.Expired = 4 -> Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.Model.TIAStatus.InProgress = 1 -> Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.Model.TIAStatus.PendingDPOReview = 2 -> Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Model.TransferBasis.AdequacyDecision = 0 -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Model.TransferBasis.BindingCorporateRules = 2 -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Model.TransferBasis.Blocked = 4 -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Model.TransferBasis.Derogation = 3 -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Model.TransferBasis.SCCs = 1 -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.ModuleId.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.ProcessorId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.ProcessorId.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.Model.TransferRequest.TenantId.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.Basis.get -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.Basis.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.BlockReason.get -> string?
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.BlockReason.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.IsAllowed.get -> bool
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.IsAllowed.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.SCCModuleRequired.get -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule?
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.SCCModuleRequired.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.SupplementaryMeasuresRequired.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.SupplementaryMeasuresRequired.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.TIARequired.get -> bool
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.TIARequired.init -> void
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.Warnings.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.ApprovedBy.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.ApprovedBy.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.Basis.get -> Encina.Compliance.CrossBorderTransfer.Model.TransferBasis
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.Basis.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.Id.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.Id.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.IsRevoked.get -> bool
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.IsRevoked.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.IsValid(System.DateTimeOffset nowUtc) -> bool
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.ModuleId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.RevokedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.RevokedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.SCCAgreementId.get -> System.Guid?
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.SCCAgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.TenantId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.TIAId.get -> System.Guid?
+Encina.Compliance.CrossBorderTransfer.ReadModels.ApprovedTransferReadModel.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ExecutedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ExecutedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.Id.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.Id.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.IsRevoked.get -> bool
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.IsRevoked.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.IsValid(System.DateTimeOffset nowUtc) -> bool
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.Module.get -> Encina.Compliance.CrossBorderTransfer.Model.SCCModule
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.Module.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ModuleId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ProcessorId.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.ProcessorId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.RevokedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.RevokedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.SupplementaryMeasures.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure!>!
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.SupplementaryMeasures.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.TenantId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.Version.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.SCCAgreementReadModel.Version.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.AssessorId.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.AssessorId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.CompletedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.CompletedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.CreatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.CreatedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.DPOReviewedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.DPOReviewedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.Findings.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.Findings.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.Id.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.Id.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.LastModifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.LastModifiedAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.ModuleId.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.ModuleId.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.RequiredSupplementaryMeasures.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.CrossBorderTransfer.Model.SupplementaryMeasure!>!
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.RequiredSupplementaryMeasures.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.RiskScore.get -> double?
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.RiskScore.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.Status.get -> Encina.Compliance.CrossBorderTransfer.Model.TIAStatus
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.Status.init -> void
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.TenantId.get -> string?
+Encina.Compliance.CrossBorderTransfer.ReadModels.TIAReadModel.TenantId.init -> void
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.InvalidStateTransitionCode = "crossborder.invalid_state_transition" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.SCCAgreementAlreadyRevokedCode = "crossborder.scc_already_revoked" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.SCCAgreementNotFoundCode = "crossborder.scc_not_found" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.StoreErrorCode = "crossborder.store_error" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TIAAlreadyCompletedCode = "crossborder.tia_already_completed" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TIANotAssessedCode = "crossborder.tia_not_assessed" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TIANotFoundCode = "crossborder.tia_not_found" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TransferAlreadyRevokedCode = "crossborder.transfer_already_revoked" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TransferBlockedCode = "crossborder.transfer_blocked" -> string!
+const Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TransferNotFoundCode = "crossborder.transfer_not_found" -> string!
+static Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate.Approve(System.Guid id, string! sourceCountryCode, string! destinationCountryCode, string! dataCategory, Encina.Compliance.CrossBorderTransfer.Model.TransferBasis basis, System.Guid? sccAgreementId = null, System.Guid? tiaId = null, string! approvedBy = "", System.DateTimeOffset? expiresAtUtc = null, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.CrossBorderTransfer.Aggregates.ApprovedTransferAggregate!
+static Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate.Register(System.Guid id, string! processorId, Encina.Compliance.CrossBorderTransfer.Model.SCCModule module, string! version, System.DateTimeOffset executedAtUtc, System.DateTimeOffset? expiresAtUtc = null, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.CrossBorderTransfer.Aggregates.SCCAgreementAggregate!
+static Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate.Create(System.Guid id, string! sourceCountryCode, string! destinationCountryCode, string! dataCategory, string! createdBy, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.CrossBorderTransfer.Aggregates.TIAAggregate!
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.InvalidStateTransition(string! from, string! to) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.SCCAgreementAlreadyRevoked(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.SCCAgreementNotFound(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.StoreError(string! operation, System.Exception! exception) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TIAAlreadyCompleted(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TIANotAssessed(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TIANotFound(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TransferAlreadyRevoked(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TransferBlocked(string! reason) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TransferNotFound(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TransferNotFoundByRoute(string! source, string! destination, string! dataCategory) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Errors.CrossBorderTransferErrors.TIANotFoundByRoute(string! source, string! destination, string! dataCategory) -> Encina.EncinaError
+static Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.Allow(Encina.Compliance.CrossBorderTransfer.Model.TransferBasis basis, System.Collections.Generic.IReadOnlyList<string!>? supplementaryMeasuresRequired = null, bool tiaRequired = false, Encina.Compliance.CrossBorderTransfer.Model.SCCModule? sccModuleRequired = null, System.Collections.Generic.IReadOnlyList<string!>? warnings = null) -> Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome!
+static Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome.Block(string! reason, System.Collections.Generic.IReadOnlyList<string!>? warnings = null) -> Encina.Compliance.CrossBorderTransfer.Model.TransferValidationOutcome!
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode.Block = 0 -> Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode.Warn = 1 -> Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode.Disabled = 2 -> Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.RequiresCrossBorderTransferAttribute() -> void
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.Destination.get -> string?
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.Destination.set -> void
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.DataCategory.set -> void
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.SourceProperty.get -> string?
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.SourceProperty.set -> void
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.DestinationProperty.get -> string?
+Encina.Compliance.CrossBorderTransfer.Attributes.RequiresCrossBorderTransferAttribute.DestinationProperty.set -> void
+Encina.Compliance.CrossBorderTransfer.Pipeline.TransferBlockingPipelineBehavior<TRequest, TResponse>
+Encina.Compliance.CrossBorderTransfer.Pipeline.TransferBlockingPipelineBehavior<TRequest, TResponse>.TransferBlockingPipelineBehavior(Encina.Compliance.CrossBorderTransfer.Abstractions.ITransferValidator! validator, Microsoft.Extensions.Options.IOptions<Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.CrossBorderTransfer.Pipeline.TransferBlockingPipelineBehavior<TRequest, TResponse>!>! logger, System.IServiceProvider! serviceProvider) -> void
+Encina.Compliance.CrossBorderTransfer.Pipeline.TransferBlockingPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.CrossBorderTransferOptions() -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.EnforcementMode.get -> Encina.Compliance.CrossBorderTransfer.CrossBorderTransferEnforcementMode
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.EnforcementMode.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultSourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultSourceCountryCode.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.TIARiskThreshold.get -> double
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.TIARiskThreshold.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultTIAExpirationDays.get -> int?
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultTIAExpirationDays.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultSCCExpirationDays.get -> int?
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultSCCExpirationDays.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultTransferExpirationDays.get -> int?
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.DefaultTransferExpirationDays.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.AutoDetectTransfers.get -> bool
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.AutoDetectTransfers.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.CacheEnabled.get -> bool
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.CacheEnabled.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.CacheTTLMinutes.get -> int
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.CacheTTLMinutes.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.AddHealthCheck.get -> bool
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.AddHealthCheck.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.RequireTIAForNonAdequate.get -> bool
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.RequireTIAForNonAdequate.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.RequireSCCForNonAdequate.get -> bool
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.RequireSCCForNonAdequate.set -> void
+Encina.Compliance.CrossBorderTransfer.ServiceCollectionExtensions
+static Encina.Compliance.CrossBorderTransfer.ServiceCollectionExtensions.AddEncinaCrossBorderTransfer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferMartenExtensions
+static Encina.Compliance.CrossBorderTransfer.CrossBorderTransferMartenExtensions.AddCrossBorderTransferAggregates(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Compliance.CrossBorderTransfer.Health.CrossBorderTransferHealthCheck
+Encina.Compliance.CrossBorderTransfer.Health.CrossBorderTransferHealthCheck.CrossBorderTransferHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.CrossBorderTransfer.Health.CrossBorderTransferHealthCheck!>! logger) -> void
+const Encina.Compliance.CrossBorderTransfer.Health.CrossBorderTransferHealthCheck.DefaultName = "encina-cross-border-transfer" -> string!
+Encina.Compliance.CrossBorderTransfer.Health.CrossBorderTransferHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITransferExpirationQueryService
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITransferExpirationQueryService.GetExpiringTransfersAsync(System.DateTimeOffset nowUtc, System.DateTimeOffset expirationWindowUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo!>!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ITransferExpirationQueryService.GetExpiredTransfersAsync(System.DateTimeOffset nowUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo!>!>>
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.ExpiringTransferInfo(System.Guid Id, string! SourceCountryCode, string! DestinationCountryCode, string! DataCategory, System.DateTimeOffset ExpiresAtUtc) -> void
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.Id.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.Id.init -> void
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Abstractions.ExpiringTransferInfo.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.TransferExpiringNotification(System.Guid TransferId, string! SourceCountryCode, string! DestinationCountryCode, string! DataCategory, System.DateTimeOffset ExpiresAtUtc, int DaysUntilExpiration, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.TransferId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.TransferId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.DaysUntilExpiration.get -> int
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.DaysUntilExpiration.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiringNotification.OccurredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.TransferExpiredNotification(System.Guid TransferId, string! SourceCountryCode, string! DestinationCountryCode, string! DataCategory, System.DateTimeOffset ExpiredAtUtc, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.TransferId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.TransferId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.ExpiredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.ExpiredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TransferExpiredNotification.OccurredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.TIAExpiringNotification(System.Guid TIAId, string! SourceCountryCode, string! DestinationCountryCode, string! DataCategory, System.DateTimeOffset ExpiresAtUtc, int DaysUntilExpiration, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.DaysUntilExpiration.get -> int
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.DaysUntilExpiration.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiringNotification.OccurredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.TIAExpiredNotification(System.Guid TIAId, string! SourceCountryCode, string! DestinationCountryCode, string! DataCategory, System.DateTimeOffset ExpiredAtUtc, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.TIAId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.TIAId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.SourceCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.SourceCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.DestinationCountryCode.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.DestinationCountryCode.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.DataCategory.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.DataCategory.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.ExpiredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.ExpiredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.TIAExpiredNotification.OccurredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.SCCAgreementExpiringNotification(System.Guid AgreementId, string! ProcessorId, string! Module, System.DateTimeOffset ExpiresAtUtc, int DaysUntilExpiration, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.AgreementId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.AgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.ProcessorId.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.ProcessorId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.Module.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.Module.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.ExpiresAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.DaysUntilExpiration.get -> int
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.DaysUntilExpiration.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiringNotification.OccurredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.SCCAgreementExpiredNotification(System.Guid AgreementId, string! ProcessorId, string! Module, System.DateTimeOffset ExpiredAtUtc, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.AgreementId.get -> System.Guid
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.AgreementId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.ProcessorId.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.ProcessorId.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.Module.get -> string!
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.Module.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.ExpiredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.ExpiredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.CrossBorderTransfer.Notifications.SCCAgreementExpiredNotification.OccurredAtUtc.init -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.EnableExpirationMonitoring.get -> bool
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.EnableExpirationMonitoring.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.ExpirationCheckInterval.get -> System.TimeSpan
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.ExpirationCheckInterval.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.AlertBeforeExpirationDays.get -> int
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.AlertBeforeExpirationDays.set -> void
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.PublishExpirationNotifications.get -> bool
+Encina.Compliance.CrossBorderTransfer.CrossBorderTransferOptions.PublishExpirationNotifications.set -> void

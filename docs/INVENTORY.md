@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 8 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management, #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 9 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #411 Privacy by Design, #413 Lawful Basis Validation) (+ 6 planificados: #404, #407, #412, #414-#415) |
+| **Patrones Compliance (GDPR/EU)** | 10 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #411 Privacy by Design, #412 Cross-Border Transfer, #413 Lawful Basis Validation) (+ 5 planificados: #404, #407, #414-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322, ABAC #401, Persistent PAP #691, Privacy by Design #411 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322, ABAC #401, Persistent PAP #691, Privacy by Design #411, Cross-Border Transfer #412 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
