@@ -27,15 +27,15 @@ public class InMemoryPurposeRegistryTests
         string name = "Order Processing",
         string? moduleId = null,
         string? purposeId = null) => new()
-    {
-        PurposeId = purposeId ?? Guid.NewGuid().ToString(),
-        Name = name,
-        Description = "Test purpose",
-        LegalBasis = "Contract",
-        AllowedFields = ["ProductId", "Quantity"],
-        ModuleId = moduleId,
-        CreatedAtUtc = DateTimeOffset.UtcNow,
-    };
+        {
+            PurposeId = purposeId ?? Guid.NewGuid().ToString(),
+            Name = name,
+            Description = "Test purpose",
+            LegalBasis = "Contract",
+            AllowedFields = ["ProductId", "Quantity"],
+            ModuleId = moduleId,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+        };
 
     #region RegisterPurposeAsync
 
