@@ -1588,6 +1588,95 @@ Added the `Encina.Compliance.ProcessorAgreements` package implementing GDPR Arti
 
 ---
 
+#### Encina.Compliance.PrivacyByDesign — GDPR Privacy by Design Enforcement (Art. 25) (#411)
+
+Added the `Encina.Compliance.PrivacyByDesign` package implementing GDPR Article 25 Privacy by Design and by Default enforcement at the CQRS pipeline level. Provides declarative, attribute-based data minimization analysis, purpose limitation validation, default privacy verification, and configurable enforcement with full observability.
+
+**Core Abstractions**:
+
+- **`IPrivacyByDesignValidator`**: Orchestrator interface combining data minimization analysis, purpose limitation validation, and default privacy checks into a single `ValidateAsync` call returning `PrivacyValidationResult`
+- **`IDataMinimizationAnalyzer`**: Reflection-based field analysis with `AnalyzeAsync` (minimization report) and `InspectDefaultsAsync` (default privacy check)
+- **`IPurposeRegistry`**: Purpose definition registry with module-scoped lookup, global fallback, and CRUD operations returning `Either<EncinaError, T>`
+- **`DefaultPrivacyByDesignValidator`**: Default orchestrator combining analyzer + registry + defaults validation
+- **`DefaultDataMinimizationAnalyzer`**: Cached reflection-based analyzer with `ConcurrentDictionary` metadata cache for zero-allocation steady-state
+- **`InMemoryPurposeRegistry`**: Thread-safe `ConcurrentDictionary`-based purpose storage with module fallback semantics
+
+**Four Declarative Attributes**:
+
+- **`[EnforceDataMinimization(Purpose = "...")]`**: Class-level attribute marking request types for data minimization enforcement
+- **`[NotStrictlyNecessary(Reason = "...", Severity = ...)]`**: Property-level marker for fields not strictly necessary (with configurable `MinimizationSeverity`: Info, Warning, Violation)
+- **`[PurposeLimitation("Marketing")]`**: Property-level attribute binding fields to specific processing purposes
+- **`[PrivacyDefault(false)]`**: Property-level attribute declaring the privacy-friendly default value for a field
+
+**Pipeline Behavior**:
+
+- **`DataMinimizationPipelineBehavior<TRequest, TResponse>`**: Validates data minimization at pipeline level with attribute caching and multi-tenancy/module support
+- Three enforcement modes: `Block` (reject non-compliant), `Warn` (log and proceed), `Disabled` (no-op)
+- Requests without `[EnforceDataMinimization]` bypass all checks (zero overhead)
+- Minimization score threshold enforcement via `PrivacyByDesignOptions.MinimizationScoreThreshold`
+- `BlockOnViolation` convenience property for quick enforcement toggle
+
+**Domain Model** (8 model types):
+
+- **`PrivacyValidationResult`**: Composite result with `IsCompliant`, violations list, minimization report, purpose validation, module/tenant IDs, timestamp
+- **`MinimizationReport`**: Analysis report with necessary/unnecessary fields, minimization score (0.0–1.0), recommendations
+- **`PurposeDefinition`**: Purpose with name, description, legal basis, allowed fields, module scoping, expiration
+- **`PurposeValidationResult`**: Purpose check result with `IsValid`, allowed fields, violating fields
+- **`PrivacyViolation`**: Individual violation with field name, violation type, message, severity
+- **`PrivacyFieldInfo`**: Field metadata with name, purpose, required flag
+- **`UnnecessaryFieldInfo`**: Unnecessary field with reason, has-value flag, severity
+- **`DefaultPrivacyFieldInfo`**: Default privacy check with declared default, actual value, matches flag
+
+**Enums**: `PrivacyByDesignEnforcementMode` (Disabled/Warn/Block), `PrivacyViolationType` (DataMinimization/PurposeLimitation/DefaultPrivacy), `PrivacyLevel` (Minimum/Standard/Maximum), `MinimizationSeverity` (Info/Warning/Violation)
+
+**Two Domain Notifications**:
+
+- **`DataMinimizationViolationDetected`**: Published when violations are found (includes request type, violations, enforcement mode, score, tenant/module IDs)
+- **`PrivacyDefaultOverridden`**: Published when privacy defaults are overridden
+
+**Purpose Registration**:
+
+- **`PurposeBuilder`**: Fluent builder for `PurposeDefinition` with auto-generated GUID IDs
+- **`PurposeRegistrationHostedService`**: `IHostedService` that pre-populates purposes at startup from `PrivacyByDesignOptions.AddPurpose()` configuration
+- Module-scoped purposes with global fallback semantics
+
+**Error Codes** (8 structured errors via `PrivacyByDesignErrors`):
+
+- `pbd.data_minimization_violation`, `pbd.purpose_limitation_violation`, `pbd.default_privacy_violation`
+- `pbd.minimization_score_below_threshold`, `pbd.purpose_not_found`, `pbd.duplicate_purpose`
+- `pbd.purpose_expired`, `pbd.store_error`
+- All errors include structured metadata and GDPR article references (Art. 5(1)(b), 5(1)(c), 25(2))
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.PrivacyByDesign` ActivitySource with tags: `privacy.request_type`, `privacy.compliant`, `privacy.violation_count`, `privacy.minimization_score`, `privacy.enforcement_mode`
+- 4 metric instruments: `privacy.validations.total`, `.compliant`, `.violations` (counters), `.duration` (histogram in ms)
+- 7 structured log events (EventId 8500–8506) using `LoggerMessage.Define` for zero-allocation logging
+
+**Health Check**:
+
+- **`PrivacyByDesignHealthCheck`**: Verifies all PbD services are registered (options, validator, registry, analyzer)
+- Returns Healthy (fully configured), Degraded (missing optional analyzer), or Unhealthy (missing required services)
+- Opt-in via `PrivacyByDesignOptions.AddHealthCheck = true`
+- Tags: `encina`, `gdpr`, `privacy-by-design`, `compliance`, `ready`
+
+**Configuration** (`PrivacyByDesignOptions`):
+
+- `EnforcementMode` (Disabled/Warn/Block), `PrivacyLevel`, `MinimizationScoreThreshold`
+- `BlockOnViolation` convenience property (sets `EnforcementMode = Block`)
+- `AddPurpose()` fluent API with optional module scoping
+- `TrackAuditTrail`, `AddHealthCheck` opt-in flags
+- Options validation via `IValidateOptions<PrivacyByDesignOptions>`
+
+**DI Registration**:
+
+- `services.AddEncinaPrivacyByDesign()` with `TryAdd` semantics — register custom implementations before calling to override defaults
+- Configurable via `Action<PrivacyByDesignOptions>` delegate
+
+**Testing**: 219 tests across 5 test projects — unit tests (151), guard tests (25), contract tests (17), property tests (10), integration tests (16) + load test and benchmark justification documents.
+
+---
+
 #### Railway Oriented Programming — Full Either Enforcement (#670, #671, #672, #673)
 
 - All orchestrator public methods now return `Either<EncinaError, T>` instead of throwing exceptions (#670)

@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 8 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management, #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 8 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #413 Lawful Basis Validation) (+ 7 planificados: #404, #407, #411-#412, #414-#415) |
+| **Patrones Compliance (GDPR/EU)** | 9 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #411 Privacy by Design, #413 Lawful Basis Validation) (+ 6 planificados: #404, #407, #412, #414-#415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322, ABAC #401, Persistent PAP #691 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322, ABAC #401, Persistent PAP #691, Privacy by Design #411 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -5851,7 +5851,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | **#408** ✅ | Breach Notification | Sistema de notificación de brechas en 72 horas (Art. 33) - **IMPLEMENTADO** | Alta | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `area-observability` |
 | **#409** | DPIA | Automatización de Data Protection Impact Assessment | Media | Alta | `area-compliance`, `area-gdpr`, `eu-regulation` |
 | **#410** | Processor Agreements | Gestión de acuerdos con Data Processors (Art. 28) | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation`, `saas-enabler` |
-| **#411** | Privacy by Design | Enforcement de Privacy by Design (Art. 25) | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation`, `foundational` |
+| **#411** | Privacy by Design ✅ | Enforcement de Privacy by Design (Art. 25) - **IMPLEMENTADO** | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation`, `foundational` |
 | **#412** | Cross-Border Transfer | Transferencias internacionales con SCCs y adequacy (Schrems II) | Media | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-data-sovereignty` |
 | **#413** | Lawful Basis ✅ | Tracking y validación de base legal (Art. 6) - **IMPLEMENTADO** | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation` |
 | **#414** | NIS2 Compliance | Cumplimiento de NIS2 Directive para ciberseguridad | Media | Muy Alta | `area-compliance`, `eu-regulation`, `area-security`, `owasp-pattern` |
@@ -6111,15 +6111,23 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `industry-best-practice`, `saas-enabler`
 - Referencias: [GDPR Article 28](https://gdpr-info.eu/art-28-gdpr/), [Standard Processor Clauses](https://commission.europa.eu/publications/standard-contractual-clauses-controllers-and-processors-eueea_en)
 
-**#411 - Encina.Compliance.PrivacyByDesign - Art. 25 Enforcement**:
+**#411 - Encina.Compliance.PrivacyByDesign - Art. 25 Enforcement** ✅ **IMPLEMENTADO**:
 
-- `IPrivacyByDesignValidator` con `ValidateAsync`, `RecommendAsync`
-- Roslyn analyzer para detectar violaciones de privacy
-- `[PrivacyReview]` atributo para marcar código que necesita revisión
+- `IPrivacyByDesignValidator` orchestrator con `ValidateAsync`, `AnalyzeMinimizationAsync`, `ValidatePurposeLimitationAsync`, `ValidateDefaultsAsync`
+- `IDataMinimizationAnalyzer` reflection-based field analysis con `MetadataCache` (zero-allocation steady-state)
+- `IPurposeRegistry` con CRUD operations, module-scoped lookup, global fallback
+- `DataMinimizationPipelineBehavior<TRequest, TResponse>` con 3 enforcement modes (Disabled/Warn/Block)
+- 4 attributes: `[EnforceDataMinimization]`, `[NotStrictlyNecessary]`, `[PurposeLimitation]`, `[PrivacyDefault]`
+- 8 model types: `PrivacyValidationResult`, `MinimizationReport`, `PurposeDefinition`, `PurposeValidationResult`, `PrivacyViolation`, etc.
+- 8 error codes con GDPR article references (Art. 5(1)(b), 5(1)(c), 25(2))
+- OpenTelemetry tracing + 4 metrics + 7 structured log events
+- `PrivacyByDesignHealthCheck` (Healthy/Degraded/Unhealthy)
+- `PurposeRegistrationHostedService` auto-registration at startup
+- 219 tests (151 unit, 25 guard, 17 contract, 10 property, 16 integration)
 - Default privacy settings enforcement
 - Data minimization checks
 - Purpose limitation validation
-- **Nuevo paquete planificado**: `Encina.Compliance.PrivacyByDesign`
+- **Paquete implementado**: `Encina.Compliance.PrivacyByDesign` ✅
 - **Demanda de comunidad**: MEDIA - Proactive compliance
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `foundational`
 - Referencias: [GDPR Article 25](https://gdpr-info.eu/art-25-gdpr/), [7 Foundational Principles](https://www.ipc.on.ca/wp-content/uploads/resources/7foundationalprinciples.pdf)
@@ -6209,7 +6217,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | `Encina.Compliance.BreachNotification` | #408 | 72-hour breach notification ✅ | Alta |
 | `Encina.Compliance.DPIA` | #409 | Impact assessment automation ✅ | Media |
 | `Encina.Compliance.ProcessorAgreements` | #410 | DPA management ✅ | Media |
-| `Encina.Compliance.PrivacyByDesign` | #411 | Privacy by Design enforcement | Media |
+| `Encina.Compliance.PrivacyByDesign` | #411 | Privacy by Design enforcement ✅ | Media |
 | `Encina.Compliance.CrossBorderTransfer` | #412 | International transfers | Media |
 | `Encina.Compliance.LawfulBasis` | #413 | Lawful basis tracking ✅ | Media |
 | `Encina.Compliance.NIS2` | #414 | NIS2 Directive compliance | Media |
@@ -6242,7 +6250,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 3. **Medio Plazo (Media Prioridad - Advanced)**:
    - #409 (DPIA) - High-risk processing
    - #410 (ProcessorAgreements) - B2B SaaS
-   - #411 (PrivacyByDesign) - Proactive compliance
+   - ~~#411 (PrivacyByDesign) - Proactive compliance~~ ✅ **COMPLETADO** (Mar 2026)
    - #412 (CrossBorderTransfer) - International
    - ~~#413 (LawfulBasis) - Processing validation~~ ✅ **COMPLETADO** (Feb 2026)
 

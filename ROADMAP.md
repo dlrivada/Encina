@@ -518,7 +518,7 @@ Key areas already completed:
   - ~~Breach Notification [#408](https://github.com/dlrivada/Encina/issues/408) — `IBreachNotificationService`, 72-hour workflow, SIEM integration (HIGH - Art. 33-34)~~ ✅ **COMPLETADO** (v0.13.0)
   - DPIA Automation [#409](https://github.com/dlrivada/Encina/issues/409) — `IDPIAService`, risk assessment, DPA submission (MEDIUM - Art. 35)
   - Processor Agreements [#410](https://github.com/dlrivada/Encina/issues/410) — `IProcessorAgreementService`, Art. 28 compliance (MEDIUM - B2B SaaS)
-  - Privacy by Design [#411](https://github.com/dlrivada/Encina/issues/411) — `IPrivacyByDesignValidator`, Roslyn analyzer, data minimization (MEDIUM - Art. 25)
+  - ~~Privacy by Design [#411](https://github.com/dlrivada/Encina/issues/411) — `IPrivacyByDesignValidator`, data minimization, purpose limitation, default privacy enforcement (MEDIUM - Art. 25)~~ ✅ **COMPLETADO** (v0.13.0)
   - Cross-Border Transfer [#412](https://github.com/dlrivada/Encina/issues/412) — `ICrossBorderTransferValidator`, SCCs, adequacy, TIA (MEDIUM - Chapter V)
   - ~~Lawful Basis [#413](https://github.com/dlrivada/Encina/issues/413) — `ILawfulBasisRegistry`, Art. 6 tracking, LIA workflow, `[LawfulBasis]` attribute, 13 providers (MEDIUM - processing foundation)~~ ✅ **COMPLETADO** (v0.13.0)
   - NIS2 Directive [#414](https://github.com/dlrivada/Encina/issues/414) — `INIS2ComplianceService`, incident reporting, supply chain security (MEDIUM - EU 2022/2555)
