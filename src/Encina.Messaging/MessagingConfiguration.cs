@@ -604,19 +604,6 @@ public sealed class MessagingConfiguration
     public bool UseQueryCache { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether to register DSR (Data Subject Rights) stores.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// When enabled, registers <see cref="Compliance.DataSubjectRights.IDSRRequestStore"/> and
-    /// <see cref="Compliance.DataSubjectRights.IDSRAuditStore"/> with the provider-specific
-    /// implementations for GDPR Articles 15-22 compliance.
-    /// </para>
-    /// </remarks>
-    /// <value>Default: false (opt-in)</value>
-    public bool UseDataSubjectRights { get; set; }
-
-    /// <summary>
     /// Gets or sets a value indicating whether to register Anonymization stores.
     /// </summary>
     /// <remarks>
@@ -1008,5 +995,5 @@ public sealed class MessagingConfiguration
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
     public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseReadAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseDataSubjectRights || UseAnonymization || UseRetention || UseDataResidency || UseCrossBorderTransfer || UseBreachNotification;
+        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseSecurityAuditStore || UseReadAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseAnonymization || UseRetention || UseDataResidency || UseCrossBorderTransfer || UseBreachNotification;
 }

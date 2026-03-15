@@ -17,7 +17,7 @@ namespace Encina.Compliance.DataSubjectRights;
 /// personal data.
 /// </para>
 /// <para>
-/// Used by <see cref="IDataSubjectRightsHandler"/> to fulfill:
+/// Used by <see cref="Abstractions.IDSRService"/> to fulfill:
 /// </para>
 /// <list type="bullet">
 /// <item><b>Access requests (Article 15)</b>: Locate all data to include in the response</item>

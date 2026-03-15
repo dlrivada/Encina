@@ -8,8 +8,9 @@ namespace Encina.Compliance.DataSubjectRights.Diagnostics;
 /// <remarks>
 /// <para>
 /// Uses the <c>[LoggerMessage]</c> source generator for zero-allocation logging in hot paths.
-/// Event IDs are allocated in the 8300-8399 range to avoid collisions with other
-/// Encina subsystems (GDPR uses 8100-8199, Consent uses 8200-8299).
+/// Event IDs are allocated in the 8300-8349 range to avoid collisions with other
+/// Encina subsystems (GDPR uses 8100-8199, Consent uses 8200-8259,
+/// Anonymization uses 8400-8499, CrossBorderTransfer uses 8500-8555).
 /// </para>
 /// </remarks>
 internal static partial class DSRLogMessages
@@ -58,7 +59,7 @@ internal static partial class DSRLogMessages
     internal static partial void DSRHealthCheckCompleted(this ILogger logger, string status, int overdueRequestCount);
 
     // ========================================================================
-    // Handler lifecycle (8320-8329)
+    // Service lifecycle (8320-8329)
     // ========================================================================
 
     /// <summary>DSR request started for a specific right type.</summary>
@@ -262,14 +263,14 @@ internal static partial class DSRLogMessages
     internal static partial void NotificationPublishFailed(this ILogger logger, string notificationType, string errorMessage);
 
     // ========================================================================
-    // Audit trail (8344-8345)
+    // Event store / audit (8344-8345)
     // ========================================================================
 
-    /// <summary>Audit entry record failed.</summary>
+    /// <summary>Event store operation failed (events serve as audit trail).</summary>
     [LoggerMessage(
         EventId = 8344,
         Level = LogLevel.Warning,
-        Message = "Failed to record audit entry. DSRRequestId={DSRRequestId}, ErrorMessage={ErrorMessage}")]
+        Message = "Failed to persist aggregate event. DSRRequestId={DSRRequestId}, ErrorMessage={ErrorMessage}")]
     internal static partial void AuditEntryFailed(this ILogger logger, string dsrRequestId, string errorMessage);
 
     /// <summary>No personal data found for subject during erasure.</summary>
@@ -280,13 +281,31 @@ internal static partial class DSRLogMessages
     internal static partial void ErasureNoDataFound(this ILogger logger, string subjectId);
 
     // ========================================================================
-    // Restriction store error (8346)
+    // Restriction service error (8346)
     // ========================================================================
 
     /// <summary>Failed to check restriction status — proceeding without check (fail-open).</summary>
     [LoggerMessage(
         EventId = 8346,
         Level = LogLevel.Warning,
-        Message = "Restriction check store error — proceeding without check. SubjectId={SubjectId}, RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
+        Message = "Restriction check service error — proceeding without check. SubjectId={SubjectId}, RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
     internal static partial void RestrictionCheckStoreError(this ILogger logger, string subjectId, string requestType, string errorMessage);
+
+    // ========================================================================
+    // Service-level errors (8347-8349)
+    // ========================================================================
+
+    /// <summary>DSR service operation failed unexpectedly.</summary>
+    [LoggerMessage(
+        EventId = 8347,
+        Level = LogLevel.Error,
+        Message = "DSR service operation failed. Operation={Operation}, ErrorMessage={ErrorMessage}")]
+    internal static partial void DSRServiceError(this ILogger logger, string operation, string errorMessage, Exception? exception = null);
+
+    /// <summary>DSR aggregate invalid state transition.</summary>
+    [LoggerMessage(
+        EventId = 8348,
+        Level = LogLevel.Warning,
+        Message = "DSR aggregate invalid state transition. RequestId={RequestId}, Operation={Operation}, ErrorMessage={ErrorMessage}")]
+    internal static partial void DSRInvalidStateTransition(this ILogger logger, string requestId, string operation, string errorMessage);
 }

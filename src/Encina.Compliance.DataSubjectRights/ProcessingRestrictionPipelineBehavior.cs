@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 
+using Encina.Compliance.DataSubjectRights.Abstractions;
 using Encina.Compliance.DataSubjectRights.Diagnostics;
 using Encina.Compliance.GDPR;
 
@@ -80,7 +81,7 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
     /// </summary>
     private static readonly RestrictionAttributeInfo? CachedAttributeInfo = ResolveAttributeInfo();
 
-    private readonly IDSRRequestStore _requestStore;
+    private readonly IDSRService _dsrService;
     private readonly IDataSubjectIdExtractor _subjectIdExtractor;
     private readonly DataSubjectRightsOptions _options;
     private readonly ILogger<ProcessingRestrictionPipelineBehavior<TRequest, TResponse>> _logger;
@@ -88,22 +89,22 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
     /// <summary>
     /// Initializes a new instance of the <see cref="ProcessingRestrictionPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="requestStore">The DSR request store for checking active restrictions.</param>
+    /// <param name="dsrService">The DSR service for checking active restrictions.</param>
     /// <param name="subjectIdExtractor">The subject ID extractor for identifying the data subject.</param>
     /// <param name="options">DSR configuration options controlling enforcement mode.</param>
     /// <param name="logger">Logger for structured restriction check logging.</param>
     public ProcessingRestrictionPipelineBehavior(
-        IDSRRequestStore requestStore,
+        IDSRService dsrService,
         IDataSubjectIdExtractor subjectIdExtractor,
         IOptions<DataSubjectRightsOptions> options,
         ILogger<ProcessingRestrictionPipelineBehavior<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(requestStore);
+        ArgumentNullException.ThrowIfNull(dsrService);
         ArgumentNullException.ThrowIfNull(subjectIdExtractor);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _requestStore = requestStore;
+        _dsrService = dsrService;
         _subjectIdExtractor = subjectIdExtractor;
         _options = options.Value;
         _logger = logger;
@@ -152,7 +153,7 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
         }
 
         // Step 5: Check for active restriction
-        var restrictionResult = await _requestStore
+        var restrictionResult = await _dsrService
             .HasActiveRestrictionAsync(subjectId, cancellationToken)
             .ConfigureAwait(false);
 

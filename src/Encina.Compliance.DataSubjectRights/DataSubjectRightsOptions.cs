@@ -125,8 +125,9 @@ public sealed class DataSubjectRightsOptions
     /// <remarks>
     /// <para>
     /// When <c>true</c>, all DSR operations (requests received, identity verified, data accessed,
-    /// erasure executed, etc.) are recorded in the <see cref="IDSRAuditStore"/> for
-    /// accountability purposes (Article 5(2)).
+    /// erasure executed, etc.) are recorded in the event stream for accountability purposes
+    /// (Article 5(2)). With Marten event sourcing, the event stream itself serves as the
+    /// immutable audit trail.
     /// </para>
     /// <para>
     /// Default is <c>true</c>.

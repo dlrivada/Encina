@@ -1,3 +1,4 @@
+using Encina.Compliance.DataSubjectRights.Abstractions;
 using Encina.Compliance.DataSubjectRights.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +17,7 @@ namespace Encina.Compliance.DataSubjectRights.Health;
 /// This health check verifies:
 /// <list type="bullet">
 /// <item><description>The DSR options are configured</description></item>
-/// <item><description>The DSR request store (<see cref="IDSRRequestStore"/>) is resolvable</description></item>
+/// <item><description>The DSR service (<see cref="IDSRService"/>) is resolvable</description></item>
 /// <item><description>The personal data locator (<see cref="IPersonalDataLocator"/>) is resolvable (optional)</description></item>
 /// <item><description>The data erasure executor (<see cref="IDataErasureExecutor"/>) is resolvable (optional)</description></item>
 /// <item><description>No overdue DSR requests exist (Degraded if any found)</description></item>
@@ -82,20 +83,20 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
 
         data["enforcementMode"] = options.RestrictionEnforcementMode.ToString();
 
-        // 2. Verify DSR request store is resolvable
-        var requestStore = scopedProvider.GetService<IDSRRequestStore>();
-        if (requestStore is null)
+        // 2. Verify DSR service is resolvable
+        var dsrService = scopedProvider.GetService<IDSRService>();
+        if (dsrService is null)
         {
             return HealthCheckResult.Unhealthy(
-                "IDSRRequestStore is not registered.",
+                "IDSRService is not registered.",
                 data: data);
         }
 
-        data["requestStoreType"] = requestStore.GetType().Name;
+        data["dsrServiceType"] = dsrService.GetType().Name;
 
         // 3. Check for overdue requests
         var overdueCount = 0;
-        var overdueResult = await requestStore.GetOverdueRequestsAsync(cancellationToken).ConfigureAwait(false);
+        var overdueResult = await dsrService.GetOverdueRequestsAsync(cancellationToken).ConfigureAwait(false);
 
         overdueResult.Match(
             Right: overdueRequests =>

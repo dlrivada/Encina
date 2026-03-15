@@ -2,7 +2,6 @@ using System.Data;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
@@ -84,13 +83,6 @@ public static class ServiceCollectionExtensions
         // Dapper shares the same underlying connection pool as ADO.NET (MySqlConnector)
         services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
             new DapperMySqlDatabaseHealthMonitor(sp));
-
-        // Register DSR (Data Subject Rights) stores if enabled
-        if (config.UseDataSubjectRights)
-        {
-            services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreDapper>();
-            services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreDapper>();
-        }
 
         // Register Anonymization token mapping store if enabled
         if (config.UseAnonymization)

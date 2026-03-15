@@ -2053,6 +2053,44 @@ Migrated `Encina.Compliance.Consent` from entity-based persistence (13 database 
 
 ---
 
+#### Encina.Compliance.DataSubjectRights — Migrated to Marten Event Sourcing (#778)
+
+Migrated `Encina.Compliance.DataSubjectRights` from entity-based persistence (13 database providers) to Marten event sourcing (PostgreSQL-only). Replaces `IDSRRequestStore` / `IDSRAuditStore` / `IDataSubjectRightsHandler` with a single event-sourced aggregate, CQRS read model, and unified service interface. Audit trail is now inherent in the event stream.
+
+**New Architecture (Event-Sourced)**:
+
+- **`DSRRequestAggregate`**: Event-sourced aggregate with `Submit()`, `Verify()`, `StartProcessing()`, `Complete()`, `Deny()`, `Extend()`, `Expire()` commands, plus `GetEffectiveDeadline()` and `IsOverdue()` query methods
+- **7 Domain Events**: `DSRRequestSubmitted`, `DSRRequestVerified`, `DSRRequestProcessing`, `DSRRequestCompleted`, `DSRRequestDenied`, `DSRRequestExtended`, `DSRRequestExpired`
+- **`DSRRequestProjection`**: Marten projection transforming events to `DSRRequestReadModel` for query-side reads
+- **`DSRRequestReadModel`**: Projected read model with 17 properties, `IsOverdue()` method, and `HasActiveRestriction` computed property
+- **`IDSRService`**: Clean CQRS service interface with 20 methods across 3 categories (lifecycle, handlers, queries) via `IAggregateRepository<DSRRequestAggregate>` and `IReadModelRepository<DSRRequestReadModel>`
+- **`DefaultDSRService`**: Implementation with cache-aside pattern (L1/L2 via `ICacheProvider`), 10 constructor dependencies, full observability
+- **`DSRMartenExtensions.AddDSRRequestAggregates()`**: Registers aggregate + projection with Marten DI
+
+**Removed (Old Entity-Based Model)**:
+
+- `IDSRRequestStore`, `IDSRAuditStore`, `IDataSubjectRightsHandler` interfaces
+- `InMemoryDSRRequestStore`, `InMemoryDSRAuditStore` implementations
+- `DefaultDataSubjectRightsHandler` orchestrator
+- `DSRRequest` mutable entity, `DSRAuditEntry` record type
+- All 13-provider store implementations (ADO.NET, Dapper, EF Core, MongoDB)
+
+**Preserved (Not Store-Dependent)**:
+
+- `ProcessingRestrictionPipelineBehavior`, `DataSubjectRightsOptions`, `DataSubjectRightsHealthCheck`
+- `[PersonalData]` / `[RestrictProcessing]` attributes, auto-registration infrastructure
+- `IPersonalDataLocator`, `IDataErasureExecutor`, `IDataPortabilityExporter`, `IExportFormatWriter`
+- All notification types, error codes, observability instrumentation
+
+**Observability Updates**:
+
+- Renamed `StoreError` → `ServiceError` across diagnostics, log messages, and error codes
+- Added `EventHistoryUnavailable` error code for Marten event stream queries (future implementation)
+
+**Testing**: 240 tests across 5 test projects: 197 unit tests (aggregate, projection, read model, service, errors, erasure, portability), 34 guard tests, 9 property tests (FsCheck), contract test base class, plus justification documents for load tests and benchmarks.
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

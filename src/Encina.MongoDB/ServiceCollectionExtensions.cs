@@ -1,7 +1,6 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
@@ -122,13 +121,6 @@ public static class ServiceCollectionExtensions
         if (options.UseReadAuditStore)
         {
             services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
-        }
-
-        // Register DSR (Data Subject Rights) stores if enabled
-        if (options.UseDataSubjectRights)
-        {
-            services.AddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreMongoDB>();
-            services.AddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreMongoDB>();
         }
 
         // Register Anonymization token mapping store if enabled
@@ -277,13 +269,6 @@ public static class ServiceCollectionExtensions
         if (options.UseReadAuditStore)
         {
             services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
-        }
-
-        // Register DSR (Data Subject Rights) stores if enabled
-        if (options.UseDataSubjectRights)
-        {
-            services.AddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreMongoDB>();
-            services.AddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreMongoDB>();
         }
 
         // Register Anonymization token mapping store if enabled

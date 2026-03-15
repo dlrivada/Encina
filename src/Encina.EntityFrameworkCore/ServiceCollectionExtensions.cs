@@ -2,7 +2,6 @@ using Encina.Caching;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
@@ -336,13 +335,6 @@ public static class ServiceCollectionExtensions
         {
             // Register read audit trail store (Encina.Security.Audit)
             services.AddScoped<IReadAuditStore, ReadAuditStoreEF>();
-        }
-
-        if (config.UseDataSubjectRights)
-        {
-            // Register GDPR Data Subject Rights stores (Articles 15-22)
-            services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreEF>();
-            services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreEF>();
         }
 
         // Register Anonymization token mapping store if enabled

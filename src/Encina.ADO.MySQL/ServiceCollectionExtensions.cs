@@ -9,7 +9,6 @@ using Encina.ADO.MySQL.Scheduling;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
@@ -69,13 +68,6 @@ public static class ServiceCollectionExtensions
         if (config.UseReadAuditStore)
         {
             services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
-        }
-
-        // Register DSR (Data Subject Rights) stores if enabled
-        if (config.UseDataSubjectRights)
-        {
-            services.TryAddScoped<IDSRRequestStore, DataSubjectRights.DSRRequestStoreADO>();
-            services.TryAddScoped<IDSRAuditStore, DataSubjectRights.DSRAuditStoreADO>();
         }
 
         // Register Anonymization token mapping store if enabled

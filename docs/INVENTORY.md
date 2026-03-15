@@ -5914,44 +5914,40 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `pattern-consent-management`
 - Referencias: [GDPR Article 7](https://gdpr-info.eu/art-7-gdpr/), [Cookiebot Consent](https://www.cookiebot.com/en/gdpr-consent/)
 
-**#404 - Encina.Compliance.DataSubjectRights - GDPR Rights (Arts. 15-22)** ✅ **IMPLEMENTADO**:
+**#404 - Encina.Compliance.DataSubjectRights - GDPR Rights (Arts. 15-22)** ✅ **IMPLEMENTADO** *(migrado a Marten event sourcing en #778)*:
 
-- `IDataSubjectRightsHandler` con `SubmitRequestAsync`, `GetRequestAsync`, `GetRequestsBySubjectAsync`, `UpdateRequestStatusAsync`, `GetPendingRequestsAsync`, `GetOverdueRequestsAsync` — full DSR lifecycle management (Arts. 12, 15-22)
-- `IDSRRequestStore` con `CreateAsync`, `GetByIdAsync`, `GetBySubjectIdAsync`, `UpdateStatusAsync`, `GetAllAsync`, `GetPendingRequestsAsync`, `GetOverdueRequestsAsync`, `HasActiveRestrictionAsync` — request persistence
-- `IDSRAuditStore` con `RecordAsync`, `GetAuditTrailAsync` — immutable audit trail for compliance evidence
-- `IPersonalDataLocator` con `LocateAllDataAsync` — discovers personal data fields across the application
-- `IDataErasureExecutor` con `EraseAsync(scope, exemptions?)` — orchestrates erasure with legal retention exemptions
-- `IDataErasureStrategy` con `EraseFieldAsync` — per-field erasure customization
-- `IDataPortabilityExporter` con `ExportAsync(subjectId, format)` — data portability (Art. 20)
-- `IExportFormatWriter` con `WriteAsync`, `SupportedFormat` — pluggable format writers (JSON, CSV, XML)
-- `DSRRequest` sealed record con Id, SubjectId, RightType, Status, ReceivedAtUtc, DeadlineAtUtc (30-day SLA), CompletedAtUtc, ExtensionReason, VerifiedAtUtc, Notes
-- `DSRRequestStatus` enum: Received, IdentityVerified, InProgress, Completed, Rejected, Extended, Expired
-- `DataSubjectRight` enum: Access, Rectification, Erasure, Restriction, Portability, Objection, AutomatedDecisionMaking, Notification (8 GDPR rights)
-- `[PersonalData]` attribute con Category, IsErasable, IsPortable, HasLegalRetention, ErasureMethod — property-level marking for automated locator
-- `PersonalDataCategory` enum: Identity, Contact, Financial, Health, Biometric, Location, Online, Behavioral, Social, Genetic, Political, Religious, TradeUnion, SexualOrientation, Criminal, Children
-- `PersonalDataLocation` record para field-level data mapping
-- `ProcessingRestrictionPipelineBehavior<TRequest, TResponse>` para Art. 18 restriction enforcement in pipeline
-- 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
-- `DataSubjectRightsOptions` con enforcement mode, auto-registration, assembly scanning
-- `ErasureScope`, `ErasureResult`, `ErasureFieldResult` — detailed erasure tracking per-field
-- `ErasureReason` enum: SubjectRequest, ConsentWithdrawn, DataRetentionExpired, LegalObligation, Other
-- `ErasureExemption` record: FieldName, Reason, LegalBasis — Art. 17(3) exemptions
-- `PortabilityResponse`, `ExportedData`, `ExportFormat` enum (JSON, CSV, XML) — portability output
-- 11 error codes: `dsr.request_not_found`, `dsr.duplicate_request`, `dsr.invalid_status_transition`, `dsr.deadline_expired`, `dsr.restriction_active`, `dsr.store_error`, `dsr.locator_failed`, `dsr.erasure_failed`, `dsr.format_not_supported`, `dsr.export_failed`, `dsr.handler_error`
-- `DefaultDataSubjectRightsHandler` — full lifecycle orchestration with deadline enforcement
-- `DefaultDataErasureExecutor` — erasure with legal retention exemptions, field-level tracking
-- `DefaultDataPortabilityExporter` — portable-only field filtering + format writer resolution
-- In-memory implementations: `InMemoryDSRRequestStore` (ConcurrentDictionary), `InMemoryDSRAuditStore` (ConcurrentDictionary)
-- `DataSubjectRightsHealthCheck` con opt-in via `AddHealthCheck = true`, Unhealthy/Degraded/Healthy logic based on overdue requests
+- **Event-Sourced Architecture** (migrated from 13-provider entity-based persistence in #778):
+  - `DSRRequestAggregate` con `Submit()`, `Verify()`, `StartProcessing()`, `Complete()`, `Deny()`, `Extend()`, `Expire()`, `GetEffectiveDeadline()`, `IsOverdue()` — event-sourced aggregate via `AggregateBase`
+  - 7 domain events: `DSRRequestSubmitted`, `DSRRequestVerified`, `DSRRequestProcessing`, `DSRRequestCompleted`, `DSRRequestDenied`, `DSRRequestExtended`, `DSRRequestExpired` — sealed records implementing `INotification`
+  - `DSRRequestProjection` — Marten projection transforming events to `DSRRequestReadModel` for query-side reads
+  - `DSRRequestReadModel` con 17 properties, `IsOverdue()` method, `HasActiveRestriction` computed property
+  - `IDSRService` con 20 methods (7 lifecycle + 6 handlers + 4 queries + 3 restriction/history) — CQRS service via `IAggregateRepository<DSRRequestAggregate>` y `IReadModelRepository<DSRRequestReadModel>`
+  - `DefaultDSRService` — implementation with cache-aside pattern (`ICacheProvider`), 10 constructor dependencies
+  - `DSRMartenExtensions.AddDSRRequestAggregates()` — registers aggregate + projection with Marten DI
+  - Audit trail inherent in event stream (no separate `IDSRAuditStore` needed)
+- **Preserved (Not Store-Dependent)**:
+  - `IPersonalDataLocator` con `LocateAllDataAsync` — discovers personal data fields across the application
+  - `IDataErasureExecutor` con `EraseAsync(scope)` — orchestrates erasure with legal retention exemptions
+  - `IDataErasureStrategy` con `EraseFieldAsync` — per-field erasure customization
+  - `IDataPortabilityExporter` con `ExportAsync(subjectId, format)` — data portability (Art. 20)
+  - `IExportFormatWriter` con `WriteAsync`, `SupportedFormat` — pluggable format writers (JSON, CSV, XML)
+  - `DSRRequestStatus` enum: Received, IdentityVerified, InProgress, Completed, Rejected, Extended, Expired
+  - `DataSubjectRight` enum: Access, Rectification, Erasure, Restriction, Portability, Objection, AutomatedDecisionMaking, Notification (8 GDPR rights)
+  - `[PersonalData]` attribute con Category, IsErasable, IsPortable, HasLegalRetention — property-level marking for automated locator
+  - `PersonalDataCategory` enum: Identity, Contact, Financial, Health, Biometric, Location, Online, etc.
+  - `ProcessingRestrictionPipelineBehavior<TRequest, TResponse>` para Art. 18 restriction enforcement in pipeline
+  - 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
+  - `DataSubjectRightsOptions` con enforcement mode, auto-registration, assembly scanning
+  - `DefaultDataErasureExecutor`, `DefaultDataPortabilityExporter` — default implementations
+  - `DataSubjectRightsHealthCheck` con opt-in via `AddHealthCheck = true`
+  - Domain notifications: `DataErasedNotification`, `DataRectifiedNotification`, `ProcessingRestrictedNotification`, `RestrictionLiftedNotification`
+- **Removed in #778**: `IDSRRequestStore`, `IDSRAuditStore`, `IDataSubjectRightsHandler`, `InMemoryDSRRequestStore`, `InMemoryDSRAuditStore`, `DefaultDataSubjectRightsHandler`, `DSRRequest` mutable entity, `DSRAuditEntry`
 - OpenTelemetry tracing via `Encina.Compliance.DataSubjectRights` ActivitySource
-- 3 counters: `dsr.requests.submitted`, `dsr.requests.completed`, `dsr.requests.overdue`
-- 2 histograms: `dsr.request.duration`, `dsr.erasure.duration`
-- 14 structured log events con `LoggerMessage.Define` (zero-allocation, event IDs 8300–8399)
-- DI registration via `AddEncinaDataSubjectRights()` extension method with options pattern
-- **Paquete**: `Encina.Compliance.DataSubjectRights`
-- **Testing**: 228 tests (unit 125, guard 42, contract 17, property 10, integration 17) + 8 load test methods + 15 benchmarks (request store 12, audit store 3)
+- Structured logging: EventId 8300-8349 con `[LoggerMessage]` source generator (zero-allocation)
+- DI registration via `AddEncinaDataSubjectRights()` + `AddDSRRequestAggregates()` extension methods
+- **Paquete**: `Encina.Compliance.DataSubjectRights` (requiere `Encina.Marten`)
+- **Testing**: 240 tests (197 unit, 34 guard, 9 property, contract base class) + justification docs for load/benchmark
 - **Documentación**: [README](../src/Encina.Compliance.DataSubjectRights/README.md)
-- **Nota**: Database provider implementations (13 providers) pendientes para Phases 6-7 — currently InMemory only
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `saas-essential`
 - Referencias: [GDPR Chapter III Rights](https://gdpr-info.eu/chapter-3/), [OneTrust Subject Requests](https://www.onetrust.com/products/subject-rights-requests/)
 

@@ -1,6 +1,8 @@
 using System.Reflection;
 
+using Encina.Compliance.DataSubjectRights.Abstractions;
 using Encina.Compliance.DataSubjectRights.Health;
+using Encina.Compliance.DataSubjectRights.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,9 +27,7 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="DataSubjectRightsOptions"/> — Configured via the provided action, validated at first access</item>
-    /// <item><see cref="IDSRRequestStore"/> → <see cref="InMemoryDSRRequestStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDSRAuditStore"/> → <see cref="InMemoryDSRAuditStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDataSubjectRightsHandler"/> → <see cref="DefaultDataSubjectRightsHandler"/> (Scoped, using TryAdd)</item>
+    /// <item><see cref="IDSRService"/> → <see cref="DefaultDSRService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IDataErasureExecutor"/> → <see cref="DefaultDataErasureExecutor"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IDataErasureStrategy"/> → <see cref="HardDeleteErasureStrategy"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IDataPortabilityExporter"/> → <see cref="DefaultDataPortabilityExporter"/> (Scoped, using TryAdd)</item>
@@ -39,8 +39,13 @@ public static class ServiceCollectionExtensions
     /// <para>
     /// <b>Default registrations:</b>
     /// All service registrations use <c>TryAdd</c>, allowing you to register custom
-    /// implementations before calling this method. For example, register a database-backed
-    /// <see cref="IDSRRequestStore"/> or a custom <see cref="IDataErasureStrategy"/>.
+    /// implementations before calling this method. For example, register a custom
+    /// <see cref="IDSRService"/> or a custom <see cref="IDataErasureStrategy"/>.
+    /// </para>
+    /// <para>
+    /// <b>Marten aggregates:</b>
+    /// Call <see cref="DSRMartenExtensions.AddDSRRequestAggregates"/>
+    /// separately to register the event-sourced aggregate repositories with Marten.
     /// </para>
     /// <para>
     /// <b>Auto-registration:</b>
@@ -59,8 +64,11 @@ public static class ServiceCollectionExtensions
     ///     options.AssembliesToScan.Add(typeof(Program).Assembly);
     /// });
     ///
+    /// // Register Marten aggregates separately
+    /// services.AddDSRRequestAggregates();
+    ///
     /// // With custom implementations (register before AddEncinaDataSubjectRights)
-    /// services.AddSingleton&lt;IDSRRequestStore, DatabaseDSRRequestStore&gt;();
+    /// services.AddScoped&lt;IDSRService, MyCustomDSRService&gt;();
     /// services.AddSingleton&lt;IDataErasureStrategy, AnonymizationErasureStrategy&gt;();
     /// services.AddEncinaDataSubjectRights(options =>
     /// {
@@ -91,10 +99,8 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
-        // Register default implementations (TryAdd allows override by satellite providers)
-        services.TryAddSingleton<IDSRRequestStore, InMemoryDSRRequestStore>();
-        services.TryAddSingleton<IDSRAuditStore, InMemoryDSRAuditStore>();
-        services.TryAddScoped<IDataSubjectRightsHandler, DefaultDataSubjectRightsHandler>();
+        // Register default implementations (TryAdd allows override)
+        services.TryAddScoped<IDSRService, DefaultDSRService>();
         services.TryAddScoped<IDataErasureExecutor, DefaultDataErasureExecutor>();
         services.TryAddSingleton<IDataErasureStrategy, HardDeleteErasureStrategy>();
         services.TryAddScoped<IDataPortabilityExporter, DefaultDataPortabilityExporter>();

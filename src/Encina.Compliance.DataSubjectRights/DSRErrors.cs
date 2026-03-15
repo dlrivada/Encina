@@ -59,6 +59,12 @@ public static class DSRErrors
     /// <summary>Error code when a DSR request is invalid.</summary>
     public const string InvalidRequestCode = "dsr.invalid_request";
 
+    /// <summary>Error code when a DSR service operation fails unexpectedly.</summary>
+    public const string ServiceErrorCode = "dsr.service_error";
+
+    /// <summary>Error code when event history retrieval is not yet available.</summary>
+    public const string EventHistoryUnavailableCode = "dsr.event_history_unavailable";
+
     // --- Request lifecycle errors ---
 
     /// <summary>
@@ -339,6 +345,43 @@ public static class DSRErrors
             message: $"Invalid DSR request: {message}",
             details: new Dictionary<string, object?>
             {
+                [MetadataKeyStageDSR] = MetadataKeyStageDSR
+            });
+
+    /// <summary>
+    /// Creates an error when a DSR service operation fails unexpectedly.
+    /// </summary>
+    /// <param name="operation">The service operation that failed (e.g., "SubmitRequest", "HandleErasure").</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <returns>An error wrapping the unexpected exception.</returns>
+    public static EncinaError ServiceError(string operation, Exception exception) =>
+        EncinaErrors.Create(
+            code: ServiceErrorCode,
+            message: $"DSR service operation '{operation}' failed unexpectedly: {exception.Message}",
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
+                ["exceptionType"] = exception.GetType().Name,
+                [MetadataKeyStageDSR] = MetadataKeyStageDSR
+            });
+
+    /// <summary>
+    /// Creates an error when event history retrieval is not yet available.
+    /// </summary>
+    /// <param name="requestId">The DSR request aggregate identifier.</param>
+    /// <returns>An error indicating event history is not available.</returns>
+    /// <remarks>
+    /// Event history retrieval requires direct Marten event stream access, which may
+    /// not be available through the generic <c>IAggregateRepository</c>.
+    /// </remarks>
+    public static EncinaError EventHistoryUnavailable(Guid requestId) =>
+        EncinaErrors.Create(
+            code: EventHistoryUnavailableCode,
+            message: $"Event history for DSR request '{requestId}' is not yet available. "
+                + "This feature requires direct Marten event stream access (Phase 4+).",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestId] = requestId.ToString(),
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR
             });
 }

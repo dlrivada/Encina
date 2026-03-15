@@ -34,7 +34,58 @@ internal static class DataSubjectRightsDiagnostics
     internal const string TagRequestType = "dsr.request_type";
     internal const string TagEnforcementMode = "dsr.enforcement_mode";
 
-    // ---- Counters ----
+    // ---- Counters: aggregate lifecycle ----
+
+    /// <summary>
+    /// Total DSR requests submitted (new aggregate created).
+    /// </summary>
+    internal static readonly Counter<long> RequestsSubmittedTotal =
+        Meter.CreateCounter<long>("dsr.requests.submitted.total",
+            description: "Total number of data subject rights requests submitted.");
+
+    /// <summary>
+    /// Total DSR requests with identity verified.
+    /// </summary>
+    internal static readonly Counter<long> RequestsVerifiedTotal =
+        Meter.CreateCounter<long>("dsr.requests.verified.total",
+            description: "Total number of DSR requests with identity verification completed.");
+
+    /// <summary>
+    /// Total DSR requests that entered processing.
+    /// </summary>
+    internal static readonly Counter<long> RequestsProcessingTotal =
+        Meter.CreateCounter<long>("dsr.requests.processing.total",
+            description: "Total number of DSR requests that started processing.");
+
+    /// <summary>
+    /// Total DSR requests completed successfully.
+    /// </summary>
+    internal static readonly Counter<long> RequestsCompletedTotal =
+        Meter.CreateCounter<long>("dsr.requests.completed.total",
+            description: "Total number of DSR requests completed successfully.");
+
+    /// <summary>
+    /// Total DSR requests denied.
+    /// </summary>
+    internal static readonly Counter<long> RequestsDeniedTotal =
+        Meter.CreateCounter<long>("dsr.requests.denied.total",
+            description: "Total number of DSR requests denied.");
+
+    /// <summary>
+    /// Total DSR requests with deadline extended.
+    /// </summary>
+    internal static readonly Counter<long> RequestsExtendedTotal =
+        Meter.CreateCounter<long>("dsr.requests.extended.total",
+            description: "Total number of DSR requests with deadline extended.");
+
+    /// <summary>
+    /// Total DSR requests expired (compliance violation).
+    /// </summary>
+    internal static readonly Counter<long> RequestsExpiredTotal =
+        Meter.CreateCounter<long>("dsr.requests.expired.total",
+            description: "Total number of DSR requests that expired past their deadline.");
+
+    // ---- Counters: handler operations ----
 
     /// <summary>
     /// Total DSR requests processed, tagged with <c>right_type</c> and <c>outcome</c>.
@@ -97,7 +148,33 @@ internal static class DataSubjectRightsDiagnostics
             unit: "ms",
             description: "Duration of data portability export operations in milliseconds.");
 
+    internal const string TagRequestId = "dsr.request_id";
+    internal const string TagOperation = "dsr.operation";
+
     // ---- Activity helpers ----
+
+    /// <summary>
+    /// Starts a new <c>DSR.AggregateCommand</c> activity for an aggregate lifecycle operation.
+    /// </summary>
+    /// <param name="operation">The lifecycle operation (e.g., "Submit", "Verify", "Complete").</param>
+    /// <param name="requestId">The DSR request aggregate identifier, or <c>null</c> for new submissions.</param>
+    /// <returns>The started activity, or <c>null</c> when no listener is attached.</returns>
+    internal static Activity? StartAggregateCommand(string operation, Guid? requestId = null)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("DSR.AggregateCommand", ActivityKind.Internal);
+        activity?.SetTag(TagOperation, operation);
+        if (requestId.HasValue)
+        {
+            activity?.SetTag(TagRequestId, requestId.Value.ToString());
+        }
+
+        return activity;
+    }
 
     /// <summary>
     /// Starts a new <c>DSR.Request</c> activity for a data subject right operation.
