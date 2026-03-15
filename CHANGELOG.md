@@ -2014,7 +2014,7 @@ Added the `Encina.Compliance.CrossBorderTransfer` package implementing GDPR Arti
 - `services.AddCrossBorderTransferAggregates()` for Marten aggregate registration
 - Configurable via `Action<CrossBorderTransferOptions>` delegate
 
-**Testing**: 184 tests across 7 test projects (87 unit, 30 guard, 14 property, 42 contract, 24 integration). Integration tests verify aggregate persistence and service lifecycle against real PostgreSQL via Marten/Testcontainers. Justification documents for LoadTests and BenchmarkTests.
+**Testing**: 184 tests across 7 test projects (87 unit, 30 guard, 14 property, 42 contract, 24 integration). Integration tests verify aggregate persistence and service lifecycle against real PostgreSQL via Marten/Testcontainers. Load tests (7 scenarios: adequacy fast path, SCC validation, full cascade to block, risk assessor concurrent, mixed validation, pipeline validation, latency distribution P50/P95/P99 — 50 workers × 10K ops). Benchmarks: `TransferValidatorBenchmarks` (5 benchmarks: adequacy baseline, approved transfer, SCC agreement, TIA deep cascade, block full cascade) and `TransferPipelineBenchmarks` (5 benchmarks: block adequate baseline, block non-adequate, warn mode, disabled mode, no attribute skip branch).
 
 ---
 
