@@ -1962,13 +1962,14 @@ Added the `Encina.Compliance.CrossBorderTransfer` package implementing GDPR Arti
 - **`SCCValidationResult`**: SCC agreement validity assessment
 - **`SupplementaryMeasure`**: Record with type (Technical, Organizational, Contractual), description, implementation date
 
-**6 Domain Events** (per aggregate):
+**15 Event-Sourced Domain Events** (all implement `INotification` for automatic publishing via `EventPublishingPipelineBehavior`):
 
-- TIA: `TIACreated`, `TIARiskAssessed`, `TIASupplementaryMeasureRequired`, `TIASubmittedForDPOReview`, `TIADPOReviewCompleted`
-- SCC: `SCCAgreementRegistered`, `SCCAgreementSupplementaryMeasureAdded`, `SCCAgreementRevoked`
-- Approved Transfer: `TransferApproved`, `TransferRevoked`, `TransferRenewed`
+- TIA: `TIACreated`, `TIARiskAssessed`, `TIASupplementaryMeasureRequired`, `TIASubmittedForDPOReview`, `TIADPOApproved`, `TIADPORejected`, `TIACompleted`, `TIAExpired`
+- SCC: `SCCAgreementRegistered`, `SCCSupplementaryMeasureAdded`, `SCCAgreementRevoked`, `SCCAgreementExpired`
+- Approved Transfer: `TransferApproved`, `TransferRevoked`, `TransferExpired`, `TransferRenewed`
 
-**6 Expiration Notification Events**:
+**6 Monitoring Notification Events** (separate from event-sourced events, published by background monitor):
+
 
 - **`TransferExpiringNotification`** / **`TransferExpiredNotification`**: Approved transfer expiration alerts
 - **`TIAExpiringNotification`** / **`TIAExpiredNotification`**: TIA expiration alerts

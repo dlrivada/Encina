@@ -1,5 +1,8 @@
 using Encina.Compliance.CrossBorderTransfer.Model;
 
+// Event-sourced events implement INotification so they are automatically published
+// by Encina.Marten's EventPublishingPipelineBehavior after successful command execution.
+
 namespace Encina.Compliance.CrossBorderTransfer.Events;
 
 /// <summary>
@@ -25,7 +28,7 @@ public sealed record SCCAgreementRegistered(
     DateTimeOffset ExecutedAtUtc,
     DateTimeOffset? ExpiresAtUtc,
     string? TenantId,
-    string? ModuleId);
+    string? ModuleId) : INotification;
 
 /// <summary>
 /// Raised when a supplementary measure is added to an SCC agreement.
@@ -42,7 +45,7 @@ public sealed record SCCSupplementaryMeasureAdded(
     Guid AgreementId,
     Guid MeasureId,
     SupplementaryMeasureType MeasureType,
-    string Description);
+    string Description) : INotification;
 
 /// <summary>
 /// Raised when an SCC agreement is revoked.
@@ -58,7 +61,7 @@ public sealed record SCCSupplementaryMeasureAdded(
 public sealed record SCCAgreementRevoked(
     Guid AgreementId,
     string Reason,
-    string RevokedBy);
+    string RevokedBy) : INotification;
 
 /// <summary>
 /// Raised when an SCC agreement expires based on its expiration date.
@@ -69,4 +72,4 @@ public sealed record SCCAgreementRevoked(
 /// </remarks>
 /// <param name="AgreementId">The SCC agreement identifier.</param>
 public sealed record SCCAgreementExpired(
-    Guid AgreementId);
+    Guid AgreementId) : INotification;

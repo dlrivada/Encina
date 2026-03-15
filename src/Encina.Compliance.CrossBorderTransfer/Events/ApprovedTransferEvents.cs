@@ -1,5 +1,8 @@
 using Encina.Compliance.CrossBorderTransfer.Model;
 
+// Event-sourced events implement INotification so they are automatically published
+// by Encina.Marten's EventPublishingPipelineBehavior after successful command execution.
+
 namespace Encina.Compliance.CrossBorderTransfer.Events;
 
 /// <summary>
@@ -31,7 +34,7 @@ public sealed record TransferApproved(
     string ApprovedBy,
     DateTimeOffset? ExpiresAtUtc,
     string? TenantId,
-    string? ModuleId);
+    string? ModuleId) : INotification;
 
 /// <summary>
 /// Raised when an approved transfer is revoked.
@@ -47,7 +50,7 @@ public sealed record TransferApproved(
 public sealed record TransferRevoked(
     Guid TransferId,
     string Reason,
-    string RevokedBy);
+    string RevokedBy) : INotification;
 
 /// <summary>
 /// Raised when an approved transfer expires based on its expiration date.
@@ -58,7 +61,7 @@ public sealed record TransferRevoked(
 /// </remarks>
 /// <param name="TransferId">The approved transfer identifier.</param>
 public sealed record TransferExpired(
-    Guid TransferId);
+    Guid TransferId) : INotification;
 
 /// <summary>
 /// Raised when an approved transfer is renewed with a new expiration date.
@@ -73,4 +76,4 @@ public sealed record TransferExpired(
 public sealed record TransferRenewed(
     Guid TransferId,
     DateTimeOffset NewExpiresAtUtc,
-    string RenewedBy);
+    string RenewedBy) : INotification;

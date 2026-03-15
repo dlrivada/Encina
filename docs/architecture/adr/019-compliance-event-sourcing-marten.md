@@ -112,9 +112,10 @@ Module/
 
 1. **Aggregates encapsulate behavior** — State changes only through domain events
 2. **Events are immutable facts** — `record` types with UTC timestamps and actor context
-3. **Projections for queries** — Read models built from event streams for efficient queries
-4. **Snapshots for performance** — Long-lived aggregates (Consent, ProcessorAgreements) use `ISnapshotable<T>`
-5. **Upcasters for evolution** — Schema changes via `IEventUpcaster<TFrom, TTo>`, never modify existing events
+3. **Events implement `INotification`** — All event-sourced events implement `INotification` so that `EventPublishingPipelineBehavior` automatically publishes them after successful command execution. This eliminates the need for a separate notification layer and allows handlers to subscribe to aggregate state changes directly via `INotificationHandler<TEvent>`
+4. **Projections for queries** — Read models built from event streams for efficient queries
+5. **Snapshots for performance** — Long-lived aggregates (Consent, ProcessorAgreements) use `ISnapshotable<T>`
+6. **Upcasters for evolution** — Schema changes via `IEventUpcaster<TFrom, TTo>`, never modify existing events
 
 ### Example: Consent Module Transformation
 
@@ -173,17 +174,19 @@ public sealed class ConsentAggregate : AggregateBase
 **Events:**
 
 ```csharp
+// All event-sourced events implement INotification for automatic publishing
+// via EventPublishingPipelineBehavior — no separate notification layer needed.
 public sealed record ConsentGranted(
     string DataSubjectId, string Purpose,
     DateTimeOffset? ExpiresAtUtc,
-    string GrantedBy, DateTimeOffset OccurredAtUtc);
+    string GrantedBy, DateTimeOffset OccurredAtUtc) : INotification;
 
 public sealed record ConsentWithdrawn(
     string WithdrawnBy, string Reason,
-    DateTimeOffset OccurredAtUtc);
+    DateTimeOffset OccurredAtUtc) : INotification;
 
 public sealed record ConsentExpired(
-    DateTimeOffset OccurredAtUtc);
+    DateTimeOffset OccurredAtUtc) : INotification;
 ```
 
 **Projection (Read Model):**

@@ -435,6 +435,40 @@ The three event-sourced aggregates are:
 - `SCCAgreementAggregate` — SCC agreement lifecycle
 - `ApprovedTransferAggregate` — Transfer authorization lifecycle
 
+### Automatic Event Publishing
+
+All event-sourced events implement `INotification`, which means they are **automatically published** by `EventPublishingPipelineBehavior` after successful command execution. You can subscribe to aggregate state changes directly:
+
+```csharp
+// React to a TIA being completed — no polling or separate notification needed
+public sealed class TIACompletedHandler : INotificationHandler<TIACompleted>
+{
+    public async Task<Either<EncinaError, Unit>> Handle(
+        TIACompleted notification,
+        CancellationToken cancellationToken)
+    {
+        // Update dashboard, notify compliance team, trigger next workflow step
+        await _complianceService.OnTIACompletedAsync(notification.TIAId);
+        return Unit.Default;
+    }
+}
+
+// React to a transfer being revoked
+public sealed class TransferRevokedHandler : INotificationHandler<TransferRevoked>
+{
+    public async Task<Either<EncinaError, Unit>> Handle(
+        TransferRevoked notification,
+        CancellationToken cancellationToken)
+    {
+        // Block data flows, alert DPO, log compliance gap
+        await _dataFlowService.SuspendRouteAsync(notification.TransferId);
+        return Unit.Default;
+    }
+}
+```
+
+This unifies the event model: event-sourced events serve both as the aggregate's state-change mechanism and as publishable notifications. The separate `Notifications/` events (`TransferExpiringNotification`, etc.) remain for monitoring-specific concerns that originate outside the aggregate lifecycle.
+
 ---
 
 ## Observability

@@ -1,5 +1,9 @@
 using Encina.Compliance.CrossBorderTransfer.Model;
 
+// Event-sourced events implement INotification so they are automatically published
+// by Encina.Marten's EventPublishingPipelineBehavior after successful command execution.
+// This allows handlers to react to aggregate state changes without a separate notification layer.
+
 namespace Encina.Compliance.CrossBorderTransfer.Events;
 
 /// <summary>
@@ -23,7 +27,7 @@ public sealed record TIACreated(
     string DataCategory,
     string CreatedBy,
     string? TenantId,
-    string? ModuleId);
+    string? ModuleId) : INotification;
 
 /// <summary>
 /// Raised when the risk assessment for a TIA has been completed by an assessor.
@@ -41,7 +45,7 @@ public sealed record TIARiskAssessed(
     Guid TIAId,
     double RiskScore,
     string? Findings,
-    string AssessorId);
+    string AssessorId) : INotification;
 
 /// <summary>
 /// Raised when a supplementary measure is identified as required during the TIA process.
@@ -58,7 +62,7 @@ public sealed record TIASupplementaryMeasureRequired(
     Guid TIAId,
     Guid MeasureId,
     SupplementaryMeasureType MeasureType,
-    string Description);
+    string Description) : INotification;
 
 /// <summary>
 /// Raised when a TIA is submitted for review by the Data Protection Officer.
@@ -71,7 +75,7 @@ public sealed record TIASupplementaryMeasureRequired(
 /// <param name="SubmittedBy">Identifier of the person who submitted the TIA for review.</param>
 public sealed record TIASubmittedForDPOReview(
     Guid TIAId,
-    string SubmittedBy);
+    string SubmittedBy) : INotification;
 
 /// <summary>
 /// Raised when the DPO approves a Transfer Impact Assessment.
@@ -84,7 +88,7 @@ public sealed record TIASubmittedForDPOReview(
 /// <param name="ReviewedBy">Identifier of the DPO who approved the assessment.</param>
 public sealed record TIADPOApproved(
     Guid TIAId,
-    string ReviewedBy);
+    string ReviewedBy) : INotification;
 
 /// <summary>
 /// Raised when the DPO rejects a Transfer Impact Assessment.
@@ -99,7 +103,7 @@ public sealed record TIADPOApproved(
 public sealed record TIADPORejected(
     Guid TIAId,
     string ReviewedBy,
-    string Reason);
+    string Reason) : INotification;
 
 /// <summary>
 /// Raised when a TIA is completed after DPO approval.
@@ -110,7 +114,7 @@ public sealed record TIADPORejected(
 /// </remarks>
 /// <param name="TIAId">The TIA identifier.</param>
 public sealed record TIACompleted(
-    Guid TIAId);
+    Guid TIAId) : INotification;
 
 /// <summary>
 /// Raised when a TIA expires due to elapsed validity period or changed legal landscape.
@@ -122,4 +126,4 @@ public sealed record TIACompleted(
 /// </remarks>
 /// <param name="TIAId">The TIA identifier.</param>
 public sealed record TIAExpired(
-    Guid TIAId);
+    Guid TIAId) : INotification;
