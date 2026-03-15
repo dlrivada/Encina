@@ -1,6 +1,8 @@
 using System.Reflection;
 
+using Encina.Compliance.Consent.Abstractions;
 using Encina.Compliance.Consent.Health;
+using Encina.Compliance.Consent.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -24,18 +26,16 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="ConsentOptions"/> — Configured via the provided action, validated at first access</item>
-    /// <item><see cref="IConsentStore"/> → <see cref="InMemoryConsentStore"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IConsentService"/> → <see cref="DefaultConsentService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IConsentValidator"/> → <see cref="DefaultConsentValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="IConsentVersionManager"/> → <see cref="InMemoryConsentVersionManager"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IConsentAuditStore"/> → <see cref="InMemoryConsentAuditStore"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="ConsentRequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Default registrations:</b>
     /// All service registrations use <c>TryAdd</c>, allowing you to register custom
-    /// implementations before calling this method. For example, register a database-backed
-    /// <see cref="IConsentStore"/> or a custom <see cref="IConsentValidator"/>.
+    /// implementations before calling this method. For example, register a custom
+    /// <see cref="IConsentService"/> or <see cref="IConsentValidator"/>.
     /// </para>
     /// <para>
     /// <b>Auto-registration:</b>
@@ -62,7 +62,7 @@ public static class ServiceCollectionExtensions
     /// });
     ///
     /// // With custom implementations (register before AddEncinaConsent)
-    /// services.AddSingleton&lt;IConsentStore, DatabaseConsentStore&gt;();
+    /// services.AddScoped&lt;IConsentService, MyCustomConsentService&gt;();
     /// services.AddScoped&lt;IConsentValidator, MyCustomValidator&gt;();
     /// services.AddEncinaConsent(options =>
     /// {
@@ -93,9 +93,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
 
         // Register default implementations (TryAdd allows override)
-        services.TryAddSingleton<IConsentStore, InMemoryConsentStore>();
-        services.TryAddSingleton<IConsentVersionManager, InMemoryConsentVersionManager>();
-        services.TryAddSingleton<IConsentAuditStore, InMemoryConsentAuditStore>();
+        services.TryAddScoped<IConsentService, DefaultConsentService>();
         services.TryAddScoped<IConsentValidator, DefaultConsentValidator>();
 
         // Register pipeline behavior

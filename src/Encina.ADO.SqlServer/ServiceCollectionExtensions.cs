@@ -12,7 +12,6 @@ using Encina.ADO.SqlServer.Scheduling;
 using Encina.ADO.SqlServer.UnitOfWork;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
-using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
@@ -92,14 +91,6 @@ public static class ServiceCollectionExtensions
         if (config.UseReadAuditStore)
         {
             services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
-        }
-
-        // Register consent stores if enabled
-        if (config.UseConsent)
-        {
-            services.TryAddScoped<IConsentStore, Consent.ConsentStoreADO>();
-            services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreADO>();
-            services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerADO>();
         }
 
         // Register DSR (Data Subject Rights) stores if enabled

@@ -106,113 +106,6 @@ internal static class ConsentLogMessages
         => ConsentEnforcementDisabledDef(logger, requestType, null);
 
     // ========================================================================
-    // Store-level log messages (8210-8219)
-    // ========================================================================
-
-    // -- 8210: Consent recorded --
-
-    private static readonly Action<ILogger, string, string, Exception?> ConsentRecordedDef =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Debug,
-            new EventId(8210, nameof(ConsentRecorded)),
-            "Consent recorded. SubjectId={SubjectId}, Purpose={Purpose}");
-
-    internal static void ConsentRecorded(this ILogger logger, string subjectId, string purpose)
-        => ConsentRecordedDef(logger, subjectId, purpose, null);
-
-    // -- 8211: Consent withdrawn (store) --
-
-    private static readonly Action<ILogger, string, string, Exception?> ConsentWithdrawnDef =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Debug,
-            new EventId(8211, nameof(ConsentWithdrawn)),
-            "Consent withdrawn. SubjectId={SubjectId}, Purpose={Purpose}");
-
-    internal static void ConsentWithdrawn(this ILogger logger, string subjectId, string purpose)
-        => ConsentWithdrawnDef(logger, subjectId, purpose, null);
-
-    // -- 8212: Consent not found --
-
-    private static readonly Action<ILogger, string, string, Exception?> ConsentNotFoundDef =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Debug,
-            new EventId(8212, nameof(ConsentNotFound)),
-            "No consent record found. SubjectId={SubjectId}, Purpose={Purpose}");
-
-    internal static void ConsentNotFound(this ILogger logger, string subjectId, string purpose)
-        => ConsentNotFoundDef(logger, subjectId, purpose, null);
-
-    // -- 8213: Consent fetched --
-
-    private static readonly Action<ILogger, string, string, string, Exception?> ConsentFetchedDef =
-        LoggerMessage.Define<string, string, string>(
-            LogLevel.Debug,
-            new EventId(8213, nameof(ConsentFetched)),
-            "Consent fetched. SubjectId={SubjectId}, Purpose={Purpose}, Status={Status}");
-
-    internal static void ConsentFetched(this ILogger logger, string subjectId, string purpose, string status)
-        => ConsentFetchedDef(logger, subjectId, purpose, status, null);
-
-    // -- 8214: Consent expired detected by store --
-
-    private static readonly Action<ILogger, string, string, Exception?> ConsentExpiredDetectedDef =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Debug,
-            new EventId(8214, nameof(ConsentExpiredDetected)),
-            "Consent expiration detected. SubjectId={SubjectId}, Purpose={Purpose}");
-
-    internal static void ConsentExpiredDetected(this ILogger logger, string subjectId, string purpose)
-        => ConsentExpiredDetectedDef(logger, subjectId, purpose, null);
-
-    // -- 8215: Bulk consent recorded --
-
-    private static readonly Action<ILogger, int, int, Exception?> BulkConsentRecordedDef =
-        LoggerMessage.Define<int, int>(
-            LogLevel.Debug,
-            new EventId(8215, nameof(BulkConsentRecorded)),
-            "Bulk consent record completed. SuccessCount={SuccessCount}, FailureCount={FailureCount}");
-
-    internal static void BulkConsentRecorded(this ILogger logger, int successCount, int failureCount)
-        => BulkConsentRecordedDef(logger, successCount, failureCount, null);
-
-    // -- 8216: Bulk consent withdrawn --
-
-    private static readonly Action<ILogger, string, int, int, Exception?> BulkConsentWithdrawnDef =
-        LoggerMessage.Define<string, int, int>(
-            LogLevel.Debug,
-            new EventId(8216, nameof(BulkConsentWithdrawn)),
-            "Bulk consent withdrawal completed. SubjectId={SubjectId}, SuccessCount={SuccessCount}, FailureCount={FailureCount}");
-
-    internal static void BulkConsentWithdrawn(this ILogger logger, string subjectId, int successCount, int failureCount)
-        => BulkConsentWithdrawnDef(logger, subjectId, successCount, failureCount, null);
-
-    // ========================================================================
-    // Audit store log messages (8220-8225)
-    // ========================================================================
-
-    // -- 8220: Audit entry recorded --
-
-    private static readonly Action<ILogger, string, string, string, Exception?> AuditEntryRecordedDef =
-        LoggerMessage.Define<string, string, string>(
-            LogLevel.Debug,
-            new EventId(8220, nameof(AuditEntryRecorded)),
-            "Consent audit entry recorded. SubjectId={SubjectId}, Action={Action}, Purpose={Purpose}");
-
-    internal static void AuditEntryRecorded(this ILogger logger, string subjectId, string action, string purpose)
-        => AuditEntryRecordedDef(logger, subjectId, action, purpose, null);
-
-    // -- 8221: Audit trail fetched --
-
-    private static readonly Action<ILogger, string, int, Exception?> AuditTrailFetchedDef =
-        LoggerMessage.Define<string, int>(
-            LogLevel.Debug,
-            new EventId(8221, nameof(AuditTrailFetched)),
-            "Consent audit trail fetched. SubjectId={SubjectId}, EntryCount={EntryCount}");
-
-    internal static void AuditTrailFetched(this ILogger logger, string subjectId, int entryCount)
-        => AuditTrailFetchedDef(logger, subjectId, entryCount, null);
-
-    // ========================================================================
     // Domain event log messages (8230-8239)
     // ========================================================================
 
@@ -296,6 +189,88 @@ internal static class ConsentLogMessages
 
     internal static void ConsentAutoRegistrationSkipped(this ILogger logger)
         => ConsentAutoRegistrationSkippedDef(logger, null);
+
+    // ========================================================================
+    // Service-level log messages (8260-8279)
+    // Covers ConsentService aggregate operations (grant, withdraw, renew, etc.)
+    // ========================================================================
+
+    // -- 8260: Consent granted (service) --
+
+    private static readonly Action<ILogger, string, string, string, Exception?> ConsentGrantedServiceDef =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Information,
+            new EventId(8260, nameof(ConsentGrantedService)),
+            "Consent granted. ConsentId={ConsentId}, SubjectId={SubjectId}, Purpose={Purpose}");
+
+    internal static void ConsentGrantedService(this ILogger logger, string consentId, string subjectId, string purpose)
+        => ConsentGrantedServiceDef(logger, consentId, subjectId, purpose, null);
+
+    // -- 8261: Consent withdrawn (service) --
+
+    private static readonly Action<ILogger, string, Exception?> ConsentWithdrawnServiceDef =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(8261, nameof(ConsentWithdrawnService)),
+            "Consent withdrawn via service. ConsentId={ConsentId}");
+
+    internal static void ConsentWithdrawnService(this ILogger logger, string consentId)
+        => ConsentWithdrawnServiceDef(logger, consentId, null);
+
+    // -- 8262: Consent renewed (service) --
+
+    private static readonly Action<ILogger, string, string, Exception?> ConsentRenewedServiceDef =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Information,
+            new EventId(8262, nameof(ConsentRenewedService)),
+            "Consent renewed. ConsentId={ConsentId}, NewVersionId={NewVersionId}");
+
+    internal static void ConsentRenewedService(this ILogger logger, string consentId, string newVersionId)
+        => ConsentRenewedServiceDef(logger, consentId, newVersionId, null);
+
+    // -- 8263: Reconsent provided (service) --
+
+    private static readonly Action<ILogger, string, string, Exception?> ReconsentProvidedServiceDef =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Information,
+            new EventId(8263, nameof(ReconsentProvidedService)),
+            "Reconsent provided. ConsentId={ConsentId}, NewVersionId={NewVersionId}");
+
+    internal static void ReconsentProvidedService(this ILogger logger, string consentId, string newVersionId)
+        => ReconsentProvidedServiceDef(logger, consentId, newVersionId, null);
+
+    // -- 8264: Consent service error --
+
+    private static readonly Action<ILogger, string, Exception?> ConsentServiceErrorDef =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(8264, nameof(ConsentServiceError)),
+            "Consent service operation failed. Operation={Operation}");
+
+    internal static void ConsentServiceError(this ILogger logger, string operation, Exception? exception = null)
+        => ConsentServiceErrorDef(logger, operation, exception);
+
+    // -- 8265: Consent invalid state transition (service) --
+
+    private static readonly Action<ILogger, string, string, Exception?> ConsentInvalidStateTransitionDef =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            new EventId(8265, nameof(ConsentInvalidStateTransition)),
+            "Invalid consent state transition. ConsentId={ConsentId}, Operation={Operation}");
+
+    internal static void ConsentInvalidStateTransition(this ILogger logger, string consentId, string operation, Exception? exception = null)
+        => ConsentInvalidStateTransitionDef(logger, consentId, operation, exception);
+
+    // -- 8266: Cache hit (consent service) --
+
+    private static readonly Action<ILogger, string, string, Exception?> ConsentCacheHitDef =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Debug,
+            new EventId(8266, nameof(ConsentCacheHit)),
+            "Consent cache hit. CacheKey={CacheKey}, EntityType={EntityType}");
+
+    internal static void ConsentCacheHit(this ILogger logger, string cacheKey, string entityType)
+        => ConsentCacheHitDef(logger, cacheKey, entityType, null);
 
     // ========================================================================
     // Health check log messages (8250-8259)

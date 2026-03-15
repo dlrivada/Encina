@@ -1,3 +1,4 @@
+using Encina.Compliance.Consent.Abstractions;
 using Encina.Compliance.Consent.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -14,10 +15,9 @@ namespace Encina.Compliance.Consent.Health;
 /// <para>
 /// This health check verifies:
 /// <list type="bullet">
-/// <item><description>The consent store is resolvable and accessible</description></item>
+/// <item><description>The consent service is resolvable and accessible</description></item>
 /// <item><description>Purpose definitions are configured when enforcement is enabled</description></item>
 /// <item><description>The consent validator is registered</description></item>
-/// <item><description>The consent version manager is registered</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -93,28 +93,22 @@ public sealed class ConsentHealthCheck : IHealthCheck
                          + "Add purposes via PurposeDefinitions or DefinePurpose() for proper consent tracking.");
         }
 
-        // 3. Verify consent store is resolvable
-        var consentStore = scopedProvider.GetService<IConsentStore>();
-        if (consentStore is null)
+        // 3. Verify consent service is resolvable
+        var consentService = scopedProvider.GetService<IConsentService>();
+        if (consentService is null)
         {
             return Task.FromResult(
                 HealthCheckResult.Unhealthy(
-                    "IConsentStore is not registered.",
+                    "IConsentService is not registered.",
                     data: data));
         }
 
-        data["consentStoreType"] = consentStore.GetType().Name;
+        data["consentServiceType"] = consentService.GetType().Name;
 
         // 4. Verify consent validator is resolvable
         if (scopedProvider.GetService<IConsentValidator>() is null)
         {
             warnings.Add("IConsentValidator is not registered.");
-        }
-
-        // 5. Verify consent version manager is resolvable
-        if (scopedProvider.GetService<IConsentVersionManager>() is null)
-        {
-            warnings.Add("IConsentVersionManager is not registered.");
         }
 
         _logger.ConsentHealthCheckCompleted(

@@ -65,7 +65,7 @@ public sealed class ConsentOptions
     /// Gets or sets whether to store proof of consent (consent form hash/reference).
     /// </summary>
     /// <remarks>
-    /// When <c>true</c>, the system will record the <see cref="ConsentRecord.ProofOfConsent"/>
+    /// When <c>true</c>, the system will record the <c>ProofOfConsent</c>
     /// field when available. This supports Article 7(1) demonstrability requirements.
     /// Default is <c>false</c>.
     /// </remarks>

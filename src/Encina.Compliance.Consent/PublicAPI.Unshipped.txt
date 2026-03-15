@@ -1,83 +1,177 @@
 #nullable enable
-Encina.Compliance.Consent.BulkOperationError
-Encina.Compliance.Consent.BulkOperationError.BulkOperationError(string! Identifier, Encina.EncinaError Error) -> void
-Encina.Compliance.Consent.BulkOperationError.Error.get -> Encina.EncinaError
-Encina.Compliance.Consent.BulkOperationError.Error.init -> void
-Encina.Compliance.Consent.BulkOperationError.Identifier.get -> string!
-Encina.Compliance.Consent.BulkOperationError.Identifier.init -> void
-Encina.Compliance.Consent.BulkOperationResult
-Encina.Compliance.Consent.BulkOperationResult.AllSucceeded.get -> bool
-Encina.Compliance.Consent.BulkOperationResult.Errors.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.BulkOperationError!>!
-Encina.Compliance.Consent.BulkOperationResult.Errors.init -> void
-Encina.Compliance.Consent.BulkOperationResult.FailureCount.get -> int
-Encina.Compliance.Consent.BulkOperationResult.FailureCount.init -> void
-Encina.Compliance.Consent.BulkOperationResult.HasFailures.get -> bool
-Encina.Compliance.Consent.BulkOperationResult.SuccessCount.get -> int
-Encina.Compliance.Consent.BulkOperationResult.SuccessCount.init -> void
-Encina.Compliance.Consent.BulkOperationResult.TotalCount.get -> int
-static Encina.Compliance.Consent.BulkOperationResult.Partial(int successCount, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.BulkOperationError!>! errors) -> Encina.Compliance.Consent.BulkOperationResult!
-static Encina.Compliance.Consent.BulkOperationResult.Success(int count) -> Encina.Compliance.Consent.BulkOperationResult!
-Encina.Compliance.Consent.ConsentAuditAction
-Encina.Compliance.Consent.ConsentAuditAction.Expired = 2 -> Encina.Compliance.Consent.ConsentAuditAction
-Encina.Compliance.Consent.ConsentAuditAction.Granted = 0 -> Encina.Compliance.Consent.ConsentAuditAction
-Encina.Compliance.Consent.ConsentAuditAction.VersionChanged = 3 -> Encina.Compliance.Consent.ConsentAuditAction
-Encina.Compliance.Consent.ConsentAuditAction.Withdrawn = 1 -> Encina.Compliance.Consent.ConsentAuditAction
-Encina.Compliance.Consent.ConsentAuditEntry
-Encina.Compliance.Consent.ConsentAuditEntry.Action.get -> Encina.Compliance.Consent.ConsentAuditAction
-Encina.Compliance.Consent.ConsentAuditEntry.Action.init -> void
-Encina.Compliance.Consent.ConsentAuditEntry.Id.get -> System.Guid
-Encina.Compliance.Consent.ConsentAuditEntry.Id.init -> void
-Encina.Compliance.Consent.ConsentAuditEntry.IpAddress.get -> string?
-Encina.Compliance.Consent.ConsentAuditEntry.IpAddress.init -> void
-Encina.Compliance.Consent.ConsentAuditEntry.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
-Encina.Compliance.Consent.ConsentAuditEntry.Metadata.init -> void
-Encina.Compliance.Consent.ConsentAuditEntry.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentAuditEntry.OccurredAtUtc.init -> void
-Encina.Compliance.Consent.ConsentAuditEntry.PerformedBy.get -> string!
-Encina.Compliance.Consent.ConsentAuditEntry.PerformedBy.init -> void
-Encina.Compliance.Consent.ConsentAuditEntry.Purpose.get -> string!
-Encina.Compliance.Consent.ConsentAuditEntry.Purpose.init -> void
-Encina.Compliance.Consent.ConsentAuditEntry.SubjectId.get -> string!
-Encina.Compliance.Consent.ConsentAuditEntry.SubjectId.init -> void
+Encina.Compliance.Consent.Abstractions.IConsentService
+Encina.Compliance.Consent.Abstractions.IConsentService.GrantConsentAsync(string! dataSubjectId, string! purpose, string! consentVersionId, string! source, string! grantedBy, string? ipAddress = null, string? proofOfConsent = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? metadata = null, System.DateTimeOffset? expiresAtUtc = null, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.Consent.Abstractions.IConsentService.WithdrawConsentAsync(System.Guid consentId, string! withdrawnBy, string? reason = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Consent.Abstractions.IConsentService.RenewConsentAsync(System.Guid consentId, string! consentVersionId, string! renewedBy, System.DateTimeOffset? newExpiresAtUtc = null, string? source = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Consent.Abstractions.IConsentService.ProvideReconsentAsync(System.Guid consentId, string! newConsentVersionId, string! source, string! grantedBy, string? ipAddress = null, string? proofOfConsent = null, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? metadata = null, System.DateTimeOffset? expiresAtUtc = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Consent.Abstractions.IConsentService.GetConsentAsync(System.Guid consentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.ReadModels.ConsentReadModel!>>
+Encina.Compliance.Consent.Abstractions.IConsentService.GetConsentBySubjectAndPurposeAsync(string! dataSubjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Consent.ReadModels.ConsentReadModel!>>>
+Encina.Compliance.Consent.Abstractions.IConsentService.GetAllConsentsAsync(string! dataSubjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ReadModels.ConsentReadModel!>!>>
+Encina.Compliance.Consent.Abstractions.IConsentService.HasValidConsentAsync(string! dataSubjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.Consent.Abstractions.IConsentService.GetConsentHistoryAsync(System.Guid consentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<object!>!>>
+Encina.Compliance.Consent.ConsentMartenExtensions
+static Encina.Compliance.Consent.ConsentMartenExtensions.AddConsentAggregates(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.Compliance.Consent.ConsentEnforcementMode
 Encina.Compliance.Consent.ConsentEnforcementMode.Block = 0 -> Encina.Compliance.Consent.ConsentEnforcementMode
 Encina.Compliance.Consent.ConsentEnforcementMode.Disabled = 2 -> Encina.Compliance.Consent.ConsentEnforcementMode
 Encina.Compliance.Consent.ConsentEnforcementMode.Warn = 1 -> Encina.Compliance.Consent.ConsentEnforcementMode
 Encina.Compliance.Consent.ConsentErrors
 const Encina.Compliance.Consent.ConsentErrors.ConsentExpiredCode = "consent.expired" -> string!
+const Encina.Compliance.Consent.ConsentErrors.ConsentNotFoundCode = "consent.not_found" -> string!
 const Encina.Compliance.Consent.ConsentErrors.ConsentWithdrawnCode = "consent.withdrawn" -> string!
+const Encina.Compliance.Consent.ConsentErrors.EventHistoryUnavailableCode = "consent.event_history_unavailable" -> string!
+const Encina.Compliance.Consent.ConsentErrors.InvalidStateTransitionCode = "consent.invalid_state_transition" -> string!
 const Encina.Compliance.Consent.ConsentErrors.MissingConsentCode = "consent.missing" -> string!
 const Encina.Compliance.Consent.ConsentErrors.RequiresReconsentCode = "consent.requires_reconsent" -> string!
+const Encina.Compliance.Consent.ConsentErrors.ServiceErrorCode = "consent.service_error" -> string!
 const Encina.Compliance.Consent.ConsentErrors.VersionMismatchCode = "consent.version_mismatch" -> string!
+static Encina.Compliance.Consent.Aggregates.ConsentAggregate.Grant(System.Guid id, string! dataSubjectId, string! purpose, string! consentVersionId, string! source, string? ipAddress, string? proofOfConsent, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! metadata, System.DateTimeOffset? expiresAtUtc, string! grantedBy, System.DateTimeOffset occurredAtUtc, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.Consent.Aggregates.ConsentAggregate!
 static Encina.Compliance.Consent.ConsentErrors.ConsentExpired(string! subjectId, string! purpose, System.DateTimeOffset expiredAtUtc) -> Encina.EncinaError
+static Encina.Compliance.Consent.ConsentErrors.ConsentNotFound(System.Guid consentId) -> Encina.EncinaError
 static Encina.Compliance.Consent.ConsentErrors.ConsentWithdrawn(string! subjectId, string! purpose, System.DateTimeOffset withdrawnAtUtc) -> Encina.EncinaError
+static Encina.Compliance.Consent.ConsentErrors.EventHistoryUnavailable(System.Guid consentId) -> Encina.EncinaError
+static Encina.Compliance.Consent.ConsentErrors.InvalidStateTransition(string! from, string! to) -> Encina.EncinaError
 static Encina.Compliance.Consent.ConsentErrors.MissingConsent(string! subjectId, string! purpose) -> Encina.EncinaError
 static Encina.Compliance.Consent.ConsentErrors.RequiresReconsent(string! subjectId, string! purpose, string! currentVersionId, string! consentedVersionId) -> Encina.EncinaError
+static Encina.Compliance.Consent.ConsentErrors.ServiceError(string! operation, System.Exception! exception) -> Encina.EncinaError
 static Encina.Compliance.Consent.ConsentErrors.VersionMismatch(string! subjectId, string! purpose, string! expectedVersionId, string! actualVersionId) -> Encina.EncinaError
-Encina.Compliance.Consent.ConsentExpiredEvent
-Encina.Compliance.Consent.ConsentExpiredEvent.ConsentExpiredEvent(string! SubjectId, string! Purpose, System.DateTimeOffset OccurredAtUtc, System.DateTimeOffset ExpiredAtUtc) -> void
-Encina.Compliance.Consent.ConsentExpiredEvent.ExpiredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentExpiredEvent.ExpiredAtUtc.init -> void
-Encina.Compliance.Consent.ConsentExpiredEvent.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentExpiredEvent.OccurredAtUtc.init -> void
-Encina.Compliance.Consent.ConsentExpiredEvent.Purpose.get -> string!
-Encina.Compliance.Consent.ConsentExpiredEvent.Purpose.init -> void
-Encina.Compliance.Consent.ConsentExpiredEvent.SubjectId.get -> string!
-Encina.Compliance.Consent.ConsentExpiredEvent.SubjectId.init -> void
-Encina.Compliance.Consent.ConsentGrantedEvent
-Encina.Compliance.Consent.ConsentGrantedEvent.ConsentGrantedEvent(string! SubjectId, string! Purpose, System.DateTimeOffset OccurredAtUtc, string! ConsentVersionId, string! Source, System.DateTimeOffset? ExpiresAtUtc) -> void
-Encina.Compliance.Consent.ConsentGrantedEvent.ConsentVersionId.get -> string!
-Encina.Compliance.Consent.ConsentGrantedEvent.ConsentVersionId.init -> void
-Encina.Compliance.Consent.ConsentGrantedEvent.ExpiresAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.Consent.ConsentGrantedEvent.ExpiresAtUtc.init -> void
-Encina.Compliance.Consent.ConsentGrantedEvent.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentGrantedEvent.OccurredAtUtc.init -> void
-Encina.Compliance.Consent.ConsentGrantedEvent.Purpose.get -> string!
-Encina.Compliance.Consent.ConsentGrantedEvent.Purpose.init -> void
-Encina.Compliance.Consent.ConsentGrantedEvent.Source.get -> string!
-Encina.Compliance.Consent.ConsentGrantedEvent.Source.init -> void
-Encina.Compliance.Consent.ConsentGrantedEvent.SubjectId.get -> string!
-Encina.Compliance.Consent.ConsentGrantedEvent.SubjectId.init -> void
+Encina.Compliance.Consent.Aggregates.ConsentAggregate
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.ConsentAggregate() -> void
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.ChangeVersion(string! newVersionId, string! description, bool requiresReconsent, string! changedBy, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.ConsentVersionId.get -> string!
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.DataSubjectId.get -> string!
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.Expire(System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.GivenAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.IpAddress.get -> string?
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.ModuleId.get -> string?
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.ProofOfConsent.get -> string?
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.ProvideReconsent(string! newConsentVersionId, string! source, string? ipAddress, string? proofOfConsent, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! metadata, System.DateTimeOffset? expiresAtUtc, string! grantedBy, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.Purpose.get -> string!
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.Renew(string! consentVersionId, System.DateTimeOffset? newExpiresAtUtc, string! renewedBy, string? source, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.Source.get -> string!
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.Status.get -> Encina.Compliance.Consent.ConsentStatus
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.TenantId.get -> string?
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.Withdraw(string! withdrawnBy, string? reason, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.WithdrawalReason.get -> string?
+Encina.Compliance.Consent.Aggregates.ConsentAggregate.WithdrawnAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Consent.Events.ConsentExpired
+Encina.Compliance.Consent.Events.ConsentExpired.ConsentExpired(System.Guid ConsentId, string! DataSubjectId, string! Purpose, System.DateTimeOffset ExpiredAtUtc, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.Consent.Events.ConsentExpired.ConsentId.get -> System.Guid
+Encina.Compliance.Consent.Events.ConsentExpired.ConsentId.init -> void
+Encina.Compliance.Consent.Events.ConsentExpired.DataSubjectId.get -> string!
+Encina.Compliance.Consent.Events.ConsentExpired.DataSubjectId.init -> void
+Encina.Compliance.Consent.Events.ConsentExpired.ExpiredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Events.ConsentExpired.ExpiredAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentExpired.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Events.ConsentExpired.OccurredAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentExpired.Purpose.get -> string!
+Encina.Compliance.Consent.Events.ConsentExpired.Purpose.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted
+Encina.Compliance.Consent.Events.ConsentGranted.ConsentGranted(System.Guid ConsentId, string! DataSubjectId, string! Purpose, string! ConsentVersionId, string! Source, string? IpAddress, string? ProofOfConsent, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! Metadata, System.DateTimeOffset? ExpiresAtUtc, string! GrantedBy, System.DateTimeOffset OccurredAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.Consent.Events.ConsentGranted.ConsentId.get -> System.Guid
+Encina.Compliance.Consent.Events.ConsentGranted.ConsentId.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.ConsentVersionId.get -> string!
+Encina.Compliance.Consent.Events.ConsentGranted.ConsentVersionId.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.DataSubjectId.get -> string!
+Encina.Compliance.Consent.Events.ConsentGranted.DataSubjectId.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Consent.Events.ConsentGranted.ExpiresAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.GrantedBy.get -> string!
+Encina.Compliance.Consent.Events.ConsentGranted.GrantedBy.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.IpAddress.get -> string?
+Encina.Compliance.Consent.Events.ConsentGranted.IpAddress.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.Compliance.Consent.Events.ConsentGranted.Metadata.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.ModuleId.get -> string?
+Encina.Compliance.Consent.Events.ConsentGranted.ModuleId.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Events.ConsentGranted.OccurredAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.ProofOfConsent.get -> string?
+Encina.Compliance.Consent.Events.ConsentGranted.ProofOfConsent.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.Purpose.get -> string!
+Encina.Compliance.Consent.Events.ConsentGranted.Purpose.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.Source.get -> string!
+Encina.Compliance.Consent.Events.ConsentGranted.Source.init -> void
+Encina.Compliance.Consent.Events.ConsentGranted.TenantId.get -> string?
+Encina.Compliance.Consent.Events.ConsentGranted.TenantId.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.ConsentId.get -> System.Guid
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.ConsentId.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.ConsentReconsentProvided(System.Guid ConsentId, string! DataSubjectId, string! Purpose, string! NewConsentVersionId, string! Source, string? IpAddress, string? ProofOfConsent, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! Metadata, System.DateTimeOffset? ExpiresAtUtc, string! GrantedBy, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.DataSubjectId.get -> string!
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.DataSubjectId.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.ExpiresAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.GrantedBy.get -> string!
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.GrantedBy.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.IpAddress.get -> string?
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.IpAddress.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.Metadata.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.NewConsentVersionId.get -> string!
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.NewConsentVersionId.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.OccurredAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.ProofOfConsent.get -> string?
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.ProofOfConsent.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.Purpose.get -> string!
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.Purpose.init -> void
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.Source.get -> string!
+Encina.Compliance.Consent.Events.ConsentReconsentProvided.Source.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed
+Encina.Compliance.Consent.Events.ConsentRenewed.ConsentId.get -> System.Guid
+Encina.Compliance.Consent.Events.ConsentRenewed.ConsentId.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.ConsentRenewed(System.Guid ConsentId, string! DataSubjectId, string! Purpose, string! ConsentVersionId, System.DateTimeOffset? NewExpiresAtUtc, string! RenewedBy, string? Source, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.ConsentVersionId.get -> string!
+Encina.Compliance.Consent.Events.ConsentRenewed.ConsentVersionId.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.DataSubjectId.get -> string!
+Encina.Compliance.Consent.Events.ConsentRenewed.DataSubjectId.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.NewExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Consent.Events.ConsentRenewed.NewExpiresAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Events.ConsentRenewed.OccurredAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.Purpose.get -> string!
+Encina.Compliance.Consent.Events.ConsentRenewed.Purpose.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.RenewedBy.get -> string!
+Encina.Compliance.Consent.Events.ConsentRenewed.RenewedBy.init -> void
+Encina.Compliance.Consent.Events.ConsentRenewed.Source.get -> string?
+Encina.Compliance.Consent.Events.ConsentRenewed.Source.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged
+Encina.Compliance.Consent.Events.ConsentVersionChanged.ChangedBy.get -> string!
+Encina.Compliance.Consent.Events.ConsentVersionChanged.ChangedBy.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.ConsentId.get -> System.Guid
+Encina.Compliance.Consent.Events.ConsentVersionChanged.ConsentId.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.ConsentVersionChanged(System.Guid ConsentId, string! DataSubjectId, string! Purpose, string! PreviousVersionId, string! NewVersionId, string! Description, bool RequiresReconsent, string! ChangedBy, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.DataSubjectId.get -> string!
+Encina.Compliance.Consent.Events.ConsentVersionChanged.DataSubjectId.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.Description.get -> string!
+Encina.Compliance.Consent.Events.ConsentVersionChanged.Description.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.NewVersionId.get -> string!
+Encina.Compliance.Consent.Events.ConsentVersionChanged.NewVersionId.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Events.ConsentVersionChanged.OccurredAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.PreviousVersionId.get -> string!
+Encina.Compliance.Consent.Events.ConsentVersionChanged.PreviousVersionId.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.Purpose.get -> string!
+Encina.Compliance.Consent.Events.ConsentVersionChanged.Purpose.init -> void
+Encina.Compliance.Consent.Events.ConsentVersionChanged.RequiresReconsent.get -> bool
+Encina.Compliance.Consent.Events.ConsentVersionChanged.RequiresReconsent.init -> void
+Encina.Compliance.Consent.Events.ConsentWithdrawn
+Encina.Compliance.Consent.Events.ConsentWithdrawn.ConsentId.get -> System.Guid
+Encina.Compliance.Consent.Events.ConsentWithdrawn.ConsentId.init -> void
+Encina.Compliance.Consent.Events.ConsentWithdrawn.ConsentWithdrawn(System.Guid ConsentId, string! DataSubjectId, string! Purpose, string! WithdrawnBy, string? Reason, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.Consent.Events.ConsentWithdrawn.DataSubjectId.get -> string!
+Encina.Compliance.Consent.Events.ConsentWithdrawn.DataSubjectId.init -> void
+Encina.Compliance.Consent.Events.ConsentWithdrawn.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.Events.ConsentWithdrawn.OccurredAtUtc.init -> void
+Encina.Compliance.Consent.Events.ConsentWithdrawn.Purpose.get -> string!
+Encina.Compliance.Consent.Events.ConsentWithdrawn.Purpose.init -> void
+Encina.Compliance.Consent.Events.ConsentWithdrawn.Reason.get -> string?
+Encina.Compliance.Consent.Events.ConsentWithdrawn.Reason.init -> void
+Encina.Compliance.Consent.Events.ConsentWithdrawn.WithdrawnBy.get -> string!
+Encina.Compliance.Consent.Events.ConsentWithdrawn.WithdrawnBy.init -> void
 Encina.Compliance.Consent.ConsentOptions
 Encina.Compliance.Consent.ConsentOptions.ConsentOptions() -> void
 Encina.Compliance.Consent.ConsentOptions.AddHealthCheck.get -> bool
@@ -119,31 +213,6 @@ const Encina.Compliance.Consent.ConsentPurposes.Newsletter = "newsletter" -> str
 const Encina.Compliance.Consent.ConsentPurposes.Personalization = "personalization" -> string!
 const Encina.Compliance.Consent.ConsentPurposes.Profiling = "profiling" -> string!
 const Encina.Compliance.Consent.ConsentPurposes.ThirdPartySharing = "third-party-sharing" -> string!
-Encina.Compliance.Consent.ConsentRecord
-Encina.Compliance.Consent.ConsentRecord.ConsentVersionId.get -> string!
-Encina.Compliance.Consent.ConsentRecord.ConsentVersionId.init -> void
-Encina.Compliance.Consent.ConsentRecord.ExpiresAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.Consent.ConsentRecord.ExpiresAtUtc.init -> void
-Encina.Compliance.Consent.ConsentRecord.GivenAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentRecord.GivenAtUtc.init -> void
-Encina.Compliance.Consent.ConsentRecord.Id.get -> System.Guid
-Encina.Compliance.Consent.ConsentRecord.Id.init -> void
-Encina.Compliance.Consent.ConsentRecord.IpAddress.get -> string?
-Encina.Compliance.Consent.ConsentRecord.IpAddress.init -> void
-Encina.Compliance.Consent.ConsentRecord.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
-Encina.Compliance.Consent.ConsentRecord.Metadata.init -> void
-Encina.Compliance.Consent.ConsentRecord.ProofOfConsent.get -> string?
-Encina.Compliance.Consent.ConsentRecord.ProofOfConsent.init -> void
-Encina.Compliance.Consent.ConsentRecord.Purpose.get -> string!
-Encina.Compliance.Consent.ConsentRecord.Purpose.init -> void
-Encina.Compliance.Consent.ConsentRecord.Source.get -> string!
-Encina.Compliance.Consent.ConsentRecord.Source.init -> void
-Encina.Compliance.Consent.ConsentRecord.Status.get -> Encina.Compliance.Consent.ConsentStatus
-Encina.Compliance.Consent.ConsentRecord.Status.init -> void
-Encina.Compliance.Consent.ConsentRecord.SubjectId.get -> string!
-Encina.Compliance.Consent.ConsentRecord.SubjectId.init -> void
-Encina.Compliance.Consent.ConsentRecord.WithdrawnAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.Consent.ConsentRecord.WithdrawnAtUtc.init -> void
 Encina.Compliance.Consent.ConsentRequiredPipelineBehavior<TRequest, TResponse>
 Encina.Compliance.Consent.ConsentRequiredPipelineBehavior<TRequest, TResponse>.ConsentRequiredPipelineBehavior(Encina.Compliance.Consent.IConsentValidator! validator, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Consent.ConsentOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Consent.ConsentRequiredPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.Compliance.Consent.ConsentRequiredPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
@@ -161,82 +230,11 @@ static Encina.Compliance.Consent.ConsentValidationResult.Invalid(System.Collecti
 static Encina.Compliance.Consent.ConsentValidationResult.Invalid(System.Collections.Generic.IReadOnlyList<string!>! errors, System.Collections.Generic.IReadOnlyList<string!>! warnings, System.Collections.Generic.IReadOnlyList<string!>! missingPurposes) -> Encina.Compliance.Consent.ConsentValidationResult!
 static Encina.Compliance.Consent.ConsentValidationResult.Valid() -> Encina.Compliance.Consent.ConsentValidationResult!
 static Encina.Compliance.Consent.ConsentValidationResult.ValidWithWarnings(params string![]! warnings) -> Encina.Compliance.Consent.ConsentValidationResult!
-Encina.Compliance.Consent.ConsentVersion
-Encina.Compliance.Consent.ConsentVersion.Description.get -> string!
-Encina.Compliance.Consent.ConsentVersion.Description.init -> void
-Encina.Compliance.Consent.ConsentVersion.EffectiveFromUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentVersion.EffectiveFromUtc.init -> void
-Encina.Compliance.Consent.ConsentVersion.Purpose.get -> string!
-Encina.Compliance.Consent.ConsentVersion.Purpose.init -> void
-Encina.Compliance.Consent.ConsentVersion.RequiresExplicitReconsent.get -> bool
-Encina.Compliance.Consent.ConsentVersion.RequiresExplicitReconsent.init -> void
-Encina.Compliance.Consent.ConsentVersion.VersionId.get -> string!
-Encina.Compliance.Consent.ConsentVersion.VersionId.init -> void
-Encina.Compliance.Consent.ConsentVersionChangedEvent
-Encina.Compliance.Consent.ConsentVersionChangedEvent.ConsentVersionChangedEvent(string! Purpose, System.DateTimeOffset OccurredAtUtc, string! NewVersionId, bool RequiresExplicitReconsent) -> void
-Encina.Compliance.Consent.ConsentVersionChangedEvent.NewVersionId.get -> string!
-Encina.Compliance.Consent.ConsentVersionChangedEvent.NewVersionId.init -> void
-Encina.Compliance.Consent.ConsentVersionChangedEvent.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentVersionChangedEvent.OccurredAtUtc.init -> void
-Encina.Compliance.Consent.ConsentVersionChangedEvent.Purpose.get -> string!
-Encina.Compliance.Consent.ConsentVersionChangedEvent.Purpose.init -> void
-Encina.Compliance.Consent.ConsentVersionChangedEvent.RequiresExplicitReconsent.get -> bool
-Encina.Compliance.Consent.ConsentVersionChangedEvent.RequiresExplicitReconsent.init -> void
-Encina.Compliance.Consent.ConsentWithdrawnEvent
-Encina.Compliance.Consent.ConsentWithdrawnEvent.ConsentWithdrawnEvent(string! SubjectId, string! Purpose, System.DateTimeOffset OccurredAtUtc) -> void
-Encina.Compliance.Consent.ConsentWithdrawnEvent.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.Consent.ConsentWithdrawnEvent.OccurredAtUtc.init -> void
-Encina.Compliance.Consent.ConsentWithdrawnEvent.Purpose.get -> string!
-Encina.Compliance.Consent.ConsentWithdrawnEvent.Purpose.init -> void
-Encina.Compliance.Consent.ConsentWithdrawnEvent.SubjectId.get -> string!
-Encina.Compliance.Consent.ConsentWithdrawnEvent.SubjectId.init -> void
 Encina.Compliance.Consent.DefaultConsentValidator
-Encina.Compliance.Consent.DefaultConsentValidator.DefaultConsentValidator(Encina.Compliance.Consent.IConsentStore! consentStore, Encina.Compliance.Consent.IConsentVersionManager! versionManager, System.TimeProvider! timeProvider) -> void
+Encina.Compliance.Consent.DefaultConsentValidator.DefaultConsentValidator(Encina.Compliance.Consent.Abstractions.IConsentService! consentService, System.TimeProvider! timeProvider) -> void
 Encina.Compliance.Consent.DefaultConsentValidator.ValidateAsync(string! subjectId, System.Collections.Generic.IEnumerable<string!>! requiredPurposes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.ConsentValidationResult!>>
-Encina.Compliance.Consent.IConsentAuditStore
-Encina.Compliance.Consent.IConsentAuditStore.GetAuditTrailAsync(string! subjectId, string? purpose = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ConsentAuditEntry!>!>>
-Encina.Compliance.Consent.IConsentAuditStore.RecordAsync(Encina.Compliance.Consent.ConsentAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.IConsentStore
-Encina.Compliance.Consent.IConsentStore.GetAllConsentsAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ConsentRecord!>!>>
-Encina.Compliance.Consent.IConsentStore.GetConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Consent.ConsentRecord!>>>
-Encina.Compliance.Consent.IConsentStore.HasValidConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
-Encina.Compliance.Consent.IConsentStore.RecordConsentAsync(Encina.Compliance.Consent.ConsentRecord! consent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.IConsentStore.WithdrawConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.IConsentStore.BulkRecordConsentAsync(System.Collections.Generic.IEnumerable<Encina.Compliance.Consent.ConsentRecord!>! consents, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.BulkOperationResult!>>
-Encina.Compliance.Consent.IConsentStore.BulkWithdrawConsentAsync(string! subjectId, System.Collections.Generic.IEnumerable<string!>! purposes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.BulkOperationResult!>>
 Encina.Compliance.Consent.IConsentValidator
 Encina.Compliance.Consent.IConsentValidator.ValidateAsync(string! subjectId, System.Collections.Generic.IEnumerable<string!>! requiredPurposes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.ConsentValidationResult!>>
-Encina.Compliance.Consent.IConsentVersionManager
-Encina.Compliance.Consent.IConsentVersionManager.GetCurrentVersionAsync(string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.ConsentVersion!>>
-Encina.Compliance.Consent.IConsentVersionManager.PublishNewVersionAsync(Encina.Compliance.Consent.ConsentVersion! version, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.IConsentVersionManager.RequiresReconsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
-Encina.Compliance.Consent.InMemoryConsentAuditStore
-Encina.Compliance.Consent.InMemoryConsentAuditStore.Clear() -> void
-Encina.Compliance.Consent.InMemoryConsentAuditStore.Count.get -> int
-Encina.Compliance.Consent.InMemoryConsentAuditStore.GetAllEntries() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ConsentAuditEntry!>!
-Encina.Compliance.Consent.InMemoryConsentAuditStore.GetAuditTrailAsync(string! subjectId, string? purpose = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ConsentAuditEntry!>!>>
-Encina.Compliance.Consent.InMemoryConsentAuditStore.InMemoryConsentAuditStore(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Consent.InMemoryConsentAuditStore!>! logger) -> void
-Encina.Compliance.Consent.InMemoryConsentAuditStore.RecordAsync(Encina.Compliance.Consent.ConsentAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.InMemoryConsentStore
-Encina.Compliance.Consent.InMemoryConsentStore.Clear() -> void
-Encina.Compliance.Consent.InMemoryConsentStore.Count.get -> int
-Encina.Compliance.Consent.InMemoryConsentStore.GetAllConsentsAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ConsentRecord!>!>>
-Encina.Compliance.Consent.InMemoryConsentStore.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ConsentRecord!>!
-Encina.Compliance.Consent.InMemoryConsentStore.GetConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.Consent.ConsentRecord!>>>
-Encina.Compliance.Consent.InMemoryConsentStore.HasValidConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
-Encina.Compliance.Consent.InMemoryConsentStore.InMemoryConsentStore(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Consent.InMemoryConsentStore!>! logger, Encina.IEncina? encina = null) -> void
-Encina.Compliance.Consent.InMemoryConsentStore.RecordConsentAsync(Encina.Compliance.Consent.ConsentRecord! consent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.InMemoryConsentStore.WithdrawConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.InMemoryConsentStore.BulkRecordConsentAsync(System.Collections.Generic.IEnumerable<Encina.Compliance.Consent.ConsentRecord!>! consents, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.BulkOperationResult!>>
-Encina.Compliance.Consent.InMemoryConsentStore.BulkWithdrawConsentAsync(string! subjectId, System.Collections.Generic.IEnumerable<string!>! purposes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.BulkOperationResult!>>
-Encina.Compliance.Consent.InMemoryConsentVersionManager
-Encina.Compliance.Consent.InMemoryConsentVersionManager.Clear() -> void
-Encina.Compliance.Consent.InMemoryConsentVersionManager.Count.get -> int
-Encina.Compliance.Consent.InMemoryConsentVersionManager.GetAllVersions() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.Consent.ConsentVersion!>!
-Encina.Compliance.Consent.InMemoryConsentVersionManager.GetCurrentVersionAsync(string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Consent.ConsentVersion!>>
-Encina.Compliance.Consent.InMemoryConsentVersionManager.InMemoryConsentVersionManager(Encina.Compliance.Consent.IConsentStore! consentStore, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Consent.InMemoryConsentVersionManager!>! logger, Encina.IEncina? encina = null) -> void
-Encina.Compliance.Consent.InMemoryConsentVersionManager.PublishNewVersionAsync(Encina.Compliance.Consent.ConsentVersion! version, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.Consent.InMemoryConsentVersionManager.RequiresReconsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
 Encina.Compliance.Consent.RequireConsentAttribute
 Encina.Compliance.Consent.RequireConsentAttribute.ErrorMessage.get -> string?
 Encina.Compliance.Consent.RequireConsentAttribute.ErrorMessage.set -> void
@@ -250,3 +248,46 @@ Encina.Compliance.Consent.Health.ConsentHealthCheck
 Encina.Compliance.Consent.Health.ConsentHealthCheck.ConsentHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Consent.Health.ConsentHealthCheck!>! logger) -> void
 Encina.Compliance.Consent.Health.ConsentHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
 const Encina.Compliance.Consent.Health.ConsentHealthCheck.DefaultName = "encina-consent" -> string!
+Encina.Compliance.Consent.ReadModels.ConsentReadModel
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ConsentReadModel() -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Id.get -> System.Guid
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Id.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.DataSubjectId.get -> string!
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.DataSubjectId.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Purpose.get -> string!
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Purpose.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Status.get -> Encina.Compliance.Consent.ConsentStatus
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Status.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ConsentVersionId.get -> string!
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ConsentVersionId.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.GivenAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.GivenAtUtc.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.WithdrawnAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.WithdrawnAtUtc.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ExpiresAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ExpiresAtUtc.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Source.get -> string!
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Source.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.IpAddress.get -> string?
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.IpAddress.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ProofOfConsent.get -> string?
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ProofOfConsent.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Metadata.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.TenantId.get -> string?
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.TenantId.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ModuleId.get -> string?
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.ModuleId.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.LastModifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.LastModifiedAtUtc.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Version.get -> int
+Encina.Compliance.Consent.ReadModels.ConsentReadModel.Version.set -> void
+Encina.Compliance.Consent.ReadModels.ConsentProjection
+Encina.Compliance.Consent.ReadModels.ConsentProjection.ConsentProjection() -> void
+Encina.Compliance.Consent.ReadModels.ConsentProjection.ProjectionName.get -> string!
+Encina.Compliance.Consent.ReadModels.ConsentProjection.Create(Encina.Compliance.Consent.Events.ConsentGranted! domainEvent, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.Consent.ReadModels.ConsentReadModel!
+Encina.Compliance.Consent.ReadModels.ConsentProjection.Apply(Encina.Compliance.Consent.Events.ConsentWithdrawn! domainEvent, Encina.Compliance.Consent.ReadModels.ConsentReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.Consent.ReadModels.ConsentReadModel!
+Encina.Compliance.Consent.ReadModels.ConsentProjection.Apply(Encina.Compliance.Consent.Events.ConsentExpired! domainEvent, Encina.Compliance.Consent.ReadModels.ConsentReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.Consent.ReadModels.ConsentReadModel!
+Encina.Compliance.Consent.ReadModels.ConsentProjection.Apply(Encina.Compliance.Consent.Events.ConsentRenewed! domainEvent, Encina.Compliance.Consent.ReadModels.ConsentReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.Consent.ReadModels.ConsentReadModel!
+Encina.Compliance.Consent.ReadModels.ConsentProjection.Apply(Encina.Compliance.Consent.Events.ConsentVersionChanged! domainEvent, Encina.Compliance.Consent.ReadModels.ConsentReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.Consent.ReadModels.ConsentReadModel!
+Encina.Compliance.Consent.ReadModels.ConsentProjection.Apply(Encina.Compliance.Consent.Events.ConsentReconsentProvided! domainEvent, Encina.Compliance.Consent.ReadModels.ConsentReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.Consent.ReadModels.ConsentReadModel!

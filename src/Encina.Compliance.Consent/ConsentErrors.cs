@@ -29,6 +29,18 @@ public static class ConsentErrors
     /// <summary>Error code when the consent version does not match the current version.</summary>
     public const string VersionMismatchCode = "consent.version_mismatch";
 
+    /// <summary>Error code when a consent aggregate is not found.</summary>
+    public const string ConsentNotFoundCode = "consent.not_found";
+
+    /// <summary>Error code for invalid consent aggregate state transitions.</summary>
+    public const string InvalidStateTransitionCode = "consent.invalid_state_transition";
+
+    /// <summary>Error code when a consent service operation fails.</summary>
+    public const string ServiceErrorCode = "consent.service_error";
+
+    /// <summary>Error code when consent event history is not available.</summary>
+    public const string EventHistoryUnavailableCode = "consent.event_history_unavailable";
+
     /// <summary>
     /// Creates an error when consent is missing for a required processing purpose.
     /// </summary>
@@ -142,5 +154,72 @@ public static class ConsentErrors
                 ["expectedVersionId"] = expectedVersionId,
                 ["actualVersionId"] = actualVersionId,
                 ["requirement"] = "consent_version_integrity"
+            });
+
+    // --- Service-level errors ---
+
+    /// <summary>
+    /// Creates an error when a consent aggregate is not found.
+    /// </summary>
+    /// <param name="consentId">The consent identifier that was not found.</param>
+    /// <returns>An error indicating the consent was not found.</returns>
+    public static EncinaError ConsentNotFound(Guid consentId) =>
+        EncinaErrors.Create(
+            code: ConsentNotFoundCode,
+            message: $"Consent '{consentId}' was not found.",
+            details: new Dictionary<string, object?>
+            {
+                ["consentId"] = consentId.ToString(),
+                [MetadataKeyStage] = MetadataStageConsent
+            });
+
+    /// <summary>
+    /// Creates an error for an invalid consent aggregate state transition.
+    /// </summary>
+    /// <param name="from">The current state.</param>
+    /// <param name="to">The attempted target state.</param>
+    /// <returns>An error indicating the state transition is not valid.</returns>
+    public static EncinaError InvalidStateTransition(string from, string to) =>
+        EncinaErrors.Create(
+            code: InvalidStateTransitionCode,
+            message: $"Invalid consent state transition from '{from}' to '{to}'.",
+            details: new Dictionary<string, object?>
+            {
+                ["fromState"] = from,
+                ["toState"] = to,
+                [MetadataKeyStage] = MetadataStageConsent
+            });
+
+    /// <summary>
+    /// Creates an error when a consent service operation fails.
+    /// </summary>
+    /// <param name="operation">The operation that failed (e.g., "GrantConsent", "WithdrawConsent").</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <returns>An error wrapping the infrastructure failure.</returns>
+    public static EncinaError ServiceError(string operation, Exception exception) =>
+        EncinaErrors.Create(
+            code: ServiceErrorCode,
+            message: $"Consent service operation '{operation}' failed: {exception.Message}",
+            exception: exception,
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataStageConsent
+            });
+
+    /// <summary>
+    /// Creates an error when consent event history cannot be retrieved.
+    /// </summary>
+    /// <param name="consentId">The consent identifier.</param>
+    /// <returns>An error indicating event history is not available through the current repository.</returns>
+    public static EncinaError EventHistoryUnavailable(Guid consentId) =>
+        EncinaErrors.Create(
+            code: EventHistoryUnavailableCode,
+            message: $"Event history for consent '{consentId}' is not available. "
+                + "Event stream access requires Marten-specific APIs.",
+            details: new Dictionary<string, object?>
+            {
+                ["consentId"] = consentId.ToString(),
+                [MetadataKeyStage] = MetadataStageConsent
             });
 }

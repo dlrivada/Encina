@@ -1,4 +1,6 @@
 using Encina.Compliance.Consent;
+using Encina.Compliance.Consent.Abstractions;
+using Encina.Compliance.Consent.ReadModels;
 
 using FluentAssertions;
 
@@ -11,17 +13,26 @@ using Microsoft.Extensions.Options;
 namespace Encina.IntegrationTests.Compliance.Consent;
 
 /// <summary>
-/// Integration tests for the full Encina.Compliance.Consent pipeline.
-/// Tests DI registration, full consent flows, and health check integration.
-/// No Docker containers needed — all operations use in-memory stores.
+/// Integration tests for the Encina.Compliance.Consent pipeline.
+/// Tests DI registration, options validation, and health check integration.
 /// </summary>
+/// <remarks>
+/// <para>
+/// After the migration to event-sourced consent (Marten), the full consent flow tests
+/// (GrantConsent, WithdrawConsent, ValidateConsent) require a real PostgreSQL + Marten
+/// backend and are covered by Marten-specific integration tests.
+/// </para>
+/// <para>
+/// These tests focus on DI wiring and configuration, which do not require a database.
+/// </para>
+/// </remarks>
 [Trait("Category", "Integration")]
 public sealed class ConsentPipelineIntegrationTests
 {
     #region DI Registration
 
     [Fact]
-    public void AddEncinaConsent_RegistersAllDefaultServices()
+    public void AddEncinaConsent_RegistersConsentValidator()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -31,30 +42,30 @@ public sealed class ConsentPipelineIntegrationTests
         services.AddEncinaConsent(options =>
         {
             options.EnforcementMode = ConsentEnforcementMode.Block;
+            options.AutoRegisterFromAttributes = false;
         });
-        var provider = services.BuildServiceProvider();
 
-        // Assert
-        provider.GetService<IConsentStore>().Should().NotBeNull();
-        provider.GetService<IConsentValidator>().Should().NotBeNull();
-        provider.GetService<IConsentVersionManager>().Should().NotBeNull();
-        provider.GetService<IConsentAuditStore>().Should().NotBeNull();
+        // Assert — IConsentValidator is registered via TryAdd (descriptor check only;
+        // actual resolution requires Marten dependencies which are out of scope here)
+        services.Should().Contain(sd => sd.ServiceType == typeof(IConsentValidator));
     }
 
     [Fact]
-    public void AddEncinaConsent_DefaultStore_IsInMemory()
+    public void AddEncinaConsent_RegistersConsentService()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
 
         // Act
-        services.AddEncinaConsent();
-        var provider = services.BuildServiceProvider();
+        services.AddEncinaConsent(options =>
+        {
+            options.AutoRegisterFromAttributes = false;
+        });
 
-        // Assert
-        var store = provider.GetRequiredService<IConsentStore>();
-        store.Should().BeOfType<InMemoryConsentStore>();
+        // Assert — IConsentService is registered via TryAdd (descriptor check only;
+        // actual resolution requires Marten dependencies which are out of scope here)
+        services.Should().Contain(sd => sd.ServiceType == typeof(IConsentService));
     }
 
     [Fact]
@@ -68,29 +79,13 @@ public sealed class ConsentPipelineIntegrationTests
         services.AddEncinaConsent(options =>
         {
             options.AddHealthCheck = true;
+            options.AutoRegisterFromAttributes = false;
         });
         var provider = services.BuildServiceProvider();
 
         // Assert
         var healthCheckService = provider.GetService<HealthCheckService>();
         healthCheckService.Should().NotBeNull();
-    }
-
-    [Fact]
-    public void AddEncinaConsent_CustomStoreRegisteredBefore_ShouldNotBeOverridden()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton<IConsentStore, InMemoryConsentStore>();
-
-        // Act
-        services.AddEncinaConsent();
-        var provider = services.BuildServiceProvider();
-
-        // Assert - should use the pre-registered store
-        var store = provider.GetRequiredService<IConsentStore>();
-        store.Should().BeOfType<InMemoryConsentStore>();
     }
 
     [Fact]
@@ -105,6 +100,7 @@ public sealed class ConsentPipelineIntegrationTests
         {
             options.EnforcementMode = ConsentEnforcementMode.Warn;
             options.DefaultExpirationDays = 365;
+            options.AutoRegisterFromAttributes = false;
             options.DefinePurpose("marketing", p =>
             {
                 p.Description = "Marketing communications";
@@ -117,210 +113,162 @@ public sealed class ConsentPipelineIntegrationTests
         var options = provider.GetRequiredService<IOptions<ConsentOptions>>().Value;
         options.EnforcementMode.Should().Be(ConsentEnforcementMode.Warn);
         options.DefaultExpirationDays.Should().Be(365);
+        options.PurposeDefinitions.Should().Contain("marketing");
     }
 
-    #endregion
-
-    #region Full Consent Flow with DI
-
     [Fact]
-    public async Task FullPipeline_RecordAndValidateConsent_WithDI()
+    public void AddEncinaConsent_CustomServiceRegisteredBefore_ShouldNotBeOverridden()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddEncinaConsent(options =>
-        {
-            options.EnforcementMode = ConsentEnforcementMode.Block;
-            options.DefinePurpose("marketing", p =>
-            {
-                p.Description = "Marketing communications";
-                p.RequiresExplicitOptIn = true;
-            });
-        });
-        var provider = services.BuildServiceProvider();
-
-        var store = provider.GetRequiredService<IConsentStore>();
-        var validator = provider.GetRequiredService<IConsentValidator>();
-
-        // Act: Record consent
-        var consent = new ConsentRecord
-        {
-            Id = Guid.NewGuid(),
-            SubjectId = "user-123",
-            Purpose = "marketing",
-            Status = ConsentStatus.Active,
-            ConsentVersionId = "v1",
-            GivenAtUtc = DateTimeOffset.UtcNow,
-            Source = "integration-test",
-            Metadata = new Dictionary<string, object?>()
-        };
-
-        var recordResult = await store.RecordConsentAsync(consent);
-        recordResult.IsRight.Should().BeTrue();
-
-        // Act: Validate consent
-        var validationResult = await validator.ValidateAsync("user-123", ["marketing"]);
-
-        // Assert
-        validationResult.IsRight.Should().BeTrue();
-        var result = (ConsentValidationResult)validationResult;
-        result.IsValid.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task FullPipeline_MissingConsent_ValidationFails()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaConsent(options =>
-        {
-            options.EnforcementMode = ConsentEnforcementMode.Block;
-            options.DefinePurpose("marketing", p =>
-            {
-                p.Description = "Marketing communications";
-                p.RequiresExplicitOptIn = true;
-            });
-        });
-        var provider = services.BuildServiceProvider();
-
-        var validator = provider.GetRequiredService<IConsentValidator>();
-
-        // Act: Validate consent (without recording any)
-        var validationResult = await validator.ValidateAsync("user-456", ["marketing"]);
-
-        // Assert
-        validationResult.IsRight.Should().BeTrue();
-        var result = (ConsentValidationResult)validationResult;
-        result.IsValid.Should().BeFalse();
-        result.MissingPurposes.Should().Contain("marketing");
-    }
-
-    [Fact]
-    public async Task FullPipeline_WithdrawAndRevalidate_ShouldFail()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaConsent(options =>
-        {
-            options.EnforcementMode = ConsentEnforcementMode.Block;
-        });
-        var provider = services.BuildServiceProvider();
-
-        var store = provider.GetRequiredService<IConsentStore>();
-        var validator = provider.GetRequiredService<IConsentValidator>();
-
-        // Step 1: Record consent
-        var consent = new ConsentRecord
-        {
-            Id = Guid.NewGuid(),
-            SubjectId = "user-789",
-            Purpose = "analytics",
-            Status = ConsentStatus.Active,
-            ConsentVersionId = "v1",
-            GivenAtUtc = DateTimeOffset.UtcNow,
-            Source = "integration-test",
-            Metadata = new Dictionary<string, object?>()
-        };
-        await store.RecordConsentAsync(consent);
-
-        // Step 2: Validate (should pass)
-        var validBefore = await validator.ValidateAsync("user-789", ["analytics"]);
-        ((ConsentValidationResult)validBefore).IsValid.Should().BeTrue();
-
-        // Step 3: Withdraw consent
-        var withdrawResult = await store.WithdrawConsentAsync("user-789", "analytics");
-        withdrawResult.IsRight.Should().BeTrue();
-
-        // Step 4: Validate again (should fail)
-        var validAfter = await validator.ValidateAsync("user-789", ["analytics"]);
-        ((ConsentValidationResult)validAfter).IsValid.Should().BeFalse();
-    }
-
-    #endregion
-
-    #region Multi-Purpose Consent Flow
-
-    [Fact]
-    public async Task FullPipeline_MultiplePurposes_PartialConsent()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaConsent(options =>
-        {
-            options.EnforcementMode = ConsentEnforcementMode.Block;
-            options.DefinePurpose("marketing", p => p.Description = "Marketing");
-            options.DefinePurpose("analytics", p => p.Description = "Analytics");
-        });
-        var provider = services.BuildServiceProvider();
-
-        var store = provider.GetRequiredService<IConsentStore>();
-        var validator = provider.GetRequiredService<IConsentValidator>();
-
-        // Record consent for only one purpose
-        await store.RecordConsentAsync(new ConsentRecord
-        {
-            Id = Guid.NewGuid(),
-            SubjectId = "user-multi",
-            Purpose = "marketing",
-            Status = ConsentStatus.Active,
-            ConsentVersionId = "v1",
-            GivenAtUtc = DateTimeOffset.UtcNow,
-            Source = "test",
-            Metadata = new Dictionary<string, object?>()
-        });
-
-        // Act: Validate for both purposes
-        var result = await validator.ValidateAsync("user-multi", ["marketing", "analytics"]);
-
-        // Assert
-        result.IsRight.Should().BeTrue();
-        var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeFalse();
-        validation.MissingPurposes.Should().Contain("analytics");
-        validation.MissingPurposes.Should().NotContain("marketing");
-    }
-
-    #endregion
-
-    #region Bulk Operations via DI
-
-    [Fact]
-    public async Task FullPipeline_BulkOperations_ShouldSucceed()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaConsent();
-        var provider = services.BuildServiceProvider();
-
-        var store = provider.GetRequiredService<IConsentStore>();
-
-        var consents = Enumerable.Range(0, 10)
-            .Select(i => new ConsentRecord
-            {
-                Id = Guid.NewGuid(),
-                SubjectId = $"bulk-user-{i}",
-                Purpose = "marketing",
-                Status = ConsentStatus.Active,
-                ConsentVersionId = "v1",
-                GivenAtUtc = DateTimeOffset.UtcNow,
-                Source = "bulk-test",
-                Metadata = new Dictionary<string, object?>()
-            })
-            .ToList();
+        var mockService = new FakeConsentService();
+        services.AddScoped<IConsentService>(_ => mockService);
 
         // Act
-        var result = await store.BulkRecordConsentAsync(consents);
+        services.AddEncinaConsent(options =>
+        {
+            options.AutoRegisterFromAttributes = false;
+        });
+        var provider = services.BuildServiceProvider();
 
-        // Assert
-        result.IsRight.Should().BeTrue();
-        var bulkResult = (BulkOperationResult)result;
-        bulkResult.SuccessCount.Should().Be(10);
-        bulkResult.AllSucceeded.Should().BeTrue();
+        // Assert — pre-registered service should be preserved (TryAdd)
+        using var scope = provider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<IConsentService>();
+        service.Should().BeSameAs(mockService);
+    }
+
+    [Fact]
+    public void AddEncinaConsent_CustomValidatorRegisteredBefore_ShouldNotBeOverridden()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var mockValidator = new FakeConsentValidator();
+        services.AddScoped<IConsentValidator>(_ => mockValidator);
+
+        // Act
+        services.AddEncinaConsent(options =>
+        {
+            options.AutoRegisterFromAttributes = false;
+        });
+        var provider = services.BuildServiceProvider();
+
+        // Assert — pre-registered validator should be preserved (TryAdd)
+        using var scope = provider.CreateScope();
+        var validator = scope.ServiceProvider.GetRequiredService<IConsentValidator>();
+        validator.Should().BeSameAs(mockValidator);
+    }
+
+    #endregion
+
+    #region Options Validation via DI
+
+    [Fact]
+    public void AddEncinaConsent_BlockModeNoPurposes_OptionsValidationFails()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaConsent(options =>
+        {
+            options.EnforcementMode = ConsentEnforcementMode.Block;
+            // No purposes defined — Block mode requires at least one
+            options.AutoRegisterFromAttributes = false;
+        });
+        var provider = services.BuildServiceProvider();
+
+        // Act & Assert
+        var act = () => provider.GetRequiredService<IOptions<ConsentOptions>>().Value;
+        act.Should().Throw<OptionsValidationException>()
+            .Which.Message.Should().Contain("PurposeDefinitions");
+    }
+
+    [Fact]
+    public void AddEncinaConsent_WarnModeNoPurposes_OptionsValidationSucceeds()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaConsent(options =>
+        {
+            options.EnforcementMode = ConsentEnforcementMode.Warn;
+            options.AutoRegisterFromAttributes = false;
+        });
+        var provider = services.BuildServiceProvider();
+
+        // Act & Assert — Warn mode allows no purposes
+        var options = provider.GetRequiredService<IOptions<ConsentOptions>>().Value;
+        options.EnforcementMode.Should().Be(ConsentEnforcementMode.Warn);
+    }
+
+    #endregion
+
+    #region Test Fakes
+
+    /// <summary>
+    /// Fake implementation for DI override tests.
+    /// </summary>
+    private sealed class FakeConsentService : IConsentService
+    {
+        public ValueTask<Either<EncinaError, Guid>> GrantConsentAsync(
+            string dataSubjectId, string purpose, string consentVersionId,
+            string source, string grantedBy, string? ipAddress = null,
+            string? proofOfConsent = null, IReadOnlyDictionary<string, object?>? metadata = null,
+            DateTimeOffset? expiresAtUtc = null, string? tenantId = null,
+            string? moduleId = null, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, Guid>(Guid.NewGuid()));
+
+        public ValueTask<Either<EncinaError, Unit>> WithdrawConsentAsync(
+            Guid consentId, string withdrawnBy, string? reason = null,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default));
+
+        public ValueTask<Either<EncinaError, Unit>> RenewConsentAsync(
+            Guid consentId, string consentVersionId, string renewedBy,
+            DateTimeOffset? newExpiresAtUtc = null, string? source = null,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default));
+
+        public ValueTask<Either<EncinaError, Unit>> ProvideReconsentAsync(
+            Guid consentId, string newConsentVersionId, string source, string grantedBy,
+            string? ipAddress = null, string? proofOfConsent = null,
+            IReadOnlyDictionary<string, object?>? metadata = null,
+            DateTimeOffset? expiresAtUtc = null, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default));
+
+        public ValueTask<Either<EncinaError, ConsentReadModel>> GetConsentAsync(
+            Guid consentId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public ValueTask<Either<EncinaError, Option<ConsentReadModel>>> GetConsentBySubjectAndPurposeAsync(
+            string dataSubjectId, string purpose, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public ValueTask<Either<EncinaError, IReadOnlyList<ConsentReadModel>>> GetAllConsentsAsync(
+            string dataSubjectId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+
+        public ValueTask<Either<EncinaError, bool>> HasValidConsentAsync(
+            string dataSubjectId, string purpose, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, bool>(true));
+
+        public ValueTask<Either<EncinaError, IReadOnlyList<object>>> GetConsentHistoryAsync(
+            Guid consentId, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Fake validator for DI override tests.
+    /// </summary>
+    private sealed class FakeConsentValidator : IConsentValidator
+    {
+        public ValueTask<Either<EncinaError, ConsentValidationResult>> ValidateAsync(
+            string subjectId, IEnumerable<string> requiredPurposes,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(
+                LanguageExt.Prelude.Right<EncinaError, ConsentValidationResult>(
+                    ConsentValidationResult.Valid()));
     }
 
     #endregion

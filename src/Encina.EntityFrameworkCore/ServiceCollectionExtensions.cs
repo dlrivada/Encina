@@ -1,7 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
-using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
@@ -14,7 +13,6 @@ using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
 using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.Caching;
-using Encina.EntityFrameworkCore.Consent;
 using Encina.EntityFrameworkCore.DomainEvents;
 using Encina.EntityFrameworkCore.Health;
 using Encina.EntityFrameworkCore.Inbox;
@@ -338,14 +336,6 @@ public static class ServiceCollectionExtensions
         {
             // Register read audit trail store (Encina.Security.Audit)
             services.AddScoped<IReadAuditStore, ReadAuditStoreEF>();
-        }
-
-        if (config.UseConsent)
-        {
-            // Register GDPR consent management stores
-            services.TryAddScoped<IConsentStore, ConsentStoreEF>();
-            services.TryAddScoped<IConsentAuditStore, ConsentAuditStoreEF>();
-            services.TryAddScoped<IConsentVersionManager, ConsentVersionManagerEF>();
         }
 
         if (config.UseDataSubjectRights)

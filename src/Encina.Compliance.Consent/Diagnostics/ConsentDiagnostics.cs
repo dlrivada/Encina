@@ -37,6 +37,27 @@ internal static class ConsentDiagnostics
             unit: "ms",
             description: "Duration of consent compliance evaluations in milliseconds.");
 
+    // Service-level counters
+    internal static readonly Counter<long> ConsentGrantedTotal =
+        Meter.CreateCounter<long>("consent.granted.total",
+            description: "Total number of consents granted via ConsentService.");
+
+    internal static readonly Counter<long> ConsentWithdrawnTotal =
+        Meter.CreateCounter<long>("consent.withdrawn.total",
+            description: "Total number of consents withdrawn via ConsentService.");
+
+    internal static readonly Counter<long> ConsentRenewedTotal =
+        Meter.CreateCounter<long>("consent.renewed.total",
+            description: "Total number of consents renewed via ConsentService.");
+
+    internal static readonly Counter<long> ConsentReconsentTotal =
+        Meter.CreateCounter<long>("consent.reconsent.total",
+            description: "Total number of reconsents provided via ConsentService.");
+
+    internal static readonly Counter<long> ConsentExpiredTotal =
+        Meter.CreateCounter<long>("consent.expired.total",
+            description: "Total number of consents that expired.");
+
     // Tag names
     internal const string TagSubjectId = "consent.subject_id";
     internal const string TagPurpose = "consent.purpose";

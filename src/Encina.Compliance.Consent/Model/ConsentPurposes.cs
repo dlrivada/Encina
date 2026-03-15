@@ -6,7 +6,7 @@ namespace Encina.Compliance.Consent;
 /// <remarks>
 /// <para>
 /// These constants provide well-known purpose identifiers that can be used with
-/// <see cref="ConsentRecord.Purpose"/> and the <c>[RequireConsent]</c> attribute.
+/// <see cref="ReadModels.ConsentReadModel.Purpose"/> and the <c>[RequireConsent]</c> attribute.
 /// Using standard identifiers promotes consistency across applications and
 /// simplifies consent management.
 /// </para>

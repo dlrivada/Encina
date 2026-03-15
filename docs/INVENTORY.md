@@ -5889,29 +5889,27 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `foundational`
 - Referencias: [GDPR Article 30](https://gdpr-info.eu/art-30-gdpr/), [ICO Records of Processing](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/records-of-processing-activities/)
 
-**#403 - Encina.Compliance.Consent - Consent Management** ✅ **IMPLEMENTADO**:
+**#403 - Encina.Compliance.Consent - Consent Management** ✅ **IMPLEMENTADO** (migrado a Marten event sourcing #777):
 
-- `IConsentStore` con `RecordConsentAsync`, `GetConsentAsync`, `GetAllConsentsAsync`, `WithdrawConsentAsync`, `HasValidConsentAsync`, `BulkRecordConsentAsync`, `BulkWithdrawConsentAsync`
+- `ConsentAggregate` event-sourced aggregate con `Grant()`, `Withdraw()`, `Expire()`, `Renew()`, `ChangeVersion()`, `ProvideReconsent()`
+- `IConsentService` CQRS service con `GrantConsentAsync`, `WithdrawConsentAsync`, `RenewConsentAsync`, `ProvideReconsentAsync`, `GetConsentAsync`, `GetConsentBySubjectAndPurposeAsync`, `GetAllConsentsAsync`, `HasValidConsentAsync`, `GetConsentHistoryAsync`
+- `DefaultConsentService` implementación con cache-aside pattern via `ICacheProvider`
 - `IConsentValidator` con `ValidateAsync(subjectId, requiredPurposes)` → `ConsentValidationResult` (Valid/Invalid/ValidWithWarnings)
-- `IConsentVersionManager` con `GetCurrentVersionAsync`, `PublishNewVersionAsync`, `RequiresReconsentAsync`
-- `IConsentAuditStore` con `RecordAsync`, `GetAuditTrailAsync` — immutable audit trail
+- 6 domain events: `ConsentGranted`, `ConsentWithdrawn`, `ConsentExpired`, `ConsentRenewed`, `ConsentVersionChanged`, `ConsentReconsentProvided`
+- `ConsentProjection` Marten projection transforming events to `ConsentReadModel`
+- `ConsentReadModel` projected read model con Id, DataSubjectId, Purpose, Status, ConsentVersionId, GivenAtUtc, WithdrawnAtUtc, ExpiresAtUtc, Source, IpAddress, ProofOfConsent, Metadata, TenantId, ModuleId, LastModifiedAtUtc, Version
 - `ConsentRequiredPipelineBehavior<TRequest, TResponse>` para validación antes de procesamiento
 - `[RequireConsent("marketing", SubjectIdProperty = "UserId")]` atributo declarativo con cached reflection
-- `ConsentRecord` sealed record con Id, SubjectId, Purpose, Status, ConsentVersionId, GivenAtUtc, WithdrawnAtUtc, ExpiresAtUtc, Source, IpAddress, ProofOfConsent, Metadata
-- `ConsentVersion` sealed record con VersionId, Purpose, EffectiveFromUtc, Description, RequiresExplicitReconsent
-- 4 domain events: `ConsentGrantedEvent`, `ConsentWithdrawnEvent`, `ConsentExpiredEvent`, `ConsentVersionChangedEvent`
+- `ConsentMartenExtensions.AddConsentAggregates()` registra aggregate + projection con Marten DI
 - 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
 - 8 standard purposes: Marketing, Analytics, Personalization, ThirdPartySharing, Profiling, Newsletter, LocationTracking, CrossBorderTransfer
-- 5 error codes: `consent.missing`, `consent.withdrawn`, `consent.expired`, `consent.requires_reconsent`, `consent.version_mismatch`
+- 9 error codes: `consent.missing`, `consent.withdrawn`, `consent.expired`, `consent.requires_reconsent`, `consent.version_mismatch`, `consent.not_found`, `consent.invalid_state_transition`, `consent.service_error`, `consent.event_history_unavailable`
 - `ConsentOptions` con `DefinePurpose()` fluent API, `AutoRegisterFromAttributes`, `FailOnUnknownPurpose`, `TrackConsentProof`
-- In-memory implementations: `InMemoryConsentStore`, `InMemoryConsentAuditStore`, `InMemoryConsentVersionManager`
-- 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
 - `ConsentHealthCheck` con opt-in via `AddHealthCheck = true`
-- OpenTelemetry tracing via `Encina.Compliance.Consent` ActivitySource
-- 6 structured log events con `LoggerMessage.Define` (zero-allocation)
-- `BulkOperationResult` con `SuccessCount`, `FailureCount`, `Errors` per-item tracking
-- **Paquete**: `Encina.Compliance.Consent`
-- **Testing**: 1,100+ tests (unit, guard, property, contract, integration ×13 providers, load tests, benchmarks)
+- OpenTelemetry: `Encina.Compliance.Consent` ActivitySource, 5 counters + 1 histogram
+- Structured logging: EventId 8200-8269 con `LoggerMessage.Define` (zero-allocation)
+- **Paquete**: `Encina.Compliance.Consent` (requiere `Encina.Marten`)
+- **Testing**: 345 tests (217 unit, 61 guard, 11 property, 48 contract, 8 integration)
 - **Documentación**: [Feature Guide](features/consent-management.md), [README](../src/Encina.Compliance.Consent/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `pattern-consent-management`
 - Referencias: [GDPR Article 7](https://gdpr-info.eu/art-7-gdpr/), [Cookiebot Consent](https://www.cookiebot.com/en/gdpr-consent/)

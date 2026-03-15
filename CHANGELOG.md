@@ -2018,6 +2018,41 @@ Added the `Encina.Compliance.CrossBorderTransfer` package implementing GDPR Arti
 
 ---
 
+### Changed
+
+#### Encina.Compliance.Consent — Migrated to Marten Event Sourcing (#777)
+
+Migrated `Encina.Compliance.Consent` from entity-based persistence (13 database providers) to Marten event sourcing (PostgreSQL-only). This is a complete architectural shift from CRUD-based `IConsentStore` / `IConsentVersionManager` / `IConsentAuditStore` to event-sourced `ConsentAggregate` with CQRS read models.
+
+**New Architecture (Event-Sourced)**:
+
+- **`ConsentAggregate`**: Event-sourced aggregate with `Grant()`, `Withdraw()`, `Expire()`, `Renew()`, `ChangeVersion()`, `ProvideReconsent()` commands
+- **6 Domain Events**: `ConsentGranted`, `ConsentWithdrawn`, `ConsentExpired`, `ConsentRenewed`, `ConsentVersionChanged`, `ConsentReconsentProvided`
+- **`ConsentProjection`**: Marten projection transforming events to `ConsentReadModel` for query-side reads
+- **`ConsentReadModel`**: Projected read model with all consent state (replaces `ConsentRecord`)
+- **`IConsentService`**: Clean CQRS service interface for command and query operations via `IAggregateRepository<ConsentAggregate>` and `IReadModelRepository<ConsentReadModel>`
+- **`DefaultConsentService`**: Implementation with cache-aside pattern (L1/L2 via `ICacheProvider`)
+- **`ConsentMartenExtensions.AddConsentAggregates()`**: Registers aggregate + projection with Marten DI
+
+**Removed (Old Entity-Based Model)**:
+
+- `IConsentStore`, `IConsentVersionManager`, `IConsentAuditStore` interfaces
+- `InMemoryConsentStore`, `InMemoryConsentVersionManager`, `InMemoryConsentAuditStore` implementations
+- `ConsentRecord`, `ConsentAuditEntry`, `ConsentVersion`, `ConsentAuditAction` model types
+- `BulkOperationResult`, `BulkOperationError` types
+- All 13-provider store implementations (ADO.NET, Dapper, EF Core, MongoDB)
+- Old domain events (`ConsentGrantedEvent`, `ConsentWithdrawnEvent`, etc.)
+
+**Observability Updates**:
+
+- Renamed `StoreError` → `ServiceError` across diagnostics, log messages, and error codes
+- Added `ConsentExpiredTotal` counter to `ConsentDiagnostics`
+- Removed unused store-level log messages (EventId 8210-8216, 8220-8221)
+
+**Testing**: 345 tests across 5 test projects: 217 unit tests (aggregate, projection, service, validator, errors, options, pipeline), 61 guard tests, 11 property tests (FsCheck), 48 contract tests, 8 integration tests.
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

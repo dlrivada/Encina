@@ -1,6 +1,5 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
-using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
@@ -19,7 +18,6 @@ using Encina.Messaging.SoftDelete;
 using Encina.Modules.Isolation;
 using Encina.MongoDB.Auditing;
 using Encina.MongoDB.BulkOperations;
-using Encina.MongoDB.Consent;
 using Encina.MongoDB.Health;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Modules;
@@ -124,14 +122,6 @@ public static class ServiceCollectionExtensions
         if (options.UseReadAuditStore)
         {
             services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
-        }
-
-        // Register consent stores if enabled
-        if (options.UseConsent)
-        {
-            services.AddScoped<IConsentStore, ConsentStoreMongoDB>();
-            services.AddScoped<IConsentAuditStore, ConsentAuditStoreMongoDB>();
-            services.AddScoped<IConsentVersionManager, ConsentVersionManagerMongoDB>();
         }
 
         // Register DSR (Data Subject Rights) stores if enabled
@@ -287,14 +277,6 @@ public static class ServiceCollectionExtensions
         if (options.UseReadAuditStore)
         {
             services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
-        }
-
-        // Register consent stores if enabled
-        if (options.UseConsent)
-        {
-            services.AddScoped<IConsentStore, ConsentStoreMongoDB>();
-            services.AddScoped<IConsentAuditStore, ConsentAuditStoreMongoDB>();
-            services.AddScoped<IConsentVersionManager, ConsentVersionManagerMongoDB>();
         }
 
         // Register DSR (Data Subject Rights) stores if enabled

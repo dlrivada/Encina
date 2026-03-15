@@ -18,6 +18,10 @@ public class ConsentErrorsTests
         ConsentErrors.ConsentWithdrawnCode.Should().StartWith("consent.");
         ConsentErrors.RequiresReconsentCode.Should().StartWith("consent.");
         ConsentErrors.VersionMismatchCode.Should().StartWith("consent.");
+        ConsentErrors.ConsentNotFoundCode.Should().StartWith("consent.");
+        ConsentErrors.InvalidStateTransitionCode.Should().StartWith("consent.");
+        ConsentErrors.ServiceErrorCode.Should().StartWith("consent.");
+        ConsentErrors.EventHistoryUnavailableCode.Should().StartWith("consent.");
     }
 
     [Fact]
@@ -28,6 +32,10 @@ public class ConsentErrorsTests
         ConsentErrors.ConsentWithdrawnCode.Should().Be("consent.withdrawn");
         ConsentErrors.RequiresReconsentCode.Should().Be("consent.requires_reconsent");
         ConsentErrors.VersionMismatchCode.Should().Be("consent.version_mismatch");
+        ConsentErrors.ConsentNotFoundCode.Should().Be("consent.not_found");
+        ConsentErrors.InvalidStateTransitionCode.Should().Be("consent.invalid_state_transition");
+        ConsentErrors.ServiceErrorCode.Should().Be("consent.service_error");
+        ConsentErrors.EventHistoryUnavailableCode.Should().Be("consent.event_history_unavailable");
     }
 
     #endregion
@@ -116,6 +124,85 @@ public class ConsentErrorsTests
         error.Message.Should().Contain("analytics");
         error.Message.Should().Contain("v5");
         error.Message.Should().Contain("v2");
+    }
+
+    #endregion
+
+    #region ConsentNotFound Factory
+
+    [Fact]
+    public void ConsentNotFound_ShouldContainConsentId()
+    {
+        // Arrange
+        var consentId = Guid.NewGuid();
+
+        // Act
+        var error = ConsentErrors.ConsentNotFound(consentId);
+
+        // Assert
+        error.Message.Should().Contain(consentId.ToString());
+    }
+
+    #endregion
+
+    #region InvalidStateTransition Factory
+
+    [Fact]
+    public void InvalidStateTransition_ShouldContainFromAndToStates()
+    {
+        // Act
+        var error = ConsentErrors.InvalidStateTransition("Active", "Active");
+
+        // Assert
+        error.Message.Should().Contain("Active");
+        error.Message.Should().Contain("Active");
+        error.Message.Should().Contain("Invalid");
+    }
+
+    [Fact]
+    public void InvalidStateTransition_ShouldContainDistinctStates()
+    {
+        // Act
+        var error = ConsentErrors.InvalidStateTransition("Withdrawn", "Expired");
+
+        // Assert
+        error.Message.Should().Contain("Withdrawn");
+        error.Message.Should().Contain("Expired");
+    }
+
+    #endregion
+
+    #region ServiceError Factory
+
+    [Fact]
+    public void ServiceError_ShouldContainOperationAndExceptionMessage()
+    {
+        // Arrange
+        var exception = new InvalidOperationException("Connection refused");
+
+        // Act
+        var error = ConsentErrors.ServiceError("GrantConsent", exception);
+
+        // Assert
+        error.Message.Should().Contain("GrantConsent");
+        error.Message.Should().Contain("Connection refused");
+    }
+
+    #endregion
+
+    #region EventHistoryUnavailable Factory
+
+    [Fact]
+    public void EventHistoryUnavailable_ShouldContainConsentId()
+    {
+        // Arrange
+        var consentId = Guid.NewGuid();
+
+        // Act
+        var error = ConsentErrors.EventHistoryUnavailable(consentId);
+
+        // Assert
+        error.Message.Should().Contain(consentId.ToString());
     }
 
     #endregion

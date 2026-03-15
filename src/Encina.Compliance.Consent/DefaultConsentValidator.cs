@@ -1,3 +1,5 @@
+using Encina.Compliance.Consent.Abstractions;
+using Encina.Compliance.Consent.ReadModels;
 using LanguageExt;
 
 using static LanguageExt.Prelude;
@@ -6,16 +8,15 @@ namespace Encina.Compliance.Consent;
 
 /// <summary>
 /// Default implementation of <see cref="IConsentValidator"/> that checks consent
-/// against <see cref="IConsentStore"/> and <see cref="IConsentVersionManager"/>.
+/// against <see cref="IConsentService"/>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// For each required purpose, the validator:
 /// <list type="number">
-/// <item><description>Checks that a consent record exists via <see cref="IConsentStore"/>.</description></item>
+/// <item><description>Looks up the consent record via <see cref="IConsentService.GetConsentBySubjectAndPurposeAsync"/>.</description></item>
 /// <item><description>Verifies the consent status is <see cref="ConsentStatus.Active"/>.</description></item>
-/// <item><description>Checks for expiration based on <see cref="ConsentRecord.ExpiresAtUtc"/>.</description></item>
-/// <item><description>Verifies the consent version is current via <see cref="IConsentVersionManager"/>.</description></item>
+/// <item><description>Checks for expiration based on <see cref="ConsentReadModel.ExpiresAtUtc"/>.</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -26,27 +27,22 @@ namespace Encina.Compliance.Consent;
 /// </remarks>
 public sealed class DefaultConsentValidator : IConsentValidator
 {
-    private readonly IConsentStore _consentStore;
-    private readonly IConsentVersionManager _versionManager;
+    private readonly IConsentService _consentService;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultConsentValidator"/> class.
     /// </summary>
-    /// <param name="consentStore">The consent store for looking up consent records.</param>
-    /// <param name="versionManager">The version manager for checking consent version currency.</param>
+    /// <param name="consentService">The consent service for looking up consent state.</param>
     /// <param name="timeProvider">Time provider for expiration checks.</param>
     public DefaultConsentValidator(
-        IConsentStore consentStore,
-        IConsentVersionManager versionManager,
+        IConsentService consentService,
         TimeProvider timeProvider)
     {
-        ArgumentNullException.ThrowIfNull(consentStore);
-        ArgumentNullException.ThrowIfNull(versionManager);
+        ArgumentNullException.ThrowIfNull(consentService);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        _consentStore = consentStore;
-        _versionManager = versionManager;
+        _consentService = consentService;
         _timeProvider = timeProvider;
     }
 
@@ -65,18 +61,18 @@ public sealed class DefaultConsentValidator : IConsentValidator
 
         foreach (var purpose in requiredPurposes)
         {
-            // Step 1: Get the consent record
-            var consentResult = await _consentStore
-                .GetConsentAsync(subjectId, purpose, cancellationToken)
+            // Step 1: Get the consent record via IConsentService
+            var consentResult = await _consentService
+                .GetConsentBySubjectAndPurposeAsync(subjectId, purpose, cancellationToken)
                 .ConfigureAwait(false);
 
-            // Handle infrastructure errors from the store
+            // Handle infrastructure errors from the service
             if (consentResult.IsLeft)
             {
                 return (EncinaError)consentResult;
             }
 
-            var consentOpt = (Option<ConsentRecord>)consentResult;
+            var consentOpt = (Option<ConsentReadModel>)consentResult;
 
             // Step 2: Check consent exists
             if (consentOpt.IsNone)
@@ -86,7 +82,7 @@ public sealed class DefaultConsentValidator : IConsentValidator
                 continue;
             }
 
-            var consent = (ConsentRecord)consentOpt;
+            var consent = (ConsentReadModel)consentOpt;
 
             // Step 3: Check consent status
             switch (consent.Status)
@@ -112,27 +108,6 @@ public sealed class DefaultConsentValidator : IConsentValidator
             {
                 missingPurposes.Add(purpose);
                 errors.Add($"Consent for purpose '{purpose}' has expired at {consent.ExpiresAtUtc.Value:O}.");
-                continue;
-            }
-
-            // Step 5: Check version currency via IConsentVersionManager
-            var reconsentResult = await _versionManager
-                .RequiresReconsentAsync(subjectId, purpose, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (reconsentResult.IsLeft)
-            {
-                // Version manager error — treat as warning, don't block
-                warnings.Add($"Could not verify consent version for purpose '{purpose}': version manager unavailable.");
-                continue;
-            }
-
-            var requiresReconsent = (bool)reconsentResult;
-
-            if (requiresReconsent)
-            {
-                missingPurposes.Add(purpose);
-                errors.Add($"Consent for purpose '{purpose}' was given under an outdated version and requires reconsent.");
                 continue;
             }
         }

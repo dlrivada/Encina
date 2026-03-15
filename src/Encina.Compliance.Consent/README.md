@@ -3,27 +3,28 @@
 [![NuGet](https://img.shields.io/nuget/v/Encina.Compliance.Consent.svg)](https://www.nuget.org/packages/Encina.Compliance.Consent/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-GDPR-compliant consent management for Encina. Provides declarative, attribute-based consent enforcement at the CQRS pipeline level with full lifecycle management, version tracking, audit trail, and domain event publishing. Implements GDPR Articles 6(1)(a), 7, and 8.
+GDPR-compliant consent management for Encina. Provides declarative, attribute-based consent enforcement at the CQRS pipeline level with full lifecycle management via Marten event sourcing. Implements GDPR Articles 6(1)(a), 7, and 8.
 
 ## Features
 
+- **Event-Sourced Consent** — `ConsentAggregate` with full lifecycle: grant, withdraw, expire, renew, version change, reconsent
+- **CQRS Architecture** — Commands via `IAggregateRepository<ConsentAggregate>`, queries via `IReadModelRepository<ConsentReadModel>`
+- **6 Domain Events** — `ConsentGranted`, `ConsentWithdrawn`, `ConsentExpired`, `ConsentRenewed`, `ConsentVersionChanged`, `ConsentReconsentProvided`
 - **Declarative Consent Enforcement** — `[RequireConsent("marketing")]` attribute on request types
-- **Full Consent Lifecycle** — Record, validate, withdraw, and expire consent with `IConsentStore`
-- **Consent Versioning** — Track consent version changes and trigger re-consent via `IConsentVersionManager`
-- **Immutable Audit Trail** — Every consent action is recorded via `IConsentAuditStore`
-- **Domain Events** — `ConsentGrantedEvent`, `ConsentWithdrawnEvent`, `ConsentExpiredEvent`, `ConsentVersionChangedEvent`
 - **Pipeline Enforcement** — `ConsentRequiredPipelineBehavior` validates consent before handler execution
 - **Three Enforcement Modes** — `Block` (reject), `Warn` (log and proceed), `Disabled` (no-op)
 - **Railway Oriented Programming** — All operations return `Either<EncinaError, T>`, no exceptions
-- **Bulk Operations** — Batch record and withdraw consent with per-item error tracking
-- **Full Observability** — OpenTelemetry tracing, structured logging, health check
-- **13 Database Providers** — ADO.NET, Dapper, EF Core (SQLite, SQL Server, PostgreSQL, MySQL) + MongoDB
+- **Cache-Aside Pattern** — `ICacheProvider` integration with fire-and-forget invalidation
+- **Marten Projections** — `ConsentProjection` transforms events to `ConsentReadModel` for efficient querying
+- **Full Observability** — OpenTelemetry tracing, structured logging (EventId 8200-8269), 5 metric counters + 1 histogram, health check
+- **PostgreSQL via Marten** — Event store + document DB for event sourcing and projections
 - **.NET 10 Compatible** — Built with latest C# features
 
 ## Installation
 
 ```bash
 dotnet add package Encina.Compliance.Consent
+dotnet add package Encina.Marten  # Required: Marten event sourcing infrastructure
 ```
 
 ## Quick Start
@@ -31,9 +32,11 @@ dotnet add package Encina.Compliance.Consent
 ### 1. Register Services
 
 ```csharp
+// Register Encina core
 services.AddEncina(config =>
     config.RegisterServicesFromAssemblyContaining<Program>());
 
+// Register consent module (options, pipeline behavior, validator, service)
 services.AddEncinaConsent(options =>
 {
     options.EnforcementMode = ConsentEnforcementMode.Block;
@@ -47,6 +50,9 @@ services.AddEncinaConsent(options =>
         p.DefaultExpirationDays = 365;
     });
 });
+
+// Register Marten aggregate + projection for consent
+services.AddConsentAggregates();
 ```
 
 ### 2. Decorate Request Types
@@ -60,32 +66,74 @@ public sealed record SendMarketingEmailCommand(string UserId, string Content) : 
 public sealed record GetPublicCatalogQuery() : IQuery<CatalogDto>;
 ```
 
-### 3. Record Consent
+### 3. Grant Consent (Event-Sourced)
 
 ```csharp
-var store = serviceProvider.GetRequiredService<IConsentStore>();
+var consentService = serviceProvider.GetRequiredService<IConsentService>();
 
-var consent = new ConsentRecord
-{
-    Id = Guid.NewGuid(),
-    SubjectId = "user-123",
-    Purpose = ConsentPurposes.Marketing,
-    Status = ConsentStatus.Active,
-    ConsentVersionId = "marketing-v2",
-    GivenAtUtc = DateTimeOffset.UtcNow,
-    Source = "web-form",
-    Metadata = new Dictionary<string, object?>()
-};
+var result = await consentService.GrantConsentAsync(
+    dataSubjectId: "user-123",
+    purpose: ConsentPurposes.Marketing,
+    consentVersionId: "marketing-v2",
+    source: "web-form",
+    grantedBy: "user-123",
+    ipAddress: "192.168.1.1",
+    proofOfConsent: "form-hash-abc",
+    expiresAtUtc: DateTimeOffset.UtcNow.AddDays(365));
 
-var result = await store.RecordConsentAsync(consent);
-// result: Either<EncinaError, Unit>
+// result: Either<EncinaError, Guid> — the consent aggregate ID
 ```
 
 ### 4. Withdraw Consent (Article 7(3))
 
 ```csharp
-var result = await store.WithdrawConsentAsync("user-123", ConsentPurposes.Marketing);
-// Publishes ConsentWithdrawnEvent via IEncina
+var result = await consentService.WithdrawConsentAsync(
+    consentId: consentId,
+    withdrawnBy: "user-123",
+    reason: "No longer interested");
+// Raises ConsentWithdrawn domain event
+```
+
+### 5. Query Consent State
+
+```csharp
+// Check if valid consent exists (runtime expiration check included)
+var hasConsent = await consentService.HasValidConsentAsync("user-123", ConsentPurposes.Marketing);
+
+// Get consent read model by subject + purpose
+var consent = await consentService.GetConsentBySubjectAndPurposeAsync("user-123", ConsentPurposes.Marketing);
+
+// Get all consents for a data subject
+var allConsents = await consentService.GetAllConsentsAsync("user-123");
+```
+
+## Consent Lifecycle
+
+```
+                  GrantConsent
+                       │
+                       ▼
+               ┌──────────────┐
+               │    Active     │◄──── RenewConsent
+               └──────┬───────┘          │
+                      │                  │
+          ┌───────────┼───────────┐      │
+          │           │           │      │
+          ▼           ▼           ▼      │
+    Withdraw    ChangeVersion   Expire   │
+          │      (requires       │       │
+          │      reconsent)      │       │
+          ▼           │          ▼       │
+    ┌──────────┐     ▼     ┌─────────┐  │
+    │Withdrawn │  ┌──────────────────┐│  │
+    └──────────┘  │RequiresReconsent ││  │
+                  └────────┬─────────┘│  │
+                           │          │  │
+                           ▼          │  │
+                    ProvideReconsent ──┘──┘
+                           │
+                           ▼
+                       Active
 ```
 
 ## Consent Purposes
@@ -131,14 +179,18 @@ var result = await store.WithdrawConsentAsync("user-123", ConsentPurposes.Market
 | `consent.expired` | Consent record has expired |
 | `consent.requires_reconsent` | Consent version changed, re-consent needed |
 | `consent.version_mismatch` | Consent was given for a different version |
+| `consent.not_found` | Consent aggregate not found by ID |
+| `consent.invalid_state_transition` | Invalid state transition (e.g., withdraw from expired) |
+| `consent.service_error` | Internal service error during consent operation |
+| `consent.event_history_unavailable` | Event history retrieval not yet available |
 
 ## Custom Implementations
 
-Register custom stores before `AddEncinaConsent()` to override defaults (TryAdd semantics):
+Register custom services before `AddEncinaConsent()` to override defaults (TryAdd semantics):
 
 ```csharp
-// Custom consent store (e.g., database-backed)
-services.AddScoped<IConsentStore, DatabaseConsentStore>();
+// Custom consent service (e.g., external API-backed)
+services.AddScoped<IConsentService, MyConsentService>();
 
 // Custom validator
 services.AddScoped<IConsentValidator, MyConsentValidator>();
@@ -149,41 +201,47 @@ services.AddEncinaConsent(options =>
 });
 ```
 
-## Database Providers
+## Testing
 
-Use the corresponding ADO.NET, Dapper, or EF Core package with `UseConsent = true`:
+### Unit Tests (Mock Dependencies)
 
 ```csharp
-// ADO.NET (SQLite example)
-services.AddEncinaADO(config =>
-{
-    config.UseConsent = true;
-});
+// Mock the Marten repositories for unit testing
+var repository = Substitute.For<IAggregateRepository<ConsentAggregate>>();
+var readModelRepository = Substitute.For<IReadModelRepository<ConsentReadModel>>();
+var cache = Substitute.For<ICacheProvider>();
 
-// Dapper (SQL Server example)
-services.AddEncinaDapper(config =>
-{
-    config.UseConsent = true;
-});
+var service = new DefaultConsentService(
+    repository, readModelRepository, cache,
+    TimeProvider.System, NullLogger<DefaultConsentService>.Instance);
+```
 
-// EF Core (PostgreSQL example)
-services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
+### Integration Tests (Docker + Marten)
+
+```csharp
+// Full integration tests require PostgreSQL via Docker/Testcontainers
+[Collection(MartenCollection.Name)]
+[Trait("Category", "Integration")]
+public class ConsentIntegrationTests
 {
-    config.UseConsent = true;
-});
+    private readonly MartenFixture _fixture;
+    // ... test against real Marten event store
+}
 ```
 
 ## Observability
 
 - **Tracing**: `Encina.Compliance.Consent` ActivitySource with consent-specific tags
-- **Logging**: 6 structured log events via `LoggerMessage.Define` (zero-allocation)
-- **Health Check**: Verifies store connectivity and DI configuration
+- **Metrics**: 5 counters (`consent.granted.total`, `consent.withdrawn.total`, `consent.renewed.total`, `consent.reconsent.total`, `consent.expired.total`) + 1 histogram (`consent.validation.duration`)
+- **Logging**: Structured log events via `LoggerMessage.Define` (EventId 8200-8269, zero-allocation)
+- **Health Check**: Verifies `IConsentService` resolvability and DI configuration
 
 ## Related Packages
 
 | Package | Description |
 |---------|-------------|
 | `Encina` | Core CQRS pipeline with `IPipelineBehavior` |
+| `Encina.Marten` | Marten event sourcing infrastructure |
 | `Encina.Compliance.GDPR` | GDPR processing activity tracking and RoPA |
 | `Encina.Security` | Transport-agnostic authorization pipeline |
 
@@ -193,8 +251,8 @@ This package implements key GDPR requirements:
 
 | Article | Requirement | Implementation |
 |---------|-------------|----------------|
-| **6(1)(a)** | Lawful processing based on consent | `ConsentRecord` with status tracking |
-| **7(1)** | Demonstrate consent was given | `ProofOfConsent` field, `IConsentAuditStore` |
+| **6(1)(a)** | Lawful processing based on consent | `ConsentAggregate` with status tracking via domain events |
+| **7(1)** | Demonstrate consent was given | `ProofOfConsent` field, full event history |
 | **7(2)** | Distinguishable consent request | Purpose-based granular consent |
 | **7(3)** | Right to withdraw consent | `WithdrawConsentAsync`, as easy as granting |
 | **8** | Child consent (age verification) | Extensible via custom `IConsentValidator` |

@@ -1,4 +1,6 @@
 using Encina.Compliance.Consent;
+using Encina.Compliance.Consent.Abstractions;
+using Encina.Compliance.Consent.ReadModels;
 using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
@@ -13,39 +15,30 @@ namespace Encina.UnitTests.Compliance.Consent;
 /// </summary>
 public class DefaultConsentValidatorTests
 {
-    private readonly IConsentStore _consentStore;
-    private readonly IConsentVersionManager _versionManager;
+    private readonly IConsentService _consentService;
     private readonly FakeTimeProvider _timeProvider;
     private readonly DefaultConsentValidator _validator;
 
     public DefaultConsentValidatorTests()
     {
-        _consentStore = Substitute.For<IConsentStore>();
-        _versionManager = Substitute.For<IConsentVersionManager>();
+        _consentService = Substitute.For<IConsentService>();
         _timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 2, 23, 12, 0, 0, TimeSpan.Zero));
-        _validator = new DefaultConsentValidator(_consentStore, _versionManager, _timeProvider);
+        _validator = new DefaultConsentValidator(_consentService, _timeProvider);
     }
 
     #region Constructor Tests
 
     [Fact]
-    public void Constructor_NullConsentStore_ShouldThrow()
+    public void Constructor_NullConsentService_ShouldThrow()
     {
-        var act = () => new DefaultConsentValidator(null!, _versionManager, _timeProvider);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("consentStore");
-    }
-
-    [Fact]
-    public void Constructor_NullVersionManager_ShouldThrow()
-    {
-        var act = () => new DefaultConsentValidator(_consentStore, null!, _timeProvider);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("versionManager");
+        var act = () => new DefaultConsentValidator(null!, _timeProvider);
+        act.Should().Throw<ArgumentNullException>().WithParameterName("consentService");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_ShouldThrow()
     {
-        var act = () => new DefaultConsentValidator(_consentStore, _versionManager, null!);
+        var act = () => new DefaultConsentValidator(_consentService, null!);
         act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
     }
 
@@ -58,7 +51,6 @@ public class DefaultConsentValidatorTests
     {
         // Arrange
         SetupConsent("user-1", "marketing", ConsentStatus.Active, "v1");
-        SetupNoReconsent("user-1", "marketing");
 
         // Act
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
@@ -77,8 +69,6 @@ public class DefaultConsentValidatorTests
         // Arrange
         SetupConsent("user-1", "marketing", ConsentStatus.Active, "v1");
         SetupConsent("user-1", "analytics", ConsentStatus.Active, "v1");
-        SetupNoReconsent("user-1", "marketing");
-        SetupNoReconsent("user-1", "analytics");
 
         // Act
         var result = await _validator.ValidateAsync("user-1", ["marketing", "analytics"]);
@@ -156,7 +146,6 @@ public class DefaultConsentValidatorTests
         // Arrange - consent has Active status but ExpiresAtUtc is in the past
         var expiredAt = _timeProvider.GetUtcNow().AddHours(-1);
         SetupConsentWithExpiry("user-1", "marketing", ConsentStatus.Active, "v1", expiredAt);
-        SetupNoReconsent("user-1", "marketing");
 
         // Act
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
@@ -188,61 +177,18 @@ public class DefaultConsentValidatorTests
         validation.MissingPurposes.Should().Contain("marketing");
     }
 
-    [Fact]
-    public async Task ValidateAsync_VersionManagerRequiresReconsent_ShouldReturnInvalid()
-    {
-        // Arrange
-        SetupConsent("user-1", "marketing", ConsentStatus.Active, "v1");
-        SetupReconsent("user-1", "marketing");
-
-        // Act
-        var result = await _validator.ValidateAsync("user-1", ["marketing"]);
-
-        // Assert
-        result.IsRight.Should().BeTrue();
-        var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeFalse();
-        validation.MissingPurposes.Should().Contain("marketing");
-    }
-
     #endregion
 
-    #region ValidateAsync - Version Manager Error
+    #region ValidateAsync - Service Infrastructure Error
 
     [Fact]
-    public async Task ValidateAsync_VersionManagerError_ShouldReturnWarning()
-    {
-        // Arrange
-        SetupConsent("user-1", "marketing", ConsentStatus.Active, "v1");
-
-#pragma warning disable CA2012
-        _versionManager.RequiresReconsentAsync("user-1", "marketing", Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, bool>>(
-                Left<EncinaError, bool>(EncinaError.New("Version manager unavailable"))));
-#pragma warning restore CA2012
-
-        // Act
-        var result = await _validator.ValidateAsync("user-1", ["marketing"]);
-
-        // Assert
-        result.IsRight.Should().BeTrue();
-        var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeTrue();
-        validation.Warnings.Should().NotBeEmpty();
-    }
-
-    #endregion
-
-    #region ValidateAsync - Store Infrastructure Error
-
-    [Fact]
-    public async Task ValidateAsync_StoreError_ShouldReturnError()
+    public async Task ValidateAsync_ServiceError_ShouldReturnError()
     {
         // Arrange
 #pragma warning disable CA2012
-        _consentStore.GetConsentAsync("user-1", "marketing", Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentRecord>>>(
-                Left<EncinaError, Option<ConsentRecord>>(EncinaError.New("Database error"))));
+        _consentService.GetConsentBySubjectAndPurposeAsync("user-1", "marketing", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentReadModel>>>(
+                Left<EncinaError, Option<ConsentReadModel>>(EncinaError.New("Database error"))));
 #pragma warning restore CA2012
 
         // Act
@@ -276,10 +222,10 @@ public class DefaultConsentValidatorTests
 
     private void SetupConsent(string subjectId, string purpose, ConsentStatus status, string versionId)
     {
-        var record = new ConsentRecord
+        var readModel = new ConsentReadModel
         {
             Id = Guid.NewGuid(),
-            SubjectId = subjectId,
+            DataSubjectId = subjectId,
             Purpose = purpose,
             Status = status,
             ConsentVersionId = versionId,
@@ -289,18 +235,18 @@ public class DefaultConsentValidatorTests
         };
 
 #pragma warning disable CA2012
-        _consentStore.GetConsentAsync(subjectId, purpose, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentRecord>>>(
-                Right<EncinaError, Option<ConsentRecord>>(Some(record))));
+        _consentService.GetConsentBySubjectAndPurposeAsync(subjectId, purpose, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentReadModel>>>(
+                Right<EncinaError, Option<ConsentReadModel>>(Some(readModel))));
 #pragma warning restore CA2012
     }
 
     private void SetupConsentWithExpiry(string subjectId, string purpose, ConsentStatus status, string versionId, DateTimeOffset expiresAt)
     {
-        var record = new ConsentRecord
+        var readModel = new ConsentReadModel
         {
             Id = Guid.NewGuid(),
-            SubjectId = subjectId,
+            DataSubjectId = subjectId,
             Purpose = purpose,
             Status = status,
             ConsentVersionId = versionId,
@@ -311,36 +257,18 @@ public class DefaultConsentValidatorTests
         };
 
 #pragma warning disable CA2012
-        _consentStore.GetConsentAsync(subjectId, purpose, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentRecord>>>(
-                Right<EncinaError, Option<ConsentRecord>>(Some(record))));
+        _consentService.GetConsentBySubjectAndPurposeAsync(subjectId, purpose, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentReadModel>>>(
+                Right<EncinaError, Option<ConsentReadModel>>(Some(readModel))));
 #pragma warning restore CA2012
     }
 
     private void SetupNoConsent(string subjectId, string purpose)
     {
 #pragma warning disable CA2012
-        _consentStore.GetConsentAsync(subjectId, purpose, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentRecord>>>(
-                Right<EncinaError, Option<ConsentRecord>>(None)));
-#pragma warning restore CA2012
-    }
-
-    private void SetupNoReconsent(string subjectId, string purpose)
-    {
-#pragma warning disable CA2012
-        _versionManager.RequiresReconsentAsync(subjectId, purpose, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, bool>>(
-                Right<EncinaError, bool>(false)));
-#pragma warning restore CA2012
-    }
-
-    private void SetupReconsent(string subjectId, string purpose)
-    {
-#pragma warning disable CA2012
-        _versionManager.RequiresReconsentAsync(subjectId, purpose, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, bool>>(
-                Right<EncinaError, bool>(true)));
+        _consentService.GetConsentBySubjectAndPurposeAsync(subjectId, purpose, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Option<ConsentReadModel>>>(
+                Right<EncinaError, Option<ConsentReadModel>>(None)));
 #pragma warning restore CA2012
     }
 

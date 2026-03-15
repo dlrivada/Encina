@@ -1,7 +1,6 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.BreachNotification;
-using Encina.Compliance.Consent;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DPIA;
@@ -105,14 +104,6 @@ public static class ServiceCollectionExtensions
         // Dapper shares the same underlying connection pool as ADO.NET (Microsoft.Data.SqlClient)
         services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
             new DapperSqlServerDatabaseHealthMonitor(sp));
-
-        // Register consent stores if enabled
-        if (config.UseConsent)
-        {
-            services.TryAddScoped<IConsentStore, Consent.ConsentStoreDapper>();
-            services.TryAddScoped<IConsentAuditStore, Consent.ConsentAuditStoreDapper>();
-            services.TryAddScoped<IConsentVersionManager, Consent.ConsentVersionManagerDapper>();
-        }
 
         // Register DSR (Data Subject Rights) stores if enabled
         if (config.UseDataSubjectRights)

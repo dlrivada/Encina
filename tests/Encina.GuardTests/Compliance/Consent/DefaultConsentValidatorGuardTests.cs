@@ -1,4 +1,5 @@
 using Encina.Compliance.Consent;
+using Encina.Compliance.Consent.Abstractions;
 
 namespace Encina.GuardTests.Compliance.Consent;
 
@@ -7,39 +8,29 @@ namespace Encina.GuardTests.Compliance.Consent;
 /// </summary>
 public class DefaultConsentValidatorGuardTests
 {
-    private readonly IConsentStore _consentStore;
-    private readonly IConsentVersionManager _versionManager;
+    private readonly IConsentService _consentService;
     private readonly TimeProvider _timeProvider;
 
     public DefaultConsentValidatorGuardTests()
     {
-        _consentStore = Substitute.For<IConsentStore>();
-        _versionManager = Substitute.For<IConsentVersionManager>();
+        _consentService = Substitute.For<IConsentService>();
         _timeProvider = TimeProvider.System;
     }
 
     #region Constructor Guard Tests
 
     [Fact]
-    public void Constructor_NullConsentStore_ThrowsArgumentNullException()
+    public void Constructor_NullConsentService_ThrowsArgumentNullException()
     {
-        var act = () => new DefaultConsentValidator(null!, _versionManager, _timeProvider);
+        var act = () => new DefaultConsentValidator(null!, _timeProvider);
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("consentStore");
-    }
-
-    [Fact]
-    public void Constructor_NullVersionManager_ThrowsArgumentNullException()
-    {
-        var act = () => new DefaultConsentValidator(_consentStore, null!, _timeProvider);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("versionManager");
+        ex.ParamName.ShouldBe("consentService");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
     {
-        var act = () => new DefaultConsentValidator(_consentStore, _versionManager, null!);
+        var act = () => new DefaultConsentValidator(_consentService, null!);
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("timeProvider");
     }
@@ -75,7 +66,7 @@ public class DefaultConsentValidatorGuardTests
 
     private DefaultConsentValidator CreateValidator()
     {
-        return new DefaultConsentValidator(_consentStore, _versionManager, _timeProvider);
+        return new DefaultConsentValidator(_consentService, _timeProvider);
     }
 
     #endregion
