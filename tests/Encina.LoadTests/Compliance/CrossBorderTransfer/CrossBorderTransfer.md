@@ -14,11 +14,11 @@ The CrossBorderTransfer module uses Marten event sourcing for aggregate persiste
 The `TransferBlockingPipelineBehavior` is a stateless pass-through that delegates to `ITransferValidator`. There is no shared state or connection pool to stress-test at the application layer.
 
 ### 3. Adequate Coverage from Other Test Types
-- **Unit Tests**: Cover all service methods, aggregate state transitions, and error paths
-- **Guard Tests**: Verify parameter validation for all public methods
-- **Property Tests**: Verify aggregate invariants hold under varied inputs via FsCheck
-- **Contract Tests**: Verify interface contracts and DI registration
-- **Integration Tests**: Verify real Marten/PostgreSQL interactions
+- **Unit Tests** (7 files): Cover all service methods, aggregate state transitions, and error paths
+- **Guard Tests** (7 files): Verify parameter validation for all public methods
+- **Property Tests** (6 files): Verify aggregate invariants hold under varied inputs via FsCheck
+- **Contract Tests** (4 files): Verify interface contracts and DI registration
+- **Integration Tests** (2 files): Verify real Marten/PostgreSQL interactions — aggregate persistence, full service lifecycle, DI registration, health checks
 
 ### 4. Recommended Alternative
 If load testing is needed in the future, focus on:
@@ -29,7 +29,10 @@ If load testing is needed in the future, focus on:
 ## Related Files
 - `src/Encina.Compliance.CrossBorderTransfer/` - Source files
 - `tests/Encina.UnitTests/Compliance/CrossBorderTransfer/` - Unit tests
+- `tests/Encina.GuardTests/Compliance/CrossBorderTransfer/` - Guard tests
 - `tests/Encina.PropertyTests/Compliance/CrossBorderTransfer/` - Property tests
+- `tests/Encina.ContractTests/Compliance/CrossBorderTransfer/` - Contract tests
+- `tests/Encina.IntegrationTests/Compliance/CrossBorderTransfer/` - Integration tests (Marten/PostgreSQL)
 
 ## Date: 2026-03-14
 ## Issue: #412

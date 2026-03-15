@@ -11,9 +11,11 @@ Cross-border transfer validation typically runs once per request via pipeline be
 The `DefaultTIARiskAssessor` uses HashSet lookups and simple arithmetic. These operations are O(1) and do not benefit from micro-benchmarking. Any real-world latency comes from the aggregate repository (network I/O), not the risk calculation.
 
 ### 3. Adequate Coverage from Other Test Types
-- **Unit Tests**: Verify correctness of all computation paths
-- **Property Tests**: Verify invariants hold for varied inputs (FsCheck)
-- **Integration Tests**: Measure real-world latency against PostgreSQL
+- **Unit Tests** (7 files): Verify correctness of all computation paths
+- **Guard Tests** (7 files): Verify parameter validation for all public methods
+- **Property Tests** (6 files): Verify invariants hold for varied inputs (FsCheck)
+- **Contract Tests** (4 files): Verify interface contracts and DI registration
+- **Integration Tests** (2 files): Verify real Marten/PostgreSQL interactions — aggregate persistence, full service lifecycle, DI registration
 
 ### 4. Recommended Alternative
 If benchmarking is needed in the future, focus on:
@@ -24,6 +26,10 @@ If benchmarking is needed in the future, focus on:
 ## Related Files
 - `src/Encina.Compliance.CrossBorderTransfer/` - Source files
 - `tests/Encina.UnitTests/Compliance/CrossBorderTransfer/` - Unit tests
+- `tests/Encina.GuardTests/Compliance/CrossBorderTransfer/` - Guard tests
+- `tests/Encina.PropertyTests/Compliance/CrossBorderTransfer/` - Property tests
+- `tests/Encina.ContractTests/Compliance/CrossBorderTransfer/` - Contract tests
+- `tests/Encina.IntegrationTests/Compliance/CrossBorderTransfer/` - Integration tests (Marten/PostgreSQL)
 
 ## Date: 2026-03-14
 ## Issue: #412

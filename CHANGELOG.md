@@ -2014,7 +2014,7 @@ Added the `Encina.Compliance.CrossBorderTransfer` package implementing GDPR Arti
 - `services.AddCrossBorderTransferAggregates()` for Marten aggregate registration
 - Configurable via `Action<CrossBorderTransferOptions>` delegate
 
-**Testing**: 160 tests across 5 test projects (87 unit, 30 guard, 14 property, 42 contract). Justification documents for LoadTests and BenchmarkTests.
+**Testing**: 184 tests across 7 test projects (87 unit, 30 guard, 14 property, 42 contract, 24 integration). Integration tests verify aggregate persistence and service lifecycle against real PostgreSQL via Marten/Testcontainers. Justification documents for LoadTests and BenchmarkTests.
 
 ---
 
