@@ -11,7 +11,7 @@ namespace Encina.Compliance.GDPR;
 /// </para>
 /// <para>
 /// When <c>LawfulBasisOptions.AutoRegisterFromAttributes</c> is enabled, requests decorated with
-/// this attribute are automatically registered in the <see cref="ILawfulBasisRegistry"/> at startup.
+/// this attribute are automatically registered in the lawful basis service at startup.
 /// </para>
 /// <para>
 /// For basis-specific metadata, use the optional properties:

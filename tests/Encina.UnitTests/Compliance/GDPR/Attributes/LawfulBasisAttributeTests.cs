@@ -1,6 +1,7 @@
 using System.Reflection;
 using Encina.Compliance.GDPR;
 using FluentAssertions;
+using LawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 
 namespace Encina.UnitTests.Compliance.GDPR.Attributes;
 

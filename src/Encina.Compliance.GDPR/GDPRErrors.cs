@@ -184,7 +184,7 @@ public static class GDPRErrors
                 ["liaReference"] = liaReference
             });
 
-    // --- LIA reference-based overloads (used by ILegitimateInterestAssessment) ---
+    // --- LIA reference-based overloads (used by lawful basis service) ---
 
     /// <summary>
     /// Creates an error when no LIA record exists for the given reference identifier.
@@ -192,7 +192,7 @@ public static class GDPRErrors
     /// <param name="liaReference">The LIA reference identifier that was not found.</param>
     /// <returns>An error indicating the LIA was not found.</returns>
     /// <remarks>
-    /// This overload is used by <see cref="ILegitimateInterestAssessment"/> implementations
+    /// This overload is used by lawful basis service implementations
     /// that validate LIAs by reference without a request type context.
     /// </remarks>
     public static EncinaError LIANotFound(string liaReference) =>
@@ -215,7 +215,7 @@ public static class GDPRErrors
     /// <param name="outcome">The current outcome of the LIA.</param>
     /// <returns>An error indicating the LIA is not approved.</returns>
     /// <remarks>
-    /// This overload is used by <see cref="ILegitimateInterestAssessment"/> implementations
+    /// This overload is used by lawful basis service implementations
     /// that validate LIAs by reference without a request type context.
     /// </remarks>
     public static EncinaError LIANotApproved(string liaReference, LIAOutcome outcome) =>

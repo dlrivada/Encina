@@ -4,6 +4,8 @@ using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
 
+using LawfulBasisValue = global::Encina.Compliance.GDPR.LawfulBasis;
+
 namespace Encina.PropertyTests.Compliance.GDPR;
 
 /// <summary>
@@ -141,7 +143,7 @@ public class GDPRPropertyTests
     [Fact]
     public void LawfulBasis_ShouldHaveExactlySixValues()
     {
-        Enum.GetValues<LawfulBasis>().Length.ShouldBe(6,
+        Enum.GetValues<LawfulBasisValue>().Length.ShouldBe(6,
             "GDPR Article 6(1) defines exactly six lawful bases");
     }
 
@@ -200,7 +202,7 @@ public class GDPRPropertyTests
             Gen.Choose(0, 5).ToArbitrary(),
             basisValue =>
             {
-                var basis = (LawfulBasis)basisValue;
+                var basis = (LawfulBasisValue)basisValue;
                 var activity = CreateActivity(typeof(GDPRPropertyTests)) with { LawfulBasis = basis };
                 var entity = ProcessingActivityMapper.ToEntity(activity);
                 var restored = ProcessingActivityMapper.ToDomain(entity);
@@ -219,7 +221,7 @@ public class GDPRPropertyTests
             Id = Guid.NewGuid(),
             Name = name,
             Purpose = purpose,
-            LawfulBasis = LawfulBasis.Contract,
+            LawfulBasis = LawfulBasisValue.Contract,
             CategoriesOfDataSubjects = ["Users"],
             CategoriesOfPersonalData = ["Email"],
             Recipients = [],

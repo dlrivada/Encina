@@ -2091,6 +2091,60 @@ Migrated `Encina.Compliance.DataSubjectRights` from entity-based persistence (13
 
 ---
 
+#### Encina.Compliance.LawfulBasis — Migrated to Marten Event Sourcing (#779)
+
+Migrated `Encina.Compliance.LawfulBasis` from entity-based persistence (13 database providers) to Marten event sourcing (PostgreSQL-only), and extracted it from `Encina.Compliance.GDPR` into its own dedicated package. Provides immutable audit trail for GDPR Article 6 accountability compliance.
+
+**New Architecture (Event-Sourced)**:
+
+- **`LawfulBasisAggregate`**: Event-sourced aggregate with `Register()`, `ChangeBasis()`, `Revoke()` commands — deterministic ID from request type name
+- **`LIAAggregate`**: Event-sourced aggregate for EDPB three-part test with `Create()`, `Approve()`, `Reject()`, `ScheduleReview()` commands — supports DPO involvement tracking
+- **7 Domain Events**: `LawfulBasisRegistered`, `LawfulBasisChanged`, `LawfulBasisRevoked`, `LIACreated`, `LIAApproved`, `LIARejected`, `LIAReviewScheduled`
+- **`LawfulBasisProjection`**: Marten projection transforming events to `LawfulBasisReadModel` for query-side reads
+- **`LIAProjection`**: Marten projection transforming events to `LIAReadModel` for query-side reads
+- **`ILawfulBasisService`**: Clean unified service interface replacing 3 old interfaces (`ILawfulBasisRegistry`, `ILIAStore`, `ILegitimateInterestAssessment`) with 14 methods across registration, LIA, and query operations
+- **`DefaultLawfulBasisService`**: Implementation with cache-aside pattern (L1/L2 via `ICacheProvider`)
+- **`LawfulBasisMartenExtensions.AddLawfulBasisAggregates()`**: Registers aggregates + projections with Marten DI
+
+**Removed (Old Entity-Based Model)**:
+
+- `ILawfulBasisRegistry`, `ILIAStore`, `ILegitimateInterestAssessment` interfaces
+- `InMemoryLawfulBasisRegistry`, `InMemoryLIAStore` implementations
+- `LawfulBasisRegistration`, `LawfulBasisRegistrationEntity`, `LIARecord`, `LIARecordEntity` entity/mapper types
+- `DefaultLegitimateInterestAssessment` implementation
+- 13 database provider store implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
+
+**Preserved (Migrated to new package)**:
+
+- `LawfulBasisValidationPipelineBehavior<TRequest, TResponse>` — adapted to use `ILawfulBasisService`
+- `LawfulBasisOptions`, `LawfulBasisEnforcementMode`, `LawfulBasisValidationResult`, `LIAValidationResult`
+- `ILawfulBasisProvider` / `DefaultLawfulBasisProvider` — adapted to use read models
+- `LawfulBasisAutoRegistrationHostedService` — auto-registers from `[LawfulBasis]` attributes at startup
+- `LawfulBasisHealthCheck` — verifies service registration and pending LIA reviews
+
+**Remains in `Encina.Compliance.GDPR`**:
+
+- `LawfulBasis` enum (6 GDPR Article 6(1) bases)
+- `LawfulBasisAttribute` (declarative annotation)
+- `IConsentStatusProvider`, `ILawfulBasisSubjectIdExtractor`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.LawfulBasis` ActivitySource
+- 9 counters + 1 histogram under `Encina.Compliance.LawfulBasis` Meter
+- 17 structured log events (EventId 8350–8386) using `[LoggerMessage]` source generator
+
+**New Dependencies**: `Encina.DomainModeling`, `Encina.Marten`, `Encina.Caching`
+
+**DI Registration**:
+
+- `services.AddEncinaLawfulBasis()` with `TryAdd` semantics
+- `services.AddLawfulBasisAggregates()` for Marten aggregate/projection registration
+
+**Testing**: 239 tests across 5 test projects: 113 unit tests (aggregates, projections, service, provider), 18 guard tests, 12 property tests (FsCheck), 87 contract tests, 9 integration tests (Marten/PostgreSQL).
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

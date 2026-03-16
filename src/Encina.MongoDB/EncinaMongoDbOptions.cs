@@ -295,16 +295,6 @@ public sealed class MongoDbCollectionNames
     public string ReadAuditEntries { get; set; } = "read_audit_entries";
 
     /// <summary>
-    /// Gets or sets the collection name for lawful basis registrations.
-    /// </summary>
-    public string LawfulBasisRegistrations { get; set; } = "lawful_basis_registrations";
-
-    /// <summary>
-    /// Gets or sets the collection name for LIA records.
-    /// </summary>
-    public string LIARecords { get; set; } = "lia_records";
-
-    /// <summary>
     /// Gets or sets the collection name for token mappings (anonymization).
     /// </summary>
     public string TokenMappings { get; set; } = "token_mappings";

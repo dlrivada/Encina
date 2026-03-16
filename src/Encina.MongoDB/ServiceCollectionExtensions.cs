@@ -888,32 +888,6 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds GDPR Lawful Basis persistent stores using MongoDB.
-    /// Registers <see cref="ILawfulBasisRegistry"/> and <see cref="ILIAStore"/> as singletons
-    /// that create their own MongoClient.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="connectionString">The MongoDB connection string.</param>
-    /// <param name="databaseName">The database name (default: Encina).</param>
-    /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddEncinaLawfulBasisMongoDB(
-        this IServiceCollection services,
-        string connectionString,
-        string databaseName = "Encina")
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-        services.TryAddSingleton<ILawfulBasisRegistry>(
-            new LawfulBasis.LawfulBasisRegistryMongoDB(connectionString, databaseName));
-        services.TryAddSingleton<ILIAStore>(
-            new LawfulBasis.LIAStoreMongoDB(connectionString, databaseName));
-
-        return services;
-    }
-
-    /// <summary>
     /// Adds GDPR Processing Activity persistent store using MongoDB.
     /// Registers <see cref="IProcessingActivityRegistry"/> as a singleton
     /// that creates its own MongoClient.

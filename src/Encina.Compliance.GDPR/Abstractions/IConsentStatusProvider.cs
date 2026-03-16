@@ -8,7 +8,7 @@ namespace Encina.Compliance.GDPR;
 /// <remarks>
 /// <para>
 /// When the lawful basis for a request is <see cref="LawfulBasis.Consent"/>, the
-/// <see cref="LawfulBasisValidationPipelineBehavior{TRequest, TResponse}"/> uses this provider
+/// lawful basis validation pipeline behavior uses this provider
 /// to verify that the data subject has given valid consent for the required processing purposes.
 /// </para>
 /// <para>

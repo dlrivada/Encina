@@ -6138,35 +6138,33 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `pattern-data-sovereignty`, `area-cloud-native`, `saas-essential`
 - Referencias: [GDPR Chapter V](https://gdpr-info.eu/chapter-5/), [EDPB Transfer Recommendations](https://edpb.europa.eu/our-work-tools/our-documents/recommendations/recommendations-012020-measures-supplement-transfer_en)
 
-**#413 - Encina.Compliance.LawfulBasis - Art. 6 Tracking** ✅ **IMPLEMENTADO**:
+**#413 / #779 - Encina.Compliance.LawfulBasis - Art. 6 Tracking** ✅ **IMPLEMENTADO** (migrado a Marten event sourcing en #779):
 
-- `ILawfulBasisRegistry` con `RegisterAsync`, `GetByRequestTypeAsync`, `GetByRequestTypeNameAsync`, `AutoRegisterFromAssemblies` — central registry for lawful basis declarations
-- `ILawfulBasisProvider` con `GetBasisForRequestAsync` — retrieves registered basis for a request type
-- `ILIAStore` con `StoreAsync`, `GetByReferenceAsync`, `GetPendingReviewAsync` — Legitimate Interest Assessment persistence
-- `ILegitimateInterestAssessment` con `ValidateAsync` — EDPB three-part test (Purpose, Necessity, Balancing)
-- `IConsentStatusProvider` con `CheckConsentAsync` — consent verification for consent-based processing
-- `ILawfulBasisSubjectIdExtractor` con `ExtractSubjectIdAsync` — data subject identification
-- `LawfulBasis` enum: Consent, Contract, LegalObligation, VitalInterests, PublicTask, LegitimateInterests
-- `[LawfulBasis(LawfulBasis.Consent)]` atributo declarativo con cached static reflection (zero overhead after first access)
+- **Paquete independiente**: `Encina.Compliance.LawfulBasis` (extraído de `Encina.Compliance.GDPR`)
+- **Arquitectura event-sourced** via Marten (PostgreSQL-only):
+  - `LawfulBasisAggregate` con `Register()`, `ChangeBasis()`, `Revoke()` — ID determinístico desde RequestTypeName
+  - `LIAAggregate` con `Create()`, `Approve()`, `Reject()`, `ScheduleReview()` — EDPB three-part test completo con DPO involvement
+  - 7 domain events: `LawfulBasisRegistered`, `LawfulBasisChanged`, `LawfulBasisRevoked`, `LIACreated`, `LIAApproved`, `LIARejected`, `LIAReviewScheduled`
+  - `LawfulBasisProjection` / `LIAProjection` — Marten projections a read models
+  - `LawfulBasisReadModel` / `LIAReadModel` — projected read models for queries
+- `ILawfulBasisService` con 14 methods: `RegisterAsync`, `ChangeBasisAsync`, `RevokeAsync`, `CreateLIAAsync`, `ApproveLIAAsync`, `RejectLIAAsync`, `ScheduleLIAReviewAsync`, `HasApprovedLIAAsync`, `GetRegistrationAsync`, `GetRegistrationByRequestTypeAsync`, `GetAllRegistrationsAsync`, `GetPendingLIAReviewsAsync`, `GetLIAAsync`, `GetLIAByReferenceAsync`
+- `DefaultLawfulBasisService` con cache-aside pattern (L1/L2 via `ICacheProvider`), `IAggregateRepository<T>`, `IReadModelRepository<T>`
+- `ILawfulBasisProvider` / `DefaultLawfulBasisProvider` — retrieves registered basis for a request type
 - `LawfulBasisValidationPipelineBehavior<TRequest, TResponse>` para validación antes de procesamiento
-- `LawfulBasisRegistration` sealed record con RequestType, Basis, Description, RegisteredAtUtc, Source
 - `LawfulBasisValidationResult` con factory methods: Valid, ValidWithWarnings, Invalid
-- `LIARecord` sealed record con 15 properties para EDPB three-part test completo
 - `LIAValidationResult` con Approved, Rejected, PendingReview, NotFound
-- `LIAOutcome` enum: Approved, Rejected, RequiresReview
 - 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
-- 7 error codes: `lawful_basis.missing`, `lawful_basis.not_registered`, `lawful_basis.consent_required`, `lawful_basis.consent_denied`, `lawful_basis.lia_required`, `lawful_basis.lia_rejected`, `lawful_basis.lia_pending`
-- In-memory implementations: `InMemoryLawfulBasisRegistry`, `InMemoryLIAStore`
-- Default implementations: `DefaultLawfulBasisProvider`, `DefaultLegitimateInterestAssessment`
+- 7 error codes: `lawfulbasis.registration_not_found`, `lawfulbasis.registration_already_revoked`, `lawfulbasis.lia_not_found`, `lawfulbasis.lia_not_found_by_reference`, `lawfulbasis.lia_already_decided`, `lawfulbasis.invalid_state_transition`, `lawfulbasis.store_error`
 - `LawfulBasisAutoRegistrationHostedService` para assembly scanning al startup
-- `LawfulBasisOptions` con `ScanAssembly()`, `EnforcementMode`, `ValidateLIAForLegitimateInterests`
-- 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1) — `LawfulBasisRegistryAdo*`, `LIAStoreAdo*`, `LawfulBasisRegistryDapper*`, `LIAStoreDapper*`, `LawfulBasisRegistryEF`, `LIAStoreEF`, `LawfulBasisRegistryMongo`, `LIAStoreMongo`
-- OpenTelemetry tracing via dedicated `Encina.Compliance.GDPR.LawfulBasis` ActivitySource
-- 3 counters: `lawful_basis_validations_total`, `lawful_basis_consent_checks_total`, `lawful_basis_lia_checks_total`
-- DI registration via `AddLawfulBasisValidation()` extension method with fluent configuration
-- **Paquete**: `Encina.Compliance.GDPR` (extends existing package)
-- **Testing**: 284 xUnit tests (70 unit, 137 integration ×13 providers, 19 guard, 17 property, 26 contract) + 18 BenchmarkDotNet benchmarks (11 store + 7 pipeline) + 8 load test scenarios
-- **Documentación**: [Feature Guide](features/lawful-basis-validation.md), [README](../src/Encina.Compliance.GDPR/README.md)
+- `LawfulBasisOptions` con `ScanAssembly()`, `EnforcementMode`, `ValidateLIAForLegitimateInterests`, `ValidateConsentForConsentBasis`
+- `LawfulBasisHealthCheck` — verifies service registration and pending LIA reviews
+- OpenTelemetry tracing via `Encina.Compliance.LawfulBasis` ActivitySource + Meter (9 counters + 1 histogram)
+- 17 structured log events (EventId 8350–8386) via `[LoggerMessage]` source generator
+- DI registration: `AddEncinaLawfulBasis()` + `AddLawfulBasisAggregates()` (Marten)
+- **Dependencias**: `Encina.DomainModeling`, `Encina.Marten`, `Encina.Caching`, `Encina.Compliance.GDPR`
+- **En GDPR permanecen**: `LawfulBasis` enum, `LawfulBasisAttribute`, `IConsentStatusProvider`, `ILawfulBasisSubjectIdExtractor`, `LIAOutcome` enum
+- **Eliminado**: `ILawfulBasisRegistry`, `ILIAStore`, `ILegitimateInterestAssessment`, `InMemoryLawfulBasisRegistry`, `InMemoryLIAStore`, `DefaultLegitimateInterestAssessment`, 13 provider store implementations, entity/mapper types
+- **Testing**: 239 xUnit tests (113 unit, 18 guard, 12 property FsCheck, 87 contract, 9 integration Marten/PostgreSQL)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`
 - Referencias: [GDPR Article 6](https://gdpr-info.eu/art-6-gdpr/), [ICO Lawful Basis Tool](https://ico.org.uk/for-organisations/guidance-for-organisations/lawful-basis-interactive-guidance-tool/), [EDPB Legitimate Interest Guidelines](https://edpb.europa.eu/our-work-tools/our-documents/opinion-board-art-64/guidelines-legitimate-interest_en)
 

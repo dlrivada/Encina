@@ -1,0 +1,367 @@
+#nullable enable
+const Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.InvalidStateTransitionCode = "lawfulbasis.invalid_state_transition" -> string!
+const Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.LIAAlreadyDecidedCode = "lawfulbasis.lia_already_decided" -> string!
+const Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.LIANotFoundByReferenceCode = "lawfulbasis.lia_not_found_by_reference" -> string!
+const Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.LIANotFoundCode = "lawfulbasis.lia_not_found" -> string!
+const Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.RegistrationAlreadyRevokedCode = "lawfulbasis.registration_already_revoked" -> string!
+const Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.RegistrationNotFoundCode = "lawfulbasis.registration_not_found" -> string!
+const Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.StoreErrorCode = "lawfulbasis.store_error" -> string!
+const Encina.Compliance.LawfulBasis.Health.LawfulBasisHealthCheck.DefaultName = "encina-lawful-basis" -> string!
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisProvider
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisProvider.GetBasisForRequestAsync(System.Type! requestType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!>>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisProvider.ValidateBasisAsync<TRequest>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.LawfulBasis.LawfulBasisValidationResult!>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.ApproveLIAAsync(System.Guid liaId, string! conclusion, string! approvedBy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.ChangeBasisAsync(System.Guid registrationId, Encina.Compliance.GDPR.LawfulBasis newBasis, string? purpose, string? liaReference, string? legalReference, string? contractReference, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.CreateLIAAsync(System.Guid id, string! reference, string! name, string! purpose, string! legitimateInterest, string! benefits, string! consequencesIfNotProcessed, string! necessityJustification, System.Collections.Generic.IReadOnlyList<string!>! alternativesConsidered, string! dataMinimisationNotes, string! natureOfData, string! reasonableExpectations, string! impactAssessment, System.Collections.Generic.IReadOnlyList<string!>! safeguards, string! assessedBy, bool dpoInvolvement, string? conditions = null, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.GetAllRegistrationsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!>!>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.GetLIAAsync(System.Guid liaId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel!>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.GetLIAByReferenceAsync(string! liaReference, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel!>>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.GetPendingLIAReviewsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel!>!>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.GetRegistrationAsync(System.Guid registrationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.GetRegistrationByRequestTypeAsync(string! requestTypeName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!>>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.HasApprovedLIAAsync(string! liaReference, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.RegisterAsync(System.Guid id, string! requestTypeName, Encina.Compliance.GDPR.LawfulBasis basis, string? purpose, string? liaReference, string? legalReference, string? contractReference, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.RejectLIAAsync(System.Guid liaId, string! conclusion, string! rejectedBy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.RevokeAsync(System.Guid registrationId, string! reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService.ScheduleLIAReviewAsync(System.Guid liaId, System.DateTimeOffset nextReviewAtUtc, string! scheduledBy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.Basis.get -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.ChangeBasis(Encina.Compliance.GDPR.LawfulBasis newBasis, string? purpose, string? liaReference, string? legalReference, string? contractReference, System.DateTimeOffset changedAtUtc) -> void
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.ContractReference.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.IsRevoked.get -> bool
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.LawfulBasisAggregate() -> void
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.LegalReference.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.LIAReference.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.Purpose.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.RequestTypeName.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.RevocationReason.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.Revoke(string! reason, System.DateTimeOffset revokedAtUtc) -> void
+Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.AlternativesConsidered.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Approve(string! conclusion, string! approvedBy, System.DateTimeOffset approvedAtUtc) -> void
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.AssessedBy.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Benefits.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Conclusion.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Conditions.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.ConsequencesIfNotProcessed.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.DataMinimisationNotes.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.DPOInvolvement.get -> bool
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.ImpactAssessment.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.LegitimateInterest.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.LIAAggregate() -> void
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Name.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.NatureOfData.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.NecessityJustification.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.NextReviewAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Outcome.get -> Encina.Compliance.GDPR.LIAOutcome
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Purpose.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.ReasonableExpectations.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Reference.get -> string!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Reject(string! conclusion, string! rejectedBy, System.DateTimeOffset rejectedAtUtc) -> void
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Safeguards.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.ScheduleReview(System.DateTimeOffset nextReviewAtUtc, string! scheduledBy, System.DateTimeOffset scheduledAtUtc) -> void
+Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.ChangedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.ChangedAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.ContractReference.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.ContractReference.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.LawfulBasisChanged(System.Guid RegistrationId, Encina.Compliance.GDPR.LawfulBasis OldBasis, Encina.Compliance.GDPR.LawfulBasis NewBasis, string? Purpose, string? LIAReference, string? LegalReference, string? ContractReference, System.DateTimeOffset ChangedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.LegalReference.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.LegalReference.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.LIAReference.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.LIAReference.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.ModuleId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.NewBasis.get -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.NewBasis.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.OldBasis.get -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.OldBasis.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.Purpose.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.Purpose.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.RegistrationId.get -> System.Guid
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.RegistrationId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged.TenantId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.Basis.get -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.Basis.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.ContractReference.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.ContractReference.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.LawfulBasisRegistered(System.Guid RegistrationId, string! RequestTypeName, Encina.Compliance.GDPR.LawfulBasis Basis, string? Purpose, string? LIAReference, string? LegalReference, string? ContractReference, System.DateTimeOffset RegisteredAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.LegalReference.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.LegalReference.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.LIAReference.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.LIAReference.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.ModuleId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.Purpose.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.Purpose.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.RegisteredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.RegisteredAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.RegistrationId.get -> System.Guid
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.RegistrationId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.RequestTypeName.get -> string!
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.RequestTypeName.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered.TenantId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.LawfulBasisRevoked(System.Guid RegistrationId, string! Reason, System.DateTimeOffset RevokedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.ModuleId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.Reason.get -> string!
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.Reason.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.RegistrationId.get -> System.Guid
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.RegistrationId.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.RevokedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.RevokedAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked.TenantId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAApproved
+Encina.Compliance.LawfulBasis.Events.LIAApproved.ApprovedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LIAApproved.ApprovedAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAApproved.ApprovedBy.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIAApproved.ApprovedBy.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAApproved.Conclusion.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIAApproved.Conclusion.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAApproved.LIAApproved(System.Guid LIAId, string! Conclusion, string! ApprovedBy, System.DateTimeOffset ApprovedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.LawfulBasis.Events.LIAApproved.LIAId.get -> System.Guid
+Encina.Compliance.LawfulBasis.Events.LIAApproved.LIAId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAApproved.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIAApproved.ModuleId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAApproved.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIAApproved.TenantId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated
+Encina.Compliance.LawfulBasis.Events.LIACreated.AlternativesConsidered.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.Events.LIACreated.AlternativesConsidered.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.AssessedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LIACreated.AssessedAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.AssessedBy.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.AssessedBy.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.Benefits.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.Benefits.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.Conditions.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIACreated.Conditions.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.ConsequencesIfNotProcessed.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.ConsequencesIfNotProcessed.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.DataMinimisationNotes.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.DataMinimisationNotes.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.DPOInvolvement.get -> bool
+Encina.Compliance.LawfulBasis.Events.LIACreated.DPOInvolvement.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.ImpactAssessment.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.ImpactAssessment.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.LegitimateInterest.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.LegitimateInterest.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.LIACreated(System.Guid LIAId, string! Reference, string! Name, string! Purpose, string! LegitimateInterest, string! Benefits, string! ConsequencesIfNotProcessed, string! NecessityJustification, System.Collections.Generic.IReadOnlyList<string!>! AlternativesConsidered, string! DataMinimisationNotes, string! NatureOfData, string! ReasonableExpectations, string! ImpactAssessment, System.Collections.Generic.IReadOnlyList<string!>! Safeguards, string! AssessedBy, bool DPOInvolvement, System.DateTimeOffset AssessedAtUtc, string? Conditions, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.LIAId.get -> System.Guid
+Encina.Compliance.LawfulBasis.Events.LIACreated.LIAId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIACreated.ModuleId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.Name.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.Name.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.NatureOfData.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.NatureOfData.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.NecessityJustification.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.NecessityJustification.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.Purpose.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.Purpose.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.ReasonableExpectations.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.ReasonableExpectations.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.Reference.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIACreated.Reference.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.Safeguards.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.Events.LIACreated.Safeguards.init -> void
+Encina.Compliance.LawfulBasis.Events.LIACreated.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIACreated.TenantId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIARejected
+Encina.Compliance.LawfulBasis.Events.LIARejected.Conclusion.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIARejected.Conclusion.init -> void
+Encina.Compliance.LawfulBasis.Events.LIARejected.LIAId.get -> System.Guid
+Encina.Compliance.LawfulBasis.Events.LIARejected.LIAId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIARejected.LIARejected(System.Guid LIAId, string! Conclusion, string! RejectedBy, System.DateTimeOffset RejectedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.LawfulBasis.Events.LIARejected.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIARejected.ModuleId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIARejected.RejectedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LIARejected.RejectedAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LIARejected.RejectedBy.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIARejected.RejectedBy.init -> void
+Encina.Compliance.LawfulBasis.Events.LIARejected.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIARejected.TenantId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.LIAId.get -> System.Guid
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.LIAId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.LIAReviewScheduled(System.Guid LIAId, System.DateTimeOffset NextReviewAtUtc, string! ScheduledBy, System.DateTimeOffset ScheduledAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.ModuleId.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.NextReviewAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.NextReviewAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.ScheduledAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.ScheduledAtUtc.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.ScheduledBy.get -> string!
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.ScheduledBy.init -> void
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled.TenantId.init -> void
+Encina.Compliance.LawfulBasis.Health.LawfulBasisHealthCheck
+Encina.Compliance.LawfulBasis.Health.LawfulBasisHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Compliance.LawfulBasis.Health.LawfulBasisHealthCheck.LawfulBasisHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.LawfulBasis.Health.LawfulBasisHealthCheck!>! logger) -> void
+Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode
+Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode.Block = 0 -> Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode
+Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode.Disabled = 2 -> Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode
+Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode.Warn = 1 -> Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode
+Encina.Compliance.LawfulBasis.LawfulBasisMartenExtensions
+Encina.Compliance.LawfulBasis.LawfulBasisOptions
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.AddHealthCheck.get -> bool
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.AddHealthCheck.set -> void
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.AssembliesToScan.get -> System.Collections.Generic.HashSet<System.Reflection.Assembly!>!
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.AutoRegisterFromAttributes.get -> bool
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.AutoRegisterFromAttributes.set -> void
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.DefaultBases.get -> System.Collections.Generic.Dictionary<System.Type!, Encina.Compliance.GDPR.LawfulBasis>!
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.DefaultBasis<TRequest>(Encina.Compliance.GDPR.LawfulBasis basis) -> Encina.Compliance.LawfulBasis.LawfulBasisOptions!
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.EnforcementMode.get -> Encina.Compliance.LawfulBasis.LawfulBasisEnforcementMode
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.EnforcementMode.set -> void
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.LawfulBasisOptions() -> void
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.RequireDeclaredBasis.get -> bool
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.RequireDeclaredBasis.set -> void
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.ScanAssembly(System.Reflection.Assembly! assembly) -> Encina.Compliance.LawfulBasis.LawfulBasisOptions!
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.ScanAssemblyContaining<T>() -> Encina.Compliance.LawfulBasis.LawfulBasisOptions!
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.ValidateConsentForConsentBasis.get -> bool
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.ValidateConsentForConsentBasis.set -> void
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.ValidateLIAForLegitimateInterests.get -> bool
+Encina.Compliance.LawfulBasis.LawfulBasisOptions.ValidateLIAForLegitimateInterests.set -> void
+Encina.Compliance.LawfulBasis.LawfulBasisValidationPipelineBehavior<TRequest, TResponse>
+Encina.Compliance.LawfulBasis.LawfulBasisValidationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Compliance.LawfulBasis.LawfulBasisValidationPipelineBehavior<TRequest, TResponse>.LawfulBasisValidationPipelineBehavior(Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService! service, Encina.Compliance.GDPR.ILawfulBasisSubjectIdExtractor! subjectIdExtractor, Microsoft.Extensions.Options.IOptions<Encina.Compliance.LawfulBasis.LawfulBasisOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.LawfulBasis.LawfulBasisValidationPipelineBehavior<TRequest, TResponse>!>! logger, Encina.Compliance.GDPR.IConsentStatusProvider? consentProvider = null) -> void
+Encina.Compliance.LawfulBasis.LawfulBasisValidationResult
+Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.Basis.get -> Encina.Compliance.GDPR.LawfulBasis?
+Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.Errors.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.IsValid.get -> bool
+Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.LIAValidationResult
+Encina.Compliance.LawfulBasis.LIAValidationResult.IsValid.get -> bool
+Encina.Compliance.LawfulBasis.LIAValidationResult.Outcome.get -> Encina.Compliance.GDPR.LIAOutcome?
+Encina.Compliance.LawfulBasis.LIAValidationResult.RejectionReason.get -> string?
+Encina.Compliance.LawfulBasis.LIAValidationResult.RequiresReview.get -> bool
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisProjection
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisProjection.Apply(Encina.Compliance.LawfulBasis.Events.LawfulBasisChanged! domainEvent, Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisProjection.Apply(Encina.Compliance.LawfulBasis.Events.LawfulBasisRevoked! domainEvent, Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisProjection.Create(Encina.Compliance.LawfulBasis.Events.LawfulBasisRegistered! domainEvent, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisProjection.LawfulBasisProjection() -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisProjection.ProjectionName.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Basis.get -> Encina.Compliance.GDPR.LawfulBasis
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Basis.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.ContractReference.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.ContractReference.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Id.get -> System.Guid
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Id.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.IsRevoked.get -> bool
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.IsRevoked.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.LastModifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.LastModifiedAtUtc.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.LawfulBasisReadModel() -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.LegalReference.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.LegalReference.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.LIAReference.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.LIAReference.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.ModuleId.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Purpose.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Purpose.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.RegisteredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.RegisteredAtUtc.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.RequestTypeName.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.RequestTypeName.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.RevocationReason.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.RevocationReason.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.TenantId.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Version.get -> int
+Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel.Version.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAProjection
+Encina.Compliance.LawfulBasis.ReadModels.LIAProjection.Apply(Encina.Compliance.LawfulBasis.Events.LIAApproved! domainEvent, Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel!
+Encina.Compliance.LawfulBasis.ReadModels.LIAProjection.Apply(Encina.Compliance.LawfulBasis.Events.LIARejected! domainEvent, Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel!
+Encina.Compliance.LawfulBasis.ReadModels.LIAProjection.Apply(Encina.Compliance.LawfulBasis.Events.LIAReviewScheduled! domainEvent, Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel!
+Encina.Compliance.LawfulBasis.ReadModels.LIAProjection.Create(Encina.Compliance.LawfulBasis.Events.LIACreated! domainEvent, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel!
+Encina.Compliance.LawfulBasis.ReadModels.LIAProjection.LIAProjection() -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAProjection.ProjectionName.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.AlternativesConsidered.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.AlternativesConsidered.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.AssessedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.AssessedAtUtc.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.AssessedBy.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.AssessedBy.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Benefits.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Benefits.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Conclusion.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Conclusion.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Conditions.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Conditions.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ConsequencesIfNotProcessed.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ConsequencesIfNotProcessed.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.DataMinimisationNotes.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.DataMinimisationNotes.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.DPOInvolvement.get -> bool
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.DPOInvolvement.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Id.get -> System.Guid
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Id.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ImpactAssessment.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ImpactAssessment.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.LastModifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.LastModifiedAtUtc.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.LegitimateInterest.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.LegitimateInterest.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.LIAReadModel() -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ModuleId.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ModuleId.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Name.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Name.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.NatureOfData.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.NatureOfData.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.NecessityJustification.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.NecessityJustification.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.NextReviewAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.NextReviewAtUtc.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Outcome.get -> Encina.Compliance.GDPR.LIAOutcome
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Outcome.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Purpose.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Purpose.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ReasonableExpectations.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.ReasonableExpectations.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Reference.get -> string!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Reference.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Safeguards.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Safeguards.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.TenantId.get -> string?
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.TenantId.set -> void
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Version.get -> int
+Encina.Compliance.LawfulBasis.ReadModels.LIAReadModel.Version.set -> void
+Encina.Compliance.LawfulBasis.ServiceCollectionExtensions
+Encina.Compliance.LawfulBasis.Services.DefaultLawfulBasisProvider
+Encina.Compliance.LawfulBasis.Services.DefaultLawfulBasisProvider.DefaultLawfulBasisProvider(Encina.Compliance.LawfulBasis.Abstractions.ILawfulBasisService! service) -> void
+Encina.Compliance.LawfulBasis.Services.DefaultLawfulBasisProvider.GetBasisForRequestAsync(System.Type! requestType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.LawfulBasis.ReadModels.LawfulBasisReadModel!>>>
+Encina.Compliance.LawfulBasis.Services.DefaultLawfulBasisProvider.ValidateBasisAsync<TRequest>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.LawfulBasis.LawfulBasisValidationResult!>>
+static Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate.Register(System.Guid registrationId, string! requestTypeName, Encina.Compliance.GDPR.LawfulBasis basis, string? purpose, string? liaReference, string? legalReference, string? contractReference, System.DateTimeOffset registeredAtUtc, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.LawfulBasis.Aggregates.LawfulBasisAggregate!
+static Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate.Create(System.Guid liaId, string! reference, string! name, string! purpose, string! legitimateInterest, string! benefits, string! consequencesIfNotProcessed, string! necessityJustification, System.Collections.Generic.IReadOnlyList<string!>! alternativesConsidered, string! dataMinimisationNotes, string! natureOfData, string! reasonableExpectations, string! impactAssessment, System.Collections.Generic.IReadOnlyList<string!>! safeguards, string! assessedBy, bool dpoInvolvement, System.DateTimeOffset assessedAtUtc, string? conditions = null, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.LawfulBasis.Aggregates.LIAAggregate!
+static Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.InvalidStateTransition(string! operation, string! reason) -> Encina.EncinaError
+static Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.LIAAlreadyDecided(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.LIANotFound(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.LIANotFoundByReference(string! reference) -> Encina.EncinaError
+static Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.RegistrationAlreadyRevoked(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.RegistrationNotFound(System.Guid id) -> Encina.EncinaError
+static Encina.Compliance.LawfulBasis.Errors.LawfulBasisErrors.StoreError(string! operation, System.Exception! exception) -> Encina.EncinaError
+static Encina.Compliance.LawfulBasis.LawfulBasisMartenExtensions.AddLawfulBasisAggregates(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.Invalid(Encina.Compliance.GDPR.LawfulBasis basis, System.Collections.Generic.IReadOnlyList<string!>! errors, System.Collections.Generic.IReadOnlyList<string!>! warnings) -> Encina.Compliance.LawfulBasis.LawfulBasisValidationResult!
+static Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.Invalid(params string![]! errors) -> Encina.Compliance.LawfulBasis.LawfulBasisValidationResult!
+static Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.Valid(Encina.Compliance.GDPR.LawfulBasis basis) -> Encina.Compliance.LawfulBasis.LawfulBasisValidationResult!
+static Encina.Compliance.LawfulBasis.LawfulBasisValidationResult.ValidWithWarnings(Encina.Compliance.GDPR.LawfulBasis basis, params string![]! warnings) -> Encina.Compliance.LawfulBasis.LawfulBasisValidationResult!
+static Encina.Compliance.LawfulBasis.LIAValidationResult.Approved() -> Encina.Compliance.LawfulBasis.LIAValidationResult!
+static Encina.Compliance.LawfulBasis.LIAValidationResult.NotFound() -> Encina.Compliance.LawfulBasis.LIAValidationResult!
+static Encina.Compliance.LawfulBasis.LIAValidationResult.PendingReview() -> Encina.Compliance.LawfulBasis.LIAValidationResult!
+static Encina.Compliance.LawfulBasis.LIAValidationResult.Rejected(string? reason = null) -> Encina.Compliance.LawfulBasis.LIAValidationResult!
+static Encina.Compliance.LawfulBasis.ServiceCollectionExtensions.AddEncinaLawfulBasis(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.LawfulBasis.LawfulBasisOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

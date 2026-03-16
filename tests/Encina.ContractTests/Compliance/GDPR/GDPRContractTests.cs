@@ -223,7 +223,7 @@ public class GDPRContractTests
         Id = Guid.NewGuid(),
         Name = "Test Activity",
         Purpose = "Contract testing",
-        LawfulBasis = LawfulBasis.Contract,
+        LawfulBasis = global::Encina.Compliance.GDPR.LawfulBasis.Contract,
         CategoriesOfDataSubjects = ["Users"],
         CategoriesOfPersonalData = ["Email"],
         Recipients = [],

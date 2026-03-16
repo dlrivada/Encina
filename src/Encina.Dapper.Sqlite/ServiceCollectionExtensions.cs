@@ -432,29 +432,6 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds GDPR Lawful Basis persistent stores using Dapper for SQLite.
-    /// Registers <see cref="ILawfulBasisRegistry"/> and <see cref="ILIAStore"/> as singletons
-    /// that create connections per operation.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="connectionString">The SQLite connection string.</param>
-    /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddEncinaLawfulBasisDapperSqlite(
-        this IServiceCollection services,
-        string connectionString)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-        services.TryAddSingleton<ILawfulBasisRegistry>(
-            new LawfulBasis.LawfulBasisRegistryDapper(connectionString));
-        services.TryAddSingleton<ILIAStore>(
-            new LawfulBasis.LIAStoreDapper(connectionString));
-
-        return services;
-    }
-
-    /// <summary>
     /// Adds persistent GDPR processing activity registry using Dapper for SQLite.
     /// </summary>
     /// <remarks>
