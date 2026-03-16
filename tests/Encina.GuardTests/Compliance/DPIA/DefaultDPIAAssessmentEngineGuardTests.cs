@@ -9,8 +9,6 @@ namespace Encina.GuardTests.Compliance.DPIA;
 public class DefaultDPIAAssessmentEngineGuardTests
 {
     private readonly IEnumerable<IRiskCriterion> _criteria = [];
-    private readonly IDPIAStore _store = Substitute.For<IDPIAStore>();
-    private readonly IDPIAAuditStore _auditStore = Substitute.For<IDPIAAuditStore>();
     private readonly IDPIATemplateProvider _templateProvider = Substitute.For<IDPIATemplateProvider>();
     private readonly IOptions<DPIAOptions> _options = Options.Create(new DPIAOptions());
     private readonly TimeProvider _timeProvider = TimeProvider.System;
@@ -25,36 +23,10 @@ public class DefaultDPIAAssessmentEngineGuardTests
     public void Constructor_NullCriteria_ThrowsArgumentNullException()
     {
         var act = () => new DefaultDPIAAssessmentEngine(
-            null!, _store, _auditStore, _templateProvider, _options, _timeProvider, _logger);
+            null!, _templateProvider, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("criteria");
-    }
-
-    /// <summary>
-    /// Verifies that the constructor throws ArgumentNullException when store is null.
-    /// </summary>
-    [Fact]
-    public void Constructor_NullStore_ThrowsArgumentNullException()
-    {
-        var act = () => new DefaultDPIAAssessmentEngine(
-            _criteria, null!, _auditStore, _templateProvider, _options, _timeProvider, _logger);
-
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("store");
-    }
-
-    /// <summary>
-    /// Verifies that the constructor throws ArgumentNullException when auditStore is null.
-    /// </summary>
-    [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
-    {
-        var act = () => new DefaultDPIAAssessmentEngine(
-            _criteria, _store, null!, _templateProvider, _options, _timeProvider, _logger);
-
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("auditStore");
     }
 
     /// <summary>
@@ -64,7 +36,7 @@ public class DefaultDPIAAssessmentEngineGuardTests
     public void Constructor_NullTemplateProvider_ThrowsArgumentNullException()
     {
         var act = () => new DefaultDPIAAssessmentEngine(
-            _criteria, _store, _auditStore, null!, _options, _timeProvider, _logger);
+            _criteria, null!, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("templateProvider");
@@ -77,7 +49,7 @@ public class DefaultDPIAAssessmentEngineGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new DefaultDPIAAssessmentEngine(
-            _criteria, _store, _auditStore, _templateProvider, null!, _timeProvider, _logger);
+            _criteria, _templateProvider, null!, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("options");
@@ -90,7 +62,7 @@ public class DefaultDPIAAssessmentEngineGuardTests
     public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
     {
         var act = () => new DefaultDPIAAssessmentEngine(
-            _criteria, _store, _auditStore, _templateProvider, _options, null!, _logger);
+            _criteria, _templateProvider, _options, null!, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("timeProvider");
@@ -103,7 +75,7 @@ public class DefaultDPIAAssessmentEngineGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new DefaultDPIAAssessmentEngine(
-            _criteria, _store, _auditStore, _templateProvider, _options, _timeProvider, null!);
+            _criteria, _templateProvider, _options, _timeProvider, null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");
@@ -148,7 +120,7 @@ public class DefaultDPIAAssessmentEngineGuardTests
     #region Helpers
 
     private DefaultDPIAAssessmentEngine CreateSut() =>
-        new(_criteria, _store, _auditStore, _templateProvider, _options, _timeProvider, _logger);
+        new(_criteria, _templateProvider, _options, _timeProvider, _logger);
 
     #endregion
 }

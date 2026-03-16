@@ -1,6 +1,7 @@
 using System.Reflection;
 
 using Encina.Compliance.DPIA;
+using Encina.Compliance.DPIA.Abstractions;
 
 namespace Encina.GuardTests.Compliance.DPIA;
 
@@ -9,26 +10,25 @@ namespace Encina.GuardTests.Compliance.DPIA;
 /// </summary>
 public class DPIAAutoRegistrationHostedServiceGuardTests
 {
-    private readonly IDPIAStore _store = Substitute.For<IDPIAStore>();
+    private readonly IDPIAService _service = Substitute.For<IDPIAService>();
     private readonly IOptions<DPIAOptions> _options = Options.Create(new DPIAOptions());
     private readonly DPIAAutoRegistrationDescriptor _descriptor = new([]);
-    private readonly TimeProvider _timeProvider = TimeProvider.System;
     private readonly ILogger<DPIAAutoRegistrationHostedService> _logger =
         NullLogger<DPIAAutoRegistrationHostedService>.Instance;
 
     #region Constructor Guards
 
     /// <summary>
-    /// Verifies that the constructor throws ArgumentNullException when store is null.
+    /// Verifies that the constructor throws ArgumentNullException when service is null.
     /// </summary>
     [Fact]
-    public void Constructor_NullStore_ThrowsArgumentNullException()
+    public void Constructor_NullService_ThrowsArgumentNullException()
     {
         var act = () => new DPIAAutoRegistrationHostedService(
-            null!, _options, _descriptor, _timeProvider, _logger);
+            null!, _options, _descriptor, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("store");
+        ex.ParamName.ShouldBe("service");
     }
 
     /// <summary>
@@ -38,7 +38,7 @@ public class DPIAAutoRegistrationHostedServiceGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new DPIAAutoRegistrationHostedService(
-            _store, null!, _descriptor, _timeProvider, _logger);
+            _service, null!, _descriptor, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("options");
@@ -51,23 +51,10 @@ public class DPIAAutoRegistrationHostedServiceGuardTests
     public void Constructor_NullDescriptor_ThrowsArgumentNullException()
     {
         var act = () => new DPIAAutoRegistrationHostedService(
-            _store, _options, null!, _timeProvider, _logger);
+            _service, _options, null!, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("descriptor");
-    }
-
-    /// <summary>
-    /// Verifies that the constructor throws ArgumentNullException when timeProvider is null.
-    /// </summary>
-    [Fact]
-    public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
-    {
-        var act = () => new DPIAAutoRegistrationHostedService(
-            _store, _options, _descriptor, null!, _logger);
-
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("timeProvider");
     }
 
     /// <summary>
@@ -77,7 +64,7 @@ public class DPIAAutoRegistrationHostedServiceGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new DPIAAutoRegistrationHostedService(
-            _store, _options, _descriptor, _timeProvider, null!);
+            _service, _options, _descriptor, null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");

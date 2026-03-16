@@ -19,8 +19,8 @@ namespace Encina.Compliance.DPIA;
 /// This engine automates that determination and guides the assessment process.
 /// </para>
 /// <para>
-/// The engine is designed to be used by the <c>DPIAPipelineBehavior</c> in the Encina request
-/// pipeline, but can also be invoked directly for manual assessments or batch evaluations.
+/// The engine is a pure risk-evaluation component with no persistence dependencies.
+/// DPO consultation lifecycle is managed by <see cref="Abstractions.IDPIAService"/>.
 /// </para>
 /// <para>
 /// All methods follow Railway Oriented Programming (ROP) using <c>Either&lt;EncinaError, T&gt;</c>
@@ -101,27 +101,4 @@ public interface IDPIAAssessmentEngine
         Type requestType,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Initiates a DPO consultation for the specified assessment.
-    /// </summary>
-    /// <param name="assessmentId">The unique identifier of the assessment requiring consultation.</param>
-    /// <param name="cancellationToken">Token to cancel the operation.</param>
-    /// <returns>
-    /// A <see cref="DPOConsultation"/> record representing the initiated consultation;
-    /// or an <see cref="EncinaError"/> if the consultation could not be initiated.
-    /// </returns>
-    /// <remarks>
-    /// <para>
-    /// Per GDPR Article 35(2), "the controller shall seek the advice of the data protection
-    /// officer, where designated, when carrying out a data protection impact assessment."
-    /// </para>
-    /// <para>
-    /// This method creates a <see cref="DPOConsultation"/> record in
-    /// <see cref="DPOConsultationDecision.Pending"/> status and publishes a
-    /// <see cref="DPOConsultationRequested"/> notification.
-    /// </para>
-    /// </remarks>
-    ValueTask<Either<EncinaError, DPOConsultation>> RequestDPOConsultationAsync(
-        Guid assessmentId,
-        CancellationToken cancellationToken = default);
 }

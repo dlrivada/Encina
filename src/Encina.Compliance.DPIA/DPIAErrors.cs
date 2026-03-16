@@ -46,6 +46,9 @@ public static class DPIAErrors
     /// <summary>Error code when the assessed risk level exceeds the acceptable threshold.</summary>
     public const string RiskTooHighCode = "dpia.risk_too_high";
 
+    /// <summary>Error code when a DPIA assessment is not found by its identifier.</summary>
+    public const string AssessmentNotFoundCode = "dpia.assessment_not_found";
+
     /// <summary>Error code when a DPIA store operation fails.</summary>
     public const string StoreErrorCode = "dpia.store_error";
 
@@ -194,6 +197,38 @@ public static class DPIAErrors
                 [MetadataKeyAssessmentId] = assessmentId,
                 [MetadataKeyRequestType] = requestTypeName,
                 ["riskLevel"] = riskLevel.ToString(),
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Not found errors ---
+
+    /// <summary>
+    /// Creates an error when a DPIA assessment is not found by its identifier.
+    /// </summary>
+    /// <param name="assessmentId">The identifier that was looked up.</param>
+    /// <returns>An error indicating the assessment was not found.</returns>
+    public static EncinaError AssessmentNotFound(Guid assessmentId) =>
+        EncinaErrors.Create(
+            code: AssessmentNotFoundCode,
+            message: $"DPIA assessment '{assessmentId}' was not found.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyAssessmentId] = assessmentId,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    /// <summary>
+    /// Creates an error when no DPIA assessment is found for a request type.
+    /// </summary>
+    /// <param name="requestTypeName">The request type that was looked up.</param>
+    /// <returns>An error indicating no assessment was found for the request type.</returns>
+    public static EncinaError AssessmentNotFoundByRequestType(string requestTypeName) =>
+        EncinaErrors.Create(
+            code: AssessmentNotFoundCode,
+            message: $"No DPIA assessment found for request type '{requestTypeName}'.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestTypeName,
                 [MetadataKeyStage] = MetadataKeyStage
             });
 

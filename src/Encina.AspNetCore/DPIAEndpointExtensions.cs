@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using Encina.Compliance.DPIA;
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
+using Encina.Compliance.DPIA.ReadModels;
 using LanguageExt;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -102,7 +104,7 @@ public static class DPIAEndpointExtensions
     /// </item>
     /// </list>
     /// <para>
-    /// All endpoints resolve <see cref="IDPIAStore"/> and <see cref="IDPIAAssessmentEngine"/>
+    /// All endpoints resolve <see cref="IDPIAService"/> and <see cref="IDPIAAssessmentEngine"/>
     /// from the DI container. Ensure <c>AddEncinaDPIA()</c> has been called during service registration.
     /// </para>
     /// <para>
@@ -158,7 +160,7 @@ public static class DPIAEndpointExtensions
     /// Lists all DPIA assessments.
     /// </summary>
     private static async Task<IResult> HandleListAssessments(
-        IDPIAStore store,
+        IDPIAService service,
         HttpContext httpContext,
         ILogger<DPIAEndpointMarker> logger,
         CancellationToken cancellationToken)
@@ -167,7 +169,7 @@ public static class DPIAEndpointExtensions
         var startedAt = Stopwatch.GetTimestamp();
         logger.EndpointRequestReceived("list", "GET", httpContext.Request.Path);
 
-        var result = await store.GetAllAssessmentsAsync(cancellationToken);
+        var result = await service.GetAllAssessmentsAsync(cancellationToken);
 
         return result.Match(
             Right: assessments =>
@@ -187,7 +189,7 @@ public static class DPIAEndpointExtensions
     /// </summary>
     private static async Task<IResult> HandleGetAssessment(
         Guid id,
-        IDPIAStore store,
+        IDPIAService service,
         HttpContext httpContext,
         ILogger<DPIAEndpointMarker> logger,
         CancellationToken cancellationToken)
@@ -196,22 +198,26 @@ public static class DPIAEndpointExtensions
         var startedAt = Stopwatch.GetTimestamp();
         logger.EndpointRequestReceived("get", "GET", httpContext.Request.Path);
 
-        var result = await store.GetAssessmentByIdAsync(id, cancellationToken);
+        var result = await service.GetAssessmentAsync(id, cancellationToken);
 
         return result.Match(
-            Right: assessmentOption =>
+            Right: assessment =>
             {
-                if (assessmentOption.IsSome)
-                {
-                    RecordEndpointSuccess(activity, startedAt, "get", logger);
-                    return Results.Ok((DPIAAssessment)assessmentOption.Case!);
-                }
-
-                RecordEndpointFailure(activity, startedAt, "get", StatusCodes.Status404NotFound, logger);
-                return AssessmentNotFound(id);
+                RecordEndpointSuccess(activity, startedAt, "get", logger);
+                return Results.Ok(assessment);
             },
             Left: error =>
             {
+                var isNotFound = error.GetCode().Match(
+                    Some: code => code == DPIAErrors.AssessmentNotFoundCode,
+                    None: () => false);
+
+                if (isNotFound)
+                {
+                    RecordEndpointFailure(activity, startedAt, "get", StatusCodes.Status404NotFound, logger);
+                    return AssessmentNotFound(id);
+                }
+
                 RecordEndpointFailure(activity, startedAt, "get", StatusCodes.Status500InternalServerError, logger);
                 return error.ToProblemDetails(httpContext);
             });
@@ -223,11 +229,10 @@ public static class DPIAEndpointExtensions
     private static async Task<IResult> HandleAssessRequestType(
         string requestType,
         AssessDPIARequest? request,
+        IDPIAService service,
         IDPIAAssessmentEngine engine,
-        IDPIAStore store,
         IDPIATemplateProvider templateProvider,
         IOptions<DPIAOptions> options,
-        TimeProvider timeProvider,
         HttpContext httpContext,
         ILogger<DPIAEndpointMarker> logger,
         CancellationToken cancellationToken)
@@ -251,6 +256,38 @@ public static class DPIAEndpointExtensions
                     + "Ensure the assembly containing this type is loaded in the application.");
         }
 
+        // Resolve tenant/module context from HTTP headers
+        var (tenantId, moduleId) = ResolveTenantModule(httpContext);
+
+        // Check if an assessment already exists for this request type
+        var existingResult = await service.GetAssessmentByRequestTypeAsync(decodedTypeName, cancellationToken);
+        var assessmentId = Guid.Empty;
+
+        var isExisting = existingResult.Match(
+            Right: existing => { assessmentId = existing.Id; return true; },
+            Left: _ => false);
+
+        if (!isExisting)
+        {
+            // Create a new assessment
+            var createResult = await service.CreateAssessmentAsync(
+                decodedTypeName,
+                request?.ProcessingType,
+                "Assessment triggered via REST endpoint.",
+                tenantId, moduleId,
+                cancellationToken);
+
+            var createdOk = createResult.Match(
+                Right: id => { assessmentId = id; return true; },
+                Left: _ => false);
+
+            if (!createdOk)
+            {
+                RecordEndpointFailure(activity, startedAt, "assess", StatusCodes.Status500InternalServerError, logger);
+                return ((EncinaError)createResult).ToProblemDetails(httpContext);
+            }
+        }
+
         // Build assessment context
         DPIATemplate? template = null;
         if (request?.ProcessingType is not null)
@@ -272,69 +309,14 @@ public static class DPIAEndpointExtensions
             Template = template,
         };
 
-        // Run assessment engine (engine records its own audit trail)
-        var assessResult = await engine.AssessAsync(context, cancellationToken);
+        // Evaluate via IDPIAService (which calls engine internally and persists)
+        var evalResult = await service.EvaluateAssessmentAsync(assessmentId, context, cancellationToken);
 
-        DPIAResult? dpiaResult = null;
-        IResult? errorResponse = null;
-
-        assessResult.Match(
-            Right: r => dpiaResult = r,
-            Left: error =>
-            {
-                RecordEndpointFailure(activity, startedAt, "assess", StatusCodes.Status500InternalServerError, logger);
-                errorResponse = error.ToProblemDetails(httpContext);
-            });
-
-        if (errorResponse is not null)
-        {
-            return errorResponse;
-        }
-
-        // Resolve tenant/module context from HTTP headers
-        var (tenantId, moduleId) = ResolveTenantModule(httpContext);
-
-        // Look up existing assessment for this request type
-        var nowUtc = timeProvider.GetUtcNow();
-        DPIAAssessment? existing = null;
-
-        var existingResult = await store.GetAssessmentAsync(decodedTypeName, cancellationToken);
-        existingResult.Match(
-            Right: assessmentOption => existing = assessmentOption.IsSome ? (DPIAAssessment?)assessmentOption.Case : null,
-            Left: _ => { }); // Lookup failure is non-fatal; create new
-
-        // Create or update assessment with results (including tenant/module context)
-        var assessment = existing is not null
-            ? existing with
-            {
-                Result = dpiaResult,
-                Status = DPIAAssessmentStatus.InReview,
-                RequestType = resolvedType,
-                ProcessingType = request?.ProcessingType ?? existing.ProcessingType,
-                TenantId = tenantId ?? existing.TenantId,
-                ModuleId = moduleId ?? existing.ModuleId,
-            }
-            : new DPIAAssessment
-            {
-                Id = Guid.NewGuid(),
-                RequestTypeName = decodedTypeName,
-                RequestType = resolvedType,
-                Status = DPIAAssessmentStatus.InReview,
-                Result = dpiaResult,
-                ProcessingType = request?.ProcessingType,
-                CreatedAtUtc = nowUtc,
-                TenantId = tenantId,
-                ModuleId = moduleId,
-            };
-
-        // Persist
-        var saveResult = await store.SaveAssessmentAsync(assessment, cancellationToken);
-
-        return saveResult.Match(
-            Right: _ =>
+        return evalResult.Match(
+            Right: dpiaResult =>
             {
                 RecordEndpointSuccess(activity, startedAt, "assess", logger);
-                return Results.Ok(assessment);
+                return Results.Ok(dpiaResult);
             },
             Left: error =>
             {
@@ -348,8 +330,7 @@ public static class DPIAEndpointExtensions
     /// </summary>
     private static async Task<IResult> HandleApproveAssessment(
         Guid id,
-        IDPIAStore store,
-        IDPIAAuditStore auditStore,
+        IDPIAService service,
         IOptions<DPIAOptions> options,
         TimeProvider timeProvider,
         HttpContext httpContext,
@@ -361,58 +342,33 @@ public static class DPIAEndpointExtensions
         logger.EndpointRequestReceived("approve", "POST", httpContext.Request.Path);
         logger.EndpointApproveTriggered(id);
 
-        var getResult = await store.GetAssessmentByIdAsync(id, cancellationToken);
+        var approvedBy = httpContext.User.Identity?.Name ?? "DPO";
+        var nowUtc = timeProvider.GetUtcNow();
+        var nextReview = nowUtc + options.Value.DefaultReviewPeriod;
 
-        DPIAAssessment? assessment = null;
-        IResult? errorResponse = null;
+        var result = await service.ApproveAssessmentAsync(id, approvedBy, nextReview, cancellationToken);
 
-        getResult.Match(
-            Right: assessmentOption => assessment = assessmentOption.IsSome ? (DPIAAssessment?)assessmentOption.Case : null,
+        return result.Match(
+            Right: _ =>
+            {
+                RecordEndpointSuccess(activity, startedAt, "approve", logger);
+                return Results.Ok(new { Id = id, Status = "Approved", NextReviewAtUtc = nextReview });
+            },
             Left: error =>
             {
+                var isNotFound = error.GetCode().Match(
+                    Some: code => code == DPIAErrors.AssessmentNotFoundCode,
+                    None: () => false);
+
+                if (isNotFound)
+                {
+                    RecordEndpointFailure(activity, startedAt, "approve", StatusCodes.Status404NotFound, logger);
+                    return AssessmentNotFound(id);
+                }
+
                 RecordEndpointFailure(activity, startedAt, "approve", StatusCodes.Status500InternalServerError, logger);
-                errorResponse = error.ToProblemDetails(httpContext);
+                return error.ToProblemDetails(httpContext);
             });
-
-        if (errorResponse is not null)
-        {
-            return errorResponse;
-        }
-
-        if (assessment is null)
-        {
-            RecordEndpointFailure(activity, startedAt, "approve", StatusCodes.Status404NotFound, logger);
-            return AssessmentNotFound(id);
-        }
-
-        // Transition to approved with review period
-        var nowUtc = timeProvider.GetUtcNow();
-        var approved = assessment with
-        {
-            Status = DPIAAssessmentStatus.Approved,
-            ApprovedAtUtc = nowUtc,
-            NextReviewAtUtc = nowUtc + options.Value.DefaultReviewPeriod,
-        };
-
-        var saveResult = await store.SaveAssessmentAsync(approved, cancellationToken);
-
-        if (saveResult.IsLeft)
-        {
-            RecordEndpointFailure(activity, startedAt, "approve", StatusCodes.Status500InternalServerError, logger);
-            return ((EncinaError)saveResult).ToProblemDetails(httpContext);
-        }
-
-        // Record audit trail for the approval action
-        if (options.Value.TrackAuditTrail)
-        {
-            var performedBy = httpContext.User.Identity?.Name ?? "DPO";
-            await RecordAuditAsync(auditStore, id, "Approved", performedBy, nowUtc,
-                $"Assessment approved. Next review at {approved.NextReviewAtUtc:O}.",
-                assessment.TenantId, assessment.ModuleId, cancellationToken);
-        }
-
-        RecordEndpointSuccess(activity, startedAt, "approve", logger);
-        return Results.Ok(approved);
     }
 
     /// <summary>
@@ -421,10 +377,7 @@ public static class DPIAEndpointExtensions
     private static async Task<IResult> HandleRejectAssessment(
         Guid id,
         RejectDPIARequest? request,
-        IDPIAStore store,
-        IDPIAAuditStore auditStore,
-        IOptions<DPIAOptions> options,
-        TimeProvider timeProvider,
+        IDPIAService service,
         HttpContext httpContext,
         ILogger<DPIAEndpointMarker> logger,
         CancellationToken cancellationToken)
@@ -434,60 +387,32 @@ public static class DPIAEndpointExtensions
         logger.EndpointRequestReceived("reject", "POST", httpContext.Request.Path);
         logger.EndpointRejectTriggered(id);
 
-        var getResult = await store.GetAssessmentByIdAsync(id, cancellationToken);
+        var rejectedBy = httpContext.User.Identity?.Name ?? "DPO";
+        var reason = request?.Reason ?? "Rejected via REST endpoint.";
 
-        DPIAAssessment? assessment = null;
-        IResult? errorResponse = null;
+        var result = await service.RejectAssessmentAsync(id, rejectedBy, reason, cancellationToken);
 
-        getResult.Match(
-            Right: assessmentOption => assessment = assessmentOption.IsSome ? (DPIAAssessment?)assessmentOption.Case : null,
+        return result.Match(
+            Right: _ =>
+            {
+                RecordEndpointSuccess(activity, startedAt, "reject", logger);
+                return Results.Ok(new { Id = id, Status = "Rejected", Reason = reason });
+            },
             Left: error =>
             {
+                var isNotFound = error.GetCode().Match(
+                    Some: code => code == DPIAErrors.AssessmentNotFoundCode,
+                    None: () => false);
+
+                if (isNotFound)
+                {
+                    RecordEndpointFailure(activity, startedAt, "reject", StatusCodes.Status404NotFound, logger);
+                    return AssessmentNotFound(id);
+                }
+
                 RecordEndpointFailure(activity, startedAt, "reject", StatusCodes.Status500InternalServerError, logger);
-                errorResponse = error.ToProblemDetails(httpContext);
+                return error.ToProblemDetails(httpContext);
             });
-
-        if (errorResponse is not null)
-        {
-            return errorResponse;
-        }
-
-        if (assessment is null)
-        {
-            RecordEndpointFailure(activity, startedAt, "reject", StatusCodes.Status404NotFound, logger);
-            return AssessmentNotFound(id);
-        }
-
-        // Transition to rejected
-        var rejected = assessment with
-        {
-            Status = DPIAAssessmentStatus.Rejected,
-            Reason = request?.Reason,
-        };
-
-        var saveResult = await store.SaveAssessmentAsync(rejected, cancellationToken);
-
-        if (saveResult.IsLeft)
-        {
-            RecordEndpointFailure(activity, startedAt, "reject", StatusCodes.Status500InternalServerError, logger);
-            return ((EncinaError)saveResult).ToProblemDetails(httpContext);
-        }
-
-        // Record audit trail for the rejection action
-        if (options.Value.TrackAuditTrail)
-        {
-            var nowUtc = timeProvider.GetUtcNow();
-            var performedBy = httpContext.User.Identity?.Name ?? "DPO";
-            var details = string.IsNullOrWhiteSpace(request?.Reason)
-                ? "Assessment rejected."
-                : $"Assessment rejected. Reason: {request.Reason}";
-
-            await RecordAuditAsync(auditStore, id, "Rejected", performedBy, nowUtc,
-                details, assessment.TenantId, assessment.ModuleId, cancellationToken);
-        }
-
-        RecordEndpointSuccess(activity, startedAt, "reject", logger);
-        return Results.Ok(rejected);
     }
 
     /// <summary>
@@ -522,8 +447,7 @@ public static class DPIAEndpointExtensions
     /// Lists expired assessments needing periodic review.
     /// </summary>
     private static async Task<IResult> HandleListExpiredAssessments(
-        IDPIAStore store,
-        TimeProvider timeProvider,
+        IDPIAService service,
         HttpContext httpContext,
         ILogger<DPIAEndpointMarker> logger,
         CancellationToken cancellationToken)
@@ -532,8 +456,7 @@ public static class DPIAEndpointExtensions
         var startedAt = Stopwatch.GetTimestamp();
         logger.EndpointRequestReceived("expired", "GET", httpContext.Request.Path);
 
-        var nowUtc = timeProvider.GetUtcNow();
-        var result = await store.GetExpiredAssessmentsAsync(nowUtc, cancellationToken);
+        var result = await service.GetExpiredAssessmentsAsync(cancellationToken);
 
         return result.Match(
             Right: expired =>
@@ -576,35 +499,6 @@ public static class DPIAEndpointExtensions
         return (
             string.IsNullOrWhiteSpace(tenantId) ? null : tenantId,
             string.IsNullOrWhiteSpace(moduleId) ? null : moduleId);
-    }
-
-    /// <summary>
-    /// Records an audit trail entry for a DPIA assessment state change.
-    /// </summary>
-    private static async ValueTask RecordAuditAsync(
-        IDPIAAuditStore auditStore,
-        Guid assessmentId,
-        string action,
-        string performedBy,
-        DateTimeOffset occurredAtUtc,
-        string details,
-        string? tenantId,
-        string? moduleId,
-        CancellationToken cancellationToken)
-    {
-        var auditEntry = new DPIAAuditEntry
-        {
-            Id = Guid.NewGuid(),
-            AssessmentId = assessmentId,
-            Action = action,
-            PerformedBy = performedBy,
-            OccurredAtUtc = occurredAtUtc,
-            Details = details,
-            TenantId = tenantId,
-            ModuleId = moduleId,
-        };
-
-        await auditStore.RecordAuditEntryAsync(auditEntry, cancellationToken);
     }
 
     /// <summary>

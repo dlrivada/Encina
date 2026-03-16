@@ -1,7 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
@@ -357,12 +356,6 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreEF>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreEF>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreEF>();
-        }
-
-        if (config.UseDPIA)
-        {
-            services.TryAddScoped<IDPIAStore, DPIA.DPIAStoreEF>();
-            services.TryAddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreEF>();
         }
 
         if (config.UseProcessorAgreements)

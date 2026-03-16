@@ -202,18 +202,7 @@ Encina.Compliance.DPIA.DPOConsultationRequested.DPOEmail.get -> string!
 Encina.Compliance.DPIA.DPOConsultationRequested.DPOEmail.init -> void
 Encina.Compliance.DPIA.IDPIAAssessmentEngine
 Encina.Compliance.DPIA.IDPIAAssessmentEngine.AssessAsync(Encina.Compliance.DPIA.Model.DPIAContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.Model.DPIAResult!>>
-Encina.Compliance.DPIA.IDPIAAssessmentEngine.RequestDPOConsultationAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.Model.DPOConsultation!>>
 Encina.Compliance.DPIA.IDPIAAssessmentEngine.RequiresDPIAAsync(System.Type! requestType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
-Encina.Compliance.DPIA.IDPIAAuditStore
-Encina.Compliance.DPIA.IDPIAAuditStore.GetAuditTrailAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.DPIAAuditEntry!>!>>
-Encina.Compliance.DPIA.IDPIAAuditStore.RecordAuditEntryAsync(Encina.Compliance.DPIA.Model.DPIAAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.DPIA.IDPIAStore
-Encina.Compliance.DPIA.IDPIAStore.DeleteAssessmentAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.DPIA.IDPIAStore.GetAllAssessmentsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.DPIAAssessment!>!>>
-Encina.Compliance.DPIA.IDPIAStore.GetAssessmentAsync(string! requestTypeName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.DPIA.Model.DPIAAssessment!>>>
-Encina.Compliance.DPIA.IDPIAStore.GetAssessmentByIdAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.DPIA.Model.DPIAAssessment!>>>
-Encina.Compliance.DPIA.IDPIAStore.GetExpiredAssessmentsAsync(System.DateTimeOffset nowUtc, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.DPIAAssessment!>!>>
-Encina.Compliance.DPIA.IDPIAStore.SaveAssessmentAsync(Encina.Compliance.DPIA.Model.DPIAAssessment! assessment, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.DPIA.IDPIATemplateProvider
 Encina.Compliance.DPIA.IDPIATemplateProvider.GetAllTemplatesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.DPIATemplate!>!>>
 Encina.Compliance.DPIA.IDPIATemplateProvider.GetTemplateAsync(string! processingType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.Model.DPIATemplate!>>
@@ -248,8 +237,6 @@ Encina.Compliance.DPIA.DPIAOptions.DPOName.get -> string?
 Encina.Compliance.DPIA.DPIAOptions.DPOName.set -> void
 Encina.Compliance.DPIA.DPIAOptions.PublishNotifications.get -> bool
 Encina.Compliance.DPIA.DPIAOptions.PublishNotifications.set -> void
-Encina.Compliance.DPIA.DPIAOptions.TrackAuditTrail.get -> bool
-Encina.Compliance.DPIA.DPIAOptions.TrackAuditTrail.set -> void
 Encina.Compliance.DPIA.DPIAOptions.EnableExpirationMonitoring.get -> bool
 Encina.Compliance.DPIA.DPIAOptions.EnableExpirationMonitoring.set -> void
 Encina.Compliance.DPIA.DPIAOptions.ExpirationCheckInterval.get -> System.TimeSpan
@@ -257,10 +244,9 @@ Encina.Compliance.DPIA.DPIAOptions.ExpirationCheckInterval.set -> void
 Encina.Compliance.DPIA.DPIAOptions.AddHealthCheck.get -> bool
 Encina.Compliance.DPIA.DPIAOptions.AddHealthCheck.set -> void
 Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine
-Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine.DefaultDPIAAssessmentEngine(System.Collections.Generic.IEnumerable<Encina.Compliance.DPIA.IRiskCriterion!>! criteria, Encina.Compliance.DPIA.IDPIAStore! store, Encina.Compliance.DPIA.IDPIAAuditStore! auditStore, Encina.Compliance.DPIA.IDPIATemplateProvider! templateProvider, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DPIA.DPIAOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine!>! logger, Encina.Compliance.GDPR.IDataProtectionOfficer? dpo = null) -> void
 Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine.AssessAsync(Encina.Compliance.DPIA.Model.DPIAContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.Model.DPIAResult!>>
+Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine.DefaultDPIAAssessmentEngine(System.Collections.Generic.IEnumerable<Encina.Compliance.DPIA.IRiskCriterion!>! criteria, Encina.Compliance.DPIA.IDPIATemplateProvider! templateProvider, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DPIA.DPIAOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine!>! logger, Encina.Compliance.GDPR.IDataProtectionOfficer? dpo = null) -> void
 Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine.RequiresDPIAAsync(System.Type! requestType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
-Encina.Compliance.DPIA.DefaultDPIAAssessmentEngine.RequestDPOConsultationAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.Model.DPOConsultation!>>
 Encina.Compliance.DPIA.DefaultDPIATemplateProvider
 Encina.Compliance.DPIA.DefaultDPIATemplateProvider.DefaultDPIATemplateProvider() -> void
 Encina.Compliance.DPIA.DefaultDPIATemplateProvider.GetTemplateAsync(string! processingType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.Model.DPIATemplate!>>
@@ -289,58 +275,8 @@ Encina.Compliance.DPIA.VulnerableSubjectsCriterion
 Encina.Compliance.DPIA.VulnerableSubjectsCriterion.VulnerableSubjectsCriterion() -> void
 Encina.Compliance.DPIA.VulnerableSubjectsCriterion.Name.get -> string!
 Encina.Compliance.DPIA.VulnerableSubjectsCriterion.EvaluateAsync(Encina.Compliance.DPIA.Model.DPIAContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Compliance.DPIA.Model.RiskItem?>
-Encina.Compliance.DPIA.DPIAAssessmentEntity
-Encina.Compliance.DPIA.DPIAAssessmentEntity.DPIAAssessmentEntity() -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.Id.get -> string!
-Encina.Compliance.DPIA.DPIAAssessmentEntity.Id.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.RequestTypeName.get -> string!
-Encina.Compliance.DPIA.DPIAAssessmentEntity.RequestTypeName.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.StatusValue.get -> int
-Encina.Compliance.DPIA.DPIAAssessmentEntity.StatusValue.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ProcessingType.get -> string?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ProcessingType.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.Reason.get -> string?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.Reason.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ResultJson.get -> string?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ResultJson.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.DPOConsultationJson.get -> string?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.DPOConsultationJson.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.CreatedAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.DPIA.DPIAAssessmentEntity.CreatedAtUtc.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ApprovedAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ApprovedAtUtc.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.NextReviewAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.NextReviewAtUtc.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.TenantId.get -> string?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.TenantId.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ModuleId.get -> string?
-Encina.Compliance.DPIA.DPIAAssessmentEntity.ModuleId.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.DPIAAuditEntryEntity() -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.Id.get -> string!
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.Id.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.AssessmentId.get -> string!
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.AssessmentId.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.Action.get -> string!
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.Action.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.PerformedBy.get -> string?
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.PerformedBy.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.OccurredAtUtc.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.Details.get -> string?
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.Details.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.TenantId.get -> string?
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.TenantId.set -> void
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.ModuleId.get -> string?
-Encina.Compliance.DPIA.DPIAAuditEntryEntity.ModuleId.set -> void
-Encina.Compliance.DPIA.DPIAAssessmentMapper
-static Encina.Compliance.DPIA.DPIAAssessmentMapper.ToEntity(Encina.Compliance.DPIA.Model.DPIAAssessment! assessment) -> Encina.Compliance.DPIA.DPIAAssessmentEntity!
-static Encina.Compliance.DPIA.DPIAAssessmentMapper.ToDomain(Encina.Compliance.DPIA.DPIAAssessmentEntity! entity) -> Encina.Compliance.DPIA.Model.DPIAAssessment?
-Encina.Compliance.DPIA.DPIAAuditEntryMapper
-static Encina.Compliance.DPIA.DPIAAuditEntryMapper.ToEntity(Encina.Compliance.DPIA.Model.DPIAAuditEntry! entry) -> Encina.Compliance.DPIA.DPIAAuditEntryEntity!
-static Encina.Compliance.DPIA.DPIAAuditEntryMapper.ToDomain(Encina.Compliance.DPIA.DPIAAuditEntryEntity! entity) -> Encina.Compliance.DPIA.Model.DPIAAuditEntry?
 Encina.Compliance.DPIA.DPIARequiredPipelineBehavior<TRequest, TResponse>
-Encina.Compliance.DPIA.DPIARequiredPipelineBehavior<TRequest, TResponse>.DPIARequiredPipelineBehavior(Encina.Compliance.DPIA.IDPIAStore! store, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DPIA.DPIAOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DPIA.DPIARequiredPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.DPIA.DPIARequiredPipelineBehavior<TRequest, TResponse>.DPIARequiredPipelineBehavior(Encina.Compliance.DPIA.Abstractions.IDPIAService! service, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DPIA.DPIAOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DPIA.DPIARequiredPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.Compliance.DPIA.DPIARequiredPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Compliance.DPIA.DPIAOptions.AutoRegisterFromAttributes.get -> bool
 Encina.Compliance.DPIA.DPIAOptions.AutoRegisterFromAttributes.set -> void
@@ -355,3 +291,185 @@ Encina.Compliance.DPIA.Health.DPIAHealthCheck
 Encina.Compliance.DPIA.Health.DPIAHealthCheck.DPIAHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DPIA.Health.DPIAHealthCheck!>! logger) -> void
 Encina.Compliance.DPIA.Health.DPIAHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
 const Encina.Compliance.DPIA.Health.DPIAHealthCheck.DefaultName = "encina-dpia" -> string!
+Encina.Compliance.DPIA.Events.DPIACreated
+Encina.Compliance.DPIA.Events.DPIACreated.DPIACreated(System.Guid AssessmentId, string! RequestTypeName, string? ProcessingType, string? Reason, System.DateTimeOffset OccurredAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.DPIA.Events.DPIACreated.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIACreated.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIACreated.RequestTypeName.get -> string!
+Encina.Compliance.DPIA.Events.DPIACreated.RequestTypeName.init -> void
+Encina.Compliance.DPIA.Events.DPIACreated.ProcessingType.get -> string?
+Encina.Compliance.DPIA.Events.DPIACreated.ProcessingType.init -> void
+Encina.Compliance.DPIA.Events.DPIACreated.Reason.get -> string?
+Encina.Compliance.DPIA.Events.DPIACreated.Reason.init -> void
+Encina.Compliance.DPIA.Events.DPIACreated.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIACreated.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIACreated.TenantId.get -> string?
+Encina.Compliance.DPIA.Events.DPIACreated.TenantId.init -> void
+Encina.Compliance.DPIA.Events.DPIACreated.ModuleId.get -> string?
+Encina.Compliance.DPIA.Events.DPIACreated.ModuleId.init -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated
+Encina.Compliance.DPIA.Events.DPIAEvaluated.DPIAEvaluated(System.Guid AssessmentId, Encina.Compliance.DPIA.Model.RiskLevel OverallRisk, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.RiskItem!>! IdentifiedRisks, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.Mitigation!>! ProposedMitigations, bool RequiresPriorConsultation, System.DateTimeOffset AssessedAtUtc, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIAEvaluated.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated.OverallRisk.get -> Encina.Compliance.DPIA.Model.RiskLevel
+Encina.Compliance.DPIA.Events.DPIAEvaluated.OverallRisk.init -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated.IdentifiedRisks.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.RiskItem!>!
+Encina.Compliance.DPIA.Events.DPIAEvaluated.IdentifiedRisks.init -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated.ProposedMitigations.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.Mitigation!>!
+Encina.Compliance.DPIA.Events.DPIAEvaluated.ProposedMitigations.init -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated.RequiresPriorConsultation.get -> bool
+Encina.Compliance.DPIA.Events.DPIAEvaluated.RequiresPriorConsultation.init -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated.AssessedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIAEvaluated.AssessedAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIAEvaluated.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIAEvaluated.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.DPIADPOConsultationRequested(System.Guid AssessmentId, System.Guid ConsultationId, string! DPOName, string! DPOEmail, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.ConsultationId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.ConsultationId.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.DPOName.get -> string!
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.DPOName.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.DPOEmail.get -> string!
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.DPOEmail.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOResponded
+Encina.Compliance.DPIA.Events.DPIADPOResponded.DPIADPOResponded(System.Guid AssessmentId, System.Guid ConsultationId, Encina.Compliance.DPIA.Model.DPOConsultationDecision Decision, string? Comments, string? Conditions, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.DPIA.Events.DPIADPOResponded.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIADPOResponded.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOResponded.ConsultationId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIADPOResponded.ConsultationId.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOResponded.Decision.get -> Encina.Compliance.DPIA.Model.DPOConsultationDecision
+Encina.Compliance.DPIA.Events.DPIADPOResponded.Decision.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOResponded.Comments.get -> string?
+Encina.Compliance.DPIA.Events.DPIADPOResponded.Comments.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOResponded.Conditions.get -> string?
+Encina.Compliance.DPIA.Events.DPIADPOResponded.Conditions.init -> void
+Encina.Compliance.DPIA.Events.DPIADPOResponded.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIADPOResponded.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIAApproved
+Encina.Compliance.DPIA.Events.DPIAApproved.DPIAApproved(System.Guid AssessmentId, string! ApprovedBy, System.DateTimeOffset? NextReviewAtUtc, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.DPIA.Events.DPIAApproved.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIAApproved.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIAApproved.ApprovedBy.get -> string!
+Encina.Compliance.DPIA.Events.DPIAApproved.ApprovedBy.init -> void
+Encina.Compliance.DPIA.Events.DPIAApproved.NextReviewAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.DPIA.Events.DPIAApproved.NextReviewAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIAApproved.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIAApproved.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIARejected
+Encina.Compliance.DPIA.Events.DPIARejected.DPIARejected(System.Guid AssessmentId, string! RejectedBy, string! Reason, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.DPIA.Events.DPIARejected.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIARejected.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIARejected.RejectedBy.get -> string!
+Encina.Compliance.DPIA.Events.DPIARejected.RejectedBy.init -> void
+Encina.Compliance.DPIA.Events.DPIARejected.Reason.get -> string!
+Encina.Compliance.DPIA.Events.DPIARejected.Reason.init -> void
+Encina.Compliance.DPIA.Events.DPIARejected.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIARejected.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIARevisionRequested
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.DPIARevisionRequested(System.Guid AssessmentId, string! RequestedBy, string! Reason, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.RequestedBy.get -> string!
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.RequestedBy.init -> void
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.Reason.get -> string!
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.Reason.init -> void
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIARevisionRequested.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Events.DPIAExpired
+Encina.Compliance.DPIA.Events.DPIAExpired.DPIAExpired(System.Guid AssessmentId, System.DateTimeOffset OccurredAtUtc) -> void
+Encina.Compliance.DPIA.Events.DPIAExpired.AssessmentId.get -> System.Guid
+Encina.Compliance.DPIA.Events.DPIAExpired.AssessmentId.init -> void
+Encina.Compliance.DPIA.Events.DPIAExpired.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.Events.DPIAExpired.OccurredAtUtc.init -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.DPIAAggregate() -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.RequestTypeName.get -> string!
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.ProcessingType.get -> string?
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Reason.get -> string?
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Status.get -> Encina.Compliance.DPIA.Model.DPIAAssessmentStatus
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Result.get -> Encina.Compliance.DPIA.Model.DPIAResult?
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.DPOConsultation.get -> Encina.Compliance.DPIA.Model.DPOConsultation?
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.ApprovedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.NextReviewAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.TenantId.get -> string?
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.ModuleId.get -> string?
+static Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Create(System.Guid id, string! requestTypeName, System.DateTimeOffset occurredAtUtc, string? processingType = null, string? reason = null, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.DPIA.Aggregates.DPIAAggregate!
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Evaluate(Encina.Compliance.DPIA.Model.DPIAResult! result, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.RequestDPOConsultation(System.Guid consultationId, string! dpoName, string! dpoEmail, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.RecordDPOResponse(System.Guid consultationId, Encina.Compliance.DPIA.Model.DPOConsultationDecision decision, System.DateTimeOffset occurredAtUtc, string? comments = null, string? conditions = null) -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Approve(string! approvedBy, System.DateTimeOffset occurredAtUtc, System.DateTimeOffset? nextReviewAtUtc = null) -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Reject(string! rejectedBy, string! reason, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.RequestRevision(string! requestedBy, string! reason, System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.Expire(System.DateTimeOffset occurredAtUtc) -> void
+Encina.Compliance.DPIA.Aggregates.DPIAAggregate.IsCurrent(System.DateTimeOffset nowUtc) -> bool
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.DPIAReadModel() -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Id.get -> System.Guid
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Id.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.RequestTypeName.get -> string!
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.RequestTypeName.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ProcessingType.get -> string?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ProcessingType.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Reason.get -> string?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Reason.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Status.get -> Encina.Compliance.DPIA.Model.DPIAAssessmentStatus
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Status.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.OverallRisk.get -> Encina.Compliance.DPIA.Model.RiskLevel?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.OverallRisk.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.IdentifiedRisks.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.RiskItem!>!
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.IdentifiedRisks.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ProposedMitigations.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.Model.Mitigation!>!
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ProposedMitigations.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.RequiresPriorConsultation.get -> bool
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.RequiresPriorConsultation.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.AssessedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.AssessedAtUtc.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.DPOConsultation.get -> Encina.Compliance.DPIA.Model.DPOConsultation?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.DPOConsultation.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ApprovedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ApprovedAtUtc.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.NextReviewAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.NextReviewAtUtc.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.TenantId.get -> string?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.TenantId.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ModuleId.get -> string?
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.ModuleId.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.LastModifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.LastModifiedAtUtc.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Version.get -> int
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.Version.set -> void
+Encina.Compliance.DPIA.ReadModels.DPIAReadModel.IsCurrent(System.DateTimeOffset nowUtc) -> bool
+Encina.Compliance.DPIA.ReadModels.DPIAProjection
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.DPIAProjection() -> void
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.ProjectionName.get -> string!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Create(Encina.Compliance.DPIA.Events.DPIACreated! domainEvent, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Apply(Encina.Compliance.DPIA.Events.DPIAEvaluated! domainEvent, Encina.Compliance.DPIA.ReadModels.DPIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Apply(Encina.Compliance.DPIA.Events.DPIADPOConsultationRequested! domainEvent, Encina.Compliance.DPIA.ReadModels.DPIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Apply(Encina.Compliance.DPIA.Events.DPIADPOResponded! domainEvent, Encina.Compliance.DPIA.ReadModels.DPIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Apply(Encina.Compliance.DPIA.Events.DPIAApproved! domainEvent, Encina.Compliance.DPIA.ReadModels.DPIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Apply(Encina.Compliance.DPIA.Events.DPIARejected! domainEvent, Encina.Compliance.DPIA.ReadModels.DPIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Apply(Encina.Compliance.DPIA.Events.DPIARevisionRequested! domainEvent, Encina.Compliance.DPIA.ReadModels.DPIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.ReadModels.DPIAProjection.Apply(Encina.Compliance.DPIA.Events.DPIAExpired! domainEvent, Encina.Compliance.DPIA.ReadModels.DPIAReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.DPIA.ReadModels.DPIAReadModel!
+Encina.Compliance.DPIA.Abstractions.IDPIAService
+Encina.Compliance.DPIA.Abstractions.IDPIAService.CreateAssessmentAsync(string! requestTypeName, string? processingType = null, string? reason = null, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.EvaluateAssessmentAsync(System.Guid assessmentId, Encina.Compliance.DPIA.Model.DPIAContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.Model.DPIAResult!>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.RequestDPOConsultationAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.RecordDPOResponseAsync(System.Guid assessmentId, System.Guid consultationId, Encina.Compliance.DPIA.Model.DPOConsultationDecision decision, string? comments = null, string? conditions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.ApproveAssessmentAsync(System.Guid assessmentId, string! approvedBy, System.DateTimeOffset? nextReviewAtUtc = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.RejectAssessmentAsync(System.Guid assessmentId, string! rejectedBy, string! reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.RequestRevisionAsync(System.Guid assessmentId, string! requestedBy, string! reason, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.ExpireAssessmentAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.GetAssessmentAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.ReadModels.DPIAReadModel!>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.GetAssessmentByRequestTypeAsync(string! requestTypeName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DPIA.ReadModels.DPIAReadModel!>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.GetExpiredAssessmentsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.ReadModels.DPIAReadModel!>!>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.GetAllAssessmentsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.DPIA.ReadModels.DPIAReadModel!>!>>
+Encina.Compliance.DPIA.Abstractions.IDPIAService.GetAssessmentHistoryAsync(System.Guid assessmentId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<object!>!>>
+Encina.Compliance.DPIA.DPIAMartenExtensions
+static Encina.Compliance.DPIA.DPIAMartenExtensions.AddDPIAAggregates(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Encina.Compliance.DPIA.DPIAErrors.AssessmentNotFoundCode = "dpia.assessment_not_found" -> string!
+static Encina.Compliance.DPIA.DPIAErrors.AssessmentNotFound(System.Guid assessmentId) -> Encina.EncinaError
+static Encina.Compliance.DPIA.DPIAErrors.AssessmentNotFoundByRequestType(string! requestTypeName) -> Encina.EncinaError

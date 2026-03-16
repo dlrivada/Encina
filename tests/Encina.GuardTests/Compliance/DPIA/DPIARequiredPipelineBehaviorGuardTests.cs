@@ -1,4 +1,5 @@
 using Encina.Compliance.DPIA;
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
 
 namespace Encina.GuardTests.Compliance.DPIA;
@@ -8,7 +9,7 @@ namespace Encina.GuardTests.Compliance.DPIA;
 /// </summary>
 public class DPIARequiredPipelineBehaviorGuardTests
 {
-    private readonly IDPIAStore _store = Substitute.For<IDPIAStore>();
+    private readonly IDPIAService _service = Substitute.For<IDPIAService>();
     private readonly IOptions<DPIAOptions> _options = Options.Create(new DPIAOptions());
     private readonly TimeProvider _timeProvider = TimeProvider.System;
     private readonly ILogger<DPIARequiredPipelineBehavior<TestCommand, string>> _logger =
@@ -17,16 +18,16 @@ public class DPIARequiredPipelineBehaviorGuardTests
     #region Constructor Guards
 
     /// <summary>
-    /// Verifies that the constructor throws ArgumentNullException when store is null.
+    /// Verifies that the constructor throws ArgumentNullException when service is null.
     /// </summary>
     [Fact]
-    public void Constructor_NullStore_ThrowsArgumentNullException()
+    public void Constructor_NullService_ThrowsArgumentNullException()
     {
         var act = () => new DPIARequiredPipelineBehavior<TestCommand, string>(
             null!, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("store");
+        ex.ParamName.ShouldBe("service");
     }
 
     /// <summary>
@@ -36,7 +37,7 @@ public class DPIARequiredPipelineBehaviorGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new DPIARequiredPipelineBehavior<TestCommand, string>(
-            _store, null!, _timeProvider, _logger);
+            _service, null!, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("options");
@@ -49,7 +50,7 @@ public class DPIARequiredPipelineBehaviorGuardTests
     public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
     {
         var act = () => new DPIARequiredPipelineBehavior<TestCommand, string>(
-            _store, _options, null!, _logger);
+            _service, _options, null!, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("timeProvider");
@@ -62,7 +63,7 @@ public class DPIARequiredPipelineBehaviorGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new DPIARequiredPipelineBehavior<TestCommand, string>(
-            _store, _options, _timeProvider, null!);
+            _service, _options, _timeProvider, null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");
@@ -122,7 +123,7 @@ public class DPIARequiredPipelineBehaviorGuardTests
     #region Helpers
 
     private DPIARequiredPipelineBehavior<TestCommand, string> CreateSut() =>
-        new(_store, _options, _timeProvider, _logger);
+        new(_service, _options, _timeProvider, _logger);
 
     public sealed record TestCommand : ICommand<string>;
 

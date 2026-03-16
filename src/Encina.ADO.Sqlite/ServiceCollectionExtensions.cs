@@ -10,7 +10,6 @@ using Encina.ADO.Sqlite.Scheduling;
 using Encina.ADO.Sqlite.UnitOfWork;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
@@ -92,12 +91,6 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreADO>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreADO>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreADO>();
-        }
-
-        if (config.UseDPIA)
-        {
-            services.TryAddScoped<IDPIAStore, DPIA.DPIAStoreADO>();
-            services.TryAddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreADO>();
         }
 
         if (config.UseProcessorAgreements)

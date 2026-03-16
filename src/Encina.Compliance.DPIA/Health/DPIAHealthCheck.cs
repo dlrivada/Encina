@@ -1,4 +1,6 @@
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
+using Encina.Compliance.DPIA.ReadModels;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -16,9 +18,8 @@ namespace Encina.Compliance.DPIA.Health;
 /// This health check verifies:
 /// <list type="bullet">
 /// <item><description>The DPIA options are configured</description></item>
-/// <item><description>The DPIA store (<see cref="IDPIAStore"/>) is resolvable</description></item>
+/// <item><description>The DPIA service (<see cref="IDPIAService"/>) is resolvable</description></item>
 /// <item><description>The DPIA assessment engine (<see cref="IDPIAAssessmentEngine"/>) is resolvable</description></item>
-/// <item><description>The DPIA audit store (<see cref="IDPIAAuditStore"/>) is resolvable when TrackAuditTrail is enabled (optional, Degraded if missing)</description></item>
 /// <item><description>Expired assessments count (Degraded if any exist)</description></item>
 /// <item><description>Draft assessments count (informational, Degraded if in Block mode)</description></item>
 /// </list>
@@ -88,16 +89,16 @@ public sealed class DPIAHealthCheck : IHealthCheck
         data["expirationMonitoringEnabled"] = options.EnableExpirationMonitoring;
         data["defaultReviewPeriodDays"] = options.DefaultReviewPeriod.TotalDays;
 
-        // 2. Verify DPIA store is resolvable
-        var store = scopedProvider.GetService<IDPIAStore>();
-        if (store is null)
+        // 2. Verify DPIA service is resolvable
+        var service = scopedProvider.GetService<IDPIAService>();
+        if (service is null)
         {
             return HealthCheckResult.Unhealthy(
-                "IDPIAStore is not registered.",
+                "IDPIAService is not registered.",
                 data: data);
         }
 
-        data["storeType"] = store.GetType().Name;
+        data["serviceType"] = service.GetType().Name;
 
         // 3. Verify assessment engine is resolvable
         var engine = scopedProvider.GetService<IDPIAAssessmentEngine>();
@@ -110,30 +111,11 @@ public sealed class DPIAHealthCheck : IHealthCheck
 
         data["engineType"] = engine.GetType().Name;
 
-        // 4. Verify audit store when TrackAuditTrail is enabled (optional, degraded if missing)
-        if (options.TrackAuditTrail)
-        {
-            var auditStore = scopedProvider.GetService<IDPIAAuditStore>();
-            if (auditStore is null)
-            {
-                warnings.Add(
-                    "IDPIAAuditStore is not registered but TrackAuditTrail is enabled. "
-                    + "DPIA audit trail will not be recorded.");
-            }
-            else
-            {
-                data["auditStoreType"] = auditStore.GetType().Name;
-            }
-        }
-
-        // 5. Check for expired assessments (degraded if any)
+        // 4. Check for expired assessments (degraded if any)
         try
         {
-            var timeProvider = scopedProvider.GetService<TimeProvider>() ?? TimeProvider.System;
-            var nowUtc = timeProvider.GetUtcNow();
-
-            var expiredResult = await store
-                .GetExpiredAssessmentsAsync(nowUtc, cancellationToken)
+            var expiredResult = await service
+                .GetExpiredAssessmentsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             expiredResult.Match(
@@ -158,10 +140,10 @@ public sealed class DPIAHealthCheck : IHealthCheck
             warnings.Add($"Error querying expired assessments: {ex.Message}");
         }
 
-        // 6. Check for draft assessments (informational, degraded in Block mode)
+        // 5. Check for draft assessments (informational, degraded in Block mode)
         try
         {
-            var allResult = await store
+            var allResult = await service
                 .GetAllAssessmentsAsync(cancellationToken)
                 .ConfigureAwait(false);
 

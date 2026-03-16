@@ -1,6 +1,5 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
@@ -145,12 +144,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
         }
 
-        if (options.UseDPIA)
-        {
-            services.AddScoped<IDPIAStore, DPIA.DPIAStoreMongoDB>();
-            services.AddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreMongoDB>();
-        }
-
         // Register Processor Agreements stores if enabled
         if (options.UseProcessorAgreements)
         {
@@ -284,12 +277,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IDataLocationStore, DataResidency.DataLocationStoreMongoDB>();
             services.AddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreMongoDB>();
             services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
-        }
-
-        if (options.UseDPIA)
-        {
-            services.AddScoped<IDPIAStore, DPIA.DPIAStoreMongoDB>();
-            services.AddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreMongoDB>();
         }
 
         // Register Processor Agreements stores if enabled

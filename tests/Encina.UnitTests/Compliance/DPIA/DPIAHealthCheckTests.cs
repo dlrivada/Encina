@@ -1,8 +1,10 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Encina.Compliance.DPIA;
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Health;
 using Encina.Compliance.DPIA.Model;
+using Encina.Compliance.DPIA.ReadModels;
 
 using FluentAssertions;
 
@@ -46,19 +48,21 @@ public class DPIAHealthCheckTests
     [Fact]
     public async Task CheckHealthAsync_AllConfigured_ReturnsHealthy()
     {
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        var service = Substitute.For<IDPIAService>();
+        service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    Array.Empty<DPIAReadModel>() as IReadOnlyList<DPIAReadModel>)));
 
-        store.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
+        service.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    Array.Empty<DPIAReadModel>() as IReadOnlyList<DPIAReadModel>)));
 
         var engine = Substitute.For<IDPIAAssessmentEngine>();
-        var options = new DPIAOptions { TrackAuditTrail = false };
+        var options = new DPIAOptions();
 
-        var sut = CreateHealthCheck(options, store, engine);
+        var sut = CreateHealthCheck(options, service, engine);
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
@@ -86,7 +90,7 @@ public class DPIAHealthCheckTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_NoStore_ReturnsUnhealthy()
+    public async Task CheckHealthAsync_NoService_ReturnsUnhealthy()
     {
         var services = new ServiceCollection();
         services.AddSingleton(Options.Create(new DPIAOptions()));
@@ -97,16 +101,16 @@ public class DPIAHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IDPIAStore");
+        result.Description.Should().Contain("IDPIAService");
     }
 
     [Fact]
     public async Task CheckHealthAsync_NoEngine_ReturnsUnhealthy()
     {
-        var store = Substitute.For<IDPIAStore>();
+        var service = Substitute.For<IDPIAService>();
         var services = new ServiceCollection();
         services.AddSingleton(Options.Create(new DPIAOptions()));
-        services.AddSingleton(store);
+        services.AddSingleton(service);
         var provider = services.BuildServiceProvider();
 
         var sut = new DPIAHealthCheck(provider, new NullLogger<DPIAHealthCheck>());
@@ -124,26 +128,27 @@ public class DPIAHealthCheckTests
     [Fact]
     public async Task CheckHealthAsync_ExpiredAssessments_ReturnsDegraded()
     {
-        var expiredAssessment = new DPIAAssessment
+        var expiredReadModel = new DPIAReadModel
         {
             Id = Guid.NewGuid(),
             RequestTypeName = "Ns.ExpiredCommand",
             Status = DPIAAssessmentStatus.Approved,
-            CreatedAtUtc = DateTimeOffset.UtcNow.AddDays(-400),
             NextReviewAtUtc = DateTimeOffset.UtcNow.AddDays(-30)
         };
 
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        var service = Substitute.For<IDPIAService>();
+        service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([expiredAssessment])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    new[] { expiredReadModel } as IReadOnlyList<DPIAReadModel>)));
 
-        store.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
+        service.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([expiredAssessment])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    new[] { expiredReadModel } as IReadOnlyList<DPIAReadModel>)));
 
-        var options = new DPIAOptions { TrackAuditTrail = false };
-        var sut = CreateHealthCheck(options, store);
+        var options = new DPIAOptions();
+        var sut = CreateHealthCheck(options, service);
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
@@ -154,64 +159,34 @@ public class DPIAHealthCheckTests
     [Fact]
     public async Task CheckHealthAsync_DraftInBlockMode_ReturnsDegraded()
     {
-        var draftAssessment = new DPIAAssessment
+        var draftReadModel = new DPIAReadModel
         {
             Id = Guid.NewGuid(),
             RequestTypeName = "Ns.DraftCommand",
             Status = DPIAAssessmentStatus.Draft,
-            CreatedAtUtc = DateTimeOffset.UtcNow
         };
 
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        var service = Substitute.For<IDPIAService>();
+        service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    Array.Empty<DPIAReadModel>() as IReadOnlyList<DPIAReadModel>)));
 
-        store.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
+        service.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([draftAssessment])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    new[] { draftReadModel } as IReadOnlyList<DPIAReadModel>)));
 
         var options = new DPIAOptions
         {
             EnforcementMode = DPIAEnforcementMode.Block,
-            TrackAuditTrail = false
         };
-        var sut = CreateHealthCheck(options, store);
+        var sut = CreateHealthCheck(options, service);
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.Should().Be(HealthStatus.Degraded);
         result.Description.Should().Contain("Draft");
-    }
-
-    [Fact]
-    public async Task CheckHealthAsync_AuditTrailEnabled_NoAuditStore_ReturnsDegraded()
-    {
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
-
-        store.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
-
-        // TrackAuditTrail = true but no IDPIAAuditStore registered
-        var options = new DPIAOptions { TrackAuditTrail = true };
-
-        var services = new ServiceCollection();
-        services.AddSingleton(Options.Create(options));
-        services.AddSingleton(store);
-        services.AddSingleton(Substitute.For<IDPIAAssessmentEngine>());
-        services.AddSingleton(TimeProvider.System);
-        var provider = services.BuildServiceProvider();
-
-        var sut = new DPIAHealthCheck(provider, new NullLogger<DPIAHealthCheck>());
-
-        var result = await sut.CheckHealthAsync(CreateContext());
-
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("IDPIAAuditStore");
     }
 
     #endregion
@@ -221,27 +196,28 @@ public class DPIAHealthCheckTests
     [Fact]
     public async Task CheckHealthAsync_Healthy_IncludesDataProperties()
     {
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        var service = Substitute.For<IDPIAService>();
+        service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    Array.Empty<DPIAReadModel>() as IReadOnlyList<DPIAReadModel>)));
 
-        store.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
+        service.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    Array.Empty<DPIAReadModel>() as IReadOnlyList<DPIAReadModel>)));
 
         var options = new DPIAOptions
         {
             EnforcementMode = DPIAEnforcementMode.Block,
-            TrackAuditTrail = false
         };
-        var sut = CreateHealthCheck(options, store);
+        var sut = CreateHealthCheck(options, service);
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Data.Should().ContainKey("enforcementMode");
         result.Data["enforcementMode"].Should().Be("Block");
-        result.Data.Should().ContainKey("storeType");
+        result.Data.Should().ContainKey("serviceType");
         result.Data.Should().ContainKey("engineType");
     }
 
@@ -251,15 +227,15 @@ public class DPIAHealthCheckTests
 
     private static DPIAHealthCheck CreateHealthCheck(
         DPIAOptions options,
-        IDPIAStore? store = null,
+        IDPIAService? service = null,
         IDPIAAssessmentEngine? engine = null)
     {
-        store ??= Substitute.For<IDPIAStore>();
+        service ??= Substitute.For<IDPIAService>();
         engine ??= Substitute.For<IDPIAAssessmentEngine>();
 
         var services = new ServiceCollection();
         services.AddSingleton(Options.Create(options));
-        services.AddSingleton(store);
+        services.AddSingleton(service);
         services.AddSingleton(engine);
         services.AddSingleton(TimeProvider.System);
 

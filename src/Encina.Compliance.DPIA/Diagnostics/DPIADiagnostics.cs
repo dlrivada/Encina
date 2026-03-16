@@ -77,6 +77,41 @@ internal static class DPIADiagnostics
         Meter.CreateCounter<long>("dpia.dpo_consultation.total",
             description: "Total number of DPO consultations requested.");
 
+    /// <summary>Total number of DPIA assessments created via the service.</summary>
+    internal static readonly Counter<long> ServiceAssessmentCreated =
+        Meter.CreateCounter<long>("dpia.service.assessments.created",
+            description: "Total number of DPIA assessments created via the event-sourced service.");
+
+    /// <summary>Total number of DPIA assessments evaluated via the service.</summary>
+    internal static readonly Counter<long> ServiceAssessmentEvaluated =
+        Meter.CreateCounter<long>("dpia.service.assessments.evaluated",
+            description: "Total number of DPIA assessments evaluated via the event-sourced service.");
+
+    /// <summary>Total number of DPIA assessments approved via the service.</summary>
+    internal static readonly Counter<long> ServiceAssessmentApproved =
+        Meter.CreateCounter<long>("dpia.service.assessments.approved",
+            description: "Total number of DPIA assessments approved via the event-sourced service.");
+
+    /// <summary>Total number of DPIA assessments rejected via the service.</summary>
+    internal static readonly Counter<long> ServiceAssessmentRejected =
+        Meter.CreateCounter<long>("dpia.service.assessments.rejected",
+            description: "Total number of DPIA assessments rejected via the event-sourced service.");
+
+    /// <summary>Total number of DPIA assessment revision requests via the service.</summary>
+    internal static readonly Counter<long> ServiceRevisionRequested =
+        Meter.CreateCounter<long>("dpia.service.assessments.revision_requested",
+            description: "Total number of DPIA assessment revision requests via the event-sourced service.");
+
+    /// <summary>Total number of DPIA assessments expired via the service.</summary>
+    internal static readonly Counter<long> ServiceAssessmentExpired =
+        Meter.CreateCounter<long>("dpia.service.assessments.expired",
+            description: "Total number of DPIA assessments expired via the event-sourced service.");
+
+    /// <summary>Total number of DPIA service operation errors.</summary>
+    internal static readonly Counter<long> ServiceOperationErrors =
+        Meter.CreateCounter<long>("dpia.service.errors.total",
+            description: "Total number of DPIA service operation errors.");
+
     /// <summary>Total number of ASP.NET Core DPIA endpoint requests.</summary>
     internal static readonly Counter<long> EndpointRequestTotal =
         Meter.CreateCounter<long>("dpia.endpoint.requests.total",

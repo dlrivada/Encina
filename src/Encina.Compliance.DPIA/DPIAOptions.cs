@@ -117,14 +117,6 @@ public sealed class DPIAOptions
     /// </remarks>
     public bool PublishNotifications { get; set; } = true;
 
-    /// <summary>
-    /// Gets or sets whether to record an audit trail for all DPIA operations.
-    /// </summary>
-    /// <remarks>
-    /// Default is <c>true</c>.
-    /// </remarks>
-    public bool TrackAuditTrail { get; set; } = true;
-
     // --- Expiration monitoring ---
 
     /// <summary>
@@ -153,7 +145,7 @@ public sealed class DPIAOptions
     /// <para>
     /// When enabled, a hosted service scans <see cref="AssembliesToScan"/> at application startup,
     /// discovers request types decorated with <c>[RequiresDPIA]</c>, and creates draft assessments
-    /// in the <see cref="IDPIAStore"/> for any types that do not already have an assessment.
+    /// via the <see cref="Abstractions.IDPIAService"/> for any types that do not already have an assessment.
     /// </para>
     /// <para>
     /// Default is <c>false</c>.

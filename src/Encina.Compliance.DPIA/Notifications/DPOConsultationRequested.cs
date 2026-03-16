@@ -5,7 +5,7 @@ namespace Encina.Compliance.DPIA;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Published after <see cref="IDPIAAssessmentEngine.RequestDPOConsultationAsync"/> creates
+/// Published after <see cref="Abstractions.IDPIAService.RequestDPOConsultationAsync"/> creates
 /// a new <see cref="Model.DPOConsultation"/> record in <see cref="Model.DPOConsultationDecision.Pending"/>
 /// status.
 /// </para>

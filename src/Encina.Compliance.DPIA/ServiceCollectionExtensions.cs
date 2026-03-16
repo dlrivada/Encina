@@ -1,6 +1,8 @@
 using System.Reflection;
 
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Health;
+using Encina.Compliance.DPIA.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -24,8 +26,7 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="DPIAOptions"/> — Configured via the provided action, validated at first access</item>
-    /// <item><see cref="IDPIAStore"/> → <see cref="InMemoryDPIAStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDPIAAuditStore"/> → <see cref="InMemoryDPIAAuditStore"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IDPIAService"/> → <see cref="DefaultDPIAService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IDPIATemplateProvider"/> → <see cref="DefaultDPIATemplateProvider"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IDPIAAssessmentEngine"/> → <see cref="DefaultDPIAAssessmentEngine"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IRiskCriterion"/> — 6 built-in risk criteria (Singleton, using TryAddEnumerable)</item>
@@ -33,10 +34,15 @@ public static class ServiceCollectionExtensions
     /// </list>
     /// </para>
     /// <para>
+    /// <b>Event sourcing:</b>
+    /// The DPIA service uses event-sourced aggregates via Marten. Call
+    /// <see cref="DPIAMartenExtensions.AddDPIAAggregates"/> to register the aggregate repository
+    /// and projection infrastructure.
+    /// </para>
+    /// <para>
     /// <b>Default registrations:</b>
     /// All service registrations use <c>TryAdd</c>, allowing you to register custom
-    /// implementations before calling this method. For example, register a database-backed
-    /// <see cref="IDPIAStore"/> from <c>Encina.EntityFrameworkCore</c> or <c>Encina.Dapper</c>.
+    /// implementations before calling this method.
     /// </para>
     /// <para>
     /// <b>Auto-registration:</b>
@@ -60,7 +66,7 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Basic setup
+    /// // Basic setup with Marten event sourcing
     /// services.AddEncinaDPIA(options =>
     /// {
     ///     options.EnforcementMode = DPIAEnforcementMode.Block;
@@ -68,6 +74,9 @@ public static class ServiceCollectionExtensions
     ///     options.DPOEmail = "dpo@company.com";
     ///     options.DPOName = "Jane Doe";
     /// });
+    ///
+    /// // Register Marten aggregate repository and projection
+    /// services.AddDPIAAggregates();
     ///
     /// // With BlockWithoutDPIA alias
     /// services.AddEncinaDPIA(options =>
@@ -84,13 +93,6 @@ public static class ServiceCollectionExtensions
     ///     options.AutoRegisterFromAttributes = true;
     ///     options.AutoDetectHighRisk = true;
     ///     options.AssembliesToScan.Add(typeof(Program).Assembly);
-    /// });
-    ///
-    /// // With custom store (register before AddEncinaDPIA)
-    /// services.AddSingleton&lt;IDPIAStore, DatabaseDPIAStore&gt;();
-    /// services.AddEncinaDPIA(options =>
-    /// {
-    ///     options.EnforcementMode = DPIAEnforcementMode.Block;
     /// });
     /// </code>
     /// </example>
@@ -116,9 +118,10 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register event-sourced DPIA service (TryAdd allows custom override)
+        services.TryAddScoped<IDPIAService, DefaultDPIAService>();
+
         // Register default implementations (TryAdd allows override by provider packages)
-        services.TryAddSingleton<IDPIAStore, InMemoryDPIAStore>();
-        services.TryAddSingleton<IDPIAAuditStore, InMemoryDPIAAuditStore>();
         services.TryAddSingleton<IDPIATemplateProvider, DefaultDPIATemplateProvider>();
         services.TryAddScoped<IDPIAAssessmentEngine, DefaultDPIAAssessmentEngine>();
 

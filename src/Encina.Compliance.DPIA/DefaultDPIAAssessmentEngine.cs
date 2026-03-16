@@ -13,7 +13,7 @@ namespace Encina.Compliance.DPIA;
 
 /// <summary>
 /// Default implementation of <see cref="IDPIAAssessmentEngine"/> that orchestrates risk criteria
-/// evaluation, template-based mitigation generation, and DPO consultation lifecycle.
+/// evaluation, template-based mitigation generation, and overall risk aggregation.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,12 +36,14 @@ namespace Encina.Compliance.DPIA;
 /// Individual criterion failures are isolated: if a criterion throws an exception, the engine
 /// logs a warning and continues evaluating the remaining criteria, ensuring robustness.
 /// </para>
+/// <para>
+/// This engine is a pure risk-evaluation component with no persistence dependencies.
+/// DPO consultation lifecycle and audit trails are managed by <see cref="Abstractions.IDPIAService"/>.
+/// </para>
 /// </remarks>
 public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
 {
     private readonly List<IRiskCriterion> _criteria;
-    private readonly IDPIAStore _store;
-    private readonly IDPIAAuditStore _auditStore;
     private readonly IDPIATemplateProvider _templateProvider;
     private readonly DPIAOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -52,8 +54,6 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
     /// Initializes a new instance of the <see cref="DefaultDPIAAssessmentEngine"/> class.
     /// </summary>
     /// <param name="criteria">The risk criteria to evaluate during assessment.</param>
-    /// <param name="store">The DPIA assessment persistence store.</param>
-    /// <param name="auditStore">The audit trail store for recording DPIA operations.</param>
     /// <param name="templateProvider">The template provider for generating assessment structures.</param>
     /// <param name="options">Configuration options for the DPIA module.</param>
     /// <param name="timeProvider">The time provider for deterministic timestamp generation.</param>
@@ -65,8 +65,6 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
     /// </param>
     public DefaultDPIAAssessmentEngine(
         IEnumerable<IRiskCriterion> criteria,
-        IDPIAStore store,
-        IDPIAAuditStore auditStore,
         IDPIATemplateProvider templateProvider,
         IOptions<DPIAOptions> options,
         TimeProvider timeProvider,
@@ -74,16 +72,12 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
         IDataProtectionOfficer? dpo = null)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        ArgumentNullException.ThrowIfNull(store);
-        ArgumentNullException.ThrowIfNull(auditStore);
         ArgumentNullException.ThrowIfNull(templateProvider);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _criteria = criteria.ToList();
-        _store = store;
-        _auditStore = auditStore;
         _templateProvider = templateProvider;
         _options = options.Value;
         _timeProvider = timeProvider;
@@ -168,16 +162,6 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
             DPIADiagnostics.AssessmentDuration.Record(elapsedMs, tags);
             DPIADiagnostics.RecordAssessmentCompleted(activity, overallRisk.ToString());
 
-            // 8. Record audit trail for the assessment completion.
-            if (_options.TrackAuditTrail)
-            {
-                await RecordAssessmentAuditAsync(
-                    requestTypeName,
-                    result,
-                    nowUtc,
-                    cancellationToken);
-            }
-
             return result;
         }
         catch (Exception ex)
@@ -199,34 +183,6 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
         var attribute = Attribute.GetCustomAttribute(requestType, typeof(RequiresDPIAAttribute));
 
         return ValueTask.FromResult<Either<EncinaError, bool>>(attribute is not null);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<Either<EncinaError, DPOConsultation>> RequestDPOConsultationAsync(
-        Guid assessmentId,
-        CancellationToken cancellationToken = default)
-    {
-        using var activity = DPIADiagnostics.StartDPOConsultation(assessmentId);
-        _logger.DPOConsultationStarted(assessmentId);
-        DPIADiagnostics.DPOConsultationTotal.Add(1);
-
-        // 1. Validate DPO configuration — try options first, then GDPR module fallback.
-        var (dpoName, dpoEmail) = ResolveDPOContact();
-        if (string.IsNullOrWhiteSpace(dpoEmail))
-        {
-            _logger.DPOConsultationNoDPO(assessmentId);
-            return DPIAErrors.DPOConsultationRequired(assessmentId);
-        }
-
-        // 2. Load the assessment from the store.
-        var assessmentResult = await _store.GetAssessmentByIdAsync(assessmentId, cancellationToken);
-
-        return await assessmentResult.Match(
-            Right: assessmentOption => CreateConsultationAsync(
-                assessmentOption.IsSome ? (DPIAAssessment?)assessmentOption.Case : null,
-                assessmentId,
-                cancellationToken),
-            Left: error => ValueTask.FromResult<Either<EncinaError, DPOConsultation>>(error));
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────
@@ -293,112 +249,11 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
         return mitigations;
     }
 
-    private async ValueTask<Either<EncinaError, DPOConsultation>> CreateConsultationAsync(
-        DPIAAssessment? assessment,
-        Guid assessmentId,
-        CancellationToken cancellationToken)
-    {
-        if (assessment is null)
-        {
-            return DPIAErrors.DPOConsultationRequired(assessmentId);
-        }
-
-        var nowUtc = _timeProvider.GetUtcNow();
-        var (dpoName, dpoEmail) = ResolveDPOContact();
-
-        var consultation = new DPOConsultation
-        {
-            Id = Guid.NewGuid(),
-            DPOName = dpoName ?? "Data Protection Officer",
-            DPOEmail = dpoEmail!,
-            RequestedAtUtc = nowUtc,
-            Decision = DPOConsultationDecision.Pending,
-        };
-
-        // DPIAAssessment is immutable (sealed record with init properties);
-        // create an updated copy with the consultation attached.
-        var updatedAssessment = assessment with { DPOConsultation = consultation };
-
-        var saveResult = await _store.SaveAssessmentAsync(updatedAssessment, cancellationToken);
-
-        return await saveResult.Match(
-            Right: _ => RecordConsultationAuditAsync(consultation, assessmentId, nowUtc, cancellationToken),
-            Left: error => ValueTask.FromResult<Either<EncinaError, DPOConsultation>>(error));
-    }
-
-    private async ValueTask<Either<EncinaError, DPOConsultation>> RecordConsultationAuditAsync(
-        DPOConsultation consultation,
-        Guid assessmentId,
-        DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        if (_options.TrackAuditTrail)
-        {
-            var auditEntry = new DPIAAuditEntry
-            {
-                Id = Guid.NewGuid(),
-                AssessmentId = assessmentId,
-                Action = "DPOConsultationRequested",
-                PerformedBy = "System",
-                OccurredAtUtc = nowUtc,
-                Details = $"DPO consultation requested. DPO: {consultation.DPOEmail}.",
-            };
-
-            try
-            {
-                await _auditStore.RecordAuditEntryAsync(auditEntry, cancellationToken);
-                _logger.AuditEntryRecorded(assessmentId, "DPOConsultationRequested", "System");
-            }
-            catch (Exception ex)
-            {
-                _logger.AuditEntryFailed(assessmentId, "DPOConsultationRequested", ex);
-            }
-        }
-
-        _logger.DPOConsultationCreated(assessmentId, consultation.Id, consultation.DPOEmail);
-
-        return consultation;
-    }
-
-    /// <summary>
-    /// Records an audit entry when a risk assessment completes.
-    /// </summary>
-    private async ValueTask RecordAssessmentAuditAsync(
-        string requestTypeName,
-        DPIAResult result,
-        DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        var auditEntry = new DPIAAuditEntry
-        {
-            Id = Guid.NewGuid(),
-            AssessmentId = Guid.Empty, // Assessment ID is not yet known at this point
-            Action = "AssessmentCompleted",
-            PerformedBy = "System",
-            OccurredAtUtc = nowUtc,
-            Details = $"Risk assessment completed for '{requestTypeName}'. "
-                + $"OverallRisk={result.OverallRisk}, "
-                + $"Risks={result.IdentifiedRisks.Count}, "
-                + $"Mitigations={result.ProposedMitigations.Count}, "
-                + $"RequiresPriorConsultation={result.RequiresPriorConsultation}.",
-        };
-
-        try
-        {
-            await _auditStore.RecordAuditEntryAsync(auditEntry, cancellationToken);
-            _logger.AuditEntryRecorded(Guid.Empty, "AssessmentCompleted", "System");
-        }
-        catch (Exception ex)
-        {
-            _logger.AuditEntryFailed(Guid.Empty, "AssessmentCompleted", ex);
-        }
-    }
-
     /// <summary>
     /// Resolves DPO contact information from options or the GDPR module as a fallback.
     /// </summary>
     /// <returns>A tuple of (name, email) for the DPO.</returns>
-    private (string? Name, string? Email) ResolveDPOContact()
+    internal (string? Name, string? Email) ResolveDPOContact()
     {
         // 1. Options take priority — explicit configuration always wins.
         if (!string.IsNullOrWhiteSpace(_options.DPOEmail))

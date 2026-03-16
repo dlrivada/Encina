@@ -1,7 +1,9 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Encina.Compliance.DPIA;
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
+using Encina.Compliance.DPIA.ReadModels;
 
 using FluentAssertions;
 
@@ -26,7 +28,7 @@ public class DPIARequiredPipelineBehaviorTests
 {
     private static readonly DateTimeOffset FixedNow = new(2026, 3, 1, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly IDPIAStore _store = Substitute.For<IDPIAStore>();
+    private readonly IDPIAService _service = Substitute.For<IDPIAService>();
     private readonly FakeTimeProvider _timeProvider = new(FixedNow);
     private readonly IRequestContext _context = Substitute.For<IRequestContext>();
 
@@ -36,7 +38,7 @@ public class DPIARequiredPipelineBehaviorTests
         var opts = Options.Create(options ?? new DPIAOptions());
         var logger = NullLogger<DPIARequiredPipelineBehavior<TestCommandWithDPIA, string>>.Instance;
         return new DPIARequiredPipelineBehavior<TestCommandWithDPIA, string>(
-            _store, opts, _timeProvider, logger);
+            _service, opts, _timeProvider, logger);
     }
 
     private DPIARequiredPipelineBehavior<TestCommandWithoutDPIA, string> CreateSutWithoutAttribute(
@@ -45,7 +47,7 @@ public class DPIARequiredPipelineBehaviorTests
         var opts = Options.Create(options ?? new DPIAOptions());
         var logger = NullLogger<DPIARequiredPipelineBehavior<TestCommandWithoutDPIA, string>>.Instance;
         return new DPIARequiredPipelineBehavior<TestCommandWithoutDPIA, string>(
-            _store, opts, _timeProvider, logger);
+            _service, opts, _timeProvider, logger);
     }
 
     private static RequestHandlerCallback<string> SuccessNext()
@@ -54,14 +56,13 @@ public class DPIARequiredPipelineBehaviorTests
     private static RequestHandlerCallback<string> FailNext()
         => () => throw new InvalidOperationException("nextStep should not be called");
 
-    private static DPIAAssessment CreateApprovedAssessment(
+    private static DPIAReadModel CreateReadModel(
+        DPIAAssessmentStatus status = DPIAAssessmentStatus.Approved,
         DateTimeOffset? nextReviewAtUtc = null) => new()
         {
             Id = Guid.NewGuid(),
             RequestTypeName = typeof(TestCommandWithDPIA).FullName!,
-            Status = DPIAAssessmentStatus.Approved,
-            CreatedAtUtc = FixedNow.AddDays(-30),
-            ApprovedAtUtc = FixedNow.AddDays(-5),
+            Status = status,
             NextReviewAtUtc = nextReviewAtUtc,
         };
 
@@ -77,7 +78,7 @@ public class DPIARequiredPipelineBehaviorTests
 
         result.IsRight.Should().BeTrue();
         ((string)result).Should().Be("handler-result");
-        await _store.DidNotReceive().GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _service.DidNotReceive().GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -94,7 +95,7 @@ public class DPIARequiredPipelineBehaviorTests
 
         result.IsRight.Should().BeTrue();
         ((string)result).Should().Be("handler-result");
-        await _store.DidNotReceive().GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _service.DidNotReceive().GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -105,8 +106,8 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_NoAssessment_ReturnsError()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(None));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, DPIAReadModel>(DPIAErrors.AssessmentNotFoundByRequestType(typeof(TestCommandWithDPIA).FullName!)));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
@@ -128,9 +129,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_NotApproved_ReturnsError(DPIAAssessmentStatus status)
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        var assessment = CreateApprovedAssessment() with { Status = status };
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(status: status);
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
@@ -142,9 +143,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_Rejected_ReturnsRejectedError()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        var assessment = CreateApprovedAssessment() with { Status = DPIAAssessmentStatus.Rejected };
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(status: DPIAAssessmentStatus.Rejected);
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
@@ -162,9 +163,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_ExpiredReview_ReturnsError()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        var assessment = CreateApprovedAssessment(nextReviewAtUtc: FixedNow.AddDays(-1));
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(nextReviewAtUtc: FixedNow.AddDays(-1));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
@@ -178,9 +179,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_ExactReviewDate_ReturnsError()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        var assessment = CreateApprovedAssessment(nextReviewAtUtc: FixedNow);
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(nextReviewAtUtc: FixedNow);
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
@@ -198,9 +199,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_ValidAssessment_CallsNext()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        var assessment = CreateApprovedAssessment(nextReviewAtUtc: FixedNow.AddDays(30));
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(nextReviewAtUtc: FixedNow.AddDays(30));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -213,9 +214,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_NoReviewDate_CallsNext()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        var assessment = CreateApprovedAssessment(nextReviewAtUtc: null);
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(nextReviewAtUtc: null);
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -231,8 +232,8 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_WarnMode_NoAssessment_WarnsAndCallsNext()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Warn });
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(None));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, DPIAReadModel>(DPIAErrors.AssessmentNotFoundByRequestType(typeof(TestCommandWithDPIA).FullName!)));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -245,9 +246,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_WarnMode_NotApproved_WarnsAndCallsNext()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Warn });
-        var assessment = CreateApprovedAssessment() with { Status = DPIAAssessmentStatus.Draft };
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(status: DPIAAssessmentStatus.Draft);
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -259,9 +260,9 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_WarnMode_Expired_WarnsAndCallsNext()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Warn });
-        var assessment = CreateApprovedAssessment(nextReviewAtUtc: FixedNow.AddDays(-1));
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(nextReviewAtUtc: FixedNow.AddDays(-1));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -278,8 +279,8 @@ public class DPIARequiredPipelineBehaviorTests
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
         var storeError = EncinaErrors.Create("DPIA_STORE_ERROR", "Store failed");
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Option<DPIAAssessment>>(storeError));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, DPIAReadModel>(storeError));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
@@ -292,8 +293,8 @@ public class DPIARequiredPipelineBehaviorTests
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Warn });
         var storeError = EncinaErrors.Create("DPIA_STORE_ERROR", "Store failed");
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Option<DPIAAssessment>>(storeError));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, DPIAReadModel>(storeError));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -309,7 +310,7 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_BlockMode_StoreThrows_ReturnsStoreError()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Throws(new InvalidOperationException("Database down"));
 
         var result = await sut.Handle(
@@ -324,7 +325,7 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_WarnMode_StoreThrows_WarnsAndCallsNext()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Warn });
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Throws(new InvalidOperationException("Database down"));
 
         var result = await sut.Handle(
@@ -342,9 +343,9 @@ public class DPIARequiredPipelineBehaviorTests
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
         _context.TenantId.Returns("tenant-123");
-        var assessment = CreateApprovedAssessment(nextReviewAtUtc: FixedNow.AddDays(30));
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(nextReviewAtUtc: FixedNow.AddDays(30));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -361,8 +362,8 @@ public class DPIARequiredPipelineBehaviorTests
     {
         // Default DPIAOptions has EnforcementMode = Warn
         var sut = CreateSut();
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(None));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, DPIAReadModel>(DPIAErrors.AssessmentNotFoundByRequestType(typeof(TestCommandWithDPIA).FullName!)));
 
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
@@ -379,14 +380,14 @@ public class DPIARequiredPipelineBehaviorTests
     public async Task Handle_UsesFullTypeName_ForStoreQuery()
     {
         var sut = CreateSut(new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block });
-        var assessment = CreateApprovedAssessment(nextReviewAtUtc: FixedNow.AddDays(30));
-        _store.GetAssessmentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment)));
+        var readModel = CreateReadModel(nextReviewAtUtc: FixedNow.AddDays(30));
+        _service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, DPIAReadModel>(readModel));
 
         await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        await _store.Received(1).GetAssessmentAsync(
+        await _service.Received(1).GetAssessmentByRequestTypeAsync(
             typeof(TestCommandWithDPIA).FullName!, Arg.Any<CancellationToken>());
     }
 

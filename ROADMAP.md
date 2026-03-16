@@ -217,6 +217,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
   - ✅ Data Subject Rights [#778](https://github.com/dlrivada/Encina/issues/778) — Migrated to Marten event sourcing
   - ✅ Lawful Basis [#779](https://github.com/dlrivada/Encina/issues/779) — Extracted to `Encina.Compliance.LawfulBasis` + migrated to Marten event sourcing
   - ✅ Breach Notification [#780](https://github.com/dlrivada/Encina/issues/780) — Migrated to Marten event sourcing
+  - ✅ DPIA [#781](https://github.com/dlrivada/Encina/issues/781) — Migrated to Marten event sourcing
 - NIS2 Directive compliance
 - AI Act compliance
 

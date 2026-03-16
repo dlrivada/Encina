@@ -1,7 +1,8 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Encina.Compliance.DPIA;
-using Encina.Compliance.DPIA.Model;
+using Encina.Compliance.DPIA.Abstractions;
+using Encina.Compliance.DPIA.ReadModels;
 
 using FluentAssertions;
 
@@ -26,8 +27,8 @@ public class DPIAReviewReminderServiceTests
     public async Task ExecuteAsync_MonitoringDisabled_ReturnsImmediately()
     {
         var options = new DPIAOptions { EnableExpirationMonitoring = false };
-        var store = Substitute.For<IDPIAStore>();
-        var scopeFactory = CreateScopeFactory(store);
+        var service = Substitute.For<IDPIAService>();
+        var scopeFactory = CreateScopeFactory(service);
 
         var sut = new DPIAReviewReminderService(
             scopeFactory,
@@ -42,8 +43,8 @@ public class DPIAReviewReminderServiceTests
         await Task.Delay(100, CancellationToken.None);
         await sut.StopAsync(CancellationToken.None);
 
-        await store.DidNotReceive().GetExpiredAssessmentsAsync(
-            Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await service.DidNotReceive().GetExpiredAssessmentsAsync(
+            Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -60,12 +61,13 @@ public class DPIAReviewReminderServiceTests
             PublishNotifications = false
         };
 
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        var service = Substitute.For<IDPIAService>();
+        service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(
-                Prelude.Right<EncinaError, IReadOnlyList<DPIAAssessment>>([])));
+                Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    Array.Empty<DPIAReadModel>() as IReadOnlyList<DPIAReadModel>)));
 
-        var scopeFactory = CreateScopeFactory(store);
+        var scopeFactory = CreateScopeFactory(service);
 
         var sut = new DPIAReviewReminderService(
             scopeFactory,
@@ -78,8 +80,8 @@ public class DPIAReviewReminderServiceTests
         await Task.Delay(200, CancellationToken.None);
         await sut.StopAsync(CancellationToken.None);
 
-        await store.Received(1).GetExpiredAssessmentsAsync(
-            Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await service.Received(1).GetExpiredAssessmentsAsync(
+            Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -96,12 +98,12 @@ public class DPIAReviewReminderServiceTests
             PublishNotifications = false
         };
 
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, IReadOnlyList<DPIAAssessment>>>(
+        var service = Substitute.For<IDPIAService>();
+        service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, IReadOnlyList<DPIAReadModel>>>(
                 EncinaError.New("Store error")));
 
-        var scopeFactory = CreateScopeFactory(store);
+        var scopeFactory = CreateScopeFactory(service);
 
         var sut = new DPIAReviewReminderService(
             scopeFactory,
@@ -127,12 +129,12 @@ public class DPIAReviewReminderServiceTests
             PublishNotifications = false
         };
 
-        var store = Substitute.For<IDPIAStore>();
-        store.GetExpiredAssessmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns<ValueTask<Either<EncinaError, IReadOnlyList<DPIAAssessment>>>>(_ =>
+        var service = Substitute.For<IDPIAService>();
+        service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, IReadOnlyList<DPIAReadModel>>>>(_ =>
                 throw new InvalidOperationException("Connection failed"));
 
-        var scopeFactory = CreateScopeFactory(store);
+        var scopeFactory = CreateScopeFactory(service);
 
         var sut = new DPIAReviewReminderService(
             scopeFactory,
@@ -196,10 +198,10 @@ public class DPIAReviewReminderServiceTests
 
     #region Helpers
 
-    private static IServiceScopeFactory CreateScopeFactory(IDPIAStore store)
+    private static IServiceScopeFactory CreateScopeFactory(IDPIAService service)
     {
         var services = new ServiceCollection();
-        services.AddSingleton(store);
+        services.AddSingleton(service);
         services.AddSingleton(TimeProvider.System);
 
         var provider = services.BuildServiceProvider();

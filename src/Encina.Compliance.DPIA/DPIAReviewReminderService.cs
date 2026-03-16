@@ -1,7 +1,9 @@
 using System.Diagnostics;
 
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
+using Encina.Compliance.DPIA.ReadModels;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -90,14 +92,14 @@ internal sealed class DPIAReviewReminderService : BackgroundService
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
 
-            var store = scope.ServiceProvider.GetRequiredService<IDPIAStore>();
+            var service = scope.ServiceProvider.GetRequiredService<IDPIAService>();
             var timeProvider = scope.ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
             var nowUtc = timeProvider.GetUtcNow();
 
             _logger.ReviewReminderCycleStarting();
 
-            var expiredResult = await store
-                .GetExpiredAssessmentsAsync(nowUtc, cancellationToken)
+            var expiredResult = await service
+                .GetExpiredAssessmentsAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             expiredResult.Match(
@@ -161,7 +163,7 @@ internal sealed class DPIAReviewReminderService : BackgroundService
     }
 
     private async Task PublishExpiredNotificationsAsync(
-        IReadOnlyList<DPIAAssessment> expiredAssessments,
+        IReadOnlyList<DPIAReadModel> expiredAssessments,
         DateTimeOffset nowUtc,
         IServiceProvider scopedProvider,
         CancellationToken cancellationToken)

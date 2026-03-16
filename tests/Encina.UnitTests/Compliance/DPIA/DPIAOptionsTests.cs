@@ -39,14 +39,6 @@ public class DPIAOptionsTests
     }
 
     [Fact]
-    public void Defaults_TrackAuditTrail_IsTrue()
-    {
-        var options = new DPIAOptions();
-
-        options.TrackAuditTrail.Should().BeTrue();
-    }
-
-    [Fact]
     public void Defaults_EnableExpirationMonitoring_IsFalse()
     {
         var options = new DPIAOptions();

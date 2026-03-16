@@ -26,11 +26,9 @@ public class DefaultDPIAAssessmentEngineTests
 {
     private static readonly DateTimeOffset FixedNow = new(2026, 3, 1, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly IDPIAStore _store = Substitute.For<IDPIAStore>();
-    private readonly IDPIAAuditStore _auditStore = Substitute.For<IDPIAAuditStore>();
     private readonly IDPIATemplateProvider _templateProvider = Substitute.For<IDPIATemplateProvider>();
     private readonly FakeTimeProvider _timeProvider = new(FixedNow);
-    private readonly DPIAOptions _options = new() { TrackAuditTrail = false };
+    private readonly DPIAOptions _options = new();
 
     private DefaultDPIAAssessmentEngine CreateSut(
         IEnumerable<IRiskCriterion>? criteria = null,
@@ -38,8 +36,6 @@ public class DefaultDPIAAssessmentEngineTests
     {
         return new DefaultDPIAAssessmentEngine(
             criteria ?? [],
-            _store,
-            _auditStore,
             _templateProvider,
             Options.Create(_options),
             _timeProvider,
@@ -268,35 +264,6 @@ public class DefaultDPIAAssessmentEngineTests
         dpiaResult.AssessedAtUtc.Should().Be(FixedNow);
     }
 
-    [Fact]
-    public async Task AssessAsync_WithAuditTrailEnabled_RecordsAuditEntry()
-    {
-        _options.TrackAuditTrail = true;
-        _auditStore.RecordAuditEntryAsync(Arg.Any<DPIAAuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(unit));
-
-        var sut = CreateSut();
-        var context = CreateContext();
-
-        await sut.AssessAsync(context);
-
-        await _auditStore.Received(1).RecordAuditEntryAsync(
-            Arg.Any<DPIAAuditEntry>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task AssessAsync_WithAuditTrailDisabled_DoesNotRecordAuditEntry()
-    {
-        _options.TrackAuditTrail = false;
-        var sut = CreateSut();
-        var context = CreateContext();
-
-        await sut.AssessAsync(context);
-
-        await _auditStore.DidNotReceive().RecordAuditEntryAsync(
-            Arg.Any<DPIAAuditEntry>(), Arg.Any<CancellationToken>());
-    }
-
     #endregion
 
     #region RequiresDPIAAsync Tests
@@ -331,153 +298,6 @@ public class DefaultDPIAAssessmentEngineTests
 
         result.IsRight.Should().BeTrue();
         ((bool)result).Should().BeFalse();
-    }
-
-    #endregion
-
-    #region RequestDPOConsultationAsync Tests
-
-    [Fact]
-    public async Task RequestDPOConsultationAsync_NoDPOConfigured_ReturnsError()
-    {
-        var sut = CreateSut();
-
-        var result = await sut.RequestDPOConsultationAsync(Guid.NewGuid());
-
-        result.IsLeft.Should().BeTrue();
-        var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(DPIAErrors.DPOConsultationRequiredCode);
-    }
-
-    [Fact]
-    public async Task RequestDPOConsultationAsync_WithDPOEmail_LoadsAssessment()
-    {
-        _options.DPOEmail = "dpo@test.com";
-        _options.DPOName = "Test DPO";
-
-        var assessmentId = Guid.NewGuid();
-        var assessment = new DPIAAssessment
-        {
-            Id = assessmentId,
-            RequestTypeName = "Ns.TestCommand",
-            Status = DPIAAssessmentStatus.InReview,
-            CreatedAtUtc = FixedNow,
-        };
-
-        _store.GetAssessmentByIdAsync(assessmentId, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment))));
-        _store.SaveAssessmentAsync(Arg.Any<DPIAAssessment>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(unit));
-        _auditStore.RecordAuditEntryAsync(Arg.Any<DPIAAuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(unit));
-
-        var sut = CreateSut();
-
-        var result = await sut.RequestDPOConsultationAsync(assessmentId);
-
-        result.IsRight.Should().BeTrue();
-        var consultation = (DPOConsultation)result;
-        consultation.DPOEmail.Should().Be("dpo@test.com");
-        consultation.DPOName.Should().Be("Test DPO");
-        consultation.Decision.Should().Be(DPOConsultationDecision.Pending);
-    }
-
-    [Fact]
-    public async Task RequestDPOConsultationAsync_WithGDPRDPOFallback_UsesDPOFromGDPRModule()
-    {
-        var dpo = Substitute.For<IDataProtectionOfficer>();
-        dpo.Name.Returns("GDPR DPO");
-        dpo.Email.Returns("gdpr-dpo@test.com");
-
-        var assessmentId = Guid.NewGuid();
-        var assessment = new DPIAAssessment
-        {
-            Id = assessmentId,
-            RequestTypeName = "Ns.TestCommand",
-            Status = DPIAAssessmentStatus.InReview,
-            CreatedAtUtc = FixedNow,
-        };
-
-        _store.GetAssessmentByIdAsync(assessmentId, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment))));
-        _store.SaveAssessmentAsync(Arg.Any<DPIAAssessment>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(unit));
-        _auditStore.RecordAuditEntryAsync(Arg.Any<DPIAAuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(unit));
-
-        var sut = CreateSut(dpo: dpo);
-
-        var result = await sut.RequestDPOConsultationAsync(assessmentId);
-
-        result.IsRight.Should().BeTrue();
-        var consultation = (DPOConsultation)result;
-        consultation.DPOEmail.Should().Be("gdpr-dpo@test.com");
-    }
-
-    [Fact]
-    public async Task RequestDPOConsultationAsync_AssessmentNotFound_ReturnsError()
-    {
-        _options.DPOEmail = "dpo@test.com";
-
-        _store.GetAssessmentByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(Right<EncinaError, Option<DPIAAssessment>>(None)));
-
-        var sut = CreateSut();
-
-        var result = await sut.RequestDPOConsultationAsync(Guid.NewGuid());
-
-        result.IsLeft.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task RequestDPOConsultationAsync_StoreReturnsError_PropagatesError()
-    {
-        _options.DPOEmail = "dpo@test.com";
-
-        var storeError = DPIAErrors.StoreError("GetAssessmentById", "Database error");
-        _store.GetAssessmentByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(Left<EncinaError, Option<DPIAAssessment>>(storeError)));
-
-        var sut = CreateSut();
-
-        var result = await sut.RequestDPOConsultationAsync(Guid.NewGuid());
-
-        result.IsLeft.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task RequestDPOConsultationAsync_DPOEmailInOptionsTakesPriority()
-    {
-        _options.DPOEmail = "options-dpo@test.com";
-        _options.DPOName = "Options DPO";
-
-        var dpo = Substitute.For<IDataProtectionOfficer>();
-        dpo.Name.Returns("GDPR DPO");
-        dpo.Email.Returns("gdpr-dpo@test.com");
-
-        var assessmentId = Guid.NewGuid();
-        var assessment = new DPIAAssessment
-        {
-            Id = assessmentId,
-            RequestTypeName = "Ns.TestCommand",
-            Status = DPIAAssessmentStatus.InReview,
-            CreatedAtUtc = FixedNow,
-        };
-
-        _store.GetAssessmentByIdAsync(assessmentId, Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(Right<EncinaError, Option<DPIAAssessment>>(Some(assessment))));
-        _store.SaveAssessmentAsync(Arg.Any<DPIAAssessment>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(unit));
-        _auditStore.RecordAuditEntryAsync(Arg.Any<DPIAAuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(unit));
-
-        var sut = CreateSut(dpo: dpo);
-
-        var result = await sut.RequestDPOConsultationAsync(assessmentId);
-
-        result.IsRight.Should().BeTrue();
-        var consultation = (DPOConsultation)result;
-        consultation.DPOEmail.Should().Be("options-dpo@test.com");
     }
 
     #endregion

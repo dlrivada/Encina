@@ -158,19 +158,6 @@ public sealed class EncinaMongoDbOptions
     public bool UseProcessorAgreements { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether to use the DPIA (Data Protection Impact Assessment) stores.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// When enabled, registers <see cref="Compliance.DPIA.IDPIAStore"/>
-    /// and <see cref="Compliance.DPIA.IDPIAAuditStore"/>
-    /// implemented by their MongoDB store classes for GDPR Article 35 compliant
-    /// data protection impact assessment management and audit trail.
-    /// </para>
-    /// </remarks>
-    public bool UseDPIA { get; set; }
-
-    /// <summary>
     /// Gets or sets a value indicating whether to use the ABAC Policy Store.
     /// </summary>
     /// <remarks>

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 
+using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
 
@@ -18,8 +19,8 @@ namespace Encina.Compliance.DPIA;
 /// <remarks>
 /// <para>
 /// This service scans the configured assemblies for request types decorated with
-/// <see cref="RequiresDPIAAttribute"/> and creates draft <see cref="DPIAAssessment"/> records
-/// in the <see cref="IDPIAStore"/> for any types that do not already have an assessment.
+/// <see cref="RequiresDPIAAttribute"/> and creates draft assessments via
+/// <see cref="IDPIAService"/> for any types that do not already have an assessment.
 /// </para>
 /// <para>
 /// When <see cref="DPIAOptions.AutoDetectHighRisk"/> is enabled, the service additionally uses
@@ -34,32 +35,28 @@ namespace Encina.Compliance.DPIA;
 /// </remarks>
 internal sealed class DPIAAutoRegistrationHostedService : IHostedService
 {
-    private readonly IDPIAStore _store;
+    private readonly IDPIAService _service;
     private readonly DPIAOptions _options;
     private readonly DPIAAutoRegistrationDescriptor _descriptor;
-    private readonly TimeProvider _timeProvider;
     private readonly ILogger<DPIAAutoRegistrationHostedService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DPIAAutoRegistrationHostedService"/> class.
     /// </summary>
     public DPIAAutoRegistrationHostedService(
-        IDPIAStore store,
+        IDPIAService service,
         IOptions<DPIAOptions> options,
         DPIAAutoRegistrationDescriptor descriptor,
-        TimeProvider timeProvider,
         ILogger<DPIAAutoRegistrationHostedService> logger)
     {
-        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(service);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(descriptor);
-        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _store = store;
+        _service = service;
         _options = options.Value;
         _descriptor = descriptor;
-        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -128,22 +125,17 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
             }
         }
 
-        // Step 3: Create draft assessments for discovered types
-        var nowUtc = _timeProvider.GetUtcNow();
-        var reviewAtUtc = nowUtc.Add(_options.DefaultReviewPeriod);
-
+        // Step 3: Create draft assessments for discovered types via IDPIAService
         foreach (var (fullTypeName, type) in discoveredTypes)
         {
             try
             {
                 // Check if an assessment already exists
-                var existingResult = await _store
-                    .GetAssessmentAsync(fullTypeName, cancellationToken)
+                var existingResult = await _service
+                    .GetAssessmentByRequestTypeAsync(fullTypeName, cancellationToken)
                     .ConfigureAwait(false);
 
-                var exists = existingResult.Match(
-                    Right: assessmentOption => assessmentOption.IsSome,
-                    Left: _ => false);
+                var exists = existingResult.IsRight;
 
                 if (exists)
                 {
@@ -152,28 +144,33 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
                     continue;
                 }
 
-                // Create a draft assessment
-                var attribute = type.GetCustomAttribute<RequiresDPIAAttribute>();
-                var assessmentId = Guid.NewGuid();
+                // If error is not "not found", it's a real error — skip this type
+                var isNotFound = existingResult.Match(
+                    Right: _ => false,
+                    Left: error => error.GetCode().Match(
+                        Some: code => code == DPIAErrors.AssessmentNotFoundCode,
+                        None: () => false));
 
-                var assessment = new DPIAAssessment
+                if (!isNotFound)
                 {
-                    Id = assessmentId,
-                    RequestTypeName = fullTypeName,
-                    RequestType = type,
-                    Status = DPIAAssessmentStatus.Draft,
-                    ProcessingType = attribute?.ProcessingType,
-                    Reason = attribute?.Reason ?? "Auto-registered at startup.",
-                    CreatedAtUtc = nowUtc,
-                    NextReviewAtUtc = reviewAtUtc,
-                };
+                    _logger.AutoRegistrationFailed(fullTypeName,
+                        new InvalidOperationException("Failed to check existing assessment."));
+                    continue;
+                }
 
-                var saveResult = await _store
-                    .SaveAssessmentAsync(assessment, cancellationToken)
+                // Create a draft assessment via IDPIAService
+                var attribute = type.GetCustomAttribute<RequiresDPIAAttribute>();
+
+                var createResult = await _service
+                    .CreateAssessmentAsync(
+                        fullTypeName,
+                        attribute?.ProcessingType,
+                        attribute?.Reason ?? "Auto-registered at startup.",
+                        cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
-                saveResult.Match(
-                    Right: _ =>
+                createResult.Match(
+                    Right: assessmentId =>
                     {
                         _logger.AutoRegistrationDraftCreated(fullTypeName, assessmentId);
                         DPIADiagnostics.AutoRegistrationCount.Add(1, new TagList

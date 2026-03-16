@@ -676,20 +676,6 @@ public sealed class MessagingConfiguration
     public bool UseBreachNotification { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether to register DPIA (Data Protection Impact Assessment) stores.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// When enabled, registers <see cref="Compliance.DPIA.IDPIAStore"/>
-    /// and <see cref="Compliance.DPIA.IDPIAAuditStore"/>
-    /// with the provider-specific implementation for GDPR Article 35 compliant
-    /// data protection impact assessment management and audit trail.
-    /// </para>
-    /// </remarks>
-    /// <value>Default: false (opt-in)</value>
-    public bool UseDPIA { get; set; }
-
-    /// <summary>
     /// Gets or sets a value indicating whether to register Processor Agreement stores.
     /// </summary>
     /// <remarks>

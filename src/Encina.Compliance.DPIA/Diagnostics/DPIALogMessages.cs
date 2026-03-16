@@ -22,8 +22,8 @@ namespace Encina.Compliance.DPIA.Diagnostics;
 /// <item><term>8830-8839</term><description>Assessment engine</description></item>
 /// <item><term>8840-8849</term><description>Expiration monitoring</description></item>
 /// <item><term>8850-8859</term><description>Health check</description></item>
-/// <item><term>8860-8869</term><description>Audit trail</description></item>
-/// <item><term>8870-8879</term><description>Store operations</description></item>
+/// <item><term>8860-8869</term><description>Event sourcing</description></item>
+/// <item><term>8870-8879</term><description>Service operations</description></item>
 /// <item><term>8880-8889</term><description>DPO consultation</description></item>
 /// <item><term>8890-8899</term><description>ASP.NET Core endpoints</description></item>
 /// </list>
@@ -269,22 +269,96 @@ internal static partial class DPIALogMessages
     internal static partial void ReviewReminderAssessmentExpired(this ILogger logger, string requestType, Guid assessmentId, DateTimeOffset? nextReviewAtUtc);
 
     // ========================================================================
-    // Audit trail log messages (8860-8869)
+    // Event sourcing log messages (8860-8869)
     // ========================================================================
 
-    /// <summary>Audit trail entry recorded successfully.</summary>
+    /// <summary>Aggregate loaded from event store.</summary>
     [LoggerMessage(
         EventId = 8860,
         Level = LogLevel.Debug,
-        Message = "DPIA audit entry recorded. AssessmentId={AssessmentId}, Action={Action}, PerformedBy={PerformedBy}")]
-    internal static partial void AuditEntryRecorded(this ILogger logger, Guid assessmentId, string action, string? performedBy);
+        Message = "DPIA aggregate loaded from event store. AssessmentId={AssessmentId}, Version={Version}")]
+    internal static partial void AggregateLoaded(this ILogger logger, Guid assessmentId, long version);
 
-    /// <summary>Audit trail entry recording failed.</summary>
+    /// <summary>Aggregate events saved to event store.</summary>
     [LoggerMessage(
         EventId = 8861,
-        Level = LogLevel.Warning,
-        Message = "DPIA audit entry recording failed. AssessmentId={AssessmentId}, Action={Action}")]
-    internal static partial void AuditEntryFailed(this ILogger logger, Guid assessmentId, string action, Exception exception);
+        Level = LogLevel.Debug,
+        Message = "DPIA aggregate events saved. AssessmentId={AssessmentId}, EventCount={EventCount}")]
+    internal static partial void AggregateSaved(this ILogger logger, Guid assessmentId, int eventCount);
+
+    /// <summary>Event history retrieved for an assessment.</summary>
+    [LoggerMessage(
+        EventId = 8862,
+        Level = LogLevel.Debug,
+        Message = "DPIA event history retrieved. AssessmentId={AssessmentId}, EventCount={EventCount}")]
+    internal static partial void EventHistoryRetrieved(this ILogger logger, Guid assessmentId, int eventCount);
+
+    /// <summary>Read model cache invalidated for a request type.</summary>
+    [LoggerMessage(
+        EventId = 8863,
+        Level = LogLevel.Debug,
+        Message = "DPIA read model cache invalidated. RequestType={RequestType}")]
+    internal static partial void CacheInvalidated(this ILogger logger, string requestType);
+
+    // ========================================================================
+    // Service operation log messages (8870-8879)
+    // ========================================================================
+
+    /// <summary>Assessment created successfully via the DPIA service.</summary>
+    [LoggerMessage(
+        EventId = 8870,
+        Level = LogLevel.Information,
+        Message = "DPIA assessment created. AssessmentId={AssessmentId}, RequestType={RequestType}")]
+    internal static partial void AssessmentCreated(this ILogger logger, Guid assessmentId, string requestType);
+
+    /// <summary>Assessment evaluated successfully via the DPIA service.</summary>
+    [LoggerMessage(
+        EventId = 8871,
+        Level = LogLevel.Information,
+        Message = "DPIA assessment evaluated. AssessmentId={AssessmentId}, OverallRisk={OverallRisk}")]
+    internal static partial void AssessmentEvaluated(this ILogger logger, Guid assessmentId, string overallRisk);
+
+    /// <summary>Assessment approved via the DPIA service.</summary>
+    [LoggerMessage(
+        EventId = 8872,
+        Level = LogLevel.Information,
+        Message = "DPIA assessment approved. AssessmentId={AssessmentId}, ApprovedBy={ApprovedBy}")]
+    internal static partial void AssessmentApproved(this ILogger logger, Guid assessmentId, string approvedBy);
+
+    /// <summary>Assessment rejected via the DPIA service.</summary>
+    [LoggerMessage(
+        EventId = 8873,
+        Level = LogLevel.Information,
+        Message = "DPIA assessment rejected. AssessmentId={AssessmentId}, RejectedBy={RejectedBy}")]
+    internal static partial void AssessmentRejected(this ILogger logger, Guid assessmentId, string rejectedBy);
+
+    /// <summary>Assessment revision requested via the DPIA service.</summary>
+    [LoggerMessage(
+        EventId = 8874,
+        Level = LogLevel.Information,
+        Message = "DPIA assessment revision requested. AssessmentId={AssessmentId}, RequestedBy={RequestedBy}")]
+    internal static partial void AssessmentRevisionRequested(this ILogger logger, Guid assessmentId, string requestedBy);
+
+    /// <summary>Assessment expired via the DPIA service.</summary>
+    [LoggerMessage(
+        EventId = 8875,
+        Level = LogLevel.Information,
+        Message = "DPIA assessment expired. AssessmentId={AssessmentId}")]
+    internal static partial void AssessmentExpired(this ILogger logger, Guid assessmentId);
+
+    /// <summary>DPIA service store operation failed.</summary>
+    [LoggerMessage(
+        EventId = 8876,
+        Level = LogLevel.Error,
+        Message = "DPIA service operation failed. Operation={Operation}")]
+    internal static partial void ServiceOperationError(this ILogger logger, string operation, Exception exception);
+
+    /// <summary>DPO response recorded via the DPIA service.</summary>
+    [LoggerMessage(
+        EventId = 8877,
+        Level = LogLevel.Information,
+        Message = "DPO response recorded. AssessmentId={AssessmentId}, ConsultationId={ConsultationId}, Decision={Decision}")]
+    internal static partial void DPOResponseRecorded(this ILogger logger, Guid assessmentId, Guid consultationId, string decision);
 
     // ========================================================================
     // DPO consultation log messages (8880-8889)

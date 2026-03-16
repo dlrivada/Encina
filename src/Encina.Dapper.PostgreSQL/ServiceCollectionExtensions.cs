@@ -1,7 +1,6 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
-using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
@@ -106,12 +105,6 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreDapper>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreDapper>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreDapper>();
-        }
-
-        if (config.UseDPIA)
-        {
-            services.TryAddScoped<IDPIAStore, DPIA.DPIAStoreDapper>();
-            services.TryAddScoped<IDPIAAuditStore, DPIA.DPIAAuditStoreDapper>();
         }
 
         // Register Processor Agreements stores if enabled

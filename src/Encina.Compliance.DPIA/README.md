@@ -3,10 +3,13 @@
 [![NuGet](https://img.shields.io/nuget/v/Encina.Compliance.DPIA.svg)](https://www.nuget.org/packages/Encina.Compliance.DPIA/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-GDPR Data Protection Impact Assessment compliance for Encina. Provides risk assessment engine, DPO consultation workflow, pipeline-level DPIA enforcement, expiration monitoring, and immutable audit trail. Implements GDPR Articles 35 and 36.
+GDPR Data Protection Impact Assessment compliance for Encina. Uses **Marten event sourcing** for immutable audit trail and full assessment lifecycle management. Provides risk assessment engine, DPO consultation workflow, pipeline-level DPIA enforcement, and expiration monitoring. Implements GDPR Articles 35 and 36.
 
 ## Features
 
+- **Event-Sourced Aggregate** -- `DPIAAggregate` with full lifecycle: Create → Evaluate → DPO Consult → Approve/Reject/Revise → Expire
+- **CQRS Read Model** -- `DPIAReadModel` projected via `DPIAProjection` for efficient queries
+- **Unified Service Interface** -- `IDPIAService` with 8 write operations and 5 query operations
 - **Risk Assessment Engine** -- `IDPIAAssessmentEngine` evaluates processing activities against configurable risk criteria
 - **Six Built-In Risk Criteria** -- `SystematicProfilingCriterion`, `SpecialCategoryDataCriterion`, `SystematicMonitoringCriterion`, `AutomatedDecisionMakingCriterion`, `LargeScaleProcessingCriterion`, `VulnerableSubjectsCriterion`
 - **Pluggable Risk Criteria** -- `IRiskCriterion` interface for custom risk evaluation returning `RiskItem`
@@ -16,11 +19,11 @@ GDPR Data Protection Impact Assessment compliance for Encina. Provides risk asse
 - **Template System** -- `IDPIATemplateProvider` with pre-configured templates for common processing types
 - **Expiration Monitoring** -- `DPIAReviewReminderService` background service detects expired assessments
 - **Auto-Registration** -- Scans assemblies for `[RequiresDPIA]` attributes and creates draft assessments at startup
-- **Immutable Audit Trail** -- Every assessment operation recorded via `IDPIAAuditStore` per Article 5(2)
+- **Immutable Audit Trail** -- Event stream provides complete audit trail per Article 5(2) accountability
 - **Domain Notifications** -- `DPIAAssessmentCompleted`, `DPIAAssessmentExpired`, `DPOConsultationRequested`
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions
-- **Full Observability** -- OpenTelemetry tracing (5 activity types), 10 counters, 3 histograms, structured log events, health check
-- **13 Database Providers** -- ADO.NET, Dapper, EF Core (SQLite, SQL Server, PostgreSQL, MySQL) + MongoDB
+- **Full Observability** -- OpenTelemetry tracing (5 activity types), 17 counters, 3 histograms, structured log events, health check
+- **Marten Event Sourcing** -- PostgreSQL-backed event store with inline projections
 - **.NET 10 Compatible** -- Built with latest C# features
 
 ## Installation
@@ -43,10 +46,12 @@ services.AddEncinaDPIA(options =>
     options.DefaultReviewPeriod = TimeSpan.FromDays(365);
     options.DPOName = "Jane Smith";
     options.DPOEmail = "dpo@company.eu";
-    options.TrackAuditTrail = true;
     options.AddHealthCheck = true;
     options.AssembliesToScan.Add(typeof(Program).Assembly);
 });
+
+// Register Marten aggregate + projection
+services.AddDPIAAggregates();
 ```
 
 ### 2. Mark Requests Requiring DPIA
@@ -82,38 +87,41 @@ result.Match(
 ### 4. Request DPO Consultation
 
 ```csharp
+var service = serviceProvider.GetRequiredService<IDPIAService>();
+
 // Request DPO review when assessment identifies high risk (Art. 36)
-var consultation = await engine.RequestDPOConsultationAsync(assessmentId);
+var consultation = await service.RequestDPOConsultationAsync(assessmentId);
 
 consultation.Match(
-    Right: dpo => Console.WriteLine(
-        $"DPO consultation '{dpo.Id}' requested from {dpo.DPOName}"),
+    Right: consultationId => Console.WriteLine(
+        $"DPO consultation '{consultationId}' requested"),
     Left: error => Console.WriteLine($"Failed: {error.Message}"));
 ```
 
 ### 5. Query Assessments
 
 ```csharp
-var store = serviceProvider.GetRequiredService<IDPIAStore>();
+var service = serviceProvider.GetRequiredService<IDPIAService>();
 
 // Get assessment by request type
-var assessment = await store.GetAssessmentAsync("CreditScoreQuery");
+var assessment = await service.GetAssessmentByRequestTypeAsync("CreditScoreQuery");
 
 // Get all expired assessments
-var expired = await store.GetExpiredAssessmentsAsync(DateTimeOffset.UtcNow);
+var expired = await service.GetExpiredAssessmentsAsync();
 ```
 
-### 6. Review Audit Trail
+### 6. Review Event History (Audit Trail)
 
 ```csharp
-var auditStore = serviceProvider.GetRequiredService<IDPIAAuditStore>();
+var service = serviceProvider.GetRequiredService<IDPIAService>();
 
-var trail = await auditStore.GetAuditTrailAsync(assessmentId);
+// Event stream provides the full audit trail (Art. 5(2) accountability)
+var history = await service.GetAssessmentHistoryAsync(assessmentId);
 
-trail.Match(
-    Right: entries => entries.ToList().ForEach(e =>
-        Console.WriteLine($"[{e.OccurredAtUtc}] {e.Action} by {e.PerformedBy}")),
-    Left: error => Console.WriteLine($"Audit trail error: {error.Message}"));
+history.Match(
+    Right: events => events.ToList().ForEach(e =>
+        Console.WriteLine($"Event: {e.GetType().Name}")),
+    Left: error => Console.WriteLine($"History error: {error.Message}"));
 ```
 
 ## Custom Risk Criteria
@@ -158,7 +166,6 @@ public sealed class CrossBorderTransferCriterion : IRiskCriterion
 | `DPOName` | `string?` | `null` | Data Protection Officer name |
 | `DPOEmail` | `string?` | `null` | Data Protection Officer email |
 | `PublishNotifications` | `bool` | `true` | Publish domain notifications |
-| `TrackAuditTrail` | `bool` | `true` | Record audit entries per Art. 5(2) |
 | `EnableExpirationMonitoring` | `bool` | `false` | Enable background expiration monitoring service |
 | `ExpirationCheckInterval` | `TimeSpan` | `1 hour` | Interval between expiration monitoring checks |
 | `AutoRegisterFromAttributes` | `bool` | `true` | Auto-register draft assessments from `[RequiresDPIA]` at startup |
@@ -184,10 +191,6 @@ public sealed class CrossBorderTransferCriterion : IRiskCriterion
 Register custom implementations before `AddEncinaDPIA()` to override defaults (TryAdd semantics):
 
 ```csharp
-// Custom store implementations (e.g., database-backed)
-services.AddSingleton<IDPIAStore, DatabaseDPIAStore>();
-services.AddSingleton<IDPIAAuditStore, DatabaseDPIAAuditStore>();
-
 // Custom template provider
 services.AddSingleton<IDPIATemplateProvider, OrganizationTemplateProvider>();
 
@@ -195,36 +198,24 @@ services.AddEncinaDPIA(options =>
 {
     options.EnforcementMode = DPIAEnforcementMode.Block;
 });
+
+// Register Marten aggregate + projection (required)
+services.AddDPIAAggregates();
 ```
 
-## Database Providers
+## Persistence
 
-The core package ships with `InMemoryDPIAStore` and `InMemoryDPIAAuditStore` for development and testing. Database-backed implementations for the 13 providers are available via satellite packages:
+This package uses **Marten event sourcing** (PostgreSQL) for persistence. The event-sourced aggregate provides:
 
-```csharp
-// ADO.NET (SQLite example)
-services.AddEncinaADO(config =>
-{
-    config.UseDPIA = true;
-});
-
-// Dapper (SQL Server example)
-services.AddEncinaDapper(config =>
-{
-    config.UseDPIA = true;
-});
-
-// EF Core (PostgreSQL example)
-services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
-{
-    config.UseDPIA = true;
-});
-```
+- Immutable event stream as audit trail (Art. 5(2))
+- Full assessment history via `GetAssessmentHistoryAsync()`
+- CQRS read model (`DPIAReadModel`) projected inline from events
+- Cache-aside pattern via `ICacheProvider` for read performance
 
 ## Observability
 
 - **Tracing**: `Encina.Compliance.DPIA` ActivitySource with 5 activity types (`DPIA.PipelineCheck`, `DPIA.Assessment`, `DPIA.DPOConsultation`, `DPIA.ReviewReminderCycle`, `DPIA.Endpoint`)
-- **Metrics**: 10 counters (`dpia.pipeline.checks.total`, `dpia.pipeline.checks.passed`, `dpia.pipeline.checks.failed`, `dpia.pipeline.checks.skipped`, `dpia.auto_registration.total`, `dpia.review_reminder.cycles.total`, `dpia.review_reminder.expired.total`, `dpia.assessment.total`, `dpia.dpo_consultation.total`, `dpia.endpoint.requests.total`) and 3 histograms (`dpia.pipeline.check.duration`, `dpia.assessment.duration`, `dpia.endpoint.duration`)
+- **Metrics**: 17 counters (10 pipeline/engine + 7 service-level: `dpia.service.assessments.created`, `.evaluated`, `.approved`, `.rejected`, `.revision_requested`, `.expired`, `dpia.service.errors.total`) and 3 histograms (`dpia.pipeline.check.duration`, `dpia.assessment.duration`, `dpia.endpoint.duration`)
 - **Logging**: Structured log events via `[LoggerMessage]` source generator (zero-allocation)
 - **Health Check**: Verifies DI configuration and store connectivity
 
@@ -241,8 +232,7 @@ services.AddEncinaDPIA(options =>
 
 The health check (`encina-dpia`) verifies:
 - `DPIAOptions` are configured
-- `IDPIAStore` is resolvable
-- `IDPIAAuditStore` is resolvable (when `TrackAuditTrail` is enabled)
+- `IDPIAService` is resolvable
 - `IDPIAAssessmentEngine` is resolvable
 
 Tags: `encina`, `gdpr`, `dpia`, `compliance`, `ready`
@@ -284,7 +274,7 @@ This package implements key GDPR requirements:
 | **35(7)** | Required assessment content | `DPIATemplate` with sections and questions |
 | **35(9)** | Seek views of data subjects | `DPIAContext` metadata |
 | **36(1)** | Prior consultation with supervisory authority | `DPOConsultation` workflow, `RequiresPriorConsultation` flag |
-| **5(2)** | Accountability principle | `IDPIAAuditStore` immutable audit trail |
+| **5(2)** | Accountability principle | Event stream provides immutable audit trail |
 
 ## License
 

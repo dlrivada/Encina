@@ -2194,6 +2194,58 @@ Migrated `Encina.Compliance.BreachNotification` from entity-based persistence (1
 
 ---
 
+#### Encina.Compliance.DPIA — Migrated to Marten Event Sourcing (#781)
+
+Migrated `Encina.Compliance.DPIA` from entity-based persistence (13 database providers) to Marten event sourcing (PostgreSQL-only). Replaces `IDPIAStore` + `IDPIAAuditStore` with a single event-sourced `DPIAAggregate` and projected `DPIAReadModel`. Domain events become the immutable audit trail per GDPR Art. 5(2) accountability. The risk assessment engine (`IDPIAAssessmentEngine`, 6 built-in criteria), pipeline enforcement (`DPIARequiredPipelineBehavior`), expiration monitoring, and auto-registration are preserved.
+
+**New Architecture (Event-Sourced)**:
+
+- **`DPIAAggregate`**: Event-sourced aggregate with `Create()` factory, `Evaluate()`, `RequestDPOConsultation()`, `RecordDPOResponse()`, `Approve()`, `Reject()`, `RequestRevision()`, `Expire()` commands — models full DPIA lifecycle (Art. 35)
+- **8 Domain Events**: `DPIACreated`, `DPIAEvaluated`, `DPIADPOConsultationRequested`, `DPIADPOResponded`, `DPIAApproved`, `DPIARejected`, `DPIARevisionRequested`, `DPIAExpired`
+- **`DPIAProjection`**: Marten projection transforming events to `DPIAReadModel` for query-side reads
+- **`DPIAReadModel`**: Projected read model with assessment state, DPO consultation, risk evaluation (replaces `DPIAAssessment`)
+- **`IDPIAService`**: Clean CQRS service interface with 8 command methods and 5 query methods via `IAggregateRepository<DPIAAggregate>` and `IReadModelRepository<DPIAReadModel>`
+- **`DefaultDPIAService`**: Implementation with cache-aside pattern (L1/L2 via `ICacheProvider`), review period tracking
+- **`DPIAMartenExtensions.AddDPIAAggregates()`**: Registers aggregate + projection with Marten DI
+
+**Removed (Old Entity-Based Model)**:
+
+- `IDPIAStore`, `IDPIAAuditStore` interfaces
+- `InMemoryDPIAStore`, `InMemoryDPIAAuditStore` implementations
+- `DPIAAssessment`, `DPIAAuditEntry` entities and `DPIAAssessmentMapper`
+- All 13-provider store implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
+- All SQL schema scripts (`dpia_schema_*.sql`)
+- EF Core entity configurations (`DPIAAssessmentConfiguration`, `DPIAAuditEntryConfiguration`)
+- `DPIAOptions.TrackAuditTrail` (audit is inherent in event sourcing)
+
+**Preserved (Unchanged)**:
+
+- `IDPIAAssessmentEngine`, `DefaultDPIAAssessmentEngine`, 6 built-in `IRiskCriterion` implementations
+- `DPIARequiredPipelineBehavior<TRequest, TResponse>` — pipeline enforcement (now uses `IDPIAService`)
+- `DPIAAutoRegistrationHostedService` — auto-registration (now uses `IDPIAService`)
+- `DPIAReviewReminderService` — expiration monitoring (now uses `IDPIAService`)
+- `DPIAHealthCheck` — health check (now verifies `IDPIAService`)
+- `RequiresDPIAAttribute`, `DPIAAutoDetectionService`
+- `IDPIATemplateProvider`, `DPIATemplate`, `DefaultDPIATemplateProvider`
+- All model types: `DPIAContext`, `DPIAResult`, `DPOConsultation`, `RiskLevel`, `RiskItem`, etc.
+
+**Observability**:
+
+- 7 new service-level counters: `dpia.service.assessments.created`, `.evaluated`, `.approved`, `.rejected`, `.revision_requested`, `.expired`, `dpia.service.errors.total`
+- Updated log message block 8860-8869 from "Audit trail" to "Event sourcing" (aggregate load, save, history, cache invalidation)
+- All existing tracing, metrics, and logging preserved
+
+**New Dependencies**: `Encina.Marten`, `Encina.Caching`
+
+**DI Registration**:
+
+- `services.AddEncinaDPIA()` with `TryAdd` semantics
+- `services.AddDPIAAggregates()` for Marten aggregate/projection registration
+
+**Testing**: ~148 tests across 5 test projects: 102 unit tests (75 aggregate + 16 service + 11 projection), 33 guard tests (25 aggregate + 8 service), 5 contract tests, 8 property-based tests.
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)
