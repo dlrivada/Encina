@@ -1,9 +1,6 @@
 using System.Reflection;
-
 using Encina.Compliance.GDPR;
 using Encina.Compliance.LawfulBasis;
-
-using GDPRLawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 using Encina.Compliance.LawfulBasis.Abstractions;
 using Encina.Compliance.LawfulBasis.AutoRegistration;
 using Encina.Compliance.LawfulBasis.Health;
@@ -11,8 +8,8 @@ using Encina.Compliance.LawfulBasis.ReadModels;
 using Encina.Compliance.LawfulBasis.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using GDPRLawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 
 namespace Encina.GuardTests.Compliance.LawfulBasis;
 
