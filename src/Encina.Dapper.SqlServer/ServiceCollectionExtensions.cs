@@ -1,6 +1,5 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.BreachNotification;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DPIA;
 using Encina.Compliance.GDPR;
@@ -125,13 +124,6 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreDapper>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreDapper>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreDapper>();
-        }
-
-        // Register Breach Notification stores if enabled
-        if (config.UseBreachNotification)
-        {
-            services.TryAddScoped<IBreachRecordStore, BreachNotification.BreachRecordStoreDapper>();
-            services.TryAddScoped<IBreachAuditStore, BreachNotification.BreachAuditStoreDapper>();
         }
 
         if (config.UseDPIA)

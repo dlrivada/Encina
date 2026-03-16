@@ -1,6 +1,7 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Encina.Compliance.BreachNotification;
+using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
 
@@ -25,13 +26,13 @@ namespace Encina.UnitTests.Compliance.BreachNotification;
 public class BreachDetectionPipelineBehaviorTests
 {
     private readonly IBreachDetector _detector;
-    private readonly IBreachHandler _handler;
+    private readonly IBreachNotificationService _breachService;
     private readonly FakeTimeProvider _timeProvider;
 
     public BreachDetectionPipelineBehaviorTests()
     {
         _detector = Substitute.For<IBreachDetector>();
-        _handler = Substitute.For<IBreachHandler>();
+        _breachService = Substitute.For<IBreachNotificationService>();
         _timeProvider = new FakeTimeProvider();
 
         // Default: detector returns no breaches
@@ -40,14 +41,13 @@ public class BreachDetectionPipelineBehaviorTests
                 Right<EncinaError, IReadOnlyList<PotentialBreach>>(
                     (IReadOnlyList<PotentialBreach>)[])));
 
-        // Default: handler returns Right(BreachRecord)
-        _handler.HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, BreachRecord>>(
-                Right<EncinaError, BreachRecord>(
-                    BreachRecord.Create(
-                        "Test breach", 100, ["email"], "dpo@test.com",
-                        "Identity theft", "Access revoked",
-                        DateTimeOffset.UtcNow, BreachSeverity.High))));
+        // Default: breach service returns Right(Guid) for RecordBreachAsync
+        _breachService.RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Guid>>(
+                Right<EncinaError, Guid>(Guid.NewGuid())));
     }
 
     #region Constructor Tests
@@ -56,7 +56,7 @@ public class BreachDetectionPipelineBehaviorTests
     public void Constructor_NullDetector_ShouldThrow()
     {
         var act = () => new BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>(
-            null!, _handler, Options.Create(new BreachNotificationOptions()),
+            null!, _breachService, Options.Create(new BreachNotificationOptions()),
             _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
@@ -64,21 +64,21 @@ public class BreachDetectionPipelineBehaviorTests
     }
 
     [Fact]
-    public void Constructor_NullHandler_ShouldThrow()
+    public void Constructor_NullBreachService_ShouldThrow()
     {
         var act = () => new BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>(
             _detector, null!, Options.Create(new BreachNotificationOptions()),
             _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        act.Should().Throw<ArgumentNullException>().WithParameterName("breachService");
     }
 
     [Fact]
     public void Constructor_NullOptions_ShouldThrow()
     {
         var act = () => new BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>(
-            _detector, _handler, null!, _timeProvider,
+            _detector, _breachService, null!, _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
@@ -88,7 +88,7 @@ public class BreachDetectionPipelineBehaviorTests
     public void Constructor_NullTimeProvider_ShouldThrow()
     {
         var act = () => new BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>(
-            _detector, _handler, Options.Create(new BreachNotificationOptions()),
+            _detector, _breachService, Options.Create(new BreachNotificationOptions()),
             null!,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
@@ -99,7 +99,7 @@ public class BreachDetectionPipelineBehaviorTests
     public void Constructor_NullLogger_ShouldThrow()
     {
         var act = () => new BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>(
-            _detector, _handler, Options.Create(new BreachNotificationOptions()),
+            _detector, _breachService, Options.Create(new BreachNotificationOptions()),
             _timeProvider, null!);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
@@ -128,7 +128,7 @@ public class BreachDetectionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_EnforcementDisabled_ShouldNotCallHandler()
+    public async Task Handle_EnforcementDisabled_ShouldNotCallBreachService()
     {
         // Arrange
         var behavior = CreateMonitoredBehavior(
@@ -140,8 +140,11 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await _handler.DidNotReceive()
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>());
+        await _breachService.DidNotReceive()
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -166,7 +169,7 @@ public class BreachDetectionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_NoBreachMonitoredAttribute_ShouldNotCallHandler()
+    public async Task Handle_NoBreachMonitoredAttribute_ShouldNotCallBreachService()
     {
         // Arrange
         var behavior = CreateUnmonitoredBehavior();
@@ -177,8 +180,11 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await _handler.DidNotReceive()
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>());
+        await _breachService.DidNotReceive()
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -199,8 +205,11 @@ public class BreachDetectionPipelineBehaviorTests
 
         // Assert
         result.IsRight.Should().BeTrue();
-        await _handler.DidNotReceive()
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>());
+        await _breachService.DidNotReceive()
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -273,7 +282,7 @@ public class BreachDetectionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_BreachDetected_BlockMode_CallsHandlerForEachBreach()
+    public async Task Handle_BreachDetected_BlockMode_CallsBreachServiceForEachBreach()
     {
         // Arrange
         var breach1 = CreatePotentialBreach("Rule1");
@@ -289,8 +298,11 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await _handler.Received(2)
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>());
+        await _breachService.Received(2)
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -340,7 +352,7 @@ public class BreachDetectionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_BreachDetected_WarnMode_StillCallsHandler()
+    public async Task Handle_BreachDetected_WarnMode_StillCallsBreachService()
     {
         // Arrange
         var potentialBreach = CreatePotentialBreach("TestRule");
@@ -355,8 +367,11 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await _handler.Received(1)
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>());
+        await _breachService.Received(1)
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -571,7 +586,7 @@ public class BreachDetectionPipelineBehaviorTests
     [Fact]
     public async Task Handle_MonitoredRequest_ExecutesNextStepBeforeDetection()
     {
-        // Arrange -- verify the handler is called (which proves nextStep ran first)
+        // Arrange -- verify the breach service is called (which proves nextStep ran first)
         var behavior = CreateMonitoredBehavior(
             o => o.EnforcementMode = BreachDetectionEnforcementMode.Warn);
         var request = new SampleBreachMonitoredRequest("user-1");
@@ -654,7 +669,7 @@ public class BreachDetectionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_BreachDetected_ForwardsCancellationTokenToHandler()
+    public async Task Handle_BreachDetected_ForwardsCancellationTokenToBreachService()
     {
         // Arrange
         using var cts = new CancellationTokenSource();
@@ -671,16 +686,19 @@ public class BreachDetectionPipelineBehaviorTests
         await behavior.Handle(request, RequestContext.CreateForTest(), Next(Unit.Default), token);
 
         // Assert
-        await _handler.Received(1)
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), token);
+        await _breachService.Received(1)
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), token);
     }
 
     #endregion
 
-    #region Detection Failure -- Handler Not Called
+    #region Detection Failure -- BreachService Not Called
 
     [Fact]
-    public async Task Handle_DetectionFailed_DoesNotCallHandler()
+    public async Task Handle_DetectionFailed_DoesNotCallBreachService()
     {
         // Arrange
         _detector.DetectAsync(Arg.Any<SecurityEvent>(), Arg.Any<CancellationToken>())
@@ -697,8 +715,11 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await _handler.DidNotReceive()
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>());
+        await _breachService.DidNotReceive()
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -749,7 +770,7 @@ public class BreachDetectionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_DetectorThrows_WarnMode_DoesNotCallHandler()
+    public async Task Handle_DetectorThrows_WarnMode_DoesNotCallBreachService()
     {
         // Arrange
         _detector.DetectAsync(Arg.Any<SecurityEvent>(), Arg.Any<CancellationToken>())
@@ -765,8 +786,11 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await _handler.DidNotReceive()
-            .HandleDetectedBreachAsync(Arg.Any<PotentialBreach>(), Arg.Any<CancellationToken>());
+        await _breachService.DidNotReceive()
+            .RecordBreachAsync(
+                Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -850,7 +874,7 @@ public class BreachDetectionPipelineBehaviorTests
         configure?.Invoke(options);
         return new BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>(
             _detector,
-            _handler,
+            _breachService,
             Options.Create(options),
             _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
@@ -863,7 +887,7 @@ public class BreachDetectionPipelineBehaviorTests
         configure?.Invoke(options);
         return new BreachDetectionPipelineBehavior<SampleUnmonitoredRequest, Unit>(
             _detector,
-            _handler,
+            _breachService,
             Options.Create(options),
             _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleUnmonitoredRequest, Unit>>.Instance);

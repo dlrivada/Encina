@@ -1,3 +1,6 @@
+using Encina.Compliance.BreachNotification.Abstractions;
+using Encina.Compliance.BreachNotification.Diagnostics;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -14,11 +17,9 @@ namespace Encina.Compliance.BreachNotification.Health;
 /// This health check verifies:
 /// <list type="bullet">
 /// <item><description>The breach notification options are configured</description></item>
-/// <item><description>The breach record store (<see cref="IBreachRecordStore"/>) is resolvable</description></item>
+/// <item><description>The breach notification service (<see cref="IBreachNotificationService"/>) is resolvable</description></item>
 /// <item><description>The breach detector (<see cref="IBreachDetector"/>) is resolvable</description></item>
 /// <item><description>The breach notifier (<see cref="IBreachNotifier"/>) is resolvable</description></item>
-/// <item><description>The breach audit store (<see cref="IBreachAuditStore"/>) is resolvable when TrackAuditTrail is enabled (optional, Degraded if missing)</description></item>
-/// <item><description>Overdue breaches count (Degraded if any exist)</description></item>
 /// <item><description>Approaching deadline breaches (Degraded if any exist)</description></item>
 /// </list>
 /// </para>
@@ -87,16 +88,17 @@ public sealed class BreachNotificationHealthCheck : IHealthCheck
         data["deadlineMonitoringEnabled"] = options.EnableDeadlineMonitoring;
         data["notificationDeadlineHours"] = options.NotificationDeadlineHours;
 
-        // 2. Verify breach record store is resolvable
-        var recordStore = scopedProvider.GetService<IBreachRecordStore>();
-        if (recordStore is null)
+        // 2. Verify breach notification service is resolvable
+        var breachService = scopedProvider.GetService<IBreachNotificationService>();
+        if (breachService is null)
         {
             return HealthCheckResult.Unhealthy(
-                "IBreachRecordStore is not registered.",
+                "IBreachNotificationService is not registered. "
+                + "Ensure AddEncinaBreachNotification() and AddBreachNotificationAggregates() are called.",
                 data: data);
         }
 
-        data["recordStoreType"] = recordStore.GetType().Name;
+        data["breachServiceType"] = breachService.GetType().Name;
 
         // 3. Verify breach detector is resolvable
         var detector = scopedProvider.GetService<IBreachDetector>();
@@ -120,62 +122,11 @@ public sealed class BreachNotificationHealthCheck : IHealthCheck
 
         data["notifierType"] = notifier.GetType().Name;
 
-        // 5. Verify audit store when TrackAuditTrail is enabled (optional, degraded if missing)
-        if (options.TrackAuditTrail)
-        {
-            var auditStore = scopedProvider.GetService<IBreachAuditStore>();
-            if (auditStore is null)
-            {
-                warnings.Add(
-                    "IBreachAuditStore is not registered but TrackAuditTrail is enabled. "
-                    + "Breach audit trail will not be recorded.");
-            }
-            else
-            {
-                data["auditStoreType"] = auditStore.GetType().Name;
-            }
-        }
-
-        // 6. Check for overdue breaches (degraded if any)
+        // 5. Check for approaching deadline breaches via the service
         try
         {
-            var overdueResult = await recordStore
-                .GetOverdueBreachesAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            overdueResult.Match(
-                Right: overdueBreaches =>
-                {
-                    data["overdueBreachCount"] = overdueBreaches.Count;
-
-                    if (overdueBreaches.Count > 0)
-                    {
-                        warnings.Add(
-                            $"{overdueBreaches.Count} breach(es) have exceeded the "
-                            + $"{options.NotificationDeadlineHours}-hour notification deadline. "
-                            + "Delay reasons must be documented per Article 33(1).");
-                    }
-                },
-                Left: error =>
-                {
-                    warnings.Add($"Unable to query overdue breaches: {error.Message}");
-                });
-        }
-        catch (Exception ex)
-        {
-            warnings.Add($"Error querying overdue breaches: {ex.Message}");
-        }
-
-        // 7. Check for approaching deadline breaches (informational)
-        try
-        {
-            // Use the smallest alert threshold (most urgent) for the health check
-            var urgentThreshold = options.AlertAtHoursRemaining.Length > 0
-                ? options.AlertAtHoursRemaining.Min()
-                : 12;
-
-            var approachingResult = await recordStore
-                .GetApproachingDeadlineAsync(urgentThreshold, cancellationToken)
+            var approachingResult = await breachService
+                .GetApproachingDeadlineBreachesAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             approachingResult.Match(
@@ -183,18 +134,43 @@ public sealed class BreachNotificationHealthCheck : IHealthCheck
                 {
                     data["approachingDeadlineCount"] = approaching.Count;
 
-                    if (approaching.Count > 0)
+                    // Check for overdue breaches (past deadline)
+                    var now = TimeProvider.System.GetUtcNow();
+                    var overdueCount = 0;
+                    foreach (var breach in approaching)
+                    {
+                        if (breach.DeadlineUtc <= now)
+                        {
+                            overdueCount++;
+                        }
+                    }
+
+                    data["overdueBreachCount"] = overdueCount;
+
+                    if (overdueCount > 0)
                     {
                         warnings.Add(
-                            $"{approaching.Count} breach(es) approaching notification deadline "
-                            + $"(within {urgentThreshold}h remaining).");
+                            $"{overdueCount} breach(es) have exceeded the "
+                            + $"{options.NotificationDeadlineHours}-hour notification deadline. "
+                            + "Delay reasons must be documented per Article 33(1).");
+                    }
+
+                    var approachingOnly = approaching.Count - overdueCount;
+                    if (approachingOnly > 0)
+                    {
+                        warnings.Add(
+                            $"{approachingOnly} breach(es) approaching notification deadline "
+                            + "(within 24h remaining).");
                     }
                 },
-                Left: _ => { });
+                Left: error =>
+                {
+                    warnings.Add($"Unable to query approaching deadline breaches: {error.Message}");
+                });
         }
-        catch
+        catch (Exception ex)
         {
-            // Approaching deadline check is informational — don't fail or degrade for this
+            warnings.Add($"Error querying deadline breaches: {ex.Message}");
         }
 
         _logger.LogDebug(

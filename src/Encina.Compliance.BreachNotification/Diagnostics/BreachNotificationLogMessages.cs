@@ -21,8 +21,9 @@ namespace Encina.Compliance.BreachNotification.Diagnostics;
 /// <item><term>8730-8739</term><description>Breach lifecycle</description></item>
 /// <item><term>8740-8749</term><description>Deadline monitoring</description></item>
 /// <item><term>8750-8759</term><description>Health check</description></item>
-/// <item><term>8760-8769</term><description>Audit trail</description></item>
-/// <item><term>8770-8779</term><description>Store operations</description></item>
+/// <item><term>8760-8769</term><description>Event stream / audit</description></item>
+/// <item><term>8770-8779</term><description>Cache operations</description></item>
+/// <item><term>8780-8799</term><description>Service operations</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -184,21 +185,21 @@ internal static partial class BreachNotificationLogMessages
     // Breach lifecycle log messages (8730-8739)
     // ========================================================================
 
-    /// <summary>A new breach record was created and persisted.</summary>
+    /// <summary>A new breach was recorded via the event-sourced aggregate.</summary>
     [LoggerMessage(
         EventId = 8730,
         Level = LogLevel.Information,
         Message = "Breach recorded. BreachId={BreachId}, Severity={Severity}, Nature={Nature}")]
     internal static partial void BreachRecorded(this ILogger logger, string breachId, string severity, string nature);
 
-    /// <summary>A breach record status was updated.</summary>
+    /// <summary>A breach aggregate status was updated via an event.</summary>
     [LoggerMessage(
         EventId = 8731,
         Level = LogLevel.Information,
         Message = "Breach status updated. BreachId={BreachId}, NewStatus={NewStatus}")]
     internal static partial void BreachStatusUpdated(this ILogger logger, string breachId, string newStatus);
 
-    /// <summary>A phased report was added to a breach record per Art. 33(4).</summary>
+    /// <summary>A phased report was added to a breach aggregate per Art. 33(4).</summary>
     [LoggerMessage(
         EventId = 8732,
         Level = LogLevel.Information,
@@ -218,6 +219,20 @@ internal static partial class BreachNotificationLogMessages
         Level = LogLevel.Information,
         Message = "Breach closed. BreachId={BreachId}")]
     internal static partial void BreachClosed(this ILogger logger, string breachId);
+
+    /// <summary>A breach was contained.</summary>
+    [LoggerMessage(
+        EventId = 8735,
+        Level = LogLevel.Information,
+        Message = "Breach contained. BreachId={BreachId}")]
+    internal static partial void BreachContained(this ILogger logger, string breachId);
+
+    /// <summary>A breach was assessed and its severity potentially updated.</summary>
+    [LoggerMessage(
+        EventId = 8736,
+        Level = LogLevel.Information,
+        Message = "Breach assessed. BreachId={BreachId}, UpdatedSeverity={UpdatedSeverity}")]
+    internal static partial void BreachAssessed(this ILogger logger, string breachId, string updatedSeverity);
 
     // ========================================================================
     // Deadline monitoring log messages (8740-8749)
@@ -287,56 +302,158 @@ internal static partial class BreachNotificationLogMessages
     [LoggerMessage(
         EventId = 8750,
         Level = LogLevel.Debug,
-        Message = "Breach notification health check completed. Status={Status}, StoresVerified={StoresVerified}")]
-    internal static partial void HealthCheckCompleted(this ILogger logger, string status, int storesVerified);
+        Message = "Breach notification health check completed. Status={Status}, ServicesVerified={ServicesVerified}")]
+    internal static partial void HealthCheckCompleted(this ILogger logger, string status, int servicesVerified);
 
-    /// <summary>Breach notification health check degraded — one or more stores are not responding.</summary>
+    /// <summary>Breach notification health check degraded — infrastructure warnings detected.</summary>
     [LoggerMessage(
         EventId = 8751,
         Level = LogLevel.Warning,
-        Message = "Breach notification health check degraded. FailedStores={FailedStores}")]
-    internal static partial void HealthCheckDegraded(this ILogger logger, string failedStores);
+        Message = "Breach notification health check degraded. WarningCount={WarningCount}, Details={Details}")]
+    internal static partial void HealthCheckDegraded(this ILogger logger, int warningCount, string details);
 
     // ========================================================================
-    // Audit trail log messages (8760-8769)
+    // Event stream / audit log messages (8760-8769)
     // ========================================================================
 
-    /// <summary>Audit entry recorded successfully for a breach action.</summary>
+    /// <summary>Aggregate loaded from event stream.</summary>
     [LoggerMessage(
         EventId = 8760,
         Level = LogLevel.Debug,
-        Message = "Breach audit entry recorded. BreachId={BreachId}, Action={Action}")]
-    internal static partial void AuditEntryRecorded(this ILogger logger, string breachId, string action);
+        Message = "Breach aggregate loaded from event stream. BreachId={BreachId}, Version={Version}")]
+    internal static partial void AggregateLoaded(this ILogger logger, string breachId, int version);
 
-    /// <summary>Audit trail queried for a specific breach.</summary>
+    /// <summary>Aggregate saved to event stream with new events.</summary>
     [LoggerMessage(
         EventId = 8761,
         Level = LogLevel.Debug,
-        Message = "Breach audit trail queried. BreachId={BreachId}, EntryCount={EntryCount}")]
-    internal static partial void AuditTrailQueried(this ILogger logger, string breachId, int entryCount);
+        Message = "Breach aggregate saved to event stream. BreachId={BreachId}, NewEventCount={NewEventCount}")]
+    internal static partial void AggregateSaved(this ILogger logger, string breachId, int newEventCount);
 
-    /// <summary>Failed to record a breach audit entry.</summary>
+    /// <summary>Aggregate not found in event stream (no events for the given ID).</summary>
     [LoggerMessage(
         EventId = 8762,
-        Level = LogLevel.Warning,
-        Message = "Failed to record breach audit entry. BreachId={BreachId}, Action={Action}")]
-    internal static partial void AuditEntryFailed(this ILogger logger, string breachId, string action, Exception exception);
+        Level = LogLevel.Debug,
+        Message = "Breach aggregate not found. BreachId={BreachId}")]
+    internal static partial void AggregateNotFound(this ILogger logger, string breachId);
+
+    /// <summary>Event stream audit trail queried for a specific breach.</summary>
+    [LoggerMessage(
+        EventId = 8763,
+        Level = LogLevel.Debug,
+        Message = "Breach event stream queried. BreachId={BreachId}, EventCount={EventCount}")]
+    internal static partial void EventStreamQueried(this ILogger logger, string breachId, int eventCount);
 
     // ========================================================================
-    // Store operations log messages (8770-8779)
+    // Cache operations log messages (8770-8779)
     // ========================================================================
 
-    /// <summary>A store operation failed with an error.</summary>
+    /// <summary>Breach read model cache hit during a query operation.</summary>
     [LoggerMessage(
         EventId = 8770,
-        Level = LogLevel.Error,
-        Message = "Breach store error. Operation={Operation}, ErrorMessage={ErrorMessage}")]
-    internal static partial void StoreError(this ILogger logger, string operation, string errorMessage);
+        Level = LogLevel.Debug,
+        Message = "Breach cache hit. CacheKey={CacheKey}")]
+    internal static partial void BreachCacheHit(this ILogger logger, string cacheKey);
 
-    /// <summary>A store operation completed successfully.</summary>
+    /// <summary>Breach read model cache miss during a query operation.</summary>
     [LoggerMessage(
         EventId = 8771,
         Level = LogLevel.Debug,
-        Message = "Breach store operation completed. Operation={Operation}")]
-    internal static partial void StoreOperationCompleted(this ILogger logger, string operation);
+        Message = "Breach cache miss. CacheKey={CacheKey}")]
+    internal static partial void BreachCacheMiss(this ILogger logger, string cacheKey);
+
+    /// <summary>Breach read model cache entry invalidated.</summary>
+    [LoggerMessage(
+        EventId = 8772,
+        Level = LogLevel.Debug,
+        Message = "Breach cache invalidated. CacheKey={CacheKey}")]
+    internal static partial void BreachCacheInvalidated(this ILogger logger, string cacheKey);
+
+    /// <summary>Breach read model cache set (populated after miss).</summary>
+    [LoggerMessage(
+        EventId = 8773,
+        Level = LogLevel.Debug,
+        Message = "Breach cache set. CacheKey={CacheKey}")]
+    internal static partial void BreachCacheSet(this ILogger logger, string cacheKey);
+
+    // ========================================================================
+    // Service operations log messages (8780-8799)
+    // ========================================================================
+
+    /// <summary>Breach service operation failed with an error.</summary>
+    [LoggerMessage(
+        EventId = 8780,
+        Level = LogLevel.Error,
+        Message = "Breach service operation failed. Operation={Operation}")]
+    internal static partial void BreachServiceError(this ILogger logger, string operation, Exception exception);
+
+    /// <summary>Invalid state transition attempted on a breach aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8781,
+        Level = LogLevel.Warning,
+        Message = "Invalid breach state transition. BreachId={BreachId}, Operation={Operation}")]
+    internal static partial void BreachInvalidStateTransition(this ILogger logger, string breachId, string operation, Exception exception);
+
+    /// <summary>Breach successfully assessed via service.</summary>
+    [LoggerMessage(
+        EventId = 8783,
+        Level = LogLevel.Information,
+        Message = "Breach assessed via service. BreachId={BreachId}, UpdatedSeverity={UpdatedSeverity}")]
+    internal static partial void BreachAssessedService(this ILogger logger, string breachId, string updatedSeverity);
+
+    /// <summary>Breach reported to DPA via service.</summary>
+    [LoggerMessage(
+        EventId = 8784,
+        Level = LogLevel.Information,
+        Message = "Breach reported to DPA via service. BreachId={BreachId}, Authority={Authority}")]
+    internal static partial void BreachReportedToDPAService(this ILogger logger, string breachId, string authority);
+
+    /// <summary>Breach subjects notified via service.</summary>
+    [LoggerMessage(
+        EventId = 8785,
+        Level = LogLevel.Information,
+        Message = "Breach subjects notified via service. BreachId={BreachId}, SubjectCount={SubjectCount}")]
+    internal static partial void BreachSubjectsNotifiedService(this ILogger logger, string breachId, int subjectCount);
+
+    /// <summary>Breach phased report added via service.</summary>
+    [LoggerMessage(
+        EventId = 8786,
+        Level = LogLevel.Information,
+        Message = "Breach phased report added via service. BreachId={BreachId}")]
+    internal static partial void BreachPhasedReportAddedService(this ILogger logger, string breachId);
+
+    /// <summary>Breach contained via service.</summary>
+    [LoggerMessage(
+        EventId = 8787,
+        Level = LogLevel.Information,
+        Message = "Breach contained via service. BreachId={BreachId}")]
+    internal static partial void BreachContainedService(this ILogger logger, string breachId);
+
+    /// <summary>Breach closed via service.</summary>
+    [LoggerMessage(
+        EventId = 8788,
+        Level = LogLevel.Information,
+        Message = "Breach closed via service. BreachId={BreachId}")]
+    internal static partial void BreachClosedService(this ILogger logger, string breachId);
+
+    /// <summary>Breach resolved via service.</summary>
+    [LoggerMessage(
+        EventId = 8789,
+        Level = LogLevel.Information,
+        Message = "Breach resolved via service. BreachId={BreachId}")]
+    internal static partial void BreachResolvedService(this ILogger logger, string breachId);
+
+    /// <summary>Breach service operation started.</summary>
+    [LoggerMessage(
+        EventId = 8790,
+        Level = LogLevel.Debug,
+        Message = "Breach service operation started. Operation={Operation}, BreachId={BreachId}")]
+    internal static partial void BreachServiceOperationStarted(this ILogger logger, string operation, string? breachId);
+
+    /// <summary>Breach service operation completed successfully.</summary>
+    [LoggerMessage(
+        EventId = 8791,
+        Level = LogLevel.Debug,
+        Message = "Breach service operation completed. Operation={Operation}, BreachId={BreachId}")]
+    internal static partial void BreachServiceOperationCompleted(this ILogger logger, string operation, string? breachId);
 }

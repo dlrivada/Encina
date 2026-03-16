@@ -67,6 +67,15 @@ public static class BreachNotificationErrors
     /// <summary>Error code when an invalid exemption is applied to a breach.</summary>
     public const string ExemptionInvalidCode = "breach.exemption_invalid";
 
+    /// <summary>Error code when an invalid state transition is attempted on a breach.</summary>
+    public const string InvalidStateTransitionCode = "breach.invalid_state_transition";
+
+    /// <summary>Error code when a breach service operation fails.</summary>
+    public const string ServiceErrorCode = "breach.service_error";
+
+    /// <summary>Error code when breach event history is not available.</summary>
+    public const string EventHistoryUnavailableCode = "breach.event_history_unavailable";
+
     // --- Breach record errors ---
 
     /// <summary>
@@ -355,6 +364,64 @@ public static class BreachNotificationErrors
                 [MetadataKeyBreachId] = breachId,
                 [MetadataKeyStage] = MetadataKeyStage,
                 ["requirement"] = "article_34_3_exemption_conditions"
+            });
+
+    // --- Pipeline behavior errors ---
+
+    // --- State transition errors ---
+
+    /// <summary>
+    /// Creates an error when an invalid state transition is attempted on a breach aggregate.
+    /// </summary>
+    /// <param name="breachId">The identifier of the breach.</param>
+    /// <param name="operation">The operation that was attempted.</param>
+    /// <returns>An error indicating an invalid state transition.</returns>
+    public static EncinaError InvalidStateTransition(Guid breachId, string operation) =>
+        EncinaErrors.Create(
+            code: InvalidStateTransitionCode,
+            message: $"Invalid state transition for breach '{breachId}' during operation '{operation}'.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyBreachId] = breachId.ToString(),
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Service errors ---
+
+    /// <summary>
+    /// Creates an error when a breach service operation fails.
+    /// </summary>
+    /// <param name="operation">The operation that failed (e.g., "RecordBreach", "AssessBreach").</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <returns>An error indicating a service operation failure.</returns>
+    public static EncinaError ServiceError(string operation, Exception exception) =>
+        EncinaErrors.Create(
+            code: ServiceErrorCode,
+            message: $"Breach service operation '{operation}' failed: {exception.Message}",
+            exception: exception,
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Event history errors ---
+
+    /// <summary>
+    /// Creates an error when breach event history cannot be retrieved.
+    /// </summary>
+    /// <param name="breachId">The breach identifier.</param>
+    /// <returns>An error indicating that event history is not available.</returns>
+    public static EncinaError EventHistoryUnavailable(Guid breachId) =>
+        EncinaErrors.Create(
+            code: EventHistoryUnavailableCode,
+            message: $"Event history for breach '{breachId}' is not available. "
+                + "Event stream access requires Marten-specific APIs.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyBreachId] = breachId.ToString(),
+                [MetadataKeyStage] = MetadataKeyStage
             });
 
     // --- Pipeline behavior errors ---

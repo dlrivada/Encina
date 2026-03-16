@@ -78,7 +78,7 @@ public sealed class BreachNotificationOptions
     /// <remarks>
     /// <para>
     /// When <c>true</c>, all breach operations (detection, notification, phased reporting,
-    /// resolution, etc.) are recorded in the <see cref="IBreachAuditStore"/>
+    /// resolution, etc.) are recorded in the event stream audit trail
     /// for accountability purposes per GDPR Article 5(2) and Article 33(5).
     /// </para>
     /// <para>

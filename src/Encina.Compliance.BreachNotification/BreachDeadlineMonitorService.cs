@@ -1,3 +1,4 @@
+using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Model;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -17,11 +18,11 @@ namespace Encina.Compliance.BreachNotification;
 /// each cycle performing the following steps:
 /// <list type="number">
 /// <item><description>Create a new <see cref="IServiceScope"/> to resolve scoped dependencies.</description></item>
-/// <item><description>Resolve <see cref="IBreachRecordStore"/> from the scoped service provider.</description></item>
-/// <item><description>For each configured alert threshold in <see cref="BreachNotificationOptions.AlertAtHoursRemaining"/>,
-/// query breaches approaching their deadline.</description></item>
+/// <item><description>Resolve <see cref="IBreachNotificationService"/> from the scoped service provider.</description></item>
+/// <item><description>Query breaches approaching their deadline via
+/// <see cref="IBreachNotificationService.GetApproachingDeadlineBreachesAsync"/>.</description></item>
 /// <item><description>Publish <see cref="DeadlineWarningNotification"/> for each matching breach.</description></item>
-/// <item><description>Query and log overdue breaches.</description></item>
+/// <item><description>Log overdue breaches.</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -48,6 +49,7 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly BreachNotificationOptions _options;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<BreachDeadlineMonitorService> _logger;
 
     /// <summary>
@@ -55,18 +57,22 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
     /// </summary>
     /// <param name="scopeFactory">Factory for creating service scopes to resolve scoped dependencies.</param>
     /// <param name="options">Breach notification options controlling monitoring behavior.</param>
+    /// <param name="timeProvider">The time provider for UTC timestamps.</param>
     /// <param name="logger">Logger for diagnostic messages.</param>
     public BreachDeadlineMonitorService(
         IServiceScopeFactory scopeFactory,
         IOptions<BreachNotificationOptions> options,
+        TimeProvider timeProvider,
         ILogger<BreachDeadlineMonitorService> logger)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -94,18 +100,64 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
 
-            var recordStore = scope.ServiceProvider.GetRequiredService<IBreachRecordStore>();
+            var breachService = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
 
-            // Check each alert threshold
-            foreach (var threshold in _options.AlertAtHoursRemaining)
-            {
-                await CheckDeadlineThresholdAsync(
-                    recordStore, scope.ServiceProvider, threshold, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            // Query breaches approaching deadline (within 24h or overdue)
+            var approachingResult = await breachService
+                .GetApproachingDeadlineBreachesAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-            // Check for overdue breaches
-            await CheckOverdueBreachesAsync(recordStore, cancellationToken).ConfigureAwait(false);
+            approachingResult.Match(
+                Right: approaching =>
+                {
+                    if (approaching.Count == 0)
+                    {
+                        return;
+                    }
+
+                    var now = _timeProvider.GetUtcNow();
+
+                    foreach (var breach in approaching)
+                    {
+                        var remainingHours = (breach.DeadlineUtc - now).TotalHours;
+
+                        if (remainingHours <= 0)
+                        {
+                            // Overdue
+                            _logger.LogError(
+                                "Breach '{BreachId}' has exceeded the {Deadline}-hour notification deadline "
+                                + "by {OverdueHours:F1} hours. Delay reasons must be documented per Article 33(1).",
+                                breach.Id, _options.NotificationDeadlineHours, Math.Abs(remainingHours));
+                        }
+                        else
+                        {
+                            // Check each alert threshold
+                            foreach (var threshold in _options.AlertAtHoursRemaining)
+                            {
+                                if (remainingHours <= threshold)
+                                {
+                                    _logger.LogWarning(
+                                        "Breach '{BreachId}' approaching notification deadline "
+                                        + "(within {Hours}h remaining, {RemainingHours:F1}h left)",
+                                        breach.Id, threshold, remainingHours);
+                                    break; // Only log the most urgent threshold
+                                }
+                            }
+                        }
+                    }
+
+                    // Publish notifications if enabled
+                    if (_options.PublishNotifications)
+                    {
+                        _ = PublishDeadlineWarningsAsync(approaching, scope.ServiceProvider, now, cancellationToken);
+                    }
+                },
+                Left: error =>
+                {
+                    _logger.LogWarning(
+                        "Failed to query approaching deadline breaches: {ErrorMessage}",
+                        error.Message);
+                });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -118,85 +170,10 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
         }
     }
 
-    private async Task CheckDeadlineThresholdAsync(
-        IBreachRecordStore recordStore,
-        IServiceProvider scopedProvider,
-        int hoursRemaining,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var approachingResult = await recordStore
-                .GetApproachingDeadlineAsync(hoursRemaining, cancellationToken)
-                .ConfigureAwait(false);
-
-            approachingResult.Match(
-                Right: approaching =>
-                {
-                    if (approaching.Count > 0)
-                    {
-                        _logger.LogWarning(
-                            "{Count} breach(es) approaching notification deadline "
-                            + "(within {Hours}h remaining)",
-                            approaching.Count, hoursRemaining);
-
-                        if (_options.PublishNotifications)
-                        {
-                            _ = PublishDeadlineWarningsAsync(
-                                approaching, scopedProvider, cancellationToken);
-                        }
-                    }
-                },
-                Left: error =>
-                {
-                    _logger.LogWarning(
-                        "Failed to query approaching deadline breaches for {Hours}h threshold: {ErrorMessage}",
-                        hoursRemaining, error.Message);
-                });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Error checking deadline threshold at {Hours}h remaining", hoursRemaining);
-        }
-    }
-
-    private async Task CheckOverdueBreachesAsync(
-        IBreachRecordStore recordStore,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var overdueResult = await recordStore
-                .GetOverdueBreachesAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            overdueResult.Match(
-                Right: overdueBreaches =>
-                {
-                    if (overdueBreaches.Count > 0)
-                    {
-                        _logger.LogError(
-                            "{Count} breach(es) have exceeded the {Deadline}-hour notification deadline. "
-                            + "Delay reasons must be documented per Article 33(1).",
-                            overdueBreaches.Count, _options.NotificationDeadlineHours);
-                    }
-                },
-                Left: error =>
-                {
-                    _logger.LogWarning(
-                        "Failed to query overdue breaches: {ErrorMessage}", error.Message);
-                });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking for overdue breaches");
-        }
-    }
-
     private async Task PublishDeadlineWarningsAsync(
-        IReadOnlyList<DeadlineStatus> approaching,
+        IReadOnlyList<ReadModels.BreachReadModel> approaching,
         IServiceProvider scopedProvider,
+        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var encina = scopedProvider.GetService<IEncina>();
@@ -207,12 +184,13 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
 
         try
         {
-            foreach (var status in approaching)
+            foreach (var breach in approaching)
             {
+                var remainingHours = (breach.DeadlineUtc - now).TotalHours;
                 var notification = new DeadlineWarningNotification(
-                    status.BreachId,
-                    status.RemainingHours,
-                    status.DeadlineUtc);
+                    breach.Id.ToString(),
+                    remainingHours,
+                    breach.DeadlineUtc);
 
                 await encina.Publish(notification, cancellationToken).ConfigureAwait(false);
             }

@@ -18,7 +18,7 @@ Encina.Compliance.BreachNotification.BreachDetectedNotification.OccurredAtUtc.in
 Encina.Compliance.BreachNotification.BreachDetectedNotification.Severity.get -> Encina.Compliance.BreachNotification.Model.BreachSeverity
 Encina.Compliance.BreachNotification.BreachDetectedNotification.Severity.init -> void
 Encina.Compliance.BreachNotification.BreachDetectionPipelineBehavior<TRequest, TResponse>
-Encina.Compliance.BreachNotification.BreachDetectionPipelineBehavior<TRequest, TResponse>.BreachDetectionPipelineBehavior(Encina.Compliance.BreachNotification.IBreachDetector! detector, Encina.Compliance.BreachNotification.IBreachHandler! handler, Microsoft.Extensions.Options.IOptions<Encina.Compliance.BreachNotification.BreachNotificationOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.BreachNotification.BreachDetectionPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.BreachNotification.BreachDetectionPipelineBehavior<TRequest, TResponse>.BreachDetectionPipelineBehavior(Encina.Compliance.BreachNotification.IBreachDetector! detector, Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService! breachService, Microsoft.Extensions.Options.IOptions<Encina.Compliance.BreachNotification.BreachNotificationOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.BreachNotification.BreachDetectionPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.Compliance.BreachNotification.BreachDetectionPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Compliance.BreachNotification.BreachResolvedNotification
 Encina.Compliance.BreachNotification.BreachResolvedNotification.BreachId.get -> string!
@@ -238,9 +238,6 @@ static Encina.Compliance.BreachNotification.BreachNotificationErrors.PhasedRepor
 static Encina.Compliance.BreachNotification.BreachNotificationErrors.RuleEvaluationFailed(string! ruleName, string! reason, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Compliance.BreachNotification.BreachNotificationErrors.StoreError(string! operation, string! message, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Compliance.BreachNotification.BreachNotificationErrors.SubjectNotificationFailed(string! breachId, string! reason, System.Exception? exception = null) -> Encina.EncinaError
-Encina.Compliance.BreachNotification.IBreachAuditStore
-Encina.Compliance.BreachNotification.IBreachAuditStore.GetAuditTrailAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachAuditEntry!>!>>
-Encina.Compliance.BreachNotification.IBreachAuditStore.RecordAsync(Encina.Compliance.BreachNotification.Model.BreachAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.BreachNotification.IBreachDetectionRule
 Encina.Compliance.BreachNotification.IBreachDetectionRule.EvaluateAsync(Encina.Compliance.BreachNotification.Model.SecurityEvent! securityEvent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.BreachNotification.Model.PotentialBreach!>>>
 Encina.Compliance.BreachNotification.IBreachDetectionRule.Name.get -> string!
@@ -248,25 +245,9 @@ Encina.Compliance.BreachNotification.IBreachDetector
 Encina.Compliance.BreachNotification.IBreachDetector.DetectAsync(Encina.Compliance.BreachNotification.Model.SecurityEvent! securityEvent, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.PotentialBreach!>!>>
 Encina.Compliance.BreachNotification.IBreachDetector.GetRegisteredRulesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<string!>!>>
 Encina.Compliance.BreachNotification.IBreachDetector.RegisterDetectionRule(Encina.Compliance.BreachNotification.IBreachDetectionRule! rule) -> void
-Encina.Compliance.BreachNotification.IBreachHandler
-Encina.Compliance.BreachNotification.IBreachHandler.AddPhasedReportAsync(string! breachId, string! content, string? userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.PhasedReport!>>
-Encina.Compliance.BreachNotification.IBreachHandler.GetDeadlineStatusAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.DeadlineStatus!>>
-Encina.Compliance.BreachNotification.IBreachHandler.HandleDetectedBreachAsync(Encina.Compliance.BreachNotification.Model.PotentialBreach! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.BreachRecord!>>
-Encina.Compliance.BreachNotification.IBreachHandler.NotifyAuthorityAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.NotificationResult!>>
-Encina.Compliance.BreachNotification.IBreachHandler.NotifySubjectsAsync(string! breachId, System.Collections.Generic.IEnumerable<string!>! subjectIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.NotificationResult!>>
-Encina.Compliance.BreachNotification.IBreachHandler.ResolveBreachAsync(string! breachId, string! resolutionSummary, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.BreachNotification.IBreachNotifier
 Encina.Compliance.BreachNotification.IBreachNotifier.NotifyAuthorityAsync(Encina.Compliance.BreachNotification.Model.BreachRecord! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.NotificationResult!>>
 Encina.Compliance.BreachNotification.IBreachNotifier.NotifyDataSubjectsAsync(Encina.Compliance.BreachNotification.Model.BreachRecord! breach, System.Collections.Generic.IEnumerable<string!>! subjectIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.NotificationResult!>>
-Encina.Compliance.BreachNotification.IBreachRecordStore
-Encina.Compliance.BreachNotification.IBreachRecordStore.AddPhasedReportAsync(string! breachId, Encina.Compliance.BreachNotification.Model.PhasedReport! report, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.BreachNotification.IBreachRecordStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachRecord!>!>>
-Encina.Compliance.BreachNotification.IBreachRecordStore.GetApproachingDeadlineAsync(int hoursRemaining, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.DeadlineStatus!>!>>
-Encina.Compliance.BreachNotification.IBreachRecordStore.GetBreachAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.BreachNotification.Model.BreachRecord!>>>
-Encina.Compliance.BreachNotification.IBreachRecordStore.GetBreachesByStatusAsync(Encina.Compliance.BreachNotification.Model.BreachStatus status, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachRecord!>!>>
-Encina.Compliance.BreachNotification.IBreachRecordStore.GetOverdueBreachesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachRecord!>!>>
-Encina.Compliance.BreachNotification.IBreachRecordStore.RecordBreachAsync(Encina.Compliance.BreachNotification.Model.BreachRecord! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.BreachNotification.IBreachRecordStore.UpdateBreachAsync(Encina.Compliance.BreachNotification.Model.BreachRecord! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.BreachNotification.BreachNotificationOptions
 Encina.Compliance.BreachNotification.BreachNotificationOptions.AddDetectionRule<TRule>() -> Encina.Compliance.BreachNotification.BreachNotificationOptions!
 Encina.Compliance.BreachNotification.BreachNotificationOptions.AddHealthCheck.get -> bool
@@ -301,14 +282,6 @@ Encina.Compliance.BreachNotification.BreachNotificationOptions.TrackAuditTrail.g
 Encina.Compliance.BreachNotification.BreachNotificationOptions.TrackAuditTrail.set -> void
 Encina.Compliance.BreachNotification.BreachNotificationOptions.UnauthorizedAccessThreshold.get -> int
 Encina.Compliance.BreachNotification.BreachNotificationOptions.UnauthorizedAccessThreshold.set -> void
-Encina.Compliance.BreachNotification.DefaultBreachHandler
-Encina.Compliance.BreachNotification.DefaultBreachHandler.AddPhasedReportAsync(string! breachId, string! content, string? userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.PhasedReport!>>
-Encina.Compliance.BreachNotification.DefaultBreachHandler.DefaultBreachHandler(Encina.Compliance.BreachNotification.IBreachRecordStore! recordStore, Encina.Compliance.BreachNotification.IBreachAuditStore! auditStore, Encina.Compliance.BreachNotification.IBreachNotifier! notifier, Microsoft.Extensions.Options.IOptions<Encina.Compliance.BreachNotification.BreachNotificationOptions!>! options, System.IServiceProvider! serviceProvider, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.BreachNotification.DefaultBreachHandler!>! logger) -> void
-Encina.Compliance.BreachNotification.DefaultBreachHandler.GetDeadlineStatusAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.DeadlineStatus!>>
-Encina.Compliance.BreachNotification.DefaultBreachHandler.HandleDetectedBreachAsync(Encina.Compliance.BreachNotification.Model.PotentialBreach! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.BreachRecord!>>
-Encina.Compliance.BreachNotification.DefaultBreachHandler.NotifyAuthorityAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.NotificationResult!>>
-Encina.Compliance.BreachNotification.DefaultBreachHandler.NotifySubjectsAsync(string! breachId, System.Collections.Generic.IEnumerable<string!>! subjectIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.NotificationResult!>>
-Encina.Compliance.BreachNotification.DefaultBreachHandler.ResolveBreachAsync(string! breachId, string! resolutionSummary, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.BreachNotification.DefaultBreachNotifier
 Encina.Compliance.BreachNotification.DefaultBreachNotifier.DefaultBreachNotifier(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.BreachNotification.DefaultBreachNotifier!>! logger) -> void
 Encina.Compliance.BreachNotification.DefaultBreachNotifier.NotifyAuthorityAsync(Encina.Compliance.BreachNotification.Model.BreachRecord! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.Model.NotificationResult!>>
@@ -338,98 +311,248 @@ Encina.Compliance.BreachNotification.Health.BreachNotificationHealthCheck
 Encina.Compliance.BreachNotification.Health.BreachNotificationHealthCheck.BreachNotificationHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.BreachNotification.Health.BreachNotificationHealthCheck!>! logger) -> void
 Encina.Compliance.BreachNotification.Health.BreachNotificationHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
 const Encina.Compliance.BreachNotification.Health.BreachNotificationHealthCheck.DefaultName = "encina-breach-notification" -> string!
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore.Clear() -> void
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore.Count.get -> int
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore.GetAllEntries() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachAuditEntry!>!
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore.GetAuditTrailAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachAuditEntry!>!>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore.InMemoryBreachAuditStore(Microsoft.Extensions.Logging.ILogger<Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore!>! logger) -> void
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachAuditStore.RecordAsync(Encina.Compliance.BreachNotification.Model.BreachAuditEntry! entry, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.AddPhasedReportAsync(string! breachId, Encina.Compliance.BreachNotification.Model.PhasedReport! report, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.Clear() -> void
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.Count.get -> int
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachRecord!>!>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachRecord!>!
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.GetApproachingDeadlineAsync(int hoursRemaining, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.DeadlineStatus!>!>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.GetBreachAsync(string! breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Option<Encina.Compliance.BreachNotification.Model.BreachRecord!>>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.GetBreachesByStatusAsync(Encina.Compliance.BreachNotification.Model.BreachStatus status, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachRecord!>!>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.GetOverdueBreachesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.Model.BreachRecord!>!>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.InMemoryBreachRecordStore(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore!>! logger) -> void
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.RecordBreachAsync(Encina.Compliance.BreachNotification.Model.BreachRecord! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Compliance.BreachNotification.InMemory.InMemoryBreachRecordStore.UpdateBreachAsync(Encina.Compliance.BreachNotification.Model.BreachRecord! breach, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Compliance.BreachNotification.ServiceCollectionExtensions
 static Encina.Compliance.BreachNotification.ServiceCollectionExtensions.AddEncinaBreachNotification(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.BreachNotification.BreachNotificationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Encina.Compliance.BreachNotification.BreachRecordEntity
-Encina.Compliance.BreachNotification.BreachRecordEntity.BreachRecordEntity() -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.Id.get -> string!
-Encina.Compliance.BreachNotification.BreachRecordEntity.Id.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.Nature.get -> string!
-Encina.Compliance.BreachNotification.BreachRecordEntity.Nature.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.ApproximateSubjectsAffected.get -> int
-Encina.Compliance.BreachNotification.BreachRecordEntity.ApproximateSubjectsAffected.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.CategoriesOfDataAffected.get -> string!
-Encina.Compliance.BreachNotification.BreachRecordEntity.CategoriesOfDataAffected.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.DPOContactDetails.get -> string!
-Encina.Compliance.BreachNotification.BreachRecordEntity.DPOContactDetails.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.LikelyConsequences.get -> string!
-Encina.Compliance.BreachNotification.BreachRecordEntity.LikelyConsequences.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.MeasuresTaken.get -> string!
-Encina.Compliance.BreachNotification.BreachRecordEntity.MeasuresTaken.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.DetectedAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.BreachNotification.BreachRecordEntity.DetectedAtUtc.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.NotificationDeadlineUtc.get -> System.DateTimeOffset
-Encina.Compliance.BreachNotification.BreachRecordEntity.NotificationDeadlineUtc.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.NotifiedAuthorityAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.BreachNotification.BreachRecordEntity.NotifiedAuthorityAtUtc.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.NotifiedSubjectsAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.BreachNotification.BreachRecordEntity.NotifiedSubjectsAtUtc.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.SeverityValue.get -> int
-Encina.Compliance.BreachNotification.BreachRecordEntity.SeverityValue.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.StatusValue.get -> int
-Encina.Compliance.BreachNotification.BreachRecordEntity.StatusValue.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.DelayReason.get -> string?
-Encina.Compliance.BreachNotification.BreachRecordEntity.DelayReason.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.SubjectNotificationExemptionValue.get -> int
-Encina.Compliance.BreachNotification.BreachRecordEntity.SubjectNotificationExemptionValue.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.ResolvedAtUtc.get -> System.DateTimeOffset?
-Encina.Compliance.BreachNotification.BreachRecordEntity.ResolvedAtUtc.set -> void
-Encina.Compliance.BreachNotification.BreachRecordEntity.ResolutionSummary.get -> string?
-Encina.Compliance.BreachNotification.BreachRecordEntity.ResolutionSummary.set -> void
-Encina.Compliance.BreachNotification.BreachRecordMapper
-static Encina.Compliance.BreachNotification.BreachRecordMapper.ToEntity(Encina.Compliance.BreachNotification.Model.BreachRecord! record) -> Encina.Compliance.BreachNotification.BreachRecordEntity!
-static Encina.Compliance.BreachNotification.BreachRecordMapper.ToDomain(Encina.Compliance.BreachNotification.BreachRecordEntity! entity) -> Encina.Compliance.BreachNotification.Model.BreachRecord?
-Encina.Compliance.BreachNotification.PhasedReportEntity
-Encina.Compliance.BreachNotification.PhasedReportEntity.PhasedReportEntity() -> void
-Encina.Compliance.BreachNotification.PhasedReportEntity.Id.get -> string!
-Encina.Compliance.BreachNotification.PhasedReportEntity.Id.set -> void
-Encina.Compliance.BreachNotification.PhasedReportEntity.BreachId.get -> string!
-Encina.Compliance.BreachNotification.PhasedReportEntity.BreachId.set -> void
-Encina.Compliance.BreachNotification.PhasedReportEntity.ReportNumber.get -> int
-Encina.Compliance.BreachNotification.PhasedReportEntity.ReportNumber.set -> void
-Encina.Compliance.BreachNotification.PhasedReportEntity.Content.get -> string!
-Encina.Compliance.BreachNotification.PhasedReportEntity.Content.set -> void
-Encina.Compliance.BreachNotification.PhasedReportEntity.SubmittedAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.BreachNotification.PhasedReportEntity.SubmittedAtUtc.set -> void
-Encina.Compliance.BreachNotification.PhasedReportEntity.SubmittedByUserId.get -> string?
-Encina.Compliance.BreachNotification.PhasedReportEntity.SubmittedByUserId.set -> void
-Encina.Compliance.BreachNotification.PhasedReportMapper
-static Encina.Compliance.BreachNotification.PhasedReportMapper.ToEntity(Encina.Compliance.BreachNotification.Model.PhasedReport! report) -> Encina.Compliance.BreachNotification.PhasedReportEntity!
-static Encina.Compliance.BreachNotification.PhasedReportMapper.ToDomain(Encina.Compliance.BreachNotification.PhasedReportEntity! entity) -> Encina.Compliance.BreachNotification.Model.PhasedReport!
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.BreachAuditEntryEntity() -> void
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.Id.get -> string!
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.Id.set -> void
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.BreachId.get -> string!
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.BreachId.set -> void
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.Action.get -> string!
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.Action.set -> void
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.Detail.get -> string?
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.Detail.set -> void
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.PerformedByUserId.get -> string?
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.PerformedByUserId.set -> void
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Compliance.BreachNotification.BreachAuditEntryEntity.OccurredAtUtc.set -> void
-Encina.Compliance.BreachNotification.BreachAuditEntryMapper
-static Encina.Compliance.BreachNotification.BreachAuditEntryMapper.ToEntity(Encina.Compliance.BreachNotification.Model.BreachAuditEntry! entry) -> Encina.Compliance.BreachNotification.BreachAuditEntryEntity!
-static Encina.Compliance.BreachNotification.BreachAuditEntryMapper.ToDomain(Encina.Compliance.BreachNotification.BreachAuditEntryEntity! entity) -> Encina.Compliance.BreachNotification.Model.BreachAuditEntry!
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.BreachAggregate() -> void
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Nature.get -> string!
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Severity.get -> Encina.Compliance.BreachNotification.Model.BreachSeverity
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Status.get -> Encina.Compliance.BreachNotification.Model.BreachStatus
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.EstimatedAffectedSubjects.get -> int
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Description.get -> string!
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.DetectedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.DeadlineUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.AssessedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.ReportedToDPAAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.NotifiedSubjectsAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.ContainedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.ClosedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.AuthorityName.get -> string?
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.SubjectCount.get -> int
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.PhasedReportCount.get -> int
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.ModuleId.get -> string?
+static Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Detect(System.Guid id, string! nature, Encina.Compliance.BreachNotification.Model.BreachSeverity severity, string! detectedByRule, int estimatedAffectedSubjects, string! description, string? detectedByUserId, System.DateTimeOffset detectedAtUtc, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.BreachNotification.Aggregates.BreachAggregate!
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Assess(Encina.Compliance.BreachNotification.Model.BreachSeverity updatedSeverity, int updatedAffectedSubjects, string! assessmentSummary, string! assessedByUserId, System.DateTimeOffset assessedAtUtc) -> void
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.ReportToDPA(string! authorityName, string! authorityContactInfo, string! reportSummary, string! reportedByUserId, System.DateTimeOffset reportedAtUtc) -> void
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.NotifySubjects(int subjectCount, string! communicationMethod, Encina.Compliance.BreachNotification.Model.SubjectNotificationExemption exemption, string! notifiedByUserId, System.DateTimeOffset notifiedAtUtc) -> void
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.AddPhasedReport(string! reportContent, string! submittedByUserId, System.DateTimeOffset submittedAtUtc) -> void
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Contain(string! containmentMeasures, string! containedByUserId, System.DateTimeOffset containedAtUtc) -> void
+Encina.Compliance.BreachNotification.Aggregates.BreachAggregate.Close(string! resolutionSummary, string! closedByUserId, System.DateTimeOffset closedAtUtc) -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected
+Encina.Compliance.BreachNotification.Events.BreachDetected.BreachDetected(System.Guid BreachId, string! Nature, Encina.Compliance.BreachNotification.Model.BreachSeverity Severity, string! DetectedByRule, int EstimatedAffectedSubjects, string! Description, string? DetectedByUserId, System.DateTimeOffset DetectedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.BreachId.get -> System.Guid
+Encina.Compliance.BreachNotification.Events.BreachDetected.BreachId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.Nature.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachDetected.Nature.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.Severity.get -> Encina.Compliance.BreachNotification.Model.BreachSeverity
+Encina.Compliance.BreachNotification.Events.BreachDetected.Severity.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.DetectedByRule.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachDetected.DetectedByRule.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.EstimatedAffectedSubjects.get -> int
+Encina.Compliance.BreachNotification.Events.BreachDetected.EstimatedAffectedSubjects.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.Description.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachDetected.Description.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.DetectedByUserId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachDetected.DetectedByUserId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.DetectedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Events.BreachDetected.DetectedAtUtc.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachDetected.TenantId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachDetected.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachDetected.ModuleId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed
+Encina.Compliance.BreachNotification.Events.BreachAssessed.BreachAssessed(System.Guid BreachId, Encina.Compliance.BreachNotification.Model.BreachSeverity UpdatedSeverity, int UpdatedAffectedSubjects, string! AssessmentSummary, string! AssessedByUserId, System.DateTimeOffset AssessedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.BreachId.get -> System.Guid
+Encina.Compliance.BreachNotification.Events.BreachAssessed.BreachId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.UpdatedSeverity.get -> Encina.Compliance.BreachNotification.Model.BreachSeverity
+Encina.Compliance.BreachNotification.Events.BreachAssessed.UpdatedSeverity.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.UpdatedAffectedSubjects.get -> int
+Encina.Compliance.BreachNotification.Events.BreachAssessed.UpdatedAffectedSubjects.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.AssessmentSummary.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachAssessed.AssessmentSummary.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.AssessedByUserId.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachAssessed.AssessedByUserId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.AssessedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Events.BreachAssessed.AssessedAtUtc.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachAssessed.TenantId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachAssessed.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachAssessed.ModuleId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.BreachReportedToDPA(System.Guid BreachId, string! AuthorityName, string! AuthorityContactInfo, string! ReportSummary, string! ReportedByUserId, System.DateTimeOffset ReportedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.BreachId.get -> System.Guid
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.BreachId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.AuthorityName.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.AuthorityName.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.AuthorityContactInfo.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.AuthorityContactInfo.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ReportSummary.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ReportSummary.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ReportedByUserId.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ReportedByUserId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ReportedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ReportedAtUtc.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.TenantId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachReportedToDPA.ModuleId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.BreachNotifiedToSubjects(System.Guid BreachId, int SubjectCount, string! CommunicationMethod, Encina.Compliance.BreachNotification.Model.SubjectNotificationExemption Exemption, string! NotifiedByUserId, System.DateTimeOffset NotifiedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.BreachId.get -> System.Guid
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.BreachId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.SubjectCount.get -> int
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.SubjectCount.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.CommunicationMethod.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.CommunicationMethod.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.Exemption.get -> Encina.Compliance.BreachNotification.Model.SubjectNotificationExemption
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.Exemption.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.NotifiedByUserId.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.NotifiedByUserId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.NotifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.NotifiedAtUtc.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.TenantId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects.ModuleId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.BreachPhasedReportAdded(System.Guid BreachId, int PhaseNumber, string! ReportContent, string! SubmittedByUserId, System.DateTimeOffset SubmittedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.BreachId.get -> System.Guid
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.BreachId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.PhaseNumber.get -> int
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.PhaseNumber.init -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.ReportContent.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.ReportContent.init -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.SubmittedByUserId.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.SubmittedByUserId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.SubmittedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.SubmittedAtUtc.init -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.TenantId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded.ModuleId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachContained
+Encina.Compliance.BreachNotification.Events.BreachContained.BreachContained(System.Guid BreachId, string! ContainmentMeasures, string! ContainedByUserId, System.DateTimeOffset ContainedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.BreachNotification.Events.BreachContained.BreachId.get -> System.Guid
+Encina.Compliance.BreachNotification.Events.BreachContained.BreachId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachContained.ContainmentMeasures.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachContained.ContainmentMeasures.init -> void
+Encina.Compliance.BreachNotification.Events.BreachContained.ContainedByUserId.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachContained.ContainedByUserId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachContained.ContainedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Events.BreachContained.ContainedAtUtc.init -> void
+Encina.Compliance.BreachNotification.Events.BreachContained.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachContained.TenantId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachContained.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachContained.ModuleId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachClosed
+Encina.Compliance.BreachNotification.Events.BreachClosed.BreachClosed(System.Guid BreachId, string! ResolutionSummary, string! ClosedByUserId, System.DateTimeOffset ClosedAtUtc, string? TenantId, string? ModuleId) -> void
+Encina.Compliance.BreachNotification.Events.BreachClosed.BreachId.get -> System.Guid
+Encina.Compliance.BreachNotification.Events.BreachClosed.BreachId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachClosed.ResolutionSummary.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachClosed.ResolutionSummary.init -> void
+Encina.Compliance.BreachNotification.Events.BreachClosed.ClosedByUserId.get -> string!
+Encina.Compliance.BreachNotification.Events.BreachClosed.ClosedByUserId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachClosed.ClosedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.Events.BreachClosed.ClosedAtUtc.init -> void
+Encina.Compliance.BreachNotification.Events.BreachClosed.TenantId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachClosed.TenantId.init -> void
+Encina.Compliance.BreachNotification.Events.BreachClosed.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.Events.BreachClosed.ModuleId.init -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.BreachReadModel() -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Id.get -> System.Guid
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Id.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Nature.get -> string!
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Nature.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Severity.get -> Encina.Compliance.BreachNotification.Model.BreachSeverity
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Severity.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Status.get -> Encina.Compliance.BreachNotification.Model.BreachStatus
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Status.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DetectedByRule.get -> string!
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DetectedByRule.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.EstimatedAffectedSubjects.get -> int
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.EstimatedAffectedSubjects.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Description.get -> string!
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Description.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DetectedByUserId.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DetectedByUserId.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DetectedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DetectedAtUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DeadlineUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.DeadlineUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.AssessedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.AssessedAtUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.AssessmentSummary.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.AssessmentSummary.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.AuthorityName.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.AuthorityName.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ReportedToDPAAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ReportedToDPAAtUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.SubjectCount.get -> int
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.SubjectCount.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.CommunicationMethod.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.CommunicationMethod.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Exemption.get -> Encina.Compliance.BreachNotification.Model.SubjectNotificationExemption?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Exemption.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.NotifiedSubjectsAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.NotifiedSubjectsAtUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.PhasedReports.get -> System.Collections.Generic.List<Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary!>!
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.PhasedReports.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ContainmentMeasures.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ContainmentMeasures.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ContainedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ContainedAtUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ResolutionSummary.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ResolutionSummary.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ClosedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ClosedAtUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.TenantId.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.TenantId.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ModuleId.get -> string?
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.ModuleId.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.LastModifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.LastModifiedAtUtc.set -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Version.get -> int
+Encina.Compliance.BreachNotification.ReadModels.BreachReadModel.Version.set -> void
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.PhasedReportSummary(int PhaseNumber, string! ReportContent, string! SubmittedByUserId, System.DateTimeOffset SubmittedAtUtc) -> void
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.PhaseNumber.get -> int
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.PhaseNumber.init -> void
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.ReportContent.get -> string!
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.ReportContent.init -> void
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.SubmittedByUserId.get -> string!
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.SubmittedByUserId.init -> void
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.SubmittedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.BreachNotification.ReadModels.PhasedReportSummary.SubmittedAtUtc.init -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.BreachProjection() -> void
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.ProjectionName.get -> string!
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.Create(Encina.Compliance.BreachNotification.Events.BreachDetected! domainEvent, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.Apply(Encina.Compliance.BreachNotification.Events.BreachAssessed! domainEvent, Encina.Compliance.BreachNotification.ReadModels.BreachReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.Apply(Encina.Compliance.BreachNotification.Events.BreachReportedToDPA! domainEvent, Encina.Compliance.BreachNotification.ReadModels.BreachReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.Apply(Encina.Compliance.BreachNotification.Events.BreachNotifiedToSubjects! domainEvent, Encina.Compliance.BreachNotification.ReadModels.BreachReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.Apply(Encina.Compliance.BreachNotification.Events.BreachPhasedReportAdded! domainEvent, Encina.Compliance.BreachNotification.ReadModels.BreachReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.Apply(Encina.Compliance.BreachNotification.Events.BreachContained! domainEvent, Encina.Compliance.BreachNotification.ReadModels.BreachReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!
+Encina.Compliance.BreachNotification.ReadModels.BreachProjection.Apply(Encina.Compliance.BreachNotification.Events.BreachClosed! domainEvent, Encina.Compliance.BreachNotification.ReadModels.BreachReadModel! current, Encina.Marten.Projections.ProjectionContext! context) -> Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.RecordBreachAsync(string! nature, Encina.Compliance.BreachNotification.Model.BreachSeverity severity, string! detectedByRule, int estimatedAffectedSubjects, string! description, string? detectedByUserId = null, string? tenantId = null, string? moduleId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Guid>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.AssessBreachAsync(System.Guid breachId, Encina.Compliance.BreachNotification.Model.BreachSeverity updatedSeverity, int updatedAffectedSubjects, string! assessmentSummary, string! assessedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.ReportToDPAAsync(System.Guid breachId, string! authorityName, string! authorityContactInfo, string! reportSummary, string! reportedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.NotifySubjectsAsync(System.Guid breachId, int subjectCount, string! communicationMethod, Encina.Compliance.BreachNotification.Model.SubjectNotificationExemption exemption, string! notifiedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.AddPhasedReportAsync(System.Guid breachId, string! reportContent, string! submittedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.ContainBreachAsync(System.Guid breachId, string! containmentMeasures, string! containedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.CloseBreachAsync(System.Guid breachId, string! resolutionSummary, string! closedByUserId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.GetBreachAsync(System.Guid breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.GetBreachesByStatusAsync(Encina.Compliance.BreachNotification.Model.BreachStatus status, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!>!>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.GetBreachesByTenantAsync(string! tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!>!>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.GetApproachingDeadlineBreachesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.BreachNotification.ReadModels.BreachReadModel!>!>>
+Encina.Compliance.BreachNotification.Abstractions.IBreachNotificationService.GetBreachHistoryAsync(System.Guid breachId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<object!>!>>
+const Encina.Compliance.BreachNotification.BreachNotificationErrors.InvalidStateTransitionCode = "breach.invalid_state_transition" -> string!
+const Encina.Compliance.BreachNotification.BreachNotificationErrors.ServiceErrorCode = "breach.service_error" -> string!
+const Encina.Compliance.BreachNotification.BreachNotificationErrors.EventHistoryUnavailableCode = "breach.event_history_unavailable" -> string!
+static Encina.Compliance.BreachNotification.BreachNotificationErrors.InvalidStateTransition(System.Guid breachId, string! operation) -> Encina.EncinaError
+static Encina.Compliance.BreachNotification.BreachNotificationErrors.ServiceError(string! operation, System.Exception! exception) -> Encina.EncinaError
+static Encina.Compliance.BreachNotification.BreachNotificationErrors.EventHistoryUnavailable(System.Guid breachId) -> Encina.EncinaError
+Encina.Compliance.BreachNotification.BreachNotificationMartenExtensions
+static Encina.Compliance.BreachNotification.BreachNotificationMartenExtensions.AddBreachNotificationAggregates(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

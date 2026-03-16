@@ -1,5 +1,6 @@
 using System.Reflection;
 
+using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
 
@@ -67,7 +68,7 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
     private static readonly BreachMonitoredInfo? CachedAttributeInfo = ResolveAttributeInfo();
 
     private readonly IBreachDetector _detector;
-    private readonly IBreachHandler _handler;
+    private readonly IBreachNotificationService _breachService;
     private readonly BreachNotificationOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<BreachDetectionPipelineBehavior<TRequest, TResponse>> _logger;
@@ -76,25 +77,25 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
     /// Initializes a new instance of the <see cref="BreachDetectionPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="detector">Breach detection engine for evaluating security events.</param>
-    /// <param name="handler">Breach handler for creating breach records from detections.</param>
+    /// <param name="breachService">Breach notification service for recording detected breaches.</param>
     /// <param name="options">Breach notification options controlling enforcement mode.</param>
     /// <param name="timeProvider">Time provider for deterministic timestamps.</param>
     /// <param name="logger">Logger for structured diagnostic messages.</param>
     public BreachDetectionPipelineBehavior(
         IBreachDetector detector,
-        IBreachHandler handler,
+        IBreachNotificationService breachService,
         IOptions<BreachNotificationOptions> options,
         TimeProvider timeProvider,
         ILogger<BreachDetectionPipelineBehavior<TRequest, TResponse>> logger)
     {
         ArgumentNullException.ThrowIfNull(detector);
-        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(breachService);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _detector = detector;
-        _handler = handler;
+        _breachService = breachService;
         _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -176,11 +177,16 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
                 "detected by rules [{RuleNames}]",
                 requestTypeName, breaches.Count, ruleNames);
 
-            // Handle each detected breach (creates records, publishes notifications)
+            // Record each detected breach via the event-sourced service
             foreach (var breach in breaches)
             {
-                await _handler.HandleDetectedBreachAsync(breach, cancellationToken)
-                    .ConfigureAwait(false);
+                await _breachService.RecordBreachAsync(
+                    nature: breach.Description,
+                    severity: breach.Severity,
+                    detectedByRule: breach.DetectionRuleName,
+                    estimatedAffectedSubjects: 0,
+                    description: $"Auto-detected by pipeline for request '{requestTypeName}'",
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
             }
 
             // Block mode — return error to the caller

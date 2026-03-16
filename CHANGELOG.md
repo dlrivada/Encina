@@ -2145,6 +2145,55 @@ Migrated `Encina.Compliance.LawfulBasis` from entity-based persistence (13 datab
 
 ---
 
+#### Encina.Compliance.BreachNotification — Migrated to Marten Event Sourcing (#780)
+
+Migrated `Encina.Compliance.BreachNotification` from entity-based persistence (13 database providers) to Marten event sourcing (PostgreSQL-only). Replaces `IBreachHandler` + `IBreachRecordStore` + `IBreachAuditStore` with a single event-sourced `BreachAggregate`. Domain events become the immutable audit trail, satisfying GDPR Art. 5(2) accountability. The detection engine (`IBreachDetector`, rules, pipeline behavior) and notification infrastructure (`IBreachNotifier`) are preserved — they are domain logic independent of persistence.
+
+**New Architecture (Event-Sourced)**:
+
+- **`BreachAggregate`**: Event-sourced aggregate with `Detect()` factory, `Assess()`, `ReportToDPA()`, `NotifySubjects()`, `AddPhasedReport()`, `Contain()`, `Close()` commands — models full breach lifecycle (Art. 33/34)
+- **7 Domain Events**: `BreachDetected`, `BreachAssessed`, `BreachReportedToDPA`, `BreachNotifiedToSubjects`, `BreachPhasedReportAdded`, `BreachContained`, `BreachClosed`
+- **`BreachProjection`**: Marten projection transforming events to `BreachReadModel` for query-side reads
+- **`BreachReadModel`**: Projected read model with breach state, phased reports list, deadline tracking (replaces `BreachRecord`)
+- **`IBreachNotificationService`**: Clean CQRS service interface with 7 command methods and 5 query methods via `IAggregateRepository<BreachAggregate>` and `IReadModelRepository<BreachReadModel>`
+- **`DefaultBreachNotificationService`**: Implementation with cache-aside pattern (L1/L2 via `ICacheProvider`), 72-hour deadline tracking
+- **`BreachNotificationMartenExtensions.AddBreachNotificationAggregates()`**: Registers aggregate + projection with Marten DI
+
+**Removed (Old Entity-Based Model)**:
+
+- `IBreachHandler`, `IBreachRecordStore`, `IBreachAuditStore` interfaces
+- `DefaultBreachHandler` implementation
+- `InMemoryBreachRecordStore`, `InMemoryBreachAuditStore` implementations
+- All 13-provider store implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
+
+**Preserved (Unchanged)**:
+
+- `IBreachDetector`, `IBreachDetectionRule`, `DefaultBreachDetector`, 4 built-in detection rules
+- `IBreachNotifier`, `DefaultBreachNotifier` — notification dispatch
+- `BreachDetectionPipelineBehavior<TRequest, TResponse>` — pipeline integration
+- `BreachMonitoredAttribute` — declarative breach monitoring
+- `BreachNotificationOptions`, `BreachNotificationOptionsValidator`
+- `BreachDeadlineMonitorService` — background deadline monitoring
+- `BreachNotificationHealthCheck` — health check
+- All model types: `BreachSeverity`, `BreachStatus`, `SecurityEvent`, `PotentialBreach`, `SecurityEventType`, etc.
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.BreachNotification` ActivitySource
+- 7 counters + 2 histograms under `Encina.Compliance.BreachNotification` Meter
+- 14 structured log events (EventId 8700–8799) using `[LoggerMessage]` source generator
+
+**New Dependencies**: `Encina.Marten`, `Encina.Caching`
+
+**DI Registration**:
+
+- `services.AddEncinaBreachNotification()` with `TryAdd` semantics
+- `services.AddBreachNotificationAggregates()` for Marten aggregate/projection registration
+
+**Testing**: ~218 tests across 4 test projects: 159 unit tests (119 aggregate + 15 service + 25 projection), 59 guard tests (54 aggregate + 5 service).
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

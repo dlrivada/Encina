@@ -20,6 +20,11 @@ namespace Encina.Compliance.BreachNotification.Diagnostics;
 /// Key metric: <c>breach.time_to_notification.hours</c> measures compliance with the
 /// GDPR Article 33(1) 72-hour deadline for supervisory authority notification.
 /// </para>
+/// <para>
+/// The breach notification module uses Marten event sourcing for aggregate persistence.
+/// Audit trail data is derived from the event stream rather than a separate store.
+/// Cache-aside pattern is used for read model queries via <c>ICacheProvider</c>.
+/// </para>
 /// </remarks>
 internal static class BreachNotificationDiagnostics
 {
@@ -57,6 +62,12 @@ internal static class BreachNotificationDiagnostics
 
     /// <summary>The reason a check or operation failed.</summary>
     internal const string TagFailureReason = "breach.failure_reason";
+
+    /// <summary>The cache key used for a cache-aside lookup.</summary>
+    internal const string TagCacheKey = "breach.cache_key";
+
+    /// <summary>The name of the service operation being executed.</summary>
+    internal const string TagOperationName = "breach.operation";
 
     // ---- Counters ----
 
@@ -102,6 +113,48 @@ internal static class BreachNotificationDiagnostics
         Meter.CreateCounter<long>("breach.resolved.total",
             description: "Total number of breaches resolved.");
 
+    /// <summary>
+    /// Total breaches assessed via the service.
+    /// </summary>
+    internal static readonly Counter<long> BreachesAssessedTotal =
+        Meter.CreateCounter<long>("breach.assessed.total",
+            description: "Total number of breaches assessed.");
+
+    /// <summary>
+    /// Total breaches closed via the service.
+    /// </summary>
+    internal static readonly Counter<long> BreachesClosedTotal =
+        Meter.CreateCounter<long>("breach.closed.total",
+            description: "Total number of breaches closed.");
+
+    /// <summary>
+    /// Total cache hits for breach read model queries.
+    /// </summary>
+    internal static readonly Counter<long> CacheHitsTotal =
+        Meter.CreateCounter<long>("breach.cache.hits.total",
+            description: "Total cache hits for breach read model queries.");
+
+    /// <summary>
+    /// Total cache misses for breach read model queries.
+    /// </summary>
+    internal static readonly Counter<long> CacheMissesTotal =
+        Meter.CreateCounter<long>("breach.cache.misses.total",
+            description: "Total cache misses for breach read model queries.");
+
+    /// <summary>
+    /// Total aggregate load operations from the event store.
+    /// </summary>
+    internal static readonly Counter<long> AggregateLoadsTotal =
+        Meter.CreateCounter<long>("breach.aggregate.loads.total",
+            description: "Total breach aggregate loads from event store.");
+
+    /// <summary>
+    /// Total aggregate save operations to the event store.
+    /// </summary>
+    internal static readonly Counter<long> AggregateSavesTotal =
+        Meter.CreateCounter<long>("breach.aggregate.saves.total",
+            description: "Total breach aggregate saves to event store.");
+
     // ---- Histograms ----
 
     /// <summary>
@@ -128,6 +181,14 @@ internal static class BreachNotificationDiagnostics
         Meter.CreateHistogram<double>("breach.pipeline.duration.ms",
             unit: "ms",
             description: "Duration of breach detection pipeline behavior execution in milliseconds.");
+
+    /// <summary>
+    /// Duration of service operations (aggregate load/save, queries) in milliseconds.
+    /// </summary>
+    internal static readonly Histogram<double> ServiceOperationDuration =
+        Meter.CreateHistogram<double>("breach.service.duration.ms",
+            unit: "ms",
+            description: "Duration of breach notification service operations in milliseconds.");
 
     // ---- Activity helpers ----
 
@@ -196,6 +257,30 @@ internal static class BreachNotificationDiagnostics
         }
 
         return ActivitySource.StartActivity("BreachNotification.DeadlineCheck", ActivityKind.Internal);
+    }
+
+    /// <summary>
+    /// Starts a new <c>BreachNotification.ServiceOperation</c> activity for a service-level operation
+    /// (e.g., RecordBreach, AssessBreach, ReportToDPA).
+    /// </summary>
+    /// <param name="operationName">The name of the service operation.</param>
+    /// <param name="breachId">The breach identifier, if applicable.</param>
+    /// <returns>The started activity, or <c>null</c> when no listener is attached.</returns>
+    internal static Activity? StartServiceOperation(string operationName, Guid? breachId = null)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("BreachNotification.ServiceOperation", ActivityKind.Internal);
+        activity?.SetTag(TagOperationName, operationName);
+        if (breachId.HasValue)
+        {
+            activity?.SetTag(TagBreachId, breachId.Value.ToString());
+        }
+
+        return activity;
     }
 
     // ---- Outcome recorders ----

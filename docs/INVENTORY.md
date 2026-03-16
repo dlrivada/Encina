@@ -6030,23 +6030,25 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-encryption`, `industry-best-practice`, `pattern-crypto-shredding`
 - Referencias: [WP29 Anonymization Techniques](https://ec.europa.eu/justice/article-29/documentation/opinion-recommendation/files/2014/wp216_en.pdf), [ENISA Pseudonymization](https://www.enisa.europa.eu/publications/pseudonymisation-techniques-and-best-practices)
 
-**#408 - Encina.Compliance.BreachNotification - 72-Hour Notification** ✅ **IMPLEMENTADO**:
+**#408 - Encina.Compliance.BreachNotification - 72-Hour Notification** ✅ **IMPLEMENTADO** (migrado a Marten Event Sourcing en #780):
 
-- ✅ `IBreachDetector` con `DetectAsync` y `RegisterDetectionRule` para detección extensible
-- ✅ `IBreachHandler` con `HandleDetectedBreachAsync`, `NotifyAuthorityAsync`, `NotifyDataSubjectsAsync`, `AddPhasedReportAsync`, `ResolveBreachAsync`, `GetDeadlineStatusAsync`
-- ✅ `IBreachNotifier` con `NotifyAuthorityAsync` y `NotifyDataSubjectsAsync`
-- ✅ `IBreachRecordStore` y `IBreachAuditStore` con abstracciones para 13 proveedores de base de datos
-- ✅ `IBreachDetectionRule` con 4 reglas integradas: `UnauthorizedAccessRule`, `MassDataExfiltrationRule`, `PrivilegeEscalationRule`, `AnomalousQueryPatternRule`
-- ✅ `BreachDetectionPipelineBehavior<TRequest, TResponse>` con `[BreachMonitored]` attribute y modos Block/Warn/Disabled
-- ✅ `BreachRecord` con phased reporting (Article 33(4)), severity levels, 72-hour deadline tracking
-- ✅ `PhasedReport` para actualizaciones incrementales al supervisory authority
-- ✅ `BreachAuditEntry` para trazabilidad completa de todas las acciones
+- ✅ `BreachAggregate` — Event-sourced aggregate con `Detect()`, `Assess()`, `ReportToDPA()`, `NotifySubjects()`, `AddPhasedReport()`, `Contain()`, `Close()` (lifecycle completo Art. 33/34)
+- ✅ 7 Domain Events: `BreachDetected`, `BreachAssessed`, `BreachReportedToDPA`, `BreachNotifiedToSubjects`, `BreachPhasedReportAdded`, `BreachContained`, `BreachClosed`
+- ✅ `BreachProjection` — Marten inline projection → `BreachReadModel` (CQRS query-side)
+- ✅ `IBreachNotificationService` — CQRS service interface (7 commands + 5 queries) via `IAggregateRepository` + `IReadModelRepository`
+- ✅ `DefaultBreachNotificationService` — cache-aside pattern con `ICacheProvider`, 72-hour deadline tracking
+- ✅ `IBreachDetector` con `DetectAsync` y `RegisterDetectionRule` para detección extensible (preservado)
+- ✅ `IBreachNotifier` con `NotifyAuthorityAsync` y `NotifyDataSubjectsAsync` (preservado)
+- ✅ `IBreachDetectionRule` con 4 reglas integradas: `UnauthorizedAccessRule`, `MassDataExfiltrationRule`, `PrivilegeEscalationRule`, `AnomalousQueryPatternRule` (preservado)
+- ✅ `BreachDetectionPipelineBehavior<TRequest, TResponse>` con `[BreachMonitored]` attribute y modos Block/Warn/Disabled (preservado)
 - ✅ `BreachNotificationOptions` con thresholds configurables, alert hours, auto-notify, enforcement mode
-- ✅ `BreachNotificationErrors` con 12 error codes estructurados (`breach.detected`, `breach.not_found`, etc.)
-- ✅ InMemory implementations: `InMemoryBreachRecordStore`, `InMemoryBreachAuditStore`
-- ✅ OpenTelemetry: ActivitySource + Meter (5 instruments) + structured log events
-- ✅ 250 tests: 182 unit, 14 guard, 20 contract, 21 property, 13 integration
+- ✅ `BreachNotificationErrors` con 14 error codes estructurados (`breach.detected`, `breach.not_found`, etc.)
+- ✅ `BreachNotificationMartenExtensions.AddBreachNotificationAggregates()` — registro Marten DI
+- ✅ OpenTelemetry: ActivitySource + Meter (7 counters + 2 histograms) + 14 structured log events (EventId 8700–8799)
+- ✅ ~218 tests: 159 unit (119 aggregate + 15 service + 25 projection), 59 guard (54 aggregate + 5 service)
+- ❌ Eliminados: `IBreachHandler`, `IBreachRecordStore`, `IBreachAuditStore`, `DefaultBreachHandler`, `InMemoryBreachRecordStore`, `InMemoryBreachAuditStore`, 13-provider store implementations
 - **Paquete**: `Encina.Compliance.BreachNotification`
+- **Dependencias**: `Encina.Marten`, `Encina.Caching`
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-observability`, `area-data-protection`, `area-pipeline`, `industry-best-practice`
 - Referencias: [GDPR Article 33](https://gdpr-info.eu/art-33-gdpr/), [EDPB Breach Guidelines](https://edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-012021-examples-regarding-personal-data-breach_en)
 

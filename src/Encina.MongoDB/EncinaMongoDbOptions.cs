@@ -136,10 +136,9 @@ public sealed class EncinaMongoDbOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, registers <see cref="Compliance.BreachNotification.IBreachRecordStore"/>
-    /// and <see cref="Compliance.BreachNotification.IBreachAuditStore"/>
-    /// implemented by their MongoDB store classes for GDPR Articles 33–34 compliant
-    /// personal data breach notification management and audit trail.
+    /// When enabled, registers breach notification infrastructure for GDPR Articles 33–34
+    /// compliant personal data breach notification management. With event sourcing migration,
+    /// breach state is managed via Marten event streams rather than MongoDB stores.
     /// </para>
     /// </remarks>
     public bool UseBreachNotification { get; set; }

@@ -1,7 +1,8 @@
+using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Detection.Rules;
 using Encina.Compliance.BreachNotification.Health;
-using Encina.Compliance.BreachNotification.InMemory;
+using Encina.Compliance.BreachNotification.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,21 +27,25 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="BreachNotificationOptions"/> — Configured via the provided action, validated at first access</item>
-    /// <item><see cref="IBreachRecordStore"/> → <see cref="InMemoryBreachRecordStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IBreachAuditStore"/> → <see cref="InMemoryBreachAuditStore"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IBreachNotificationService"/> → <see cref="DefaultBreachNotificationService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IBreachDetector"/> → <see cref="DefaultBreachDetector"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IBreachNotifier"/> → <see cref="DefaultBreachNotifier"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IBreachHandler"/> → <see cref="DefaultBreachHandler"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="BreachDetectionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
     /// <item>Built-in detection rules: <see cref="UnauthorizedAccessRule"/>, <see cref="MassDataExfiltrationRule"/>,
     ///   <see cref="PrivilegeEscalationRule"/>, <see cref="AnomalousQueryPatternRule"/> (Singleton)</item>
     /// </list>
     /// </para>
     /// <para>
+    /// <b>Event sourcing:</b>
+    /// The breach notification service uses event-sourced aggregates via Marten. Call
+    /// <see cref="BreachNotificationMartenExtensions.AddBreachNotificationAggregates"/> to register
+    /// the aggregate repository and projection infrastructure.
+    /// </para>
+    /// <para>
     /// <b>Default registrations:</b>
     /// All service registrations use <c>TryAdd</c>, allowing you to register custom
-    /// implementations before calling this method. For example, register a database-backed
-    /// <see cref="IBreachRecordStore"/> or a custom <see cref="IBreachNotifier"/>.
+    /// implementations before calling this method. For example, register a custom
+    /// <see cref="IBreachNotificationService"/> or a custom <see cref="IBreachNotifier"/>.
     /// </para>
     /// <para>
     /// <b>Conditional registrations:</b>
@@ -52,7 +57,7 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Basic setup
+    /// // Basic setup with Marten event sourcing
     /// services.AddEncinaBreachNotification(options =>
     /// {
     ///     options.EnforcementMode = BreachDetectionEnforcementMode.Block;
@@ -61,9 +66,11 @@ public static class ServiceCollectionExtensions
     ///     options.AddDetectionRule&lt;MyCustomRule&gt;();
     /// });
     ///
-    /// // With custom implementations (register before AddEncinaBreachNotification)
-    /// services.AddSingleton&lt;IBreachRecordStore, DatabaseBreachRecordStore&gt;();
-    /// services.AddSingleton&lt;IBreachAuditStore, DatabaseBreachAuditStore&gt;();
+    /// // Register Marten aggregate repository and projection
+    /// services.AddBreachNotificationAggregates();
+    ///
+    /// // With custom service implementation (register before AddEncinaBreachNotification)
+    /// services.AddScoped&lt;IBreachNotificationService, MyCustomBreachNotificationService&gt;();
     /// services.AddEncinaBreachNotification(options =>
     /// {
     ///     options.EnforcementMode = BreachDetectionEnforcementMode.Warn;
@@ -92,14 +99,12 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
-        // Register default store implementations (TryAdd allows override by satellite providers)
-        services.TryAddSingleton<IBreachRecordStore, InMemoryBreachRecordStore>();
-        services.TryAddSingleton<IBreachAuditStore, InMemoryBreachAuditStore>();
+        // Register event-sourced breach notification service (TryAdd allows custom override)
+        services.TryAddScoped<IBreachNotificationService, DefaultBreachNotificationService>();
 
-        // Register default high-level service implementations
+        // Register detection and notification infrastructure
         services.TryAddSingleton<IBreachDetector, DefaultBreachDetector>();
         services.TryAddSingleton<IBreachNotifier, DefaultBreachNotifier>();
-        services.TryAddScoped<IBreachHandler, DefaultBreachHandler>();
 
         // Register pipeline behavior
         services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(BreachDetectionPipelineBehavior<,>));
