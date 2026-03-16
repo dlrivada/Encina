@@ -1521,6 +1521,8 @@ Added the `Encina.Compliance.DPIA` package implementing GDPR Articles 35 and 36 
 
 #### Encina.Compliance.ProcessorAgreements — GDPR Article 28 Data Processing Agreements with Sub-Processor Tracking (#410)
 
+> **Note**: This package was migrated to Marten event sourcing in #782 (see Changed section above). The entity-based architecture described below has been replaced.
+
 Added the `Encina.Compliance.ProcessorAgreements` package implementing GDPR Article 28 for Data Processing Agreement lifecycle management. Provides processor registry, DPA validation engine, sub-processor hierarchy tracking, mandatory terms compliance, SCC verification, expiration monitoring, and pipeline enforcement.
 
 **Core Abstractions**:
@@ -2243,6 +2245,64 @@ Migrated `Encina.Compliance.DPIA` from entity-based persistence (13 database pro
 - `services.AddDPIAAggregates()` for Marten aggregate/projection registration
 
 **Testing**: ~148 tests across 5 test projects: 102 unit tests (75 aggregate + 16 service + 11 projection), 33 guard tests (25 aggregate + 8 service), 5 contract tests, 8 property-based tests.
+
+---
+
+#### Encina.Compliance.ProcessorAgreements — Migrated to Marten Event Sourcing (#782)
+
+Migrated `Encina.Compliance.ProcessorAgreements` from entity-based persistence (13 database providers) to Marten event sourcing (PostgreSQL-only). Replaces `IProcessorRegistry` + `IDPAStore` + `IDPAValidator` + `IProcessorAuditStore` with event-sourced `ProcessorAggregate` and `DPAAggregate` aggregates, CQRS read models via Marten projections, and a unified service layer with cache-aside pattern.
+
+**New Architecture (Event-Sourced)**:
+
+- **`ProcessorAggregate`**: Event-sourced aggregate with `Register()` factory, `Update()`, `Remove()`, `AddSubProcessor()`, `RemoveSubProcessor()` commands — tracks processor identity and hierarchy per Article 28(2)
+- **`DPAAggregate`**: Event-sourced aggregate with `Execute()` factory, `Amend()`, `Audit()`, `Renew()`, `Terminate()`, `MarkExpired()`, `MarkPendingRenewal()` commands — models full DPA lifecycle (Art. 28(3))
+- **12 Domain Events**: `ProcessorRegistered`, `ProcessorUpdated`, `ProcessorRemoved`, `SubProcessorAdded`, `SubProcessorRemoved` (processor), `DPAExecuted`, `DPAAmended`, `DPAAudited`, `DPARenewed`, `DPATerminated`, `DPAExpired`, `DPAMarkedPendingRenewal` (DPA)
+- **`ProcessorProjection`**: Marten projection transforming 5 processor events to `ProcessorReadModel` with sub-processor count tracking
+- **`DPAProjection`**: Marten projection transforming 7 DPA events to `DPAReadModel` with audit history accumulation
+- **`ProcessorReadModel`**: Projected read model with hierarchy, authorization type, sub-processor count (replaces `Processor` entity)
+- **`DPAReadModel`**: Projected read model with mandatory terms, audit history, termination tracking (replaces `DataProcessingAgreement` entity)
+- **`IProcessorService`**: Clean CQRS service interface with 3 command and 5 query methods via `IAggregateRepository<ProcessorAggregate>` and `IReadModelRepository<ProcessorReadModel>`
+- **`IDPAService`**: Clean CQRS service interface with 5 command and 7 query methods (including `HasValidDPAAsync` hot path and `ValidateDPAAsync` detailed validation)
+- **`DefaultProcessorService`**: Implementation with cache-aside pattern (L1/L2 via `ICacheProvider`), BFS traversal for sub-processor chains
+- **`DefaultDPAService`**: Implementation with cache-aside pattern, expiration-aware active DPA lookup
+- **`ProcessorAgreementsMartenExtensions.AddProcessorAgreementAggregates()`**: Registers both aggregates + projections with Marten DI
+
+**Removed (Old Entity-Based Model)**:
+
+- `IProcessorRegistry`, `IDPAStore`, `IDPAValidator`, `IProcessorAuditStore` interfaces
+- `InMemoryProcessorRegistry`, `InMemoryDPAStore`, `InMemoryProcessorAuditStore` implementations
+- `DefaultDPAValidator` implementation
+- `Processor`, `DataProcessingAgreement`, `ProcessorAgreementAuditEntry` entities
+- `ProcessorEntity`, `DataProcessingAgreementEntity`, `ProcessorAgreementAuditEntryEntity` database entities
+- `ProcessorMapper`, `DataProcessingAgreementMapper`, `ProcessorAgreementAuditEntryMapper` bidirectional mappers
+- All 13-provider store implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1) for registry, DPA store, and audit store
+- All SQL schema scripts (`processor_agreements_schema_*.sql`)
+- EF Core entity configurations
+- `ProcessorAgreementOptions.TrackAuditTrail` relevance (audit is inherent in event sourcing)
+
+**Preserved (Unchanged)**:
+
+- `ProcessorValidationPipelineBehavior<TRequest, TResponse>` — pipeline enforcement (now uses `IDPAService`)
+- `CheckDPAExpirationHandler` — expiration monitoring (now uses `IDPAService` + `IProcessorService` + `IAggregateRepository<DPAAggregate>`)
+- `ProcessorAgreementHealthCheck` — health check (now verifies `IProcessorService` + `IDPAService`)
+- `RequiresProcessorAttribute`, `ProcessorAgreementOptions`, `ProcessorAgreementErrors`
+- All model types: `DPAMandatoryTerms`, `DPAValidationResult`, `DPAStatus`, `SubProcessorAuthorizationType`, `ProcessorAgreementEnforcementMode`
+- All 7 notification types: `ProcessorRegisteredNotification`, `DPASignedNotification`, `DPAExpiringNotification`, `DPAExpiredNotification`, `DPATerminatedNotification`, `SubProcessorAddedNotification`, `SubProcessorRemovedNotification`
+
+**Observability**:
+
+- 6 new service-level counters: `processor_service.operations.total`, `dpa_service.operations.total`, `cache.hits.total`, `cache.misses.total` (counters), `processor_service.operation.duration`, `dpa_service.operation.duration` (histograms)
+- New log message block 8970-8989 for service-level operations (processor/DPA service start/complete/fail, cache hit/miss/invalidation, DPA amend/audit/renew/terminate)
+- All existing pipeline, audit, registry, DPA store, expiration, sub-processor, and validation tracing/metrics/logging preserved
+
+**New Dependencies**: `Encina.Marten`, `Encina.Caching`
+
+**DI Registration**:
+
+- `services.AddEncinaProcessorAgreements()` with `TryAdd` semantics
+- `services.AddProcessorAgreementAggregates()` for Marten aggregate/projection registration
+
+**Testing**: Updated all test files across 5 test projects: unit tests (aggregate, projection, service, pipeline, health check, handler), guard tests (service constructors, handler), property tests (aggregate invariants), integration tests (pipeline behavior).
 
 ---
 

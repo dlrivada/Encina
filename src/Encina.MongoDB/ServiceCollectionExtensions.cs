@@ -1,7 +1,6 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.GDPR;
-using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
 using Encina.Database;
 using Encina.DomainModeling;
@@ -144,14 +143,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
         }
 
-        // Register Processor Agreements stores if enabled
-        if (options.UseProcessorAgreements)
-        {
-            services.AddScoped<IProcessorRegistry, ProcessorAgreements.ProcessorRegistryMongoDB>();
-            services.AddScoped<IDPAStore, ProcessorAgreements.DPAStoreMongoDB>();
-            services.AddScoped<IProcessorAuditStore, ProcessorAgreements.ProcessorAuditStoreMongoDB>();
-        }
-
         // Register ABAC Policy Store if enabled
         if (options.UseABACPolicyStore)
         {
@@ -277,14 +268,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IDataLocationStore, DataResidency.DataLocationStoreMongoDB>();
             services.AddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreMongoDB>();
             services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
-        }
-
-        // Register Processor Agreements stores if enabled
-        if (options.UseProcessorAgreements)
-        {
-            services.AddScoped<IProcessorRegistry, ProcessorAgreements.ProcessorRegistryMongoDB>();
-            services.AddScoped<IDPAStore, ProcessorAgreements.DPAStoreMongoDB>();
-            services.AddScoped<IProcessorAuditStore, ProcessorAgreements.ProcessorAuditStoreMongoDB>();
         }
 
         // Register ABAC Policy Store if enabled

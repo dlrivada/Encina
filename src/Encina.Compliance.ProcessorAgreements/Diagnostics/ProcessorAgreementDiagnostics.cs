@@ -257,6 +257,92 @@ internal static class ProcessorAgreementDiagnostics
     }
 
     // ========================================================================
+    // Service-level counters (Marten event-sourced services)
+    // ========================================================================
+
+    /// <summary>Total number of processor service operations (register, update, remove, query).</summary>
+    internal static readonly Counter<long> ProcessorServiceOperationTotal =
+        Meter.CreateCounter<long>("processor_agreement.processor_service.operations.total",
+            description: "Total number of processor service operations.");
+
+    /// <summary>Total number of DPA service operations (execute, amend, audit, renew, terminate, query).</summary>
+    internal static readonly Counter<long> DPAServiceOperationTotal =
+        Meter.CreateCounter<long>("processor_agreement.dpa_service.operations.total",
+            description: "Total number of DPA service operations.");
+
+    /// <summary>Total number of cache hits for processor/DPA lookups.</summary>
+    internal static readonly Counter<long> CacheHitTotal =
+        Meter.CreateCounter<long>("processor_agreement.cache.hits.total",
+            description: "Total number of cache hits for processor and DPA lookups.");
+
+    /// <summary>Total number of cache misses for processor/DPA lookups.</summary>
+    internal static readonly Counter<long> CacheMissTotal =
+        Meter.CreateCounter<long>("processor_agreement.cache.misses.total",
+            description: "Total number of cache misses for processor and DPA lookups.");
+
+    /// <summary>Duration of processor service operations in milliseconds.</summary>
+    internal static readonly Histogram<double> ProcessorServiceOperationDuration =
+        Meter.CreateHistogram<double>("processor_agreement.processor_service.operation.duration",
+            unit: "ms",
+            description: "Duration of processor service operations in milliseconds.");
+
+    /// <summary>Duration of DPA service operations in milliseconds.</summary>
+    internal static readonly Histogram<double> DPAServiceOperationDuration =
+        Meter.CreateHistogram<double>("processor_agreement.dpa_service.operation.duration",
+            unit: "ms",
+            description: "Duration of DPA service operations in milliseconds.");
+
+    // ========================================================================
+    // Service-level activity helpers
+    // ========================================================================
+
+    /// <summary>
+    /// Starts an activity for a processor service operation.
+    /// </summary>
+    /// <param name="operation">The operation name (e.g., "RegisterProcessor", "UpdateProcessor").</param>
+    /// <param name="processorId">The processor identifier, or <c>null</c> for list operations.</param>
+    /// <returns>The started activity, or <c>null</c> if no listeners are registered.</returns>
+    internal static Activity? StartProcessorServiceOperation(string operation, string? processorId)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("ProcessorAgreement.ProcessorService." + operation, ActivityKind.Internal);
+        activity?.SetTag(TagOperation, operation);
+        if (processorId is not null)
+        {
+            activity?.SetTag(TagProcessorId, processorId);
+        }
+
+        return activity;
+    }
+
+    /// <summary>
+    /// Starts an activity for a DPA service operation.
+    /// </summary>
+    /// <param name="operation">The operation name (e.g., "ExecuteDPA", "AmendDPA").</param>
+    /// <param name="dpaId">The DPA identifier, or <c>null</c> for list/validation operations.</param>
+    /// <returns>The started activity, or <c>null</c> if no listeners are registered.</returns>
+    internal static Activity? StartDPAServiceOperation(string operation, string? dpaId)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity("ProcessorAgreement.DPAService." + operation, ActivityKind.Internal);
+        activity?.SetTag(TagOperation, operation);
+        if (dpaId is not null)
+        {
+            activity?.SetTag(TagDPAId, dpaId);
+        }
+
+        return activity;
+    }
+
+    // ========================================================================
     // Shared activity outcome helpers
     // ========================================================================
 

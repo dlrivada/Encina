@@ -48,10 +48,10 @@ public sealed class RequiresProcessorAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This value must match a <see cref="Model.Processor.Id"/> registered in the
-    /// <see cref="IProcessorRegistry"/>. The <c>ProcessorValidationPipelineBehavior</c>
+    /// This value must match a <see cref="Model.Processor.Id"/> registered via
+    /// <see cref="Abstractions.IProcessorService"/>. The <c>ProcessorValidationPipelineBehavior</c>
     /// uses this identifier to look up the processor and verify its DPA status via
-    /// <see cref="IDPAValidator.HasValidDPAAsync"/>.
+    /// <see cref="Abstractions.IDPAService.HasValidDPAAsync"/>.
     /// </para>
     /// <para>
     /// When the processor is not found in the registry, the pipeline returns a

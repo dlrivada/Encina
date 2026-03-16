@@ -1,4 +1,5 @@
 using Encina.Compliance.ProcessorAgreements;
+using Encina.Compliance.ProcessorAgreements.Abstractions;
 
 namespace Encina.GuardTests.Compliance.ProcessorAgreements;
 
@@ -8,60 +9,38 @@ namespace Encina.GuardTests.Compliance.ProcessorAgreements;
 /// </summary>
 public class ProcessorValidationPipelineBehaviorGuardTests
 {
-    private readonly IDPAValidator _validator = Substitute.For<IDPAValidator>();
-    private readonly IProcessorAuditStore _auditStore = Substitute.For<IProcessorAuditStore>();
+    private readonly IDPAService _dpaService = Substitute.For<IDPAService>();
     private readonly IOptions<ProcessorAgreementOptions> _options = Options.Create(new ProcessorAgreementOptions());
-    private readonly TimeProvider _timeProvider = TimeProvider.System;
     private readonly ILogger<ProcessorValidationPipelineBehavior<TestCommand, string>> _logger =
         NullLogger<ProcessorValidationPipelineBehavior<TestCommand, string>>.Instance;
 
     #region Constructor Guards
 
     [Fact]
-    public void Constructor_NullValidator_ThrowsArgumentNullException()
+    public void Constructor_NullDPAService_ThrowsArgumentNullException()
     {
         var act = () => new ProcessorValidationPipelineBehavior<TestCommand, string>(
-            null!, _auditStore, _options, _timeProvider, _logger);
+            null!, _options, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("validator");
-    }
-
-    [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
-    {
-        var act = () => new ProcessorValidationPipelineBehavior<TestCommand, string>(
-            _validator, null!, _options, _timeProvider, _logger);
-
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("auditStore");
+        ex.ParamName.ShouldBe("dpaService");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new ProcessorValidationPipelineBehavior<TestCommand, string>(
-            _validator, _auditStore, null!, _timeProvider, _logger);
+            _dpaService, null!, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
-    public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
-    {
-        var act = () => new ProcessorValidationPipelineBehavior<TestCommand, string>(
-            _validator, _auditStore, _options, null!, _logger);
-
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("timeProvider");
-    }
-
-    [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new ProcessorValidationPipelineBehavior<TestCommand, string>(
-            _validator, _auditStore, _options, _timeProvider, null!);
+            _dpaService, _options, null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");
@@ -112,7 +91,7 @@ public class ProcessorValidationPipelineBehaviorGuardTests
     #region Helpers
 
     private ProcessorValidationPipelineBehavior<TestCommand, string> CreateSut() =>
-        new(_validator, _auditStore, _options, _timeProvider, _logger);
+        new(_dpaService, _options, _logger);
 
     public sealed record TestCommand : ICommand<string>;
 

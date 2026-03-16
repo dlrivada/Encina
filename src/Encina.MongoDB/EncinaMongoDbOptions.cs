@@ -148,11 +148,9 @@ public sealed class EncinaMongoDbOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, registers <see cref="Compliance.ProcessorAgreements.IProcessorRegistry"/>,
-    /// <see cref="Compliance.ProcessorAgreements.IDPAStore"/>, and
-    /// <see cref="Compliance.ProcessorAgreements.IProcessorAuditStore"/>
-    /// implemented by their MongoDB store classes for GDPR Article 28 compliant
+    /// When enabled, registers processor agreement services for GDPR Article 28 compliant
     /// processor agreement management, DPA lifecycle tracking, and audit trail.
+    /// Now uses Marten event sourcing via <c>Encina.Compliance.ProcessorAgreements</c>.
     /// </para>
     /// </remarks>
     public bool UseProcessorAgreements { get; set; }

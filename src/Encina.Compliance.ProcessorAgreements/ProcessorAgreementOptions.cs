@@ -95,7 +95,7 @@ public sealed class ProcessorAgreementOptions
     /// <para>
     /// When enabled, the <c>CheckDPAExpirationCommand</c> is registered with the
     /// Encina.Scheduling infrastructure for periodic execution. The command queries
-    /// the <see cref="IDPAStore"/> for agreements approaching or past expiration
+    /// the <see cref="Abstractions.IDPAService"/> for agreements approaching or past expiration
     /// and publishes <c>DPAExpiringNotification</c> / <c>DPAExpiredNotification</c> events.
     /// </para>
     /// <para>
@@ -139,7 +139,7 @@ public sealed class ProcessorAgreementOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, the module records audit entries via <see cref="IProcessorAuditStore"/>
+    /// When enabled, the module records audit entries via the Marten event stream
     /// for enforcement actions (blocked requests, expiration transitions) to support
     /// the accountability principle under GDPR Article 5(2).
     /// </para>

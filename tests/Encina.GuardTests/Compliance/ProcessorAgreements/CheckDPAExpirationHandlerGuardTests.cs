@@ -1,5 +1,8 @@
 using Encina.Compliance.ProcessorAgreements;
+using Encina.Compliance.ProcessorAgreements.Abstractions;
+using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.Scheduling;
+using Encina.Marten;
 
 namespace Encina.GuardTests.Compliance.ProcessorAgreements;
 
@@ -8,9 +11,9 @@ namespace Encina.GuardTests.Compliance.ProcessorAgreements;
 /// </summary>
 public class CheckDPAExpirationHandlerGuardTests
 {
-    private readonly IDPAStore _dpaStore = Substitute.For<IDPAStore>();
-    private readonly IProcessorRegistry _processorRegistry = Substitute.For<IProcessorRegistry>();
-    private readonly IProcessorAuditStore _auditStore = Substitute.For<IProcessorAuditStore>();
+    private readonly IDPAService _dpaService = Substitute.For<IDPAService>();
+    private readonly IProcessorService _processorService = Substitute.For<IProcessorService>();
+    private readonly IAggregateRepository<DPAAggregate> _dpaRepository = Substitute.For<IAggregateRepository<DPAAggregate>>();
     private readonly IEncina _encina = Substitute.For<IEncina>();
     private readonly IOptions<ProcessorAgreementOptions> _options = Options.Create(new ProcessorAgreementOptions());
     private readonly TimeProvider _timeProvider = TimeProvider.System;
@@ -20,40 +23,40 @@ public class CheckDPAExpirationHandlerGuardTests
     #region Constructor Guards
 
     [Fact]
-    public void Constructor_NullDpaStore_ThrowsArgumentNullException()
+    public void Constructor_NullDpaService_ThrowsArgumentNullException()
     {
         var act = () => new CheckDPAExpirationHandler(
-            null!, _processorRegistry, _auditStore, _encina, _options, _timeProvider, _logger);
+            null!, _processorService, _dpaRepository, _encina, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("dpaStore");
+        ex.ParamName.ShouldBe("dpaService");
     }
 
     [Fact]
-    public void Constructor_NullProcessorRegistry_ThrowsArgumentNullException()
+    public void Constructor_NullProcessorService_ThrowsArgumentNullException()
     {
         var act = () => new CheckDPAExpirationHandler(
-            _dpaStore, null!, _auditStore, _encina, _options, _timeProvider, _logger);
+            _dpaService, null!, _dpaRepository, _encina, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("processorRegistry");
+        ex.ParamName.ShouldBe("processorService");
     }
 
     [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void Constructor_NullDpaRepository_ThrowsArgumentNullException()
     {
         var act = () => new CheckDPAExpirationHandler(
-            _dpaStore, _processorRegistry, null!, _encina, _options, _timeProvider, _logger);
+            _dpaService, _processorService, null!, _encina, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("auditStore");
+        ex.ParamName.ShouldBe("dpaRepository");
     }
 
     [Fact]
     public void Constructor_NullEncina_ThrowsArgumentNullException()
     {
         var act = () => new CheckDPAExpirationHandler(
-            _dpaStore, _processorRegistry, _auditStore, null!, _options, _timeProvider, _logger);
+            _dpaService, _processorService, _dpaRepository, null!, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("encina");
@@ -63,7 +66,7 @@ public class CheckDPAExpirationHandlerGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new CheckDPAExpirationHandler(
-            _dpaStore, _processorRegistry, _auditStore, _encina, null!, _timeProvider, _logger);
+            _dpaService, _processorService, _dpaRepository, _encina, null!, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("options");
@@ -73,7 +76,7 @@ public class CheckDPAExpirationHandlerGuardTests
     public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
     {
         var act = () => new CheckDPAExpirationHandler(
-            _dpaStore, _processorRegistry, _auditStore, _encina, _options, null!, _logger);
+            _dpaService, _processorService, _dpaRepository, _encina, _options, null!, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("timeProvider");
@@ -83,7 +86,7 @@ public class CheckDPAExpirationHandlerGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new CheckDPAExpirationHandler(
-            _dpaStore, _processorRegistry, _auditStore, _encina, _options, _timeProvider, null!);
+            _dpaService, _processorService, _dpaRepository, _encina, _options, _timeProvider, null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");

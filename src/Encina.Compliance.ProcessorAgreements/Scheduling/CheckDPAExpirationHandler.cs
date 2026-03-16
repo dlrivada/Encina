@@ -1,6 +1,10 @@
+using Encina.Compliance.ProcessorAgreements.Abstractions;
+using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.Notifications;
+using Encina.Compliance.ProcessorAgreements.ReadModels;
+using Encina.Marten;
 
 using LanguageExt;
 
@@ -25,24 +29,23 @@ namespace Encina.Compliance.ProcessorAgreements.Scheduling;
 /// <see cref="ProcessorAgreementOptions.ExpirationWarningDays"/> from now. Publishes
 /// <see cref="DPAExpiringNotification"/> for each.</description></item>
 /// <item><description><b>Expired DPAs</b>: Active agreements whose <c>ExpiresAtUtc</c> has already passed.
-/// Transitions their status to <see cref="DPAStatus.Expired"/> and publishes
+/// Transitions their status to <see cref="DPAStatus.Expired"/> via the event-sourced aggregate and publishes
 /// <see cref="DPAExpiredNotification"/> for each.</description></item>
 /// </list>
 /// <para>
-/// The handler resolves processor names via <see cref="IProcessorRegistry"/> to include
+/// The handler resolves processor names via <see cref="IProcessorService"/> to include
 /// human-readable context in published notifications.
 /// </para>
 /// <para>
-/// When <see cref="ProcessorAgreementOptions.TrackAuditTrail"/> is enabled, audit entries
-/// are recorded for each DPA status transition via <see cref="IProcessorAuditStore"/>.
-/// Audit failures are non-blocking per the DPIA pattern.
+/// Audit trail is maintained automatically through the event stream — each <c>DPAExpired</c> event
+/// is persisted in the Marten event store, providing a full accountability trail per GDPR Article 5(2).
 /// </para>
 /// </remarks>
 public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirationCommand, Unit>
 {
-    private readonly IDPAStore _dpaStore;
-    private readonly IProcessorRegistry _processorRegistry;
-    private readonly IProcessorAuditStore _auditStore;
+    private readonly IDPAService _dpaService;
+    private readonly IProcessorService _processorService;
+    private readonly IAggregateRepository<DPAAggregate> _dpaRepository;
     private readonly IEncina _encina;
     private readonly ProcessorAgreementOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -51,33 +54,33 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
     /// <summary>
     /// Initializes a new instance of the <see cref="CheckDPAExpirationHandler"/> class.
     /// </summary>
-    /// <param name="dpaStore">The DPA store for querying and updating agreements.</param>
-    /// <param name="processorRegistry">The processor registry for resolving processor names.</param>
-    /// <param name="auditStore">The audit store for recording expiration actions.</param>
+    /// <param name="dpaService">The DPA service for querying agreements.</param>
+    /// <param name="processorService">The processor service for resolving processor names.</param>
+    /// <param name="dpaRepository">The aggregate repository for DPA status transitions.</param>
     /// <param name="encina">The Encina mediator for publishing notifications.</param>
     /// <param name="options">Configuration options controlling warning thresholds.</param>
     /// <param name="timeProvider">Time provider for deterministic time access.</param>
     /// <param name="logger">Logger for structured diagnostic output.</param>
     public CheckDPAExpirationHandler(
-        IDPAStore dpaStore,
-        IProcessorRegistry processorRegistry,
-        IProcessorAuditStore auditStore,
+        IDPAService dpaService,
+        IProcessorService processorService,
+        IAggregateRepository<DPAAggregate> dpaRepository,
         IEncina encina,
         IOptions<ProcessorAgreementOptions> options,
         TimeProvider timeProvider,
         ILogger<CheckDPAExpirationHandler> logger)
     {
-        ArgumentNullException.ThrowIfNull(dpaStore);
-        ArgumentNullException.ThrowIfNull(processorRegistry);
-        ArgumentNullException.ThrowIfNull(auditStore);
+        ArgumentNullException.ThrowIfNull(dpaService);
+        ArgumentNullException.ThrowIfNull(processorService);
+        ArgumentNullException.ThrowIfNull(dpaRepository);
         ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _dpaStore = dpaStore;
-        _processorRegistry = processorRegistry;
-        _auditStore = auditStore;
+        _dpaService = dpaService;
+        _processorService = processorService;
+        _dpaRepository = dpaRepository;
         _encina = encina;
         _options = options.Value;
         _timeProvider = timeProvider;
@@ -93,13 +96,12 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
         using var activity = ProcessorAgreementDiagnostics.StartExpirationCheck();
 
         var nowUtc = _timeProvider.GetUtcNow();
-        var warningThreshold = nowUtc.AddDays(_options.ExpirationWarningDays);
 
-        _logger.ExpirationCheckStarted(_options.ExpirationWarningDays, warningThreshold);
+        _logger.ExpirationCheckStarted(_options.ExpirationWarningDays, nowUtc.AddDays(_options.ExpirationWarningDays));
 
-        // Step 1: Check for agreements approaching expiration (still active, expiring within threshold)
-        var expiringResult = await _dpaStore
-            .GetExpiringAsync(warningThreshold, cancellationToken)
+        // Step 1: Query for agreements approaching expiration via the DPA service
+        var expiringResult = await _dpaService
+            .GetExpiringDPAsAsync(cancellationToken)
             .ConfigureAwait(false);
 
         if (expiringResult.IsLeft)
@@ -113,11 +115,11 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
 
         var expiringAgreements = expiringResult.Match(
             Right: agreements => agreements,
-            Left: _ => (IReadOnlyList<DataProcessingAgreement>)[]);
+            Left: _ => (IReadOnlyList<DPAReadModel>)[]);
 
         // Separate truly expired from merely approaching expiration
-        var expiredAgreements = new List<DataProcessingAgreement>();
-        var approachingAgreements = new List<DataProcessingAgreement>();
+        var expiredAgreements = new List<DPAReadModel>();
+        var approachingAgreements = new List<DPAReadModel>();
 
         foreach (var agreement in expiringAgreements)
         {
@@ -131,46 +133,37 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
             }
         }
 
-        // Step 2: Process expired agreements — update status and publish notifications
+        // Step 2: Process expired agreements — transition status via aggregate and publish notifications
         foreach (var expired in expiredAgreements)
         {
             var processorName = await ResolveProcessorNameAsync(expired.ProcessorId, cancellationToken)
                 .ConfigureAwait(false);
 
-            // Transition status to Expired
-            var updatedAgreement = expired with
-            {
-                Status = DPAStatus.Expired,
-                LastUpdatedAtUtc = nowUtc
-            };
-
-            var updateResult = await _dpaStore
-                .UpdateAsync(updatedAgreement, cancellationToken)
+            // Transition status to Expired via the event-sourced aggregate
+            var loadResult = await _dpaRepository.LoadAsync(expired.Id, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (updateResult.IsLeft)
+            var transitioned = await loadResult.MatchAsync(
+                RightAsync: async aggregate =>
+                {
+                    aggregate.MarkExpired(nowUtc);
+                    var saveResult = await _dpaRepository.SaveAsync(aggregate, cancellationToken)
+                        .ConfigureAwait(false);
+                    return saveResult.IsRight;
+                },
+                Left: _ => false);
+
+            if (!transitioned)
             {
-                var updateError = updateResult.Match(Left: e => e, Right: _ => default!);
-                _logger.ExpirationCheckError("UpdateExpired", updateError.Message);
+                _logger.ExpirationCheckError("UpdateExpired", $"Failed to expire DPA '{expired.Id}'.");
                 continue;
             }
 
-            _logger.DPAExpiredDetected(expired.ProcessorId, expired.Id, expired.ExpiresAtUtc!.Value);
-
-            // Record audit entry for DPA expiration
-            await RecordAuditAsync(
-                expired.ProcessorId,
-                expired.Id,
-                "DPAExpired",
-                $"DPA '{expired.Id}' for processor '{processorName}' expired at {expired.ExpiresAtUtc.Value:O}.",
-                expired.TenantId,
-                expired.ModuleId,
-                nowUtc,
-                cancellationToken).ConfigureAwait(false);
+            _logger.DPAExpiredDetected(expired.ProcessorId.ToString(), expired.Id.ToString(), expired.ExpiresAtUtc!.Value);
 
             var notification = new DPAExpiredNotification(
-                expired.ProcessorId,
-                expired.Id,
+                expired.ProcessorId.ToString(),
+                expired.Id.ToString(),
                 processorName,
                 expired.ExpiresAtUtc!.Value,
                 nowUtc);
@@ -186,22 +179,11 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
 
             var daysUntilExpiration = (int)(approaching.ExpiresAtUtc!.Value - nowUtc).TotalDays;
 
-            _logger.DPAExpiringDetected(approaching.ProcessorId, approaching.Id, daysUntilExpiration);
-
-            // Record audit entry for DPA expiring warning
-            await RecordAuditAsync(
-                approaching.ProcessorId,
-                approaching.Id,
-                "DPAExpiring",
-                $"DPA '{approaching.Id}' for processor '{processorName}' expires in {daysUntilExpiration} day(s).",
-                approaching.TenantId,
-                approaching.ModuleId,
-                nowUtc,
-                cancellationToken).ConfigureAwait(false);
+            _logger.DPAExpiringDetected(approaching.ProcessorId.ToString(), approaching.Id.ToString(), daysUntilExpiration);
 
             var notification = new DPAExpiringNotification(
-                approaching.ProcessorId,
-                approaching.Id,
+                approaching.ProcessorId.ToString(),
+                approaching.Id.ToString(),
                 processorName,
                 approaching.ExpiresAtUtc!.Value,
                 daysUntilExpiration,
@@ -226,57 +208,15 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
     }
 
     private async ValueTask<string> ResolveProcessorNameAsync(
-        string processorId,
+        Guid processorId,
         CancellationToken cancellationToken)
     {
-        var processorResult = await _processorRegistry
+        var processorResult = await _processorService
             .GetProcessorAsync(processorId, cancellationToken)
             .ConfigureAwait(false);
 
         return processorResult.Match(
-            Right: option => option.Match(
-                Some: p => p.Name,
-                None: () => processorId),
-            Left: _ => processorId);
-    }
-
-    private async ValueTask RecordAuditAsync(
-        string processorId,
-        string dpaId,
-        string action,
-        string detail,
-        string? tenantId,
-        string? moduleId,
-        DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        if (!_options.TrackAuditTrail)
-        {
-            return;
-        }
-
-        var auditEntry = new ProcessorAgreementAuditEntry
-        {
-            Id = Guid.NewGuid().ToString(),
-            ProcessorId = processorId,
-            DPAId = dpaId,
-            Action = action,
-            Detail = detail,
-            PerformedByUserId = "System",
-            OccurredAtUtc = nowUtc,
-            TenantId = tenantId,
-            ModuleId = moduleId
-        };
-
-        try
-        {
-            await _auditStore.RecordAsync(auditEntry, cancellationToken).ConfigureAwait(false);
-            _logger.AuditEntryRecorded(processorId, action, "System");
-        }
-        catch (Exception ex)
-        {
-            _logger.AuditEntryFailed(processorId, action, ex);
-            // Non-blocking: audit failure does not prevent the primary operation
-        }
+            Right: p => p.Name,
+            Left: _ => processorId.ToString());
     }
 }

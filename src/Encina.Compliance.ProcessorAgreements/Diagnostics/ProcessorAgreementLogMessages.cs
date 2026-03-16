@@ -20,6 +20,7 @@ namespace Encina.Compliance.ProcessorAgreements.Diagnostics;
 /// <item><term>8940-8949</term><description>CheckDPAExpirationHandler (DC 6)</description></item>
 /// <item><term>8950-8959</term><description>Sub-processor operations and depth tracking (DC 5)</description></item>
 /// <item><term>8960-8969</term><description>DPA validation</description></item>
+/// <item><term>8970-8989</term><description>Service-level operations (DefaultProcessorService, DefaultDPAService)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -311,4 +312,120 @@ internal static partial class ProcessorAgreementLogMessages
         Level = LogLevel.Error,
         Message = "DPA validation error. ProcessorId={ProcessorId}")]
     internal static partial void ValidationError(this ILogger logger, string processorId, Exception exception);
+
+    // ========================================================================
+    // Service-level operations log messages (8970-8989)
+    // ========================================================================
+
+    /// <summary>Processor service operation started.</summary>
+    [LoggerMessage(
+        EventId = 8970,
+        Level = LogLevel.Debug,
+        Message = "Processor service operation started. Operation={Operation}, ProcessorId={ProcessorId}")]
+    internal static partial void ProcessorServiceOperationStarted(this ILogger logger, string operation, string processorId);
+
+    /// <summary>Processor service operation completed successfully.</summary>
+    [LoggerMessage(
+        EventId = 8971,
+        Level = LogLevel.Debug,
+        Message = "Processor service operation completed. Operation={Operation}, ProcessorId={ProcessorId}")]
+    internal static partial void ProcessorServiceOperationCompleted(this ILogger logger, string operation, string processorId);
+
+    /// <summary>Processor service operation failed.</summary>
+    [LoggerMessage(
+        EventId = 8972,
+        Level = LogLevel.Warning,
+        Message = "Processor service operation failed. Operation={Operation}, ProcessorId={ProcessorId}, Reason={Reason}")]
+    internal static partial void ProcessorServiceOperationFailed(this ILogger logger, string operation, string processorId, string reason);
+
+    /// <summary>Processor service cache hit.</summary>
+    [LoggerMessage(
+        EventId = 8973,
+        Level = LogLevel.Trace,
+        Message = "Processor cache hit. CacheKey={CacheKey}")]
+    internal static partial void ProcessorCacheHit(this ILogger logger, string cacheKey);
+
+    /// <summary>Processor service cache miss — querying read model repository.</summary>
+    [LoggerMessage(
+        EventId = 8974,
+        Level = LogLevel.Trace,
+        Message = "Processor cache miss. CacheKey={CacheKey}")]
+    internal static partial void ProcessorCacheMiss(this ILogger logger, string cacheKey);
+
+    /// <summary>DPA service operation started.</summary>
+    [LoggerMessage(
+        EventId = 8975,
+        Level = LogLevel.Debug,
+        Message = "DPA service operation started. Operation={Operation}, DPAId={DPAId}")]
+    internal static partial void DPAServiceOperationStarted(this ILogger logger, string operation, string dpaId);
+
+    /// <summary>DPA service operation completed successfully.</summary>
+    [LoggerMessage(
+        EventId = 8976,
+        Level = LogLevel.Debug,
+        Message = "DPA service operation completed. Operation={Operation}, DPAId={DPAId}")]
+    internal static partial void DPAServiceOperationCompleted(this ILogger logger, string operation, string dpaId);
+
+    /// <summary>DPA service operation failed.</summary>
+    [LoggerMessage(
+        EventId = 8977,
+        Level = LogLevel.Warning,
+        Message = "DPA service operation failed. Operation={Operation}, DPAId={DPAId}, Reason={Reason}")]
+    internal static partial void DPAServiceOperationFailed(this ILogger logger, string operation, string dpaId, string reason);
+
+    /// <summary>DPA service cache hit.</summary>
+    [LoggerMessage(
+        EventId = 8978,
+        Level = LogLevel.Trace,
+        Message = "DPA cache hit. CacheKey={CacheKey}")]
+    internal static partial void DPACacheHit(this ILogger logger, string cacheKey);
+
+    /// <summary>DPA service cache miss — querying read model repository.</summary>
+    [LoggerMessage(
+        EventId = 8979,
+        Level = LogLevel.Trace,
+        Message = "DPA cache miss. CacheKey={CacheKey}")]
+    internal static partial void DPACacheMiss(this ILogger logger, string cacheKey);
+
+    /// <summary>DPA cache invalidated after mutation.</summary>
+    [LoggerMessage(
+        EventId = 8980,
+        Level = LogLevel.Trace,
+        Message = "DPA cache invalidated. DPAId={DPAId}, ProcessorId={ProcessorId}")]
+    internal static partial void DPACacheInvalidated(this ILogger logger, string dpaId, string processorId);
+
+    /// <summary>Processor cache invalidated after mutation.</summary>
+    [LoggerMessage(
+        EventId = 8981,
+        Level = LogLevel.Trace,
+        Message = "Processor cache invalidated. ProcessorId={ProcessorId}")]
+    internal static partial void ProcessorCacheInvalidated(this ILogger logger, string processorId);
+
+    /// <summary>DPA amend operation completed.</summary>
+    [LoggerMessage(
+        EventId = 8982,
+        Level = LogLevel.Information,
+        Message = "DPA amended. DPAId={DPAId}, Reason={Reason}")]
+    internal static partial void DPAAmended(this ILogger logger, string dpaId, string reason);
+
+    /// <summary>DPA audit recorded via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8983,
+        Level = LogLevel.Information,
+        Message = "DPA audited. DPAId={DPAId}, AuditorId={AuditorId}")]
+    internal static partial void DPAAudited(this ILogger logger, string dpaId, string auditorId);
+
+    /// <summary>DPA renewed with new expiration date.</summary>
+    [LoggerMessage(
+        EventId = 8984,
+        Level = LogLevel.Information,
+        Message = "DPA renewed. DPAId={DPAId}, NewExpiresAtUtc={NewExpiresAtUtc}")]
+    internal static partial void DPARenewed(this ILogger logger, string dpaId, DateTimeOffset newExpiresAtUtc);
+
+    /// <summary>DPA terminated.</summary>
+    [LoggerMessage(
+        EventId = 8985,
+        Level = LogLevel.Warning,
+        Message = "DPA terminated. DPAId={DPAId}, Reason={Reason}")]
+    internal static partial void DPATerminated(this ILogger logger, string dpaId, string reason);
 }

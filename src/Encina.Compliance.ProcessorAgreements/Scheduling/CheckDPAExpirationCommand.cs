@@ -14,9 +14,9 @@ namespace Encina.Compliance.ProcessorAgreements.Scheduling;
 /// <para>
 /// When executed, the <see cref="CheckDPAExpirationHandler"/>:
 /// <list type="number">
-/// <item><description>Queries <see cref="IDPAStore.GetExpiringAsync"/> for agreements approaching expiration
+/// <item><description>Queries <see cref="Abstractions.IDPAService.GetExpiringDPAsAsync"/> for agreements approaching expiration
 /// within <see cref="ProcessorAgreementOptions.ExpirationWarningDays"/>.</description></item>
-/// <item><description>Queries <see cref="IDPAStore.GetByStatusAsync"/> for already-expired agreements.</description></item>
+/// <item><description>Queries <see cref="Abstractions.IDPAService.GetDPAsByStatusAsync"/> for already-expired agreements.</description></item>
 /// <item><description>Publishes <c>DPAExpiringNotification</c> for each approaching agreement.</description></item>
 /// <item><description>Publishes <c>DPAExpiredNotification</c> for each expired agreement.</description></item>
 /// </list>

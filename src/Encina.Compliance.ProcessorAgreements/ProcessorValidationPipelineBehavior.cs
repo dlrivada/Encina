@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
+using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Model;
 
@@ -33,9 +34,9 @@ namespace Encina.Compliance.ProcessorAgreements;
 /// <para>
 /// <b>Two-level validation:</b>
 /// <list type="number">
-/// <item><description><see cref="IDPAValidator.HasValidDPAAsync"/>: Fast boolean check for the
+/// <item><description><see cref="IDPAService.HasValidDPAAsync"/>: Fast boolean check for the
 /// pass-through hot path. If valid, the request proceeds without further allocation.</description></item>
-/// <item><description><see cref="IDPAValidator.ValidateAsync"/>: Detailed validation only when
+/// <item><description><see cref="IDPAService.ValidateDPAAsync"/>: Detailed validation only when
 /// blocking, to include <see cref="DPAValidationResult"/> details (missing terms, expiration info)
 /// in the error response.</description></item>
 /// </list>
@@ -74,37 +75,27 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
 {
     private static readonly ConcurrentDictionary<Type, RequiresProcessorAttribute?> AttributeCache = new();
 
-    private readonly IDPAValidator _validator;
-    private readonly IProcessorAuditStore _auditStore;
+    private readonly IDPAService _dpaService;
     private readonly ProcessorAgreementOptions _options;
-    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ProcessorValidationPipelineBehavior<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ProcessorValidationPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="validator">The DPA validator for processor agreement lookups.</param>
-    /// <param name="auditStore">The audit store for recording enforcement actions.</param>
+    /// <param name="dpaService">The DPA service for processor agreement validation.</param>
     /// <param name="options">Processor agreement configuration options controlling enforcement mode.</param>
-    /// <param name="timeProvider">Time provider for audit entry timestamps.</param>
     /// <param name="logger">Logger for structured processor agreement compliance logging.</param>
     public ProcessorValidationPipelineBehavior(
-        IDPAValidator validator,
-        IProcessorAuditStore auditStore,
+        IDPAService dpaService,
         IOptions<ProcessorAgreementOptions> options,
-        TimeProvider timeProvider,
         ILogger<ProcessorValidationPipelineBehavior<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(validator);
-        ArgumentNullException.ThrowIfNull(auditStore);
+        ArgumentNullException.ThrowIfNull(dpaService);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _validator = validator;
-        _auditStore = auditStore;
+        _dpaService = dpaService;
         _options = options.Value;
-        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -144,12 +135,20 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
             return await nextStep().ConfigureAwait(false);
         }
 
-        var processorId = attribute.ProcessorId;
+        var processorIdStr = attribute.ProcessorId;
+
+        // Parse processor ID as Guid (Marten aggregates use Guid identifiers)
+        if (!Guid.TryParse(processorIdStr, out var processorId))
+        {
+            _logger.ProcessorPipelineNoAttribute(requestTypeName);
+            return Left<EncinaError, TResponse>(
+                ProcessorAgreementErrors.ValidationFailed(processorIdStr, $"ProcessorId '{processorIdStr}' is not a valid GUID."));
+        }
 
         // Step 3: Start tracing and logging
         var startedAt = Stopwatch.GetTimestamp();
         using var activity = ProcessorAgreementDiagnostics.StartPipelineCheck(requestTypeName);
-        activity?.SetTag(ProcessorAgreementDiagnostics.TagProcessorId, processorId);
+        activity?.SetTag(ProcessorAgreementDiagnostics.TagProcessorId, processorIdStr);
         activity?.SetTag(ProcessorAgreementDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
 
         // Propagate tenant context to traces for cross-cutting observability
@@ -158,28 +157,28 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
             activity?.SetTag("encina.tenant_id", context.TenantId);
         }
 
-        _logger.ProcessorPipelineStarted(requestTypeName, processorId, _options.EnforcementMode.ToString());
+        _logger.ProcessorPipelineStarted(requestTypeName, processorIdStr, _options.EnforcementMode.ToString());
 
         try
         {
             // Step 4: Fast path — lightweight boolean check via HasValidDPAAsync
-            var hasValidResult = await _validator
+            var hasValidResult = await _dpaService
                 .HasValidDPAAsync(processorId, cancellationToken)
                 .ConfigureAwait(false);
 
-            // Handle validator infrastructure errors
+            // Handle service infrastructure errors
             if (hasValidResult.IsLeft)
             {
-                var validatorError = (EncinaError)hasValidResult;
+                var serviceError = (EncinaError)hasValidResult;
                 RecordFailed(activity, startedAt, requestTypeName, "validator_error");
 
                 if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
                 {
-                    _logger.ProcessorPipelineBlocked(requestTypeName, processorId, validatorError.Message);
-                    return Left<EncinaError, TResponse>(validatorError);
+                    _logger.ProcessorPipelineBlocked(requestTypeName, processorIdStr, serviceError.Message);
+                    return Left<EncinaError, TResponse>(serviceError);
                 }
 
-                _logger.ProcessorPipelineWarned(requestTypeName, processorId, validatorError.Message);
+                _logger.ProcessorPipelineWarned(requestTypeName, processorIdStr, serviceError.Message);
                 return await nextStep().ConfigureAwait(false);
             }
 
@@ -189,30 +188,25 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
             if (hasValidDPA)
             {
                 RecordPassed(activity, startedAt, requestTypeName);
-                _logger.ProcessorPipelinePassed(requestTypeName, processorId);
+                _logger.ProcessorPipelinePassed(requestTypeName, processorIdStr);
                 return await nextStep().ConfigureAwait(false);
             }
 
             // Step 6: DPA is NOT valid — behavior depends on enforcement mode
-            _logger.ProcessorPipelineNoValidDPA(requestTypeName, processorId);
+            _logger.ProcessorPipelineNoValidDPA(requestTypeName, processorIdStr);
 
             if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
             {
                 // Detailed validation to build a rich error with DPAValidationResult details
-                var detailedResult = await _validator
-                    .ValidateAsync(processorId, cancellationToken)
+                var detailedResult = await _dpaService
+                    .ValidateDPAAsync(processorId, cancellationToken)
                     .ConfigureAwait(false);
 
-                var error = BuildBlockError(processorId, detailedResult);
+                var error = BuildBlockError(processorIdStr, detailedResult);
                 var failureReason = BuildFailureReason(detailedResult);
 
                 RecordFailed(activity, startedAt, requestTypeName, failureReason);
-                _logger.ProcessorPipelineBlocked(requestTypeName, processorId, failureReason);
-
-                // Record audit entry for enforcement action (non-blocking)
-                await RecordEnforcementAuditAsync(
-                    processorId, requestTypeName, failureReason, context.TenantId, cancellationToken)
-                    .ConfigureAwait(false);
+                _logger.ProcessorPipelineBlocked(requestTypeName, processorIdStr, failureReason);
 
                 return Left<EncinaError, TResponse>(error);
             }
@@ -220,12 +214,12 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
             // Warn mode — log and proceed
             ProcessorAgreementDiagnostics.RecordWarned(activity, "no_valid_dpa");
             RecordMetrics(startedAt, requestTypeName, isPass: false, failureReason: "no_valid_dpa");
-            _logger.ProcessorPipelineWarned(requestTypeName, processorId, "no_valid_dpa");
+            _logger.ProcessorPipelineWarned(requestTypeName, processorIdStr, "no_valid_dpa");
             return await nextStep().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _logger.ProcessorPipelineError(requestTypeName, processorId, ex);
+            _logger.ProcessorPipelineError(requestTypeName, processorIdStr, ex);
             RecordFailed(activity, startedAt, requestTypeName, "unhandled_exception");
 
             if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
@@ -347,40 +341,5 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         }
 
         ProcessorAgreementDiagnostics.PipelineCheckDuration.Record(elapsed.TotalMilliseconds, tags);
-    }
-
-    private async ValueTask RecordEnforcementAuditAsync(
-        string processorId,
-        string requestTypeName,
-        string failureReason,
-        string? tenantId,
-        CancellationToken cancellationToken)
-    {
-        if (!_options.TrackAuditTrail)
-        {
-            return;
-        }
-
-        var auditEntry = new ProcessorAgreementAuditEntry
-        {
-            Id = Guid.NewGuid().ToString(),
-            ProcessorId = processorId,
-            Action = "Blocked",
-            Detail = $"Request '{requestTypeName}' blocked by pipeline enforcement. Reason: {failureReason}.",
-            PerformedByUserId = "System",
-            OccurredAtUtc = _timeProvider.GetUtcNow(),
-            TenantId = tenantId
-        };
-
-        try
-        {
-            await _auditStore.RecordAsync(auditEntry, cancellationToken).ConfigureAwait(false);
-            _logger.AuditEntryRecorded(processorId, "Blocked", "System");
-        }
-        catch (Exception ex)
-        {
-            _logger.AuditEntryFailed(processorId, "Blocked", ex);
-            // Non-blocking: audit failure does not prevent the enforcement action
-        }
     }
 }

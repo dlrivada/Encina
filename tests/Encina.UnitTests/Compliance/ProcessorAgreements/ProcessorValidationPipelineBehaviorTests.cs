@@ -1,6 +1,7 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.ProcessorAgreements;
+using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Model;
 
 using FluentAssertions;
@@ -9,7 +10,6 @@ using LanguageExt;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Time.Testing;
 
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -23,13 +23,11 @@ namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 /// </summary>
 public class ProcessorValidationPipelineBehaviorTests
 {
-    private static readonly DateTimeOffset FixedNow = new(2026, 3, 1, 12, 0, 0, TimeSpan.Zero);
-    private readonly FakeTimeProvider _timeProvider = new(FixedNow);
-    private readonly IDPAValidator _validator = Substitute.For<IDPAValidator>();
-    private readonly IProcessorAuditStore _auditStore = Substitute.For<IProcessorAuditStore>();
+    private static readonly Guid TestProcessorGuid = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private readonly IDPAService _dpaService = Substitute.For<IDPAService>();
     private readonly IRequestContext _context = Substitute.For<IRequestContext>();
 
-    [RequiresProcessor(ProcessorId = "test-processor")]
+    [RequiresProcessor(ProcessorId = "00000000-0000-0000-0000-000000000001")]
     private sealed record TestCommandWithProcessor : ICommand<string>;
 
     private sealed record TestCommandWithoutProcessor : ICommand<string>;
@@ -42,7 +40,7 @@ public class ProcessorValidationPipelineBehaviorTests
     {
         var opts = Options.Create(options ?? new ProcessorAgreementOptions());
         return new ProcessorValidationPipelineBehavior<TRequest, TResponse>(
-            _validator, _auditStore, opts, _timeProvider,
+            _dpaService, opts,
             NullLogger<ProcessorValidationPipelineBehavior<TRequest, TResponse>>.Instance);
     }
 
@@ -50,27 +48,23 @@ public class ProcessorValidationPipelineBehaviorTests
         () => ValueTask.FromResult<Either<EncinaError, string>>(Right<EncinaError, string>("handler-result"));
 
     private void SetupHasValidDPA(bool isValid) =>
-        _validator.HasValidDPAAsync("test-processor", Arg.Any<CancellationToken>())
+        _dpaService.HasValidDPAAsync(TestProcessorGuid, Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(Right<EncinaError, bool>(isValid)));
 
     private void SetupHasValidDPAError(EncinaError error) =>
-        _validator.HasValidDPAAsync("test-processor", Arg.Any<CancellationToken>())
+        _dpaService.HasValidDPAAsync(TestProcessorGuid, Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(Left<EncinaError, bool>(error)));
 
-    private void SetupValidateAsync() =>
-        _validator.ValidateAsync("test-processor", Arg.Any<CancellationToken>())
+    private void SetupValidateDPAAsync() =>
+        _dpaService.ValidateDPAAsync(TestProcessorGuid, Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(Right<EncinaError, DPAValidationResult>(new DPAValidationResult
             {
-                ProcessorId = "test-processor",
+                ProcessorId = TestProcessorGuid.ToString(),
                 IsValid = false,
                 MissingTerms = [],
                 Warnings = ["No active DPA"],
-                ValidatedAtUtc = FixedNow
+                ValidatedAtUtc = DateTimeOffset.UtcNow
             })));
-
-    private void SetupAuditStoreSuccess() =>
-        _auditStore.RecordAsync(Arg.Any<ProcessorAgreementAuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(Right<EncinaError, Unit>(unit)));
 
     #endregion
 
@@ -97,7 +91,7 @@ public class ProcessorValidationPipelineBehaviorTests
         nextCalled.Should().BeTrue();
         result.IsRight.Should().BeTrue();
         ((string)result).Should().Be("handler-result");
-        await _validator.DidNotReceive().HasValidDPAAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _dpaService.DidNotReceive().HasValidDPAAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -118,7 +112,7 @@ public class ProcessorValidationPipelineBehaviorTests
         // Assert
         nextCalled.Should().BeTrue();
         result.IsRight.Should().BeTrue();
-        await _validator.DidNotReceive().HasValidDPAAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _dpaService.DidNotReceive().HasValidDPAAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -154,12 +148,11 @@ public class ProcessorValidationPipelineBehaviorTests
         // Arrange
         var options = new ProcessorAgreementOptions
         {
-            EnforcementMode = ProcessorAgreementEnforcementMode.Block,
-            TrackAuditTrail = false
+            EnforcementMode = ProcessorAgreementEnforcementMode.Block
         };
         var sut = CreateSut<TestCommandWithProcessor, string>(options);
         SetupHasValidDPA(false);
-        SetupValidateAsync();
+        SetupValidateDPAAsync();
 
         // Act
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, SuccessNext(), CancellationToken.None);
@@ -203,8 +196,8 @@ public class ProcessorValidationPipelineBehaviorTests
             EnforcementMode = ProcessorAgreementEnforcementMode.Block
         };
         var sut = CreateSut<TestCommandWithProcessor, string>(options);
-        var validatorError = EncinaError.New("Validator infrastructure error");
-        SetupHasValidDPAError(validatorError);
+        var serviceError = EncinaError.New("Validator infrastructure error");
+        SetupHasValidDPAError(serviceError);
 
         // Act
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, SuccessNext(), CancellationToken.None);
@@ -224,8 +217,8 @@ public class ProcessorValidationPipelineBehaviorTests
             EnforcementMode = ProcessorAgreementEnforcementMode.Warn
         };
         var sut = CreateSut<TestCommandWithProcessor, string>(options);
-        var validatorError = EncinaError.New("Validator infrastructure error");
-        SetupHasValidDPAError(validatorError);
+        var serviceError = EncinaError.New("Validator infrastructure error");
+        SetupHasValidDPAError(serviceError);
 
         var nextCalled = false;
         RequestHandlerCallback<string> next = () =>
@@ -251,7 +244,7 @@ public class ProcessorValidationPipelineBehaviorTests
             EnforcementMode = ProcessorAgreementEnforcementMode.Block
         };
         var sut = CreateSut<TestCommandWithProcessor, string>(options);
-        _validator.HasValidDPAAsync("test-processor", Arg.Any<CancellationToken>())
+        _dpaService.HasValidDPAAsync(TestProcessorGuid, Arg.Any<CancellationToken>())
             .Throws(new InvalidOperationException("Connection failed"));
 
         // Act
@@ -272,7 +265,7 @@ public class ProcessorValidationPipelineBehaviorTests
             EnforcementMode = ProcessorAgreementEnforcementMode.Warn
         };
         var sut = CreateSut<TestCommandWithProcessor, string>(options);
-        _validator.HasValidDPAAsync("test-processor", Arg.Any<CancellationToken>())
+        _dpaService.HasValidDPAAsync(TestProcessorGuid, Arg.Any<CancellationToken>())
             .Throws(new InvalidOperationException("Connection failed"));
 
         var nextCalled = false;
@@ -288,30 +281,5 @@ public class ProcessorValidationPipelineBehaviorTests
         // Assert
         nextCalled.Should().BeTrue();
         result.IsRight.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task Handle_AuditTrailEnabled_RecordsBlockAction()
-    {
-        // Arrange
-        var options = new ProcessorAgreementOptions
-        {
-            EnforcementMode = ProcessorAgreementEnforcementMode.Block,
-            TrackAuditTrail = true
-        };
-        var sut = CreateSut<TestCommandWithProcessor, string>(options);
-        SetupHasValidDPA(false);
-        SetupValidateAsync();
-        SetupAuditStoreSuccess();
-
-        // Act
-        await sut.Handle(new TestCommandWithProcessor(), _context, SuccessNext(), CancellationToken.None);
-
-        // Assert
-        await _auditStore.Received(1).RecordAsync(
-            Arg.Is<ProcessorAgreementAuditEntry>(e =>
-                e.ProcessorId == "test-processor" &&
-                e.Action == "Blocked"),
-            Arg.Any<CancellationToken>());
     }
 }

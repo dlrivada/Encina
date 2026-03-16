@@ -1,3 +1,4 @@
+using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Model;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -16,12 +17,9 @@ namespace Encina.Compliance.ProcessorAgreements.Health;
 /// This health check verifies:
 /// <list type="bullet">
 /// <item><description>The processor agreement options are configured</description></item>
-/// <item><description>The DPA store (<see cref="IDPAStore"/>) is resolvable</description></item>
-/// <item><description>The DPA validator (<see cref="IDPAValidator"/>) is resolvable</description></item>
-/// <item><description>The processor registry (<see cref="IProcessorRegistry"/>) is resolvable</description></item>
-/// <item><description>The audit store (<see cref="IProcessorAuditStore"/>) is resolvable (optional, Degraded if missing)</description></item>
+/// <item><description>The processor service (<see cref="IProcessorService"/>) is resolvable</description></item>
+/// <item><description>The DPA service (<see cref="IDPAService"/>) is resolvable</description></item>
 /// <item><description>Expired DPA count (Degraded if any exist)</description></item>
-/// <item><description>Incomplete DPA count (Degraded if any exist in Block mode)</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -89,57 +87,35 @@ public sealed class ProcessorAgreementHealthCheck : IHealthCheck
         data["expirationMonitoringEnabled"] = options.EnableExpirationMonitoring;
         data["maxSubProcessorDepth"] = options.MaxSubProcessorDepth;
 
-        // 2. Verify DPA store is resolvable
-        var store = scopedProvider.GetService<IDPAStore>();
-        if (store is null)
+        // 2. Verify processor service is resolvable
+        var processorService = scopedProvider.GetService<IProcessorService>();
+        if (processorService is null)
         {
             return HealthCheckResult.Unhealthy(
-                "IDPAStore is not registered.",
+                "IProcessorService is not registered. "
+                + "Call AddEncinaProcessorAgreements() and AddProcessorAgreementAggregates() in DI setup.",
                 data: data);
         }
 
-        data["storeType"] = store.GetType().Name;
+        data["processorServiceType"] = processorService.GetType().Name;
 
-        // 3. Verify DPA validator is resolvable
-        var validator = scopedProvider.GetService<IDPAValidator>();
-        if (validator is null)
+        // 3. Verify DPA service is resolvable
+        var dpaService = scopedProvider.GetService<IDPAService>();
+        if (dpaService is null)
         {
             return HealthCheckResult.Unhealthy(
-                "IDPAValidator is not registered.",
+                "IDPAService is not registered. "
+                + "Call AddEncinaProcessorAgreements() and AddProcessorAgreementAggregates() in DI setup.",
                 data: data);
         }
 
-        data["validatorType"] = validator.GetType().Name;
+        data["dpaServiceType"] = dpaService.GetType().Name;
 
-        // 4. Verify processor registry is resolvable
-        var registry = scopedProvider.GetService<IProcessorRegistry>();
-        if (registry is null)
-        {
-            return HealthCheckResult.Unhealthy(
-                "IProcessorRegistry is not registered.",
-                data: data);
-        }
-
-        data["registryType"] = registry.GetType().Name;
-
-        // 5. Verify audit store is resolvable (optional, degraded if missing)
-        var auditStore = scopedProvider.GetService<IProcessorAuditStore>();
-        if (auditStore is null)
-        {
-            warnings.Add(
-                "IProcessorAuditStore is not registered. "
-                + "Processor agreement audit trail will not be recorded.");
-        }
-        else
-        {
-            data["auditStoreType"] = auditStore.GetType().Name;
-        }
-
-        // 6. Check for expired agreements (degraded if any)
+        // 4. Check for expired agreements (degraded if any)
         try
         {
-            var expiredResult = await store
-                .GetByStatusAsync(DPAStatus.Expired, cancellationToken)
+            var expiredResult = await dpaService
+                .GetDPAsByStatusAsync(DPAStatus.Expired, cancellationToken)
                 .ConfigureAwait(false);
 
             expiredResult.Match(
@@ -162,42 +138,6 @@ public sealed class ProcessorAgreementHealthCheck : IHealthCheck
         catch (Exception ex)
         {
             warnings.Add($"Error querying expired DPAs: {ex.Message}");
-        }
-
-        // 7. Check overall validation status (informational, degraded in Block mode)
-        try
-        {
-            var allValidationResult = await validator
-                .ValidateAllAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            allValidationResult.Match(
-                Right: results =>
-                {
-                    var invalidCount = 0;
-                    foreach (var result in results)
-                    {
-                        if (!result.IsValid)
-                        {
-                            invalidCount++;
-                        }
-                    }
-
-                    data["totalProcessorCount"] = results.Count;
-                    data["invalidDPACount"] = invalidCount;
-
-                    if (invalidCount > 0 && options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
-                    {
-                        warnings.Add(
-                            $"{invalidCount} processor(s) have invalid or missing DPAs while "
-                            + "enforcement mode is Block. Requests targeting these processors will be blocked.");
-                    }
-                },
-                Left: _ => { });
-        }
-        catch
-        {
-            // Validation check is informational — don't fail or degrade for this
         }
 
         _logger.LogDebug(

@@ -2,7 +2,6 @@ using Encina.Caching;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.GDPR;
-using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
 using Encina.Database;
 using Encina.DomainModeling;
@@ -356,13 +355,6 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreEF>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreEF>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreEF>();
-        }
-
-        if (config.UseProcessorAgreements)
-        {
-            services.TryAddScoped<IProcessorRegistry, ProcessorAgreements.ProcessorRegistryEF>();
-            services.TryAddScoped<IDPAStore, ProcessorAgreements.DPAStoreEF>();
-            services.TryAddScoped<IProcessorAuditStore, ProcessorAgreements.ProcessorAuditStoreEF>();
         }
 
         // Register ABAC Policy Store if enabled

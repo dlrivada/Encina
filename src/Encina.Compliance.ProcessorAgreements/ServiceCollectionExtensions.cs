@@ -1,5 +1,7 @@
+using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Health;
 using Encina.Compliance.ProcessorAgreements.Scheduling;
+using Encina.Compliance.ProcessorAgreements.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -23,10 +25,8 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="ProcessorAgreementOptions"/> — Configured via the provided action, validated at first access</item>
-    /// <item><see cref="IProcessorRegistry"/> → <see cref="InMemoryProcessorRegistry"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDPAStore"/> → <see cref="InMemoryDPAStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IProcessorAuditStore"/> → <see cref="InMemoryProcessorAuditStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDPAValidator"/> → <see cref="DefaultDPAValidator"/> (Scoped, using TryAdd)</item>
+    /// <item><see cref="IProcessorService"/> → <see cref="DefaultProcessorService"/> (Scoped, using TryAdd)</item>
+    /// <item><see cref="IDPAService"/> → <see cref="DefaultDPAService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="ProcessorValidationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
     /// <item><see cref="CheckDPAExpirationHandler"/> (Transient, using TryAdd)</item>
     /// </list>
@@ -34,8 +34,13 @@ public static class ServiceCollectionExtensions
     /// <para>
     /// <b>Default registrations:</b>
     /// All service registrations use <c>TryAdd</c>, allowing you to register custom
-    /// implementations before calling this method. For example, register a database-backed
-    /// <see cref="IDPAStore"/> from <c>Encina.EntityFrameworkCore</c> or <c>Encina.Dapper</c>.
+    /// implementations before calling this method. The default implementations use
+    /// Marten event-sourced aggregates (command side) and read model repositories (query side).
+    /// </para>
+    /// <para>
+    /// <b>Marten aggregates:</b>
+    /// Call <see cref="ProcessorAgreementsMartenExtensions.AddProcessorAgreementAggregates"/>
+    /// separately to register the event-sourced aggregate repositories with Marten.
     /// </para>
     /// <para>
     /// <b>Conditional registrations:</b>
@@ -47,12 +52,15 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Basic setup
+    /// // Basic setup with Marten event sourcing
     /// services.AddEncinaProcessorAgreements(options =>
     /// {
     ///     options.EnforcementMode = ProcessorAgreementEnforcementMode.Block;
     ///     options.MaxSubProcessorDepth = 3;
     /// });
+    ///
+    /// // Register Marten aggregate repositories
+    /// services.AddProcessorAgreementAggregates();
     ///
     /// // With BlockWithoutValidDPA alias
     /// services.AddEncinaProcessorAgreements(options =>
@@ -60,13 +68,6 @@ public static class ServiceCollectionExtensions
     ///     options.BlockWithoutValidDPA = true;
     ///     options.AddHealthCheck = true;
     ///     options.EnableExpirationMonitoring = true;
-    /// });
-    ///
-    /// // With custom store (register before AddEncinaProcessorAgreements)
-    /// services.AddSingleton&lt;IDPAStore, DatabaseDPAStore&gt;();
-    /// services.AddEncinaProcessorAgreements(options =>
-    /// {
-    ///     options.EnforcementMode = ProcessorAgreementEnforcementMode.Block;
     /// });
     /// </code>
     /// </example>
@@ -92,11 +93,9 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
-        // Register default implementations (TryAdd allows override by provider packages)
-        services.TryAddSingleton<IProcessorRegistry, InMemoryProcessorRegistry>();
-        services.TryAddSingleton<IDPAStore, InMemoryDPAStore>();
-        services.TryAddSingleton<IProcessorAuditStore, InMemoryProcessorAuditStore>();
-        services.TryAddScoped<IDPAValidator, DefaultDPAValidator>();
+        // Register CQRS service implementations (TryAdd allows override by custom implementations)
+        services.TryAddScoped<IProcessorService, DefaultProcessorService>();
+        services.TryAddScoped<IDPAService, DefaultDPAService>();
 
         // Register pipeline behavior
         services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ProcessorValidationPipelineBehavior<,>));

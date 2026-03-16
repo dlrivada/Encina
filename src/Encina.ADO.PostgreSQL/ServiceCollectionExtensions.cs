@@ -10,7 +10,6 @@ using Encina.ADO.PostgreSQL.UnitOfWork;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.GDPR;
-using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
 using Encina.Database;
 using Encina.DomainModeling;
@@ -90,13 +89,6 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreADO>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreADO>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreADO>();
-        }
-
-        if (config.UseProcessorAgreements)
-        {
-            services.TryAddScoped<IProcessorRegistry, ProcessorAgreements.ProcessorRegistryADO>();
-            services.TryAddScoped<IDPAStore, ProcessorAgreements.DPAStoreADO>();
-            services.TryAddScoped<IProcessorAuditStore, ProcessorAgreements.ProcessorAuditStoreADO>();
         }
 
         // Register ABAC Policy Store if enabled

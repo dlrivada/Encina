@@ -6078,31 +6078,35 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `industry-best-practice`
 - Referencias: [GDPR Article 35](https://gdpr-info.eu/art-35-gdpr/), [ICO DPIA Guidance](https://ico.org.uk/for-organisations/guide-to-data-protection/guide-to-the-general-data-protection-regulation-gdpr/data-protection-impact-assessments-dpias/)
 
-**#410 - Encina.Compliance.ProcessorAgreements - DPA Management** ✅ **IMPLEMENTADO**:
+**#410 - Encina.Compliance.ProcessorAgreements - DPA Management** ✅ **IMPLEMENTADO** (migrado a Marten event sourcing - #782):
 
-- `IProcessorRegistry` con `RegisterProcessorAsync`, `GetProcessorAsync`, `UpdateProcessorAsync`, `RemoveProcessorAsync`, `GetSubProcessorsAsync`, `GetFullSubProcessorChainAsync` — processor identity and hierarchy management
-- `IDPAStore` con `AddAsync`, `GetByIdAsync`, `GetByProcessorIdAsync`, `GetActiveByProcessorIdAsync`, `UpdateAsync`, `GetByStatusAsync`, `GetExpiringAsync` — DPA lifecycle persistence
-- `IDPAValidator` con `ValidateAsync`, `HasValidDPAAsync`, `ValidateAllAsync` — compliance validation engine
-- `IProcessorAuditStore` con `RecordAsync`, `GetAuditTrailAsync` — immutable audit trail (Art. 5(2))
-- `Processor` sealed record con hierarchy (ParentProcessorId, Depth), SubProcessorAuthorizationType (Specific/General per Art. 28(2))
-- `DataProcessingAgreement` sealed record con DPAStatus lifecycle, DPAMandatoryTerms (8 Art. 28(3) clauses), HasSCCs, ProcessingPurposes
+- **Aggregates (Event-Sourced)**:
+  - `ProcessorAggregate` con `Register()`, `Update()`, `Remove()`, `AddSubProcessor()`, `RemoveSubProcessor()` — processor identity and hierarchy management via event sourcing
+  - `DPAAggregate` con `Execute()`, `Amend()`, `Audit()`, `Renew()`, `Terminate()`, `MarkExpired()`, `MarkPendingRenewal()` — full DPA lifecycle via event sourcing (Art. 28(3))
+- **12 Domain Events**: `ProcessorRegistered`, `ProcessorUpdated`, `ProcessorRemoved`, `SubProcessorAdded`, `SubProcessorRemoved`, `DPAExecuted`, `DPAAmended`, `DPAAudited`, `DPARenewed`, `DPATerminated`, `DPAExpired`, `DPAMarkedPendingRenewal`
+- **Projections (CQRS Query Side)**:
+  - `ProcessorProjection` → `ProcessorReadModel` (5 event handlers, sub-processor count tracking)
+  - `DPAProjection` → `DPAReadModel` (7 event handlers, audit history accumulation)
+- **Service Layer**:
+  - `IProcessorService` con 3 command + 5 query methods via `IAggregateRepository<ProcessorAggregate>` + `IReadModelRepository<ProcessorReadModel>`
+  - `IDPAService` con 5 command + 7 query methods (including `HasValidDPAAsync` hot path, `ValidateDPAAsync` detailed validation)
+  - `DefaultProcessorService` con cache-aside pattern (L1/L2 via `ICacheProvider`), BFS sub-processor chain traversal
+  - `DefaultDPAService` con cache-aside pattern, expiration-aware active DPA lookup
 - `DPAMandatoryTerms` sealed record con 8 boolean flags (Art. 28(3)(a)-(h)), IsFullyCompliant, MissingTerms
-- `ProcessorValidationPipelineBehavior<TRequest, TResponse>` para validación antes de procesamiento
+- `ProcessorValidationPipelineBehavior<TRequest, TResponse>` para validación antes de procesamiento (ahora usa `IDPAService`)
 - `[RequiresProcessor(ProcessorId = "...")]` atributo declarativo con cached static reflection
-- `CheckDPAExpirationCommand` + `CheckDPAExpirationHandler` para scheduled expiration monitoring
+- `CheckDPAExpirationCommand` + `CheckDPAExpirationHandler` para scheduled expiration monitoring (ahora usa `IDPAService` + `IProcessorService` + `IAggregateRepository<DPAAggregate>`)
 - 7 notifications: ProcessorRegistered, DPASigned, DPAExpiring, DPAExpired, DPATerminated, SubProcessorAdded, SubProcessorRemoved
 - 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
 - 13 error codes: `processor.not_found`, `processor.already_exists`, `processor.dpa_not_found`, `processor.dpa_missing`, `processor.dpa_expired`, `processor.dpa_terminated`, `processor.dpa_pending_renewal`, `processor.dpa_incomplete`, `processor.sub_processor_unauthorized`, `processor.sub_processor_depth_exceeded`, `processor.scc_required`, `processor.store_error`, `processor.validation_failed`
-- In-memory implementations: `InMemoryProcessorRegistry`, `InMemoryDPAStore`, `InMemoryProcessorAuditStore`
-- Default implementations: `DefaultDPAValidator`
-- `ProcessorAgreementOptions` con EnforcementMode, MaxSubProcessorDepth, ExpirationWarningDays, EnableExpirationMonitoring, TrackAuditTrail
-- 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
-- OpenTelemetry tracing via dedicated `Encina.Compliance.ProcessorAgreements` ActivitySource
-- Structured logging via `[LoggerMessage]` source generator (zero-allocation)
-- Optional health check (`ProcessorAgreementHealthCheck`) verifying DI and store connectivity
-- DI registration via `AddEncinaProcessorAgreements()` extension method with fluent configuration
+- `ProcessorAgreementOptions` con EnforcementMode, MaxSubProcessorDepth, ExpirationWarningDays, EnableExpirationMonitoring
+- OpenTelemetry tracing via dedicated `Encina.Compliance.ProcessorAgreements` ActivitySource con service-level activity helpers
+- Structured logging via `[LoggerMessage]` source generator (zero-allocation, EventId 8900-8989)
+- Optional health check (`ProcessorAgreementHealthCheck`) verifying DI and service availability
+- DI registration via `AddEncinaProcessorAgreements()` + `AddProcessorAgreementAggregates()` extension methods
+- **Dependencias**: `Encina.Marten`, `Encina.Caching` (nuevas), eliminadas dependencias de 13 database providers
 - **Paquete**: `Encina.Compliance.ProcessorAgreements`
-- **Testing**: 360+ tests (165 unit, 47 guard, 25 contract, 54 property, 42 integration pipeline) + load/benchmark justification docs
+- **Testing**: Unit tests (aggregate, projection, service, pipeline, health check, handler), guard tests (services, handler), property tests (aggregate invariants), integration tests (pipeline behavior)
 - **Documentación**: [Feature Guide](features/processor-agreements.md), [README](../src/Encina.Compliance.ProcessorAgreements/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `industry-best-practice`, `saas-enabler`
 - Referencias: [GDPR Article 28](https://gdpr-info.eu/art-28-gdpr/), [Standard Processor Clauses](https://commission.europa.eu/publications/standard-contractual-clauses-controllers-and-processors-eueea_en)

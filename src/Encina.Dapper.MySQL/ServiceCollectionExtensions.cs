@@ -2,7 +2,6 @@ using System.Data;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.GDPR;
-using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.Retention;
 using Encina.Dapper.MySQL.Auditing;
 using Encina.Dapper.MySQL.Health;
@@ -103,14 +102,6 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreDapper>();
             services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreDapper>();
             services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreDapper>();
-        }
-
-        // Register Processor Agreements stores if enabled
-        if (config.UseProcessorAgreements)
-        {
-            services.TryAddScoped<IProcessorRegistry, ProcessorAgreements.ProcessorRegistryDapper>();
-            services.TryAddScoped<IDPAStore, ProcessorAgreements.DPAStoreDapper>();
-            services.TryAddScoped<IProcessorAuditStore, ProcessorAgreements.ProcessorAuditStoreDapper>();
         }
 
         // Register ABAC Policy Store if enabled
