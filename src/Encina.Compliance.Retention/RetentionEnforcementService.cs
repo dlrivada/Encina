@@ -1,9 +1,9 @@
 using System.Diagnostics;
 
+using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
-using Encina.Compliance.DataSubjectRights;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
