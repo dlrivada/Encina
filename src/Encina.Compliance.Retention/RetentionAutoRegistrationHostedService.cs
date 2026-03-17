@@ -1,5 +1,6 @@
 using System.Reflection;
 
+using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
 
@@ -12,19 +13,19 @@ namespace Encina.Compliance.Retention;
 
 /// <summary>
 /// Hosted service that scans configured assemblies for <see cref="RetentionPeriodAttribute"/>
-/// decorations at startup and creates matching <see cref="RetentionPolicy"/> entries in the store.
+/// decorations at startup and creates matching retention policies via the event-sourced service.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This service runs once at application startup. It discovers all types and properties
 /// decorated with <see cref="RetentionPeriodAttribute"/> in the configured assemblies,
-/// then creates corresponding <see cref="RetentionPolicy"/> entries in the
-/// <see cref="IRetentionPolicyStore"/> for any data categories that don't already have policies.
+/// then creates corresponding retention policies via <see cref="IRetentionPolicyService"/>
+/// for any data categories that don't already have policies.
 /// </para>
 /// <para>
 /// Per GDPR Article 5(1)(e), controllers should establish explicit retention periods
 /// for all categories of personal data. This auto-registration ensures that attribute-based
-/// retention declarations are reflected in the policy store.
+/// retention declarations are reflected in the event-sourced policy aggregates.
 /// </para>
 /// </remarks>
 internal sealed class RetentionAutoRegistrationHostedService : IHostedService
@@ -162,7 +163,7 @@ internal sealed class RetentionAutoRegistrationHostedService : IHostedService
     }
 
     /// <summary>
-    /// Creates retention policies in the store for discovered data categories
+    /// Creates retention policies via the event-sourced service for discovered data categories
     /// that don't already have policies.
     /// </summary>
     /// <returns>The number of policies created.</returns>
@@ -171,7 +172,7 @@ internal sealed class RetentionAutoRegistrationHostedService : IHostedService
         CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var policyStore = scope.ServiceProvider.GetRequiredService<IRetentionPolicyStore>();
+        var policyService = scope.ServiceProvider.GetRequiredService<IRetentionPolicyService>();
         var policiesCreated = 0;
 
         foreach (var discovered in discoveredPolicies)
@@ -179,13 +180,12 @@ internal sealed class RetentionAutoRegistrationHostedService : IHostedService
             try
             {
                 // Check if a policy already exists for this category
-                var existingResult = await policyStore
-                    .GetByCategoryAsync(discovered.DataCategory, cancellationToken)
+                var existingResult = await policyService
+                    .GetPolicyByCategoryAsync(discovered.DataCategory, cancellationToken)
                     .ConfigureAwait(false);
 
-                var policyExists = existingResult.Match(
-                    Right: option => option.IsSome,
-                    Left: _ => false);
+                // If the query succeeded (Right), a policy exists; if it returned a not-found error, we can create
+                var policyExists = existingResult.IsRight;
 
                 if (policyExists)
                 {
@@ -193,15 +193,15 @@ internal sealed class RetentionAutoRegistrationHostedService : IHostedService
                     continue;
                 }
 
-                // Create the policy
-                var policy = RetentionPolicy.Create(
-                    dataCategory: discovered.DataCategory,
-                    retentionPeriod: discovered.RetentionPeriod,
-                    autoDelete: discovered.AutoDelete,
-                    reason: discovered.Reason ?? "Auto-registered from [RetentionPeriod] attribute");
-
-                var createResult = await policyStore
-                    .CreateAsync(policy, cancellationToken)
+                // Create the policy via the event-sourced service
+                var createResult = await policyService
+                    .CreatePolicyAsync(
+                        dataCategory: discovered.DataCategory,
+                        retentionPeriod: discovered.RetentionPeriod,
+                        autoDelete: discovered.AutoDelete,
+                        policyType: RetentionPolicyType.TimeBased,
+                        reason: discovered.Reason ?? "Auto-registered from [RetentionPeriod] attribute",
+                        cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 createResult.Match(

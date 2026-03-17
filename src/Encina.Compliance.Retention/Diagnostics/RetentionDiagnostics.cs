@@ -110,6 +110,78 @@ internal static class RetentionDiagnostics
         Meter.CreateCounter<long>("retention.audit.entries.total",
             description: "Total number of retention audit entries recorded.");
 
+    // ---- Service-level counters (event-sourced operations) ----
+
+    /// <summary>
+    /// Total retention policies created via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> PoliciesCreatedTotal =
+        Meter.CreateCounter<long>("retention.policies.created.total",
+            description: "Total number of retention policies created.");
+
+    /// <summary>
+    /// Total retention policies updated via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> PoliciesUpdatedTotal =
+        Meter.CreateCounter<long>("retention.policies.updated.total",
+            description: "Total number of retention policies updated.");
+
+    /// <summary>
+    /// Total retention policies deactivated via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> PoliciesDeactivatedTotal =
+        Meter.CreateCounter<long>("retention.policies.deactivated.total",
+            description: "Total number of retention policies deactivated.");
+
+    /// <summary>
+    /// Total retention records tracked via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> RecordsTrackedTotal =
+        Meter.CreateCounter<long>("retention.records.tracked.total",
+            description: "Total number of retention records tracked.");
+
+    /// <summary>
+    /// Total retention records marked as expired via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> RecordsExpiredTotal =
+        Meter.CreateCounter<long>("retention.records.expired.total",
+            description: "Total number of retention records marked as expired.");
+
+    /// <summary>
+    /// Total retention records anonymized via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> RecordsAnonymizedTotal =
+        Meter.CreateCounter<long>("retention.records.anonymized.total",
+            description: "Total number of retention records anonymized.");
+
+    /// <summary>
+    /// Total legal holds placed via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> HoldsPlacedTotal =
+        Meter.CreateCounter<long>("retention.holds.placed.total",
+            description: "Total number of legal holds placed.");
+
+    /// <summary>
+    /// Total legal holds lifted via the service layer.
+    /// </summary>
+    internal static readonly Counter<long> HoldsLiftedTotal =
+        Meter.CreateCounter<long>("retention.holds.lifted.total",
+            description: "Total number of legal holds lifted.");
+
+    /// <summary>
+    /// Total cache hits for retention read models.
+    /// </summary>
+    internal static readonly Counter<long> CacheHitsTotal =
+        Meter.CreateCounter<long>("retention.cache.hits.total",
+            description: "Total number of retention cache hits.");
+
+    /// <summary>
+    /// Total cache misses for retention read models.
+    /// </summary>
+    internal static readonly Counter<long> CacheMissesTotal =
+        Meter.CreateCounter<long>("retention.cache.misses.total",
+            description: "Total number of retention cache misses.");
+
     // ---- Histograms ----
 
     /// <summary>
@@ -240,6 +312,23 @@ internal static class RetentionDiagnostics
 
         var activity = ActivitySource.StartActivity("Retention.Audit", ActivityKind.Internal);
         activity?.SetTag(TagAction, action);
+        return activity;
+    }
+
+    /// <summary>
+    /// Starts a new <c>Retention.Service</c> activity for a service-layer operation.
+    /// </summary>
+    /// <param name="operationName">The name of the service operation (e.g., "CreatePolicy", "TrackRecord").</param>
+    /// <returns>The started activity, or <c>null</c> when no listener is attached.</returns>
+    internal static Activity? StartServiceOperation(string operationName)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity($"Retention.Service.{operationName}", ActivityKind.Internal);
+        activity?.SetTag(TagAction, operationName);
         return activity;
     }
 

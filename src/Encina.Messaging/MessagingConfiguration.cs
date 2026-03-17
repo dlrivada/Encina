@@ -617,16 +617,13 @@ public sealed class MessagingConfiguration
     public bool UseAnonymization { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether to use the Retention stores.
+    /// Gets or sets a value indicating whether to use the Retention module.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, registers <see cref="Compliance.Retention.IRetentionPolicyStore"/>,
-    /// <see cref="Compliance.Retention.IRetentionRecordStore"/>,
-    /// <see cref="Compliance.Retention.ILegalHoldStore"/>, and
-    /// <see cref="Compliance.Retention.IRetentionAuditStore"/>
-    /// with the provider-specific implementation for GDPR Article 5(1)(e) compliant
-    /// data retention management, automatic deletion, and legal hold enforcement.
+    /// Retention has been migrated to Marten event sourcing.
+    /// This flag is preserved for backward compatibility but store registrations
+    /// are now handled by <c>Encina.Compliance.Retention</c> directly.
     /// </para>
     /// </remarks>
     /// <value>Default: false (opt-in)</value>

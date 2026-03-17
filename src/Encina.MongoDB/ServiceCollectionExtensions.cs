@@ -126,14 +126,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
         }
 
-        // Register Retention stores if enabled
-        if (options.UseRetention)
-        {
-            services.AddScoped<IRetentionPolicyStore, Retention.RetentionPolicyStoreMongoDB>();
-            services.AddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreMongoDB>();
-            services.AddScoped<ILegalHoldStore, Retention.LegalHoldStoreMongoDB>();
-            services.AddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreMongoDB>();
-        }
+        // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
 
         // Register Data Residency stores if enabled
         if (options.UseDataResidency)
@@ -253,14 +246,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
         }
 
-        // Register Retention stores if enabled
-        if (options.UseRetention)
-        {
-            services.AddScoped<IRetentionPolicyStore, Retention.RetentionPolicyStoreMongoDB>();
-            services.AddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreMongoDB>();
-            services.AddScoped<ILegalHoldStore, Retention.LegalHoldStoreMongoDB>();
-            services.AddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreMongoDB>();
-        }
+        // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
 
         // Register Data Residency stores if enabled
         if (options.UseDataResidency)

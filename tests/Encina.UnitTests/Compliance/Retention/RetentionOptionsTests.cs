@@ -41,16 +41,6 @@ public class RetentionOptionsTests
     }
 
     [Fact]
-    public void DefaultTrackAuditTrail_ShouldBeTrue()
-    {
-        // Act
-        var options = new RetentionOptions();
-
-        // Assert
-        options.TrackAuditTrail.Should().BeTrue();
-    }
-
-    [Fact]
     public void DefaultAddHealthCheck_ShouldBeFalse()
     {
         // Act
@@ -151,19 +141,6 @@ public class RetentionOptionsTests
 
         // Assert
         options.PublishNotifications.Should().BeFalse();
-    }
-
-    [Fact]
-    public void SetTrackAuditTrail_ShouldUpdateValue()
-    {
-        // Arrange
-        var options = new RetentionOptions();
-
-        // Act
-        options.TrackAuditTrail = false;
-
-        // Assert
-        options.TrackAuditTrail.Should().BeFalse();
     }
 
     [Fact]

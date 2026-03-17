@@ -107,14 +107,7 @@ public static class ServiceCollectionExtensions
             services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreDapper>();
         }
 
-        // Register Retention stores if enabled
-        if (config.UseRetention)
-        {
-            services.TryAddScoped<IRetentionPolicyStore, Retention.RetentionPolicyStoreDapper>();
-            services.TryAddScoped<IRetentionRecordStore, Retention.RetentionRecordStoreDapper>();
-            services.TryAddScoped<ILegalHoldStore, Retention.LegalHoldStoreDapper>();
-            services.TryAddScoped<IRetentionAuditStore, Retention.RetentionAuditStoreDapper>();
-        }
+        // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
 
         // Register Data Residency stores if enabled
         if (config.UseDataResidency)

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 
+using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
 
@@ -14,7 +15,7 @@ using static LanguageExt.Prelude;
 namespace Encina.Compliance.Retention;
 
 /// <summary>
-/// Pipeline behavior that automatically creates <see cref="RetentionRecord"/> entries for response
+/// Pipeline behavior that automatically tracks retention records for response
 /// properties or types decorated with the <see cref="RetentionPeriodAttribute"/>.
 /// </summary>
 /// <typeparam name="TRequest">The request type.</typeparam>
@@ -28,8 +29,9 @@ namespace Encina.Compliance.Retention;
 /// </para>
 /// <para>
 /// The behavior scans <typeparamref name="TResponse"/> for <see cref="RetentionPeriodAttribute"/>
-/// applied at class level or on individual properties. When found, a <see cref="RetentionRecord"/>
-/// is created with an expiration date computed as <c>TimeProvider.GetUtcNow() + attribute.RetentionPeriod</c>.
+/// applied at class level or on individual properties. When found, a retention record is tracked
+/// via <see cref="IRetentionRecordService.TrackEntityAsync"/> with a retention period resolved
+/// either from the attribute or from <see cref="IRetentionPolicyService.GetRetentionPeriodAsync"/>.
 /// </para>
 /// <para>
 /// <b>Attribute resolution:</b> Each closed generic type resolves its attribute info exactly once
@@ -60,7 +62,7 @@ namespace Encina.Compliance.Retention;
 ///     public decimal Amount { get; init; }
 /// }
 ///
-/// // The pipeline behavior automatically creates a RetentionRecord
+/// // The pipeline behavior automatically creates a retention record
 /// // when the handler returns a successful CreateInvoiceResponse.
 /// </code>
 /// </example>
@@ -74,32 +76,32 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
     /// </summary>
     private static readonly RetentionAttributeInfo? CachedAttributeInfo = ResolveAttributeInfo();
 
-    private readonly IRetentionRecordStore _recordStore;
+    private readonly IRetentionRecordService _recordService;
+    private readonly IRetentionPolicyService _policyService;
     private readonly RetentionOptions _options;
-    private readonly TimeProvider _timeProvider;
     private readonly ILogger<RetentionValidationPipelineBehavior<TRequest, TResponse>> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RetentionValidationPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="recordStore">Store for creating retention records.</param>
+    /// <param name="recordService">Service for tracking retention records via event-sourced aggregates.</param>
+    /// <param name="policyService">Service for resolving retention periods from policies.</param>
     /// <param name="options">Retention configuration options controlling enforcement mode.</param>
-    /// <param name="timeProvider">Time provider for deterministic time-based operations.</param>
     /// <param name="logger">Logger for structured retention pipeline logging.</param>
     public RetentionValidationPipelineBehavior(
-        IRetentionRecordStore recordStore,
+        IRetentionRecordService recordService,
+        IRetentionPolicyService policyService,
         IOptions<RetentionOptions> options,
-        TimeProvider timeProvider,
         ILogger<RetentionValidationPipelineBehavior<TRequest, TResponse>> logger)
     {
-        ArgumentNullException.ThrowIfNull(recordStore);
+        ArgumentNullException.ThrowIfNull(recordService);
+        ArgumentNullException.ThrowIfNull(policyService);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _recordStore = recordStore;
+        _recordService = recordService;
+        _policyService = policyService;
         _options = options.Value;
-        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -155,7 +157,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
         {
             foreach (var field in attrInfo.Fields)
             {
-                var recordResult = await CreateRetentionRecordAsync(
+                var recordResult = await TrackRetentionRecordAsync(
                     response!, field, responseTypeName, cancellationToken).ConfigureAwait(false);
 
                 if (recordResult.IsLeft)
@@ -200,10 +202,10 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
     }
 
     // ================================================================
-    // Retention record creation
+    // Retention record tracking via ES services
     // ================================================================
 
-    private async ValueTask<Either<EncinaError, Unit>> CreateRetentionRecordAsync(
+    private async ValueTask<Either<EncinaError, Unit>> TrackRetentionRecordAsync(
         TResponse response,
         RetentionFieldInfo field,
         string responseTypeName,
@@ -226,22 +228,42 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
             return Right<EncinaError, Unit>(unit);
         }
 
-        var now = _timeProvider.GetUtcNow();
-        var expiresAtUtc = now + field.RetentionPeriod;
         var dataCategory = field.DataCategory ?? responseTypeName;
+        var retentionPeriod = field.RetentionPeriod;
 
-        var record = RetentionRecord.Create(
-            entityId: entityId,
-            dataCategory: dataCategory,
-            createdAtUtc: now,
-            expiresAtUtc: expiresAtUtc);
+        // If no retention period on attribute, resolve from policy service
+        if (retentionPeriod <= TimeSpan.Zero)
+        {
+            var periodResult = await _policyService
+                .GetRetentionPeriodAsync(dataCategory, cancellationToken)
+                .ConfigureAwait(false);
 
-        var createResult = await _recordStore.CreateAsync(record, cancellationToken).ConfigureAwait(false);
+            if (periodResult.IsLeft)
+            {
+                var periodError = (EncinaError)periodResult;
 
-        return createResult.Match(
+                if (_options.EnforcementMode == RetentionEnforcementMode.Block)
+                {
+                    _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, periodError.Message);
+                    return Left<EncinaError, Unit>(periodError);
+                }
+
+                _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, periodError.Message);
+                return Right<EncinaError, Unit>(unit);
+            }
+
+            retentionPeriod = (TimeSpan)periodResult;
+        }
+
+        // Track entity via the event-sourced record service (policyId = Guid.Empty for attribute-based)
+        var trackResult = await _recordService
+            .TrackEntityAsync(entityId, dataCategory, Guid.Empty, retentionPeriod, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        return trackResult.Match(
             Right: _ =>
             {
-                _logger.RetentionRecordCreated(entityId, dataCategory, expiresAtUtc, field.RetentionPeriod);
+                _logger.RetentionRecordCreated(entityId, dataCategory, DateTimeOffset.UtcNow + retentionPeriod, retentionPeriod);
                 RetentionDiagnostics.RecordsCreatedTotal.Add(1,
                     new KeyValuePair<string, object?>(RetentionDiagnostics.TagDataCategory, dataCategory));
                 return Right<EncinaError, Unit>(unit);

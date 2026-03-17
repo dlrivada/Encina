@@ -7,7 +7,7 @@ namespace Encina.Compliance.Retention;
 /// <para>
 /// The <see cref="RetentionPeriodAttribute"/> enables declarative retention period configuration
 /// on response types or properties. When applied, the <c>RetentionValidationPipelineBehavior</c>
-/// automatically creates <see cref="Model.RetentionRecord"/> entries for data entities
+/// automatically creates <see cref="ReadModels.RetentionRecordReadModel"/> entries for data entities
 /// returned from command handlers, tracking their creation and expiration dates.
 /// </para>
 /// <para>
@@ -91,8 +91,8 @@ public sealed class RetentionPeriodAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// Maps this data to a specific retention policy category. When set, the pipeline
-    /// behavior uses this value to look up the <see cref="Model.RetentionPolicy"/>
-    /// via <see cref="IRetentionPolicyStore.GetByCategoryAsync"/>. If not set,
+    /// behavior uses this value to look up the <see cref="ReadModels.RetentionPolicyReadModel"/>
+    /// via <see cref="Abstractions.IRetentionPolicyService.GetPolicyByCategoryAsync"/>. If not set,
     /// the pipeline behavior derives the category from the type name.
     /// </remarks>
     public string? DataCategory { get; set; }

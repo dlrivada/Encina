@@ -5987,33 +5987,31 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 
 ##### Tier 2: Alta Prioridad (Data Lifecycle)
 
-**#406 - Encina.Compliance.Retention - Data Retention** ✅ **IMPLEMENTADO**:
+**#406 - Encina.Compliance.Retention - Data Retention** ✅ **IMPLEMENTADO** (migrado a Marten Event Sourcing en #783):
 
-- `IRetentionRecordStore` con `AddAsync`, `GetByIdAsync`, `GetByEntityIdAsync`, `GetExpiredRecordsAsync`, `UpdateStatusAsync`, `DeleteAsync` — retention record lifecycle tracking
-- `IRetentionPolicyStore` con `AddAsync`, `GetByIdAsync`, `GetByCategoryAsync`, `GetAllAsync`, `UpdateAsync`, `DeleteAsync` — one policy per data category
-- `IRetentionAuditStore` con `AddAsync`, `GetByEntityIdAsync`, `GetByActionAsync`, `GetAllAsync` — immutable compliance evidence
-- `ILegalHoldStore` con `AddAsync`, `GetByIdAsync`, `GetByEntityIdAsync`, `GetActiveHoldsAsync`, `ReleaseAsync` — litigation preservation
-- `IRetentionPolicy` (service) con `GetPolicyForCategoryAsync`, `GetRetentionPeriodAsync` — policy resolution with fallback
-- `IRetentionEnforcer` (service) con `EnforceRetentionAsync` — orchestrates deletion via `IDataErasureExecutor`
-- `ILegalHoldManager` (service) con `ApplyHoldAsync`, `ReleaseHoldAsync`, `IsUnderHoldAsync`, `GetActiveHoldsAsync` — lifecycle with notifications
-- `RetentionRecord` sealed record con Id, EntityId, DataCategory, PolicyId, CreatedAtUtc, ExpiresAtUtc, Status, DeletedAtUtc, LegalHoldId
-- `RetentionPolicy` sealed record con Id, DataCategory, RetentionPeriod, AutoDelete, Reason, LegalBasis, PolicyType, CreatedAtUtc
-- `LegalHold` sealed record con Id, EntityId, Reason, AppliedByUserId, AppliedAtUtc, ReleasedAtUtc, computed IsActive
-- `RetentionAuditEntry` sealed record con Id, EntityId, Action, Details, OccurredAtUtc, PerformedBy
-- `[RetentionPeriod(Days/Years)]` attribute with AutoDelete, DataCategory, Reason — class/property level
-- `RetentionValidationPipelineBehavior<TRequest, TResponse>` — automatic retention record creation with attribute caching
-- `RetentionEnforcementService` (`BackgroundService`) — periodic enforcement with `PeriodicTimer`, immediate first cycle
-- `DefaultRetentionEnforcer` — deletion via `IDataErasureExecutor`, legal hold bypass, audit trail
-- `DefaultLegalHoldManager` — full lifecycle with `IEncina` notification publishing
-- 5 domain notifications: `DataExpiringNotification`, `DataDeletedNotification`, `LegalHoldAppliedNotification`, `LegalHoldReleasedNotification`, `RetentionEnforcementCompletedNotification`
-- 14 error codes via `RetentionErrors` (policy_not_found, record_not_found, hold_already_active, enforcement_failed, etc.)
-- `RetentionOptions` con DefaultRetentionPeriod, AlertBeforeExpirationDays, EnforcementMode (Block/Warn/Disabled), fluent `AddPolicy()` API
-- In-memory implementations: `InMemoryRetentionRecordStore`, `InMemoryRetentionPolicyStore`, `InMemoryRetentionAuditStore`, `InMemoryLegalHoldStore`
-- Mapper infrastructure: `RetentionRecordMapper`, `RetentionPolicyMapper`, `LegalHoldMapper`, `RetentionAuditEntryMapper` + entities (ready for 13 providers)
-- OpenTelemetry: ActivitySource with 6 activity types, Meter with 13 instruments (10 counters + 3 histograms), 70 LoggerMessage events (8500-8569)
-- `RetentionHealthCheck` con Healthy/Degraded/Unhealthy states based on service availability
-- `services.AddEncinaRetention()` with `TryAdd` semantics and `Action<RetentionOptions>` configuration
-- 684 tests: 469 unit, 92 guard, 51 contract, 58 property, 14 integration
+- ✅ `RetentionPolicyAggregate` — Event-sourced aggregate con `Create()`, `Update()`, `Deactivate()` (policy lifecycle completo Art. 5(1)(e))
+- ✅ `RetentionRecordAggregate` — Event-sourced aggregate con `Track()`, `MarkExpired()`, `MarkDeleted()`, `MarkAnonymized()`, `PlaceHold()`, `ReleaseHold()` (entity retention lifecycle with legal hold transitions)
+- ✅ `LegalHoldAggregate` — Event-sourced aggregate con `Place()`, `Lift()` (litigation preservation lifecycle Art. 17(3)(e))
+- ✅ 11 Domain Events: `RetentionPolicyCreated`, `RetentionPolicyUpdated`, `RetentionPolicyDeactivated`, `RetentionRecordTracked`, `RetentionRecordExpired`, `RetentionRecordDeleted`, `RetentionRecordAnonymized`, `RetentionRecordHoldPlaced`, `RetentionRecordHoldReleased`, `LegalHoldPlaced`, `LegalHoldLifted`
+- ✅ 3 Projections: `RetentionPolicyProjection`, `RetentionRecordProjection`, `LegalHoldProjection` — Marten inline projections → read models (CQRS query-side)
+- ✅ `IRetentionPolicyService` — CQRS service interface (3 commands + 4 queries) via `IAggregateRepository` + `IReadModelRepository`
+- ✅ `IRetentionRecordService` — CQRS service interface (5 commands + 4 queries) with hold cascade support
+- ✅ `ILegalHoldService` — CQRS service interface (2 commands + 5 queries) with cross-aggregate coordination
+- ✅ `DefaultRetentionPolicyService`, `DefaultRetentionRecordService`, `DefaultLegalHoldService` — cache-aside pattern con `ICacheProvider`, ROP `Either<EncinaError, T>`
+- ✅ `[RetentionPeriod(Days/Years)]` attribute with AutoDelete, DataCategory, Reason — class/property level (preservado)
+- ✅ `RetentionValidationPipelineBehavior<TRequest, TResponse>` — automatic retention record creation with attribute caching (preservado)
+- ✅ `RetentionEnforcementService` (`BackgroundService`) — periodic enforcement with `PeriodicTimer`, immediate first cycle (preservado, rewired to services)
+- ✅ 5 domain notifications: `DataExpiringNotification`, `DataDeletedNotification`, `LegalHoldAppliedNotification`, `LegalHoldReleasedNotification`, `RetentionEnforcementCompletedNotification` (preservado)
+- ✅ 14 error codes via `RetentionErrors` (policy_not_found, record_not_found, hold_already_active, enforcement_failed, etc.)
+- ✅ `RetentionOptions` con DefaultRetentionPeriod, AlertBeforeExpirationDays, EnforcementMode (Block/Warn/Disabled), fluent `AddPolicy()` API
+- ✅ `RetentionMartenExtensions.AddRetentionAggregates()` — registro Marten DI
+- ✅ OpenTelemetry: ActivitySource + Meter (20 counters + 3 histograms) + 84 structured log events (EventId 8500–8599)
+- ✅ `RetentionHealthCheck` con Healthy/Degraded/Unhealthy states based on service availability (preservado)
+- ✅ `services.AddEncinaRetention()` with `TryAdd` semantics and `Action<RetentionOptions>` configuration
+- ✅ ~358 tests: 298 unit (aggregates + projections + services), 46 guard (aggregates + services), 14 property (aggregates)
+- ❌ Eliminados: `IRetentionPolicyStore`, `IRetentionRecordStore`, `ILegalHoldStore`, `IRetentionAuditStore`, `IRetentionPolicy`, `IRetentionEnforcer`, `ILegalHoldManager`, `DefaultRetentionPolicy`, `DefaultRetentionEnforcer`, `DefaultLegalHoldManager`, InMemory stores (4), entities (4), mappers (4), 13-provider satellite store implementations
+- **Paquete**: `Encina.Compliance.Retention`
+- **Dependencias**: `Encina.Marten`, `Encina.Caching`
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `area-archival`
 - Referencias: [GDPR Article 5](https://gdpr-info.eu/art-5-gdpr/), [NIST Data Retention](https://csrc.nist.gov/glossary/term/data_retention)
 

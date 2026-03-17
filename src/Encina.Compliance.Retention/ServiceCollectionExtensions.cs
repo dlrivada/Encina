@@ -1,7 +1,8 @@
 using System.Reflection;
 
+using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Health;
-using Encina.Compliance.Retention.InMemory;
+using Encina.Compliance.Retention.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,21 +27,17 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="RetentionOptions"/> — Configured via the provided action, validated at first access</item>
-    /// <item><see cref="IRetentionRecordStore"/> → <see cref="InMemoryRetentionRecordStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IRetentionPolicyStore"/> → <see cref="InMemoryRetentionPolicyStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="ILegalHoldStore"/> → <see cref="InMemoryLegalHoldStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IRetentionAuditStore"/> → <see cref="InMemoryRetentionAuditStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IRetentionPolicy"/> → <see cref="DefaultRetentionPolicy"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IRetentionEnforcer"/> → <see cref="DefaultRetentionEnforcer"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="ILegalHoldManager"/> → <see cref="DefaultLegalHoldManager"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IRetentionPolicyService"/> → <see cref="DefaultRetentionPolicyService"/> (Scoped, using TryAdd)</item>
+    /// <item><see cref="IRetentionRecordService"/> → <see cref="DefaultRetentionRecordService"/> (Scoped, using TryAdd)</item>
+    /// <item><see cref="ILegalHoldService"/> → <see cref="DefaultLegalHoldService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="RetentionValidationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Default registrations:</b>
     /// All service registrations use <c>TryAdd</c>, allowing you to register custom
-    /// implementations before calling this method. For example, register a database-backed
-    /// <see cref="IRetentionRecordStore"/> or a custom <see cref="IRetentionAuditStore"/>.
+    /// implementations before calling this method. The default implementations use
+    /// Marten event-sourced aggregates (command side) and read model repositories (query side).
     /// </para>
     /// <para>
     /// <b>Conditional registrations:</b>
@@ -50,10 +47,15 @@ public static class ServiceCollectionExtensions
     /// <item>Auto-registration: Only registered when <see cref="RetentionOptions.AutoRegisterFromAttributes"/> is <c>true</c></item>
     /// </list>
     /// </para>
+    /// <para>
+    /// <b>Marten aggregates:</b>
+    /// Call <see cref="RetentionMartenExtensions.AddRetentionAggregates"/>
+    /// separately to register the event-sourced aggregate repositories with Marten.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Basic setup
+    /// // Basic setup with Marten event sourcing
     /// services.AddEncinaRetention(options =>
     /// {
     ///     options.EnforcementMode = RetentionEnforcementMode.Block;
@@ -62,14 +64,8 @@ public static class ServiceCollectionExtensions
     ///     options.AddPolicy("user-profiles", p => p.RetainForDays(365).WithAutoDelete());
     /// });
     ///
-    /// // With custom implementations (register before AddEncinaRetention)
-    /// services.AddSingleton&lt;IRetentionRecordStore, DatabaseRetentionRecordStore&gt;();
-    /// services.AddSingleton&lt;IRetentionAuditStore, DatabaseRetentionAuditStore&gt;();
-    /// services.AddEncinaRetention(options =>
-    /// {
-    ///     options.EnforcementMode = RetentionEnforcementMode.Warn;
-    ///     options.AutoRegisterFromAttributes = false;
-    /// });
+    /// // Register Marten aggregate repositories
+    /// services.AddRetentionAggregates();
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
@@ -94,16 +90,10 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
-        // Register default store implementations (TryAdd allows override by satellite providers)
-        services.TryAddSingleton<IRetentionRecordStore, InMemoryRetentionRecordStore>();
-        services.TryAddSingleton<IRetentionPolicyStore, InMemoryRetentionPolicyStore>();
-        services.TryAddSingleton<ILegalHoldStore, InMemoryLegalHoldStore>();
-        services.TryAddSingleton<IRetentionAuditStore, InMemoryRetentionAuditStore>();
-
-        // Register default high-level service implementations
-        services.TryAddSingleton<IRetentionPolicy, DefaultRetentionPolicy>();
-        services.TryAddSingleton<IRetentionEnforcer, DefaultRetentionEnforcer>();
-        services.TryAddSingleton<ILegalHoldManager, DefaultLegalHoldManager>();
+        // Register CQRS service implementations (TryAdd allows override by custom implementations)
+        services.TryAddScoped<IRetentionPolicyService, DefaultRetentionPolicyService>();
+        services.TryAddScoped<IRetentionRecordService, DefaultRetentionRecordService>();
+        services.TryAddScoped<ILegalHoldService, DefaultLegalHoldService>();
 
         // Register pipeline behavior
         services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(RetentionValidationPipelineBehavior<,>));

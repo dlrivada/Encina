@@ -70,6 +70,15 @@ public static class RetentionErrors
     /// <summary>Error code when the retention pipeline behavior cannot resolve an entity ID from the response.</summary>
     public const string PipelineEntityIdNotFoundCode = "retention.pipeline_entity_id_not_found";
 
+    /// <summary>Error code when an invalid aggregate state transition is attempted.</summary>
+    public const string InvalidStateTransitionCode = "retention.invalid_state_transition";
+
+    /// <summary>Error code when a service operation fails unexpectedly.</summary>
+    public const string ServiceErrorCode = "retention.service_error";
+
+    /// <summary>Error code when event history retrieval is not yet available.</summary>
+    public const string EventHistoryUnavailableCode = "retention.event_history_unavailable";
+
     // --- Policy errors ---
 
     /// <summary>
@@ -282,7 +291,7 @@ public static class RetentionErrors
     /// <remarks>
     /// Per Article 5(1)(e), controllers should establish explicit retention periods for all
     /// categories of personal data. A missing policy indicates a gap in compliance coverage
-    /// that should be addressed by defining a <see cref="Model.RetentionPolicy"/> for the category.
+    /// that should be addressed by defining a <see cref="Aggregates.RetentionPolicyAggregate"/> for the category.
     /// </remarks>
     public static EncinaError NoPolicyForCategory(string dataCategory) =>
         EncinaErrors.Create(
@@ -323,6 +332,62 @@ public static class RetentionErrors
                 [MetadataKeyStage] = MetadataKeyStage,
                 ["requirement"] = "article_5_1_e_storage_limitation"
             });
+
+    // --- State transition errors ---
+
+    /// <summary>
+    /// Creates an error when an invalid aggregate state transition is attempted.
+    /// </summary>
+    /// <param name="aggregateId">The identifier of the aggregate.</param>
+    /// <param name="operation">The operation that was attempted.</param>
+    /// <returns>An error indicating an invalid state transition.</returns>
+    public static EncinaError InvalidStateTransition(Guid aggregateId, string operation) =>
+        EncinaErrors.Create(
+            code: InvalidStateTransitionCode,
+            message: $"Invalid state transition on aggregate '{aggregateId}' during operation '{operation}'.",
+            details: new Dictionary<string, object?>
+            {
+                ["aggregateId"] = aggregateId.ToString(),
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Service errors ---
+
+    /// <summary>
+    /// Creates an error when a service operation fails unexpectedly.
+    /// </summary>
+    /// <param name="operation">The service operation that failed.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <returns>An error indicating a service operation failure.</returns>
+    public static EncinaError ServiceError(string operation, Exception? exception = null) =>
+        EncinaErrors.Create(
+            code: ServiceErrorCode,
+            message: $"Retention service operation '{operation}' failed unexpectedly.",
+            exception: exception,
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    /// <summary>
+    /// Creates an error when event history retrieval is not yet available.
+    /// </summary>
+    /// <param name="aggregateId">The identifier of the aggregate whose history was requested.</param>
+    /// <returns>An error indicating event history is not yet available.</returns>
+    public static EncinaError EventHistoryUnavailable(Guid aggregateId) =>
+        EncinaErrors.Create(
+            code: EventHistoryUnavailableCode,
+            message: $"Event history retrieval for aggregate '{aggregateId}' is not yet available. "
+                + "This feature requires direct Marten event stream access (Phase 4+).",
+            details: new Dictionary<string, object?>
+            {
+                ["aggregateId"] = aggregateId.ToString(),
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Pipeline behavior errors ---
 
     /// <summary>
     /// Creates an error when the retention pipeline cannot resolve an entity ID from the response.

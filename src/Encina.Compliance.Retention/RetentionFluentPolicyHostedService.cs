@@ -1,3 +1,4 @@
+using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
 
@@ -40,7 +41,7 @@ internal sealed class RetentionFluentPolicyHostedService : IHostedService
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var policyStore = scope.ServiceProvider.GetRequiredService<IRetentionPolicyStore>();
+        var policyService = scope.ServiceProvider.GetRequiredService<IRetentionPolicyService>();
         var policiesCreated = 0;
 
         foreach (var descriptor in _descriptor.Policies)
@@ -48,13 +49,12 @@ internal sealed class RetentionFluentPolicyHostedService : IHostedService
             try
             {
                 // Check if a policy already exists for this category
-                var existingResult = await policyStore
-                    .GetByCategoryAsync(descriptor.DataCategory, cancellationToken)
+                var existingResult = await policyService
+                    .GetPolicyByCategoryAsync(descriptor.DataCategory, cancellationToken)
                     .ConfigureAwait(false);
 
-                var policyExists = existingResult.Match(
-                    Right: option => option.IsSome,
-                    Left: _ => false);
+                // If the query succeeded (Right), a policy exists; if it returned a not-found error, we can create
+                var policyExists = existingResult.IsRight;
 
                 if (policyExists)
                 {
@@ -62,16 +62,16 @@ internal sealed class RetentionFluentPolicyHostedService : IHostedService
                     continue;
                 }
 
-                // Create the policy
-                var policy = RetentionPolicy.Create(
-                    dataCategory: descriptor.DataCategory,
-                    retentionPeriod: descriptor.RetentionPeriod,
-                    autoDelete: descriptor.AutoDelete,
-                    reason: descriptor.Reason ?? "Configured via AddPolicy() fluent API",
-                    legalBasis: descriptor.LegalBasis);
-
-                var createResult = await policyStore
-                    .CreateAsync(policy, cancellationToken)
+                // Create the policy via the event-sourced service
+                var createResult = await policyService
+                    .CreatePolicyAsync(
+                        dataCategory: descriptor.DataCategory,
+                        retentionPeriod: descriptor.RetentionPeriod,
+                        autoDelete: descriptor.AutoDelete,
+                        policyType: RetentionPolicyType.TimeBased,
+                        reason: descriptor.Reason ?? "Configured via AddPolicy() fluent API",
+                        legalBasis: descriptor.LegalBasis,
+                        cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 createResult.Match(

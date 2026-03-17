@@ -2306,6 +2306,68 @@ Migrated `Encina.Compliance.ProcessorAgreements` from entity-based persistence (
 
 ---
 
+#### Encina.Compliance.Retention — Migrated to Marten Event Sourcing (#783)
+
+Migrated `Encina.Compliance.Retention` from entity-based persistence (13 database providers) to Marten event sourcing (PostgreSQL-only). Replaces `IRetentionPolicyStore` + `IRetentionRecordStore` + `ILegalHoldStore` + `IRetentionAuditStore` + `IRetentionEnforcementService` with event-sourced aggregates (`RetentionPolicyAggregate`, `RetentionRecordAggregate`, `LegalHoldAggregate`), CQRS read models via Marten projections, and a unified service layer with cache-aside pattern and cross-aggregate coordination.
+
+**New Architecture (Event-Sourced)**:
+
+- **`RetentionPolicyAggregate`**: Event-sourced aggregate with `Create()` factory, `Update()`, `Deactivate()` commands — manages retention periods per data category per Article 5(1)(e)
+- **`RetentionRecordAggregate`**: Event-sourced aggregate with `Track()` factory, `MarkExpired()`, `Hold()`, `Release()`, `MarkDeleted()`, `MarkAnonymized()` commands — models full record lifecycle (Active → Expired → Deleted/Anonymized, with UnderLegalHold state)
+- **`LegalHoldAggregate`**: Event-sourced aggregate with `Place()` factory, `Lift()` commands — manages legal holds per Article 17(3)(e)
+- **9 Domain Events**: `RetentionPolicyCreated`, `RetentionPolicyUpdated`, `RetentionPolicyDeactivated` (policy), `RetentionRecordTracked`, `RetentionRecordExpired`, `RetentionRecordHeld`, `RetentionRecordReleased`, `RetentionRecordDeleted`, `RetentionRecordAnonymized` (record), `LegalHoldPlaced`, `LegalHoldLifted` (hold)
+- **`RetentionPolicyProjection`**: Marten projection transforming 3 policy events to `RetentionPolicyReadModel`
+- **`RetentionRecordProjection`**: Marten projection transforming 6 record events to `RetentionRecordReadModel` with legal hold tracking
+- **`LegalHoldProjection`**: Marten projection transforming 2 hold events to `LegalHoldReadModel`
+- **`RetentionPolicyReadModel`**: Projected read model with retention period, policy type, auto-delete flag (replaces `RetentionPolicy` entity)
+- **`RetentionRecordReadModel`**: Projected read model with status, expiration, legal hold count (replaces `RetentionRecord` entity)
+- **`LegalHoldReadModel`**: Projected read model with active/lifted status, applied/released user tracking (replaces `LegalHold` entity)
+- **`IRetentionPolicyService`**: Clean CQRS service interface with 3 command and 4 query methods via `IAggregateRepository<RetentionPolicyAggregate>` and `IReadModelRepository<RetentionPolicyReadModel>`
+- **`IRetentionRecordService`**: Clean CQRS service interface with 5 command and 4 query methods (including `Hold`/`Release` for cross-aggregate coordination)
+- **`ILegalHoldService`**: Clean CQRS service interface with 2 command and 4 query methods, with cross-aggregate cascade (hold/release records)
+- **`DefaultRetentionPolicyService`**: Implementation with cache-aside pattern (L1/L2 via `ICacheProvider`), default retention period fallback
+- **`DefaultRetentionRecordService`**: Implementation with cache-aside pattern, expiration and status management
+- **`DefaultLegalHoldService`**: Implementation with cache-aside pattern and cross-aggregate coordination — cascades hold/release to `RetentionRecordAggregate` instances
+- **`RetentionMartenExtensions.AddRetentionAggregates()`**: Registers all 3 aggregates + 3 projections with Marten DI
+
+**Removed (Old Entity-Based Model)**:
+
+- `IRetentionPolicyStore`, `IRetentionRecordStore`, `ILegalHoldStore`, `IRetentionAuditStore`, `IRetentionEnforcementService` interfaces
+- `InMemoryRetentionPolicyStore`, `InMemoryRetentionRecordStore`, `InMemoryLegalHoldStore`, `InMemoryRetentionAuditStore` implementations
+- `DefaultRetentionEnforcementService` implementation
+- `RetentionPolicy`, `RetentionRecord`, `LegalHold`, `RetentionAuditEntry` model entities
+- `RetentionPolicyEntity`, `RetentionRecordEntity`, `LegalHoldEntity`, `RetentionAuditEntryEntity` database entities
+- `RetentionPolicyMapper`, `RetentionRecordMapper`, `LegalHoldMapper`, `RetentionAuditEntryMapper` bidirectional mappers
+- All 13-provider store implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1) for policy, record, hold, and audit stores
+- All SQL schema scripts (`retention_schema_*.sql`)
+- EF Core entity configurations
+- `RetentionOptions.TrackAuditTrail` relevance (audit is inherent in event sourcing)
+
+**Preserved (Unchanged)**:
+
+- `RetentionValidationPipelineBehavior<TRequest, TResponse>` — pipeline enforcement (now uses `IRetentionPolicyService`)
+- `RetentionHealthCheck` — health check (now verifies service layer)
+- `RetentionPeriodAttribute`, `RetentionOptions`, `RetentionErrors`, `RetentionEnforcementMode`
+- All model types: `RetentionStatus`, `RetentionPolicyType`, `DeletionResult`
+
+**Observability**:
+
+- 10 new service-level counters: `retention.policies.created.total`, `retention.policies.updated.total`, `retention.policies.deactivated.total`, `retention.records.tracked.total`, `retention.records.expired.total`, `retention.records.anonymized.total`, `retention.holds.placed.total`, `retention.holds.lifted.total`, `retention.cache.hits.total`, `retention.cache.misses.total`
+- New `StartServiceOperation(string operationName)` activity helper for service-layer tracing
+- Log message block 8570-8585 for service-level operations (policy CRUD, record lifecycle, hold place/lift, cache hit/miss/invalidation, cross-aggregate cascade)
+- All existing pipeline, enforcement, deletion, legal hold, and policy resolution tracing/metrics/logging preserved
+
+**New Dependencies**: `Encina.Marten`, `Encina.Caching`
+
+**DI Registration**:
+
+- `services.AddEncinaRetention()` with `TryAdd` semantics
+- `services.AddRetentionAggregates()` for Marten aggregate/projection registration
+
+**Testing**: ~200+ tests across 5 test projects: unit tests (3 aggregate + 3 projection + 3 service + errors + options + diagnostics), 6 guard tests (3 aggregate + 3 service), 3 property-based tests (aggregate invariants). ~45 obsolete test files deleted (old entity/store/mapper tests).
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)

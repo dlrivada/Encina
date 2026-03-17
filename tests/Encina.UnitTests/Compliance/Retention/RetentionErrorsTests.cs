@@ -325,6 +325,88 @@ public class RetentionErrorsTests
 
     #endregion
 
+    #region InvalidStateTransition Tests
+
+    [Fact]
+    public void InvalidStateTransition_ShouldReturnCorrectCode()
+    {
+        var aggregateId = Guid.NewGuid();
+        var error = RetentionErrors.InvalidStateTransition(aggregateId, "Deactivate");
+        error.GetCode().Match(
+            Some: code => code.Should().Be(RetentionErrors.InvalidStateTransitionCode),
+            None: () => Assert.Fail("Expected error code"));
+    }
+
+    [Fact]
+    public void InvalidStateTransition_ShouldIncludeAggregateIdInMessage()
+    {
+        var aggregateId = Guid.NewGuid();
+        var error = RetentionErrors.InvalidStateTransition(aggregateId, "Deactivate");
+        error.Message.Should().Contain(aggregateId.ToString());
+    }
+
+    [Fact]
+    public void InvalidStateTransition_ShouldIncludeOperationInMessage()
+    {
+        var aggregateId = Guid.NewGuid();
+        var error = RetentionErrors.InvalidStateTransition(aggregateId, "Deactivate");
+        error.Message.Should().Contain("Deactivate");
+    }
+
+    #endregion
+
+    #region ServiceError Tests
+
+    [Fact]
+    public void ServiceError_ShouldReturnCorrectCode()
+    {
+        var error = RetentionErrors.ServiceError("CreatePolicy");
+        error.GetCode().Match(
+            Some: code => code.Should().Be(RetentionErrors.ServiceErrorCode),
+            None: () => Assert.Fail("Expected error code"));
+    }
+
+    [Fact]
+    public void ServiceError_ShouldIncludeOperationInMessage()
+    {
+        var error = RetentionErrors.ServiceError("CreatePolicy");
+        error.Message.Should().Contain("CreatePolicy");
+    }
+
+    [Fact]
+    public void ServiceError_WithException_ShouldReturnCorrectCode()
+    {
+        var innerException = new InvalidOperationException("Unexpected failure");
+        var error = RetentionErrors.ServiceError("CreatePolicy", innerException);
+        error.GetCode().Match(
+            Some: code => code.Should().Be(RetentionErrors.ServiceErrorCode),
+            None: () => Assert.Fail("Expected error code"));
+    }
+
+    #endregion
+
+    #region EventHistoryUnavailable Tests
+
+    [Fact]
+    public void EventHistoryUnavailable_ShouldReturnCorrectCode()
+    {
+        var aggregateId = Guid.NewGuid();
+        var error = RetentionErrors.EventHistoryUnavailable(aggregateId);
+        error.GetCode().Match(
+            Some: code => code.Should().Be(RetentionErrors.EventHistoryUnavailableCode),
+            None: () => Assert.Fail("Expected error code"));
+    }
+
+    [Fact]
+    public void EventHistoryUnavailable_ShouldIncludeAggregateIdInMessage()
+    {
+        var aggregateId = Guid.NewGuid();
+        var error = RetentionErrors.EventHistoryUnavailable(aggregateId);
+        error.Message.Should().Contain(aggregateId.ToString());
+    }
+
+    #endregion
+
     #region Error Code Constants Tests
 
     [Theory]
@@ -342,6 +424,9 @@ public class RetentionErrorsTests
     [InlineData(nameof(RetentionErrors.NoPolicyForCategoryCode), "retention.no_policy_for_category")]
     [InlineData(nameof(RetentionErrors.PipelineRecordCreationFailedCode), "retention.pipeline_record_creation_failed")]
     [InlineData(nameof(RetentionErrors.PipelineEntityIdNotFoundCode), "retention.pipeline_entity_id_not_found")]
+    [InlineData(nameof(RetentionErrors.InvalidStateTransitionCode), "retention.invalid_state_transition")]
+    [InlineData(nameof(RetentionErrors.ServiceErrorCode), "retention.service_error")]
+    [InlineData(nameof(RetentionErrors.EventHistoryUnavailableCode), "retention.event_history_unavailable")]
     public void ErrorCodeConstant_ShouldHaveCorrectValue(string constantName, string expectedValue)
     {
         var actualValue = typeof(RetentionErrors)
@@ -368,6 +453,9 @@ public class RetentionErrorsTests
         RetentionErrors.NoPolicyForCategoryCode.Should().StartWith("retention.");
         RetentionErrors.PipelineRecordCreationFailedCode.Should().StartWith("retention.");
         RetentionErrors.PipelineEntityIdNotFoundCode.Should().StartWith("retention.");
+        RetentionErrors.InvalidStateTransitionCode.Should().StartWith("retention.");
+        RetentionErrors.ServiceErrorCode.Should().StartWith("retention.");
+        RetentionErrors.EventHistoryUnavailableCode.Should().StartWith("retention.");
     }
 
     [Fact]
@@ -388,7 +476,10 @@ public class RetentionErrorsTests
             RetentionErrors.InvalidParameterCode,
             RetentionErrors.NoPolicyForCategoryCode,
             RetentionErrors.PipelineRecordCreationFailedCode,
-            RetentionErrors.PipelineEntityIdNotFoundCode
+            RetentionErrors.PipelineEntityIdNotFoundCode,
+            RetentionErrors.InvalidStateTransitionCode,
+            RetentionErrors.ServiceErrorCode,
+            RetentionErrors.EventHistoryUnavailableCode
         };
 
         codes.Should().OnlyHaveUniqueItems();

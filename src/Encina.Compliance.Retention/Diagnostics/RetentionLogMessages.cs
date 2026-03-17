@@ -22,6 +22,7 @@ namespace Encina.Compliance.Retention.Diagnostics;
 /// <item><term>8540-8549</term><description>Legal hold management</description></item>
 /// <item><term>8550-8559</term><description>Retention policy</description></item>
 /// <item><term>8560-8569</term><description>Audit trail</description></item>
+/// <item><term>8570-8585</term><description>Event-sourced services</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -446,4 +447,120 @@ internal static partial class RetentionLogMessages
         Level = LogLevel.Debug,
         Message = "Scheduled enforcement cycle complete: no expired records found")]
     internal static partial void RetentionEnforcementCycleEmpty(this ILogger logger);
+
+    // ========================================================================
+    // Event-sourced service log messages (8570-8585)
+    // ========================================================================
+
+    /// <summary>Retention policy created via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8570,
+        Level = LogLevel.Information,
+        Message = "Retention policy created. PolicyId={PolicyId}, DataCategory={DataCategory}, RetentionPeriod={RetentionPeriod}")]
+    internal static partial void RetentionPolicyCreatedES(this ILogger logger, Guid policyId, string dataCategory, TimeSpan retentionPeriod);
+
+    /// <summary>Retention policy updated via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8571,
+        Level = LogLevel.Information,
+        Message = "Retention policy updated. PolicyId={PolicyId}, NewRetentionPeriod={NewRetentionPeriod}")]
+    internal static partial void RetentionPolicyUpdatedES(this ILogger logger, Guid policyId, TimeSpan newRetentionPeriod);
+
+    /// <summary>Retention policy deactivated via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8572,
+        Level = LogLevel.Information,
+        Message = "Retention policy deactivated. PolicyId={PolicyId}, Reason={Reason}")]
+    internal static partial void RetentionPolicyDeactivatedES(this ILogger logger, Guid policyId, string reason);
+
+    /// <summary>Retention record tracked via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8573,
+        Level = LogLevel.Information,
+        Message = "Retention record tracked. RecordId={RecordId}, EntityId={EntityId}, DataCategory={DataCategory}, ExpiresAtUtc={ExpiresAtUtc}")]
+    internal static partial void RetentionRecordTrackedES(this ILogger logger, Guid recordId, string entityId, string dataCategory, DateTimeOffset expiresAtUtc);
+
+    /// <summary>Retention record expired via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8574,
+        Level = LogLevel.Information,
+        Message = "Retention record expired. RecordId={RecordId}")]
+    internal static partial void RetentionRecordExpiredES(this ILogger logger, Guid recordId);
+
+    /// <summary>Retention record placed under legal hold via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8575,
+        Level = LogLevel.Information,
+        Message = "Retention record held. RecordId={RecordId}, LegalHoldId={LegalHoldId}")]
+    internal static partial void RetentionRecordHeldES(this ILogger logger, Guid recordId, Guid legalHoldId);
+
+    /// <summary>Retention record released from legal hold via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8576,
+        Level = LogLevel.Information,
+        Message = "Retention record released. RecordId={RecordId}")]
+    internal static partial void RetentionRecordReleasedES(this ILogger logger, Guid recordId);
+
+    /// <summary>Data deleted for retention record via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8577,
+        Level = LogLevel.Information,
+        Message = "Data deleted for retention record. RecordId={RecordId}")]
+    internal static partial void RetentionDataDeletedES(this ILogger logger, Guid recordId);
+
+    /// <summary>Data anonymized for retention record via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8578,
+        Level = LogLevel.Information,
+        Message = "Data anonymized for retention record. RecordId={RecordId}")]
+    internal static partial void RetentionDataAnonymizedES(this ILogger logger, Guid recordId);
+
+    /// <summary>Invalid state transition attempted on aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8579,
+        Level = LogLevel.Warning,
+        Message = "Invalid state transition. AggregateId={AggregateId}, Operation={Operation}")]
+    internal static partial void RetentionInvalidStateTransition(this ILogger logger, Guid aggregateId, string operation);
+
+    /// <summary>Service operation failed unexpectedly.</summary>
+    [LoggerMessage(
+        EventId = 8580,
+        Level = LogLevel.Error,
+        Message = "Retention service error. Operation={Operation}")]
+    internal static partial void RetentionServiceError(this ILogger logger, string operation, Exception exception);
+
+    /// <summary>Cache hit for retention entity.</summary>
+    [LoggerMessage(
+        EventId = 8581,
+        Level = LogLevel.Debug,
+        Message = "Retention cache hit. CacheKey={CacheKey}")]
+    internal static partial void RetentionCacheHit(this ILogger logger, string cacheKey);
+
+    /// <summary>Legal hold placed via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8582,
+        Level = LogLevel.Information,
+        Message = "Legal hold placed. HoldId={HoldId}, EntityId={EntityId}, Reason={Reason}")]
+    internal static partial void LegalHoldPlacedES(this ILogger logger, Guid holdId, string entityId, string reason);
+
+    /// <summary>Legal hold lifted via event-sourced service.</summary>
+    [LoggerMessage(
+        EventId = 8583,
+        Level = LogLevel.Information,
+        Message = "Legal hold lifted. HoldId={HoldId}, ReleasedByUserId={ReleasedByUserId}")]
+    internal static partial void LegalHoldLiftedES(this ILogger logger, Guid holdId, string? releasedByUserId);
+
+    /// <summary>Cross-aggregate cascade completed (hold placed/lifted on affected retention records).</summary>
+    [LoggerMessage(
+        EventId = 8584,
+        Level = LogLevel.Information,
+        Message = "Cross-aggregate cascade completed. EntityId={EntityId}, Operation={Operation}, AffectedRecords={AffectedRecords}")]
+    internal static partial void RetentionCrossAggregateCascade(this ILogger logger, string entityId, string operation, int affectedRecords);
+
+    /// <summary>Cache invalidated for retention entity.</summary>
+    [LoggerMessage(
+        EventId = 8585,
+        Level = LogLevel.Debug,
+        Message = "Retention cache invalidated. CacheKey={CacheKey}")]
+    internal static partial void RetentionCacheInvalidated(this ILogger logger, string cacheKey);
 }

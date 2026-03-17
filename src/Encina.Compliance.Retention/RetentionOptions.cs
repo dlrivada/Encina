@@ -23,7 +23,6 @@ namespace Encina.Compliance.Retention;
 ///     options.DefaultRetentionPeriod = TimeSpan.FromDays(365);
 ///     options.AlertBeforeExpirationDays = 30;
 ///     options.PublishNotifications = true;
-///     options.TrackAuditTrail = true;
 /// });
 /// </code>
 /// </example>
@@ -34,7 +33,7 @@ public sealed class RetentionOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When a data entity's category has no explicit <see cref="Model.RetentionPolicy"/>,
+    /// When a data entity's category has no explicit <see cref="Aggregates.RetentionPolicyAggregate"/>,
     /// this default period is used as a fallback. If <c>null</c>, the system requires
     /// an explicit policy for every data category and returns an error when none is found.
     /// </para>
@@ -77,21 +76,6 @@ public sealed class RetentionOptions
     public bool PublishNotifications { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether to record an audit trail for all retention operations.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// When <c>true</c>, all retention operations (enforcement executions, deletions,
-    /// legal hold changes, etc.) are recorded in the <see cref="IRetentionAuditStore"/>
-    /// for accountability purposes (Article 5(2)).
-    /// </para>
-    /// <para>
-    /// Default is <c>true</c>.
-    /// </para>
-    /// </remarks>
-    public bool TrackAuditTrail { get; set; } = true;
-
-    /// <summary>
     /// Gets or sets whether to register a retention health check with <c>IHealthChecksBuilder</c>.
     /// </summary>
     /// <remarks>
@@ -109,7 +93,7 @@ public sealed class RetentionOptions
     /// When <c>true</c>, the <c>RetentionEnforcementService</c> background service runs
     /// enforcement cycles at the interval specified by <see cref="EnforcementInterval"/>.
     /// When <c>false</c>, enforcement must be triggered manually via
-    /// <see cref="IRetentionEnforcer.EnforceRetentionAsync"/>.
+    /// the <see cref="RetentionEnforcementService"/>.
     /// </para>
     /// <para>
     /// Default is <c>true</c>. Disable this for applications that manage enforcement
@@ -159,14 +143,14 @@ public sealed class RetentionOptions
 
     /// <summary>
     /// Gets or sets whether to automatically scan assemblies for <see cref="RetentionPeriodAttribute"/>
-    /// decorations at startup and create matching <see cref="Model.RetentionPolicy"/> entries.
+    /// decorations at startup and create matching <see cref="Aggregates.RetentionPolicyAggregate"/> entries.
     /// </summary>
     /// <remarks>
     /// <para>
     /// When <c>true</c>, the <c>RetentionAutoRegistrationHostedService</c> scans the assemblies
     /// in <see cref="AssembliesToScan"/> for types and properties decorated with
     /// <see cref="RetentionPeriodAttribute"/>. For each discovered data category without an
-    /// existing policy, a new <see cref="Model.RetentionPolicy"/> is created in the store.
+    /// existing policy, a new <see cref="Aggregates.RetentionPolicyAggregate"/> is created in the store.
     /// </para>
     /// <para>
     /// Default is <c>true</c>.
@@ -210,7 +194,7 @@ public sealed class RetentionOptions
     /// <remarks>
     /// <para>
     /// Provides a fluent alternative to attribute-based policy declaration.
-    /// Policies configured here are created in the <see cref="IRetentionPolicyStore"/>
+    /// Policies configured here are created in the <see cref="Abstractions.IRetentionPolicyService"/>
     /// at startup if a policy for the same category doesn't already exist.
     /// </para>
     /// </remarks>
