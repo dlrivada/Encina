@@ -405,4 +405,194 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
     }
 
     #endregion
+
+    #region Pipeline Behavior End-to-End
+
+    [Fact]
+    public async Task PipelineBehavior_BlockMode_CompliantRequest_AllowsThrough()
+    {
+        var provider = BuildPipelineServiceProvider(PrivacyByDesignEnforcementMode.Block);
+        using var scope = provider.CreateScope();
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+
+        var command = new PipelineCompliantCommand { ProductId = "P001", Quantity = 5 };
+        var result = await encina.Send(command);
+
+        result.IsRight.Should().BeTrue("compliant request should pass through Block mode");
+        result.IfRight(v => v.Should().Be(42));
+    }
+
+    [Fact]
+    public async Task PipelineBehavior_BlockMode_NonCompliantRequest_BlocksRequest()
+    {
+        var provider = BuildPipelineServiceProvider(PrivacyByDesignEnforcementMode.Block);
+        using var scope = provider.CreateScope();
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+
+        var command = new PipelineNonCompliantCommand
+        {
+            ProductId = "P001",
+            ReferralSource = "Google Ads",
+            CampaignCode = "SUMMER2026"
+        };
+        var result = await encina.Send(command);
+
+        result.IsLeft.Should().BeTrue("non-compliant request should be blocked in Block mode");
+    }
+
+    [Fact]
+    public async Task PipelineBehavior_WarnMode_NonCompliantRequest_AllowsThrough()
+    {
+        var provider = BuildPipelineServiceProvider(PrivacyByDesignEnforcementMode.Warn);
+        using var scope = provider.CreateScope();
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+
+        var command = new PipelineNonCompliantCommand
+        {
+            ProductId = "P001",
+            ReferralSource = "Google Ads",
+            CampaignCode = "SUMMER2026"
+        };
+        var result = await encina.Send(command);
+
+        result.IsRight.Should().BeTrue("Warn mode should allow non-compliant requests through");
+        result.IfRight(v => v.Should().Be(42));
+    }
+
+    [Fact]
+    public async Task PipelineBehavior_DisabledMode_SkipsValidationEntirely()
+    {
+        var provider = BuildPipelineServiceProvider(PrivacyByDesignEnforcementMode.Disabled);
+        using var scope = provider.CreateScope();
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+
+        var command = new PipelineNonCompliantCommand
+        {
+            ProductId = "P001",
+            ReferralSource = "Google Ads",
+            CampaignCode = "SUMMER2026"
+        };
+        var result = await encina.Send(command);
+
+        result.IsRight.Should().BeTrue("Disabled mode should skip validation entirely");
+        result.IfRight(v => v.Should().Be(42));
+    }
+
+    [Fact]
+    public async Task PipelineBehavior_NoAttribute_SkipsValidation()
+    {
+        var provider = BuildPipelineServiceProvider(PrivacyByDesignEnforcementMode.Block);
+        using var scope = provider.CreateScope();
+        var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+
+        var command = new NoAttributeCommand("test-data");
+        var result = await encina.Send(command);
+
+        result.IsRight.Should().BeTrue("request without attribute should skip validation");
+        result.IfRight(v => v.Should().Be(99));
+    }
+
+    [Fact]
+    public async Task PipelineBehavior_ConcurrentRequests_AllProcessedCorrectly()
+    {
+        var provider = BuildPipelineServiceProvider(PrivacyByDesignEnforcementMode.Block);
+
+        var results = await Task.WhenAll(
+            Enumerable.Range(0, 100).Select(async i =>
+            {
+                using var scope = provider.CreateScope();
+                var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+
+                if (i % 2 == 0)
+                {
+                    var command = new PipelineCompliantCommand { ProductId = $"P{i}", Quantity = i };
+                    var result = await encina.Send(command);
+                    return (Expected: true, Actual: result.IsRight);
+                }
+                else
+                {
+                    var command = new PipelineNonCompliantCommand
+                    {
+                        ProductId = $"P{i}",
+                        ReferralSource = "ad",
+                        CampaignCode = "C1"
+                    };
+                    var result = await encina.Send(command);
+                    return (Expected: false, Actual: result.IsRight);
+                }
+            }));
+
+        foreach (var (expected, actual) in results)
+        {
+            if (expected)
+                actual.Should().BeTrue("compliant requests should pass");
+            else
+                actual.Should().BeFalse("non-compliant requests should be blocked");
+        }
+    }
+
+    private static ServiceProvider BuildPipelineServiceProvider(PrivacyByDesignEnforcementMode mode)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncina(config =>
+            config.RegisterServicesFromAssemblyContaining<PrivacyByDesignPipelineIntegrationTests>());
+
+        services.AddEncinaPrivacyByDesign(options =>
+        {
+            options.EnforcementMode = mode;
+            options.PrivacyLevel = PrivacyLevel.Maximum;
+        });
+
+        services.AddScoped<IRequestHandler<PipelineCompliantCommand, int>, PipelineCompliantHandler>();
+        services.AddScoped<IRequestHandler<PipelineNonCompliantCommand, int>, PipelineNonCompliantHandler>();
+        services.AddScoped<IRequestHandler<NoAttributeCommand, int>, NoAttributeHandler>();
+
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateScopes = false,
+            ValidateOnBuild = false
+        });
+    }
+
+    [EnforceDataMinimization]
+    private sealed class PipelineCompliantCommand : IRequest<int>
+    {
+        public string ProductId { get; set; } = "";
+        public int Quantity { get; set; }
+    }
+
+    private sealed class PipelineCompliantHandler : IRequestHandler<PipelineCompliantCommand, int>
+    {
+        public Task<Either<EncinaError, int>> Handle(PipelineCompliantCommand request, CancellationToken cancellationToken)
+            => Task.FromResult(LanguageExt.Prelude.Right<EncinaError, int>(42));
+    }
+
+    [EnforceDataMinimization]
+    private sealed class PipelineNonCompliantCommand : IRequest<int>
+    {
+        public string ProductId { get; set; } = "";
+
+        [NotStrictlyNecessary(Reason = "Analytics only")]
+        public string? ReferralSource { get; set; }
+
+        [NotStrictlyNecessary(Reason = "Marketing campaign")]
+        public string? CampaignCode { get; set; }
+    }
+
+    private sealed class PipelineNonCompliantHandler : IRequestHandler<PipelineNonCompliantCommand, int>
+    {
+        public Task<Either<EncinaError, int>> Handle(PipelineNonCompliantCommand request, CancellationToken cancellationToken)
+            => Task.FromResult(LanguageExt.Prelude.Right<EncinaError, int>(42));
+    }
+
+    private sealed record NoAttributeCommand(string Data) : IRequest<int>;
+
+    private sealed class NoAttributeHandler : IRequestHandler<NoAttributeCommand, int>
+    {
+        public Task<Either<EncinaError, int>> Handle(NoAttributeCommand request, CancellationToken cancellationToken)
+            => Task.FromResult(LanguageExt.Prelude.Right<EncinaError, int>(99));
+    }
+
+    #endregion
 }
