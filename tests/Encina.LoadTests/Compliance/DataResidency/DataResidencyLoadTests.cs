@@ -261,37 +261,37 @@ internal static class DataResidencyLoadTests
                     switch (scenario)
                     {
                         case 0: // Policy evaluation — allowed region
-                        {
-                            var policyService = scope.ServiceProvider.GetRequiredService<IResidencyPolicyService>();
-                            await policyService.IsAllowedAsync("personal-data", RegionRegistry.DE);
-                            scenarioName = "PolicyAllowed";
-                            break;
-                        }
+                            {
+                                var policyService = scope.ServiceProvider.GetRequiredService<IResidencyPolicyService>();
+                                await policyService.IsAllowedAsync("personal-data", RegionRegistry.DE);
+                                scenarioName = "PolicyAllowed";
+                                break;
+                            }
 
                         case 1: // Policy evaluation — blocked region
-                        {
-                            var policyService = scope.ServiceProvider.GetRequiredService<IResidencyPolicyService>();
-                            await policyService.IsAllowedAsync("personal-data", RegionRegistry.GetByCode("US")!);
-                            scenarioName = "PolicyBlocked";
-                            break;
-                        }
+                            {
+                                var policyService = scope.ServiceProvider.GetRequiredService<IResidencyPolicyService>();
+                                await policyService.IsAllowedAsync("personal-data", RegionRegistry.GetByCode("US")!);
+                                scenarioName = "PolicyBlocked";
+                                break;
+                            }
 
                         case 2: // Location registration
-                        {
-                            var locationService = scope.ServiceProvider.GetRequiredService<IDataLocationService>();
-                            await locationService.RegisterLocationAsync(
-                                $"entity-{workerId}-{i}", "personal-data", "DE", StorageType.Primary);
-                            scenarioName = "LocationRegister";
-                            break;
-                        }
+                            {
+                                var locationService = scope.ServiceProvider.GetRequiredService<IDataLocationService>();
+                                await locationService.RegisterLocationAsync(
+                                    $"entity-{workerId}-{i}", "personal-data", "DE", StorageType.Primary);
+                                scenarioName = "LocationRegister";
+                                break;
+                            }
 
                         default: // Transfer validation
-                        {
-                            var transferValidator = scope.ServiceProvider.GetRequiredService<ICrossBorderTransferValidator>();
-                            await transferValidator.ValidateTransferAsync(RegionRegistry.DE, RegionRegistry.FR, "personal-data");
-                            scenarioName = "TransferValidation";
-                            break;
-                        }
+                            {
+                                var transferValidator = scope.ServiceProvider.GetRequiredService<ICrossBorderTransferValidator>();
+                                await transferValidator.ValidateTransferAsync(RegionRegistry.DE, RegionRegistry.FR, "personal-data");
+                                scenarioName = "TransferValidation";
+                                break;
+                            }
                     }
 
                     operationCounts.AddOrUpdate(scenarioName, 1, (_, c) => c + 1);
