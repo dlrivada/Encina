@@ -70,10 +70,21 @@ public class PrivacyByDesignValidatorBenchmarks
         };
         _largeFieldRequest = new LargeFieldBenchRequest
         {
-            Field1 = "v1", Field2 = "v2", Field3 = "v3", Field4 = "v4", Field5 = "v5",
-            Field6 = "v6", Field7 = "v7", Field8 = "v8", Field9 = "v9", Field10 = "v10",
-            Optional1 = "extra1", Optional2 = "extra2", Optional3 = "extra3",
-            Optional4 = "extra4", Optional5 = "extra5"
+            Field1 = "v1",
+            Field2 = "v2",
+            Field3 = "v3",
+            Field4 = "v4",
+            Field5 = "v5",
+            Field6 = "v6",
+            Field7 = "v7",
+            Field8 = "v8",
+            Field9 = "v9",
+            Field10 = "v10",
+            Optional1 = "extra1",
+            Optional2 = "extra2",
+            Optional3 = "extra3",
+            Optional4 = "extra4",
+            Optional5 = "extra5"
         };
 
         // Warm up caches to measure steady-state performance

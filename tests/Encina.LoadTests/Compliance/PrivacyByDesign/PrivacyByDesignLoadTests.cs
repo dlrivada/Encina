@@ -277,54 +277,54 @@ internal static class PrivacyByDesignLoadTests
                     switch (scenario)
                     {
                         case 0: // Full validation — compliant
-                        {
-                            var request = new CompliantLoadRequest { ProductId = $"P{i}", Quantity = 1 };
-                            await validator.ValidateAsync(request);
-                            scenarioName = "FullCompliant";
-                            break;
-                        }
+                            {
+                                var request = new CompliantLoadRequest { ProductId = $"P{i}", Quantity = 1 };
+                                await validator.ValidateAsync(request);
+                                scenarioName = "FullCompliant";
+                                break;
+                            }
 
                         case 1: // Full validation — non-compliant
-                        {
-                            var request = new NonCompliantLoadRequest
                             {
-                                ProductId = $"P{i}",
-                                ReferralSource = "ad",
-                                CampaignCode = "C1"
-                            };
-                            await validator.ValidateAsync(request);
-                            scenarioName = "FullNonCompliant";
-                            break;
-                        }
+                                var request = new NonCompliantLoadRequest
+                                {
+                                    ProductId = $"P{i}",
+                                    ReferralSource = "ad",
+                                    CampaignCode = "C1"
+                                };
+                                await validator.ValidateAsync(request);
+                                scenarioName = "FullNonCompliant";
+                                break;
+                            }
 
                         case 2: // Minimization analysis only
-                        {
-                            var request = new NonCompliantLoadRequest { ProductId = $"P{i}" };
-                            await validator.AnalyzeMinimizationAsync(request);
-                            scenarioName = "MinimizationOnly";
-                            break;
-                        }
+                            {
+                                var request = new NonCompliantLoadRequest { ProductId = $"P{i}" };
+                                await validator.AnalyzeMinimizationAsync(request);
+                                scenarioName = "MinimizationOnly";
+                                break;
+                            }
 
                         case 3: // Purpose validation only
-                        {
-                            var request = new PurposeLimitedLoadRequest
                             {
-                                CustomerId = $"C{i}",
-                                OrderData = "data"
-                            };
-                            var purpose = Purposes[i % Purposes.Length];
-                            await validator.ValidatePurposeLimitationAsync(request, purpose);
-                            scenarioName = "PurposeOnly";
-                            break;
-                        }
+                                var request = new PurposeLimitedLoadRequest
+                                {
+                                    CustomerId = $"C{i}",
+                                    OrderData = "data"
+                                };
+                                var purpose = Purposes[i % Purposes.Length];
+                                await validator.ValidatePurposeLimitationAsync(request, purpose);
+                                scenarioName = "PurposeOnly";
+                                break;
+                            }
 
                         default: // Defaults check only
-                        {
-                            var request = new DefaultsLoadRequest { ShareData = i % 2 == 0 };
-                            await validator.ValidateDefaultsAsync(request);
-                            scenarioName = "DefaultsOnly";
-                            break;
-                        }
+                            {
+                                var request = new DefaultsLoadRequest { ShareData = i % 2 == 0 };
+                                await validator.ValidateDefaultsAsync(request);
+                                scenarioName = "DefaultsOnly";
+                                break;
+                            }
                     }
 
                     operationCounts.AddOrUpdate(scenarioName, 1, (_, c) => c + 1);
