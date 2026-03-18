@@ -337,33 +337,33 @@ internal static class DPIALoadTests
                             break;
 
                         case 1: // Create + evaluate
-                        {
-                            var r = await service.CreateAssessmentAsync(
-                                $"Mix.Eval.W{workerId}.{i}", ProcessingTypes[i % ProcessingTypes.Length]);
-                            var id = r.Match(v => v, _ => Guid.Empty);
-                            if (id != Guid.Empty)
                             {
-                                var ctx = new DPIAContext { RequestType = typeof(string), DataCategories = ["personal"], HighRiskTriggers = [] };
-                                await service.EvaluateAssessmentAsync(id, ctx);
+                                var r = await service.CreateAssessmentAsync(
+                                    $"Mix.Eval.W{workerId}.{i}", ProcessingTypes[i % ProcessingTypes.Length]);
+                                var id = r.Match(v => v, _ => Guid.Empty);
+                                if (id != Guid.Empty)
+                                {
+                                    var ctx = new DPIAContext { RequestType = typeof(string), DataCategories = ["personal"], HighRiskTriggers = [] };
+                                    await service.EvaluateAssessmentAsync(id, ctx);
+                                }
+                                scenarioName = "Evaluate";
+                                break;
                             }
-                            scenarioName = "Evaluate";
-                            break;
-                        }
 
                         case 2: // Create + evaluate + approve
-                        {
-                            var r = await service.CreateAssessmentAsync(
-                                $"Mix.Approve.W{workerId}.{i}", ProcessingTypes[i % ProcessingTypes.Length]);
-                            var id = r.Match(v => v, _ => Guid.Empty);
-                            if (id != Guid.Empty)
                             {
-                                var ctx = new DPIAContext { RequestType = typeof(string), DataCategories = ["personal"], HighRiskTriggers = [] };
-                                await service.EvaluateAssessmentAsync(id, ctx);
-                                await service.ApproveAssessmentAsync(id, "approver");
+                                var r = await service.CreateAssessmentAsync(
+                                    $"Mix.Approve.W{workerId}.{i}", ProcessingTypes[i % ProcessingTypes.Length]);
+                                var id = r.Match(v => v, _ => Guid.Empty);
+                                if (id != Guid.Empty)
+                                {
+                                    var ctx = new DPIAContext { RequestType = typeof(string), DataCategories = ["personal"], HighRiskTriggers = [] };
+                                    await service.EvaluateAssessmentAsync(id, ctx);
+                                    await service.ApproveAssessmentAsync(id, "approver");
+                                }
+                                scenarioName = "Approve";
+                                break;
                             }
-                            scenarioName = "Approve";
-                            break;
-                        }
 
                         default: // Query
                             await service.GetAllAssessmentsAsync();
