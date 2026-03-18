@@ -332,35 +332,35 @@ internal static class ProcessorAgreementLoadTests
                             break;
 
                         case 1: // Register + execute DPA
-                        {
-                            var r = await ps.RegisterProcessorAsync(
-                                $"MixDPA.W{workerId}.{i}", "DE", null, null, 0,
-                                SubProcessorAuthorizationType.Specific);
-                            var pid = r.Match(id => id, _ => Guid.Empty);
-                            if (pid != Guid.Empty)
                             {
-                                await ds.ExecuteDPAAsync(pid, FullyCompliantTerms(), false,
-                                    ["processing"], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(1));
+                                var r = await ps.RegisterProcessorAsync(
+                                    $"MixDPA.W{workerId}.{i}", "DE", null, null, 0,
+                                    SubProcessorAuthorizationType.Specific);
+                                var pid = r.Match(id => id, _ => Guid.Empty);
+                                if (pid != Guid.Empty)
+                                {
+                                    await ds.ExecuteDPAAsync(pid, FullyCompliantTerms(), false,
+                                        ["processing"], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(1));
+                                }
+                                scenarioName = "ExecuteDPA";
+                                break;
                             }
-                            scenarioName = "ExecuteDPA";
-                            break;
-                        }
 
                         case 2: // Register + DPA + validate
-                        {
-                            var r = await ps.RegisterProcessorAsync(
-                                $"MixVal.W{workerId}.{i}", "DE", null, null, 0,
-                                SubProcessorAuthorizationType.Specific);
-                            var pid = r.Match(id => id, _ => Guid.Empty);
-                            if (pid != Guid.Empty)
                             {
-                                await ds.ExecuteDPAAsync(pid, FullyCompliantTerms(), false,
-                                    ["processing"], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(1));
-                                await ds.HasValidDPAAsync(pid);
+                                var r = await ps.RegisterProcessorAsync(
+                                    $"MixVal.W{workerId}.{i}", "DE", null, null, 0,
+                                    SubProcessorAuthorizationType.Specific);
+                                var pid = r.Match(id => id, _ => Guid.Empty);
+                                if (pid != Guid.Empty)
+                                {
+                                    await ds.ExecuteDPAAsync(pid, FullyCompliantTerms(), false,
+                                        ["processing"], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(1));
+                                    await ds.HasValidDPAAsync(pid);
+                                }
+                                scenarioName = "Validate";
+                                break;
                             }
-                            scenarioName = "Validate";
-                            break;
-                        }
 
                         case 3: // Get all processors
                             await ps.GetAllProcessorsAsync();
@@ -502,10 +502,18 @@ internal static class ProcessorAgreementLoadTests
             var id = Guid.NewGuid();
             _processors[id] = new ProcessorReadModel
             {
-                Id = id, Name = name, Country = country, ContactEmail = contactEmail,
-                ParentProcessorId = parentProcessorId, Depth = depth,
-                AuthorizationType = authorizationType, TenantId = tenantId, ModuleId = moduleId,
-                CreatedAtUtc = DateTimeOffset.UtcNow, LastModifiedAtUtc = DateTimeOffset.UtcNow, Version = 1
+                Id = id,
+                Name = name,
+                Country = country,
+                ContactEmail = contactEmail,
+                ParentProcessorId = parentProcessorId,
+                Depth = depth,
+                AuthorizationType = authorizationType,
+                TenantId = tenantId,
+                ModuleId = moduleId,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                LastModifiedAtUtc = DateTimeOffset.UtcNow,
+                Version = 1
             };
             return ValueTask.FromResult(Right<EncinaError, Guid>(id));
         }
@@ -586,12 +594,19 @@ internal static class ProcessorAgreementLoadTests
             var id = Guid.NewGuid();
             _dpas[id] = new DPAReadModel
             {
-                Id = id, ProcessorId = processorId, Status = DPAStatus.Active,
-                MandatoryTerms = mandatoryTerms, HasSCCs = hasSCCs,
+                Id = id,
+                ProcessorId = processorId,
+                Status = DPAStatus.Active,
+                MandatoryTerms = mandatoryTerms,
+                HasSCCs = hasSCCs,
                 ProcessingPurposes = processingPurposes.ToList(),
-                SignedAtUtc = signedAtUtc, ExpiresAtUtc = expiresAtUtc,
-                TenantId = tenantId, ModuleId = moduleId,
-                CreatedAtUtc = DateTimeOffset.UtcNow, LastModifiedAtUtc = DateTimeOffset.UtcNow, Version = 1
+                SignedAtUtc = signedAtUtc,
+                ExpiresAtUtc = expiresAtUtc,
+                TenantId = tenantId,
+                ModuleId = moduleId,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                LastModifiedAtUtc = DateTimeOffset.UtcNow,
+                Version = 1
             };
             return ValueTask.FromResult(Right<EncinaError, Guid>(id));
         }
