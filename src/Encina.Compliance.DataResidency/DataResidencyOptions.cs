@@ -25,7 +25,6 @@ namespace Encina.Compliance.DataResidency;
 ///     options.DefaultRegion = RegionRegistry.DE;
 ///     options.EnforcementMode = DataResidencyEnforcementMode.Block;
 ///     options.TrackDataLocations = true;
-///     options.TrackAuditTrail = true;
 ///     options.AssembliesToScan.Add(typeof(Program).Assembly);
 ///     options.AddPolicy("healthcare-data", policy =>
 ///     {
@@ -74,7 +73,7 @@ public sealed class DataResidencyOptions
     public DataResidencyEnforcementMode EnforcementMode { get; set; } = DataResidencyEnforcementMode.Warn;
 
     /// <summary>
-    /// Gets or sets whether to track data locations via <see cref="IDataLocationStore"/>.
+    /// Gets or sets whether to track data locations via <see cref="Abstractions.IDataLocationService"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -87,21 +86,6 @@ public sealed class DataResidencyOptions
     /// </para>
     /// </remarks>
     public bool TrackDataLocations { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets whether to record an audit trail for all residency operations.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// When <c>true</c>, all residency enforcement decisions, cross-border transfer
-    /// validations, and policy violations are recorded in the <see cref="IResidencyAuditStore"/>
-    /// for accountability purposes (Article 5(2)).
-    /// </para>
-    /// <para>
-    /// Default is <c>true</c>.
-    /// </para>
-    /// </remarks>
-    public bool TrackAuditTrail { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether to block non-compliant cross-border transfers.
@@ -149,14 +133,14 @@ public sealed class DataResidencyOptions
     /// <summary>
     /// Gets or sets whether to automatically scan assemblies for
     /// <see cref="Attributes.DataResidencyAttribute"/> decorations at startup and create
-    /// matching <see cref="ResidencyPolicyDescriptor"/> entries.
+    /// matching residency policy entries.
     /// </summary>
     /// <remarks>
     /// <para>
     /// When <c>true</c>, the <c>DataResidencyAutoRegistrationHostedService</c> scans the
     /// assemblies in <see cref="AssembliesToScan"/> for types decorated with
     /// <see cref="Attributes.DataResidencyAttribute"/>. For each discovered data category
-    /// without an existing policy, a new <see cref="ResidencyPolicyDescriptor"/> is
+    /// without an existing policy, a new residency policy is
     /// created in the store.
     /// </para>
     /// <para>
@@ -201,7 +185,7 @@ public sealed class DataResidencyOptions
     /// <remarks>
     /// <para>
     /// Provides a fluent alternative to attribute-based policy declaration.
-    /// Policies configured here are created in the <see cref="IResidencyPolicyStore"/>
+    /// Policies configured here are created in the <see cref="Abstractions.IResidencyPolicyService"/>
     /// at startup if a policy for the same category doesn't already exist.
     /// </para>
     /// </remarks>

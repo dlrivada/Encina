@@ -1,5 +1,6 @@
 using System.Reflection;
 
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Attributes;
 using Encina.Compliance.DataResidency.Model;
 
@@ -37,11 +38,10 @@ namespace Encina.Compliance.DataResidency;
 /// <see cref="DataResidencyEnforcementMode.Disabled"/> skips all residency checks entirely.
 /// </para>
 /// <para>
-/// After successful handler execution, the behavior optionally records:
-/// <list type="bullet">
-/// <item><description>Data locations via <see cref="IDataLocationStore"/> (when <see cref="DataResidencyOptions.TrackDataLocations"/> is <c>true</c>)</description></item>
-/// <item><description>Audit entries via <see cref="IResidencyAuditStore"/> (when <see cref="DataResidencyOptions.TrackAuditTrail"/> is <c>true</c>)</description></item>
-/// </list>
+/// After successful handler execution, the behavior optionally records data locations via
+/// <see cref="IDataLocationService"/> (when <see cref="DataResidencyOptions.TrackDataLocations"/> is <c>true</c>).
+/// Audit trail is captured automatically by the event-sourced aggregate's event stream,
+/// eliminating the need for a separate audit store.
 /// </para>
 /// </remarks>
 /// <example>
@@ -79,10 +79,9 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
     private static readonly PropertyInfo? CachedEntityIdProperty = ResolveEntityIdProperty();
 
     private readonly IRegionContextProvider _regionContextProvider;
-    private readonly IDataResidencyPolicy _residencyPolicy;
+    private readonly IResidencyPolicyService _residencyPolicyService;
     private readonly ICrossBorderTransferValidator _transferValidator;
-    private readonly IDataLocationStore _dataLocationStore;
-    private readonly IResidencyAuditStore _auditStore;
+    private readonly IDataLocationService _dataLocationService;
     private readonly DataResidencyOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DataResidencyPipelineBehavior<TRequest, TResponse>> _logger;
@@ -91,37 +90,33 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
     /// Initializes a new instance of the <see cref="DataResidencyPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="regionContextProvider">Provider for resolving the current processing region.</param>
-    /// <param name="residencyPolicy">Service for evaluating data residency policies.</param>
+    /// <param name="residencyPolicyService">Service for evaluating data residency policies.</param>
     /// <param name="transferValidator">Validator for cross-border data transfers.</param>
-    /// <param name="dataLocationStore">Store for recording data locations.</param>
-    /// <param name="auditStore">Store for recording residency audit entries.</param>
+    /// <param name="dataLocationService">Service for recording data locations.</param>
     /// <param name="options">Data residency configuration options.</param>
     /// <param name="timeProvider">Time provider for deterministic timestamps.</param>
     /// <param name="logger">Logger for structured diagnostic messages.</param>
     public DataResidencyPipelineBehavior(
         IRegionContextProvider regionContextProvider,
-        IDataResidencyPolicy residencyPolicy,
+        IResidencyPolicyService residencyPolicyService,
         ICrossBorderTransferValidator transferValidator,
-        IDataLocationStore dataLocationStore,
-        IResidencyAuditStore auditStore,
+        IDataLocationService dataLocationService,
         IOptions<DataResidencyOptions> options,
         TimeProvider timeProvider,
         ILogger<DataResidencyPipelineBehavior<TRequest, TResponse>> logger)
     {
         ArgumentNullException.ThrowIfNull(regionContextProvider);
-        ArgumentNullException.ThrowIfNull(residencyPolicy);
+        ArgumentNullException.ThrowIfNull(residencyPolicyService);
         ArgumentNullException.ThrowIfNull(transferValidator);
-        ArgumentNullException.ThrowIfNull(dataLocationStore);
-        ArgumentNullException.ThrowIfNull(auditStore);
+        ArgumentNullException.ThrowIfNull(dataLocationService);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _regionContextProvider = regionContextProvider;
-        _residencyPolicy = residencyPolicy;
+        _residencyPolicyService = residencyPolicyService;
         _transferValidator = transferValidator;
-        _dataLocationStore = dataLocationStore;
-        _auditStore = auditStore;
+        _dataLocationService = dataLocationService;
         _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -173,13 +168,6 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
 
             if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
             {
-                await TryRecordAuditAsync(
-                    dataCategory, sourceRegion: "unknown",
-                    ResidencyAction.PolicyCheck, ResidencyOutcome.Blocked,
-                    requestType: typeof(TRequest).FullName,
-                    details: $"Region resolution failed: {regionError.Message}",
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-
                 return Left<EncinaError, TResponse>(regionError);
             }
 
@@ -189,7 +177,7 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
 
         var currentRegion = (Region)regionResult;
 
-        // Step 4: [DataResidency] validation — check allowed regions via IDataResidencyPolicy
+        // Step 4: [DataResidency] validation — check allowed regions via IResidencyPolicyService
         if (residencyInfo is not null)
         {
             var policyResult = await ValidateResidencyPolicyAsync(
@@ -208,14 +196,6 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             _logger.LogDebug(
                 "No cross-border transfer constraint active for '{RequestType}' in region '{RegionCode}'",
                 requestTypeName, currentRegion.Code);
-
-            await TryRecordAuditAsync(
-                dataCategory, sourceRegion: currentRegion.Code,
-                ResidencyAction.CrossBorderTransfer, ResidencyOutcome.Allowed,
-                requestType: typeof(TRequest).FullName,
-                details: $"No cross-border transfer constraint enforced; data must remain in region '{currentRegion.Code}'."
-                    + (noCrossInfo.Reason is not null ? $" Reason: {noCrossInfo.Reason}" : string.Empty),
-                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         // Step 6: Call next handler
@@ -228,15 +208,6 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
                 (TResponse)result, currentRegion, dataCategory, cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        // Step 8: Record outcome audit entry
-        await TryRecordAuditAsync(
-            dataCategory, sourceRegion: currentRegion.Code,
-            ResidencyAction.PolicyCheck,
-            outcome: result.IsRight ? ResidencyOutcome.Allowed : ResidencyOutcome.Blocked,
-            entityId: result.IsRight ? ResolveEntityId((TResponse)result) : null,
-            requestType: typeof(TRequest).FullName,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
 
         return result;
     }
@@ -253,7 +224,7 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         CancellationToken cancellationToken)
     {
         // Check if current region is allowed for this data category
-        var isAllowedResult = await _residencyPolicy.IsAllowedAsync(
+        var isAllowedResult = await _residencyPolicyService.IsAllowedAsync(
             dataCategory, currentRegion, cancellationToken).ConfigureAwait(false);
 
         if (isAllowedResult.IsLeft)
@@ -266,13 +237,6 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
 
             if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
             {
-                await TryRecordAuditAsync(
-                    dataCategory, sourceRegion: currentRegion.Code,
-                    ResidencyAction.PolicyCheck, ResidencyOutcome.Blocked,
-                    requestType: typeof(TRequest).FullName,
-                    details: policyError.Message,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-
                 return Left<EncinaError, Unit>(policyError);
             }
 
@@ -290,17 +254,6 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
                 "Region '{RegionCode}' is not allowed for data category '{DataCategory}' on request '{RequestType}'",
                 currentRegion.Code, dataCategory, requestTypeName);
 
-            var outcome = _options.EnforcementMode == DataResidencyEnforcementMode.Block
-                ? ResidencyOutcome.Blocked
-                : ResidencyOutcome.Warning;
-
-            await TryRecordAuditAsync(
-                dataCategory, sourceRegion: currentRegion.Code,
-                ResidencyAction.Violation, outcome,
-                requestType: typeof(TRequest).FullName,
-                details: error.Message,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-
             if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
             {
                 return Left<EncinaError, Unit>(error);
@@ -317,17 +270,6 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             _logger.LogWarning(
                 "Region '{RegionCode}' lacks adequacy decision required for data category '{DataCategory}'",
                 currentRegion.Code, dataCategory);
-
-            var outcome = _options.EnforcementMode == DataResidencyEnforcementMode.Block
-                ? ResidencyOutcome.Blocked
-                : ResidencyOutcome.Warning;
-
-            await TryRecordAuditAsync(
-                dataCategory, sourceRegion: currentRegion.Code,
-                ResidencyAction.Violation, outcome,
-                requestType: typeof(TRequest).FullName,
-                details: error.Message,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
 
             if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
             {
@@ -355,71 +297,15 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             return;
         }
 
-        var location = new DataLocation
-        {
-            Id = Guid.NewGuid().ToString("N"),
-            EntityId = entityId,
-            DataCategory = dataCategory,
-            Region = region,
-            StorageType = StorageType.Primary,
-            StoredAtUtc = _timeProvider.GetUtcNow()
-        };
+        var registerResult = await _dataLocationService.RegisterLocationAsync(
+            entityId, dataCategory, region.Code, StorageType.Primary,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        var recordResult = await _dataLocationStore.RecordAsync(location, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (recordResult.IsLeft)
+        if (registerResult.IsLeft)
         {
             _logger.LogWarning(
                 "Failed to record data location for entity '{EntityId}': {ErrorMessage}",
-                entityId, ((EncinaError)recordResult).Message);
-        }
-    }
-
-    // ================================================================
-    // Audit trail recording
-    // ================================================================
-
-    private async ValueTask TryRecordAuditAsync(
-        string dataCategory,
-        string sourceRegion,
-        ResidencyAction action,
-        ResidencyOutcome outcome,
-        string? entityId = null,
-        string? targetRegion = null,
-        string? legalBasis = null,
-        string? requestType = null,
-        string? details = null,
-        CancellationToken cancellationToken = default)
-    {
-        if (!_options.TrackAuditTrail)
-        {
-            return;
-        }
-
-        var entry = new ResidencyAuditEntry
-        {
-            Id = Guid.NewGuid().ToString("N"),
-            DataCategory = dataCategory,
-            SourceRegion = sourceRegion,
-            Action = action,
-            Outcome = outcome,
-            EntityId = entityId,
-            TargetRegion = targetRegion,
-            LegalBasis = legalBasis,
-            RequestType = requestType,
-            TimestampUtc = _timeProvider.GetUtcNow(),
-            Details = details
-        };
-
-        var recordResult = await _auditStore.RecordAsync(entry, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (recordResult.IsLeft)
-        {
-            _logger.LogWarning(
-                "Failed to record residency audit entry: {ErrorMessage}",
-                ((EncinaError)recordResult).Message);
+                entityId, ((EncinaError)registerResult).Message);
         }
     }
 

@@ -305,4 +305,99 @@ internal static partial class DataResidencyLogMessages
         Level = LogLevel.Debug,
         Message = "Custom region code detected, creating ad-hoc region. RegionCode={RegionCode}")]
     internal static partial void RegionCustomCodeDetected(this ILogger logger, string regionCode);
+
+    // ========================================================================
+    // Event-sourced service log messages (8680-8699)
+    // ========================================================================
+
+    /// <summary>Residency policy created via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8680,
+        Level = LogLevel.Information,
+        Message = "Residency policy created (ES). PolicyId={PolicyId}, DataCategory={DataCategory}")]
+    internal static partial void ResidencyPolicyCreatedES(this ILogger logger, Guid policyId, string dataCategory);
+
+    /// <summary>Residency policy updated via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8681,
+        Level = LogLevel.Information,
+        Message = "Residency policy updated (ES). PolicyId={PolicyId}")]
+    internal static partial void ResidencyPolicyUpdatedES(this ILogger logger, Guid policyId);
+
+    /// <summary>Residency policy deleted via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8682,
+        Level = LogLevel.Information,
+        Message = "Residency policy deleted (ES). PolicyId={PolicyId}, Reason={Reason}")]
+    internal static partial void ResidencyPolicyDeletedES(this ILogger logger, Guid policyId, string reason);
+
+    /// <summary>Data location registered via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8683,
+        Level = LogLevel.Information,
+        Message = "Data location registered (ES). LocationId={LocationId}, EntityId={EntityId}, Region={Region}")]
+    internal static partial void DataLocationRegisteredES(this ILogger logger, Guid locationId, string entityId, string region);
+
+    /// <summary>Data location migrated via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8684,
+        Level = LogLevel.Information,
+        Message = "Data location migrated (ES). LocationId={LocationId}, NewRegion={NewRegion}")]
+    internal static partial void DataLocationMigratedES(this ILogger logger, Guid locationId, string newRegion);
+
+    /// <summary>Data location verified via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8685,
+        Level = LogLevel.Debug,
+        Message = "Data location verified (ES). LocationId={LocationId}")]
+    internal static partial void DataLocationVerifiedES(this ILogger logger, Guid locationId);
+
+    /// <summary>Data location removed via event-sourced aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8686,
+        Level = LogLevel.Information,
+        Message = "Data location removed (ES). LocationId={LocationId}, Reason={Reason}")]
+    internal static partial void DataLocationRemovedES(this ILogger logger, Guid locationId, string reason);
+
+    /// <summary>Sovereignty violation detected on data location.</summary>
+    [LoggerMessage(
+        EventId = 8687,
+        Level = LogLevel.Warning,
+        Message = "Sovereignty violation detected (ES). LocationId={LocationId}, DataCategory={DataCategory}, ViolatingRegion={ViolatingRegion}")]
+    internal static partial void SovereigntyViolationDetectedES(this ILogger logger, Guid locationId, string dataCategory, string violatingRegion);
+
+    /// <summary>Sovereignty violation resolved on data location.</summary>
+    [LoggerMessage(
+        EventId = 8688,
+        Level = LogLevel.Information,
+        Message = "Sovereignty violation resolved (ES). LocationId={LocationId}, Resolution={Resolution}")]
+    internal static partial void SovereigntyViolationResolvedES(this ILogger logger, Guid locationId, string resolution);
+
+    /// <summary>Invalid state transition attempted on an aggregate.</summary>
+    [LoggerMessage(
+        EventId = 8689,
+        Level = LogLevel.Warning,
+        Message = "Invalid state transition on residency aggregate. AggregateId={AggregateId}, Operation={Operation}")]
+    internal static partial void ResidencyInvalidStateTransition(this ILogger logger, Guid aggregateId, string operation);
+
+    /// <summary>Service operation failed with an unexpected exception.</summary>
+    [LoggerMessage(
+        EventId = 8690,
+        Level = LogLevel.Error,
+        Message = "Residency service error. Operation={Operation}")]
+    internal static partial void ResidencyServiceError(this ILogger logger, string operation, Exception exception);
+
+    /// <summary>Cache hit for a residency read model.</summary>
+    [LoggerMessage(
+        EventId = 8691,
+        Level = LogLevel.Debug,
+        Message = "Residency cache hit. CacheKey={CacheKey}")]
+    internal static partial void ResidencyCacheHit(this ILogger logger, string cacheKey);
+
+    /// <summary>Cache invalidated for a residency read model.</summary>
+    [LoggerMessage(
+        EventId = 8692,
+        Level = LogLevel.Debug,
+        Message = "Residency cache invalidated. CacheKey={CacheKey}")]
+    internal static partial void ResidencyCacheInvalidated(this ILogger logger, string cacheKey);
 }

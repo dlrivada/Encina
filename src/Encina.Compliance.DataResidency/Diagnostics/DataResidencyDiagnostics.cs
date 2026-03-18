@@ -109,6 +109,55 @@ internal static class DataResidencyDiagnostics
         Meter.CreateCounter<long>("residency.audit.entries.total",
             description: "Total number of residency audit entries recorded.");
 
+    // ---- Service-level counters ----
+
+    /// <summary>
+    /// Total residency policies created via <c>IResidencyPolicyService</c>,
+    /// tagged with <c>residency.data_category</c>.
+    /// </summary>
+    internal static readonly Counter<long> PoliciesCreatedTotal =
+        Meter.CreateCounter<long>("residency.policies.created.total",
+            description: "Total number of residency policies created.");
+
+    /// <summary>
+    /// Total residency policies updated via <c>IResidencyPolicyService</c>,
+    /// tagged with <c>residency.data_category</c>.
+    /// </summary>
+    internal static readonly Counter<long> PoliciesUpdatedTotal =
+        Meter.CreateCounter<long>("residency.policies.updated.total",
+            description: "Total number of residency policies updated.");
+
+    /// <summary>
+    /// Total residency policies deleted via <c>IResidencyPolicyService</c>,
+    /// tagged with <c>residency.data_category</c>.
+    /// </summary>
+    internal static readonly Counter<long> PoliciesDeletedTotal =
+        Meter.CreateCounter<long>("residency.policies.deleted.total",
+            description: "Total number of residency policies deleted.");
+
+    /// <summary>
+    /// Total data locations registered via <c>IDataLocationService</c>,
+    /// tagged with <c>residency.target_region</c> and <c>residency.data_category</c>.
+    /// </summary>
+    internal static readonly Counter<long> LocationsRegisteredTotal =
+        Meter.CreateCounter<long>("residency.locations.registered.total",
+            description: "Total number of data locations registered.");
+
+    /// <summary>
+    /// Total data location migrations via <c>IDataLocationService</c>,
+    /// tagged with <c>residency.source_region</c> and <c>residency.target_region</c>.
+    /// </summary>
+    internal static readonly Counter<long> LocationsMigratedTotal =
+        Meter.CreateCounter<long>("residency.locations.migrated.total",
+            description: "Total number of data location migrations.");
+
+    /// <summary>
+    /// Total data locations removed via <c>IDataLocationService</c>.
+    /// </summary>
+    internal static readonly Counter<long> LocationsRemovedTotal =
+        Meter.CreateCounter<long>("residency.locations.removed.total",
+            description: "Total number of data locations removed.");
+
     // ---- Histograms ----
 
     /// <summary>

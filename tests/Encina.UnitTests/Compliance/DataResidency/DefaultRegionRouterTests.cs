@@ -1,4 +1,5 @@
 using Encina.Compliance.DataResidency;
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Attributes;
 using Encina.Compliance.DataResidency.Model;
 
@@ -18,14 +19,14 @@ namespace Encina.UnitTests.Compliance.DataResidency;
 
 public class DefaultRegionRouterTests
 {
-    private readonly IDataResidencyPolicy _policy = Substitute.For<IDataResidencyPolicy>();
+    private readonly IResidencyPolicyService _policyService = Substitute.For<IResidencyPolicyService>();
     private readonly IRegionContextProvider _contextProvider = Substitute.For<IRegionContextProvider>();
     private readonly ILogger<DefaultRegionRouter> _logger = Substitute.For<ILogger<DefaultRegionRouter>>();
     private readonly DefaultRegionRouter _sut;
 
     public DefaultRegionRouterTests()
     {
-        _sut = new DefaultRegionRouter(_policy, _contextProvider, _logger);
+        _sut = new DefaultRegionRouter(_policyService, _contextProvider, _logger);
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public class DefaultRegionRouterTests
             .Returns(new ValueTask<Either<EncinaError, Region>>(
                 Right<EncinaError, Region>(RegionRegistry.DE)));
 
-        _policy.IsAllowedAsync("personal-data", RegionRegistry.DE, Arg.Any<CancellationToken>())
+        _policyService.IsAllowedAsync("personal-data", RegionRegistry.DE, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, bool>>(
                 Right<EncinaError, bool>(true)));
 
@@ -74,20 +75,20 @@ public class DefaultRegionRouterTests
     public void Constructor_NullPolicy_ShouldThrow()
     {
         var act = () => new DefaultRegionRouter(null!, _contextProvider, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("residencyPolicy");
+        act.Should().Throw<ArgumentNullException>().WithParameterName("residencyPolicyService");
     }
 
     [Fact]
     public void Constructor_NullContextProvider_ShouldThrow()
     {
-        var act = () => new DefaultRegionRouter(_policy, null!, _logger);
+        var act = () => new DefaultRegionRouter(_policyService, null!, _logger);
         act.Should().Throw<ArgumentNullException>().WithParameterName("regionContextProvider");
     }
 
     [Fact]
     public void Constructor_NullLogger_ShouldThrow()
     {
-        var act = () => new DefaultRegionRouter(_policy, _contextProvider, null!);
+        var act = () => new DefaultRegionRouter(_policyService, _contextProvider, null!);
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 

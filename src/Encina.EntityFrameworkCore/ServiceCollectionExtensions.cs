@@ -1,6 +1,5 @@
 using Encina.Caching;
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.DataResidency;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Database;
@@ -341,14 +340,6 @@ public static class ServiceCollectionExtensions
         }
 
         // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
-
-        // Register Data Residency stores if enabled
-        if (config.UseDataResidency)
-        {
-            services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreEF>();
-            services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreEF>();
-            services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreEF>();
-        }
 
         // Register ABAC Policy Store if enabled
         if (config.UseABACPolicyStore)

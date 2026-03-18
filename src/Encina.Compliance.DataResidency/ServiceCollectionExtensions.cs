@@ -1,7 +1,8 @@
 using System.Reflection;
 
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Health;
-using Encina.Compliance.DataResidency.InMemory;
+using Encina.Compliance.DataResidency.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,22 +27,25 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="DataResidencyOptions"/> — Configured via the provided action, validated at first access</item>
-    /// <item><see cref="IResidencyPolicyStore"/> → <see cref="InMemoryResidencyPolicyStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDataLocationStore"/> → <see cref="InMemoryDataLocationStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IResidencyAuditStore"/> → <see cref="InMemoryResidencyAuditStore"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IDataResidencyPolicy"/> → <see cref="DefaultDataResidencyPolicy"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IResidencyPolicyService"/> → <see cref="DefaultResidencyPolicyService"/> (Scoped, using TryAdd)</item>
+    /// <item><see cref="IDataLocationService"/> → <see cref="DefaultDataLocationService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="ICrossBorderTransferValidator"/> → <see cref="DefaultCrossBorderTransferValidator"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IRegionContextProvider"/> → <see cref="DefaultRegionContextProvider"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IAdequacyDecisionProvider"/> → <see cref="DefaultAdequacyDecisionProvider"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IRegionRouter"/> → <see cref="DefaultRegionRouter"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IRegionRouter"/> → <see cref="DefaultRegionRouter"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="DataResidencyPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Default registrations:</b>
     /// All service registrations use <c>TryAdd</c>, allowing you to register custom
-    /// implementations before calling this method. For example, register a database-backed
-    /// <see cref="IResidencyPolicyStore"/> or a custom <see cref="IRegionContextProvider"/>.
+    /// implementations before calling this method. The default implementations use
+    /// Marten event-sourced aggregates (command side) and read model repositories (query side).
+    /// </para>
+    /// <para>
+    /// <b>Marten aggregates:</b>
+    /// Call <see cref="DataResidencyMartenExtensions.AddDataResidencyAggregates"/>
+    /// separately to register the event-sourced aggregate repositories with Marten.
     /// </para>
     /// <para>
     /// <b>Conditional registrations:</b>
@@ -53,7 +57,7 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Basic setup
+    /// // Basic setup with Marten event sourcing
     /// services.AddEncinaDataResidency(options =>
     /// {
     ///     options.DefaultRegion = RegionRegistry.DE;
@@ -63,14 +67,8 @@ public static class ServiceCollectionExtensions
     ///     options.AddPolicy("healthcare-data", p => p.AllowEU().RequireAdequacyDecision());
     /// });
     ///
-    /// // With custom implementations (register before AddEncinaDataResidency)
-    /// services.AddSingleton&lt;IResidencyPolicyStore, DatabaseResidencyPolicyStore&gt;();
-    /// services.AddSingleton&lt;IRegionContextProvider, HttpHeaderRegionContextProvider&gt;();
-    /// services.AddEncinaDataResidency(options =>
-    /// {
-    ///     options.EnforcementMode = DataResidencyEnforcementMode.Warn;
-    ///     options.AutoRegisterFromAttributes = false;
-    /// });
+    /// // Register Marten aggregate repositories
+    /// services.AddDataResidencyAggregates();
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
@@ -95,17 +93,15 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
-        // Register default store implementations (TryAdd allows override by satellite providers)
-        services.TryAddSingleton<IResidencyPolicyStore, InMemoryResidencyPolicyStore>();
-        services.TryAddSingleton<IDataLocationStore, InMemoryDataLocationStore>();
-        services.TryAddSingleton<IResidencyAuditStore, InMemoryResidencyAuditStore>();
+        // Register CQRS service implementations (TryAdd allows override by custom implementations)
+        services.TryAddScoped<IResidencyPolicyService, DefaultResidencyPolicyService>();
+        services.TryAddScoped<IDataLocationService, DefaultDataLocationService>();
 
-        // Register default high-level service implementations
-        services.TryAddSingleton<IDataResidencyPolicy, DefaultDataResidencyPolicy>();
+        // Register stateless high-level service implementations
         services.TryAddSingleton<ICrossBorderTransferValidator, DefaultCrossBorderTransferValidator>();
         services.TryAddSingleton<IRegionContextProvider, DefaultRegionContextProvider>();
         services.TryAddSingleton<IAdequacyDecisionProvider, DefaultAdequacyDecisionProvider>();
-        services.TryAddSingleton<IRegionRouter, DefaultRegionRouter>();
+        services.TryAddScoped<IRegionRouter, DefaultRegionRouter>();
 
         // Register pipeline behavior
         services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(DataResidencyPipelineBehavior<,>));

@@ -120,6 +120,61 @@ public class DataResidencyErrorsTests
     }
 
     [Fact]
+    public void LocationNotFound_ShouldHaveCorrectCode()
+    {
+        // Act
+        var error = DataResidencyErrors.LocationNotFound("loc-1");
+
+        // Assert
+        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.LocationNotFoundCode);
+        error.Message.Should().Contain("loc-1");
+    }
+
+    [Fact]
+    public void InvalidStateTransition_ShouldHaveCorrectCode()
+    {
+        // Arrange
+        var aggregateId = Guid.NewGuid();
+
+        // Act
+        var error = DataResidencyErrors.InvalidStateTransition(aggregateId, "Update");
+
+        // Assert
+        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.InvalidStateTransitionCode);
+        error.Message.Should().Contain(aggregateId.ToString());
+        error.Message.Should().Contain("Update");
+    }
+
+    [Fact]
+    public void ServiceError_ShouldHaveCorrectCode()
+    {
+        // Arrange
+        var exception = new InvalidOperationException("fail");
+
+        // Act
+        var error = DataResidencyErrors.ServiceError("Create", exception);
+
+        // Assert
+        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.ServiceErrorCode);
+        error.Message.Should().Contain("Create");
+        error.Message.Should().Contain("fail");
+    }
+
+    [Fact]
+    public void EventHistoryUnavailable_ShouldHaveCorrectCode()
+    {
+        // Arrange
+        var aggregateId = Guid.NewGuid();
+
+        // Act
+        var error = DataResidencyErrors.EventHistoryUnavailable(aggregateId);
+
+        // Assert
+        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.EventHistoryUnavailableCode);
+        error.Message.Should().Contain(aggregateId.ToString());
+    }
+
+    [Fact]
     public void ErrorCodes_ShouldBeUniqueConstants()
     {
         // Assert - all error codes should be distinct
@@ -131,7 +186,11 @@ public class DataResidencyErrorsTests
             DataResidencyErrors.PolicyNotFoundCode,
             DataResidencyErrors.PolicyAlreadyExistsCode,
             DataResidencyErrors.StoreErrorCode,
-            DataResidencyErrors.TransferValidationFailedCode
+            DataResidencyErrors.TransferValidationFailedCode,
+            DataResidencyErrors.LocationNotFoundCode,
+            DataResidencyErrors.InvalidStateTransitionCode,
+            DataResidencyErrors.ServiceErrorCode,
+            DataResidencyErrors.EventHistoryUnavailableCode
         };
 
         codes.Should().OnlyHaveUniqueItems();

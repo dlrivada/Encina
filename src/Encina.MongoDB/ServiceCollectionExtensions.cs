@@ -1,5 +1,4 @@
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.DataResidency;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Database;
@@ -128,14 +127,6 @@ public static class ServiceCollectionExtensions
 
         // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
 
-        // Register Data Residency stores if enabled
-        if (options.UseDataResidency)
-        {
-            services.AddScoped<IDataLocationStore, DataResidency.DataLocationStoreMongoDB>();
-            services.AddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreMongoDB>();
-            services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
-        }
-
         // Register ABAC Policy Store if enabled
         if (options.UseABACPolicyStore)
         {
@@ -247,14 +238,6 @@ public static class ServiceCollectionExtensions
         }
 
         // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
-
-        // Register Data Residency stores if enabled
-        if (options.UseDataResidency)
-        {
-            services.AddScoped<IDataLocationStore, DataResidency.DataLocationStoreMongoDB>();
-            services.AddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreMongoDB>();
-            services.AddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreMongoDB>();
-        }
 
         // Register ABAC Policy Store if enabled
         if (options.UseABACPolicyStore)

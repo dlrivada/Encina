@@ -1,5 +1,6 @@
 using System.Reflection;
 
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Attributes;
 using Encina.Compliance.DataResidency.Model;
 
@@ -12,20 +13,20 @@ namespace Encina.Compliance.DataResidency;
 
 /// <summary>
 /// Hosted service that scans configured assemblies for <see cref="DataResidencyAttribute"/>
-/// decorations at startup and creates matching <see cref="ResidencyPolicyDescriptor"/> entries in the store.
+/// decorations at startup and creates matching residency policies via the service.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This service runs once at application startup. It discovers all types
 /// decorated with <see cref="DataResidencyAttribute"/> in the configured assemblies,
-/// then creates corresponding <see cref="ResidencyPolicyDescriptor"/> entries in the
-/// <see cref="IResidencyPolicyStore"/> for any data categories that don't already have policies.
+/// then creates corresponding residency policies via <see cref="IResidencyPolicyService"/>
+/// for any data categories that don't already have policies.
 /// </para>
 /// <para>
 /// Per GDPR Chapter V (Articles 44-49), controllers should establish explicit residency
 /// policies for all categories of personal data subject to international transfer.
 /// This auto-registration ensures that attribute-based residency declarations are
-/// reflected in the policy store.
+/// reflected in the event-sourced policy store.
 /// </para>
 /// </remarks>
 internal sealed class DataResidencyAutoRegistrationHostedService : IHostedService
@@ -77,7 +78,7 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
                 {
                     discoveredPolicies.Add(new DiscoveredResidencyPolicy(
                         fluentPolicy.DataCategory,
-                        fluentPolicy.AllowedRegions.ToList(),
+                        fluentPolicy.AllowedRegions.Select(r => r.Code).ToList(),
                         fluentPolicy.RequireAdequacyDecision,
                         fluentPolicy.AllowedTransferBases.ToList(),
                         "FluentConfiguration"));
@@ -126,17 +127,12 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
 
                 if (!discovered.ContainsKey(dataCategory))
                 {
-                    // Convert region codes to Region objects via the registry
-                    var allowedRegions = attr.AllowedRegionCodes
-                        .Select(code => RegionRegistry.GetByCode(code))
-                        .Where(r => r is not null)
-                        .Cast<Region>()
-                        .Distinct()
-                        .ToList();
+                    // Keep region codes as strings for the ES service API
+                    var allowedRegionCodes = attr.AllowedRegionCodes.ToList();
 
                     discovered[dataCategory] = new DiscoveredResidencyPolicy(
                         dataCategory,
-                        allowedRegions,
+                        allowedRegionCodes,
                         attr.RequireAdequacyDecision,
                         AllowedTransferBases: [],
                         entityTypeName);
@@ -144,7 +140,7 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
                     _logger.LogDebug(
                         "Discovered data residency policy for '{EntityType}': category='{DataCategory}', "
                         + "regions={RegionCount}, requireAdequacy={RequireAdequacy}",
-                        entityTypeName, dataCategory, allowedRegions.Count, attr.RequireAdequacyDecision);
+                        entityTypeName, dataCategory, allowedRegionCodes.Count, attr.RequireAdequacyDecision);
                 }
             }
         }
@@ -153,7 +149,7 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
     }
 
     /// <summary>
-    /// Creates residency policies in the store for discovered data categories
+    /// Creates residency policies via the service for discovered data categories
     /// that don't already have policies.
     /// </summary>
     private async Task<int> CreatePoliciesAsync(
@@ -161,7 +157,7 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
         CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var policyStore = scope.ServiceProvider.GetRequiredService<IResidencyPolicyStore>();
+        var policyService = scope.ServiceProvider.GetRequiredService<IResidencyPolicyService>();
         var policiesCreated = 0;
 
         foreach (var discovered in discoveredPolicies)
@@ -169,13 +165,11 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
             try
             {
                 // Check if a policy already exists for this category
-                var existingResult = await policyStore
-                    .GetByCategoryAsync(discovered.DataCategory, cancellationToken)
+                var existingResult = await policyService
+                    .GetPolicyByCategoryAsync(discovered.DataCategory, cancellationToken)
                     .ConfigureAwait(false);
 
-                var policyExists = existingResult.Match(
-                    Right: option => option.IsSome,
-                    Left: _ => false);
+                var policyExists = existingResult.IsRight;
 
                 if (policyExists)
                 {
@@ -185,17 +179,13 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
                     continue;
                 }
 
-                // Create the policy
-                var policy = ResidencyPolicyDescriptor.Create(
+                // Create the policy via event-sourced service
+                var createResult = await policyService.CreatePolicyAsync(
                     dataCategory: discovered.DataCategory,
-                    allowedRegions: discovered.AllowedRegions,
+                    allowedRegionCodes: discovered.AllowedRegionCodes,
                     requireAdequacyDecision: discovered.RequireAdequacyDecision,
-                    allowedTransferBases: discovered.AllowedTransferBases.Count > 0
-                        ? discovered.AllowedTransferBases
-                        : null);
-
-                var createResult = await policyStore
-                    .CreateAsync(policy, cancellationToken)
+                    allowedTransferBases: discovered.AllowedTransferBases,
+                    cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 createResult.Match(
@@ -221,7 +211,7 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
     /// </summary>
     private sealed record DiscoveredResidencyPolicy(
         string DataCategory,
-        IReadOnlyList<Region> AllowedRegions,
+        IReadOnlyList<string> AllowedRegionCodes,
         bool RequireAdequacyDecision,
         IReadOnlyList<TransferLegalBasis> AllowedTransferBases,
         string SourceEntityType);

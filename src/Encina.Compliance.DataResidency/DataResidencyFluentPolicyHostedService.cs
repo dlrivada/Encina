@@ -1,3 +1,4 @@
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Model;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -7,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Encina.Compliance.DataResidency;
 
 /// <summary>
-/// Hosted service that creates fluent-configured residency policies in the store at startup.
+/// Hosted service that creates fluent-configured residency policies via the service at startup.
 /// </summary>
 /// <remarks>
 /// This service is only registered when fluent policies are configured via
@@ -39,7 +40,7 @@ internal sealed class DataResidencyFluentPolicyHostedService : IHostedService
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var policyStore = scope.ServiceProvider.GetRequiredService<IResidencyPolicyStore>();
+        var policyService = scope.ServiceProvider.GetRequiredService<IResidencyPolicyService>();
         var policiesCreated = 0;
 
         foreach (var entry in _descriptor.Policies)
@@ -47,13 +48,11 @@ internal sealed class DataResidencyFluentPolicyHostedService : IHostedService
             try
             {
                 // Check if a policy already exists for this category
-                var existingResult = await policyStore
-                    .GetByCategoryAsync(entry.DataCategory, cancellationToken)
+                var existingResult = await policyService
+                    .GetPolicyByCategoryAsync(entry.DataCategory, cancellationToken)
                     .ConfigureAwait(false);
 
-                var policyExists = existingResult.Match(
-                    Right: option => option.IsSome,
-                    Left: _ => false);
+                var policyExists = existingResult.IsRight;
 
                 if (policyExists)
                 {
@@ -63,17 +62,13 @@ internal sealed class DataResidencyFluentPolicyHostedService : IHostedService
                     continue;
                 }
 
-                // Create the policy
-                var policy = ResidencyPolicyDescriptor.Create(
+                // Create the policy via event-sourced service
+                var createResult = await policyService.CreatePolicyAsync(
                     dataCategory: entry.DataCategory,
-                    allowedRegions: entry.AllowedRegions,
+                    allowedRegionCodes: entry.AllowedRegions.Select(r => r.Code).ToList(),
                     requireAdequacyDecision: entry.RequireAdequacyDecision,
-                    allowedTransferBases: entry.AllowedTransferBases.Count > 0
-                        ? entry.AllowedTransferBases
-                        : null);
-
-                var createResult = await policyStore
-                    .CreateAsync(policy, cancellationToken)
+                    allowedTransferBases: entry.AllowedTransferBases,
+                    cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 createResult.Match(

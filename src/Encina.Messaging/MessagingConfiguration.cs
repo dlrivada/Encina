@@ -634,11 +634,10 @@ public sealed class MessagingConfiguration
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, registers <see cref="Compliance.DataResidency.IDataLocationStore"/>,
-    /// <see cref="Compliance.DataResidency.IResidencyPolicyStore"/>, and
-    /// <see cref="Compliance.DataResidency.IResidencyAuditStore"/>
-    /// with the provider-specific implementation for data sovereignty and residency
-    /// enforcement per GDPR Articles 44–49 cross-border transfer rules.
+    /// Data Residency has been migrated to Marten event sourcing.
+    /// This flag is retained for backward compatibility but no longer registers
+    /// provider-specific store implementations. Use <c>AddEncinaDataResidency()</c> and
+    /// <c>AddDataResidencyAggregates()</c> instead.
     /// </para>
     /// </remarks>
     /// <value>Default: false (opt-in)</value>

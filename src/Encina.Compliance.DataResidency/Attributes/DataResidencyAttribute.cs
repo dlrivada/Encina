@@ -64,7 +64,7 @@ public sealed class DataResidencyAttribute : Attribute
     /// Gets or sets the data category for residency policy resolution.
     /// </summary>
     /// <remarks>
-    /// Maps to the <see cref="Model.ResidencyPolicyDescriptor.DataCategory"/> in the policy store.
+    /// Maps to the <c>DataCategory</c> in the policy store.
     /// If not set, the pipeline behavior derives the category from the request type name.
     /// </remarks>
     public string? DataCategory { get; set; }

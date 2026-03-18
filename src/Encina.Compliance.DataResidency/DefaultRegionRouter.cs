@@ -1,3 +1,4 @@
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Model;
 
 using LanguageExt;
@@ -16,7 +17,7 @@ namespace Encina.Compliance.DataResidency;
 /// <para>
 /// The default router uses the following logic:
 /// 1. Resolve the current region from <see cref="IRegionContextProvider"/>.
-/// 2. Check if the current region is allowed for the data category via <see cref="IDataResidencyPolicy"/>.
+/// 2. Check if the current region is allowed for the data category via <see cref="IResidencyPolicyService"/>.
 /// 3. If allowed, route to the current region.
 /// 4. If not allowed, attempt to select the first allowed region from the policy.
 /// 5. If no region can be determined, return an error.
@@ -28,26 +29,26 @@ namespace Encina.Compliance.DataResidency;
 /// </remarks>
 public sealed class DefaultRegionRouter : IRegionRouter
 {
-    private readonly IDataResidencyPolicy _residencyPolicy;
+    private readonly IResidencyPolicyService _residencyPolicyService;
     private readonly IRegionContextProvider _regionContextProvider;
     private readonly ILogger<DefaultRegionRouter> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultRegionRouter"/> class.
     /// </summary>
-    /// <param name="residencyPolicy">Policy service for checking region compliance.</param>
+    /// <param name="residencyPolicyService">Policy service for checking region compliance.</param>
     /// <param name="regionContextProvider">Provider for the current region context.</param>
     /// <param name="logger">Logger for diagnostic messages.</param>
     public DefaultRegionRouter(
-        IDataResidencyPolicy residencyPolicy,
+        IResidencyPolicyService residencyPolicyService,
         IRegionContextProvider regionContextProvider,
         ILogger<DefaultRegionRouter> logger)
     {
-        ArgumentNullException.ThrowIfNull(residencyPolicy);
+        ArgumentNullException.ThrowIfNull(residencyPolicyService);
         ArgumentNullException.ThrowIfNull(regionContextProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _residencyPolicy = residencyPolicy;
+        _residencyPolicyService = residencyPolicyService;
         _regionContextProvider = regionContextProvider;
         _logger = logger;
     }
@@ -76,7 +77,7 @@ public sealed class DefaultRegionRouter : IRegionRouter
                 }
 
                 // Step 3: Check if current region is allowed
-                var isAllowedResult = await _residencyPolicy.IsAllowedAsync(
+                var isAllowedResult = await _residencyPolicyService.IsAllowedAsync(
                     dataCategory, currentRegion, cancellationToken);
 
                 return await isAllowedResult.MatchAsync(
@@ -91,7 +92,7 @@ public sealed class DefaultRegionRouter : IRegionRouter
                         }
 
                         // Step 4: Current region not allowed — find first allowed region
-                        var allowedRegionsResult = await _residencyPolicy.GetAllowedRegionsAsync(
+                        var allowedRegionsResult = await _residencyPolicyService.GetAllowedRegionsAsync(
                             dataCategory, cancellationToken);
 
                         return allowedRegionsResult.Match(

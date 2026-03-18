@@ -49,6 +49,18 @@ public static class DataResidencyErrors
     /// <summary>Error code when transfer validation fails.</summary>
     public const string TransferValidationFailedCode = "residency.transfer_validation_failed";
 
+    /// <summary>Error code when a data location is not found.</summary>
+    public const string LocationNotFoundCode = "residency.location_not_found";
+
+    /// <summary>Error code when an aggregate state transition is invalid.</summary>
+    public const string InvalidStateTransitionCode = "residency.invalid_state_transition";
+
+    /// <summary>Error code when a service operation fails unexpectedly.</summary>
+    public const string ServiceErrorCode = "residency.service_error";
+
+    /// <summary>Error code when event history retrieval is not yet available.</summary>
+    public const string EventHistoryUnavailableCode = "residency.event_history_unavailable";
+
     // --- Region errors ---
 
     /// <summary>
@@ -180,5 +192,75 @@ public static class DataResidencyErrors
             {
                 [MetadataKeyStage] = MetadataKeyStage,
                 ["requirement"] = "chapter_v_international_transfers"
+            });
+
+    // --- Location errors ---
+
+    /// <summary>
+    /// Creates an error when a data location is not found.
+    /// </summary>
+    /// <param name="locationId">The location identifier that was not found.</param>
+    /// <returns>An error indicating the location does not exist.</returns>
+    public static EncinaError LocationNotFound(string locationId) =>
+        EncinaErrors.Create(
+            code: LocationNotFoundCode,
+            message: $"Data location '{locationId}' was not found.",
+            details: new Dictionary<string, object?>
+            {
+                ["locationId"] = locationId,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Aggregate errors ---
+
+    /// <summary>
+    /// Creates an error when an aggregate state transition is invalid.
+    /// </summary>
+    /// <param name="aggregateId">The aggregate identifier.</param>
+    /// <param name="operation">The operation that was attempted.</param>
+    /// <returns>An error indicating the state transition is not allowed.</returns>
+    public static EncinaError InvalidStateTransition(Guid aggregateId, string operation) =>
+        EncinaErrors.Create(
+            code: InvalidStateTransitionCode,
+            message: $"Invalid state transition for aggregate '{aggregateId}' during operation '{operation}'.",
+            details: new Dictionary<string, object?>
+            {
+                ["aggregateId"] = aggregateId.ToString(),
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Service errors ---
+
+    /// <summary>
+    /// Creates an error when a service operation fails unexpectedly.
+    /// </summary>
+    /// <param name="operation">The service operation that failed.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <returns>An error indicating a service-level failure.</returns>
+    public static EncinaError ServiceError(string operation, Exception exception) =>
+        EncinaErrors.Create(
+            code: ServiceErrorCode,
+            message: $"Residency service operation '{operation}' failed: {exception.Message}",
+            exception: exception,
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    /// <summary>
+    /// Creates an error when event history retrieval is not yet available.
+    /// </summary>
+    /// <param name="aggregateId">The aggregate whose history was requested.</param>
+    /// <returns>An error indicating event history is not available through this API.</returns>
+    public static EncinaError EventHistoryUnavailable(Guid aggregateId) =>
+        EncinaErrors.Create(
+            code: EventHistoryUnavailableCode,
+            message: $"Event history for aggregate '{aggregateId}' is not yet available. Direct Marten event stream access is required.",
+            details: new Dictionary<string, object?>
+            {
+                ["aggregateId"] = aggregateId.ToString(),
+                [MetadataKeyStage] = MetadataKeyStage
             });
 }

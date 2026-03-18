@@ -4,7 +4,7 @@ namespace Encina.Compliance.DataResidency.Model;
 /// Outcome of a data residency check or transfer validation.
 /// </summary>
 /// <remarks>
-/// The outcome is recorded in <see cref="ResidencyAuditEntry"/> alongside
+/// The outcome is recorded in <c>ResidencyAuditEntry</c> alongside
 /// the <see cref="ResidencyAction"/> to provide a complete audit trail
 /// of all residency enforcement decisions.
 /// </remarks>

@@ -1,3 +1,5 @@
+using Encina.Compliance.DataResidency.Abstractions;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -14,10 +16,10 @@ namespace Encina.Compliance.DataResidency.Health;
 /// This health check verifies:
 /// <list type="bullet">
 /// <item><description>The data residency options are configured</description></item>
-/// <item><description>The residency policy store (<see cref="IResidencyPolicyStore"/>) is resolvable</description></item>
-/// <item><description>The data location store (<see cref="IDataLocationStore"/>) is resolvable</description></item>
+/// <item><description>The residency policy service (<see cref="IResidencyPolicyService"/>) is resolvable</description></item>
+/// <item><description>The data location service (<see cref="IDataLocationService"/>) is resolvable</description></item>
 /// <item><description>The region context provider (<see cref="IRegionContextProvider"/>) is resolvable</description></item>
-/// <item><description>The audit store (<see cref="IResidencyAuditStore"/>) is resolvable when TrackAuditTrail is enabled</description></item>
+/// <item><description>The cross-border transfer validator (<see cref="ICrossBorderTransferValidator"/>) is resolvable</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -80,30 +82,29 @@ public sealed class DataResidencyHealthCheck : IHealthCheck
 
         data["enforcementMode"] = options.EnforcementMode.ToString();
         data["trackDataLocations"] = options.TrackDataLocations;
-        data["trackAuditTrail"] = options.TrackAuditTrail;
 
-        // 2. Verify residency policy store is resolvable
-        var policyStore = scopedProvider.GetService<IResidencyPolicyStore>();
-        if (policyStore is null)
+        // 2. Verify residency policy service is resolvable
+        var policyService = scopedProvider.GetService<IResidencyPolicyService>();
+        if (policyService is null)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy(
-                "IResidencyPolicyStore is not registered.",
+                "IResidencyPolicyService is not registered.",
                 data: data));
         }
 
-        data["policyStoreType"] = policyStore.GetType().Name;
+        data["policyServiceType"] = policyService.GetType().Name;
         servicesVerified++;
 
-        // 3. Verify data location store is resolvable
-        var locationStore = scopedProvider.GetService<IDataLocationStore>();
-        if (locationStore is null)
+        // 3. Verify data location service is resolvable
+        var locationService = scopedProvider.GetService<IDataLocationService>();
+        if (locationService is null)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy(
-                "IDataLocationStore is not registered.",
+                "IDataLocationService is not registered.",
                 data: data));
         }
 
-        data["locationStoreType"] = locationStore.GetType().Name;
+        data["locationServiceType"] = locationService.GetType().Name;
         servicesVerified++;
 
         // 4. Verify region context provider is resolvable
@@ -129,22 +130,6 @@ public sealed class DataResidencyHealthCheck : IHealthCheck
         {
             data["transferValidatorType"] = transferValidator.GetType().Name;
             servicesVerified++;
-        }
-
-        // 6. Verify audit store when TrackAuditTrail is enabled (optional, degraded if missing)
-        if (options.TrackAuditTrail)
-        {
-            var auditStore = scopedProvider.GetService<IResidencyAuditStore>();
-            if (auditStore is null)
-            {
-                warnings.Add("IResidencyAuditStore is not registered but TrackAuditTrail is enabled. "
-                            + "Residency audit trail will not be recorded.");
-            }
-            else
-            {
-                data["auditStoreType"] = auditStore.GetType().Name;
-                servicesVerified++;
-            }
         }
 
         _logger.LogDebug(

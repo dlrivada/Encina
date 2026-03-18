@@ -1,6 +1,5 @@
 using System.Data;
 using Encina.Compliance.Anonymization;
-using Encina.Compliance.DataResidency;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Dapper.SqlServer.Auditing;
@@ -108,14 +107,6 @@ public static class ServiceCollectionExtensions
         }
 
         // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
-
-        // Register Data Residency stores if enabled
-        if (config.UseDataResidency)
-        {
-            services.TryAddScoped<IDataLocationStore, DataResidency.DataLocationStoreDapper>();
-            services.TryAddScoped<IResidencyPolicyStore, DataResidency.ResidencyPolicyStoreDapper>();
-            services.TryAddScoped<IResidencyAuditStore, DataResidency.ResidencyAuditStoreDapper>();
-        }
 
         // Register ABAC Policy Store if enabled
         if (config.UseABACPolicyStore)

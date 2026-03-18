@@ -6,7 +6,7 @@ namespace Encina.Compliance.DataResidency.Model;
 /// <remarks>
 /// Each action in the residency audit trail is classified to enable filtering,
 /// reporting, and compliance analysis. The action type is recorded alongside
-/// the outcome in <see cref="ResidencyAuditEntry"/>.
+/// the outcome in <c>ResidencyAuditEntry</c>.
 /// </remarks>
 public enum ResidencyAction
 {

@@ -49,7 +49,7 @@ public interface IRegionRouter
     /// <para>
     /// The routing logic may consider:
     /// - The <c>[DataResidency]</c> attribute on the request type to identify the data category.
-    /// - The <see cref="ResidencyPolicyDescriptor.AllowedRegions"/> for that category.
+    /// - The <c>AllowedRegions</c> for that category.
     /// - The current region from <see cref="IRegionContextProvider"/> as the preferred target.
     /// - Proximity, load balancing, or failover preferences.
     /// </para>

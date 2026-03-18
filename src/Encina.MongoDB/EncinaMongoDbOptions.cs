@@ -119,11 +119,10 @@ public sealed class EncinaMongoDbOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, registers <see cref="Compliance.DataResidency.IDataLocationStore"/>,
-    /// <see cref="Compliance.DataResidency.IResidencyPolicyStore"/>, and
-    /// <see cref="Compliance.DataResidency.IResidencyAuditStore"/>
-    /// implemented by their MongoDB store classes for data sovereignty and residency
-    /// enforcement per GDPR Articles 44–49 cross-border transfer rules.
+    /// Data Residency has been migrated to Marten event sourcing.
+    /// This flag is retained for backward compatibility but no longer registers
+    /// MongoDB store implementations. Use <c>AddEncinaDataResidency()</c> and
+    /// <c>AddDataResidencyAggregates()</c> instead.
     /// </para>
     /// </remarks>
     public bool UseDataResidency { get; set; }

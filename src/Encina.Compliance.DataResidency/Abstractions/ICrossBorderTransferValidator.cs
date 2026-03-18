@@ -75,8 +75,8 @@ public interface ICrossBorderTransferValidator
     /// 5. Otherwise, the transfer is denied unless a derogation (Art. 49) applies.
     /// </para>
     /// <para>
-    /// The <see cref="ResidencyPolicyDescriptor.RequireAdequacyDecision"/> and
-    /// <see cref="ResidencyPolicyDescriptor.AllowedTransferBases"/> settings for the
+    /// The <c>RequireAdequacyDecision</c> and
+    /// <c>AllowedTransferBases</c> settings for the
     /// data category further constrain the validation.
     /// </para>
     /// </remarks>

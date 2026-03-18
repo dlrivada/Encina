@@ -17,7 +17,6 @@ public class DataResidencyOptionsTests
         options.DefaultRegion.Should().BeNull();
         options.EnforcementMode.Should().Be(DataResidencyEnforcementMode.Warn);
         options.TrackDataLocations.Should().BeTrue();
-        options.TrackAuditTrail.Should().BeTrue();
         options.BlockNonCompliantTransfers.Should().BeTrue();
         options.AddHealthCheck.Should().BeFalse();
         options.AutoRegisterFromAttributes.Should().BeTrue();
