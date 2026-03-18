@@ -79,6 +79,19 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} was not found."));
             }
 
+            // Marten's AggregateStreamAsync calls Apply() (not RaiseEvent), so the aggregate's
+            // Version property is not automatically set to match the stream version.
+            // We set the version from a separate query using the document store to avoid
+            // session state interference (Marten tracks stream state within sessions).
+            var store = _session.DocumentStore;
+            await using var versionSession = store.LightweightSession();
+            var streamState = await versionSession.Events.FetchStreamStateAsync(id, cancellationToken)
+                .ConfigureAwait(false);
+            if (streamState is not null)
+            {
+                aggregate.Version = (int)streamState.Version;
+            }
+
             Log.LoadedAggregate(_logger, typeof(TAggregate).Name, id, aggregate.Version);
 
             return Right<EncinaError, TAggregate>(aggregate); // NOSONAR S6966: LanguageExt Right is a pure function
@@ -118,6 +131,9 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} at version {version} was not found."));
             }
 
+            // Sync version from the requested version (since Apply doesn't increment Version)
+            aggregate.Version = version;
+
             return Right<EncinaError, TAggregate>(aggregate); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
@@ -151,9 +167,13 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             // Enrich session with metadata before appending events
             _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
-            // Append events to the stream
-            var expectedVersion = aggregate.Version - uncommittedEvents.Count;
-            _session.Events.Append(aggregate.Id, expectedVersion, uncommittedEvents.ToArray());
+            // Append events to the stream.
+            // We do NOT pass an explicit expected version because the session already tracks
+            // the stream state from AggregateStreamAsync in LoadAsync. Marten handles
+            // optimistic concurrency natively at the session level — if another process
+            // modified the stream between our load and save, SaveChangesAsync will throw
+            // a concurrency exception that we catch below.
+            _session.Events.Append(aggregate.Id, uncommittedEvents.ToArray());
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

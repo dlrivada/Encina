@@ -3,6 +3,8 @@ using Encina.Compliance.CrossBorderTransfer.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Aggregates;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.ReadModels;
+using Encina.Compliance.DataResidency;
+using Encina.Compliance.DataResidency.Model;
 using Encina.IntegrationTests.Infrastructure.Marten.Fixtures;
 using Encina.Marten;
 
@@ -40,6 +42,11 @@ public sealed class CrossBorderTransferPipelineIntegrationTests
 
         // Register Marten infrastructure
         services.AddEncinaMarten();
+
+        // Register IAdequacyDecisionProvider (required by DefaultTransferValidator)
+        var adequacyProvider = Substitute.For<IAdequacyDecisionProvider>();
+        adequacyProvider.HasAdequacy(Arg.Any<Region>()).Returns(false);
+        services.AddSingleton<IAdequacyDecisionProvider>(adequacyProvider);
 
         // Register cross-border transfer services and aggregates
         services.AddEncinaCrossBorderTransfer(configure ?? (options =>

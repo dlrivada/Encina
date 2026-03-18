@@ -28,9 +28,14 @@ public interface IAggregate
     Guid Id { get; }
 
     /// <summary>
-    /// Gets the current version of the aggregate (number of events applied).
+    /// Gets or sets the current version of the aggregate (number of events applied).
     /// </summary>
-    int Version { get; }
+    /// <remarks>
+    /// The setter is needed by event store repositories (e.g., Marten) to sync the aggregate's
+    /// version with the stream version after loading via event replay, since Apply() does not
+    /// increment the version during replay (only RaiseEvent does during new event creation).
+    /// </remarks>
+    int Version { get; set; }
 
     /// <summary>
     /// Gets the uncommitted domain events that have been raised but not yet persisted.

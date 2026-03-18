@@ -67,7 +67,7 @@ public abstract class AggregateBase : IAggregate
     public Guid Id { get; protected set; }
 
     /// <inheritdoc />
-    public int Version { get; protected set; }
+    public int Version { get; set; }
 
     /// <inheritdoc />
     public IReadOnlyList<object> UncommittedEvents => _uncommittedEvents.AsReadOnly();
