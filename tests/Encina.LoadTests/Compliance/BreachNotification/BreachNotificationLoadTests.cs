@@ -344,63 +344,63 @@ internal static class BreachNotificationLoadTests
                     switch (scenario)
                     {
                         case 0: // Record only
-                        {
-                            using var scope = scopeFactory.CreateScope();
-                            var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
-                            await service.RecordBreachAsync(
-                                "mixed-record", Severities[i % Severities.Length],
-                                DetectionRules[i % DetectionRules.Length],
-                                i * 10, $"Mixed W{workerId}-{i}", $"worker-{workerId}");
-                            scenarioName = "Record";
-                            break;
-                        }
+                            {
+                                using var scope = scopeFactory.CreateScope();
+                                var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
+                                await service.RecordBreachAsync(
+                                    "mixed-record", Severities[i % Severities.Length],
+                                    DetectionRules[i % DetectionRules.Length],
+                                    i * 10, $"Mixed W{workerId}-{i}", $"worker-{workerId}");
+                                scenarioName = "Record";
+                                break;
+                            }
 
                         case 1: // Record + Assess
-                        {
-                            using var scope = scopeFactory.CreateScope();
-                            var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
-                            var result = await service.RecordBreachAsync(
-                                "mixed-assess", BreachSeverity.Low, "MixedRule",
-                                50, $"Mixed assess W{workerId}-{i}", $"worker-{workerId}");
-                            if (result.IsRight)
                             {
-                                var id = result.Match(x => x, _ => Guid.Empty);
-                                using var scope2 = scopeFactory.CreateScope();
-                                var service2 = scope2.ServiceProvider.GetRequiredService<IBreachNotificationService>();
-                                await service2.AssessBreachAsync(
-                                    id, BreachSeverity.Medium, 100, "Mixed assessment", "assessor");
+                                using var scope = scopeFactory.CreateScope();
+                                var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
+                                var result = await service.RecordBreachAsync(
+                                    "mixed-assess", BreachSeverity.Low, "MixedRule",
+                                    50, $"Mixed assess W{workerId}-{i}", $"worker-{workerId}");
+                                if (result.IsRight)
+                                {
+                                    var id = result.Match(x => x, _ => Guid.Empty);
+                                    using var scope2 = scopeFactory.CreateScope();
+                                    var service2 = scope2.ServiceProvider.GetRequiredService<IBreachNotificationService>();
+                                    await service2.AssessBreachAsync(
+                                        id, BreachSeverity.Medium, 100, "Mixed assessment", "assessor");
+                                }
+                                scenarioName = "Record+Assess";
+                                break;
                             }
-                            scenarioName = "Record+Assess";
-                            break;
-                        }
 
                         case 2: // Record + Report
-                        {
-                            using var scope = scopeFactory.CreateScope();
-                            var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
-                            var result = await service.RecordBreachAsync(
-                                "mixed-report", BreachSeverity.Critical, "MixedRule",
-                                1000, $"Mixed report W{workerId}-{i}", $"worker-{workerId}");
-                            if (result.IsRight)
                             {
-                                var id = result.Match(x => x, _ => Guid.Empty);
-                                using var scope2 = scopeFactory.CreateScope();
-                                var service2 = scope2.ServiceProvider.GetRequiredService<IBreachNotificationService>();
-                                await service2.ReportToDPAAsync(
-                                    id, "DPA", "dpa@gov.eu", "Report", "dpo");
+                                using var scope = scopeFactory.CreateScope();
+                                var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
+                                var result = await service.RecordBreachAsync(
+                                    "mixed-report", BreachSeverity.Critical, "MixedRule",
+                                    1000, $"Mixed report W{workerId}-{i}", $"worker-{workerId}");
+                                if (result.IsRight)
+                                {
+                                    var id = result.Match(x => x, _ => Guid.Empty);
+                                    using var scope2 = scopeFactory.CreateScope();
+                                    var service2 = scope2.ServiceProvider.GetRequiredService<IBreachNotificationService>();
+                                    await service2.ReportToDPAAsync(
+                                        id, "DPA", "dpa@gov.eu", "Report", "dpo");
+                                }
+                                scenarioName = "Record+Report";
+                                break;
                             }
-                            scenarioName = "Record+Report";
-                            break;
-                        }
 
                         default: // Query
-                        {
-                            using var scope = scopeFactory.CreateScope();
-                            var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
-                            await service.GetBreachesByStatusAsync(BreachStatus.Detected);
-                            scenarioName = "Query";
-                            break;
-                        }
+                            {
+                                using var scope = scopeFactory.CreateScope();
+                                var service = scope.ServiceProvider.GetRequiredService<IBreachNotificationService>();
+                                await service.GetBreachesByStatusAsync(BreachStatus.Detected);
+                                scenarioName = "Query";
+                                break;
+                            }
                     }
 
                     operationCounts.AddOrUpdate(scenarioName, 1, (_, c) => c + 1);
@@ -555,11 +555,20 @@ internal static class BreachNotificationLoadTests
             var now = DateTimeOffset.UtcNow;
             _breaches[id] = new BreachReadModel
             {
-                Id = id, Nature = nature, Severity = severity, DetectedByRule = detectedByRule,
-                EstimatedAffectedSubjects = estimatedAffectedSubjects, Description = description,
-                DetectedByUserId = detectedByUserId, DetectedAtUtc = now,
-                DeadlineUtc = now.AddHours(72), Status = BreachStatus.Detected,
-                TenantId = tenantId, ModuleId = moduleId, LastModifiedAtUtc = now, Version = 1
+                Id = id,
+                Nature = nature,
+                Severity = severity,
+                DetectedByRule = detectedByRule,
+                EstimatedAffectedSubjects = estimatedAffectedSubjects,
+                Description = description,
+                DetectedByUserId = detectedByUserId,
+                DetectedAtUtc = now,
+                DeadlineUtc = now.AddHours(72),
+                Status = BreachStatus.Detected,
+                TenantId = tenantId,
+                ModuleId = moduleId,
+                LastModifiedAtUtc = now,
+                Version = 1
             };
             return ValueTask.FromResult(Right<EncinaError, Guid>(id));
         }
