@@ -15,6 +15,8 @@ Encina load tests are organized into five categories:
 | **Brokers** | Message broker pub/sub | rabbitmq, kafka, nats, mqtt | Publish, Consume, Partition |
 | **Compliance** | GDPR Lawful Basis validation under concurrency | inmemory | Registry, LIA Store, Pipeline |
 | **Audit Marten** | Temporal encryption under concurrent audit recording | InMemory key provider | Encrypt throughput, latency percentiles |
+| **Security Audit** | Audit pipeline write/query/purge under concurrency | InMemoryAuditStore | ConcurrentWrites, WriteAndQuery, Burst, Retention |
+| **CDC** | Change Data Capture processor throughput | InMemory connector | HighThroughput, BurstProcessing, MixedOperations |
 
 ---
 
@@ -585,6 +587,68 @@ In production, the encryption overhead is dwarfed by PostgreSQL I/O:
 | Temporal encryption (6 PII fields) | ~8.6 us |
 | PostgreSQL SaveChangesAsync | 1-5 ms |
 | **Encryption as % of total** | **< 0.9%** |
+
+---
+
+# Security Audit Load Tests
+
+The Security Audit load tests exercise the `InMemoryAuditStore` under concurrent load, validating that the audit pipeline can sustain high write throughput without contention.
+
+## Scenarios
+
+| Scenario | Workers | Duration | Description |
+|----------|--------:|:--------:|-------------|
+| **ConcurrentWrites** | 8 | 30s | Pure write workload — maximum throughput |
+| **WriteAndQuery** | 8 | 30s | Mixed read/write — 70% writes, 30% queries |
+| **BurstWrites** | 16 | N/A | Sudden spike of 10,000 entries |
+| **RetentionUnderLoad** | 8 | 30s | PurgeEntries while writes are happening |
+
+## Expected Baselines (InMemoryAuditStore)
+
+| Scenario | Expected Ops/Sec | Mean Latency | P95 Latency | P99 Latency |
+|----------|:----------------:|:------------:|:-----------:|:-----------:|
+| ConcurrentWrites | 50,000+ | <0.5 ms | <2 ms | <5 ms |
+| WriteAndQuery | 20,000+ | <1 ms | <5 ms | <10 ms |
+| BurstWrites | N/A (batch) | <50 ms total | N/A | N/A |
+| RetentionUnderLoad | 30,000+ | <1 ms | <5 ms | <10 ms |
+
+> **Note**: InMemoryAuditStore uses ConcurrentDictionary, so contention is minimal. Database-backed stores will have lower throughput due to I/O.
+
+## Success Criteria
+
+1. **Throughput**: Above minimum threshold per scenario
+2. **Error Rate**: 0% (all operations return Right)
+3. **Memory**: GC Gen2 collections = 0 during test
+4. **Latency Distribution**: P99 < 10ms for all scenarios
+
+---
+
+# CDC Load Tests
+
+The CDC (Change Data Capture) load tests exercise the `CdcProcessor` event processing pipeline under high-throughput conditions.
+
+## Scenarios
+
+| Scenario | Workers | Duration | Description |
+|----------|--------:|:--------:|-------------|
+| **HighThroughput** | 8 | 30s | Sustained event stream at max rate |
+| **BurstProcessing** | 16 | N/A | Spike of 50,000 events at once |
+| **MixedOperations** | 8 | 30s | Insert/Update/Delete mix (40/40/20) |
+
+## Expected Baselines (InMemory Connector)
+
+| Scenario | Expected Events/Sec | Mean Latency | P95 Latency | P99 Latency |
+|----------|:-------------------:|:------------:|:-----------:|:-----------:|
+| HighThroughput | 10,000+ | <1 ms | <5 ms | <10 ms |
+| BurstProcessing | N/A (batch) | <200 ms total | N/A | N/A |
+| MixedOperations | 8,000+ | <1.5 ms | <5 ms | <10 ms |
+
+## Success Criteria
+
+1. **Throughput**: Above minimum threshold per scenario
+2. **Error Rate**: < 0.1%
+3. **Memory**: No memory leaks (allocation delta < 50 MB over 30s)
+4. **Dead Letter Queue**: 0 events in DLQ under normal conditions
 
 ---
 

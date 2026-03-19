@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.PII.Benchmarks;
 
@@ -17,6 +18,7 @@ public class MaskingStrategyBenchmarks
     public void Setup()
     {
         var services = new ServiceCollection();
+        services.AddLogging(b => b.SetMinimumLevel(LogLevel.None));
         services.AddEncinaPII(options =>
         {
             options.EnableTracing = false;

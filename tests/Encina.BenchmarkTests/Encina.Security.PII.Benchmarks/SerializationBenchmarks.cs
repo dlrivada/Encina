@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.PII.Benchmarks;
 
@@ -25,6 +26,7 @@ public class SerializationBenchmarks
     public void Setup()
     {
         var services = new ServiceCollection();
+        services.AddLogging(b => b.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.None));
         services.AddEncinaPII(options =>
         {
             options.EnableTracing = false;

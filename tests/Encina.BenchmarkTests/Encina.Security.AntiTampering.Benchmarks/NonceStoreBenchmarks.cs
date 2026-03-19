@@ -4,62 +4,38 @@ namespace Encina.Security.AntiTampering.Benchmarks;
 
 /// <summary>
 /// Benchmarks for <see cref="InMemoryNonceStore"/> operations.
-/// Measures throughput and memory allocation for nonce add and lookup operations
-/// under varying store sizes and concurrency levels.
+/// Measures throughput and memory allocation for nonce add, lookup, and cleanup operations.
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, iterationCount: 10)]
 public class NonceStoreBenchmarks : IDisposable
 {
-    private InMemoryNonceStore _emptyStore = null!;
-    private InMemoryNonceStore _preloadedStore = null!;
+    private InMemoryNonceStore _store = null!;
     private string[] _preloadedNonces = null!;
     private static readonly TimeSpan NonceExpiry = TimeSpan.FromMinutes(10);
 
     [GlobalSetup]
     public void Setup()
     {
-        _emptyStore = new InMemoryNonceStore(TimeProvider.System);
-        _preloadedStore = new InMemoryNonceStore(TimeProvider.System);
+        _store = new InMemoryNonceStore(TimeProvider.System);
 
-        // Pre-load 10,000 nonces
+        // Pre-load 10,000 nonces for exists/duplicate benchmarks
         _preloadedNonces = new string[10_000];
 
         for (var i = 0; i < 10_000; i++)
         {
             _preloadedNonces[i] = $"preloaded-nonce-{i:D6}";
-            _preloadedStore.TryAddAsync(_preloadedNonces[i], NonceExpiry)
+            _store.TryAddAsync(_preloadedNonces[i], NonceExpiry)
                 .AsTask().GetAwaiter().GetResult();
         }
-    }
-
-    [IterationSetup(Target = nameof(TryAdd_EmptyStore))]
-    public void ResetEmptyStore()
-    {
-        _emptyStore.Dispose();
-        _emptyStore = new InMemoryNonceStore(TimeProvider.System);
     }
 
     #region TryAddAsync Benchmarks
 
     [Benchmark(Baseline = true)]
-    public async Task<bool> TryAdd_EmptyStore()
+    public async Task<bool> Add()
     {
-        return await _emptyStore.TryAddAsync(Guid.NewGuid().ToString("N"), NonceExpiry);
-    }
-
-    [Benchmark]
-    public async Task<bool> TryAdd_PreloadedStore_10K()
-    {
-        // Add a new unique nonce to a store already containing 10K entries
-        return await _preloadedStore.TryAddAsync(Guid.NewGuid().ToString("N"), NonceExpiry);
-    }
-
-    [Benchmark]
-    public async Task<bool> TryAdd_DuplicateNonce()
-    {
-        // Attempt to add an existing nonce (should return false)
-        return await _preloadedStore.TryAddAsync(_preloadedNonces[0], NonceExpiry);
+        return await _store.TryAddAsync(Guid.NewGuid().ToString("N"), NonceExpiry);
     }
 
     #endregion
@@ -67,68 +43,47 @@ public class NonceStoreBenchmarks : IDisposable
     #region ExistsAsync Benchmarks
 
     [Benchmark]
-    public async Task<bool> Exists_KnownNonce()
+    public async Task<bool> Exists_Hit()
     {
-        return await _preloadedStore.ExistsAsync(_preloadedNonces[5000]);
+        return await _store.ExistsAsync(_preloadedNonces[5000]);
     }
 
     [Benchmark]
-    public async Task<bool> Exists_UnknownNonce()
+    public async Task<bool> Exists_Miss()
     {
-        return await _preloadedStore.ExistsAsync("nonexistent-nonce");
+        return await _store.ExistsAsync("nonexistent-nonce-value");
     }
 
     #endregion
 
-    #region Concurrent Benchmarks
+    #region Cleanup Benchmarks
 
     [Benchmark]
-    public async Task<int> Concurrent_TryAdd_10Threads()
+    public async Task<int> Cleanup()
     {
-        using var store = new InMemoryNonceStore(TimeProvider.System);
-        var successCount = 0;
+        // Create a store with expired entries to measure cleanup cost
+        using var expiredStore = new InMemoryNonceStore(TimeProvider.System);
+        var veryShortExpiry = TimeSpan.FromMilliseconds(1);
 
-        var tasks = Enumerable.Range(0, 10).Select(async i =>
+        for (var i = 0; i < 1_000; i++)
         {
-            var nonce = $"concurrent-{i}-{Guid.NewGuid():N}";
-            var added = await store.TryAddAsync(nonce, NonceExpiry);
+            await expiredStore.TryAddAsync($"expired-{i:D4}", veryShortExpiry);
+        }
 
-            if (added)
-            {
-                Interlocked.Increment(ref successCount);
-            }
-        });
+        // Wait for entries to expire
+        await Task.Delay(5);
 
-        await Task.WhenAll(tasks);
-        return successCount;
-    }
+        // Force cleanup by adding and checking a nonce (triggers lazy cleanup)
+        var added = await expiredStore.TryAddAsync("cleanup-trigger", NonceExpiry);
+        var exists = await expiredStore.ExistsAsync("cleanup-trigger");
 
-    [Benchmark]
-    public async Task<int> Concurrent_DuplicateNonce_10Threads()
-    {
-        using var store = new InMemoryNonceStore(TimeProvider.System);
-        var sharedNonce = Guid.NewGuid().ToString("N");
-        var successCount = 0;
-
-        var tasks = Enumerable.Range(0, 10).Select(async _ =>
-        {
-            var added = await store.TryAddAsync(sharedNonce, NonceExpiry);
-
-            if (added)
-            {
-                Interlocked.Increment(ref successCount);
-            }
-        });
-
-        await Task.WhenAll(tasks);
-        return successCount; // Should be exactly 1
+        return added && exists ? 1 : 0;
     }
 
     #endregion
 
     public void Dispose()
     {
-        _emptyStore?.Dispose();
-        _preloadedStore?.Dispose();
+        _store?.Dispose();
     }
 }
