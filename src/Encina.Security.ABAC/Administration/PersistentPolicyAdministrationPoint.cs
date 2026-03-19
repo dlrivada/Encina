@@ -1,12 +1,8 @@
 using System.Text.Json;
-
-using Encina.Security.Audit;
 using Encina.Security.ABAC.Persistence;
-
+using Encina.Security.Audit;
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
-
 using static LanguageExt.Prelude;
 
 namespace Encina.Security.ABAC.Administration;
