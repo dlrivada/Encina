@@ -14,6 +14,7 @@ Encina load tests are organized into five categories:
 | **Locking** | Distributed lock coordination | inmemory, redis, sqlserver | Contention, Renewal, Timeout |
 | **Brokers** | Message broker pub/sub | rabbitmq, kafka, nats, mqtt | Publish, Consume, Partition |
 | **Compliance** | GDPR Lawful Basis validation under concurrency | inmemory | Registry, LIA Store, Pipeline |
+| **Audit Marten** | Temporal encryption under concurrent audit recording | InMemory key provider | Encrypt throughput, latency percentiles |
 
 ---
 
@@ -530,6 +531,60 @@ dotnet run -- lawful-basis
 ### Related Files (Compliance)
 
 - `tests/Encina.LoadTests/Compliance/GDPR/LawfulBasisValidationLoadTests.cs` — 8 scenario implementations
+
+---
+
+---
+
+# Audit Marten Load Tests
+
+The Encina.Audit.Marten load tests exercise the temporal encryption pipeline under concurrent audit recording, simulating the hot path of every command in a compliance-grade European application (SOX, NIS2, GDPR).
+
+## Test Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Workers | 8 concurrent |
+| Duration | 15 seconds |
+| Payload size | 2,048 bytes (request payload) |
+| PII fields per entry | 5 (UserId, IpAddress, UserAgent, RequestPayload, Metadata) |
+| Key provider | InMemoryTemporalKeyProvider |
+| Granularity | Monthly |
+
+## Expected Baselines
+
+| Metric | Baseline | Notes |
+|--------|----------|-------|
+| Throughput | > 50,000 entries/sec | In-memory key provider, no I/O |
+| P50 latency | < 0.05 ms | Per-entry encrypt time |
+| P95 latency | < 0.1 ms | Under contention |
+| P99 latency | < 1.0 ms | Includes GC pauses |
+| Error rate | < 0.1% | Only cancellation at timer expiry |
+
+## Baseline Results (2026-03-19)
+
+**Environment**: i9-13900KS, 32 cores, .NET 10.0.5, Windows 11
+
+| Metric | Value |
+|--------|-------|
+| **Throughput** | **508,489 entries/sec** |
+| Total entries | 7,632,994 |
+| Errors | 2 (cancellation at timer expiry) |
+| P50 latency | 0.0087 ms (8.7 us) |
+| P90 latency | 0.0159 ms (15.9 us) |
+| P95 latency | 0.0170 ms (17.0 us) |
+| P99 latency | 0.2443 ms (244.3 us) |
+| Max latency | 31.27 ms (GC pause) |
+
+## Real-World Impact
+
+In production, the encryption overhead is dwarfed by PostgreSQL I/O:
+
+| Component | Latency |
+|-----------|---------|
+| Temporal encryption (6 PII fields) | ~8.6 us |
+| PostgreSQL SaveChangesAsync | 1-5 ms |
+| **Encryption as % of total** | **< 0.9%** |
 
 ---
 

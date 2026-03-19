@@ -1360,6 +1360,7 @@ src/
 | **Encina.MongoDB** | MongoDB Driver | MongoDB | ✅ Completo |
 | **Encina.Marten** | Marten | PostgreSQL (Event Store) | ✅ Completo |
 | **Encina.Marten.GDPR** | Marten + Encryption | PostgreSQL (Crypto-Shredding) | ✅ Completo (#322) |
+| **Encina.Audit.Marten** | Marten + Encryption | PostgreSQL (ES Audit + Temporal Crypto-Shredding) | ✅ Completo (#800) |
 | **Encina.InMemory** | Channels | N/A (Testing) | ✅ Completo |
 | **Encina.IdGeneration** | Multi-strategy | Todas (type mapping) | ✅ Completo |
 

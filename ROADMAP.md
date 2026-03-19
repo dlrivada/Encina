@@ -218,6 +218,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
   - ✅ Lawful Basis [#779](https://github.com/dlrivada/Encina/issues/779) — Extracted to `Encina.Compliance.LawfulBasis` + migrated to Marten event sourcing
   - ✅ Breach Notification [#780](https://github.com/dlrivada/Encina/issues/780) — Migrated to Marten event sourcing
   - ✅ DPIA [#781](https://github.com/dlrivada/Encina/issues/781) — Migrated to Marten event sourcing
+- ✅ Encina.Audit.Marten [#800](https://github.com/dlrivada/Encina/issues/800) — Event-sourced IAuditStore with temporal crypto-shredding for compliance-grade audit trails
 - NIS2 Directive compliance
 - AI Act compliance
 

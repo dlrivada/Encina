@@ -8,6 +8,7 @@ This directory contains benchmark result templates and analysis guides for Encin
 |----------|-------------|
 | [dapper-vs-ado-comparison.md](dapper-vs-ado-comparison.md) | Direct comparison between Dapper and ADO.NET providers |
 | [provider-sql-dialect-comparison.md](provider-sql-dialect-comparison.md) | SQL generation performance across database providers |
+| [audit-marten-benchmark-results.md](audit-marten-benchmark-results.md) | AES-256-GCM encryption/decryption and temporal key provider benchmarks for Encina.Audit.Marten |
 
 ## Purpose
 

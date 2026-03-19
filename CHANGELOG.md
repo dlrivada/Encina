@@ -2018,6 +2018,32 @@ Added the `Encina.Compliance.CrossBorderTransfer` package implementing GDPR Arti
 
 **Testing**: 184 tests across 7 test projects (87 unit, 30 guard, 14 property, 42 contract, 24 integration). Integration tests verify aggregate persistence and service lifecycle against real PostgreSQL via Marten/Testcontainers. Load tests (7 scenarios: adequacy fast path, SCC validation, full cascade to block, risk assessor concurrent, mixed validation, pipeline validation, latency distribution P50/P95/P99 — 50 workers × 10K ops). Benchmarks: `TransferValidatorBenchmarks` (5 benchmarks: adequacy baseline, approved transfer, SCC agreement, TIA deep cascade, block full cascade) and `TransferPipelineBenchmarks` (5 benchmarks: block adequate baseline, block non-adequate, warn mode, disabled mode, no attribute skip branch).
 
+#### Encina.Audit.Marten — Event-Sourced IAuditStore with Temporal Crypto-Shredding (#800)
+
+Added the `Encina.Audit.Marten` package providing event-sourced `IAuditStore` and `IReadAuditStore` implementations using Marten (PostgreSQL) with temporal crypto-shredding for compliance-grade audit trails. Audit entries are stored as immutable, append-only events with PII fields encrypted using time-partitioned AES-256-GCM keys. `PurgeEntriesAsync` destroys temporal keys (crypto-shredding) instead of deleting events, achieving GDPR data minimization while preserving SOX/NIS2 event stream integrity.
+
+**Core Components**:
+
+- **`MartenAuditStore`**: `IAuditStore` implementation — encrypts PII, appends events, queries async-projected read models
+- **`MartenReadAuditStore`**: `IReadAuditStore` implementation — same pattern for read access audit
+- **`ITemporalKeyProvider`**: Time-partitioned encryption key lifecycle (create, retrieve, destroy)
+- **`MartenTemporalKeyProvider`**: PostgreSQL-backed key persistence via Marten document store
+- **`InMemoryTemporalKeyProvider`**: In-memory key provider for testing
+- **`AuditEventEncryptor`**: Maps `AuditEntry` to encrypted `AuditEntryRecordedEvent` with selective PII encryption
+- **`EncryptedField`**: AES-256-GCM authenticated encryption value object with nonce, tag, and key ID tracking
+
+**Async Projections**: `AuditEntryProjection` and `ReadAuditEntryProjection` as Marten async projections that decrypt PII fields at projection time. Shredded entries (destroyed keys) show `[SHREDDED]` placeholder values with `IsShredded = true`.
+
+**Configuration** (`MartenAuditOptions`): `TemporalGranularity` (Monthly/Quarterly/Yearly), `EncryptionScope` (PiiFieldsOnly/AllFields), `RetentionPeriod` (default 2555 days for SOX), `EnableAutoPurge`, `PurgeIntervalHours`, `ShreddedPlaceholder`, `AddHealthCheck`.
+
+**Observability**: ActivitySource `Encina.Audit.Marten` (5 activities), Meter `Encina.Audit.Marten` (5 counters + 3 histograms), 18 structured log events (EventId 2500-2536) via `[LoggerMessage]` source generator. Health check `MartenAuditHealthCheck` verifying Marten connectivity and temporal key provider status.
+
+**DI Registration**: `services.AddEncinaAuditMarten()` with `Replace` semantics for `IAuditStore`/`IReadAuditStore` (overrides InMemory defaults). Conditional `MartenAuditRetentionService` background service and health check.
+
+**Performance**: Encryption overhead < 1% of total audit recording cost. EncryptedField: ~900 ns/field (16B), ~8.6 us/entry (6 PII fields). Temporal key lookup: ~60 ns. Load test: 508K entries/sec with P50 8.7 us, P99 0.24 ms (8 workers, 15s, 2KB payload).
+
+**Testing**: 86 tests across 5 test projects (60 unit, 13 guard, 6 property, 7 integration). 17 BenchmarkDotNet benchmarks (EncryptedField, TemporalKeyProvider, AuditEventEncryptor). Load test: 8-worker concurrent encryption with throughput and latency percentile assertions.
+
 ---
 
 ### Changed

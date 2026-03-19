@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Encina.Audit.Marten</PackageId>
+    <Description>Event-sourced IAuditStore implementation using Marten (PostgreSQL) with temporal crypto-shredding for compliance-grade audit trails. Provides immutable, append-only audit events with time-partitioned encryption keys that enable GDPR data minimization via key destruction while preserving event stream integrity for SOX/NIS2 compliance.</Description>
+    <PackageTags>encina;marten;audit;event-sourcing;crypto-shredding;compliance;sox;nis2;gdpr;immutable;temporal-keys</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Encina.Marten\Encina.Marten.csproj" />
+    <ProjectReference Include="..\Encina.Marten.GDPR\Encina.Marten.GDPR.csproj" />
+    <ProjectReference Include="..\Encina.Security.Audit\Encina.Security.Audit.csproj" />
+    <ProjectReference Include="..\Encina.Security.Encryption\Encina.Security.Encryption.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LanguageExt.Core" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Encina.UnitTests" />
+    <InternalsVisibleTo Include="Encina.IntegrationTests" />
+    <InternalsVisibleTo Include="Encina.ContractTests" />
+    <InternalsVisibleTo Include="Encina.PropertyTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
