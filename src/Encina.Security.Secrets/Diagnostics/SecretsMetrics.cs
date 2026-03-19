@@ -35,7 +35,7 @@ namespace Encina.Security.Secrets.Diagnostics;
 /// the option before calling record methods to avoid unnecessary allocations.
 /// </para>
 /// </remarks>
-internal sealed class SecretsMetrics
+public sealed class SecretsMetrics
 {
     internal const string MeterName = "Encina.Security.Secrets";
     internal const string MeterVersion = "1.0.0";
@@ -52,6 +52,13 @@ internal sealed class SecretsMetrics
     // Histogram instruments
     private readonly Histogram<double> _getDuration;
     private readonly Histogram<double> _injectionDuration;
+
+    // Resilience instruments
+    private readonly Counter<long> _retryCount;
+    private readonly Counter<long> _circuitBreakerTransitions;
+    private readonly Counter<long> _timeoutCount;
+    private readonly Counter<long> _staleFallbackCount;
+    private readonly Histogram<double> _resilienceDuration;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SecretsMetrics"/> class.
@@ -100,6 +107,27 @@ internal sealed class SecretsMetrics
             "secrets.injection.duration",
             unit: "ms",
             description: "Duration of injection pipeline operations in milliseconds.");
+
+        _retryCount = meter.CreateCounter<long>(
+            "secrets.resilience.retry.count",
+            description: "Total number of resilience retry attempts for secret operations.");
+
+        _circuitBreakerTransitions = meter.CreateCounter<long>(
+            "secrets.resilience.circuit_breaker.transitions",
+            description: "Total number of circuit breaker state transitions.");
+
+        _timeoutCount = meter.CreateCounter<long>(
+            "secrets.resilience.timeout.count",
+            description: "Total number of resilience timeout occurrences.");
+
+        _staleFallbackCount = meter.CreateCounter<long>(
+            "secrets.resilience.stale_fallback.count",
+            description: "Total number of stale secret values served from cache during provider unavailability.");
+
+        _resilienceDuration = meter.CreateHistogram<double>(
+            "secrets.resilience.duration",
+            unit: "ms",
+            description: "Duration of resilient secret operations in milliseconds (including retries).");
     }
 
     /// <summary>
@@ -228,5 +256,80 @@ internal sealed class SecretsMetrics
         };
 
         _failoverCount.Add(1, tags);
+    }
+
+    /// <summary>
+    /// Records a resilience retry attempt.
+    /// </summary>
+    /// <param name="attemptNumber">The retry attempt number (1-based).</param>
+    /// <param name="reason">The reason for the retry.</param>
+    public void RecordRetry(int attemptNumber, string reason)
+    {
+        var tags = new TagList
+        {
+            { SecretsActivitySource.TagRetryAttempt, attemptNumber },
+            { "reason", reason }
+        };
+
+        _retryCount.Add(1, tags);
+    }
+
+    /// <summary>
+    /// Records a circuit breaker state transition.
+    /// </summary>
+    /// <param name="newState">The new circuit breaker state (opened, closed, half_open).</param>
+    public void RecordCircuitBreakerTransition(string newState)
+    {
+        var tags = new TagList
+        {
+            { SecretsActivitySource.TagCircuitBreakerState, newState }
+        };
+
+        _circuitBreakerTransitions.Add(1, tags);
+    }
+
+    /// <summary>
+    /// Records a resilience timeout occurrence.
+    /// </summary>
+    /// <param name="timeoutSeconds">The configured timeout in seconds.</param>
+    public void RecordTimeout(double timeoutSeconds)
+    {
+        var tags = new TagList
+        {
+            { SecretsActivitySource.TagTimeoutDurationS, timeoutSeconds }
+        };
+
+        _timeoutCount.Add(1, tags);
+    }
+
+    /// <summary>
+    /// Records that a stale secret was served from cache.
+    /// </summary>
+    /// <param name="secretName">The name of the secret.</param>
+    public void RecordStaleFallback(string secretName)
+    {
+        var tags = new TagList
+        {
+            { SecretsActivitySource.TagSecretName, secretName }
+        };
+
+        _staleFallbackCount.Add(1, tags);
+    }
+
+    /// <summary>
+    /// Records the duration of a resilient secret operation.
+    /// </summary>
+    /// <param name="secretName">The name of the secret.</param>
+    /// <param name="success">Whether the operation succeeded.</param>
+    /// <param name="elapsed">The elapsed time.</param>
+    public void RecordResilienceDuration(string secretName, bool success, TimeSpan elapsed)
+    {
+        var tags = new TagList
+        {
+            { SecretsActivitySource.TagSecretName, secretName },
+            { SecretsActivitySource.TagOutcome, success ? "success" : "failure" }
+        };
+
+        _resilienceDuration.Record(elapsed.TotalMilliseconds, tags);
     }
 }

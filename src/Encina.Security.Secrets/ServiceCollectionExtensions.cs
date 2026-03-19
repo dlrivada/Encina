@@ -7,6 +7,7 @@ using Encina.Security.Secrets.Diagnostics;
 using Encina.Security.Secrets.Health;
 using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
+using Encina.Security.Secrets.Resilience;
 using Encina.Security.Secrets.Rotation;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
 
 namespace Encina.Security.Secrets;
 
@@ -217,6 +219,37 @@ public static class ServiceCollectionExtensions
                     tags: SecretsHealthCheck.Tags);
         }
 
+        // Register resilience pipeline if enabled
+        if (optionsInstance.EnableResilience)
+        {
+            services.TryAddSingleton<SecretsCircuitBreakerState>();
+            services.TryAddSingleton(sp =>
+            {
+                var cbState = sp.GetRequiredService<SecretsCircuitBreakerState>();
+                var logger = sp.GetRequiredService<ILogger<ResilientSecretReaderDecorator>>();
+                var metrics = sp.GetService<SecretsMetrics>();
+                return SecretsResiliencePipelineFactory.Create(optionsInstance.Resilience, cbState, logger, metrics);
+            });
+
+            // Decorate ISecretWriter with resilience
+            DecorateService<ISecretWriter>(services, (inner, sp) =>
+                new ResilientSecretWriterDecorator(
+                    inner,
+                    sp.GetRequiredService<ResiliencePipeline>(),
+                    optionsInstance.Resilience,
+                    sp.GetRequiredService<ILogger<ResilientSecretWriterDecorator>>(),
+                    sp.GetService<SecretsMetrics>()));
+
+            // Decorate ISecretRotator with resilience
+            DecorateService<ISecretRotator>(services, (inner, sp) =>
+                new ResilientSecretRotatorDecorator(
+                    inner,
+                    sp.GetRequiredService<ResiliencePipeline>(),
+                    optionsInstance.Resilience,
+                    sp.GetRequiredService<ILogger<ResilientSecretRotatorDecorator>>(),
+                    sp.GetService<SecretsMetrics>()));
+        }
+
         // Register secret injection pipeline behavior if enabled
         if (optionsInstance.EnableSecretInjection)
         {
@@ -240,14 +273,26 @@ public static class ServiceCollectionExtensions
     {
         var options = sp.GetRequiredService<IOptions<SecretsOptions>>().Value;
 
-        // Layer 1: Caching (innermost decorator, closest to provider)
+        // Layer 0: Resilience (innermost decorator, closest to provider)
+        if (options.EnableResilience)
+        {
+            reader = new ResilientSecretReaderDecorator(
+                reader,
+                sp.GetRequiredService<ResiliencePipeline>(),
+                options.Resilience,
+                sp.GetRequiredService<ILogger<ResilientSecretReaderDecorator>>(),
+                sp.GetService<SecretsMetrics>());
+        }
+
+        // Layer 1: Caching (wraps resilience — cache hits bypass retries, stale fallback on error)
         if (options.EnableCaching)
         {
             reader = new CachedSecretReaderDecorator(
                 reader,
                 sp.GetRequiredService<IMemoryCache>(),
                 sp.GetRequiredService<IOptions<SecretsOptions>>(),
-                sp.GetRequiredService<ILogger<CachedSecretReaderDecorator>>());
+                sp.GetRequiredService<ILogger<CachedSecretReaderDecorator>>(),
+                sp.GetService<SecretsMetrics>());
         }
 
         // Layer 2: Auditing (outer decorator, wraps caching)
@@ -268,5 +313,48 @@ public static class ServiceCollectionExtensions
         }
 
         return reader;
+    }
+
+    /// <summary>
+    /// Decorates an existing service registration by removing the original descriptor
+    /// and re-adding a wrapped version. No-op if the service is not registered.
+    /// </summary>
+    private static void DecorateService<TService>(
+        IServiceCollection services,
+        Func<TService, IServiceProvider, TService> decorator)
+        where TService : class
+    {
+        var original = services.LastOrDefault(d => d.ServiceType == typeof(TService));
+        if (original is null)
+        {
+            return;
+        }
+
+        services.Remove(original);
+
+        services.AddSingleton<TService>(sp =>
+        {
+            TService inner;
+
+            if (original.ImplementationFactory is not null)
+            {
+                inner = (TService)original.ImplementationFactory(sp);
+            }
+            else if (original.ImplementationInstance is not null)
+            {
+                inner = (TService)original.ImplementationInstance;
+            }
+            else if (original.ImplementationType is not null)
+            {
+                inner = (TService)ActivatorUtilities.CreateInstance(sp, original.ImplementationType);
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"Cannot decorate service '{typeof(TService).Name}': unsupported ServiceDescriptor configuration.");
+            }
+
+            return decorator(inner, sp);
+        });
     }
 }

@@ -58,6 +58,23 @@ internal static class SecretsActivitySource
     internal const string TagOperation = "secrets.operation";
     internal const string TagOutcome = "secrets.outcome";
 
+    // Resilience-specific activity names
+    internal const string ResilienceOperationActivity = "Secrets.Resilience";
+    internal const string ResilienceRetryEvent = "Secrets.Resilience.Retry";
+    internal const string ResilienceCircuitBreakerOpenEvent = "Secrets.Resilience.CircuitBreakerOpen";
+    internal const string ResilienceCircuitBreakerClosedEvent = "Secrets.Resilience.CircuitBreakerClosed";
+    internal const string ResilienceCircuitBreakerHalfOpenEvent = "Secrets.Resilience.CircuitBreakerHalfOpen";
+    internal const string ResilienceTimeoutEvent = "Secrets.Resilience.Timeout";
+    internal const string ResilienceStaleFallbackEvent = "Secrets.Resilience.StaleFallback";
+
+    // Resilience-specific tag names
+    internal const string TagRetryAttempt = "secrets.resilience.retry_attempt";
+    internal const string TagRetryMaxAttempts = "secrets.resilience.retry_max_attempts";
+    internal const string TagRetryDelayMs = "secrets.resilience.retry_delay_ms";
+    internal const string TagCircuitBreakerState = "secrets.resilience.circuit_breaker_state";
+    internal const string TagTimeoutDurationS = "secrets.resilience.timeout_duration_s";
+    internal const string TagResilienceOutcome = "secrets.resilience.outcome";
+
     /// <summary>
     /// Starts a new activity for a secret read operation.
     /// </summary>
@@ -179,5 +196,82 @@ internal static class SecretsActivitySource
         activity?.SetTag(TagOutcome, "failure");
         activity?.SetTag(TagErrorCode, errorCode);
         activity?.SetStatus(ActivityStatusCode.Error, errorMessage ?? errorCode);
+    }
+
+    /// <summary>
+    /// Starts a new activity for a resilient secret operation.
+    /// </summary>
+    /// <param name="secretName">The name of the secret being accessed.</param>
+    /// <param name="operation">The operation type (get, set, rotate).</param>
+    /// <returns>The started activity, or <c>null</c> if no listeners are registered.</returns>
+    internal static Activity? StartResilienceActivity(string secretName, string operation)
+    {
+        if (!Source.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = Source.StartActivity(ResilienceOperationActivity, ActivityKind.Internal);
+        activity?.SetTag(TagSecretName, secretName);
+        activity?.SetTag(TagOperation, operation);
+        return activity;
+    }
+
+    /// <summary>
+    /// Records a retry event on a resilience activity.
+    /// </summary>
+    internal static void RecordRetryEvent(Activity? activity, int attemptNumber, int maxAttempts, double delayMs, string reason)
+    {
+        activity?.AddEvent(new ActivityEvent(ResilienceRetryEvent, tags: new ActivityTagsCollection
+        {
+            { TagRetryAttempt, attemptNumber },
+            { TagRetryMaxAttempts, maxAttempts },
+            { TagRetryDelayMs, delayMs },
+            { "reason", reason }
+        }));
+    }
+
+    /// <summary>
+    /// Records a circuit breaker state change event.
+    /// </summary>
+    internal static void RecordCircuitBreakerEvent(Activity? activity, string state)
+    {
+        var eventName = state switch
+        {
+            "opened" => ResilienceCircuitBreakerOpenEvent,
+            "closed" => ResilienceCircuitBreakerClosedEvent,
+            "half_open" => ResilienceCircuitBreakerHalfOpenEvent,
+            _ => ResilienceCircuitBreakerOpenEvent
+        };
+
+        activity?.AddEvent(new ActivityEvent(eventName, tags: new ActivityTagsCollection
+        {
+            { TagCircuitBreakerState, state }
+        }));
+    }
+
+    /// <summary>
+    /// Records a timeout event on a resilience activity.
+    /// </summary>
+    internal static void RecordTimeoutEvent(Activity? activity, double timeoutSeconds)
+    {
+        activity?.AddEvent(new ActivityEvent(ResilienceTimeoutEvent, tags: new ActivityTagsCollection
+        {
+            { TagTimeoutDurationS, timeoutSeconds }
+        }));
+        activity?.SetTag(TagResilienceOutcome, "timeout");
+        activity?.SetStatus(ActivityStatusCode.Error, "Operation timed out");
+    }
+
+    /// <summary>
+    /// Records a stale fallback event on a resilience activity.
+    /// </summary>
+    internal static void RecordStaleFallbackEvent(Activity? activity, string secretName)
+    {
+        activity?.AddEvent(new ActivityEvent(ResilienceStaleFallbackEvent, tags: new ActivityTagsCollection
+        {
+            { TagSecretName, secretName }
+        }));
+        activity?.SetTag(TagResilienceOutcome, "stale_fallback");
     }
 }

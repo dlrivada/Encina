@@ -10,7 +10,7 @@ Encina.Security.Secrets.Abstractions.ISecretRotator.RotateSecretAsync(string! se
 Encina.Security.Secrets.Abstractions.ISecretWriter
 Encina.Security.Secrets.Abstractions.ISecretWriter.SetSecretAsync(string! secretName, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.Secrets.Caching.CachedSecretReaderDecorator
-Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.CachedSecretReaderDecorator(Encina.Security.Secrets.Abstractions.ISecretReader! inner, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Options.IOptions<Encina.Security.Secrets.SecretsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Caching.CachedSecretReaderDecorator!>! logger) -> void
+Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.CachedSecretReaderDecorator(Encina.Security.Secrets.Abstractions.ISecretReader! inner, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Options.IOptions<Encina.Security.Secrets.SecretsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Caching.CachedSecretReaderDecorator!>! logger, Encina.Security.Secrets.Diagnostics.SecretsMetrics? metrics = null) -> void
 Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
 Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
 Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.Invalidate(string! secretName) -> void
@@ -127,3 +127,55 @@ Encina.Security.Secrets.SecretsOptions.EnableSecretInjection.set -> void
 Encina.Security.Secrets.SecretsOptions.HealthCheckSecretName.get -> string?
 Encina.Security.Secrets.SecretsOptions.HealthCheckSecretName.set -> void
 Encina.Security.Secrets.Providers.FailoverSecretReader.ProviderCount.get -> int
+Encina.Security.Secrets.Resilience.ResilientSecretReaderDecorator
+Encina.Security.Secrets.Resilience.ResilientSecretReaderDecorator.ResilientSecretReaderDecorator(Encina.Security.Secrets.Abstractions.ISecretReader! inner, Polly.ResiliencePipeline! pipeline, Encina.Security.Secrets.Resilience.SecretsResilienceOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Resilience.ResilientSecretReaderDecorator!>! logger, Encina.Security.Secrets.Diagnostics.SecretsMetrics? metrics = null) -> void
+Encina.Security.Secrets.Resilience.ResilientSecretReaderDecorator.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Resilience.ResilientSecretReaderDecorator.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.Resilience.ResilientSecretWriterDecorator
+Encina.Security.Secrets.Resilience.ResilientSecretWriterDecorator.ResilientSecretWriterDecorator(Encina.Security.Secrets.Abstractions.ISecretWriter! inner, Polly.ResiliencePipeline! pipeline, Encina.Security.Secrets.Resilience.SecretsResilienceOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Resilience.ResilientSecretWriterDecorator!>! logger, Encina.Security.Secrets.Diagnostics.SecretsMetrics? metrics = null) -> void
+Encina.Security.Secrets.Resilience.ResilientSecretWriterDecorator.SetSecretAsync(string! secretName, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.Resilience.ResilientSecretRotatorDecorator
+Encina.Security.Secrets.Resilience.ResilientSecretRotatorDecorator.ResilientSecretRotatorDecorator(Encina.Security.Secrets.Abstractions.ISecretRotator! inner, Polly.ResiliencePipeline! pipeline, Encina.Security.Secrets.Resilience.SecretsResilienceOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Resilience.ResilientSecretRotatorDecorator!>! logger, Encina.Security.Secrets.Diagnostics.SecretsMetrics? metrics = null) -> void
+Encina.Security.Secrets.Resilience.ResilientSecretRotatorDecorator.RotateSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.SecretsResilienceOptions() -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.MaxRetryAttempts.get -> int
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.MaxRetryAttempts.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.RetryBaseDelay.get -> System.TimeSpan
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.RetryBaseDelay.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.RetryMaxDelay.get -> System.TimeSpan
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.RetryMaxDelay.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerFailureRatio.get -> double
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerFailureRatio.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerSamplingDuration.get -> System.TimeSpan
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerSamplingDuration.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerMinimumThroughput.get -> int
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerMinimumThroughput.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerBreakDuration.get -> System.TimeSpan
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.CircuitBreakerBreakDuration.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.OperationTimeout.get -> System.TimeSpan
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.OperationTimeout.set -> void
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.MaxStaleDuration.get -> System.TimeSpan
+Encina.Security.Secrets.Resilience.SecretsResilienceOptions.MaxStaleDuration.set -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.SecretsMetrics(System.Diagnostics.Metrics.IMeterFactory! meterFactory) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordGetSecret(string! secretName, bool success, System.TimeSpan elapsed, string? errorCode = null) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordSetSecret(string! secretName, bool success, string? errorCode = null) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordRotation(string! secretName, bool success, string? errorCode = null) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordCacheHit(string! secretName) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordCacheMiss(string! secretName) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordInjection(System.Type! requestType, bool success, System.TimeSpan elapsed, int propertiesInjected = 0) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordFailover(string! secretName, string! providerType) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordRetry(int attemptNumber, string! reason) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordCircuitBreakerTransition(string! newState) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordTimeout(double timeoutSeconds) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordStaleFallback(string! secretName) -> void
+Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordResilienceDuration(string! secretName, bool success, System.TimeSpan elapsed) -> void
+Encina.Security.Secrets.SecretsOptions.EnableResilience.get -> bool
+Encina.Security.Secrets.SecretsOptions.EnableResilience.set -> void
+Encina.Security.Secrets.SecretsOptions.Resilience.get -> Encina.Security.Secrets.Resilience.SecretsResilienceOptions!
+Encina.Security.Secrets.SecretsOptions.Resilience.set -> void
+const Encina.Security.Secrets.SecretsErrors.CircuitBreakerOpenCode = "secrets.circuit_breaker_open" -> string!
+const Encina.Security.Secrets.SecretsErrors.ResilienceTimeoutCode = "secrets.resilience_timeout" -> string!
+static Encina.Security.Secrets.SecretsErrors.CircuitBreakerOpen(string! providerName) -> Encina.EncinaError
+static Encina.Security.Secrets.SecretsErrors.ResilienceTimeout(string! secretName, System.TimeSpan timeout) -> Encina.EncinaError

@@ -39,6 +39,12 @@ public static class SecretsErrors
     /// <summary>Error code when audit recording for a secret access fails.</summary>
     public const string AuditFailedCode = "secrets.audit_failed";
 
+    /// <summary>Error code when the circuit breaker is open and requests are rejected immediately.</summary>
+    public const string CircuitBreakerOpenCode = "secrets.circuit_breaker_open";
+
+    /// <summary>Error code when a secret operation exceeds the configured timeout.</summary>
+    public const string ResilienceTimeoutCode = "secrets.resilience_timeout";
+
     /// <summary>
     /// Creates an error for a secret that was not found.
     /// </summary>
@@ -180,6 +186,38 @@ public static class SecretsErrors
             {
                 ["secretName"] = secretName,
                 ["providerCount"] = providerCount,
+                [MetadataKeyStage] = MetadataStageSecrets
+            });
+
+    /// <summary>
+    /// Creates an error when the circuit breaker is open and requests are rejected.
+    /// </summary>
+    /// <param name="providerName">The name of the provider whose circuit is open.</param>
+    /// <returns>An error indicating the circuit breaker is open.</returns>
+    public static EncinaError CircuitBreakerOpen(string providerName) =>
+        EncinaErrors.Create(
+            code: CircuitBreakerOpenCode,
+            message: $"Circuit breaker is open for secret provider '{providerName}'. Requests are being rejected to prevent cascading failures.",
+            details: new Dictionary<string, object?>
+            {
+                ["providerName"] = providerName,
+                [MetadataKeyStage] = MetadataStageSecrets
+            });
+
+    /// <summary>
+    /// Creates an error when a secret operation exceeds the configured timeout.
+    /// </summary>
+    /// <param name="secretName">The name of the secret being accessed.</param>
+    /// <param name="timeout">The configured timeout duration.</param>
+    /// <returns>An error indicating the operation timed out.</returns>
+    public static EncinaError ResilienceTimeout(string secretName, TimeSpan timeout) =>
+        EncinaErrors.Create(
+            code: ResilienceTimeoutCode,
+            message: $"Secret operation for '{secretName}' timed out after {timeout.TotalSeconds:F0}s.",
+            details: new Dictionary<string, object?>
+            {
+                ["secretName"] = secretName,
+                ["timeoutSeconds"] = timeout.TotalSeconds,
                 [MetadataKeyStage] = MetadataStageSecrets
             });
 

@@ -1,3 +1,5 @@
+using Encina.Security.Secrets.Resilience;
+
 namespace Encina.Security.Secrets;
 
 /// <summary>
@@ -121,6 +123,27 @@ public sealed class SecretsOptions
     /// before handler execution. Default is <c>false</c> (opt-in).
     /// </remarks>
     public bool EnableSecretInjection { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether resilience patterns (retry, circuit breaker, timeout) are enabled
+    /// for secret provider operations.
+    /// </summary>
+    /// <remarks>
+    /// When <c>true</c>, all secret operations are wrapped with a Polly resilience pipeline
+    /// that retries transient failures, prevents cascading failures via circuit breaker,
+    /// and enforces operation timeouts. Configure via <see cref="Resilience"/>.
+    /// Default is <c>false</c>.
+    /// </remarks>
+    public bool EnableResilience { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resilience pipeline configuration.
+    /// </summary>
+    /// <remarks>
+    /// Only applies when <see cref="EnableResilience"/> is <c>true</c>.
+    /// Controls retry attempts, circuit breaker thresholds, and operation timeouts.
+    /// </remarks>
+    public SecretsResilienceOptions Resilience { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the name of a secret to probe during health checks.

@@ -105,4 +105,24 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 114, Level = LogLevel.Error, Message = "Secret injection failed for {RequestType}: secret '{SecretName}' for property '{PropertyName}' could not be resolved")]
     public static partial void SecretInjectionFailed(ILogger logger, string requestType, string secretName, string propertyName);
+
+    // Resilience operations: EventIds 120-129
+    [LoggerMessage(EventId = 120, Level = LogLevel.Warning, Message = "Resilience retry attempt {AttemptNumber}/{MaxAttempts} after {DelayMs:F0}ms delay. Reason: {Reason}")]
+    public static partial void ResilienceRetryAttempt(ILogger logger, int attemptNumber, int maxAttempts, double delayMs, string reason);
+
+    [LoggerMessage(EventId = 121, Level = LogLevel.Warning, Message = "Secrets circuit breaker opened — subsequent requests will be rejected")]
+    public static partial void ResilienceCircuitBreakerOpened(ILogger logger);
+
+    [LoggerMessage(EventId = 122, Level = LogLevel.Information, Message = "Secrets circuit breaker closed — requests flowing normally")]
+    public static partial void ResilienceCircuitBreakerClosed(ILogger logger);
+
+    [LoggerMessage(EventId = 123, Level = LogLevel.Information, Message = "Secrets circuit breaker half-open — testing recovery with a single request")]
+    public static partial void ResilienceCircuitBreakerHalfOpen(ILogger logger);
+
+    [LoggerMessage(EventId = 124, Level = LogLevel.Warning, Message = "Secret operation timed out after {TimeoutSeconds:F0}s")]
+    public static partial void ResilienceTimeoutExceeded(ILogger logger, double timeoutSeconds);
+
+    // Stale fallback: EventId 125
+    [LoggerMessage(EventId = 125, Level = LogLevel.Warning, Message = "Serving stale cached value for secret '{SecretName}' because provider is unavailable")]
+    public static partial void StaleFallbackServed(ILogger logger, string secretName);
 }

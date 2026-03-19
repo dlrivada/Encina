@@ -1,6 +1,7 @@
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Providers;
+using Encina.Security.Secrets.Resilience;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
@@ -99,6 +100,21 @@ public sealed class SecretsHealthCheck : IHealthCheck
             if (secretReader is CachedSecretReaderDecorator)
             {
                 data["decorators"] = "cached";
+            }
+
+            // Report circuit breaker state when resilience is enabled
+            var circuitBreakerState = scopedProvider.GetService<SecretsCircuitBreakerState>();
+            if (circuitBreakerState is not null)
+            {
+                data["resilienceEnabled"] = true;
+                data["circuitBreakerState"] = circuitBreakerState.State.ToString();
+
+                if (circuitBreakerState.State == CircuitBreakerStateValue.Opened)
+                {
+                    return HealthCheckResult.Degraded(
+                        "Secrets subsystem is degraded. Circuit breaker is open — provider may be unavailable.",
+                        data: data);
+                }
             }
 
             // If a probe secret is configured, attempt to read it
