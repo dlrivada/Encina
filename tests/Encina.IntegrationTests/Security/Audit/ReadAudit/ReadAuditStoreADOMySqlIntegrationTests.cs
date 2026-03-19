@@ -74,9 +74,13 @@ public class ReadAuditStoreADOMySqlIntegrationTests : IAsyncLifetime
         ReadAccessMethod accessMethod = ReadAccessMethod.Repository, int entityCount = 1) =>
         new()
         {
-            Id = Guid.NewGuid(), EntityType = entityType, EntityId = entityId,
-            UserId = userId, AccessedAtUtc = accessedAtUtc ?? DateTimeOffset.UtcNow,
-            AccessMethod = accessMethod, EntityCount = entityCount
+            Id = Guid.NewGuid(),
+            EntityType = entityType,
+            EntityId = entityId,
+            UserId = userId,
+            AccessedAtUtc = accessedAtUtc ?? DateTimeOffset.UtcNow,
+            AccessMethod = accessMethod,
+            EntityCount = entityCount
         };
 
     [Fact]

@@ -182,17 +182,27 @@ public class AuditStoreEFMySqlIntegrationTests : IAsyncLifetime
         var now = DateTimeOffset.UtcNow;
         await store.RecordAsync(new AuditEntry
         {
-            Id = Guid.NewGuid(), CorrelationId = correlationId, Action = "Start",
-            EntityType = "Order", Outcome = AuditOutcome.Success,
-            TimestampUtc = DateTime.UtcNow, StartedAtUtc = now,
-            CompletedAtUtc = now.AddMilliseconds(50), Metadata = new Dictionary<string, object?>()
+            Id = Guid.NewGuid(),
+            CorrelationId = correlationId,
+            Action = "Start",
+            EntityType = "Order",
+            Outcome = AuditOutcome.Success,
+            TimestampUtc = DateTime.UtcNow,
+            StartedAtUtc = now,
+            CompletedAtUtc = now.AddMilliseconds(50),
+            Metadata = new Dictionary<string, object?>()
         });
         await store.RecordAsync(new AuditEntry
         {
-            Id = Guid.NewGuid(), CorrelationId = correlationId, Action = "Complete",
-            EntityType = "Order", Outcome = AuditOutcome.Success,
-            TimestampUtc = DateTime.UtcNow.AddSeconds(1), StartedAtUtc = now.AddSeconds(1),
-            CompletedAtUtc = now.AddSeconds(1).AddMilliseconds(50), Metadata = new Dictionary<string, object?>()
+            Id = Guid.NewGuid(),
+            CorrelationId = correlationId,
+            Action = "Complete",
+            EntityType = "Order",
+            Outcome = AuditOutcome.Success,
+            TimestampUtc = DateTime.UtcNow.AddSeconds(1),
+            StartedAtUtc = now.AddSeconds(1),
+            CompletedAtUtc = now.AddSeconds(1).AddMilliseconds(50),
+            Metadata = new Dictionary<string, object?>()
         });
 
         var result = await store.GetByCorrelationIdAsync(correlationId);

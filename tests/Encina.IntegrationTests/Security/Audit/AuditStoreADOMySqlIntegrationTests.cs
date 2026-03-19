@@ -239,17 +239,25 @@ public class AuditStoreADOMySqlIntegrationTests : IAsyncLifetime
         var now = DateTimeOffset.UtcNow;
         await _store.RecordAsync(new AuditEntry
         {
-            Id = Guid.NewGuid(), CorrelationId = correlationId, Action = "Start",
-            EntityType = "Order", Outcome = AuditOutcome.Success,
-            TimestampUtc = DateTime.UtcNow, StartedAtUtc = now,
+            Id = Guid.NewGuid(),
+            CorrelationId = correlationId,
+            Action = "Start",
+            EntityType = "Order",
+            Outcome = AuditOutcome.Success,
+            TimestampUtc = DateTime.UtcNow,
+            StartedAtUtc = now,
             CompletedAtUtc = now.AddMilliseconds(50),
             Metadata = new Dictionary<string, object?>()
         });
         await _store.RecordAsync(new AuditEntry
         {
-            Id = Guid.NewGuid(), CorrelationId = correlationId, Action = "Complete",
-            EntityType = "Order", Outcome = AuditOutcome.Success,
-            TimestampUtc = DateTime.UtcNow.AddSeconds(1), StartedAtUtc = now.AddSeconds(1),
+            Id = Guid.NewGuid(),
+            CorrelationId = correlationId,
+            Action = "Complete",
+            EntityType = "Order",
+            Outcome = AuditOutcome.Success,
+            TimestampUtc = DateTime.UtcNow.AddSeconds(1),
+            StartedAtUtc = now.AddSeconds(1),
             CompletedAtUtc = now.AddSeconds(1).AddMilliseconds(50),
             Metadata = new Dictionary<string, object?>()
         });
