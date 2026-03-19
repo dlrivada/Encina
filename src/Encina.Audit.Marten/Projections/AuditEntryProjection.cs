@@ -1,8 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Events;
 using Encina.Security.Audit;
-
-using System.Diagnostics.CodeAnalysis;
 
 using Marten.Events.Projections;
 
