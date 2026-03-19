@@ -195,7 +195,9 @@ public static class ServiceCollectionExtensions
                 }
 
                 var logger = sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>();
-                return new PersistentPolicyAdministrationPoint(store, logger);
+                var auditStore = sp.GetService<Audit.IAuditStore>();
+                var requestContext = sp.GetService<IRequestContext>();
+                return new PersistentPolicyAdministrationPoint(store, logger, auditStore, requestContext);
             });
 
             // ── Policy Cache PubSub Hosted Service ───────────────────

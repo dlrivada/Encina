@@ -1,3 +1,6 @@
+using System.Text.Json;
+
+using Encina.Security.Audit;
 using Encina.Security.ABAC.Persistence;
 
 using LanguageExt;
@@ -38,29 +41,56 @@ namespace Encina.Security.ABAC.Administration;
 /// </list>
 /// </para>
 /// <para>
+/// <b>Audit trail</b>:
+/// When an <see cref="IAuditStore"/> is provided, all mutation operations (add, update, remove)
+/// record audit entries with before/after state. Audit recording is fire-and-forget — failures
+/// are logged but never block policy operations. This supports NIS2 Art. 10 and SOX §404
+/// compliance requirements.
+/// </para>
+/// <para>
 /// The store uses upsert semantics internally, while this PAP layer enforces business rules
 /// such as duplicate detection and existence checks.
 /// </para>
 /// </remarks>
-public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationPoint
+public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdministrationPoint
 {
     private readonly IPolicyStore _store;
+    private readonly IAuditStore? _auditStore;
+    private readonly IRequestContext? _requestContext;
     private readonly ILogger<PersistentPolicyAdministrationPoint> _logger;
+
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        WriteIndented = false,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PersistentPolicyAdministrationPoint"/> class.
     /// </summary>
     /// <param name="store">The policy store provider for persistent storage.</param>
     /// <param name="logger">Logger for structured PAP logging.</param>
+    /// <param name="auditStore">
+    /// Optional audit store for recording policy change events.
+    /// When <c>null</c>, audit recording is disabled.
+    /// </param>
+    /// <param name="requestContext">
+    /// Optional request context for resolving the actor (user ID) in audit entries.
+    /// When <c>null</c>, audit entries record the actor as <c>"system"</c>.
+    /// </param>
     public PersistentPolicyAdministrationPoint(
         IPolicyStore store,
-        ILogger<PersistentPolicyAdministrationPoint> logger)
+        ILogger<PersistentPolicyAdministrationPoint> logger,
+        IAuditStore? auditStore = null,
+        IRequestContext? requestContext = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(logger);
 
         _store = store;
         _logger = logger;
+        _auditStore = auditStore;
+        _requestContext = requestContext;
     }
 
     // ── PolicySet CRUD ──────────────────────────────────────────────
@@ -106,6 +136,7 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
         if (saveResult.IsRight)
         {
             _logger.LogDebug("Policy set '{PolicySetId}' added", policySet.Id);
+            RecordAuditFireAndForget("PolicySetCreated", "PolicySet", policySet.Id, beforeState: null, afterState: policySet);
         }
 
         return saveResult;
@@ -131,10 +162,24 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
             return ABACErrors.PolicySetNotFound(policySet.Id);
         }
 
+        // Capture before state for audit
+        object? beforeState = null;
+        if (_auditStore is not null)
+        {
+            var beforeResult = await _store.GetPolicySetAsync(policySet.Id, cancellationToken);
+            if (beforeResult.IsRight)
+            {
+                beforeState = beforeResult.Match(
+                    Right: opt => opt.Match(Some: ps => (object?)ps, None: () => null),
+                    Left: _ => null);
+            }
+        }
+
         var saveResult = await _store.SavePolicySetAsync(policySet, cancellationToken);
         if (saveResult.IsRight)
         {
             _logger.LogDebug("Policy set '{PolicySetId}' updated", policySet.Id);
+            RecordAuditFireAndForget("PolicySetUpdated", "PolicySet", policySet.Id, beforeState, afterState: policySet);
         }
 
         return saveResult;
@@ -160,10 +205,24 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
             return ABACErrors.PolicySetNotFound(policySetId);
         }
 
+        // Capture before state for audit
+        object? beforeState = null;
+        if (_auditStore is not null)
+        {
+            var beforeResult = await _store.GetPolicySetAsync(policySetId, cancellationToken);
+            if (beforeResult.IsRight)
+            {
+                beforeState = beforeResult.Match(
+                    Right: opt => opt.Match(Some: ps => (object?)ps, None: () => null),
+                    Left: _ => null);
+            }
+        }
+
         var deleteResult = await _store.DeletePolicySetAsync(policySetId, cancellationToken);
         if (deleteResult.IsRight)
         {
             _logger.LogDebug("Policy set '{PolicySetId}' removed", policySetId);
+            RecordAuditFireAndForget("PolicySetRemoved", "PolicySet", policySetId, beforeState, afterState: null);
         }
 
         return deleteResult;
@@ -276,6 +335,7 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
             if (saveResult.IsRight)
             {
                 _logger.LogDebug("Standalone policy '{PolicyId}' added", policy.Id);
+                RecordAuditFireAndForget("PolicyCreated", "Policy", policy.Id, beforeState: null, afterState: policy);
             }
 
             return saveResult;
@@ -308,6 +368,8 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
                 "Policy '{PolicyId}' added to policy set '{PolicySetId}'",
                 policy.Id,
                 parentPolicySetId);
+            RecordAuditFireAndForget("PolicyCreated", "Policy", policy.Id, beforeState: null, afterState: policy,
+                new Dictionary<string, object?> { ["parentPolicySetId"] = parentPolicySetId });
         }
 
         return addToParentResult;
@@ -330,10 +392,24 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
         var standaloneExists = standaloneExistsResult.Match(Right: v => v, Left: _ => false);
         if (standaloneExists)
         {
+            // Capture before state for audit
+            object? beforeState = null;
+            if (_auditStore is not null)
+            {
+                var beforeResult = await _store.GetPolicyAsync(policy.Id, cancellationToken);
+                if (beforeResult.IsRight)
+                {
+                    beforeState = beforeResult.Match(
+                        Right: opt => opt.Match(Some: p => (object?)p, None: () => null),
+                        Left: _ => null);
+                }
+            }
+
             var saveResult = await _store.SavePolicyAsync(policy, cancellationToken);
             if (saveResult.IsRight)
             {
                 _logger.LogDebug("Standalone policy '{PolicyId}' updated", policy.Id);
+                RecordAuditFireAndForget("PolicyUpdated", "Policy", policy.Id, beforeState, afterState: policy);
             }
 
             return saveResult;
@@ -373,6 +449,8 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
                 "Policy '{PolicyId}' updated in policy set '{PolicySetId}'",
                 policy.Id,
                 parentPolicySet.Id);
+            RecordAuditFireAndForget("PolicyUpdated", "Policy", policy.Id, found.Policy, afterState: policy,
+                new Dictionary<string, object?> { ["parentPolicySetId"] = parentPolicySet.Id });
         }
 
         return updateResult;
@@ -395,10 +473,24 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
         var standaloneExists = standaloneExistsResult.Match(Right: v => v, Left: _ => false);
         if (standaloneExists)
         {
+            // Capture before state for audit
+            object? beforeState = null;
+            if (_auditStore is not null)
+            {
+                var beforeResult = await _store.GetPolicyAsync(policyId, cancellationToken);
+                if (beforeResult.IsRight)
+                {
+                    beforeState = beforeResult.Match(
+                        Right: opt => opt.Match(Some: p => (object?)p, None: () => null),
+                        Left: _ => null);
+                }
+            }
+
             var deleteResult = await _store.DeletePolicyAsync(policyId, cancellationToken);
             if (deleteResult.IsRight)
             {
                 _logger.LogDebug("Standalone policy '{PolicyId}' removed", policyId);
+                RecordAuditFireAndForget("PolicyRemoved", "Policy", policyId, beforeState, afterState: null);
             }
 
             return deleteResult;
@@ -438,6 +530,8 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
                 "Policy '{PolicyId}' removed from policy set '{PolicySetId}'",
                 policyId,
                 parentPolicySet.Id);
+            RecordAuditFireAndForget("PolicyRemoved", "Policy", policyId, found.Policy, afterState: null,
+                new Dictionary<string, object?> { ["parentPolicySetId"] = parentPolicySet.Id });
         }
 
         return saveResult;
@@ -485,4 +579,122 @@ public sealed class PersistentPolicyAdministrationPoint : IPolicyAdministrationP
 
         return Option<(PolicySet Parent, Policy Policy)>.None;
     }
+
+    // ── Audit Recording (Fire-and-Forget) ───────────────────────────
+
+    /// <summary>
+    /// Records an audit entry asynchronously without blocking the calling operation.
+    /// Failures are logged but never propagated.
+    /// </summary>
+    private void RecordAuditFireAndForget(
+        string action,
+        string entityType,
+        string entityId,
+        object? beforeState,
+        object? afterState,
+        Dictionary<string, object?>? additionalMetadata = null)
+    {
+        if (_auditStore is null)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var userId = _requestContext?.UserId ?? "system";
+        var correlationId = _requestContext?.CorrelationId ?? Guid.NewGuid().ToString();
+        var tenantId = _requestContext?.TenantId;
+
+        var metadata = new Dictionary<string, object?>
+        {
+            ["source"] = "PersistentPolicyAdministrationPoint"
+        };
+
+        if (beforeState is not null)
+        {
+            metadata["beforeState"] = SerializeState(beforeState);
+        }
+
+        if (afterState is not null)
+        {
+            metadata["afterState"] = SerializeState(afterState);
+        }
+
+        if (additionalMetadata is not null)
+        {
+            foreach (var kvp in additionalMetadata)
+            {
+                metadata[kvp.Key] = kvp.Value;
+            }
+        }
+
+        var entry = new AuditEntry
+        {
+            Id = Guid.NewGuid(),
+            CorrelationId = correlationId,
+            UserId = userId,
+            TenantId = tenantId,
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            Outcome = AuditOutcome.Success,
+            TimestampUtc = now.UtcDateTime,
+            StartedAtUtc = now,
+            CompletedAtUtc = now,
+            Metadata = metadata
+        };
+
+        // Fire-and-forget: do not await, do not block
+        _ = RecordAuditEntryAsync(entry);
+    }
+
+    private async Task RecordAuditEntryAsync(AuditEntry entry)
+    {
+        try
+        {
+            var result = await _auditStore!.RecordAsync(entry).ConfigureAwait(false);
+
+            result.Match(
+                Right: _ => { },
+                Left: error => LogAuditRecordingFailed(
+                    _logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", error.Message));
+        }
+        catch (Exception ex)
+        {
+            LogAuditRecordingException(_logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", ex);
+        }
+    }
+
+    private static string? SerializeState(object state)
+    {
+        try
+        {
+            return JsonSerializer.Serialize(state, SerializerOptions);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 100,
+        Level = LogLevel.Warning,
+        Message = "Failed to record audit entry for {Action} on {EntityType} '{EntityId}': {ErrorMessage}")]
+    private static partial void LogAuditRecordingFailed(
+        ILogger logger,
+        string action,
+        string entityType,
+        string entityId,
+        string errorMessage);
+
+    [LoggerMessage(
+        EventId = 101,
+        Level = LogLevel.Warning,
+        Message = "Exception while recording audit entry for {Action} on {EntityType} '{EntityId}'")]
+    private static partial void LogAuditRecordingException(
+        ILogger logger,
+        string action,
+        string entityType,
+        string entityId,
+        Exception exception);
 }
