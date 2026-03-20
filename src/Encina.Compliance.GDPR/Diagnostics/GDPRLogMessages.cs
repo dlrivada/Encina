@@ -11,8 +11,8 @@ namespace Encina.Compliance.GDPR.Diagnostics;
 /// in hot paths. All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
 /// </para>
 /// <para>
-/// Event IDs are allocated in the 8100–8199 range to avoid collisions with other
-/// Encina subsystems (Security uses 8000–8099).
+/// Event IDs are allocated in the 8100–8199 range reserved for GDPR compliance
+/// (see <c>EventIdRanges.ComplianceGDPR</c>).
 /// </para>
 /// </remarks>
 internal static class GDPRLogMessages
@@ -161,54 +161,54 @@ internal static class GDPRLogMessages
         => HealthCheckCompletedDef(logger, status, activityCount, null);
 
     // =====================================================
-    // Lawful Basis DI & Auto-Registration (8211–8213)
-    // Note: Validation events 8200–8210 are now in
+    // Lawful Basis DI & Auto-Registration (8113–8115)
+    // Note: Validation events 8120–8133 are now in
     // LawfulBasisLogMessages (source-generated).
     // =====================================================
 
-    // -- 8211: Lawful basis auto-registration completed --
+    // -- 8113: Lawful basis auto-registration completed --
 
     private static readonly Action<ILogger, int, int, int, Exception?> LawfulBasisAutoRegistrationCompletedDef =
         LoggerMessage.Define<int, int, int>(
             LogLevel.Information,
-            new EventId(8211, nameof(LawfulBasisAutoRegistrationCompleted)),
+            new EventId(8113, nameof(LawfulBasisAutoRegistrationCompleted)),
             "Lawful basis auto-registration completed. TotalRegistered={TotalRegistered}, AssembliesScanned={AssembliesScanned}, DefaultBasesApplied={DefaultBasesApplied}");
 
     internal static void LawfulBasisAutoRegistrationCompleted(this ILogger logger, int totalRegistered, int assembliesScanned, int defaultBasesApplied)
         => LawfulBasisAutoRegistrationCompletedDef(logger, totalRegistered, assembliesScanned, defaultBasesApplied, null);
 
-    // -- 8212: Lawful basis auto-registration skipped (custom registry) --
+    // -- 8114: Lawful basis auto-registration skipped (custom registry) --
 
     private static readonly Action<ILogger, string, Exception?> LawfulBasisAutoRegistrationSkippedDef =
         LoggerMessage.Define<string>(
             LogLevel.Debug,
-            new EventId(8212, nameof(LawfulBasisAutoRegistrationSkipped)),
+            new EventId(8114, nameof(LawfulBasisAutoRegistrationSkipped)),
             "Lawful basis auto-registration skipped. Registry type '{RegistryType}' does not support attribute scanning.");
 
     internal static void LawfulBasisAutoRegistrationSkipped(this ILogger logger, string registryType)
         => LawfulBasisAutoRegistrationSkippedDef(logger, registryType, null);
 
-    // -- 8213: Lawful basis health check completed --
+    // -- 8115: Lawful basis health check completed --
 
     private static readonly Action<ILogger, string, int, Exception?> LawfulBasisHealthCheckCompletedDef =
         LoggerMessage.Define<string, int>(
             LogLevel.Debug,
-            new EventId(8213, nameof(LawfulBasisHealthCheckCompleted)),
+            new EventId(8115, nameof(LawfulBasisHealthCheckCompleted)),
             "Lawful basis health check completed. Status={Status}, RegistrationCount={RegistrationCount}");
 
     internal static void LawfulBasisHealthCheckCompleted(this ILogger logger, string status, int registrationCount)
         => LawfulBasisHealthCheckCompletedDef(logger, status, registrationCount, null);
 
     // =====================================================
-    // Processing Activity Registry (8220–8229)
+    // Processing Activity Registry (8116)
     // =====================================================
 
-    // -- 8220: Processing activity health check completed --
+    // -- 8116: Processing activity health check completed --
 
     private static readonly Action<ILogger, string, int, Exception?> ProcessingActivityHealthCheckCompletedDef =
         LoggerMessage.Define<string, int>(
             LogLevel.Debug,
-            new EventId(8220, nameof(ProcessingActivityHealthCheckCompleted)),
+            new EventId(8116, nameof(ProcessingActivityHealthCheckCompleted)),
             "Processing activity health check completed. Status={Status}, ActivityCount={ActivityCount}");
 
     internal static void ProcessingActivityHealthCheckCompleted(this ILogger logger, string status, int activityCount)
