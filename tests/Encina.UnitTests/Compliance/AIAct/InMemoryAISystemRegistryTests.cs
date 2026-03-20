@@ -198,11 +198,11 @@ public class InMemoryAISystemRegistryTests
     private static AISystemRegistration CreateRegistration(
         string systemId,
         AIRiskLevel riskLevel = AIRiskLevel.HighRisk) => new()
-    {
-        SystemId = systemId,
-        Name = $"System {systemId}",
-        Category = AISystemCategory.EmploymentWorkersManagement,
-        RiskLevel = riskLevel,
-        RegisteredAtUtc = DateTimeOffset.UtcNow
-    };
+        {
+            SystemId = systemId,
+            Name = $"System {systemId}",
+            Category = AISystemCategory.EmploymentWorkersManagement,
+            RiskLevel = riskLevel,
+            RegisteredAtUtc = DateTimeOffset.UtcNow
+        };
 }

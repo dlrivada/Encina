@@ -193,13 +193,13 @@ public class AIActContractTests
     private static AISystemRegistration CreateRegistration(
         string systemId,
         AIRiskLevel riskLevel = AIRiskLevel.HighRisk) => new()
-    {
-        SystemId = systemId,
-        Name = $"System {systemId}",
-        Category = AISystemCategory.EmploymentWorkersManagement,
-        RiskLevel = riskLevel,
-        RegisteredAtUtc = FixedTime
-    };
+        {
+            SystemId = systemId,
+            Name = $"System {systemId}",
+            Category = AISystemCategory.EmploymentWorkersManagement,
+            RiskLevel = riskLevel,
+            RegisteredAtUtc = FixedTime
+        };
 
     private static HumanDecisionRecord CreateDecision() => new()
     {

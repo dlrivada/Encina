@@ -1,9 +1,8 @@
 using System.Reflection;
-
 using ArchUnitNET.Fluent;
-using Encina.Diagnostics;
 using ArchUnitNET.Loader;
 using ArchUnitNET.xUnitV3;
+using Encina.Diagnostics;
 using ReflectionAssembly = System.Reflection.Assembly;
 
 namespace Encina.Testing.Architecture;
