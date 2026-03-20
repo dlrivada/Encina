@@ -8,7 +8,8 @@ namespace Encina.DomainModeling.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 2500-2599 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 2500-2549 range reserved for domain events
+/// (see <c>EventIdRanges.DomainModelingDomainEvents</c>).
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
