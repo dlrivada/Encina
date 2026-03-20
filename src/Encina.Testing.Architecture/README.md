@@ -162,6 +162,61 @@ public class BuilderArchitectureTests
 | `RepositoryInterfacesShouldResideInDomain(namespace)` | Repository interfaces should be in Domain |
 | `RepositoryImplementationsShouldResideInInfrastructure(namespace)` | Repository implementations should be in Infrastructure |
 
+### EventId Uniqueness Rules (`EventIdUniquenessRule`)
+
+Validates that `[LoggerMessage]` EventId allocations are unique and within registered ranges. All EventId ranges must be registered in `EventIdRanges.cs` before use.
+
+| Method | Description |
+|--------|-------------|
+| `ExtractEventIds(assemblies)` | Extracts all `[LoggerMessage]` EventIds via reflection |
+| `AssertEventIdsAreGloballyUnique(assemblies)` | No duplicate EventIds across all assemblies |
+| `AssertEventIdsWithinRegisteredRanges(assemblies, mapping)` | Every EventId falls within its assembly's registered range |
+| `AssertNoRangeOverlaps()` | No two registered ranges in `EventIdRanges` overlap |
+| `GenerateAllocationReport()` | Human-readable table showing range usage and free slots |
+
+**Usage:**
+
+```csharp
+using Encina.Testing.Architecture;
+
+public class EventIdTests
+{
+    [Fact]
+    public void EventIds_ShouldBeGloballyUnique()
+    {
+        var assemblies = new[]
+        {
+            typeof(Encina.Diagnostics.EventIdRanges).Assembly,
+            typeof(Encina.Messaging.OutboxMessage).Assembly,
+            // ... all assemblies with [LoggerMessage] usage
+        };
+
+        EventIdUniquenessRule.AssertEventIdsAreGloballyUnique(assemblies);
+    }
+
+    [Fact]
+    public void EventIds_ShouldBeWithinRegisteredRanges()
+    {
+        var mapping = new Dictionary<string, (int Min, int Max)>
+        {
+            ["Encina.Compliance.GDPR"] = EventIdRanges.ComplianceGDPR,
+            ["Encina.Messaging"] = EventIdRanges.MessagingOutbox,
+            // ... one entry per assembly
+        };
+
+        EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(assemblies, mapping);
+    }
+
+    [Fact]
+    public void RegisteredRanges_ShouldNotOverlap()
+    {
+        EventIdUniquenessRule.AssertNoRangeOverlaps();
+    }
+}
+```
+
+See [ADR-021](../../docs/architecture/adr/021-eventid-uniqueness-enforcement.md) for the architectural decision behind this system.
+
 ## Builder API
 
 The `EncinaArchitectureRulesBuilder` provides a fluent API:

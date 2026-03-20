@@ -1155,6 +1155,60 @@ When configuring test projects or scripts:
 > Focus on testing what matters: critical paths, complex logic, and public APIs.
 > Add tests incrementally as features mature.
 
+### Structured Logging & EventId Allocation (MANDATORY)
+
+> **CRITICAL**: Every `[LoggerMessage]` EventId MUST be registered in the central registry before use. See [ADR-021](docs/architecture/adr/021-eventid-uniqueness-enforcement.md) for the full architectural decision.
+
+#### Central Registry
+
+- **Location**: `src/Encina/Diagnostics/EventIdRanges.cs`
+- **Format**: `public static readonly (int Min, int Max) RangeName = (min, max);`
+- **Discovery**: `EventIdRanges.GetAllRanges()` returns all registered allocations
+
+#### Current Range Map (Quick Reference)
+
+| Area | Range | Packages |
+|------|-------|----------|
+| Core | 1-99 | Sanitization |
+| DomainModeling | 1100-1699 | Repository, UoW, Bulk, Spec, SoftDelete, Audit |
+| Security Audit | 1700-1799 | Read Audit |
+| Infrastructure | 1800-1999 | Tenancy, Module Isolation |
+| Messaging | 2000-2499 | Outbox, Inbox, Saga, Scheduling, QueryCache, Encryption |
+| Domain Events / ES | 2500-2699 | DomainEvents, AuditMarten |
+| Security | 8000-8099 | Security (8000-8009), PII (8010-8029), IdGen (8030-8099) |
+| Compliance | 8100-8949 | GDPR, Consent, DSR, LawfulBasis, Anonymization, CryptoShredding, Retention, DataResidency, BreachNotification, DPIA, PrivacyByDesign |
+| Security Extensions | 9000-9199 | ABAC, AntiTampering |
+| Compliance Extensions | 9200-9499 | NIS2, CrossBorderTransfer, ProcessorAgreements |
+| Reserved | 9500-9999 | Future modules |
+
+#### Allocation Workflow (When Adding Structured Logging to a Feature)
+
+1. **Check** `EventIdRanges.cs` for the next free range in the appropriate area
+2. **Register** a new `public static readonly (int Min, int Max)` field with an appropriate size (typically 50 or 100 slots)
+3. **Create** your `Diagnostics/*LogMessages.cs` file with EventIds **within** the registered range
+4. **Update** `PublicAPI.Unshipped.txt` for the new public field
+5. **Run** architecture tests to verify no collisions or range violations
+
+#### Rules
+
+- ❌ NEVER use an EventId without registering its range first
+- ❌ NEVER assign EventIds outside your package's registered range
+- ❌ NEVER create sparse allocations with large gaps (e.g., 8400, 8410, 8420...) — pack sequentially to avoid overflowing the range
+- ✅ Use `[LoggerMessage]` source generator (not `LoggerMessage.Define`) for new code
+- ✅ Group EventIds by functional area within your range (pipeline, enforcement, health check, etc.)
+- ✅ Add XML doc comments referencing the range: `/// Event IDs: 8120-8133 (see EventIdRanges.ComplianceGDPR)`
+
+#### Architecture Test Enforcement
+
+The `EventIdUniquenessRule` class in `Encina.Testing.Architecture` provides:
+
+| Method | Purpose |
+|--------|---------|
+| `AssertEventIdsAreGloballyUnique()` | No duplicate EventIds across all assemblies |
+| `AssertEventIdsWithinRegisteredRanges()` | Every EventId within its registered range |
+| `AssertNoRangeOverlaps()` | No two registered ranges overlap |
+| `GenerateAllocationReport()` | Human-readable allocation table |
+
 ### Code Analysis
 
 - **Zero Warnings**: All CA warnings must be addressed (fix or suppress with justification)
@@ -1308,6 +1362,8 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 13. ❌ Don't leave test coverage below 85%
 14. ❌ Don't use `BenchmarkRunner.Run<T>()` - use `BenchmarkSwitcher.FromAssembly().Run(args, config)`
 15. ❌ Don't return `IQueryable<T>` from benchmark methods - always materialize with `.ToList()`
+16. ❌ Don't use `[LoggerMessage]` EventIds without registering the range in `EventIdRanges.cs` first
+17. ❌ Don't create sparse EventId allocations (e.g., 8400, 8410, 8420...) — pack sequentially to stay within range
 
 > **Provider Rules Summary**: See [Specialized Provider Categories](#specialized-provider-categories-beyond-the-13-database-providers) for detailed rules on each provider category.
 
