@@ -1,0 +1,285 @@
+#nullable enable
+const Encina.Compliance.NIS2.Health.NIS2ComplianceHealthCheck.DefaultName = "encina-nis2-compliance" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.AllPhasesCompleteCode = "nis2.all_phases_complete" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.ComplianceCheckFailedCode = "nis2.compliance_check_failed" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.DeadlineExceededCode = "nis2.deadline_exceeded" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.EncryptionRequiredCode = "nis2.encryption_required" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.IncidentReportFailedCode = "nis2.incident_report_failed" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.ManagementAccountabilityMissingCode = "nis2.management_accountability_missing" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.MeasureEvaluationFailedCode = "nis2.measure_evaluation_failed" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.MeasureNotSatisfiedCode = "nis2.measure_not_satisfied" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.MFARequiredCode = "nis2.mfa_required" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.PipelineBlockedCode = "nis2.pipeline_blocked" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.SupplierNotFoundCode = "nis2.supplier_not_found" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.SupplierRiskHighCode = "nis2.supplier_risk_high" -> string!
+const Encina.Compliance.NIS2.NIS2Errors.SupplyChainCheckFailedCode = "nis2.supply_chain_check_failed" -> string!
+Encina.Compliance.NIS2.Abstractions.IEncryptionValidator
+Encina.Compliance.NIS2.Abstractions.IEncryptionValidator.IsDataEncryptedAtRestAsync(string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.NIS2.Abstractions.IEncryptionValidator.IsDataEncryptedInTransitAsync(string! endpoint, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.NIS2.Abstractions.IEncryptionValidator.ValidateEncryptionPolicyAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.NIS2.Abstractions.IMFAEnforcer
+Encina.Compliance.NIS2.Abstractions.IMFAEnforcer.IsMFAEnabledAsync(string! userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.NIS2.Abstractions.IMFAEnforcer.RequireMFAAsync<TRequest>(TRequest request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.NIS2.Abstractions.INIS2ComplianceValidator
+Encina.Compliance.NIS2.Abstractions.INIS2ComplianceValidator.GetMissingRequirementsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.NIS2.Model.NIS2Measure>!>>
+Encina.Compliance.NIS2.Abstractions.INIS2ComplianceValidator.ValidateAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.NIS2.Model.NIS2ComplianceResult!>>
+Encina.Compliance.NIS2.Abstractions.INIS2IncidentHandler
+Encina.Compliance.NIS2.Abstractions.INIS2IncidentHandler.GetNextDeadlineAsync(Encina.Compliance.NIS2.Model.NIS2Incident! incident, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, (Encina.Compliance.NIS2.Model.NIS2NotificationPhase Phase, System.DateTimeOffset Deadline)>>
+Encina.Compliance.NIS2.Abstractions.INIS2IncidentHandler.IsWithinNotificationDeadlineAsync(Encina.Compliance.NIS2.Model.NIS2Incident! incident, Encina.Compliance.NIS2.Model.NIS2NotificationPhase phase, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.NIS2.Abstractions.INIS2IncidentHandler.ReportIncidentAsync(Encina.Compliance.NIS2.Model.NIS2Incident! incident, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.NIS2.Abstractions.INIS2MeasureEvaluator
+Encina.Compliance.NIS2.Abstractions.INIS2MeasureEvaluator.EvaluateAsync(Encina.Compliance.NIS2.Model.NIS2MeasureContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.NIS2.Model.NIS2MeasureResult!>>
+Encina.Compliance.NIS2.Abstractions.INIS2MeasureEvaluator.Measure.get -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Abstractions.ISupplyChainSecurityValidator
+Encina.Compliance.NIS2.Abstractions.ISupplyChainSecurityValidator.AssessSupplierAsync(string! supplierId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.NIS2.Model.SupplyChainAssessment!>>
+Encina.Compliance.NIS2.Abstractions.ISupplyChainSecurityValidator.GetSupplierRisksAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Compliance.NIS2.Model.SupplierRisk!>!>>
+Encina.Compliance.NIS2.Abstractions.ISupplyChainSecurityValidator.ValidateSupplierForOperationAsync(string! supplierId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
+Encina.Compliance.NIS2.Health.NIS2ComplianceHealthCheck
+Encina.Compliance.NIS2.Health.NIS2ComplianceHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Encina.Compliance.NIS2.Health.NIS2ComplianceHealthCheck.NIS2ComplianceHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.NIS2.Health.NIS2ComplianceHealthCheck!>! logger) -> void
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.AcknowledgedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.AcknowledgedAtUtc.init -> void
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.ComplianceAreas.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.ComplianceAreas.init -> void
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.ResponsiblePerson.get -> string!
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.ResponsiblePerson.init -> void
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.Role.get -> string!
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.Role.init -> void
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.TrainingCompletedAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.TrainingCompletedAtUtc.init -> void
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.CompliancePercentage.get -> int
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.EntityType.get -> Encina.Compliance.NIS2.Model.NIS2EntityType
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.EntityType.init -> void
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.EvaluatedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.EvaluatedAtUtc.init -> void
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.IsCompliant.get -> bool
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.IsCompliant.init -> void
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.MeasureResults.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.NIS2.Model.NIS2MeasureResult!>!
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.MeasureResults.init -> void
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.MissingCount.get -> int
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.MissingMeasures.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.NIS2.Model.NIS2Measure>!
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.MissingMeasures.init -> void
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.Sector.get -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2ComplianceResult.Sector.init -> void
+Encina.Compliance.NIS2.Model.NIS2EnforcementMode
+Encina.Compliance.NIS2.Model.NIS2EnforcementMode.Block = 0 -> Encina.Compliance.NIS2.Model.NIS2EnforcementMode
+Encina.Compliance.NIS2.Model.NIS2EnforcementMode.Disabled = 2 -> Encina.Compliance.NIS2.Model.NIS2EnforcementMode
+Encina.Compliance.NIS2.Model.NIS2EnforcementMode.Warn = 1 -> Encina.Compliance.NIS2.Model.NIS2EnforcementMode
+Encina.Compliance.NIS2.Model.NIS2EntityType
+Encina.Compliance.NIS2.Model.NIS2EntityType.Essential = 0 -> Encina.Compliance.NIS2.Model.NIS2EntityType
+Encina.Compliance.NIS2.Model.NIS2EntityType.Important = 1 -> Encina.Compliance.NIS2.Model.NIS2EntityType
+Encina.Compliance.NIS2.Model.NIS2Incident
+Encina.Compliance.NIS2.Model.NIS2Incident.AffectedServices.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.NIS2.Model.NIS2Incident.AffectedServices.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.Description.get -> string!
+Encina.Compliance.NIS2.Model.NIS2Incident.Description.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.DetectedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.NIS2.Model.NIS2Incident.DetectedAtUtc.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.EarlyWarningAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.NIS2.Model.NIS2Incident.EarlyWarningAtUtc.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.EarlyWarningDeadlineUtc.get -> System.DateTimeOffset
+Encina.Compliance.NIS2.Model.NIS2Incident.FinalReportAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.NIS2.Model.NIS2Incident.FinalReportAtUtc.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.FinalReportDeadlineUtc.get -> System.DateTimeOffset?
+Encina.Compliance.NIS2.Model.NIS2Incident.Id.get -> System.Guid
+Encina.Compliance.NIS2.Model.NIS2Incident.Id.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.IncidentNotificationAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.NIS2.Model.NIS2Incident.IncidentNotificationAtUtc.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.IncidentNotificationDeadlineUtc.get -> System.DateTimeOffset
+Encina.Compliance.NIS2.Model.NIS2Incident.InitialAssessment.get -> string!
+Encina.Compliance.NIS2.Model.NIS2Incident.InitialAssessment.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.IsSignificant.get -> bool
+Encina.Compliance.NIS2.Model.NIS2Incident.IsSignificant.init -> void
+Encina.Compliance.NIS2.Model.NIS2Incident.Severity.get -> Encina.Compliance.NIS2.Model.NIS2IncidentSeverity
+Encina.Compliance.NIS2.Model.NIS2Incident.Severity.init -> void
+Encina.Compliance.NIS2.Model.NIS2IncidentSeverity
+Encina.Compliance.NIS2.Model.NIS2IncidentSeverity.Critical = 3 -> Encina.Compliance.NIS2.Model.NIS2IncidentSeverity
+Encina.Compliance.NIS2.Model.NIS2IncidentSeverity.High = 2 -> Encina.Compliance.NIS2.Model.NIS2IncidentSeverity
+Encina.Compliance.NIS2.Model.NIS2IncidentSeverity.Low = 0 -> Encina.Compliance.NIS2.Model.NIS2IncidentSeverity
+Encina.Compliance.NIS2.Model.NIS2IncidentSeverity.Medium = 1 -> Encina.Compliance.NIS2.Model.NIS2IncidentSeverity
+Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.BusinessContinuity = 2 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.Cryptography = 7 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.CyberHygiene = 6 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.EffectivenessAssessment = 5 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.HumanResourcesSecurity = 8 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.IncidentHandling = 1 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.MultiFactorAuthentication = 9 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.NetworkAndSystemSecurity = 4 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.RiskAnalysisAndSecurityPolicies = 0 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2Measure.SupplyChainSecurity = 3 -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2MeasureContext
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.Options.get -> Encina.Compliance.NIS2.NIS2Options!
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.Options.init -> void
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.ServiceProvider.get -> System.IServiceProvider!
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.ServiceProvider.init -> void
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.TenantId.get -> string?
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.TenantId.init -> void
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.TimeProvider.get -> System.TimeProvider!
+Encina.Compliance.NIS2.Model.NIS2MeasureContext.TimeProvider.init -> void
+Encina.Compliance.NIS2.Model.NIS2MeasureResult
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.Details.get -> string!
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.Details.init -> void
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.IsSatisfied.get -> bool
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.IsSatisfied.init -> void
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.Measure.get -> Encina.Compliance.NIS2.Model.NIS2Measure
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.Measure.init -> void
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.Recommendations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.NIS2.Model.NIS2MeasureResult.Recommendations.init -> void
+Encina.Compliance.NIS2.Model.NIS2NotificationPhase
+Encina.Compliance.NIS2.Model.NIS2NotificationPhase.EarlyWarning = 0 -> Encina.Compliance.NIS2.Model.NIS2NotificationPhase
+Encina.Compliance.NIS2.Model.NIS2NotificationPhase.FinalReport = 3 -> Encina.Compliance.NIS2.Model.NIS2NotificationPhase
+Encina.Compliance.NIS2.Model.NIS2NotificationPhase.IncidentNotification = 1 -> Encina.Compliance.NIS2.Model.NIS2NotificationPhase
+Encina.Compliance.NIS2.Model.NIS2NotificationPhase.IntermediateReport = 2 -> Encina.Compliance.NIS2.Model.NIS2NotificationPhase
+Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.Banking = 2 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.ChemicalManufacturing = 13 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.DigitalInfrastructure = 7 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.DigitalProviders = 16 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.DrinkingWater = 5 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.Energy = 0 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.FinancialMarketInfrastructure = 3 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.FoodProduction = 14 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.Health = 4 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.ICTServiceManagement = 8 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.Manufacturing = 15 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.PostalAndCourier = 11 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.PublicAdministration = 9 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.Research = 17 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.Space = 10 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.Transport = 1 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.WasteManagement = 12 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.NIS2Sector.WasteWater = 6 -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.Model.SupplierInfo
+Encina.Compliance.NIS2.Model.SupplierInfo.CertificationStatus.get -> string?
+Encina.Compliance.NIS2.Model.SupplierInfo.CertificationStatus.init -> void
+Encina.Compliance.NIS2.Model.SupplierInfo.LastAssessmentAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.NIS2.Model.SupplierInfo.LastAssessmentAtUtc.init -> void
+Encina.Compliance.NIS2.Model.SupplierInfo.MitigationMeasures.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.NIS2.Model.SupplierInfo.MitigationMeasures.init -> void
+Encina.Compliance.NIS2.Model.SupplierInfo.Name.get -> string!
+Encina.Compliance.NIS2.Model.SupplierInfo.Name.init -> void
+Encina.Compliance.NIS2.Model.SupplierInfo.RiskLevel.get -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplierInfo.RiskLevel.init -> void
+Encina.Compliance.NIS2.Model.SupplierInfo.SupplierId.get -> string!
+Encina.Compliance.NIS2.Model.SupplierInfo.SupplierId.init -> void
+Encina.Compliance.NIS2.Model.SupplierRisk
+Encina.Compliance.NIS2.Model.SupplierRisk.RecommendedActions.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Encina.Compliance.NIS2.Model.SupplierRisk.RecommendedActions.init -> void
+Encina.Compliance.NIS2.Model.SupplierRisk.RiskDescription.get -> string!
+Encina.Compliance.NIS2.Model.SupplierRisk.RiskDescription.init -> void
+Encina.Compliance.NIS2.Model.SupplierRisk.RiskLevel.get -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplierRisk.RiskLevel.init -> void
+Encina.Compliance.NIS2.Model.SupplierRisk.SupplierId.get -> string!
+Encina.Compliance.NIS2.Model.SupplierRisk.SupplierId.init -> void
+Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplierRiskLevel.Critical = 3 -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplierRiskLevel.High = 2 -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplierRiskLevel.Low = 0 -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplierRiskLevel.Medium = 1 -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplyChainAssessment
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.AssessedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.AssessedAtUtc.init -> void
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.NextAssessmentDueAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.NextAssessmentDueAtUtc.init -> void
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.OverallRisk.get -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.OverallRisk.init -> void
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.Risks.get -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.NIS2.Model.SupplierRisk!>!
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.Risks.init -> void
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.SupplierId.get -> string!
+Encina.Compliance.NIS2.Model.SupplyChainAssessment.SupplierId.init -> void
+Encina.Compliance.NIS2.NIS2CompliancePipelineBehavior<TRequest, TResponse>
+Encina.Compliance.NIS2.NIS2CompliancePipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Compliance.NIS2.NIS2CompliancePipelineBehavior<TRequest, TResponse>.NIS2CompliancePipelineBehavior(Encina.Compliance.NIS2.Abstractions.IMFAEnforcer! mfaEnforcer, Encina.Compliance.NIS2.Abstractions.ISupplyChainSecurityValidator! supplyChainValidator, Microsoft.Extensions.Options.IOptions<Encina.Compliance.NIS2.NIS2Options!>! options, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.NIS2.NIS2CompliancePipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.NIS2.NIS2CriticalAttribute
+Encina.Compliance.NIS2.NIS2CriticalAttribute.Description.get -> string?
+Encina.Compliance.NIS2.NIS2CriticalAttribute.Description.set -> void
+Encina.Compliance.NIS2.NIS2CriticalAttribute.NIS2CriticalAttribute() -> void
+Encina.Compliance.NIS2.NIS2Errors
+Encina.Compliance.NIS2.NIS2Options
+Encina.Compliance.NIS2.NIS2Options.AddHealthCheck.get -> bool
+Encina.Compliance.NIS2.NIS2Options.AddHealthCheck.set -> void
+Encina.Compliance.NIS2.NIS2Options.ComplianceCacheTTL.get -> System.TimeSpan
+Encina.Compliance.NIS2.NIS2Options.ComplianceCacheTTL.set -> void
+Encina.Compliance.NIS2.NIS2Options.ExternalCallTimeout.get -> System.TimeSpan
+Encina.Compliance.NIS2.NIS2Options.ExternalCallTimeout.set -> void
+Encina.Compliance.NIS2.NIS2Options.AddSupplier(string! supplierId, System.Action<Encina.Compliance.NIS2.SupplierConfiguration!>! configure) -> Encina.Compliance.NIS2.NIS2Options!
+Encina.Compliance.NIS2.NIS2Options.CompetentAuthority.get -> string?
+Encina.Compliance.NIS2.NIS2Options.CompetentAuthority.set -> void
+Encina.Compliance.NIS2.NIS2Options.EncryptedDataCategories.get -> System.Collections.Generic.HashSet<string!>!
+Encina.Compliance.NIS2.NIS2Options.EncryptedEndpoints.get -> System.Collections.Generic.HashSet<string!>!
+Encina.Compliance.NIS2.NIS2Options.EnforceEncryption.get -> bool
+Encina.Compliance.NIS2.NIS2Options.EnforceEncryption.set -> void
+Encina.Compliance.NIS2.NIS2Options.EnforcementMode.get -> Encina.Compliance.NIS2.Model.NIS2EnforcementMode
+Encina.Compliance.NIS2.NIS2Options.EnforcementMode.set -> void
+Encina.Compliance.NIS2.NIS2Options.EnforceMFA.get -> bool
+Encina.Compliance.NIS2.NIS2Options.EnforceMFA.set -> void
+Encina.Compliance.NIS2.NIS2Options.EntityType.get -> Encina.Compliance.NIS2.Model.NIS2EntityType
+Encina.Compliance.NIS2.NIS2Options.EntityType.set -> void
+Encina.Compliance.NIS2.NIS2Options.HasBusinessContinuityPlan.get -> bool
+Encina.Compliance.NIS2.NIS2Options.HasBusinessContinuityPlan.set -> void
+Encina.Compliance.NIS2.NIS2Options.HasCyberHygieneProgram.get -> bool
+Encina.Compliance.NIS2.NIS2Options.HasCyberHygieneProgram.set -> void
+Encina.Compliance.NIS2.NIS2Options.HasEffectivenessAssessment.get -> bool
+Encina.Compliance.NIS2.NIS2Options.HasEffectivenessAssessment.set -> void
+Encina.Compliance.NIS2.NIS2Options.HasHumanResourcesSecurity.get -> bool
+Encina.Compliance.NIS2.NIS2Options.HasHumanResourcesSecurity.set -> void
+Encina.Compliance.NIS2.NIS2Options.HasIncidentHandlingProcedures.get -> bool
+Encina.Compliance.NIS2.NIS2Options.HasIncidentHandlingProcedures.set -> void
+Encina.Compliance.NIS2.NIS2Options.HasNetworkSecurityPolicy.get -> bool
+Encina.Compliance.NIS2.NIS2Options.HasNetworkSecurityPolicy.set -> void
+Encina.Compliance.NIS2.NIS2Options.HasRiskAnalysisPolicy.get -> bool
+Encina.Compliance.NIS2.NIS2Options.HasRiskAnalysisPolicy.set -> void
+Encina.Compliance.NIS2.NIS2Options.IncidentNotificationHours.get -> int
+Encina.Compliance.NIS2.NIS2Options.IncidentNotificationHours.set -> void
+Encina.Compliance.NIS2.NIS2Options.ManagementAccountability.get -> Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord?
+Encina.Compliance.NIS2.NIS2Options.ManagementAccountability.set -> void
+Encina.Compliance.NIS2.NIS2Options.NIS2Options() -> void
+Encina.Compliance.NIS2.NIS2Options.PublishNotifications.get -> bool
+Encina.Compliance.NIS2.NIS2Options.PublishNotifications.set -> void
+Encina.Compliance.NIS2.NIS2Options.Sector.get -> Encina.Compliance.NIS2.Model.NIS2Sector
+Encina.Compliance.NIS2.NIS2Options.Sector.set -> void
+Encina.Compliance.NIS2.NIS2SupplyChainCheckAttribute
+Encina.Compliance.NIS2.NIS2SupplyChainCheckAttribute.MinimumRiskLevel.get -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.NIS2SupplyChainCheckAttribute.MinimumRiskLevel.set -> void
+Encina.Compliance.NIS2.NIS2SupplyChainCheckAttribute.NIS2SupplyChainCheckAttribute(string! supplierId) -> void
+Encina.Compliance.NIS2.NIS2SupplyChainCheckAttribute.SupplierId.get -> string!
+Encina.Compliance.NIS2.RequireMFAAttribute
+Encina.Compliance.NIS2.RequireMFAAttribute.Reason.get -> string?
+Encina.Compliance.NIS2.RequireMFAAttribute.Reason.set -> void
+Encina.Compliance.NIS2.RequireMFAAttribute.RequireMFAAttribute() -> void
+Encina.Compliance.NIS2.ServiceCollectionExtensions
+Encina.Compliance.NIS2.SupplierConfiguration
+Encina.Compliance.NIS2.SupplierConfiguration.CertificationStatus.get -> string?
+Encina.Compliance.NIS2.SupplierConfiguration.CertificationStatus.set -> void
+Encina.Compliance.NIS2.SupplierConfiguration.LastAssessmentAtUtc.get -> System.DateTimeOffset?
+Encina.Compliance.NIS2.SupplierConfiguration.LastAssessmentAtUtc.set -> void
+Encina.Compliance.NIS2.SupplierConfiguration.Name.get -> string!
+Encina.Compliance.NIS2.SupplierConfiguration.Name.set -> void
+Encina.Compliance.NIS2.SupplierConfiguration.RiskLevel.get -> Encina.Compliance.NIS2.Model.SupplierRiskLevel
+Encina.Compliance.NIS2.SupplierConfiguration.RiskLevel.set -> void
+Encina.Compliance.NIS2.SupplierConfiguration.SupplierConfiguration() -> void
+Encina.Compliance.NIS2.SupplierConfiguration.SupplierId.get -> string!
+static Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord.Create(string! responsiblePerson, string! role, System.DateTimeOffset acknowledgedAtUtc, System.Collections.Generic.IReadOnlyList<string!>! complianceAreas) -> Encina.Compliance.NIS2.Model.ManagementAccountabilityRecord!
+static Encina.Compliance.NIS2.Model.NIS2ComplianceResult.Create(Encina.Compliance.NIS2.Model.NIS2EntityType entityType, Encina.Compliance.NIS2.Model.NIS2Sector sector, System.Collections.Generic.IReadOnlyList<Encina.Compliance.NIS2.Model.NIS2MeasureResult!>! measureResults, System.DateTimeOffset evaluatedAtUtc) -> Encina.Compliance.NIS2.Model.NIS2ComplianceResult!
+static Encina.Compliance.NIS2.Model.NIS2Incident.Create(string! description, Encina.Compliance.NIS2.Model.NIS2IncidentSeverity severity, System.DateTimeOffset detectedAtUtc, bool isSignificant, System.Collections.Generic.IReadOnlyList<string!>! affectedServices, string! initialAssessment) -> Encina.Compliance.NIS2.Model.NIS2Incident!
+static Encina.Compliance.NIS2.Model.NIS2MeasureResult.NotSatisfied(Encina.Compliance.NIS2.Model.NIS2Measure measure, string! details, System.Collections.Generic.IReadOnlyList<string!>! recommendations) -> Encina.Compliance.NIS2.Model.NIS2MeasureResult!
+static Encina.Compliance.NIS2.Model.NIS2MeasureResult.Satisfied(Encina.Compliance.NIS2.Model.NIS2Measure measure, string! details) -> Encina.Compliance.NIS2.Model.NIS2MeasureResult!
+static Encina.Compliance.NIS2.Model.SupplierInfo.Create(string! supplierId, string! name, Encina.Compliance.NIS2.Model.SupplierRiskLevel riskLevel) -> Encina.Compliance.NIS2.Model.SupplierInfo!
+static Encina.Compliance.NIS2.Model.SupplyChainAssessment.Create(string! supplierId, Encina.Compliance.NIS2.Model.SupplierRiskLevel overallRisk, System.Collections.Generic.IReadOnlyList<Encina.Compliance.NIS2.Model.SupplierRisk!>! risks, System.DateTimeOffset assessedAtUtc, System.DateTimeOffset nextAssessmentDueAtUtc) -> Encina.Compliance.NIS2.Model.SupplyChainAssessment!
+static Encina.Compliance.NIS2.NIS2Errors.AllPhasesComplete(System.Guid incidentId) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.ComplianceCheckFailed(int missingCount, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.DeadlineExceeded(Encina.Compliance.NIS2.Model.NIS2NotificationPhase phase, double hoursOverdue) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.EncryptionRequired(string! context, string! encryptionType) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.IncidentReportFailed(System.Guid incidentId, string! reason, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.ManagementAccountabilityMissing() -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.MeasureEvaluationFailed(Encina.Compliance.NIS2.Model.NIS2Measure measure, string! reason, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.MeasureNotSatisfied(Encina.Compliance.NIS2.Model.NIS2Measure measure, string! details) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.MFARequired(string! requestType, string? userId = null) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.PipelineBlocked(string! requestType, string! reason) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.SupplierNotFound(string! supplierId) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.SupplierRiskHigh(string! supplierId, Encina.Compliance.NIS2.Model.SupplierRiskLevel riskLevel) -> Encina.EncinaError
+static Encina.Compliance.NIS2.NIS2Errors.SupplyChainCheckFailed(string! supplierId, string! reason, System.Exception? exception = null) -> Encina.EncinaError
+static Encina.Compliance.NIS2.ServiceCollectionExtensions.AddEncinaNIS2(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.NIS2.NIS2Options!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

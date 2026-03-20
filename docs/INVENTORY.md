@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 8 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management, #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 10 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #411 Privacy by Design, #412 Cross-Border Transfer, #413 Lawful Basis Validation) (+ 5 planificados: #404, #407, #414-#415) |
+| **Patrones Compliance (GDPR/EU)** | 11 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #411 Privacy by Design, #412 Cross-Border Transfer, #413 Lawful Basis Validation, #414 NIS2 Compliance) (+ 4 planificados: #404, #407, #415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -43,7 +43,7 @@
 | **v0.10.0 - DDD Foundations** | 31 issues ✅ **COMPLETADO** |
 | **v0.11.0 - Testing Infrastructure** | 34 issues ✅ **COMPLETADO** (19-ene-2026) |
 | **v0.12.0 - Database & Repository** | 58 issues ✅ **COMPLETADO** (16-feb-2026) |
-| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322, ABAC #401, Persistent PAP #691, Privacy by Design #411, Cross-Border Transfer #412 completados) |
+| **v0.13.0 - Security & Compliance** | 25 issues 🔄 En progreso (Secrets Management #603, GDPR Core #402, Consent #403, Data Residency #405, Retention #406, Lawful Basis #413, Crypto-Shredding #322, ABAC #401, Persistent PAP #691, Privacy by Design #411, Cross-Border Transfer #412, NIS2 #414 completados) |
 | **v0.14.0 - Cloud-Native & Aspire** | 23 issues |
 | **v0.15.0 - Messaging & EIP** | 71 issues |
 | **v0.16.0 - Multi-Tenancy & Modular** | 21 issues |
@@ -4301,7 +4301,7 @@ dotnet run -c Release -- --filter "*Comparison*"
 | [v0.10.0 - DDD Foundations](https://github.com/dlrivada/Encina/milestone/7) | 31 ✅ | Value Objects, Entities, Aggregates, Specifications, ACL - **COMPLETADO** |
 | [v0.11.0 - Testing Infrastructure](https://github.com/dlrivada/Encina/milestone/8) | 34 ✅ | Fakes, Respawn, WireMock, Shouldly, Bogus, FsCheck, TUnit, Pact - **COMPLETADO** |
 | [v0.12.0 - Database & Repository](https://github.com/dlrivada/Encina/milestone/9) | 58 ✅ | Repository, UoW, Bulk Ops, Pagination, ID Generation, CDC - **COMPLETADO** |
-| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅), GDPR Core (#402 ✅), Consent (#403 ✅), Data Residency (#405 ✅), Lawful Basis (#413 ✅) |
+| [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10) | 25 | Security, GDPR, NIS2, AI Act, Secrets Management (#603 ✅), GDPR Core (#402 ✅), Consent (#403 ✅), Data Residency (#405 ✅), Lawful Basis (#413 ✅), NIS2 (#414 ✅) |
 | [v0.14.0 - Cloud-Native & Aspire](https://github.com/dlrivada/Encina/milestone/11) | 23 | Aspire, Dapr, Orleans, HealthChecks |
 | [v0.15.0 - Messaging & EIP](https://github.com/dlrivada/Encina/milestone/12) | 71 | EIP, Transports, Process Manager |
 | [v0.16.0 - Multi-Tenancy & Modular](https://github.com/dlrivada/Encina/milestone/13) | 21 | Multi-Tenancy, Modular Monolith |
@@ -5855,7 +5855,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | **#411** | Privacy by Design ✅ | Enforcement de Privacy by Design (Art. 25) - **IMPLEMENTADO** | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation`, `foundational` |
 | **#412** | Cross-Border Transfer | Transferencias internacionales con SCCs y adequacy (Schrems II) | Media | Alta | `area-compliance`, `area-gdpr`, `eu-regulation`, `pattern-data-sovereignty` |
 | **#413** | Lawful Basis ✅ | Tracking y validación de base legal (Art. 6) - **IMPLEMENTADO** | Media | Media | `area-compliance`, `area-gdpr`, `eu-regulation` |
-| **#414** | NIS2 Compliance | Cumplimiento de NIS2 Directive para ciberseguridad | Media | Muy Alta | `area-compliance`, `eu-regulation`, `area-security`, `owasp-pattern` |
+| **#414** | NIS2 Compliance ✅ | Cumplimiento de NIS2 Directive para ciberseguridad - **IMPLEMENTADO** | Media | Muy Alta | `area-compliance`, `eu-regulation`, `area-security`, `owasp-pattern` |
 | **#415** | AI Act Compliance | Cumplimiento de EU AI Act para gobernanza de datos AI | Media | Muy Alta | `area-compliance`, `eu-regulation`, `area-ai-ml` |
 
 #### Detalle de Nuevos Patrones
@@ -6175,12 +6175,22 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 
 ##### Tier 4: Extensiones (Additional EU Regulations)
 
-**#414 - Encina.Compliance.NIS2 - NIS2 Directive Compliance**:
+**#414 - Encina.Compliance.NIS2 - NIS2 Directive Compliance** ✅ **IMPLEMENTADO** (Mar 2026):
 
-- `INIS2ComplianceService` con `AssessAsync`, `ReportAsync`, `RemediateAsync`
-- Incident reporting workflow (24h/72h requirements)
-- Supply chain security assessment
-- Risk management measures tracking
+- `INIS2ComplianceValidator` con `ValidateAsync` — evalúa los 10 measures obligatorios (Art. 21(2)(a-j))
+- `INIS2IncidentHandler` con `ReportIncidentAsync`, `AdvancePhaseAsync` — timeline de notificación de 4 fases (24h/72h/interim/1mes)
+- `IMFAEnforcer` — enforcement de MFA pluggable (Art. 21(2)(j))
+- `IEncryptionValidator` — validación de cifrado at-rest y in-transit (Art. 21(2)(h))
+- `ISupplyChainSecurityValidator` — validación de seguridad de cadena de suministro (Art. 21(2)(d))
+- 10 `INIS2MeasureEvaluator` implementations (1 per Art. 21(2) measure)
+- `NIS2CompliancePipelineBehavior` con 3 atributos: `[NIS2Critical]`, `[RequireMFA]`, `[NIS2SupplyChainCheck]`
+- `NIS2EntityType` (Essential/Important) + `NIS2Sector` (18 sectores, Annexes I + II)
+- `ManagementAccountabilityRecord` (Art. 20 — aprobación y formación del management)
+- 3 enforcement modes: Block, Warn, Disabled
+- OpenTelemetry: `Encina.Compliance.NIS2` ActivitySource (5 activities), 9 counters + 4 histograms
+- Health check `NIS2ComplianceHealthCheck` evaluando los 10 measures
+- **Paquete**: `Encina.Compliance.NIS2`
+- **Documentación**: [Feature Guide](features/nis2-compliance.md), [README](../src/Encina.Compliance.NIS2/README.md)
 - Multi-factor authentication enforcement
 - Encryption requirements validation
 - **Nuevo paquete planificado**: `Encina.Compliance.NIS2`
@@ -6217,7 +6227,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 | `Encina.Compliance.PrivacyByDesign` | #411 | Privacy by Design enforcement ✅ | Media |
 | `Encina.Compliance.CrossBorderTransfer` | #412 | International transfers | Media |
 | `Encina.Compliance.LawfulBasis` | #413 | Lawful basis tracking ✅ | Media |
-| `Encina.Compliance.NIS2` | #414 | NIS2 Directive compliance | Media |
+| `Encina.Compliance.NIS2` | #414 | NIS2 Directive compliance ✅ | Media |
 | `Encina.Compliance.AIAct` | #415 | EU AI Act compliance | Media |
 
 #### Labels Nuevas Creadas (Compliance - 6)
@@ -6252,7 +6262,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
    - ~~#413 (LawfulBasis) - Processing validation~~ ✅ **COMPLETADO** (Feb 2026)
 
 4. **Largo Plazo (Extensiones EU)**:
-   - #414 (NIS2) - Cybersecurity directive
+   - ~~#414 (NIS2) - Cybersecurity directive~~ ✅ **COMPLETADO** (Mar 2026)
    - #415 (AIAct) - AI regulation
 
 #### Referencias de Investigación (Compliance)

@@ -2046,6 +2046,44 @@ Added the `Encina.Audit.Marten` package providing event-sourced `IAuditStore` an
 
 ---
 
+#### Encina.Compliance.NIS2 — NIS2 Directive (EU 2022/2555) Compliance Module (#414)
+
+Added the `Encina.Compliance.NIS2` package providing a stateless rule engine for NIS2 Directive compliance at the CQRS pipeline level. Implements Article 21 mandatory cybersecurity measures, Article 23 incident notification timelines, and Article 20 management accountability — consistent enforcement across HTTP, messaging, gRPC, and serverless transports.
+
+**Core Abstractions**:
+
+- **`INIS2ComplianceValidator`**: Evaluates all 10 mandatory measures (Art. 21(2)(a-j)) and returns `NIS2ComplianceResult` with compliance percentage, missing measures, and entity context
+- **`INIS2IncidentHandler`**: Manages the four-phase incident notification timeline (24h early warning, 72h notification, intermediate reports, 1-month final report per Art. 23(4))
+- **`IMFAEnforcer`**: Pluggable MFA enforcement (Art. 21(2)(j)) — default checks claims, replaceable with identity provider integration
+- **`IEncryptionValidator`**: Validates data-at-rest and in-transit encryption (Art. 21(2)(h)) for declared categories and endpoints
+- **`ISupplyChainSecurityValidator`**: Validates supplier security posture (Art. 21(2)(d)) against risk thresholds
+- **`INIS2MeasureEvaluator`**: Interface for individual measure evaluation — 10 built-in implementations registered via `TryAddEnumerable`
+
+**Three Attributes** (declarative, composable):
+
+- **`[NIS2Critical]`**: Marks critical infrastructure operations for enhanced observability (Art. 21)
+- **`[RequireMFA]`**: Requires multi-factor authentication before execution (Art. 21(2)(j))
+- **`[NIS2SupplyChainCheck("supplier-id")]`**: Validates supplier risk level (`AllowMultiple`, configurable `MinimumRiskLevel`) (Art. 21(2)(d))
+
+**10 Measure Evaluators** (Art. 21(2)):
+
+`RiskAnalysisEvaluator`, `IncidentHandlingEvaluator`, `BusinessContinuityEvaluator`, `SupplyChainSecurityEvaluator`, `NetworkSecurityEvaluator`, `EffectivenessAssessmentEvaluator`, `CyberHygieneEvaluator`, `CryptographyEvaluator`, `HumanResourcesSecurityEvaluator`, `MultiFactorAuthenticationEvaluator`
+
+**Pipeline Behavior**:
+
+- **`NIS2CompliancePipelineBehavior<TRequest, TResponse>`**: Pre-execution checks for `[RequireMFA]`, `[NIS2SupplyChainCheck]`, and `[NIS2Critical]` attributes. Static per-generic-type attribute resolution (zero reflection overhead after first call). Audit trail integration via `IAuditStore` (fire-and-forget).
+- Three enforcement modes: `Block` (reject), `Warn` (log and proceed, default), `Disabled` (no-op)
+
+**Entity Classification**: `NIS2EntityType` (Essential/Important) with `NIS2Sector` covering all 18 sectors from Annexes I (11 sectors of high criticality) and II (7 other critical sectors).
+
+**Management Accountability** (Art. 20): `ManagementAccountabilityRecord` tracking management body approval and cybersecurity training compliance.
+
+**Observability**: ActivitySource `Encina.Compliance.NIS2` (5 activities: Pipeline, ComplianceCheck, MeasureEvaluation, IncidentReport, SupplyChainAssessment), Meter `Encina.Compliance.NIS2` (9 counters + 4 histograms), structured log events (EventId 9200-9209) via `[LoggerMessage]` source generator. Health check `NIS2ComplianceHealthCheck` evaluating all 10 mandatory measures.
+
+**DI Registration**: `services.AddEncinaNIS2()` with `TryAdd` semantics — register custom implementations before calling to override defaults. Configurable via `Action<NIS2Options>` delegate.
+
+---
+
 ### Changed
 
 #### Encina.Compliance.Consent — Migrated to Marten Event Sourcing (#777)

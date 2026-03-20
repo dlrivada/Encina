@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Encina.Compliance.NIS2</PackageId>
+    <Description>NIS2 Directive (EU 2022/2555) cybersecurity compliance for Encina - stateless rule engine validating the 10 mandatory measures (Art. 21), MFA enforcement, encryption validation, supply chain security assessment, incident notification timelines (24h/72h/1mo), and management accountability tracking (Art. 20). Covers Articles 3, 20, 21, and 23.</Description>
+    <PackageTags>encina;cqrs;nis2;cybersecurity;compliance;eu-directive;incident-response;supply-chain;mfa;encryption;article-21;article-23</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Encina\Encina.csproj" />
+    <ProjectReference Include="..\Encina.Caching\Encina.Caching.csproj" />
+    <ProjectReference Include="..\Encina.Compliance.BreachNotification\Encina.Compliance.BreachNotification.csproj" />
+    <ProjectReference Include="..\Encina.Compliance.GDPR\Encina.Compliance.GDPR.csproj" />
+    <ProjectReference Include="..\Encina.Security.ABAC\Encina.Security.ABAC.csproj" />
+    <ProjectReference Include="..\Encina.Security.Audit\Encina.Security.Audit.csproj" />
+    <ProjectReference Include="..\Encina.Security.Encryption\Encina.Security.Encryption.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Polly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test assemblies -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.IntegrationTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.ContractTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.PropertyTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.GuardTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.BenchmarkTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
