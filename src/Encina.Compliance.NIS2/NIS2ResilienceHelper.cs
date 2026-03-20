@@ -1,7 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
+
 using Polly;
 using Polly.Registry;
-
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.Compliance.NIS2;
 
