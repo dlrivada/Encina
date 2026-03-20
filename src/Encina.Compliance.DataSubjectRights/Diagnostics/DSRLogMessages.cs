@@ -11,7 +11,7 @@ namespace Encina.Compliance.DataSubjectRights.Diagnostics;
 /// Event IDs are allocated in the 8300-8349 range to avoid collisions with other
 /// Encina subsystems (GDPR uses 8100-8199, Consent uses 8200-8259,
 /// LawfulBasis uses 8350-8399, Anonymization uses 8400-8499, Retention uses 8500-8599,
-/// CrossBorderTransfer uses 9000-9059, ProcessorAgreements uses 9100-9199).
+/// CrossBorderTransfer uses 9300-9359, ProcessorAgreements uses 9400-9499).
 /// </para>
 /// </remarks>
 internal static partial class DSRLogMessages

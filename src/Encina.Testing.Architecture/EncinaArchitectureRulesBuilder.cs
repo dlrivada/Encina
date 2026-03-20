@@ -1,4 +1,7 @@
+using System.Reflection;
+
 using ArchUnitNET.Fluent;
+using Encina.Diagnostics;
 using ArchUnitNET.Loader;
 using ArchUnitNET.xUnitV3;
 using ReflectionAssembly = System.Reflection.Assembly;
@@ -28,6 +31,8 @@ public sealed class EncinaArchitectureRulesBuilder
 {
     private readonly ArchUnitNET.Domain.Architecture _architecture;
     private readonly List<IArchRule> _rules = [];
+    private readonly ReflectionAssembly[] _assemblies;
+    private bool _enforceUniqueEventIds;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EncinaArchitectureRulesBuilder"/> class.
@@ -41,6 +46,7 @@ public sealed class EncinaArchitectureRulesBuilder
             throw new ArgumentException("At least one assembly must be provided.", nameof(assemblies));
         }
 
+        _assemblies = assemblies;
         _architecture = new ArchLoader()
             .LoadAssemblies(assemblies)
             .Build();
@@ -334,6 +340,21 @@ public sealed class EncinaArchitectureRulesBuilder
     #endregion
 
     /// <summary>
+    /// Adds EventId uniqueness validation across all loaded assemblies.
+    /// </summary>
+    /// <remarks>
+    /// Validates that no two <c>[LoggerMessage]</c> attributes across different assemblies
+    /// share the same EventId, and that no registered ranges in
+    /// <see cref="EventIdRanges"/> overlap.
+    /// </remarks>
+    /// <returns>The builder for chaining.</returns>
+    public EncinaArchitectureRulesBuilder EnforceUniqueEventIds()
+    {
+        _enforceUniqueEventIds = true;
+        return this;
+    }
+
+    /// <summary>
     /// Verifies all added rules and throws if any violations are found.
     /// </summary>
     /// <exception cref="ArchitectureRuleException">Thrown when one or more rules are violated.</exception>
@@ -370,6 +391,21 @@ public sealed class EncinaArchitectureRulesBuilder
             catch (Exception ex)
             {
                 violations.Add(new ArchitectureRuleViolation(rule.Description, ex.Message));
+            }
+        }
+
+        if (_enforceUniqueEventIds)
+        {
+            var rangeOverlaps = EventIdUniquenessRule.AssertNoRangeOverlaps();
+            foreach (var overlap in rangeOverlaps)
+            {
+                violations.Add(new ArchitectureRuleViolation("EventIdRangeOverlap", overlap));
+            }
+
+            var duplicates = EventIdUniquenessRule.AssertEventIdsAreGloballyUnique(_assemblies);
+            foreach (var duplicate in duplicates)
+            {
+                violations.Add(new ArchitectureRuleViolation("EventIdUniqueness", duplicate));
             }
         }
 

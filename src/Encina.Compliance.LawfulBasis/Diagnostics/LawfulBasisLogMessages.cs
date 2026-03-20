@@ -12,7 +12,7 @@ namespace Encina.Compliance.LawfulBasis.Diagnostics;
 /// Uses the <c>[LoggerMessage]</c> source generator for zero-allocation logging in hot paths.
 /// Event IDs are allocated in the 8350-8399 range to avoid collisions with other
 /// Encina subsystems (GDPR uses 8100-8199, Consent uses 8200-8259, DSR uses 8300-8349,
-/// Anonymization uses 8400-8499, Retention uses 8500-8599, CrossBorderTransfer uses 9000-9059).
+/// Anonymization uses 8400-8499, Retention uses 8500-8599, CrossBorderTransfer uses 9300-9359).
 /// </para>
 /// </remarks>
 internal static partial class LawfulBasisLogMessages

@@ -12,7 +12,8 @@ namespace Encina.Compliance.PrivacyByDesign.Diagnostics;
 /// Encina subsystems (GDPR uses 8100-8199, Consent uses 8200-8299, DSR uses 8300-8349,
 /// LawfulBasis uses 8350-8399, Anonymization uses 8400-8499, Retention uses 8500-8599,
 /// DataResidency uses 8600-8699, BreachNotification uses 8700-8799, DPIA uses 8800-8899,
-/// ProcessorAgreements uses 9100-9199, NIS2 uses 9200-9299).
+/// CrossBorderTransfer uses 9300-9359, ProcessorAgreements uses 9400-9499,
+/// NIS2 uses 9200-9299).
 /// </para>
 /// <para>
 /// Allocation blocks:
