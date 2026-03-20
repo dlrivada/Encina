@@ -8,10 +8,11 @@ namespace Encina.Compliance.PrivacyByDesign.Diagnostics;
 /// <remarks>
 /// <para>
 /// Uses the <c>[LoggerMessage]</c> source generator for zero-allocation logging in hot paths.
-/// Event IDs are allocated in the 8900-8999 range to avoid collisions with other
-/// Encina subsystems (GDPR uses 8100-8199, Consent uses 8200-8299, DSR uses 8300-8399,
-/// Anonymization uses 8400-8499, Retention uses 8500-8599, DataResidency uses 8600-8699,
-/// BreachNotification uses 8700-8799, DPIA uses 8800-8899).
+/// Event IDs are allocated in the 8900-8949 range to avoid collisions with other
+/// Encina subsystems (GDPR uses 8100-8199, Consent uses 8200-8299, DSR uses 8300-8349,
+/// LawfulBasis uses 8350-8399, Anonymization uses 8400-8499, Retention uses 8500-8599,
+/// DataResidency uses 8600-8699, BreachNotification uses 8700-8799, DPIA uses 8800-8899,
+/// ProcessorAgreements uses 9100-9199, NIS2 uses 9200-9299).
 /// </para>
 /// <para>
 /// Allocation blocks:
@@ -20,8 +21,7 @@ namespace Encina.Compliance.PrivacyByDesign.Diagnostics;
 /// <item><term>8910-8919</term><description>Validator operations</description></item>
 /// <item><term>8920-8929</term><description>Analyzer operations</description></item>
 /// <item><term>8930-8939</term><description>Purpose registry / hosted service</description></item>
-/// <item><term>8940-8949</term><description>Health check</description></item>
-/// <item><term>8950-8959</term><description>Notifications</description></item>
+/// <item><term>8940-8942</term><description>Health check + notifications</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -216,19 +216,19 @@ internal static partial class PrivacyByDesignLogMessages
     internal static partial void PbDHealthCheckCompleted(this ILogger logger, string status, int warningCount);
 
     // ========================================================================
-    // Notification log messages (8950-8959)
+    // Notification log messages (8941-8942)
     // ========================================================================
 
     /// <summary>PbD violation notification published successfully.</summary>
     [LoggerMessage(
-        EventId = 8950,
+        EventId = 8941,
         Level = LogLevel.Debug,
         Message = "PbD violation notification published. RequestType={RequestType}, ViolationCount={ViolationCount}")]
     internal static partial void PbDNotificationPublished(this ILogger logger, string requestType, int violationCount);
 
     /// <summary>PbD notification publish failed (non-blocking).</summary>
     [LoggerMessage(
-        EventId = 8951,
+        EventId = 8942,
         Level = LogLevel.Warning,
         Message = "PbD violation notification publish failed. RequestType={RequestType}")]
     internal static partial void PbDNotificationFailed(this ILogger logger, string requestType, Exception exception);
