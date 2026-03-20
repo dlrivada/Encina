@@ -119,19 +119,19 @@ public sealed partial class DataProtectionMessageEncryptionProvider : IMessageEn
 
     private static partial class Log
     {
-        [LoggerMessage(EventId = 2520, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2490, Level = LogLevel.Debug,
             Message = "Message payload encrypted via Data Protection for type '{MessageType}'.")]
         public static partial void MessageEncrypted(ILogger logger, string messageType);
 
-        [LoggerMessage(EventId = 2521, Level = LogLevel.Error,
+        [LoggerMessage(EventId = 2491, Level = LogLevel.Error,
             Message = "Data Protection encryption failed for type '{MessageType}': {Reason}")]
         public static partial void EncryptionFailed(ILogger logger, string messageType, string reason, Exception exception);
 
-        [LoggerMessage(EventId = 2522, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2492, Level = LogLevel.Debug,
             Message = "Message payload decrypted via Data Protection with key '{KeyId}'.")]
         public static partial void MessageDecrypted(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2523, Level = LogLevel.Error,
+        [LoggerMessage(EventId = 2493, Level = LogLevel.Error,
             Message = "Data Protection decryption failed with key '{KeyId}': {Reason}")]
         public static partial void DecryptionFailed(ILogger logger, string keyId, string reason, Exception exception);
     }

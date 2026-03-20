@@ -150,31 +150,31 @@ public sealed partial class AwsKmsKeyProvider : IKeyProvider
 
     private static partial class Log
     {
-        [LoggerMessage(EventId = 2510, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2482, Level = LogLevel.Debug,
             Message = "Data key generated from AWS KMS key '{KeyId}'.")]
         public static partial void KeyRetrieved(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2511, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2483, Level = LogLevel.Debug,
             Message = "KMS key '{KeyId}' not found in AWS KMS.")]
         public static partial void KeyNotFound(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2512, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2484, Level = LogLevel.Debug,
             Message = "Current key resolved to '{KeyId}' from AWS KMS options.")]
         public static partial void CurrentKeyResolved(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2513, Level = LogLevel.Information,
+        [LoggerMessage(EventId = 2485, Level = LogLevel.Information,
             Message = "Key '{KeyId}' rotated in AWS KMS.")]
         public static partial void KeyRotated(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2514, Level = LogLevel.Warning,
+        [LoggerMessage(EventId = 2486, Level = LogLevel.Warning,
             Message = "KMS key '{KeyId}' is disabled.")]
         public static partial void KeyDisabled(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2515, Level = LogLevel.Warning,
+        [LoggerMessage(EventId = 2487, Level = LogLevel.Warning,
             Message = "AWS KMS provider error for key '{KeyId}': {Reason}")]
         public static partial void ProviderError(ILogger logger, string keyId, string reason, Exception exception);
 
-        [LoggerMessage(EventId = 2516, Level = LogLevel.Error,
+        [LoggerMessage(EventId = 2488, Level = LogLevel.Error,
             Message = "Key rotation failed for '{KeyId}' in AWS KMS: {Reason}")]
         public static partial void RotationFailed(ILogger logger, string keyId, string reason, Exception exception);
     }

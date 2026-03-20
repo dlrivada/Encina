@@ -170,31 +170,31 @@ public sealed partial class AzureKeyVaultKeyProvider : IKeyProvider
 
     private static partial class Log
     {
-        [LoggerMessage(EventId = 2500, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2475, Level = LogLevel.Debug,
             Message = "Key '{KeyId}' retrieved from Azure Key Vault.")]
         public static partial void KeyRetrieved(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2501, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2476, Level = LogLevel.Debug,
             Message = "Key '{KeyId}' not found in Azure Key Vault.")]
         public static partial void KeyNotFound(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2502, Level = LogLevel.Debug,
+        [LoggerMessage(EventId = 2477, Level = LogLevel.Debug,
             Message = "Current key resolved to '{KeyId}' in Azure Key Vault.")]
         public static partial void CurrentKeyResolved(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2503, Level = LogLevel.Information,
+        [LoggerMessage(EventId = 2478, Level = LogLevel.Information,
             Message = "Key rotated to '{KeyId}' in Azure Key Vault.")]
         public static partial void KeyRotated(ILogger logger, string keyId);
 
-        [LoggerMessage(EventId = 2504, Level = LogLevel.Warning,
+        [LoggerMessage(EventId = 2479, Level = LogLevel.Warning,
             Message = "Access denied to key '{KeyId}' in Azure Key Vault: {Reason}")]
         public static partial void AccessDenied(ILogger logger, string keyId, string reason, Exception exception);
 
-        [LoggerMessage(EventId = 2505, Level = LogLevel.Warning,
+        [LoggerMessage(EventId = 2480, Level = LogLevel.Warning,
             Message = "Azure Key Vault provider error for key '{KeyId}': {Reason}")]
         public static partial void ProviderError(ILogger logger, string keyId, string reason, Exception exception);
 
-        [LoggerMessage(EventId = 2506, Level = LogLevel.Error,
+        [LoggerMessage(EventId = 2481, Level = LogLevel.Error,
             Message = "Key rotation failed for '{KeyName}' in Azure Key Vault: {Reason}")]
         public static partial void RotationFailed(ILogger logger, string keyName, string reason, Exception exception);
     }

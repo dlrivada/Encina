@@ -8,7 +8,8 @@ namespace Encina.EntityFrameworkCore.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 2400-2499 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 2400-2449 range reserved for query cache
+/// (see <c>EventIdRanges.EntityFrameworkCoreQueryCache</c>).
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
