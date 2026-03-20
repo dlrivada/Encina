@@ -11,8 +11,8 @@ namespace Encina.Security.Diagnostics;
 /// in hot paths. All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
 /// </para>
 /// <para>
-/// Event IDs are allocated in the 8000–8099 range to avoid collisions with other
-/// Encina subsystems.
+/// Event IDs are allocated in the 8000–8009 range reserved for security core
+/// (see <c>EventIdRanges.Security</c>).
 /// </para>
 /// </remarks>
 internal static class SecurityLogMessages

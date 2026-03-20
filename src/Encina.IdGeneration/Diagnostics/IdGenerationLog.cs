@@ -8,7 +8,8 @@ namespace Encina.IdGeneration.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 8000-8099 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 8030-8099 range reserved for ID generation
+/// (see <c>EventIdRanges.IdGeneration</c>).
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -18,9 +19,9 @@ namespace Encina.IdGeneration.Diagnostics;
 [ExcludeFromCodeCoverage]
 internal static partial class IdGenerationLog
 {
-    // ID Generation (8000-8009)
+    // ID Generation (8030-8039)
     [LoggerMessage(
-        EventId = 8000,
+        EventId = 8030,
         Level = LogLevel.Debug,
         Message = "Generated {Strategy} ID: {IdValue} (ShardId: {ShardId})")]
     public static partial void IdGenerated(
@@ -29,18 +30,18 @@ internal static partial class IdGenerationLog
         string idValue,
         string? shardId);
 
-    // Sequence Exhaustion (8010-8019)
+    // Sequence Exhaustion (8040-8049)
     [LoggerMessage(
-        EventId = 8010,
+        EventId = 8040,
         Level = LogLevel.Warning,
         Message = "Snowflake sequence exhausted for timestamp {Timestamp}ms, waiting for next millisecond")]
     public static partial void SequenceExhausted(
         ILogger logger,
         long timestamp);
 
-    // Clock Drift (8020-8029)
+    // Clock Drift (8050-8059)
     [LoggerMessage(
-        EventId = 8020,
+        EventId = 8050,
         Level = LogLevel.Warning,
         Message = "Clock drift detected: {DriftMs}ms (tolerance: {ToleranceMs}ms)")]
     public static partial void ClockDriftDetected(
