@@ -220,7 +220,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
   - ✅ DPIA [#781](https://github.com/dlrivada/Encina/issues/781) — Migrated to Marten event sourcing
 - ✅ Encina.Audit.Marten [#800](https://github.com/dlrivada/Encina/issues/800) — Event-sourced IAuditStore with temporal crypto-shredding for compliance-grade audit trails
 - ✅ NIS2 Directive compliance [#414](https://github.com/dlrivada/Encina/issues/414) — Stateless rule engine for Art. 21 measures, MFA enforcement, encryption validation, supply chain security, incident timelines, management accountability
-- AI Act compliance
+- ✅ AI Act compliance [#415](https://github.com/dlrivada/Encina/issues/415) — `Encina.Compliance.AIAct` with EU AI Act (EU 2024/1689) risk classification, prohibited practices detection, human oversight enforcement, transparency obligations, attribute-based pipeline behavior, 135 tests
 
 → [View v0.13.0 Issues](https://github.com/dlrivada/Encina/milestone/10)
 

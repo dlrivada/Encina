@@ -172,8 +172,11 @@ public static class EventIdRanges
     public static readonly (int Min, int Max) ComplianceProcessorAgreements = (9400, 9499);
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Reserved (9500-9999) — future compliance/security modules
+    // AI Act & future compliance modules (9500-9999)
     // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Encina.Compliance.AIAct — EU AI Act compliance pipeline.</summary>
+    public static readonly (int Min, int Max) ComplianceAIAct = (9500, 9599);
 
     /// <summary>
     /// Returns all registered ranges for validation and diagnostics.

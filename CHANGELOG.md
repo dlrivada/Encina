@@ -2084,6 +2084,71 @@ Added the `Encina.Compliance.NIS2` package providing a stateless rule engine for
 
 ---
 
+#### Encina.Compliance.AIAct — EU AI Act (EU 2024/1689) Compliance Module (#415)
+
+Added the `Encina.Compliance.AIAct` package providing declarative, attribute-based EU AI Act compliance at the CQRS pipeline level. Implements risk classification (Art. 6), prohibited practices detection (Art. 5), human oversight enforcement (Art. 14), transparency obligations (Art. 13/50), and technical documentation management (Art. 11) — consistent enforcement across HTTP, messaging, gRPC, and serverless transports.
+
+**Core Abstractions** (6 interfaces):
+
+- **`IAISystemRegistry`**: Central registry for AI system registrations with risk level, category, prohibited practices, and reclassification history
+- **`IAIActClassifier`**: Risk classification (Art. 6), prohibited practice detection (Art. 5), and compliance evaluation returning `AIActComplianceResult`
+- **`IAIActComplianceValidator`**: Generic validation across request types with attribute-based system ID resolution
+- **`IHumanOversightEnforcer`**: Human decision recording and approval tracking (Art. 14)
+- **`IDataQualityValidator`**: Training data quality assessment with bias detection and gap analysis (Art. 10)
+- **`IAIActDocumentation`**: Technical documentation generation and updates (Art. 11)
+
+**Three Attributes** (declarative, composable):
+
+- **`[HighRiskAI(Category = ...)]`**: Marks request types as high-risk AI operations with category and optional system ID (Art. 6)
+- **`[RequireHumanOversight(Reason = "...")]`**: Requires human review before execution (Art. 14)
+- **`[AITransparency("disclosure text")]`**: Declares transparency obligations with configurable obligation type (Art. 13/50)
+
+**Pipeline Behavior**:
+
+- **`AIActCompliancePipelineBehavior<TRequest, TResponse>`**: Pre-execution compliance checks with static per-generic-type attribute resolution (zero reflection overhead after first call)
+- Three enforcement modes: `Block` (reject non-compliant), `Warn` (log and proceed), `Disabled` (no-op)
+- Prohibited practices are **always blocked** regardless of enforcement mode (Art. 5 is non-negotiable)
+- Requests without AI Act attributes bypass all checks (zero overhead)
+
+**Enums**:
+
+- **`AIRiskLevel`**: Prohibited, HighRisk, LimitedRisk, MinimalRisk (4 EU AI Act risk tiers)
+- **`AISystemCategory`**: 12 high-risk categories from Annex III (BiometricIdentification, CriticalInfrastructure, EducationVocationalTraining, EmploymentWorkersManagement, etc.)
+- **`ProhibitedPractice`**: 8 prohibited AI practices from Art. 5 (SocialScoring, RealTimeBiometric, EmotionRecognition, PredictivePolicing, etc.)
+- **`TransparencyObligationType`**: 5 obligation types (AIGeneratedContent, Deepfakes, EmotionRecognition, BiometricCategorisation, ChatbotInteraction)
+- **`AIActEnforcementMode`**: Block, Warn, Disabled
+
+**Model Records**:
+
+- **`AISystemRegistration`**: System metadata with risk level, category, prohibited practices, reclassification history
+- **`AIActComplianceResult`**: Evaluation result with risk level, violations, prohibited status, oversight/transparency requirements
+- **`TechnicalDocumentation`**: Design specs, data governance, accuracy metrics, human oversight mechanisms (Art. 11)
+- **`DataQualityReport`**: Accuracy/completeness/consistency scores, bias indicators, data gaps (Art. 10)
+- **`BiasReport`**: Bias indicators per protected attribute with fairness assessment
+- **`HumanDecisionRecord`**: Human review records with decision rationale (Art. 14)
+- **`ReclassificationRecord`**: Risk level change history with reason and timestamp
+
+**Notifications** (3 domain events):
+
+- **`AISystemReclassifiedNotification`**: Published when a system's risk level changes
+- **`ProhibitedUseBlockedNotification`**: Published when a prohibited practice is blocked
+- **`HumanOversightRequiredNotification`**: Published when human review is required
+
+**Error Codes** (7 structured errors via `AIActErrors`):
+
+- `aiact.system_not_registered`, `aiact.prohibited_use`, `aiact.compliance_validation_failed`
+- `aiact.human_oversight_required`, `aiact.transparency_required`, `aiact.classification_failed`, `aiact.registry_lookup_failed`
+
+**Auto-Registration**: `AIActAutoRegistrationHostedService` scans assemblies for `[HighRiskAI]` attributes at startup, registers discovered systems with `InMemoryAISystemRegistry`. Configurable via `AIActOptions.AssembliesToScan` and `AIActOptions.AutoRegisterFromAttributes`.
+
+**Observability**: ActivitySource `Encina.Compliance.AIAct` with activities for pipeline, classification, and compliance evaluation. Meter `Encina.Compliance.AIAct` with counters and histograms. Structured log events (EventId 9400-9449) via `[LoggerMessage]` source generator. Health check `AIActHealthCheck` verifying registry population, service registration, and enforcement mode.
+
+**DI Registration**: `services.AddEncinaAIAct()` with `TryAdd` semantics — register custom implementations before calling to override defaults. Configurable via `Action<AIActOptions>` delegate.
+
+**Testing**: 135 tests across 4 test projects (88 unit, 23 guard, 13 contract, 11 property). All pass with 0 warnings.
+
+---
+
 ### Changed
 
 #### Encina.Compliance.Consent — Migrated to Marten Event Sourcing (#777)

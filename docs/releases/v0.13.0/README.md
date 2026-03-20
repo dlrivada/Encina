@@ -25,11 +25,36 @@ v0.13.0 focuses on security infrastructure and regulatory compliance, providing 
 | — | Field-Level Encryption | Planned |
 | — | PII Masking | Planned |
 | — | NIS2 Directive | Planned |
-| — | AI Act | Planned |
+| #415 | AI Act Compliance | Completed |
 
 ---
 
 ## March 2026
+
+### AI Act Compliance (#415)
+
+**Issue**: [#415 - AI Act Compliance](https://github.com/dlrivada/Encina/issues/415)
+
+Implemented EU AI Act (EU 2024/1689) compliance with declarative, attribute-based risk classification, prohibited practices detection (Art. 5), human oversight enforcement (Art. 14), and transparency obligations (Art. 13/50) at the CQRS pipeline level.
+
+**Package**: `Encina.Compliance.AIAct`
+
+#### Key Features
+
+- **`[HighRiskAI]` attribute** — Declarative high-risk AI system metadata with category and optional system ID (Art. 6)
+- **`[RequireHumanOversight]` attribute** — Human review requirement (Art. 14)
+- **`[AITransparency]` attribute** — Transparency disclosure obligations (Art. 13/50)
+- **`AIActCompliancePipelineBehavior`** — Automatic enforcement in the request pipeline
+- **Risk classification** — 4 EU AI Act risk tiers (Prohibited, HighRisk, LimitedRisk, MinimalRisk)
+- **12 high-risk categories** — Annex III categories (Biometric, Critical Infrastructure, Employment, etc.)
+- **8 prohibited practices** — Art. 5 practices (Social Scoring, Real-Time Biometric, Predictive Policing, etc.)
+- **Auto-registration** — Scan assemblies for AI Act attributes at startup
+- **Enforcement modes** — Block, Warn, or Disabled
+- **OpenTelemetry** — Tracing, metrics, and structured logging (EventId 9400-9449)
+- **Health check** — Registry population, service registration, and enforcement mode verification
+- **3 domain notifications** — Reclassification, prohibited use blocked, human oversight required
+
+---
 
 ### Data Residency (#405)
 
