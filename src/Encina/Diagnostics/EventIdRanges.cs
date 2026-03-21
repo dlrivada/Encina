@@ -178,6 +178,9 @@ public static class EventIdRanges
     /// <summary>Encina.Compliance.AIAct — EU AI Act compliance pipeline.</summary>
     public static readonly (int Min, int Max) ComplianceAIAct = (9500, 9599);
 
+    /// <summary>Encina.Compliance.Attestation — tamper-evident audit attestation.</summary>
+    public static readonly (int Min, int Max) ComplianceAttestation = (9600, 9699);
+
     /// <summary>
     /// Returns all registered ranges for validation and diagnostics.
     /// </summary>

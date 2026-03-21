@@ -1,0 +1,86 @@
+#nullable enable
+const Encina.Compliance.Attestation.AttestationErrors.ChainIntegrityBrokenCode = "attestation.chain_integrity_broken" -> string!
+const Encina.Compliance.Attestation.AttestationErrors.ContentHashMismatchCode = "attestation.content_hash_mismatch" -> string!
+const Encina.Compliance.Attestation.AttestationErrors.DuplicateRecordCode = "attestation.duplicate_record" -> string!
+const Encina.Compliance.Attestation.AttestationErrors.HttpEndpointErrorCode = "attestation.http_endpoint_error" -> string!
+const Encina.Compliance.Attestation.AttestationErrors.ProviderUnavailableCode = "attestation.provider_unavailable" -> string!
+const Encina.Compliance.Attestation.AttestationErrors.VerificationFailedCode = "attestation.verification_failed" -> string!
+Encina.Compliance.Attestation.Abstractions.IAuditAttestationProvider
+Encina.Compliance.Attestation.Abstractions.IAuditAttestationProvider.AttestAsync(Encina.Compliance.Attestation.Model.AuditRecord! record, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Attestation.Model.AttestationReceipt!>>
+Encina.Compliance.Attestation.Abstractions.IAuditAttestationProvider.ProviderName.get -> string!
+Encina.Compliance.Attestation.Abstractions.IAuditAttestationProvider.VerifyAsync(Encina.Compliance.Attestation.Model.AttestationReceipt! receipt, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.Attestation.Model.AttestationVerification!>>
+Encina.Compliance.Attestation.AttestationErrors
+Encina.Compliance.Attestation.AttestationOptions
+Encina.Compliance.Attestation.AttestationOptions.AddHealthCheck.get -> bool
+Encina.Compliance.Attestation.AttestationOptions.AddHealthCheck.set -> void
+Encina.Compliance.Attestation.AttestationOptions.AttestationOptions() -> void
+Encina.Compliance.Attestation.AttestationOptionsExtensions
+Encina.Compliance.Attestation.Attributes.AttestDecisionAttribute
+Encina.Compliance.Attestation.Attributes.AttestDecisionAttribute.AttestDecisionAttribute() -> void
+Encina.Compliance.Attestation.Attributes.AttestDecisionAttribute.Reason.get -> string?
+Encina.Compliance.Attestation.Attributes.AttestDecisionAttribute.Reason.set -> void
+Encina.Compliance.Attestation.Attributes.AttestDecisionAttribute.RecordType.get -> string?
+Encina.Compliance.Attestation.Attributes.AttestDecisionAttribute.RecordType.set -> void
+Encina.Compliance.Attestation.HashChainOptions
+Encina.Compliance.Attestation.HashChainOptions.HashAlgorithm.get -> System.Security.Cryptography.HashAlgorithmName
+Encina.Compliance.Attestation.HashChainOptions.HashAlgorithm.set -> void
+Encina.Compliance.Attestation.HashChainOptions.HashChainOptions() -> void
+Encina.Compliance.Attestation.HashChainOptions.StoragePath.get -> string?
+Encina.Compliance.Attestation.HashChainOptions.StoragePath.set -> void
+Encina.Compliance.Attestation.HttpAttestationOptions
+Encina.Compliance.Attestation.HttpAttestationOptions.AttestEndpointUrl.get -> System.Uri!
+Encina.Compliance.Attestation.HttpAttestationOptions.AttestEndpointUrl.set -> void
+Encina.Compliance.Attestation.HttpAttestationOptions.AuthHeader.get -> string?
+Encina.Compliance.Attestation.HttpAttestationOptions.AuthHeader.set -> void
+Encina.Compliance.Attestation.HttpAttestationOptions.HttpAttestationOptions() -> void
+Encina.Compliance.Attestation.HttpAttestationOptions.VerifyEndpointUrl.get -> System.Uri?
+Encina.Compliance.Attestation.HttpAttestationOptions.VerifyEndpointUrl.set -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt
+Encina.Compliance.Attestation.Model.AttestationReceipt.AttestationId.get -> System.Guid
+Encina.Compliance.Attestation.Model.AttestationReceipt.AttestationId.init -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt.AttestedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Attestation.Model.AttestationReceipt.AttestedAtUtc.init -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt.AuditRecordId.get -> System.Guid
+Encina.Compliance.Attestation.Model.AttestationReceipt.AuditRecordId.init -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt.ContentHash.get -> string!
+Encina.Compliance.Attestation.Model.AttestationReceipt.ContentHash.init -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt.AttestationReceipt() -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt.ProofMetadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
+Encina.Compliance.Attestation.Model.AttestationReceipt.ProofMetadata.init -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt.ProviderName.get -> string!
+Encina.Compliance.Attestation.Model.AttestationReceipt.ProviderName.init -> void
+Encina.Compliance.Attestation.Model.AttestationReceipt.Signature.get -> string!
+Encina.Compliance.Attestation.Model.AttestationReceipt.Signature.init -> void
+Encina.Compliance.Attestation.Model.AttestationVerification
+Encina.Compliance.Attestation.Model.AttestationVerification.AttestationVerification() -> void
+Encina.Compliance.Attestation.Model.AttestationVerification.FailureReason.get -> string?
+Encina.Compliance.Attestation.Model.AttestationVerification.FailureReason.init -> void
+Encina.Compliance.Attestation.Model.AttestationVerification.IsValid.get -> bool
+Encina.Compliance.Attestation.Model.AttestationVerification.IsValid.init -> void
+Encina.Compliance.Attestation.Model.AttestationVerification.VerifiedAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Attestation.Model.AttestationVerification.VerifiedAtUtc.init -> void
+Encina.Compliance.Attestation.Model.AuditRecord
+Encina.Compliance.Attestation.Model.AuditRecord.AuditRecord() -> void
+Encina.Compliance.Attestation.Model.AuditRecord.OccurredAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Attestation.Model.AuditRecord.OccurredAtUtc.init -> void
+Encina.Compliance.Attestation.Model.AuditRecord.RecordId.get -> System.Guid
+Encina.Compliance.Attestation.Model.AuditRecord.RecordId.init -> void
+Encina.Compliance.Attestation.Model.AuditRecord.RecordType.get -> string!
+Encina.Compliance.Attestation.Model.AuditRecord.RecordType.init -> void
+Encina.Compliance.Attestation.Model.AuditRecord.SerializedContent.get -> string!
+Encina.Compliance.Attestation.Model.AuditRecord.SerializedContent.init -> void
+Encina.Compliance.Attestation.Providers.HashChainAttestationProvider
+Encina.Compliance.Attestation.Providers.HashChainAttestationProvider.HashChainAttestationProvider(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Attestation.Providers.HashChainAttestationProvider!>! logger, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Attestation.HashChainOptions!>! options) -> void
+Encina.Compliance.Attestation.Providers.HashChainAttestationProvider.ProviderName.get -> string!
+Encina.Compliance.Attestation.Providers.HashChainAttestationProvider.VerifyChainIntegrity() -> bool
+Encina.Compliance.Attestation.Providers.HttpAttestationProvider
+Encina.Compliance.Attestation.Providers.HttpAttestationProvider.HttpAttestationProvider(System.Net.Http.HttpClient! httpClient, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Attestation.Providers.HttpAttestationProvider!>! logger, Microsoft.Extensions.Options.IOptions<Encina.Compliance.Attestation.HttpAttestationOptions!>! options) -> void
+Encina.Compliance.Attestation.Providers.HttpAttestationProvider.ProviderName.get -> string!
+Encina.Compliance.Attestation.Providers.InMemoryAttestationProvider
+Encina.Compliance.Attestation.Providers.InMemoryAttestationProvider.InMemoryAttestationProvider(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.Attestation.Providers.InMemoryAttestationProvider!>! logger) -> void
+Encina.Compliance.Attestation.Providers.InMemoryAttestationProvider.ProviderName.get -> string!
+Encina.Compliance.Attestation.ServiceCollectionExtensions
+static Encina.Compliance.Attestation.AttestationOptionsExtensions.UseHashChain(this Encina.Compliance.Attestation.AttestationOptions! options, System.Action<Encina.Compliance.Attestation.HashChainOptions!>? configure = null) -> Encina.Compliance.Attestation.AttestationOptions!
+static Encina.Compliance.Attestation.AttestationOptionsExtensions.UseHttp(this Encina.Compliance.Attestation.AttestationOptions! options, System.Action<Encina.Compliance.Attestation.HttpAttestationOptions!>! configure) -> Encina.Compliance.Attestation.AttestationOptions!
+static Encina.Compliance.Attestation.AttestationOptionsExtensions.UseInMemory(this Encina.Compliance.Attestation.AttestationOptions! options) -> Encina.Compliance.Attestation.AttestationOptions!
+static Encina.Compliance.Attestation.ServiceCollectionExtensions.AddEncinaAttestation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.Attestation.AttestationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
