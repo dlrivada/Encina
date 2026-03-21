@@ -106,7 +106,7 @@ public sealed class HashChainAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason.ShouldContain("Chain integrity");
+            v.FailureReason.ShouldContain("forgery");
         });
     }
 
@@ -154,6 +154,71 @@ public sealed class HashChainAttestationProviderTests
 
         // Second entry's previous_signature should be first entry's signature
         r2.ProofMetadata!["previous_signature"].ShouldBe(r1.Signature);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_ForgedReceipt_ValidAuditRecordId_TamperedAttestedAtUtc_ReturnsInvalid()
+    {
+        var record = CreateRecord();
+        var attestResult = await _sut.AttestAsync(record);
+        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+
+        var forged = receipt with { AttestedAtUtc = receipt.AttestedAtUtc.AddHours(1) };
+
+        var verifyResult = await _sut.VerifyAsync(forged);
+
+        verifyResult.IsRight.ShouldBeTrue();
+        verifyResult.IfRight(v =>
+        {
+            v.IsValid.ShouldBeFalse();
+            v.FailureReason.ShouldContain("forgery");
+        });
+    }
+
+    [Fact]
+    public async Task VerifyAsync_ForgedReceipt_ValidAuditRecordId_TamperedProviderName_ReturnsInvalid()
+    {
+        var record = CreateRecord();
+        var attestResult = await _sut.AttestAsync(record);
+        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+
+        var forged = receipt with { ProviderName = "Forged" };
+
+        var verifyResult = await _sut.VerifyAsync(forged);
+
+        verifyResult.IsRight.ShouldBeTrue();
+        verifyResult.IfRight(v =>
+        {
+            v.IsValid.ShouldBeFalse();
+            v.FailureReason.ShouldContain("forgery");
+        });
+    }
+
+    [Fact]
+    public async Task VerifyAsync_ForgedReceipt_ValidAuditRecordId_TamperedProofMetadata_ReturnsInvalid()
+    {
+        var record = CreateRecord();
+        var attestResult = await _sut.AttestAsync(record);
+        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+
+        var forged = receipt with
+        {
+            ProofMetadata = new Dictionary<string, string>
+            {
+                ["chain_index"] = "999",
+                ["previous_signature"] = "forged",
+                ["hash_algorithm"] = "SHA256"
+            }
+        };
+
+        var verifyResult = await _sut.VerifyAsync(forged);
+
+        verifyResult.IsRight.ShouldBeTrue();
+        verifyResult.IfRight(v =>
+        {
+            v.IsValid.ShouldBeFalse();
+            v.FailureReason.ShouldContain("forgery");
+        });
     }
 
     private static AuditRecord CreateRecord() => new()

@@ -126,7 +126,8 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
             && receipt.Signature == storedReceipt.Signature
             && receipt.ContentHash == storedReceipt.ContentHash
             && receipt.AttestedAtUtc == storedReceipt.AttestedAtUtc
-            && receipt.ProviderName == storedReceipt.ProviderName;
+            && receipt.ProviderName == storedReceipt.ProviderName
+            && ProofMetadataEquals(receipt.ProofMetadata, storedReceipt.ProofMetadata);
 
         // Verify content integrity: recompute hash from stored record
         var currentHash = ContentHasher.ComputeSha256(originalRecord.SerializedContent);
@@ -156,5 +157,22 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
                 VerifiedAtUtc = now,
                 FailureReason = failureReason
             }));
+    }
+
+    private static bool ProofMetadataEquals(
+        IReadOnlyDictionary<string, string>? left,
+        IReadOnlyDictionary<string, string>? right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left is null || right is null) return false;
+        if (left.Count != right.Count) return false;
+
+        foreach (var kvp in left)
+        {
+            if (!right.TryGetValue(kvp.Key, out var value) || value != kvp.Value)
+                return false;
+        }
+
+        return true;
     }
 }

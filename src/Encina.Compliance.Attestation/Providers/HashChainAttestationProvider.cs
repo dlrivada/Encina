@@ -113,7 +113,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                 {
                     ["chain_index"] = chainIndex.ToString(),
                     ["previous_signature"] = _previousSignature,
-                    ["hash_algorithm"] = _options.HashAlgorithm.Name ?? "SHA256"
+                    ["hash_algorithm"] = "SHA256" // Actual algorithm used by ContentHasher.ComputeSha256
                 }
             };
 
@@ -167,7 +167,8 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                 && receipt.Signature == storedReceipt.Signature
                 && receipt.ContentHash == storedReceipt.ContentHash
                 && receipt.AttestedAtUtc == storedReceipt.AttestedAtUtc
-                && receipt.ProviderName == storedReceipt.ProviderName;
+                && receipt.ProviderName == storedReceipt.ProviderName
+                && ProofMetadataEquals(receipt.ProofMetadata, storedReceipt.ProofMetadata);
 
             if (!receiptMatchesStored)
             {
@@ -244,5 +245,22 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
 
             return true;
         }
+    }
+
+    private static bool ProofMetadataEquals(
+        IReadOnlyDictionary<string, string>? left,
+        IReadOnlyDictionary<string, string>? right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left is null || right is null) return false;
+        if (left.Count != right.Count) return false;
+
+        foreach (var kvp in left)
+        {
+            if (!right.TryGetValue(kvp.Key, out var value) || value != kvp.Value)
+                return false;
+        }
+
+        return true;
     }
 }
