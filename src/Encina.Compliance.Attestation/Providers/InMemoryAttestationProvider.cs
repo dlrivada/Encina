@@ -124,7 +124,9 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
         // Verify the receipt matches the stored receipt (prevents forged receipts)
         var receiptMatchesStored = receipt.AttestationId == storedReceipt.AttestationId
             && receipt.Signature == storedReceipt.Signature
-            && receipt.ContentHash == storedReceipt.ContentHash;
+            && receipt.ContentHash == storedReceipt.ContentHash
+            && receipt.AttestedAtUtc == storedReceipt.AttestedAtUtc
+            && receipt.ProviderName == storedReceipt.ProviderName;
 
         // Verify content integrity: recompute hash from stored record
         var currentHash = ContentHasher.ComputeSha256(originalRecord.SerializedContent);

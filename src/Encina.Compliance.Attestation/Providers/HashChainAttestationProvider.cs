@@ -165,7 +165,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
             var storedReceipt = stored.Receipt;
             var receiptMatchesStored = receipt.AttestationId == storedReceipt.AttestationId
                 && receipt.Signature == storedReceipt.Signature
-                && receipt.ContentHash == storedReceipt.ContentHash;
+                && receipt.ContentHash == storedReceipt.ContentHash
+                && receipt.AttestedAtUtc == storedReceipt.AttestedAtUtc
+                && receipt.ProviderName == storedReceipt.ProviderName;
 
             if (!receiptMatchesStored)
             {

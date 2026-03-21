@@ -54,7 +54,7 @@ public class HashChainPropertyTests
                     var result = provider.AttestAsync(CreateRecord()).AsTask().Result;
                     result.Match(
                         Right: r => receipts.Add(r),
-                        Left: _ => { });
+                        Left: e => throw new InvalidOperationException($"AttestAsync failed: {e}"));
                 }
 
                 // All receipts have distinct AttestationIds
@@ -113,7 +113,7 @@ public class HashChainPropertyTests
                     var result = provider.AttestAsync(CreateRecord()).AsTask().Result;
                     result.Match(
                         Right: r => receipts.Add(r),
-                        Left: _ => { });
+                        Left: e => throw new InvalidOperationException($"AttestAsync failed: {e}"));
                 }
 
                 // First entry links to "genesis"
