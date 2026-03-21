@@ -9,8 +9,12 @@ public sealed class HashChainOptions
 {
     /// <summary>
     /// Gets or sets the storage path for persisting the hash chain (optional).
-    /// When null, the chain is kept in-memory only.
+    /// When null (default), the chain is kept in-memory only and lost on process restart.
     /// </summary>
+    /// <remarks>
+    /// Persistence is not yet implemented. This property is reserved for a future
+    /// file-backed provider that will rehydrate the chain on startup.
+    /// </remarks>
     public string? StoragePath { get; set; }
 
     /// <summary>

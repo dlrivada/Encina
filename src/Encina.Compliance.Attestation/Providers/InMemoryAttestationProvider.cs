@@ -50,30 +50,37 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
         AttestationDiagnostics.AttestationTotal.Add(1,
             new(AttestationDiagnostics.TagProviderName, ProviderName));
 
-        // Thread-safe idempotent attestation using GetOrAdd
-        var isNew = false;
-        var receipt = _receipts.GetOrAdd(record.RecordId, _ =>
+        // Idempotent: return existing receipt if already attested
+        if (_receipts.TryGetValue(record.RecordId, out var existingReceipt))
         {
-            isNew = true;
-            var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
-            var now = _timeProvider.GetUtcNow();
+            AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
+            sw.Stop();
+            AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
+            AttestationDiagnostics.RecordSuccess(activity);
+            activity?.Dispose();
+            return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existingReceipt));
+        }
 
-            return new AttestationReceipt
+        var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
+        var now = _timeProvider.GetUtcNow();
+
+        var receipt = new AttestationReceipt
+        {
+            AttestationId = Guid.NewGuid(),
+            AuditRecordId = record.RecordId,
+            ContentHash = contentHash,
+            AttestedAtUtc = now,
+            ProviderName = ProviderName,
+            Signature = ContentHasher.ComputeSha256($"{contentHash}:{now:O}:{ProviderName}"),
+            ProofMetadata = new Dictionary<string, string>
             {
-                AttestationId = Guid.NewGuid(),
-                AuditRecordId = record.RecordId,
-                ContentHash = contentHash,
-                AttestedAtUtc = now,
-                ProviderName = ProviderName,
-                Signature = ContentHasher.ComputeSha256($"{contentHash}:{now:O}:{ProviderName}"),
-                ProofMetadata = new Dictionary<string, string>
-                {
-                    ["storage"] = "in-memory"
-                }
-            };
-        });
+                ["storage"] = "in-memory"
+            }
+        };
 
-        if (isNew)
+        // TryAdd is atomic — if another thread won the race, return its receipt
+        if (_receipts.TryAdd(record.RecordId, receipt))
         {
             _records.TryAdd(record.RecordId, record);
             AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
@@ -82,6 +89,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
         }
         else
         {
+            receipt = _receipts[record.RecordId];
             AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
         }
 

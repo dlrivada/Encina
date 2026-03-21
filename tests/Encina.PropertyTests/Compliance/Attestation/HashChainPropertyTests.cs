@@ -198,6 +198,7 @@ public class HashChainPropertyTests
                 for (var i = 0; i < repeatCount; i++)
                 {
                     var result = provider.AttestAsync(record).AsTask().Result;
+                    result.IsRight.ShouldBeTrue();
                     var receipt = (AttestationReceipt)result;
 
                     if (first is null)
