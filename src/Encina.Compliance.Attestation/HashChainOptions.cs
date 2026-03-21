@@ -20,5 +20,10 @@ public sealed class HashChainOptions
     /// <summary>
     /// Gets or sets the hash algorithm to use. Default is SHA-256.
     /// </summary>
+    /// <remarks>
+    /// Reserved for future use. The current implementation always uses SHA-256
+    /// via <see cref="ContentHasher.ComputeSha256"/>. Setting this property
+    /// has no effect on the actual hashing behavior yet.
+    /// </remarks>
     public HashAlgorithmName HashAlgorithm { get; set; } = HashAlgorithmName.SHA256;
 }
