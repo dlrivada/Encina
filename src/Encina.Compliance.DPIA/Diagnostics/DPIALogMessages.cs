@@ -375,8 +375,8 @@ internal static partial class DPIALogMessages
     [LoggerMessage(
         EventId = 8881,
         Level = LogLevel.Information,
-        Message = "DPO consultation created. AssessmentId={AssessmentId}, ConsultationId={ConsultationId}, DPOEmailDomain={DPOEmailDomain}")]
-    internal static partial void DPOConsultationCreated(this ILogger logger, Guid assessmentId, Guid consultationId, string dpoEmailDomain);
+        Message = "DPO consultation created. AssessmentId={AssessmentId}, ConsultationId={ConsultationId}")]
+    internal static partial void DPOConsultationCreated(this ILogger logger, Guid assessmentId, Guid consultationId);
 
     /// <summary>DPO consultation failed — no DPO configured.</summary>
     [LoggerMessage(

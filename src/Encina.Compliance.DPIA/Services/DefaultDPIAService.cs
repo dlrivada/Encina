@@ -211,7 +211,7 @@ internal sealed class DefaultDPIAService : IDPIAService
                     return saveResult.Match<Either<EncinaError, Guid>>(
                         Right: _ =>
                         {
-                            _logger.DPOConsultationCreated(assessmentId, consultationId, RedactEmail(dpoEmail));
+                            _logger.DPOConsultationCreated(assessmentId, consultationId);
                             DPIADiagnostics.DPOConsultationTotal.Add(1);
                             InvalidateAssessmentCache(assessmentId, aggregate.RequestTypeName, cancellationToken);
                             return consultationId;
@@ -653,18 +653,4 @@ internal sealed class DefaultDPIAService : IDPIAService
         _ = _cache.RemoveAsync($"dpia:type:{requestTypeName}", cancellationToken);
     }
 
-    /// <summary>
-    /// Extracts only the domain portion of an email address for safe logging.
-    /// Returns "***@domain" to avoid exposing PII in log output.
-    /// </summary>
-    private static string RedactEmail(string? email)
-    {
-        if (string.IsNullOrEmpty(email))
-        {
-            return "[not configured]";
-        }
-
-        var atIndex = email.IndexOf('@', StringComparison.Ordinal);
-        return atIndex >= 0 ? $"***{email[atIndex..]}" : "***";
-    }
 }
