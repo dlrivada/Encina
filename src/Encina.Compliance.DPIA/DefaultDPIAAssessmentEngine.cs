@@ -258,14 +258,14 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
         // 1. Options take priority — explicit configuration always wins.
         if (!string.IsNullOrWhiteSpace(_options.DPOEmail))
         {
-            _logger.DPOContactResolved("DPIAOptions", _options.DPOName, _options.DPOEmail);
+            _logger.DPOContactResolved("DPIAOptions", true);
             return (_options.DPOName, _options.DPOEmail);
         }
 
         // 2. Fallback to GDPR module's IDataProtectionOfficer if registered.
         if (_dpo is not null)
         {
-            _logger.DPOContactResolved("IDataProtectionOfficer", _dpo.Name, _dpo.Email);
+            _logger.DPOContactResolved("IDataProtectionOfficer", true);
             return (_dpo.Name, _dpo.Email);
         }
 

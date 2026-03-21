@@ -167,7 +167,7 @@ public static class DPIAEndpointExtensions
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("list");
         var startedAt = Stopwatch.GetTimestamp();
-        logger.EndpointRequestReceived("list", "GET", httpContext.Request.Path);
+        logger.EndpointRequestReceived("list", "GET", SanitizeForLog(httpContext.Request.Path));
 
         var result = await service.GetAllAssessmentsAsync(cancellationToken);
 
@@ -196,7 +196,7 @@ public static class DPIAEndpointExtensions
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("get");
         var startedAt = Stopwatch.GetTimestamp();
-        logger.EndpointRequestReceived("get", "GET", httpContext.Request.Path);
+        logger.EndpointRequestReceived("get", "GET", SanitizeForLog(httpContext.Request.Path));
 
         var result = await service.GetAssessmentAsync(id, cancellationToken);
 
@@ -239,7 +239,7 @@ public static class DPIAEndpointExtensions
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("assess");
         var startedAt = Stopwatch.GetTimestamp();
-        logger.EndpointRequestReceived("assess", "POST", httpContext.Request.Path);
+        logger.EndpointRequestReceived("assess", "POST", SanitizeForLog(httpContext.Request.Path));
         logger.EndpointAssessTriggered(Uri.UnescapeDataString(requestType));
 
         var decodedTypeName = Uri.UnescapeDataString(requestType);
@@ -339,7 +339,7 @@ public static class DPIAEndpointExtensions
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("approve");
         var startedAt = Stopwatch.GetTimestamp();
-        logger.EndpointRequestReceived("approve", "POST", httpContext.Request.Path);
+        logger.EndpointRequestReceived("approve", "POST", SanitizeForLog(httpContext.Request.Path));
         logger.EndpointApproveTriggered(id);
 
         var approvedBy = httpContext.User.Identity?.Name ?? "DPO";
@@ -384,7 +384,7 @@ public static class DPIAEndpointExtensions
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("reject");
         var startedAt = Stopwatch.GetTimestamp();
-        logger.EndpointRequestReceived("reject", "POST", httpContext.Request.Path);
+        logger.EndpointRequestReceived("reject", "POST", SanitizeForLog(httpContext.Request.Path));
         logger.EndpointRejectTriggered(id);
 
         var rejectedBy = httpContext.User.Identity?.Name ?? "DPO";
@@ -426,7 +426,7 @@ public static class DPIAEndpointExtensions
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("templates");
         var startedAt = Stopwatch.GetTimestamp();
-        logger.EndpointRequestReceived("templates", "GET", httpContext.Request.Path);
+        logger.EndpointRequestReceived("templates", "GET", SanitizeForLog(httpContext.Request.Path));
 
         var result = await templateProvider.GetAllTemplatesAsync(cancellationToken);
 
@@ -454,7 +454,7 @@ public static class DPIAEndpointExtensions
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("expired");
         var startedAt = Stopwatch.GetTimestamp();
-        logger.EndpointRequestReceived("expired", "GET", httpContext.Request.Path);
+        logger.EndpointRequestReceived("expired", "GET", SanitizeForLog(httpContext.Request.Path));
 
         var result = await service.GetExpiredAssessmentsAsync(cancellationToken);
 
@@ -537,6 +537,23 @@ public static class DPIAEndpointExtensions
         DPIADiagnostics.EndpointDuration.Record(elapsedMs, tags);
         DPIADiagnostics.RecordEndpointFailed(activity, statusCode, $"HTTP {statusCode}");
         logger.EndpointRequestFailed(endpointName, statusCode, elapsedMs);
+    }
+
+    /// <summary>
+    /// Sanitizes a string for safe inclusion in structured log messages by removing
+    /// control characters (newlines, carriage returns, tabs) that could enable log forging.
+    /// </summary>
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Replace("\n", string.Empty, StringComparison.Ordinal)
+            .Replace("\t", string.Empty, StringComparison.Ordinal);
     }
 
     /// <summary>

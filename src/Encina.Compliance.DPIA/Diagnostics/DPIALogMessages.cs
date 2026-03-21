@@ -375,8 +375,8 @@ internal static partial class DPIALogMessages
     [LoggerMessage(
         EventId = 8881,
         Level = LogLevel.Information,
-        Message = "DPO consultation created. AssessmentId={AssessmentId}, ConsultationId={ConsultationId}, DPOEmail={DPOEmail}")]
-    internal static partial void DPOConsultationCreated(this ILogger logger, Guid assessmentId, Guid consultationId, string dpoEmail);
+        Message = "DPO consultation created. AssessmentId={AssessmentId}, ConsultationId={ConsultationId}, DPOEmailDomain={DPOEmailDomain}")]
+    internal static partial void DPOConsultationCreated(this ILogger logger, Guid assessmentId, Guid consultationId, string dpoEmailDomain);
 
     /// <summary>DPO consultation failed — no DPO configured.</summary>
     [LoggerMessage(
@@ -389,8 +389,8 @@ internal static partial class DPIALogMessages
     [LoggerMessage(
         EventId = 8883,
         Level = LogLevel.Debug,
-        Message = "DPO contact resolved. Source={Source}, DPOName={DPOName}, DPOEmail={DPOEmail}")]
-    internal static partial void DPOContactResolved(this ILogger logger, string source, string? dpoName, string? dpoEmail);
+        Message = "DPO contact resolved. Source={Source}, DPOContactConfigured={DPOContactConfigured}")]
+    internal static partial void DPOContactResolved(this ILogger logger, string source, bool dpoContactConfigured);
 
     // ========================================================================
     // ASP.NET Core endpoint log messages (8890-8899)
