@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 using Encina.Compliance.Attestation.Abstractions;
 using Encina.Compliance.Attestation.Diagnostics;
@@ -44,34 +45,52 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        // Idempotency: return existing receipt for same RecordId
-        if (_receipts.TryGetValue(record.RecordId, out var existing))
+        var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
+        var sw = Stopwatch.StartNew();
+        AttestationDiagnostics.AttestationTotal.Add(1,
+            new(AttestationDiagnostics.TagProviderName, ProviderName));
+
+        // Thread-safe idempotent attestation using GetOrAdd
+        var isNew = false;
+        var receipt = _receipts.GetOrAdd(record.RecordId, _ =>
+        {
+            isNew = true;
+            var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
+            var now = _timeProvider.GetUtcNow();
+
+            return new AttestationReceipt
+            {
+                AttestationId = Guid.NewGuid(),
+                AuditRecordId = record.RecordId,
+                ContentHash = contentHash,
+                AttestedAtUtc = now,
+                ProviderName = ProviderName,
+                Signature = ContentHasher.ComputeSha256($"{contentHash}:{now:O}:{ProviderName}"),
+                ProofMetadata = new Dictionary<string, string>
+                {
+                    ["storage"] = "in-memory"
+                }
+            };
+        });
+
+        if (isNew)
+        {
+            _records.TryAdd(record.RecordId, record);
+            AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
+            AttestationDiagnostics.AttestationSucceeded.Add(1,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
+        }
+        else
         {
             AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
-            return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing));
         }
 
-        var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
-        var now = _timeProvider.GetUtcNow();
+        sw.Stop();
+        AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new(AttestationDiagnostics.TagProviderName, ProviderName));
+        AttestationDiagnostics.RecordSuccess(activity);
+        activity?.Dispose();
 
-        var receipt = new AttestationReceipt
-        {
-            AttestationId = Guid.NewGuid(),
-            AuditRecordId = record.RecordId,
-            ContentHash = contentHash,
-            AttestedAtUtc = now,
-            ProviderName = ProviderName,
-            Signature = ContentHasher.ComputeSha256($"{contentHash}:{now:O}:{ProviderName}"),
-            ProofMetadata = new Dictionary<string, string>
-            {
-                ["storage"] = "in-memory"
-            }
-        };
-
-        _receipts[record.RecordId] = receipt;
-        _records[record.RecordId] = record;
-
-        AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
         return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(receipt));
     }
 
@@ -81,10 +100,17 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(receipt);
 
+        var activity = AttestationDiagnostics.StartVerification(ProviderName);
+        AttestationDiagnostics.VerificationTotal.Add(1,
+            new(AttestationDiagnostics.TagProviderName, ProviderName));
+
         var now = _timeProvider.GetUtcNow();
 
         if (!_records.TryGetValue(receipt.AuditRecordId, out var originalRecord))
         {
+            AttestationDiagnostics.RecordFailure(activity, "Record not found");
+            activity?.Dispose();
+
             return ValueTask.FromResult(Right<EncinaError, AttestationVerification>(
                 new AttestationVerification
                 {
@@ -98,6 +124,13 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
         var isValid = currentHash == receipt.ContentHash;
 
         AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
+
+        if (isValid)
+            AttestationDiagnostics.RecordSuccess(activity);
+        else
+            AttestationDiagnostics.RecordFailure(activity, "Content hash mismatch");
+
+        activity?.Dispose();
 
         return ValueTask.FromResult(Right<EncinaError, AttestationVerification>(
             new AttestationVerification

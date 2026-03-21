@@ -86,4 +86,13 @@ public sealed class ServiceCollectionExtensionsTests
         // We verify the service collection contains health check services
         services.Any(s => s.ServiceType.Name.Contains("HealthCheck")).ShouldBeTrue();
     }
+
+    [Fact]
+    public void AddEncinaAttestation_NoProviderConfigured_ThrowsInvalidOperationException()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<InvalidOperationException>(() =>
+            services.AddEncinaAttestation(options => { }));
+    }
 }

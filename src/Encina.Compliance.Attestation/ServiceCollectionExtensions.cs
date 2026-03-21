@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no attestation provider is configured.</exception>
     public static IServiceCollection AddEncinaAttestation(
         this IServiceCollection services,
         Action<AttestationOptions> configure)
@@ -67,6 +68,12 @@ public static class ServiceCollectionExtensions
         }
         else if (options.HttpOptions is not null)
         {
+            if (options.HttpOptions.AttestEndpointUrl is null)
+            {
+                throw new InvalidOperationException(
+                    "HttpAttestationOptions.AttestEndpointUrl must be configured when using the HTTP attestation provider.");
+            }
+
             services.Configure<HttpAttestationOptions>(http =>
             {
                 http.AttestEndpointUrl = options.HttpOptions.AttestEndpointUrl;
@@ -75,6 +82,11 @@ public static class ServiceCollectionExtensions
             });
             services.AddHttpClient<HttpAttestationProvider>();
             services.TryAddSingleton<IAuditAttestationProvider, HttpAttestationProvider>();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "No attestation provider configured. Call UseInMemory(), UseHashChain(), or UseHttp() on the options.");
         }
 
         if (options.AddHealthCheck)

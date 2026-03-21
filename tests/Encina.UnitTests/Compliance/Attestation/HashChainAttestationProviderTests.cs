@@ -130,7 +130,7 @@ public sealed class HashChainAttestationProviderTests
     }
 
     [Fact]
-    public async Task VerifyChainIntegrity_EmptyChain_ReturnsTrue()
+    public void VerifyChainIntegrity_EmptyChain_ReturnsTrue()
     {
         _sut.VerifyChainIntegrity().ShouldBeTrue();
     }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 using Encina.Compliance.Attestation.Abstractions;
 using Encina.Compliance.Attestation.Diagnostics;
@@ -70,6 +71,11 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
             return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing.Receipt));
         }
 
+        var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
+        var sw = Stopwatch.StartNew();
+        AttestationDiagnostics.AttestationTotal.Add(1,
+            new(AttestationDiagnostics.TagProviderName, ProviderName));
+
         var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
         var now = _timeProvider.GetUtcNow();
 
@@ -104,7 +110,14 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
             _receipts[record.RecordId] = (receipt, chainIndex);
             _previousSignature = signature;
 
+            sw.Stop();
+            AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
+            AttestationDiagnostics.AttestationSucceeded.Add(1,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
             AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
+            AttestationDiagnostics.RecordSuccess(activity);
+            activity?.Dispose();
             return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(receipt));
         }
     }
@@ -115,10 +128,17 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(receipt);
 
+        var activity = AttestationDiagnostics.StartVerification(ProviderName);
+        AttestationDiagnostics.VerificationTotal.Add(1,
+            new(AttestationDiagnostics.TagProviderName, ProviderName));
+
         var now = _timeProvider.GetUtcNow();
 
         if (!_receipts.TryGetValue(receipt.AuditRecordId, out var stored))
         {
+            AttestationDiagnostics.RecordFailure(activity, "Receipt not found");
+            activity?.Dispose();
+
             return ValueTask.FromResult(Right<EncinaError, AttestationVerification>(
                 new AttestationVerification
                 {
@@ -142,6 +162,13 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
             var isValid = expectedSignature == receipt.Signature;
 
             AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
+
+            if (isValid)
+                AttestationDiagnostics.RecordSuccess(activity);
+            else
+                AttestationDiagnostics.RecordFailure(activity, "Chain integrity broken");
+
+            activity?.Dispose();
 
             return ValueTask.FromResult(Right<EncinaError, AttestationVerification>(
                 new AttestationVerification

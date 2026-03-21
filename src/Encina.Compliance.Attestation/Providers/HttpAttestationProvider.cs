@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -54,6 +55,11 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(record);
 
+        var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
+        var sw = Stopwatch.StartNew();
+        AttestationDiagnostics.AttestationTotal.Add(1,
+            new(AttestationDiagnostics.TagProviderName, ProviderName));
+
         var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
         var now = _timeProvider.GetUtcNow();
 
@@ -81,6 +87,10 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
             {
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
                 AttestationLogMessages.HttpEndpointError(_logger, _options.AttestEndpointUrl, (int)response.StatusCode);
+                AttestationDiagnostics.AttestationFailed.Add(1,
+                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
+                activity?.Dispose();
                 return EncinaError.New(
                     $"HTTP attestation endpoint returned {(int)response.StatusCode}: {errorBody}");
             }
@@ -103,20 +113,37 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 ProofMetadata = ExtractProofMetadata(responseJson)
             };
 
+            sw.Stop();
+            AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
+            AttestationDiagnostics.AttestationSucceeded.Add(1,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
             AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
+            AttestationDiagnostics.RecordSuccess(activity);
+            activity?.Dispose();
             return Right<EncinaError, AttestationReceipt>(receipt);
         }
         catch (HttpRequestException ex)
         {
             AttestationLogMessages.HttpEndpointError(_logger, _options.AttestEndpointUrl, 0);
+            AttestationDiagnostics.AttestationFailed.Add(1,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
+            AttestationDiagnostics.RecordFailure(activity, "Endpoint unreachable");
+            activity?.Dispose();
             return EncinaError.New("HTTP attestation endpoint unreachable.", ex);
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
+            AttestationDiagnostics.RecordFailure(activity, "Cancelled");
+            activity?.Dispose();
             return EncinaError.New("Attestation request was cancelled.");
         }
         catch (TaskCanceledException ex)
         {
+            AttestationDiagnostics.AttestationFailed.Add(1,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
+            AttestationDiagnostics.RecordFailure(activity, "Timeout");
+            activity?.Dispose();
             return EncinaError.New("HTTP attestation endpoint timed out.", ex);
         }
     }
@@ -127,15 +154,22 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(receipt);
 
+        var activity = AttestationDiagnostics.StartVerification(ProviderName);
+        AttestationDiagnostics.VerificationTotal.Add(1,
+            new(AttestationDiagnostics.TagProviderName, ProviderName));
+
         var now = _timeProvider.GetUtcNow();
 
         if (_options.VerifyEndpointUrl is null)
         {
+            AttestationDiagnostics.RecordFailure(activity, "Verification endpoint not configured");
+            activity?.Dispose();
+
             return Right<EncinaError, AttestationVerification>(new AttestationVerification
             {
-                IsValid = true,
+                IsValid = false,
                 VerifiedAtUtc = now,
-                FailureReason = null
+                FailureReason = "Verification endpoint not configured. Set VerifyEndpointUrl to enable remote verification."
             });
         }
 
@@ -161,6 +195,9 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
 
             if (!response.IsSuccessStatusCode)
             {
+                AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
+                activity?.Dispose();
+
                 return Right<EncinaError, AttestationVerification>(new AttestationVerification
                 {
                     IsValid = false,
@@ -173,6 +210,13 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
             var isValid = responseJson.TryGetProperty("is_valid", out var validProp) && validProp.GetBoolean();
 
             AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
+
+            if (isValid)
+                AttestationDiagnostics.RecordSuccess(activity);
+            else
+                AttestationDiagnostics.RecordFailure(activity, "Remote verification failed");
+
+            activity?.Dispose();
 
             return Right<EncinaError, AttestationVerification>(new AttestationVerification
             {
@@ -187,6 +231,8 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         }
         catch (HttpRequestException ex)
         {
+            AttestationDiagnostics.RecordFailure(activity, "Verification endpoint unreachable");
+            activity?.Dispose();
             return EncinaError.New("Verification endpoint unreachable.", ex);
         }
     }
