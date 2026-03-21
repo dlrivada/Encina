@@ -1,44 +1,54 @@
 # Security Policy
 
+## Project Status
+
+Encina is currently in **pre-1.0 development**. There are no stable releases yet. The API surface is subject to breaking changes between versions.
+
 ## Supported Versions
 
-Encina is currently in pre-1.0 development. Security updates will be applied to the latest version on the `main` branch.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| main    | :white_check_mark: |
-| < 1.0   | :x: (pre-release)  |
+| Version | Supported |
+| ------- | --------- |
+| main (pre-1.0) | Best-effort security fixes |
+| 1.x (future) | Will receive full security support once released |
 
 ## Reporting a Vulnerability
 
-We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
+**Do not report security vulnerabilities through public GitHub issues.**
 
-### Preferred Method: Private Vulnerability Reporting
+Use [GitHub Private Vulnerability Reporting](https://github.com/dlrivada/Encina/security/advisories/new) to submit your report. This is the only supported channel for security disclosures.
 
-1. Go to the [Security tab](https://github.com/dlrivada/Encina/security)
-2. Click **"Report a vulnerability"**
-3. Fill out the form with details about the vulnerability
+### What to Include
 
-This method keeps the report private until a fix is available.
-
-### Alternative: Email
-
-If you prefer email, contact the maintainer directly. Please include:
-
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
+- A clear description of the vulnerability
+- Steps to reproduce the issue (minimal code or configuration)
+- Which package(s) and version(s) are affected
+- The potential impact if exploited
 - Suggested fix (if any)
 
-### What to Expect
+## Response Process
 
-- **Acknowledgment**: Within 48 hours
-- **Initial assessment**: Within 7 days
-- **Resolution timeline**: Depends on severity (critical issues prioritized)
+Encina is maintained by a single developer in spare time. I will do my best to:
 
-### Scope
+1. Acknowledge receipt of your report
+2. Investigate and confirm the vulnerability
+3. Develop and release a fix
+4. Credit the reporter in the fix commit (unless anonymity is requested)
 
-The following are in scope for security reports:
+I cannot commit to specific response timelines at this stage. If you have not received a response after a reasonable period, you may follow up through the same private reporting channel.
+
+## Disclosure Policy
+
+This project follows **coordinated disclosure**:
+
+- Vulnerabilities are reported privately first
+- Fixes are developed before public disclosure
+- Once a fix is released, the vulnerability is disclosed through a [GitHub Security Advisory](https://github.com/dlrivada/Encina/security/advisories)
+
+I ask that reporters allow reasonable time to address the issue before any public disclosure.
+
+## Scope
+
+### In Scope
 
 - Encina core library and all satellite packages
 - Build and CI/CD pipeline security
@@ -48,7 +58,7 @@ The following are in scope for security reports:
 
 - Social engineering attacks
 - Denial of service attacks
-- Issues in dependencies (report to upstream maintainers)
+- Issues in third-party dependencies (report to upstream maintainers)
 
 ## Security Measures
 
@@ -58,6 +68,13 @@ Encina implements the following security practices:
 - **CodeQL**: Static analysis for common vulnerabilities
 - **Secret scanning**: Prevents accidental credential exposure
 - **SBOM generation**: Software Bill of Materials for supply chain transparency
+- **Branch protection**: Required reviews, status checks, and linear history on `main`
+
+## Receiving Security Updates
+
+- **Watch** this repository for new releases
+- Check [GitHub Security Advisories](https://github.com/dlrivada/Encina/security/advisories) for known vulnerabilities
+- Enable [Dependabot alerts](https://docs.github.com/en/code-security/dependabot/dependabot-alerts) on your forks
 
 ## Acknowledgments
 
