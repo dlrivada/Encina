@@ -106,7 +106,8 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
 
         var now = _timeProvider.GetUtcNow();
 
-        if (!_records.TryGetValue(receipt.AuditRecordId, out var originalRecord))
+        if (!_records.TryGetValue(receipt.AuditRecordId, out var originalRecord) ||
+            !_receipts.TryGetValue(receipt.AuditRecordId, out var storedReceipt))
         {
             AttestationDiagnostics.RecordFailure(activity, "Record not found");
             activity?.Dispose();
@@ -120,15 +121,29 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
                 }));
         }
 
+        // Verify the receipt matches the stored receipt (prevents forged receipts)
+        var receiptMatchesStored = receipt.AttestationId == storedReceipt.AttestationId
+            && receipt.Signature == storedReceipt.Signature
+            && receipt.ContentHash == storedReceipt.ContentHash;
+
+        // Verify content integrity: recompute hash from stored record
         var currentHash = ContentHasher.ComputeSha256(originalRecord.SerializedContent);
-        var isValid = currentHash == receipt.ContentHash;
+        var contentIntact = currentHash == storedReceipt.ContentHash;
+
+        var isValid = receiptMatchesStored && contentIntact;
+
+        string? failureReason = null;
+        if (!receiptMatchesStored)
+            failureReason = "Receipt does not match stored attestation — possible forgery.";
+        else if (!contentIntact)
+            failureReason = "Content hash mismatch — audit record may have been tampered with.";
 
         AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
 
         if (isValid)
             AttestationDiagnostics.RecordSuccess(activity);
         else
-            AttestationDiagnostics.RecordFailure(activity, "Content hash mismatch");
+            AttestationDiagnostics.RecordFailure(activity, failureReason ?? "Verification failed");
 
         activity?.Dispose();
 
@@ -137,7 +152,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
             {
                 IsValid = isValid,
                 VerifiedAtUtc = now,
-                FailureReason = isValid ? null : "Content hash mismatch — audit record may have been tampered with."
+                FailureReason = failureReason
             }));
     }
 }

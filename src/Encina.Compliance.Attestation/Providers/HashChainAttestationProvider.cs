@@ -64,17 +64,22 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        // Idempotency: return existing receipt for same RecordId
-        if (_receipts.TryGetValue(record.RecordId, out var existing))
-        {
-            AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
-            return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing.Receipt));
-        }
-
         var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
         var sw = Stopwatch.StartNew();
         AttestationDiagnostics.AttestationTotal.Add(1,
             new(AttestationDiagnostics.TagProviderName, ProviderName));
+
+        // Idempotency: return existing receipt for same RecordId
+        if (_receipts.TryGetValue(record.RecordId, out var existing))
+        {
+            sw.Stop();
+            AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new(AttestationDiagnostics.TagProviderName, ProviderName));
+            AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
+            AttestationDiagnostics.RecordSuccess(activity);
+            activity?.Dispose();
+            return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing.Receipt));
+        }
 
         var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
         var now = _timeProvider.GetUtcNow();
@@ -84,6 +89,12 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
             // Double-check after acquiring lock
             if (_receipts.TryGetValue(record.RecordId, out existing))
             {
+                sw.Stop();
+                AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
+                AttestationDiagnostics.RecordSuccess(activity);
+                activity?.Dispose();
                 return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing.Receipt));
             }
 
@@ -148,18 +159,40 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                 }));
         }
 
-        // Verify the chain link: recompute signature from stored data
+        // Verify the receipt matches the stored receipt (prevents forged receipts)
         lock (_chainLock)
         {
+            var storedReceipt = stored.Receipt;
+            var receiptMatchesStored = receipt.AttestationId == storedReceipt.AttestationId
+                && receipt.Signature == storedReceipt.Signature
+                && receipt.ContentHash == storedReceipt.ContentHash;
+
+            if (!receiptMatchesStored)
+            {
+                const string reason = "Receipt does not match stored attestation — possible forgery.";
+                AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, false, ProviderName);
+                AttestationDiagnostics.RecordFailure(activity, reason);
+                activity?.Dispose();
+
+                return ValueTask.FromResult(Right<EncinaError, AttestationVerification>(
+                    new AttestationVerification
+                    {
+                        IsValid = false,
+                        VerifiedAtUtc = now,
+                        FailureReason = reason
+                    }));
+            }
+
+            // Verify chain integrity: recompute signature from stored data
             var chainIndex = stored.ChainIndex;
             var previousSig = chainIndex == 0
                 ? "genesis"
                 : _chain[chainIndex - 1].Signature;
 
             var expectedSignature = ContentHasher.ComputeSha256(
-                $"{receipt.ContentHash}:{previousSig}:{chainIndex}");
+                $"{storedReceipt.ContentHash}:{previousSig}:{chainIndex}");
 
-            var isValid = expectedSignature == receipt.Signature;
+            var isValid = expectedSignature == storedReceipt.Signature;
 
             AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
 
