@@ -80,6 +80,8 @@ public sealed class InMemoryAttestationProviderTests
         var result2 = await _sut.AttestAsync(record2);
 
         // Assert
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
         var receipt1 = result1.Match(r => r, _ => throw new InvalidOperationException());
         var receipt2 = result2.Match(r => r, _ => throw new InvalidOperationException());
 
@@ -92,6 +94,7 @@ public sealed class InMemoryAttestationProviderTests
         // Arrange
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
+        attestResult.IsRight.ShouldBeTrue();
         var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
 
         // Act
@@ -138,6 +141,7 @@ public sealed class InMemoryAttestationProviderTests
         // Arrange
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
+        attestResult.IsRight.ShouldBeTrue();
         var originalReceipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
 
         var tamperedReceipt = originalReceipt with { ContentHash = "tampered-hash" };
@@ -164,6 +168,7 @@ public sealed class InMemoryAttestationProviderTests
         var result = await _sut.AttestAsync(record);
 
         // Assert
+        result.IsRight.ShouldBeTrue();
         var receipt = result.Match(r => r, _ => throw new InvalidOperationException());
         receipt.ProofMetadata.ShouldNotBeNull();
         receipt.ProofMetadata.ShouldContainKey("storage");
@@ -175,6 +180,7 @@ public sealed class InMemoryAttestationProviderTests
     {
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
+        attestResult.IsRight.ShouldBeTrue();
         var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
 
         var forged = receipt with { AttestedAtUtc = receipt.AttestedAtUtc.AddHours(1) };
@@ -194,6 +200,7 @@ public sealed class InMemoryAttestationProviderTests
     {
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
+        attestResult.IsRight.ShouldBeTrue();
         var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
 
         var forged = receipt with { ProviderName = "Forged" };
@@ -213,6 +220,7 @@ public sealed class InMemoryAttestationProviderTests
     {
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
+        attestResult.IsRight.ShouldBeTrue();
         var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
 
         var forged = receipt with
@@ -233,11 +241,11 @@ public sealed class InMemoryAttestationProviderTests
         });
     }
 
-    private static AuditRecord CreateRecord() => new()
+    private AuditRecord CreateRecord() => new()
     {
         RecordId = Guid.NewGuid(),
         RecordType = "TestDecision",
-        OccurredAtUtc = DateTimeOffset.UtcNow,
+        OccurredAtUtc = _timeProvider.GetUtcNow(),
         SerializedContent = $"{{\"test\":\"{Guid.NewGuid()}\"}}"
     };
 }
