@@ -3366,7 +3366,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 
 - [MassTransit Diagnostics](https://masstransit.io/documentation/configuration/observability)
 - [Wolverine OpenTelemetry](https://wolverine.netlify.app/guide/logging.html)
-- [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
+- [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/dotnet/)
 - [OTel Semantic Conventions for Messaging](https://opentelemetry.io/docs/specs/semconv/messaging/)
 - [.NET Aspire Dashboard](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/dashboard/overview)
 - [Azure Monitor OpenTelemetry](https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-overview)
@@ -3478,7 +3478,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 - [Vertical Slice Architecture](https://www.milanjovanovic.tech/blog/vertical-slice-architecture)
 - [FastEndpoints](https://fast-endpoints.com/)
 - [Carter Library](https://github.com/CarterCommunity/Carter)
-- [HotChocolate Documentation](https://chillicream.com/docs/hotchocolate)
+- [HotChocolate Documentation](https://chillicream.com/docs/hotchocolate/v14/)
 - [RFC 9457: Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html)
 - [Asp.Versioning](https://github.com/dotnet/aspnet-api-versioning)
 - [Microsoft.Extensions.AI](https://devblogs.microsoft.com/dotnet/introducing-microsoft-extensions-ai-preview/)
@@ -4218,7 +4218,7 @@ All issues received comprehensive labels:
 - [Redis Streams](https://redis.io/docs/latest/develop/data-types/streams/) - Redis-native streaming
 - [CloudEvents Specification](https://cloudevents.io/) - CNCF event format standard
 - [Dapr Pub/Sub](https://docs.dapr.io/developing-applications/building-blocks/pubsub/) - Cloud-agnostic messaging
-- [Google Cloud Pub/Sub](https://cloud.google.com/pubsub/docs) - GCP messaging
+- [Google Cloud Pub/Sub](https://docs.cloud.google.com/pubsub/docs) - GCP messaging
 - [AWS EventBridge](https://docs.aws.amazon.com/eventbridge/) - AWS event routing
 
 **Priority Summary**:
@@ -4422,7 +4422,7 @@ All issues received comprehensive labels:
 - [HybridCache .NET 9](https://devblogs.microsoft.com/dotnet/hybrid-cache-is-now-ga/) - Tag invalidation, L1+L2
 - [Thundering Herd Solutions](https://howtech.substack.com/p/thundering-herd-problem-cache-stampede) - Stampede prevention patterns
 - [Cache Warming Strategies 2025](https://newsletter.scalablethread.com/p/how-to-optimize-performance-with) - Pre-warming patterns
-- [OpenTelemetry Cache Metrics](https://uptrace.dev/blog/opentelemetry-metrics-cache-stats.html) - Hit rate, latency metrics
+- [OpenTelemetry Cache Metrics](https://uptrace.dev/blog/opentelemetry-go-metrics-cache-stats) - Hit rate, latency metrics
 - [Multi-tenant Azure Cache](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/cache-redis) - SaaS caching patterns
 - [.NET Serialization Comparison 2025](https://medium.com/@niravinfo/net-serialization-smackdown-json-vs-messagepack-vs-protobuf-who-rules-your-bytes) - MessagePack vs MemoryPack
 
@@ -4775,7 +4775,7 @@ All 13 issues were enriched with both existing and new labels:
 
 - [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/) - AI agent orchestration (Oct 2025)
 - [Semantic Kernel](https://learn.microsoft.com/en-us/semantic-kernel/) - LLM integration
-- [Spring Modulith 2.0](https://spring.io/projects/spring-modulith) - Integration events
+- [Spring Modulith 2.0](https://spring.io/projects/spring-modulith/) - Integration events
 
 ### Recommended Implementation Order
 
@@ -4862,7 +4862,7 @@ All 13 issues were enriched with both existing and new labels:
 
 - [MassTransit Licensing Change 2025](https://github.com/MassTransit/MassTransit)
 - [Wolverine 5.0 Release](https://jeremydmiller.com/2025/10/23/wolverine-5-0-is-here/)
-- [Temporal Durable Execution](https://temporal.io/how-temporal-works)
+- [Temporal Durable Execution](https://temporal.io/how-it-works)
 - [Event Versioning Strategies](https://theburningmonk.com/)
 - [Debezium CQRS Pattern](https://debezium.io/blog/2025/11/28/cqrs/)
 - [Idempotent Consumer Pattern in .NET](https://www.milanjovanovic.tech/blog)
@@ -4994,7 +4994,7 @@ All 13 issues were enriched with both existing and new labels:
 - [Decider Pattern - thinkbeforecoding](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider)
 - [Marten Documentation](https://martendb.io/documents/)
 - [EventStoreDB Projections](https://www.eventstore.com/)
-- [Oskar Dudycz - Event Sourcing .NET](https://event-driven.io/)
+- [Oskar Dudycz - Event Sourcing .NET](https://event-driven.io/en/)
 - [GDPR & Event Sourcing](https://www.michielrook.nl/2017/11/forget-me-please-event-sourcing-gdpr/)
 - [Axon Framework Concepts](https://docs.axoniq.io/)
 
@@ -6170,8 +6170,8 @@ After creating the 22 issues (#394-#415), labels were updated based on new label
 
 **References Used**:
 
-- [Aspire Roadmap 2025-2026](https://github.com/dotnet/aspire/discussions/10644)
-- [Aspire End of Year Update December 2025](https://github.com/dotnet/aspire/discussions/13608)
+- [Aspire Roadmap 2025-2026](https://github.com/microsoft/aspire/discussions/10644)
+- [Aspire End of Year Update December 2025](https://github.com/microsoft/aspire/discussions/13608)
 - [Aspire Service Defaults](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/service-defaults)
 - [Aspire Community Toolkit](https://github.com/CommunityToolkit/Aspire)
 - [Dapr + Aspire Integration](https://www.diagrid.io/blog/net-aspire-dapr-what-are-they-and-how-they-complement-each-other)

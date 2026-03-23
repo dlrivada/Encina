@@ -1167,7 +1167,7 @@ Encina Advanced (4 módulos, 30 lecciones, 3 horas)
 ### Herramientas
 
 - **Docusaurus:** <https://docusaurus.io>
-- **Docfx:** <https://dotnet.github.io/docfx>
+- **Docfx:** <https://dotnet.github.io/docfx/>
 - **Mermaid:** <https://mermaid.js.org>
 - **Algolia DocSearch:** <https://docsearch.algolia.com>
 

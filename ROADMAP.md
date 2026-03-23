@@ -825,7 +825,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ### Inspiration
 
 - [LanguageExt](https://github.com/louthy/language-ext) — Functional programming for C#
-- [MediatR](https://github.com/jbogard/MediatR) — Simple mediator implementation
+- [MediatR](https://github.com/LuckyPennySoftware/MediatR) — Simple mediator implementation
 - [Wolverine](https://wolverine.netlify.app/) — Next-gen .NET messaging
 
 ### Concepts

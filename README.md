@@ -11,7 +11,7 @@
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-pre--1.0-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Dependabot](https://img.shields.io/badge/Dependabot-Enabled-025E8C?logo=dependabot&logoColor=white)](https://docs.github.com/code-security/dependabot)
+[![Dependabot](https://img.shields.io/badge/Dependabot-Enabled-025E8C?logo=dependabot&logoColor=white)](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196)](https://www.conventionalcommits.org/)
 
 <!-- Code Quality (SonarCloud) -->

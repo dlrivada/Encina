@@ -384,7 +384,7 @@ This project is licensed under the same license as Encina. See LICENSE for detai
 ## Resources
 
 - [Encina Documentation](https://github.com/yourusername/Encina)
-- [OpenTelemetry .NET Documentation](https://opentelemetry.io/docs/languages/net/)
+- [OpenTelemetry .NET Documentation](https://opentelemetry.io/docs/languages/dotnet/)
 - [OpenTelemetry Specification](https://opentelemetry.io/docs/specs/otel/)
 
 ---
