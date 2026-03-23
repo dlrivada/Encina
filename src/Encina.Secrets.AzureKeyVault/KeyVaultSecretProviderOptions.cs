@@ -18,6 +18,9 @@ public sealed class KeyVaultSecretProviderOptions
     /// Gets or sets the token credential to authenticate with Azure Key Vault.
     /// When <c>null</c>, <see cref="Azure.Identity.DefaultAzureCredential"/> is used.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     [JsonIgnore]
     public TokenCredential? Credential { get; set; }
 

@@ -49,6 +49,9 @@ public sealed class ReadWriteSeparationOptions
     /// </summary>
     /// <remarks>
     /// <para>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </para>
+    /// <para>
     /// All write operations (INSERT, UPDATE, DELETE) and commands are routed to this database.
     /// This connection string is also used as a fallback when no read replicas are configured
     /// or when all replicas are unhealthy.
@@ -68,6 +71,9 @@ public sealed class ReadWriteSeparationOptions
     /// Gets or sets the list of connection strings for read replica databases.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </para>
     /// <para>
     /// All read operations (queries implementing <c>IQuery</c>) are routed to one of these
     /// replicas based on the configured <see cref="ReplicaStrategy"/>.
@@ -156,5 +162,5 @@ public sealed class ReadWriteSeparationOptions
 
     /// <inheritdoc/>
     public override string ToString() =>
-        $"ReadWriteSeparationOptions {{ Strategy={ReplicaStrategy}, Replicas={ReadConnectionStrings.Count} }}";
+        $"ReadWriteSeparationOptions {{ Strategy={ReplicaStrategy}, Replicas={ReadConnectionStrings?.Count ?? 0} }}";
 }

@@ -20,6 +20,9 @@ public sealed class TenantConnectionOptions
     /// <value>The default is <c>null</c>.</value>
     /// <remarks>
     /// <para>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </para>
+    /// <para>
     /// This connection string is used for:
     /// <list type="bullet">
     /// <item><see cref="TenantIsolationStrategy.SharedSchema"/> tenants</item>

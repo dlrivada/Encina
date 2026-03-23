@@ -35,6 +35,9 @@ public sealed class AzureKeyVaultOptions
     /// Gets or sets the Azure credential to use for authentication.
     /// When <c>null</c>, <c>DefaultAzureCredential</c> is used.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     [JsonIgnore]
     public TokenCredential? Credential { get; set; }
 

@@ -51,6 +51,9 @@ public sealed class AzureKeyVaultOptions
     /// When <c>null</c> (default), <see cref="Azure.Identity.DefaultAzureCredential"/> is used,
     /// which automatically discovers credentials from the environment.
     /// </value>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     [JsonIgnore]
     public TokenCredential? Credential { get; set; }
 
