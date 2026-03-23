@@ -82,7 +82,7 @@ services.AddEncinaAttestation(options =>
 {
     options.HashAlgorithm = HashAlgorithmName.SHA256; // reserved, SHA-256 fixed for now
 })
-.UseInMemoryAttestation()         // dev/test
+.UseInMemoryAttestation();        // dev/test
 // or .UseHashChainAttestation()  // file-backed chain
 // or .UseHttpAttestation(o => { o.BaseAddress = new Uri("https://attestation.example.com"); });
 ```
@@ -141,18 +141,17 @@ When no key is provided, a cryptographically random 32-byte key is generated via
 
 ### Constant-Time Comparison
 
-All signature and hash comparisons use `CryptographicOperations.FixedTimeEquals()` to prevent timing side-channel attacks. A variable-time comparison (e.g., `==` or `SequenceEqual`) leaks information about how many leading bytes match, potentially allowing an attacker to forge signatures incrementally. This applies to both chain signature verification and receipt validation in `InMemoryAttestationProvider`.
+All signature comparisons (and other security-sensitive cryptographic verifications) use `CryptographicOperations.FixedTimeEquals()` to help prevent timing side-channel attacks. A variable-time comparison (e.g., `==` or `SequenceEqual`) leaks information about how many leading bytes match, potentially allowing an attacker to forge signatures incrementally. This applies to both chain signature verification and receipt validation in `InMemoryAttestationProvider`.
 
 ### SSRF Protection for `HttpAttestationProvider`
 
-`HttpAttestationOptionsValidator` enforces a strict allowlist model for the attestation endpoint URL:
+`HttpAttestationOptionsValidator` enforces HTTPS and denylist-based network restrictions for the attestation endpoint URL at DI registration time — an invalid endpoint configuration fails fast rather than at first attestation:
 
 - **HTTPS required** by default (`AllowInsecureHttp` must be explicitly enabled for development)
 - **Loopback blocked**: `localhost`, `127.0.0.0/8`, `::1`
 - **Private networks blocked**: RFC 1918 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), IPv6 ULA (`fc00::/7`), link-local (`169.254.0.0/16`, `fe80::/10`)
-- **Response size limit**: 1 MB maximum (`MaxResponseContentBytes`) to prevent memory exhaustion
 
-These validations run at DI registration time — an invalid endpoint configuration fails fast rather than at first attestation.
+At runtime, `HttpAttestationProvider` enforces a separate response size guard: responses larger than 1 MB are rejected via an internal `MaxResponseContentBytes` constant (with an additional `MaxHttpResponseBytes` cap on the underlying `HttpClient`) to prevent memory exhaustion.
 
 ### Threat Model
 
@@ -190,6 +189,7 @@ These validations run at DI registration time — an invalid endpoint configurat
 - Issue #803: [FEATURE] Encina.Compliance.Attestation - Provider-Agnostic Tamper-Evident Audit Attestation
 - PR #849: feat(attestation): provider-agnostic tamper-evident audit attestation
 - [ADR-002](002-dependency-injection-strategy.md): Dependency Injection Strategy
+- [ADR-003](003-caching-strategy.md): Caching Strategy
 - [ADR-007](007-extensibility-strategy-v2.md): Extensibility Strategy v2 (provider pattern)
 - [ADR-018](018-cross-cutting-integration-principle.md): Cross-Cutting Integration Principle
 - [ADR-020](020-temporal-crypto-shredding-audit-store.md): Temporal Crypto-Shredding for Marten-Based Audit Store
