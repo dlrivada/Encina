@@ -1,6 +1,9 @@
 # Audit Attestation in Encina
 
-Encina.Compliance.Attestation provides a provider-agnostic, tamper-evident audit attestation framework at the CQRS pipeline level. It enables externally verifiable proof that audit records have not been modified retroactively.
+> **Status: Planned — Not Yet Released**
+> This document describes the proposed `Encina.Compliance.Attestation` module and its APIs (`IAuditAttestationProvider`, `AddEncinaAttestation`, providers). These APIs are **not yet implemented or published**. Treat this as a design specification; do not depend on it until the corresponding package is available. See [#803](https://github.com/dlrivada/Encina/issues/803) for implementation tracking.
+
+Encina.Compliance.Attestation will provide a provider-agnostic, tamper-evident audit attestation framework at the CQRS pipeline level, enabling externally verifiable proof that audit records have not been modified retroactively.
 
 ## Table of Contents
 
@@ -94,7 +97,7 @@ Result of verifying an attestation receipt. Contains `IsValid`, `VerifiedAtUtc`,
 
 Represents an audit record to be attested. Contains `RecordId`, `RecordType`, `OccurredAtUtc`, `SerializedContent`, and optional fields for `CorrelationId`, `ActorId`, `TenantId`, `ModuleId`, and `Metadata`.
 
-## Providers
+## Planned Providers
 
 | Provider | Package | Purpose | Mechanism |
 |----------|---------|---------|-----------|
@@ -108,6 +111,8 @@ Represents an audit record to be attested. Contains `RecordId`, `RecordType`, `O
 |----------|---------|---------|
 | `AzureLedgerAttestationProvider` | `Encina.Compliance.Attestation.Azure` | Azure Confidential Ledger |
 | `AwsQldbAttestationProvider` | `Encina.Compliance.Attestation.Aws` | Amazon QLDB |
+
+> All providers and packages listed above are planned and not yet published.
 
 ## Pipeline Integration
 
@@ -164,6 +169,7 @@ Authorization: Bearer <token>
 → 200 OK
 {
     "attestationId": "guid",
+    "auditRecordId": "guid",
     "signature": "string",
     "attestedAtUtc": "datetime",
     "proofMetadata": { ... }
@@ -187,18 +193,20 @@ Authorization: Bearer <token>
 }
 ```
 
-### Security Considerations
+### Security Recommendations
 
-- HTTPS is enforced by default; `AllowInsecureHttp` must be explicitly opted in
-- `AuthHeader` is marked `[JsonIgnore]` and redacted from `ToString()` output
-- Error response bodies are truncated to 500 characters; full body logged at Debug level only
-- Response size is capped at 1 MB by default via `MaxResponseContentBufferSize`
-- SSRF protection is applied via `HttpAttestationOptionsValidator`
+The following are recommended practices when implementing an HTTP-based attestation provider:
+
+- Use HTTPS by default; require an explicit opt-in flag (e.g., `AllowInsecureHttp`) for HTTP endpoints in local or development scenarios
+- Avoid logging authorization headers or secrets; sensitive fields such as `AuthHeader` should be excluded from serialization (e.g., via `[JsonIgnore]`) and redacted from `ToString()` output
+- Truncate error response bodies in user-facing logs (e.g., to 500 characters); emit full bodies only at Debug level
+- Apply reasonable response size limits (e.g., via `MaxResponseContentBufferSize`) to reduce the risk of memory exhaustion
+- Apply SSRF safeguards in configuration and validation (e.g., validating base URLs against an allowlist)
 
 ## Compatible Third-Party Attestation Services
 
 The `HttpAttestationProvider` works with any service implementing the expected
-REST contract (`POST /attest` returning a receipt, `GET /receipt/{id}` returning
+REST contract (`POST /attest` returning a receipt, `GET /receipt/{attestationId}` returning
 a stored receipt). This includes but is not limited to:
 
 | Service | Backend | Notes |
@@ -221,7 +229,7 @@ Attestation operations emit traces and metrics:
 
 ### Structured Logging
 
-All logging uses `[LoggerMessage]` source generator with EventIds registered in `EventIdRanges.cs`.
+Attestation logging should use `[LoggerMessage]` source generators, with EventIds reserved in `EventIdRanges.cs` once an attestation-specific range is allocated.
 
 ## Health Check
 
@@ -245,10 +253,10 @@ services.AddEncinaAttestation(options =>
 
 The in-memory provider supports idempotent attestation (attesting the same record twice returns the existing receipt) and all verification operations, making it suitable for unit and integration tests.
 
-### Test Coverage
+### Planned Test Strategy
 
-| Test Type | Scope |
-|-----------|-------|
+| Test Type | Planned Scope |
+|-----------|---------------|
 | **UnitTests** | All providers, receipt creation, hash chain integrity |
 | **GuardTests** | All public methods — null checks, invalid arguments |
 | **ContractTests** | `IAuditAttestationProvider` contract across all providers |
