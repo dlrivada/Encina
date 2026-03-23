@@ -106,7 +106,8 @@ public sealed class HashChainAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason!.ShouldContain("forgery");
+            v.FailureReason.ShouldNotBeNullOrWhiteSpace();
+            v.FailureReason.ShouldContain("forgery");
         });
     }
 
@@ -179,7 +180,8 @@ public sealed class HashChainAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason!.ShouldContain("forgery");
+            v.FailureReason.ShouldNotBeNullOrWhiteSpace();
+            v.FailureReason.ShouldContain("forgery");
         });
     }
 
@@ -198,7 +200,8 @@ public sealed class HashChainAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason!.ShouldContain("forgery");
+            v.FailureReason.ShouldNotBeNullOrWhiteSpace();
+            v.FailureReason.ShouldContain("forgery");
         });
     }
 
@@ -224,7 +227,8 @@ public sealed class HashChainAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason!.ShouldContain("forgery");
+            v.FailureReason.ShouldNotBeNullOrWhiteSpace();
+            v.FailureReason.ShouldContain("forgery");
         });
     }
 
