@@ -23,6 +23,7 @@ namespace Encina.Compliance.Attestation.Providers;
 public sealed class HttpAttestationProvider : IAuditAttestationProvider
 {
     private const int MaxErrorBodyLength = 500;
+    private const long MaxResponseContentBytes = 1_048_576; // 1 MB — SEC-7
 
     private readonly HttpClient _httpClient;
     private readonly TimeProvider _timeProvider;
@@ -237,6 +238,16 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                     AttestationId = receipt.AttestationId,
                     ProviderName = ProviderName
                 });
+            }
+
+            // SEC-7: reject responses that exceed 1 MB to prevent memory exhaustion
+            if (response.Content.Headers.ContentLength is { } contentLength
+                && contentLength > MaxResponseContentBytes)
+            {
+                AttestationDiagnostics.RecordFailure(activity, "Response too large");
+                activity?.Dispose();
+                return AttestationErrors.HttpResponseTooLarge(
+                    ProviderName, contentLength, MaxResponseContentBytes);
             }
 
             var responseJson = await response.Content.ReadFromJsonAsync<JsonElement>(ct);

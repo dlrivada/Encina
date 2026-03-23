@@ -69,7 +69,11 @@ public static class ServiceCollectionExtensions
         // Register the selected provider
         if (options.UseInMemoryProvider)
         {
-            services.TryAddSingleton<IAuditAttestationProvider, InMemoryAttestationProvider>();
+            services.TryAddSingleton<InMemoryAttestationProvider>();
+            services.TryAddSingleton<IAuditAttestationProvider>(
+                sp => sp.GetRequiredService<InMemoryAttestationProvider>());
+            services.TryAddSingleton<IAttestationReceiptStore>(
+                sp => sp.GetRequiredService<InMemoryAttestationProvider>());
         }
         else if (options.HashChainOptions is not null)
         {
@@ -79,7 +83,11 @@ public static class ServiceCollectionExtensions
                 hc.HashAlgorithm = options.HashChainOptions.HashAlgorithm;
                 hc.HmacKey = options.HashChainOptions.HmacKey;
             });
-            services.TryAddSingleton<IAuditAttestationProvider, HashChainAttestationProvider>();
+            services.TryAddSingleton<HashChainAttestationProvider>();
+            services.TryAddSingleton<IAuditAttestationProvider>(
+                sp => sp.GetRequiredService<HashChainAttestationProvider>());
+            services.TryAddSingleton<IAttestationReceiptStore>(
+                sp => sp.GetRequiredService<HashChainAttestationProvider>());
         }
         else if (options.HttpOptions is not null)
         {

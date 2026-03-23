@@ -51,6 +51,17 @@ public sealed class AttestationPipelineBehavior<TRequest, TResponse> : IPipeline
 {
     private static readonly ConcurrentDictionary<Type, AttestDecisionAttribute?> AttributeCache = new();
 
+    /// <summary>
+    /// Deterministic serializer options used when building the <see cref="AuditRecord.SerializedContent"/>
+    /// snapshot. Property names are sorted alphabetically to guarantee a stable hash regardless of
+    /// runtime property order.
+    /// </summary>
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = false
+    };
+
     private readonly IAuditAttestationProvider _provider;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<AttestationPipelineBehavior<TRequest, TResponse>> _logger;
@@ -97,11 +108,16 @@ public sealed class AttestationPipelineBehavior<TRequest, TResponse> : IPipeline
         if (result.IsLeft)
             return result;
 
+        var outcome = result.IfRight(r => (object?)r);
+        var serializedContent = JsonSerializer.Serialize(
+            new { request, outcome },
+            SerializerOptions);
+
         var record = new AuditRecord
         {
             RecordId = Guid.NewGuid(),
             RecordType = attr.RecordType ?? typeof(TRequest).Name,
-            SerializedContent = JsonSerializer.Serialize(request),
+            SerializedContent = serializedContent,
             OccurredAtUtc = _timeProvider.GetUtcNow(),
             CorrelationId = context.CorrelationId
         };

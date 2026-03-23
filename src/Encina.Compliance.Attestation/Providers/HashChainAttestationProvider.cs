@@ -262,8 +262,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         ArgumentNullException.ThrowIfNull(recordIds);
 
         var results = recordIds
-            .Where(id => _receipts.ContainsKey(id))
-            .Select(id => _receipts[id].Receipt)
+            .Select(id => _receipts.TryGetValue(id, out var entry) ? entry.Receipt : (AttestationReceipt?)null)
+            .Where(r => r is not null)
+            .Select(r => r!)
             .ToList();
 
         return ValueTask.FromResult(
@@ -280,8 +281,10 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
     /// <inheritdoc />
     ValueTask<AttestationReceipt?> IAttestationReceiptStore.GetReceiptAsync(Guid recordId, CancellationToken ct)
     {
-        _receipts.TryGetValue(recordId, out var stored);
-        return ValueTask.FromResult(stored.Receipt);
+        if (_receipts.TryGetValue(recordId, out var stored))
+            return ValueTask.FromResult<AttestationReceipt?>(stored.Receipt);
+
+        return ValueTask.FromResult<AttestationReceipt?>(null);
     }
 
     /// <inheritdoc />
@@ -291,8 +294,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         ArgumentNullException.ThrowIfNull(recordIds);
 
         IReadOnlyList<AttestationReceipt> results = recordIds
-            .Where(id => _receipts.ContainsKey(id))
-            .Select(id => _receipts[id].Receipt)
+            .Select(id => _receipts.TryGetValue(id, out var entry) ? entry.Receipt : (AttestationReceipt?)null)
+            .Where(r => r is not null)
+            .Select(r => r!)
             .ToList();
 
         return ValueTask.FromResult(results);

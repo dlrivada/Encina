@@ -35,6 +35,9 @@ public static class AttestationErrors
     /// <summary>Error code when a requested receipt is not found.</summary>
     public const string ReceiptNotFoundCode = "attestation.receipt_not_found";
 
+    /// <summary>Error code when the HTTP response body exceeds the configured size limit.</summary>
+    public const string HttpResponseTooLargeCode = "attestation.http_response_too_large";
+
     // --- Factory methods ---
 
     /// <summary>
@@ -121,6 +124,25 @@ public static class AttestationErrors
                 ["statusCode"] = statusCode,
                 ["responseExcerpt"] = truncatedBody,
                 [MetadataKeyStage] = MetadataStageAttestation
+            });
+
+    /// <summary>
+    /// Creates an error when the HTTP response body exceeds the configured size limit.
+    /// </summary>
+    /// <param name="provider">The provider that received the oversized response.</param>
+    /// <param name="contentLength">The reported content length in bytes.</param>
+    /// <param name="maxBytes">The maximum allowed response size in bytes.</param>
+    public static EncinaError HttpResponseTooLarge(string provider, long contentLength, long maxBytes) =>
+        EncinaErrors.Create(
+            code: HttpResponseTooLargeCode,
+            message: $"HTTP attestation response from provider '{provider}' exceeds the maximum allowed size "
+                + $"({contentLength} bytes > {maxBytes} bytes). The response was rejected to prevent memory exhaustion.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyProvider] = provider,
+                [MetadataKeyStage] = MetadataStageAttestation,
+                ["contentLength"] = contentLength,
+                ["maxBytes"] = maxBytes
             });
 
     /// <summary>

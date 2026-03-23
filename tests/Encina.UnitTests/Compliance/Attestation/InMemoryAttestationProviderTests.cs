@@ -1,7 +1,10 @@
 using System.Collections.Frozen;
 
+using Encina;
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
+
+using LanguageExt;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -63,8 +66,8 @@ public sealed class InMemoryAttestationProviderTests
         first.IsRight.ShouldBeTrue();
         second.IsRight.ShouldBeTrue();
 
-        var firstReceipt = first.Match(r => r, _ => throw new InvalidOperationException());
-        var secondReceipt = second.Match(r => r, _ => throw new InvalidOperationException());
+        var firstReceipt = GetRight(first);
+        var secondReceipt = GetRight(second);
 
         firstReceipt.AttestationId.ShouldBe(secondReceipt.AttestationId);
         firstReceipt.Signature.ShouldBe(secondReceipt.Signature);
@@ -84,8 +87,8 @@ public sealed class InMemoryAttestationProviderTests
         // Assert
         result1.IsRight.ShouldBeTrue();
         result2.IsRight.ShouldBeTrue();
-        var receipt1 = result1.Match(r => r, _ => throw new InvalidOperationException());
-        var receipt2 = result2.Match(r => r, _ => throw new InvalidOperationException());
+        var receipt1 = GetRight(result1);
+        var receipt2 = GetRight(result2);
 
         receipt1.AttestationId.ShouldNotBe(receipt2.AttestationId);
     }
@@ -97,7 +100,7 @@ public sealed class InMemoryAttestationProviderTests
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
         attestResult.IsRight.ShouldBeTrue();
-        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+        var receipt = GetRight(attestResult);
 
         // Act
         var verifyResult = await _sut.VerifyAsync(receipt);
@@ -144,7 +147,7 @@ public sealed class InMemoryAttestationProviderTests
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
         attestResult.IsRight.ShouldBeTrue();
-        var originalReceipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+        var originalReceipt = GetRight(attestResult);
 
         var tamperedReceipt = originalReceipt with { ContentHash = "tampered-hash" };
 
@@ -171,7 +174,7 @@ public sealed class InMemoryAttestationProviderTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        var receipt = result.Match(r => r, _ => throw new InvalidOperationException());
+        var receipt = GetRight(result);
         receipt.ProofMetadata.ShouldNotBeNull();
         receipt.ProofMetadata.ShouldContainKey("storage");
         receipt.ProofMetadata!["storage"].ShouldBe("in-memory");
@@ -183,7 +186,7 @@ public sealed class InMemoryAttestationProviderTests
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
         attestResult.IsRight.ShouldBeTrue();
-        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+        var receipt = GetRight(attestResult);
 
         var forged = receipt with { AttestedAtUtc = receipt.AttestedAtUtc.AddHours(1) };
 
@@ -203,7 +206,7 @@ public sealed class InMemoryAttestationProviderTests
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
         attestResult.IsRight.ShouldBeTrue();
-        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+        var receipt = GetRight(attestResult);
 
         var forged = receipt with { ProviderName = "Forged" };
 
@@ -223,7 +226,7 @@ public sealed class InMemoryAttestationProviderTests
         var record = CreateRecord();
         var attestResult = await _sut.AttestAsync(record);
         attestResult.IsRight.ShouldBeTrue();
-        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+        var receipt = GetRight(attestResult);
 
         var forged = receipt with
         {
@@ -250,4 +253,7 @@ public sealed class InMemoryAttestationProviderTests
         OccurredAtUtc = _timeProvider.GetUtcNow(),
         SerializedContent = $"{{\"test\":\"{Guid.NewGuid()}\"}}"
     };
+
+    private static T GetRight<T>(Either<EncinaError, T> either) =>
+        either.Match(r => r, e => throw new InvalidOperationException($"Expected Right but got Left: {e}"));
 }

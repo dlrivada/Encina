@@ -97,7 +97,8 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
         }
         else
         {
-            receipt = _receipts[record.RecordId];
+            // Another thread won the race — retrieve its receipt
+            _receipts.TryGetValue(record.RecordId, out receipt);
             AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
         }
 
@@ -198,8 +199,9 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
         ArgumentNullException.ThrowIfNull(recordIds);
 
         var results = recordIds
-            .Where(id => _receipts.ContainsKey(id))
-            .Select(id => _receipts[id])
+            .Select(id => _receipts.TryGetValue(id, out var receipt) ? receipt : (AttestationReceipt?)null)
+            .Where(r => r is not null)
+            .Select(r => r!)
             .ToList();
 
         return ValueTask.FromResult(
@@ -228,8 +230,9 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
         ArgumentNullException.ThrowIfNull(recordIds);
 
         IReadOnlyList<AttestationReceipt> results = recordIds
-            .Where(id => _receipts.ContainsKey(id))
-            .Select(id => _receipts[id])
+            .Select(id => _receipts.TryGetValue(id, out var receipt) ? receipt : (AttestationReceipt?)null)
+            .Where(r => r is not null)
+            .Select(r => r!)
             .ToList();
 
         return ValueTask.FromResult(results);

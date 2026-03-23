@@ -4,6 +4,7 @@ const Encina.Compliance.Attestation.AttestationErrors.ContentHashMismatchCode = 
 const Encina.Compliance.Attestation.AttestationErrors.DuplicateRecordCode = "attestation.duplicate_record" -> string!
 const Encina.Compliance.Attestation.AttestationErrors.HttpEndpointErrorCode = "attestation.http_endpoint_error" -> string!
 const Encina.Compliance.Attestation.AttestationErrors.ProviderUnavailableCode = "attestation.provider_unavailable" -> string!
+const Encina.Compliance.Attestation.AttestationErrors.HttpResponseTooLargeCode = "attestation.http_response_too_large" -> string!
 const Encina.Compliance.Attestation.AttestationErrors.ReceiptNotFoundCode = "attestation.receipt_not_found" -> string!
 const Encina.Compliance.Attestation.AttestationErrors.VerificationFailedCode = "attestation.verification_failed" -> string!
 Encina.Compliance.Attestation.Abstractions.IAttestationReceiptStore
@@ -126,6 +127,7 @@ Encina.Compliance.Attestation.ServiceCollectionExtensions
 static Encina.Compliance.Attestation.AttestationErrors.ChainIntegrityBroken(string! provider, int brokenAtIndex) -> Encina.EncinaError!
 static Encina.Compliance.Attestation.AttestationErrors.ContentHashMismatch(System.Guid recordId, string! provider) -> Encina.EncinaError!
 static Encina.Compliance.Attestation.AttestationErrors.HttpEndpointError(System.Uri! endpointUrl, int statusCode, string! truncatedBody) -> Encina.EncinaError!
+static Encina.Compliance.Attestation.AttestationErrors.HttpResponseTooLarge(string! provider, long contentLength, long maxBytes) -> Encina.EncinaError!
 static Encina.Compliance.Attestation.AttestationErrors.ProviderUnavailable(string! provider, string! reason) -> Encina.EncinaError!
 static Encina.Compliance.Attestation.AttestationErrors.ReceiptNotFound(System.Guid recordId, string! provider) -> Encina.EncinaError!
 static Encina.Compliance.Attestation.AttestationErrors.VerificationFailed(System.Guid recordId, string! provider, string! reason) -> Encina.EncinaError!

@@ -3,6 +3,7 @@ using Encina.Compliance.Attestation.Abstractions;
 using Encina.Compliance.Attestation.Behaviors;
 using Encina.Compliance.Attestation.Providers;
 
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Compliance.Attestation;
@@ -85,9 +86,8 @@ public sealed class ServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
 
-        // Health check registration adds IHealthCheckRegistration entries
-        // We verify the service collection contains health check services
-        services.Any(s => s.ServiceType.Name.Contains("HealthCheck")).ShouldBeTrue();
+        // Health check registration adds IHealthCheck entries to the service collection
+        services.Any(s => s.ServiceType == typeof(IHealthCheck)).ShouldBeTrue();
     }
 
     [Fact]

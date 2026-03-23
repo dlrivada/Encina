@@ -83,6 +83,30 @@ internal sealed class HttpAttestationOptionsValidator : IValidateOptions<HttpAtt
                     return $"{propertyName} must not target an IPv6 link-local address (fe80::/10).";
                 }
             }
+
+            // IPv4 RFC 1918 private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+            if (ip.AddressFamily == AddressFamily.InterNetwork)
+            {
+                var bytes = ip.GetAddressBytes();
+                if (bytes[0] == 10
+                    || (bytes[0] == 172 && (bytes[1] & 0xF0) == 16)
+                    || (bytes[0] == 192 && bytes[1] == 168))
+                {
+                    return $"{propertyName} must not target a private RFC 1918 address ({uri.Host}). "
+                        + "Set AllowInsecureHttp = true to allow private network addresses (development/testing only).";
+                }
+            }
+
+            // IPv6 ULA: fc00::/7 (first byte & 0xFE == 0xFC)
+            if (ip.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                var bytes = ip.GetAddressBytes();
+                if ((bytes[0] & 0xFE) == 0xFC)
+                {
+                    return $"{propertyName} must not target an IPv6 ULA address (fc00::/7). "
+                        + "Set AllowInsecureHttp = true to allow private network addresses (development/testing only).";
+                }
+            }
         }
 
         return null;
