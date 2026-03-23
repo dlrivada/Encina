@@ -178,7 +178,7 @@ public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
 ## References
 
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/) by Scott Wlaschin
-- [LanguageExt Either Documentation](https://github.com/louthy/language-ext/wiki/Either)
+- [LanguageExt Either Documentation](https://github.com/louthy/language-ext/wiki)
 - [Functional C# with Language-Ext](https://github.com/louthy/language-ext)
 
 ## Exception Policy

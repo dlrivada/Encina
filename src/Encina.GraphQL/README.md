@@ -230,4 +230,4 @@ return result.Match(
 
 - [Cursor Pagination Guide](../../docs/features/cursor-pagination.md)
 - [GraphQL Relay Connection Spec](https://relay.dev/graphql/connections.htm)
-- [HotChocolate Documentation](https://chillicream.com/docs/hotchocolate)
+- [HotChocolate Documentation](https://chillicream.com/docs/hotchocolate/v15/)

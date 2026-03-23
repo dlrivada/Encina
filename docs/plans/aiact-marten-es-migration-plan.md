@@ -4,7 +4,7 @@
 > **Type**: Feature / Architectural Migration
 > **Complexity**: High (8 phases, Marten ES, 2 aggregates, ~40 files)
 > **Estimated Scope**: ~2,000-2,500 lines of production code + ~1,500-2,000 lines of tests
-> **Related**: [ADR-019](docs/architecture/adr/019-compliance-event-sourcing-marten.md), [#839](https://github.com/dlrivada/Encina/issues/839), [#842](https://github.com/dlrivada/Encina/issues/842), [#845](https://github.com/dlrivada/Encina/issues/845), [#846](https://github.com/dlrivada/Encina/issues/846)
+> **Related**: [ADR-019](../architecture/adr/019-compliance-event-sourcing-marten.md), [#839](https://github.com/dlrivada/Encina/issues/839), [#842](https://github.com/dlrivada/Encina/issues/842), [#845](https://github.com/dlrivada/Encina/issues/845), [#846](https://github.com/dlrivada/Encina/issues/846)
 
 ---
 

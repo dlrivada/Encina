@@ -473,7 +473,7 @@ The `Encina.TestInfrastructure` project provides:
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [Testcontainers for .NET](https://dotnet.testcontainers.org/)
 - [xUnit Trait Attributes](https://xunit.net/docs/getting-started/netcore/cmdline#traits)
-- [SQL Server Docker Hub](https://hub.docker.com/_/microsoft-mssql-server)
+- [SQL Server Docker Hub](https://hub.docker.com/r/microsoft/mssql-server)
 - [PostgreSQL Docker Hub](https://hub.docker.com/_/postgres)
 - [MySQL Docker Hub](https://hub.docker.com/_/mysql)
 - [Oracle Container Registry](https://container-registry.oracle.com/)

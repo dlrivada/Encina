@@ -224,7 +224,7 @@ All tracing methods use `ActivitySource.HasListeners()` guards for zero-cost whe
 - Issue [#637](https://github.com/dlrivada/Encina/issues/637) — Rebalancing and migration planning
 - Issue [#290](https://github.com/dlrivada/Encina/issues/290) — Scatter-gather query execution
 - [Consistent Hashing (Wikipedia)](https://en.wikipedia.org/wiki/Consistent_hashing)
-- [xxHash Algorithm](https://cyan4973.github.io/xxHash/)
+- [xxHash Algorithm](https://xxhash.com/)
 
 ## Notes
 

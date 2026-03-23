@@ -208,7 +208,7 @@ var combinedResult =
 
 ## References
 
-- [LanguageExt Either Documentation](https://github.com/louthy/language-ext/wiki/Either)
+- [LanguageExt Either Documentation](https://github.com/louthy/language-ext/wiki)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/) - Scott Wlaschin
 - [Functional Programming in C#](https://www.manning.com/books/functional-programming-in-c-sharp) - Enrico Buonanno
 
