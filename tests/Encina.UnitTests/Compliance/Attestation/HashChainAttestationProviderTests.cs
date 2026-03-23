@@ -214,7 +214,7 @@ public sealed class HashChainAttestationProviderTests
             ProofMetadata = new Dictionary<string, string>
             {
                 ["chain_index"] = "999",
-                ["hash_algorithm"] = "SHA256"
+                ["hash_algorithm"] = "HMAC-SHA256"
             }.ToFrozenDictionary()
         };
 
@@ -226,6 +226,99 @@ public sealed class HashChainAttestationProviderTests
             v.IsValid.ShouldBeFalse();
             v.FailureReason.ShouldContain("forgery");
         });
+    }
+
+    [Fact]
+    public async Task AttestAsync_WithSha512Algorithm_UsesCorrectHashAlgorithm()
+    {
+        var provider = new HashChainAttestationProvider(
+            _timeProvider,
+            NullLogger<HashChainAttestationProvider>.Instance,
+            Options.Create(new HashChainOptions { HashAlgorithm = HashAlgorithmName.SHA512 }));
+
+        var record = CreateRecord();
+        var result = await provider.AttestAsync(record);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(receipt =>
+        {
+            receipt.ProofMetadata.ShouldNotBeNull();
+            receipt.ProofMetadata!["hash_algorithm"].ShouldBe("HMAC-SHA512");
+            // SHA-512 produces 128-hex-char hashes (64 bytes)
+            receipt.ContentHash.Length.ShouldBe(128);
+            // HMAC-SHA512 produces 128-hex-char signatures
+            receipt.Signature.Length.ShouldBe(128);
+        });
+    }
+
+    [Fact]
+    public async Task AttestAsync_WithSha384Algorithm_UsesCorrectHashAlgorithm()
+    {
+        var provider = new HashChainAttestationProvider(
+            _timeProvider,
+            NullLogger<HashChainAttestationProvider>.Instance,
+            Options.Create(new HashChainOptions { HashAlgorithm = HashAlgorithmName.SHA384 }));
+
+        var record = CreateRecord();
+        var result = await provider.AttestAsync(record);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(receipt =>
+        {
+            receipt.ProofMetadata.ShouldNotBeNull();
+            receipt.ProofMetadata!["hash_algorithm"].ShouldBe("HMAC-SHA384");
+            // SHA-384 produces 96-hex-char hashes (48 bytes)
+            receipt.ContentHash.Length.ShouldBe(96);
+            // HMAC-SHA384 produces 96-hex-char signatures
+            receipt.Signature.Length.ShouldBe(96);
+        });
+    }
+
+    [Fact]
+    public async Task AttestAsync_DefaultOptions_UsesSha256()
+    {
+        var record = CreateRecord();
+        var result = await _sut.AttestAsync(record);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(receipt =>
+        {
+            receipt.ProofMetadata!["hash_algorithm"].ShouldBe("HMAC-SHA256");
+            // SHA-256 produces 64-hex-char hashes (32 bytes)
+            receipt.ContentHash.Length.ShouldBe(64);
+        });
+    }
+
+    [Fact]
+    public async Task VerifyChainIntegrity_WithSha512_ReturnsTrue()
+    {
+        var provider = new HashChainAttestationProvider(
+            _timeProvider,
+            NullLogger<HashChainAttestationProvider>.Instance,
+            Options.Create(new HashChainOptions { HashAlgorithm = HashAlgorithmName.SHA512 }));
+
+        for (var i = 0; i < 5; i++)
+            await provider.AttestAsync(CreateRecord());
+
+        provider.VerifyChainIntegrity().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WithSha512_ValidReceipt_ReturnsValid()
+    {
+        var provider = new HashChainAttestationProvider(
+            _timeProvider,
+            NullLogger<HashChainAttestationProvider>.Instance,
+            Options.Create(new HashChainOptions { HashAlgorithm = HashAlgorithmName.SHA512 }));
+
+        var record = CreateRecord();
+        var attestResult = await provider.AttestAsync(record);
+        var receipt = attestResult.Match(r => r, _ => throw new InvalidOperationException());
+
+        var verifyResult = await provider.VerifyAsync(receipt);
+
+        verifyResult.IsRight.ShouldBeTrue();
+        verifyResult.IfRight(v => v.IsValid.ShouldBeTrue());
     }
 
     private static AuditRecord CreateRecord() => new()
