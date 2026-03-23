@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -61,7 +62,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
         var sw = Stopwatch.StartNew();
         AttestationDiagnostics.AttestationTotal.Add(1,
-            new(AttestationDiagnostics.TagProviderName, ProviderName));
+            new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
 
         var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
         var now = _timeProvider.GetUtcNow();
@@ -97,7 +98,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 _logger.LogDebug("HTTP attestation error body: {Body}", fullBody);
 
                 AttestationDiagnostics.AttestationFailed.Add(1,
-                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
                 activity?.Dispose();
                 return AttestationErrors.HttpEndpointError(
@@ -113,7 +114,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 const string msg = "External attestation endpoint returned a response missing 'attestation_id'. "
                     + "An attestation receipt without a real external identifier provides no compliance value.";
                 AttestationDiagnostics.AttestationFailed.Add(1,
-                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, "Missing attestation_id");
                 activity?.Dispose();
                 return AttestationErrors.ProviderUnavailable(ProviderName, msg);
@@ -125,7 +126,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 const string msg = "External attestation endpoint returned a response missing 'signature'. "
                     + "An attestation receipt without a real external signature provides no compliance value.";
                 AttestationDiagnostics.AttestationFailed.Add(1,
-                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, "Missing signature");
                 activity?.Dispose();
                 return AttestationErrors.ProviderUnavailable(ProviderName, msg);
@@ -145,9 +146,9 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
 
             sw.Stop();
             AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationDiagnostics.AttestationSucceeded.Add(1,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
             AttestationDiagnostics.RecordSuccess(activity);
             activity?.Dispose();
@@ -157,7 +158,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         {
             AttestationLogMessages.HttpEndpointError(_logger, _options.AttestEndpointUrl, 0);
             AttestationDiagnostics.AttestationFailed.Add(1,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationDiagnostics.RecordFailure(activity, "Endpoint unreachable");
             activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, $"HTTP endpoint unreachable: {ex.Message}");
@@ -171,7 +172,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         catch (TaskCanceledException ex)
         {
             AttestationDiagnostics.AttestationFailed.Add(1,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationDiagnostics.RecordFailure(activity, "Timeout");
             activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, $"HTTP attestation endpoint timed out: {ex.Message}");
@@ -186,7 +187,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
 
         var activity = AttestationDiagnostics.StartVerification(ProviderName);
         AttestationDiagnostics.VerificationTotal.Add(1,
-            new(AttestationDiagnostics.TagProviderName, ProviderName));
+            new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
 
         var now = _timeProvider.GetUtcNow();
 
@@ -312,10 +313,10 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         // HTTP provider does not store receipts locally.
         // Use IAttestationReceiptStore for persistent receipt retrieval with this provider.
         return ValueTask.FromResult(
-            Right<EncinaError, IReadOnlyList<AttestationReceipt>>(Array.Empty<AttestationReceipt>()));
+            Right<EncinaError, IReadOnlyList<AttestationReceipt>>(System.Array.Empty<AttestationReceipt>()));
     }
 
-    private static System.Collections.Frozen.FrozenDictionary<string, string> ExtractProofMetadata(JsonElement json)
+    private static FrozenDictionary<string, string> ExtractProofMetadata(JsonElement json)
     {
         var metadata = new Dictionary<string, string> { ["transport"] = "http" };
 

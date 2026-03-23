@@ -86,14 +86,14 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         {
             var sw = Stopwatch.StartNew();
             AttestationDiagnostics.AttestationTotal.Add(1,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
 
             // Idempotency: return existing receipt for same RecordId
             if (_receipts.TryGetValue(record.RecordId, out var existing))
             {
                 sw.Stop();
                 AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
                 AttestationDiagnostics.RecordSuccess(activity);
                 return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing.Receipt));
@@ -109,7 +109,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
                 {
                     sw.Stop();
                     AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                        new(AttestationDiagnostics.TagProviderName, ProviderName));
+                        new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                     AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
                     AttestationDiagnostics.RecordSuccess(activity);
                     return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing.Receipt));
@@ -129,7 +129,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
                     CorrelationId = record.CorrelationId,
                     ProofMetadata = new Dictionary<string, string>
                     {
-                        ["chain_index"] = chainIndex.ToString(),
+                        ["chain_index"] = chainIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         ["hash_algorithm"] = $"HMAC-{_hashAlgorithm.Name}"
                     }.ToFrozenDictionary()
                 };
@@ -140,9 +140,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
 
                 sw.Stop();
                 AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.AttestationSucceeded.Add(1,
-                    new(AttestationDiagnostics.TagProviderName, ProviderName));
+                    new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
                 AttestationDiagnostics.RecordSuccess(activity);
                 return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(receipt));
@@ -164,7 +164,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         try
         {
             AttestationDiagnostics.VerificationTotal.Add(1,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
 
             var now = _timeProvider.GetUtcNow();
 
@@ -351,8 +351,8 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
     }
 
     private static bool ProofMetadataEquals(
-        IReadOnlyDictionary<string, string>? left,
-        IReadOnlyDictionary<string, string>? right)
+        FrozenDictionary<string, string>? left,
+        FrozenDictionary<string, string>? right)
     {
         if (ReferenceEquals(left, right)) return true;
         if (left is null || right is null) return false;

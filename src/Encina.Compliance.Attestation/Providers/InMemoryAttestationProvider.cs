@@ -54,7 +54,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
         var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
         var sw = Stopwatch.StartNew();
         AttestationDiagnostics.AttestationTotal.Add(1,
-            new(AttestationDiagnostics.TagProviderName, ProviderName));
+            new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
 
         // Idempotent: return existing receipt if already attested
         if (_receipts.TryGetValue(record.RecordId, out var existingReceipt))
@@ -62,7 +62,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
             AttestationLogMessages.IdempotentAttestationReturned(_logger, record.RecordId, ProviderName);
             sw.Stop();
             AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationDiagnostics.RecordSuccess(activity);
             activity?.Dispose();
             return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existingReceipt));
@@ -93,7 +93,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
             _records.TryAdd(record.RecordId, record);
             AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
             AttestationDiagnostics.AttestationSucceeded.Add(1,
-                new(AttestationDiagnostics.TagProviderName, ProviderName));
+                new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
         }
         else
         {
@@ -104,11 +104,11 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
 
         sw.Stop();
         AttestationDiagnostics.AttestationDuration.Record(sw.Elapsed.TotalMilliseconds,
-            new(AttestationDiagnostics.TagProviderName, ProviderName));
+            new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
         AttestationDiagnostics.RecordSuccess(activity);
         activity?.Dispose();
 
-        return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(receipt));
+        return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(receipt!));
     }
 
     /// <inheritdoc />
@@ -119,7 +119,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
 
         var activity = AttestationDiagnostics.StartVerification(ProviderName);
         AttestationDiagnostics.VerificationTotal.Add(1,
-            new(AttestationDiagnostics.TagProviderName, ProviderName));
+            new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
 
         var now = _timeProvider.GetUtcNow();
 
@@ -253,8 +253,8 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAt
     }
 
     private static bool ProofMetadataEquals(
-        IReadOnlyDictionary<string, string>? left,
-        IReadOnlyDictionary<string, string>? right)
+        FrozenDictionary<string, string>? left,
+        FrozenDictionary<string, string>? right)
     {
         if (ReferenceEquals(left, right)) return true;
         if (left is null || right is null) return false;
