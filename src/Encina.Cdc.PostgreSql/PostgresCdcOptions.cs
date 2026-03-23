@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Cdc.PostgreSql;
 
 /// <summary>
@@ -20,6 +22,10 @@ public sealed class PostgresCdcOptions
     /// Gets or sets the PostgreSQL connection string.
     /// Must include replication permissions for the user.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
@@ -50,4 +56,8 @@ public sealed class PostgresCdcOptions
     /// Format: <c>"schema.table"</c> (e.g., <c>"public.orders"</c>).
     /// </summary>
     public string[] PublicationTables { get; set; } = [];
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"PostgresCdcOptions {{ Publication={PublicationName}, Slot={ReplicationSlotName} }}";
 }

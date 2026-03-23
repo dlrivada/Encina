@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Messaging.ReadWriteSeparation;
 
 /// <summary>
@@ -47,6 +49,9 @@ public sealed class ReadWriteSeparationOptions
     /// </summary>
     /// <remarks>
     /// <para>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </para>
+    /// <para>
     /// All write operations (INSERT, UPDATE, DELETE) and commands are routed to this database.
     /// This connection string is also used as a fallback when no read replicas are configured
     /// or when all replicas are unhealthy.
@@ -59,12 +64,16 @@ public sealed class ReadWriteSeparationOptions
     /// <value>
     /// The connection string for the primary database. Default is <see langword="null"/>.
     /// </value>
+    [JsonIgnore]
     public string? WriteConnectionString { get; set; }
 
     /// <summary>
     /// Gets or sets the list of connection strings for read replica databases.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </para>
     /// <para>
     /// All read operations (queries implementing <c>IQuery</c>) are routed to one of these
     /// replicas based on the configured <see cref="ReplicaStrategy"/>.
@@ -97,6 +106,7 @@ public sealed class ReadWriteSeparationOptions
     /// };
     /// </code>
     /// </example>
+    [JsonIgnore]
     public IList<string> ReadConnectionStrings { get; set; } = [];
 
     /// <summary>
@@ -149,4 +159,8 @@ public sealed class ReadWriteSeparationOptions
     /// Default: <see langword="false"/>.
     /// </value>
     public bool ValidateOnStartup { get; set; }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"ReadWriteSeparationOptions {{ Strategy={ReplicaStrategy}, Replicas={ReadConnectionStrings?.Count ?? 0} }}";
 }

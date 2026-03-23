@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Encina.Messaging.Health;
 
 namespace Encina.RabbitMQ;
@@ -30,6 +32,10 @@ public sealed class EncinaRabbitMQOptions
     /// <summary>
     /// Gets or sets the RabbitMQ password.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string Password { get; set; } = "guest";
 
     /// <summary>
@@ -56,4 +62,8 @@ public sealed class EncinaRabbitMQOptions
     /// Gets the provider health check options.
     /// </summary>
     public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"EncinaRabbitMQOptions {{ Host={HostName}:{Port}, VHost={VirtualHost}, Exchange={ExchangeName} }}";
 }

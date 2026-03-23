@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Tenancy;
 
 /// <summary>
@@ -18,6 +20,9 @@ public sealed class TenantConnectionOptions
     /// <value>The default is <c>null</c>.</value>
     /// <remarks>
     /// <para>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </para>
+    /// <para>
     /// This connection string is used for:
     /// <list type="bullet">
     /// <item><see cref="TenantIsolationStrategy.SharedSchema"/> tenants</item>
@@ -27,6 +32,7 @@ public sealed class TenantConnectionOptions
     /// </list>
     /// </para>
     /// </remarks>
+    [JsonIgnore]
     public string? DefaultConnectionString { get; set; }
 
     /// <summary>
@@ -67,4 +73,8 @@ public sealed class TenantConnectionOptions
     /// </para>
     /// </remarks>
     public bool ThrowOnMissingConnectionString { get; set; } = true;
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"TenantConnectionOptions {{ AutoOpen={AutoOpenConnections}, Timeout={ConnectionTimeoutSeconds}s }}";
 }

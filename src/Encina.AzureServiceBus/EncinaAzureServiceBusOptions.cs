@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Encina.Messaging.Health;
 
 namespace Encina.AzureServiceBus;
@@ -10,6 +12,10 @@ public sealed class EncinaAzureServiceBusOptions
     /// <summary>
     /// Gets or sets the Azure Service Bus connection string.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
@@ -51,4 +57,8 @@ public sealed class EncinaAzureServiceBusOptions
     /// Gets the provider health check options.
     /// </summary>
     public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"EncinaAzureServiceBusOptions {{ Queue={DefaultQueueName}, Topic={DefaultTopicName} }}";
 }

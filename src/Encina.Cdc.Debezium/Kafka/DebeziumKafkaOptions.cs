@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Cdc.Debezium.Kafka;
 
 /// <summary>
@@ -80,15 +82,27 @@ public sealed class DebeziumKafkaOptions
     /// <summary>
     /// Gets or sets the SASL username for authentication.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string? SaslUsername { get; set; }
 
     /// <summary>
     /// Gets or sets the SASL password for authentication.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string? SaslPassword { get; set; }
 
     /// <summary>
     /// Gets or sets the SSL CA certificate file location for secure connections.
     /// </summary>
     public string? SslCaLocation { get; set; }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"DebeziumKafkaOptions {{ Servers={BootstrapServers}, Group={GroupId}, Topics={Topics.Length} }}";
 }

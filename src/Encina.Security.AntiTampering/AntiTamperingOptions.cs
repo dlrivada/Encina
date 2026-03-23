@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Encina.Security.AntiTampering;
 
@@ -136,9 +137,11 @@ public sealed class AntiTamperingOptions
     /// Gets the test keys registered via <see cref="AddKey"/>.
     /// </summary>
     /// <remarks>
+    /// WARNING: Contains sensitive key material. Never log or serialize.
     /// For use by the built-in <c>InMemoryKeyProvider</c> during testing and development.
     /// In production, use a cloud-based <see cref="Abstractions.IKeyProvider"/> implementation.
     /// </remarks>
+    [JsonIgnore]
     internal IReadOnlyDictionary<string, byte[]> TestKeys => _testKeys;
 
     /// <summary>
@@ -177,4 +180,8 @@ public sealed class AntiTamperingOptions
         _testKeys[keyId] = Encoding.UTF8.GetBytes(secretValue);
         return this;
     }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"AntiTamperingOptions {{ Algorithm={Algorithm}, Keys={_testKeys.Count} }}";
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Azure.Core;
 using Azure.Security.KeyVault.Secrets;
 
@@ -49,6 +51,10 @@ public sealed class AzureKeyVaultOptions
     /// When <c>null</c> (default), <see cref="Azure.Identity.DefaultAzureCredential"/> is used,
     /// which automatically discovers credentials from the environment.
     /// </value>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public TokenCredential? Credential { get; set; }
 
     /// <summary>
@@ -59,4 +65,8 @@ public sealed class AzureKeyVaultOptions
     /// When <c>null</c> (default), the Azure SDK default options are used.
     /// </value>
     public SecretClientOptions? ClientOptions { get; set; }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"AzureKeyVaultOptions {{ VaultUri={VaultUri} }}";
 }

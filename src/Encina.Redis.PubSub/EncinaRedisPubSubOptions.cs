@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Redis.PubSub;
 
 /// <summary>
@@ -8,6 +10,10 @@ public sealed class EncinaRedisPubSubOptions
     /// <summary>
     /// Gets or sets the Redis connection string.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string ConnectionString { get; set; } = "localhost:6379";
 
     /// <summary>
@@ -39,4 +45,8 @@ public sealed class EncinaRedisPubSubOptions
     /// Gets or sets the sync timeout in milliseconds.
     /// </summary>
     public int SyncTimeout { get; set; } = 5000;
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"EncinaRedisPubSubOptions {{ Prefix={ChannelPrefix} }}";
 }
