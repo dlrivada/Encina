@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Cdc.MySql;
 
 /// <summary>
@@ -18,6 +20,10 @@ public sealed class MySqlCdcOptions
     /// <summary>
     /// Gets or sets the MySQL connection string (used for health checks).
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
@@ -39,6 +45,10 @@ public sealed class MySqlCdcOptions
     /// <summary>
     /// Gets or sets the MySQL password for binlog replication.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string Password { get; set; } = string.Empty;
 
     /// <summary>
@@ -66,4 +76,8 @@ public sealed class MySqlCdcOptions
     /// Format: <c>"database.table"</c>. When empty, all tables are included.
     /// </summary>
     public string[] IncludeTables { get; set; } = [];
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"MySqlCdcOptions {{ Host={Hostname}:{Port}, ServerId={ServerId} }}";
 }

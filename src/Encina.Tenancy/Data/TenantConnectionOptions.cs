@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Tenancy;
 
 /// <summary>
@@ -27,6 +29,7 @@ public sealed class TenantConnectionOptions
     /// </list>
     /// </para>
     /// </remarks>
+    [JsonIgnore]
     public string? DefaultConnectionString { get; set; }
 
     /// <summary>
@@ -67,4 +70,8 @@ public sealed class TenantConnectionOptions
     /// </para>
     /// </remarks>
     public bool ThrowOnMissingConnectionString { get; set; } = true;
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"TenantConnectionOptions {{ AutoOpen={AutoOpenConnections}, Timeout={ConnectionTimeoutSeconds}s }}";
 }

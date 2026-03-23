@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Messaging.ReadWriteSeparation;
 
 /// <summary>
@@ -59,6 +61,7 @@ public sealed class ReadWriteSeparationOptions
     /// <value>
     /// The connection string for the primary database. Default is <see langword="null"/>.
     /// </value>
+    [JsonIgnore]
     public string? WriteConnectionString { get; set; }
 
     /// <summary>
@@ -97,6 +100,7 @@ public sealed class ReadWriteSeparationOptions
     /// };
     /// </code>
     /// </example>
+    [JsonIgnore]
     public IList<string> ReadConnectionStrings { get; set; } = [];
 
     /// <summary>
@@ -149,4 +153,8 @@ public sealed class ReadWriteSeparationOptions
     /// Default: <see langword="false"/>.
     /// </value>
     public bool ValidateOnStartup { get; set; }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"ReadWriteSeparationOptions {{ Strategy={ReplicaStrategy}, Replicas={ReadConnectionStrings.Count} }}";
 }

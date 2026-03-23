@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Encina.Messaging.Health;
 
 namespace Encina.MQTT;
@@ -30,11 +32,19 @@ public sealed class EncinaMQTTOptions
     /// <summary>
     /// Gets or sets the username for authentication.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string? Username { get; set; }
 
     /// <summary>
     /// Gets or sets the password for authentication.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string? Password { get; set; }
 
     /// <summary>
@@ -61,6 +71,10 @@ public sealed class EncinaMQTTOptions
     /// Gets the provider health check options.
     /// </summary>
     public ProviderHealthCheckOptions ProviderHealthCheck { get; } = new();
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"EncinaMQTTOptions {{ Host={Host}:{Port}, ClientId={ClientId}, QoS={QualityOfService} }}";
 }
 
 /// <summary>

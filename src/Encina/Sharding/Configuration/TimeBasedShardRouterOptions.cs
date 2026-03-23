@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Encina.Sharding.TimeBased;
 
 namespace Encina.Sharding.Configuration;
@@ -101,28 +103,44 @@ public sealed class TimeBasedShardRouterOptions
     /// Use <c>{0}</c> as a placeholder for the period label.
     /// Also used as the template for auto-shard creation.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     /// <example><c>"Server=hot;Database=orders_{0}"</c></example>
+    [JsonIgnore]
     public string? HotTierConnectionString { get; set; }
 
     /// <summary>
     /// Gets or sets the connection string template for Warm-tier shards.
     /// Use <c>{0}</c> as a placeholder for the period label.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     /// <example><c>"Server=warm;Database=orders_{0}"</c></example>
+    [JsonIgnore]
     public string? WarmTierConnectionString { get; set; }
 
     /// <summary>
     /// Gets or sets the connection string template for Cold-tier shards.
     /// Use <c>{0}</c> as a placeholder for the period label.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     /// <example><c>"Server=cold;Database=orders_{0}"</c></example>
+    [JsonIgnore]
     public string? ColdTierConnectionString { get; set; }
 
     /// <summary>
     /// Gets or sets the connection string template for Archived-tier shards.
     /// Use <c>{0}</c> as a placeholder for the period label.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     /// <example><c>"Server=archive;Database=orders_{0}"</c></example>
+    [JsonIgnore]
     public string? ArchivedTierConnectionString { get; set; }
 
     /// <summary>
@@ -146,4 +164,8 @@ public sealed class TimeBasedShardRouterOptions
     /// The router is built from these entries.
     /// </remarks>
     public IReadOnlyList<ShardTierInfo> InitialShards { get; set; } = [];
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"TimeBasedShardRouterOptions {{ Period={Period}, Prefix={ShardIdPrefix}, Shards={InitialShards.Count} }}";
 }

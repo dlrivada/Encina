@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Cdc.SqlServer;
 
 /// <summary>
@@ -19,6 +21,10 @@ public sealed class SqlServerCdcOptions
     /// <summary>
     /// Gets or sets the SQL Server connection string.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
@@ -39,4 +45,8 @@ public sealed class SqlServerCdcOptions
     /// Set to <c>0</c> to read all available change history.
     /// </summary>
     public long? StartFromVersion { get; set; }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"SqlServerCdcOptions {{ Schema={SchemaName}, Tables={TrackedTables.Length} }}";
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Azure.Core;
 
 namespace Encina.Secrets.AzureKeyVault;
@@ -16,10 +18,15 @@ public sealed class KeyVaultSecretProviderOptions
     /// Gets or sets the token credential to authenticate with Azure Key Vault.
     /// When <c>null</c>, <see cref="Azure.Identity.DefaultAzureCredential"/> is used.
     /// </summary>
+    [JsonIgnore]
     public TokenCredential? Credential { get; set; }
 
     /// <summary>
     /// Gets or sets the health check configuration.
     /// </summary>
     public ProviderHealthCheckOptions ProviderHealthCheck { get; set; } = new();
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"KeyVaultSecretProviderOptions {{ VaultUri={VaultUri} }}";
 }

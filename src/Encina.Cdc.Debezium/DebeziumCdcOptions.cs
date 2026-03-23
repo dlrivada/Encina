@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Cdc.Debezium;
 
 /// <summary>
@@ -43,6 +45,10 @@ public sealed class DebeziumCdcOptions
     /// Gets or sets the optional bearer token for authenticating incoming requests.
     /// When set, all incoming HTTP POST requests must include this token.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string? BearerToken { get; set; }
 
     /// <summary>
@@ -68,4 +74,8 @@ public sealed class DebeziumCdcOptions
     /// Exponential backoff is applied: delay * 2^(attempt-1).
     /// </summary>
     public TimeSpan ListenerRetryDelay { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"DebeziumCdcOptions {{ Url={ListenUrl}:{ListenPort}{ListenPath}, Format={EventFormat} }}";
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Encina.Messaging.Health;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
@@ -14,7 +16,11 @@ public sealed class EncinaMongoDbOptions
     /// <summary>
     /// Gets or sets the MongoDB connection string.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
     /// <example>mongodb://localhost:27017</example>
+    [JsonIgnore]
     public string ConnectionString { get; set; } = "mongodb://localhost:27017";
 
     /// <summary>
@@ -232,6 +238,10 @@ public sealed class EncinaMongoDbOptions
     /// Only used when <see cref="UseReadWriteSeparation"/> is <c>true</c>.
     /// </remarks>
     public MongoReadWriteSeparationOptions ReadWriteSeparationOptions { get; } = new();
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"EncinaMongoDbOptions {{ Database={DatabaseName} }}";
 }
 
 /// <summary>

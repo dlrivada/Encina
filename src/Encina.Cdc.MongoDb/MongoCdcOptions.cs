@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using MongoDB.Driver;
 
 namespace Encina.Cdc.MongoDb;
@@ -20,6 +22,10 @@ public sealed class MongoCdcOptions
     /// <summary>
     /// Gets or sets the MongoDB connection string.
     /// </summary>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
@@ -47,4 +53,8 @@ public sealed class MongoCdcOptions
     /// Default is <c>true</c>.
     /// </summary>
     public bool WatchDatabase { get; set; } = true;
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"MongoCdcOptions {{ Database={DatabaseName}, Collections={CollectionNames.Length} }}";
 }
