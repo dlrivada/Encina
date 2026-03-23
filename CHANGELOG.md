@@ -2497,6 +2497,54 @@ Migrated `Encina.Compliance.Retention` from entity-based persistence (13 databas
 
 ---
 
+#### Encina.Compliance.Attestation — Provider-Agnostic Tamper-Evident Audit Attestation (#803)
+
+Added the `Encina.Compliance.Attestation` package providing provider-agnostic tamper-evident audit attestation. Creates cryptographic proof that an audit record existed at a specific time and detects retroactive modifications. Supports EU AI Act (Art. 13), GDPR accountability (Art. 5.2), and NIS2 incident reporting.
+
+**Core Abstractions**:
+
+- **`IAuditAttestationProvider`**: Single interface with `AttestAsync` and `VerifyAsync` returning `Either<EncinaError, T>`
+- **`AuditRecord`**: Immutable sealed record representing the audit event to attest (`RecordId`, `RecordType`, `OccurredAtUtc`, `SerializedContent`)
+- **`AttestationReceipt`**: Immutable proof of attestation (`AttestationId`, `ContentHash`, `Signature`, `ProofMetadata`)
+- **`AttestationVerification`**: Verification result (`IsValid`, `FailureReason`)
+
+**Three Attestation Providers**:
+
+- **`InMemoryAttestationProvider`**: Thread-safe `ConcurrentDictionary`-based provider with idempotent attestation via `GetOrAdd` (testing/development)
+- **`HashChainAttestationProvider`**: Self-hosted, zero-dependency append-only chain where each entry's signature incorporates the previous entry's hash (SHA-256), with `VerifyChainIntegrity()` for full-chain validation
+- **`HttpAttestationProvider`**: Delegates to external endpoints (Sigstore/Rekor, custom APIs) with configurable authentication and payload mapping
+
+**`[AttestDecision]` Attribute**:
+
+- Declarative marker for commands requiring attestation of their outcome
+- Configurable `Reason` and `RecordType` properties
+
+**Error Codes** (6 structured errors via `AttestationErrors`):
+
+- `attestation.verification_failed`, `attestation.duplicate_record`, `attestation.provider_unavailable`
+- `attestation.content_hash_mismatch`, `attestation.chain_integrity_broken`, `attestation.http_endpoint_error`
+
+**Observability**:
+
+- OpenTelemetry tracing via `Encina.Compliance.Attestation` ActivitySource with 2 activity types (`Attestation.Attest`, `Attestation.Verify`)
+- 5 metric instruments: `attestation.attest.total`, `.succeeded`, `.failed` (counters), `attestation.verify.total` (counter), `attestation.attest.duration` (histogram in ms)
+- 6 structured log events (EventId 9600–9605) using `[LoggerMessage]` source generator
+
+**Health Check**:
+
+- **`AttestationHealthCheck`**: Verifies the registered provider is resolvable from DI
+- Opt-in via `AttestationOptions.AddHealthCheck = true`
+- Tags: `encina`, `attestation`, `ready`
+
+**DI Registration**:
+
+- `services.AddEncinaAttestation(options => options.UseInMemory())` with fluent `UseHashChain()` and `UseHttp()` methods
+- Validates exactly one provider is configured; validates `HttpAttestationOptions.AttestEndpointUrl` is set at registration time
+
+**Testing**: Unit tests, contract tests, guard tests, and property-based tests (hash chain invariants: append-only, no gaps, tamper detection, idempotency, determinism).
+
+---
+
 ### Fixed
 
 - `SchedulerOrchestrator.HandleRecurringMessageAsync` crashed when cron parser returned `Left` (no more occurrences) because `Either.Match` with a `null` return violates LanguageExt's non-null contract. Replaced with `MatchAsync` using both branches returning `Unit.Default` (#674)
