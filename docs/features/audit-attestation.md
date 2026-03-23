@@ -85,6 +85,75 @@ services.AddEncinaAttestation(options =>
 });
 ```
 
+## HTTP Attestation Provider — REST Contract
+
+The `HttpAttestationProvider` works with any service implementing the following REST contract. This enables interoperability with third-party attestation backends.
+
+**Attest (create receipt):**
+
+```
+POST /attest
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+    "recordId": "guid",
+    "recordType": "string",
+    "occurredAtUtc": "datetime",
+    "contentHash": "string"
+}
+
+→ 200 OK
+{
+    "attestationId": "guid",
+    "auditRecordId": "guid",
+    "signature": "string",
+    "attestedAtUtc": "datetime",
+    "proofMetadata": { ... }
+}
+```
+
+**Verify (retrieve receipt):**
+
+```
+GET /receipt/{attestationId}
+Authorization: Bearer <token>
+
+→ 200 OK
+{
+    "attestationId": "guid",
+    "auditRecordId": "guid",
+    "contentHash": "string",
+    "signature": "string",
+    "attestedAtUtc": "datetime",
+    "proofMetadata": { ... }
+}
+```
+
+### Security Recommendations
+
+The following are recommended practices when implementing an HTTP-based attestation provider:
+
+- Use HTTPS by default; require an explicit opt-in flag (e.g., `AllowInsecureHttp`) for HTTP endpoints in local or development scenarios
+- Avoid logging authorization headers or secrets; sensitive fields such as `AuthHeader` should be excluded from serialization (e.g., via `[JsonIgnore]`) and redacted from `ToString()` output
+- Truncate error response bodies in user-facing logs (e.g., to 500 characters); emit full bodies only at Debug level
+- Apply reasonable response size limits (e.g., via `MaxResponseContentBufferSize`) to reduce the risk of memory exhaustion
+- Apply SSRF safeguards in configuration and validation (e.g., validating base URLs against an allowlist)
+
+## Compatible Third-Party Attestation Services
+
+The `HttpAttestationProvider` works with any service implementing the expected
+REST contract (`POST /attest` returning a receipt, `GET /receipt/{attestationId}` returning
+a stored receipt). This includes but is not limited to:
+
+| Service | Backend | Notes |
+|---------|---------|-------|
+| [Trust Layer](https://trust.arkforge.tech) | Rekor transparency log | Publicly auditable, Ed25519 signatures |
+
+> Encina does not endorse or guarantee any third-party service.
+> This list documents known-compatible implementations contributed
+> by the community. To add your service, open a PR updating this table.
+
 ## Observability
 
 The module instruments all operations with OpenTelemetry:
