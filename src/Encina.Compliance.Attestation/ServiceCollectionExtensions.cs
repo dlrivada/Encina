@@ -1,6 +1,8 @@
 using Encina.Compliance.Attestation.Abstractions;
+using Encina.Compliance.Attestation.Behaviors;
 using Encina.Compliance.Attestation.Health;
 using Encina.Compliance.Attestation.Providers;
+using Encina.Compliance.Attestation.Validation;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,6 +15,8 @@ namespace Encina.Compliance.Attestation;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    private const long MaxHttpResponseBytes = 1_048_576; // 1 MB — SEC-7
+
     /// <summary>
     /// Adds Encina audit attestation services to the specified <see cref="IServiceCollection"/>.
     /// </summary>
@@ -27,6 +31,16 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="AttestationOptionsExtensions.UseHashChain"/> — for self-hosted production (zero cost)</item>
     /// <item><see cref="AttestationOptionsExtensions.UseHttp"/> — for external HTTP attestation endpoints</item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// When using <see cref="AttestationOptionsExtensions.UseHttp"/>, SSRF protection is enforced
+    /// at startup via <see cref="IValidateOptions{TOptions}"/>: only HTTPS endpoints are accepted
+    /// and loopback/link-local addresses are rejected unless
+    /// <see cref="HttpAttestationOptions.AllowInsecureHttp"/> is set to <c>true</c>.
+    /// </para>
+    /// <para>
+    /// The <see cref="Behaviors.AttestationPipelineBehavior{TRequest,TResponse}"/> is registered
+    /// automatically and activates on requests decorated with <see cref="Attributes.AttestDecisionAttribute"/>.
     /// </para>
     /// </remarks>
     /// <example>
@@ -63,6 +77,7 @@ public static class ServiceCollectionExtensions
             {
                 hc.StoragePath = options.HashChainOptions.StoragePath;
                 hc.HashAlgorithm = options.HashChainOptions.HashAlgorithm;
+                hc.HmacKey = options.HashChainOptions.HmacKey;
             });
             services.TryAddSingleton<IAuditAttestationProvider, HashChainAttestationProvider>();
         }
@@ -79,8 +94,19 @@ public static class ServiceCollectionExtensions
                 http.AttestEndpointUrl = options.HttpOptions.AttestEndpointUrl;
                 http.VerifyEndpointUrl = options.HttpOptions.VerifyEndpointUrl;
                 http.AuthHeader = options.HttpOptions.AuthHeader;
+                http.AllowInsecureHttp = options.HttpOptions.AllowInsecureHttp;
             });
-            services.AddHttpClient<HttpAttestationProvider>();
+
+            // SEC-1: validate SSRF-sensitive options at startup
+            services.TryAddSingleton<IValidateOptions<HttpAttestationOptions>, HttpAttestationOptionsValidator>();
+            services.AddOptions<HttpAttestationOptions>().ValidateOnStart();
+
+            // SEC-7: cap response body size at 1 MB to prevent memory exhaustion
+            services.AddHttpClient<HttpAttestationProvider>(client =>
+            {
+                client.MaxResponseContentBufferSize = MaxHttpResponseBytes;
+            });
+
             services.TryAddSingleton<IAuditAttestationProvider, HttpAttestationProvider>();
         }
         else
@@ -88,6 +114,9 @@ public static class ServiceCollectionExtensions
             throw new InvalidOperationException(
                 "No attestation provider configured. Call UseInMemory(), UseHashChain(), or UseHttp() on the options.");
         }
+
+        // ARCH-1: register the attestation pipeline behavior (activates on [AttestDecision] attributes)
+        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(AttestationPipelineBehavior<,>));
 
         if (options.AddHealthCheck)
         {

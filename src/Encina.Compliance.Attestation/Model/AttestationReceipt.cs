@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Encina.Compliance.Attestation.Model;
 
 /// <summary>
@@ -38,5 +40,19 @@ public sealed record AttestationReceipt
     /// <summary>
     /// Gets provider-specific proof data (e.g., ledger transaction ID, Merkle tree path, chain index).
     /// </summary>
-    public IReadOnlyDictionary<string, string>? ProofMetadata { get; init; }
+    /// <remarks>
+    /// Backed by <see cref="FrozenDictionary{TKey,TValue}"/> to prevent mutation via cast.
+    /// </remarks>
+    public FrozenDictionary<string, string>? ProofMetadata { get; init; }
+
+    /// <summary>
+    /// Gets the correlation identifier propagated from the originating <see cref="AuditRecord"/>.
+    /// </summary>
+    public string? CorrelationId { get; init; }
+
+    /// <summary>
+    /// Gets the optional expiration time for the attestation.
+    /// Null means the attestation does not expire.
+    /// </summary>
+    public DateTimeOffset? ExpiresAtUtc { get; init; }
 }

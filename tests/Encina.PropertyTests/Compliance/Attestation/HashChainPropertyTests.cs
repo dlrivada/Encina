@@ -95,11 +95,12 @@ public class HashChainPropertyTests
     #region No Gaps Invariant
 
     /// <summary>
-    /// Invariant: each receipt's previous_signature matches the prior receipt's signature (no gaps).
-    /// Genesis entry uses "genesis" as previous signature.
+    /// Invariant: each receipt is individually verifiable, and the full chain passes integrity
+    /// after N appends — proving the chain has no gaps (each entry's HMAC includes the previous
+    /// entry's signature, verified by <see cref="HashChainAttestationProvider.VerifyChainIntegrity"/>).
     /// </summary>
     [Property(MaxTest = 20)]
-    public Property NoGaps_PreviousSignatureLinksToParent()
+    public Property NoGaps_ChainIntegrityHoldsAndAllReceiptsVerify()
     {
         return Prop.ForAll(
             Gen.Choose(2, 15).ToArbitrary(),
@@ -116,14 +117,15 @@ public class HashChainPropertyTests
                         Left: e => throw new InvalidOperationException($"AttestAsync failed: {e}"));
                 }
 
-                // First entry links to "genesis"
-                receipts[0].ProofMetadata!["previous_signature"].ShouldBe("genesis");
+                // Full chain integrity check must pass (verifies all HMAC links from genesis)
+                provider.VerifyChainIntegrity().ShouldBeTrue();
 
-                // Each subsequent entry links to the previous entry's signature
-                for (var i = 1; i < receipts.Count; i++)
+                // Each receipt must individually verify (its HMAC is correctly anchored in the chain)
+                foreach (var receipt in receipts)
                 {
-                    receipts[i].ProofMetadata!["previous_signature"]
-                        .ShouldBe(receipts[i - 1].Signature);
+                    var verifyResult = provider.VerifyAsync(receipt).AsTask().Result;
+                    verifyResult.IsRight.ShouldBeTrue();
+                    verifyResult.IfRight(v => v.IsValid.ShouldBeTrue());
                 }
             });
     }
@@ -225,8 +227,8 @@ public class HashChainPropertyTests
     [Property(MaxTest = 100)]
     public bool ContentHash_IsDeterministic(NonEmptyString content)
     {
-        var hash1 = ContentHasher.ComputeSha256(content.Get);
-        var hash2 = ContentHasher.ComputeSha256(content.Get);
+        var hash1 = AttestationHasher.ComputeSha256(content.Get);
+        var hash2 = AttestationHasher.ComputeSha256(content.Get);
         return hash1 == hash2;
     }
 
@@ -238,8 +240,8 @@ public class HashChainPropertyTests
     {
         if (a.Get == b.Get) return true; // skip equal inputs
 
-        var hashA = ContentHasher.ComputeSha256(a.Get);
-        var hashB = ContentHasher.ComputeSha256(b.Get);
+        var hashA = AttestationHasher.ComputeSha256(a.Get);
+        var hashB = AttestationHasher.ComputeSha256(b.Get);
         return hashA != hashB;
     }
 

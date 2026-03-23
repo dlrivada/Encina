@@ -26,4 +26,15 @@ public sealed class HashChainOptions
     /// has no effect on the actual hashing behavior yet.
     /// </remarks>
     public HashAlgorithmName HashAlgorithm { get; set; } = HashAlgorithmName.SHA256;
+
+    /// <summary>
+    /// Gets or sets the HMAC-SHA256 signing key for chain entries.
+    /// When null (default), a cryptographically random 32-byte key is generated at startup.
+    /// </summary>
+    /// <remarks>
+    /// Provide a persistent key to enable chain verification across process restarts.
+    /// The key must be kept secret; exposure allows an attacker to forge chain entries.
+    /// Keys shorter than 32 bytes are padded internally by HMACSHA256.
+    /// </remarks>
+    public byte[]? HmacKey { get; set; }
 }

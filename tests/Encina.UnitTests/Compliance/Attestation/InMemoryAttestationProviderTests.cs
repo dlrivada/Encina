@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
 
@@ -228,7 +230,7 @@ public sealed class InMemoryAttestationProviderTests
             ProofMetadata = new Dictionary<string, string>
             {
                 ["storage"] = "tampered"
-            }
+            }.ToFrozenDictionary()
         };
 
         var verifyResult = await _sut.VerifyAsync(forged);

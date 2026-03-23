@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 
 using Encina.Compliance.Attestation.Abstractions;
 using Encina.Compliance.Attestation.Diagnostics;
@@ -21,19 +24,26 @@ namespace Encina.Compliance.Attestation.Providers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The chain uses SHA-256 to compute: <c>signature = SHA256(contentHash + ":" + previousSignature + ":" + chainIndex)</c>.
+/// The chain uses HMAC-SHA256 to compute:
+/// <c>signature = HMAC-SHA256(key, contentHash + ":" + previousSignature + ":" + chainIndex)</c>.
 /// The genesis entry uses <c>"genesis"</c> as the previous signature.
+/// </para>
+/// <para>
+/// Provide a persistent <see cref="HashChainOptions.HmacKey"/> to enable chain
+/// verification across process restarts. When no key is configured, a random key
+/// is generated at startup (ephemeral — suitable for testing and single-process deployments).
 /// </para>
 /// <para>
 /// This provider is self-hosted and has zero external dependencies.
 /// For cloud-backed immutable ledgers, see future Azure/AWS providers.
 /// </para>
 /// </remarks>
-public sealed class HashChainAttestationProvider : IAuditAttestationProvider
+public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IAttestationReceiptStore
 {
     private readonly ConcurrentDictionary<Guid, (AttestationReceipt Receipt, int ChainIndex)> _receipts = new();
     private readonly List<AttestationReceipt> _chain = [];
     private readonly Lock _chainLock = new();
+    private readonly byte[] _hmacKey;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<HashChainAttestationProvider> _logger;
     // Reserved for future persistence implementation
@@ -57,6 +67,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
         _timeProvider = timeProvider;
         _logger = logger;
         _options = options.Value;
+        _hmacKey = _options.HmacKey ?? RandomNumberGenerator.GetBytes(32);
     }
 
     /// <inheritdoc />
@@ -100,7 +111,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                 }
 
                 var chainIndex = _chain.Count;
-                var signature = ContentHasher.ComputeSha256($"{contentHash}:{_previousSignature}:{chainIndex}");
+                var signature = ComputeHmac(_hmacKey, $"{contentHash}:{_previousSignature}:{chainIndex}");
 
                 var receipt = new AttestationReceipt
                 {
@@ -110,12 +121,12 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                     AttestedAtUtc = now,
                     ProviderName = ProviderName,
                     Signature = signature,
+                    CorrelationId = record.CorrelationId,
                     ProofMetadata = new Dictionary<string, string>
                     {
                         ["chain_index"] = chainIndex.ToString(),
-                        ["previous_signature"] = _previousSignature,
-                        ["hash_algorithm"] = "SHA256" // Actual algorithm used by ContentHasher.ComputeSha256
-                    }
+                        ["hash_algorithm"] = "HMAC-SHA256"
+                    }.ToFrozenDictionary()
                 };
 
                 _chain.Add(receipt);
@@ -161,7 +172,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                     {
                         IsValid = false,
                         VerifiedAtUtc = now,
-                        FailureReason = "Receipt not found in hash chain."
+                        FailureReason = "Receipt not found in hash chain.",
+                        AttestationId = receipt.AttestationId,
+                        ProviderName = ProviderName
                     }));
             }
 
@@ -169,8 +182,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
             lock (_chainLock)
             {
                 var storedReceipt = stored.Receipt;
+                var signaturesMatch = SignaturesEqual(receipt.Signature, storedReceipt.Signature);
                 var receiptMatchesStored = receipt.AttestationId == storedReceipt.AttestationId
-                    && receipt.Signature == storedReceipt.Signature
+                    && signaturesMatch
                     && receipt.ContentHash == storedReceipt.ContentHash
                     && receipt.AttestedAtUtc == storedReceipt.AttestedAtUtc
                     && receipt.ProviderName == storedReceipt.ProviderName
@@ -187,20 +201,22 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                         {
                             IsValid = false,
                             VerifiedAtUtc = now,
-                            FailureReason = reason
+                            FailureReason = reason,
+                            AttestationId = storedReceipt.AttestationId,
+                            ProviderName = ProviderName
                         }));
                 }
 
-                // Verify chain integrity: recompute signature from stored data
+                // Verify chain integrity: recompute HMAC from stored data
                 var chainIndex = stored.ChainIndex;
                 var previousSig = chainIndex == 0
                     ? "genesis"
                     : _chain[chainIndex - 1].Signature;
 
-                var expectedSignature = ContentHasher.ComputeSha256(
+                var expectedSignature = ComputeHmac(_hmacKey,
                     $"{storedReceipt.ContentHash}:{previousSig}:{chainIndex}");
 
-                var isValid = expectedSignature == storedReceipt.Signature;
+                var isValid = SignaturesEqual(expectedSignature, storedReceipt.Signature);
 
                 AttestationLogMessages.VerificationCompleted(_logger, receipt.AuditRecordId, isValid, ProviderName);
 
@@ -216,7 +232,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
                         VerifiedAtUtc = now,
                         FailureReason = isValid
                             ? null
-                            : "Chain integrity broken — signature does not match expected value for this chain position."
+                            : "Chain integrity broken — signature does not match expected value for this chain position.",
+                        AttestationId = storedReceipt.AttestationId,
+                        ProviderName = ProviderName
                     }));
             }
         }
@@ -224,6 +242,60 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
         {
             activity?.Dispose();
         }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Either<EncinaError, AttestationReceipt>> GetReceiptAsync(
+        Guid recordId, CancellationToken ct = default)
+    {
+        if (_receipts.TryGetValue(recordId, out var stored))
+            return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(stored.Receipt));
+
+        return ValueTask.FromResult(
+            Left<EncinaError, AttestationReceipt>(AttestationErrors.ReceiptNotFound(recordId, ProviderName)));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Either<EncinaError, IReadOnlyList<AttestationReceipt>>> GetReceiptsAsync(
+        IEnumerable<Guid> recordIds, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(recordIds);
+
+        var results = recordIds
+            .Where(id => _receipts.ContainsKey(id))
+            .Select(id => _receipts[id].Receipt)
+            .ToList();
+
+        return ValueTask.FromResult(
+            Right<EncinaError, IReadOnlyList<AttestationReceipt>>(results));
+    }
+
+    /// <inheritdoc />
+    ValueTask IAttestationReceiptStore.StoreReceiptAsync(AttestationReceipt receipt, CancellationToken ct)
+    {
+        // HashChain manages its own storage — external store not applicable
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    ValueTask<AttestationReceipt?> IAttestationReceiptStore.GetReceiptAsync(Guid recordId, CancellationToken ct)
+    {
+        _receipts.TryGetValue(recordId, out var stored);
+        return ValueTask.FromResult(stored.Receipt);
+    }
+
+    /// <inheritdoc />
+    ValueTask<IReadOnlyList<AttestationReceipt>> IAttestationReceiptStore.GetReceiptsAsync(
+        IEnumerable<Guid> recordIds, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(recordIds);
+
+        IReadOnlyList<AttestationReceipt> results = recordIds
+            .Where(id => _receipts.ContainsKey(id))
+            .Select(id => _receipts[id].Receipt)
+            .ToList();
+
+        return ValueTask.FromResult(results);
     }
 
     /// <summary>
@@ -239,10 +311,10 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
             for (var i = 0; i < _chain.Count; i++)
             {
                 var entry = _chain[i];
-                var expected = ContentHasher.ComputeSha256(
+                var expected = ComputeHmac(_hmacKey,
                     $"{entry.ContentHash}:{previousSig}:{i}");
 
-                if (expected != entry.Signature)
+                if (!SignaturesEqual(expected, entry.Signature))
                 {
                     AttestationLogMessages.ChainIntegrityBroken(_logger, i, _chain.Count);
                     return false;
@@ -253,6 +325,20 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider
 
             return true;
         }
+    }
+
+    private static string ComputeHmac(byte[] key, string content)
+    {
+        using var hmac = new HMACSHA256(key);
+        var bytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexStringLower(bytes);
+    }
+
+    private static bool SignaturesEqual(string a, string b)
+    {
+        var bytesA = Encoding.UTF8.GetBytes(a);
+        var bytesB = Encoding.UTF8.GetBytes(b);
+        return CryptographicOperations.FixedTimeEquals(bytesA, bytesB);
     }
 
     private static bool ProofMetadataEquals(

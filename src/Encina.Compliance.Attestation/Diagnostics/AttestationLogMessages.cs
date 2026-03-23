@@ -34,4 +34,12 @@ internal static partial class AttestationLogMessages
     [LoggerMessage(9605, LogLevel.Debug,
         "Attestation health check completed. Status={Status}, Provider={Provider}")]
     internal static partial void HealthCheckCompleted(ILogger logger, string status, string provider);
+
+    [LoggerMessage(9606, LogLevel.Warning,
+        "Attestation failed and enforcement mode blocked the pipeline. RequestType={RequestType}, Error={Error}")]
+    internal static partial void AttestationEnforced(ILogger logger, string requestType, string error);
+
+    [LoggerMessage(9607, LogLevel.Warning,
+        "Attestation failed in LogOnly mode — pipeline continues. RequestType={RequestType}, Error={Error}")]
+    internal static partial void AttestationLogOnly(ILogger logger, string requestType, string error);
 }

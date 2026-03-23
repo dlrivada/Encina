@@ -1,4 +1,5 @@
 using Encina.Compliance.Attestation;
+using Encina.Compliance.Attestation.Behaviors;
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
 
@@ -223,6 +224,51 @@ public sealed class AttestationGuardTests
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
     }
+
+    #endregion
+
+    #region AttestationPipelineBehavior
+
+    [Fact]
+    public void AttestationPipelineBehavior_NullProvider_Throws()
+    {
+        var act = () => new AttestationPipelineBehavior<FakeRequest, FakeResponse>(
+            null!,
+            new FakeTimeProvider(),
+            NullLogger<AttestationPipelineBehavior<FakeRequest, FakeResponse>>.Instance);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("provider");
+    }
+
+    [Fact]
+    public void AttestationPipelineBehavior_NullTimeProvider_Throws()
+    {
+        var act = () => new AttestationPipelineBehavior<FakeRequest, FakeResponse>(
+            new InMemoryAttestationProvider(
+                new FakeTimeProvider(),
+                NullLogger<InMemoryAttestationProvider>.Instance),
+            null!,
+            NullLogger<AttestationPipelineBehavior<FakeRequest, FakeResponse>>.Instance);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+    }
+
+    [Fact]
+    public void AttestationPipelineBehavior_NullLogger_Throws()
+    {
+        var act = () => new AttestationPipelineBehavior<FakeRequest, FakeResponse>(
+            new InMemoryAttestationProvider(
+                new FakeTimeProvider(),
+                NullLogger<InMemoryAttestationProvider>.Instance),
+            new FakeTimeProvider(),
+            null!);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+    }
+
+    // Minimal stubs for AttestationPipelineBehavior guard tests
+    private sealed record FakeRequest : IRequest<FakeResponse>;
+    private sealed record FakeResponse;
 
     #endregion
 

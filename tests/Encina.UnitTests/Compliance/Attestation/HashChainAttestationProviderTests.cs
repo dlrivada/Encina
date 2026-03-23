@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 using Encina.Compliance.Attestation;
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
@@ -44,8 +46,6 @@ public sealed class HashChainAttestationProviderTests
             receipt.ProofMetadata.ShouldNotBeNull();
             receipt.ProofMetadata!.ShouldContainKey("chain_index");
             receipt.ProofMetadata["chain_index"].ShouldBe("0");
-            receipt.ProofMetadata.ShouldContainKey("previous_signature");
-            receipt.ProofMetadata["previous_signature"].ShouldBe("genesis");
         });
     }
 
@@ -147,13 +147,21 @@ public sealed class HashChainAttestationProviderTests
     }
 
     [Fact]
-    public async Task AttestAsync_ChainLinksSignatures_EachEntryDependsOnPrevious()
+    public async Task AttestAsync_ChainLinksSignatures_BothEntriesVerifyAndChainIsIntact()
     {
         var r1 = (await _sut.AttestAsync(CreateRecord())).Match(r => r, _ => throw new InvalidOperationException());
         var r2 = (await _sut.AttestAsync(CreateRecord())).Match(r => r, _ => throw new InvalidOperationException());
 
-        // Second entry's previous_signature should be first entry's signature
-        r2.ProofMetadata!["previous_signature"].ShouldBe(r1.Signature);
+        // Both receipts must individually verify (their HMAC chains are correctly linked)
+        var v1 = await _sut.VerifyAsync(r1);
+        var v2 = await _sut.VerifyAsync(r2);
+        v1.IsRight.ShouldBeTrue();
+        v1.IfRight(v => v.IsValid.ShouldBeTrue());
+        v2.IsRight.ShouldBeTrue();
+        v2.IfRight(v => v.IsValid.ShouldBeTrue());
+
+        // Full chain integrity check must pass
+        _sut.VerifyChainIntegrity().ShouldBeTrue();
     }
 
     [Fact]
@@ -206,9 +214,8 @@ public sealed class HashChainAttestationProviderTests
             ProofMetadata = new Dictionary<string, string>
             {
                 ["chain_index"] = "999",
-                ["previous_signature"] = "forged",
                 ["hash_algorithm"] = "SHA256"
-            }
+            }.ToFrozenDictionary()
         };
 
         var verifyResult = await _sut.VerifyAsync(forged);

@@ -19,4 +19,14 @@ public sealed record AttestationVerification
     /// Gets the reason for verification failure, if any.
     /// </summary>
     public string? FailureReason { get; init; }
+
+    /// <summary>
+    /// Gets the attestation identifier that was verified.
+    /// </summary>
+    public required Guid AttestationId { get; init; }
+
+    /// <summary>
+    /// Gets the name of the provider that performed the verification.
+    /// </summary>
+    public required string ProviderName { get; init; }
 }

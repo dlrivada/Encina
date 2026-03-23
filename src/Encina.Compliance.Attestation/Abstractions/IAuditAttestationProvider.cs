@@ -35,4 +35,22 @@ public interface IAuditAttestationProvider
     /// <returns>A verification result, or an error if verification could not be performed.</returns>
     ValueTask<Either<EncinaError, AttestationVerification>> VerifyAsync(
         AttestationReceipt receipt, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves a previously issued attestation receipt by audit record identifier.
+    /// </summary>
+    /// <param name="recordId">The audit record identifier to retrieve the receipt for.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The attestation receipt, or an error if not found or retrieval failed.</returns>
+    ValueTask<Either<EncinaError, AttestationReceipt>> GetReceiptAsync(
+        Guid recordId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves multiple attestation receipts by audit record identifiers.
+    /// </summary>
+    /// <param name="recordIds">The audit record identifiers to retrieve receipts for.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The list of found receipts, or an error if retrieval failed.</returns>
+    ValueTask<Either<EncinaError, IReadOnlyList<AttestationReceipt>>> GetReceiptsAsync(
+        IEnumerable<Guid> recordIds, CancellationToken ct = default);
 }

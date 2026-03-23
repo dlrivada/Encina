@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 
 using Encina.Compliance.Attestation.Abstractions;
 using Encina.Compliance.Attestation.Diagnostics;
@@ -18,10 +21,11 @@ namespace Encina.Compliance.Attestation.Providers;
 /// Stores attestation receipts in a <see cref="ConcurrentDictionary{TKey,TValue}"/>
 /// with idempotent attestation (same <see cref="AuditRecord.RecordId"/> returns existing receipt).
 /// </summary>
-public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
+public sealed class InMemoryAttestationProvider : IAuditAttestationProvider, IAttestationReceiptStore
 {
     private readonly ConcurrentDictionary<Guid, AttestationReceipt> _receipts = new();
     private readonly ConcurrentDictionary<Guid, AuditRecord> _records = new();
+    private readonly byte[] _hmacKey;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<InMemoryAttestationProvider> _logger;
 
@@ -30,6 +34,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InMemoryAttestationProvider"/> class.
+    /// A cryptographically random HMAC key is generated at startup.
     /// </summary>
     public InMemoryAttestationProvider(TimeProvider timeProvider, ILogger<InMemoryAttestationProvider> logger)
     {
@@ -37,6 +42,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
         ArgumentNullException.ThrowIfNull(logger);
         _timeProvider = timeProvider;
         _logger = logger;
+        _hmacKey = RandomNumberGenerator.GetBytes(32);
     }
 
     /// <inheritdoc />
@@ -64,6 +70,7 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
 
         var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
         var now = _timeProvider.GetUtcNow();
+        var signature = ComputeHmac(_hmacKey, $"{contentHash}:{now:O}:{ProviderName}");
 
         var receipt = new AttestationReceipt
         {
@@ -72,11 +79,12 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
             ContentHash = contentHash,
             AttestedAtUtc = now,
             ProviderName = ProviderName,
-            Signature = ContentHasher.ComputeSha256($"{contentHash}:{now:O}:{ProviderName}"),
+            Signature = signature,
+            CorrelationId = record.CorrelationId,
             ProofMetadata = new Dictionary<string, string>
             {
                 ["storage"] = "in-memory"
-            }
+            }.ToFrozenDictionary()
         };
 
         // TryAdd is atomic — if another thread won the race, return its receipt
@@ -125,13 +133,16 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
                 {
                     IsValid = false,
                     VerifiedAtUtc = now,
-                    FailureReason = "Original audit record not found in this provider."
+                    FailureReason = "Original audit record not found in this provider.",
+                    AttestationId = receipt.AttestationId,
+                    ProviderName = ProviderName
                 }));
         }
 
         // Verify the receipt matches the stored receipt (prevents forged receipts)
+        var signaturesMatch = SignaturesEqual(receipt.Signature, storedReceipt.Signature);
         var receiptMatchesStored = receipt.AttestationId == storedReceipt.AttestationId
-            && receipt.Signature == storedReceipt.Signature
+            && signaturesMatch
             && receipt.ContentHash == storedReceipt.ContentHash
             && receipt.AttestedAtUtc == storedReceipt.AttestedAtUtc
             && receipt.ProviderName == storedReceipt.ProviderName
@@ -163,8 +174,79 @@ public sealed class InMemoryAttestationProvider : IAuditAttestationProvider
             {
                 IsValid = isValid,
                 VerifiedAtUtc = now,
-                FailureReason = failureReason
+                FailureReason = failureReason,
+                AttestationId = storedReceipt.AttestationId,
+                ProviderName = ProviderName
             }));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Either<EncinaError, AttestationReceipt>> GetReceiptAsync(
+        Guid recordId, CancellationToken ct = default)
+    {
+        if (_receipts.TryGetValue(recordId, out var receipt))
+            return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(receipt));
+
+        return ValueTask.FromResult(
+            Left<EncinaError, AttestationReceipt>(AttestationErrors.ReceiptNotFound(recordId, ProviderName)));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Either<EncinaError, IReadOnlyList<AttestationReceipt>>> GetReceiptsAsync(
+        IEnumerable<Guid> recordIds, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(recordIds);
+
+        var results = recordIds
+            .Where(id => _receipts.ContainsKey(id))
+            .Select(id => _receipts[id])
+            .ToList();
+
+        return ValueTask.FromResult(
+            Right<EncinaError, IReadOnlyList<AttestationReceipt>>(results));
+    }
+
+    /// <inheritdoc />
+    ValueTask IAttestationReceiptStore.StoreReceiptAsync(AttestationReceipt receipt, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        _receipts.TryAdd(receipt.AuditRecordId, receipt);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    ValueTask<AttestationReceipt?> IAttestationReceiptStore.GetReceiptAsync(Guid recordId, CancellationToken ct)
+    {
+        _receipts.TryGetValue(recordId, out var receipt);
+        return ValueTask.FromResult(receipt);
+    }
+
+    /// <inheritdoc />
+    ValueTask<IReadOnlyList<AttestationReceipt>> IAttestationReceiptStore.GetReceiptsAsync(
+        IEnumerable<Guid> recordIds, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(recordIds);
+
+        IReadOnlyList<AttestationReceipt> results = recordIds
+            .Where(id => _receipts.ContainsKey(id))
+            .Select(id => _receipts[id])
+            .ToList();
+
+        return ValueTask.FromResult(results);
+    }
+
+    private static string ComputeHmac(byte[] key, string content)
+    {
+        using var hmac = new HMACSHA256(key);
+        var bytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexStringLower(bytes);
+    }
+
+    private static bool SignaturesEqual(string a, string b)
+    {
+        var bytesA = Encoding.UTF8.GetBytes(a);
+        var bytesB = Encoding.UTF8.GetBytes(b);
+        return CryptographicOperations.FixedTimeEquals(bytesA, bytesB);
     }
 
     private static bool ProofMetadataEquals(
