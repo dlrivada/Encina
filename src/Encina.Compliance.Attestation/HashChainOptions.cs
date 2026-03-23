@@ -18,23 +18,25 @@ public sealed class HashChainOptions
     public string? StoragePath { get; set; }
 
     /// <summary>
-    /// Gets or sets the hash algorithm to use. Default is SHA-256.
+    /// Gets or sets the hash algorithm used for content hashing and HMAC chain signatures.
+    /// Default is <see cref="HashAlgorithmName.SHA256"/>.
     /// </summary>
     /// <remarks>
-    /// Reserved for future use. The current implementation always uses SHA-256
-    /// via <see cref="ContentHasher.ComputeSha256"/>. Setting this property
-    /// has no effect on the actual hashing behavior yet.
+    /// Supported algorithms: SHA-256, SHA-384, SHA-512.
+    /// The same algorithm is used for both content hashes and HMAC chain signatures.
+    /// When no <see cref="HmacKey"/> is provided, the auto-generated key size matches
+    /// the algorithm (32 bytes for SHA-256, 48 for SHA-384, 64 for SHA-512).
     /// </remarks>
     public HashAlgorithmName HashAlgorithm { get; set; } = HashAlgorithmName.SHA256;
 
     /// <summary>
-    /// Gets or sets the HMAC-SHA256 signing key for chain entries.
-    /// When null (default), a cryptographically random 32-byte key is generated at startup.
+    /// Gets or sets the HMAC signing key for chain entries.
+    /// When null (default), a cryptographically random key is generated at startup
+    /// with a size matching the configured <see cref="HashAlgorithm"/>.
     /// </summary>
     /// <remarks>
     /// Provide a persistent key to enable chain verification across process restarts.
     /// The key must be kept secret; exposure allows an attacker to forge chain entries.
-    /// Keys shorter than 32 bytes are padded internally by HMACSHA256.
     /// </remarks>
     public byte[]? HmacKey { get; set; }
 }
