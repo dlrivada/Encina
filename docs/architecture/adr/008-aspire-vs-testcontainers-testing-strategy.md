@@ -266,7 +266,7 @@ Based on Phase 1 POC analysis (benchmarks pending execution with Docker):
 **Monitor Oracle Support:**
 
 - If Aspire adds Oracle support, re-evaluate migration
-- Track [dotnet/aspire issues](https://github.com/dotnet/aspire/issues) for Oracle requests
+- Track [dotnet/aspire issues](https://github.com/microsoft/aspire/issues) for Oracle requests
 
 **Re-evaluate for Microservices:**
 

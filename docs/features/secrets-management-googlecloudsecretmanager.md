@@ -282,5 +282,5 @@ public class DbConfig
 - [AWS Secrets Manager Provider](secrets-management-awssecretsmanager.md) -- AWS Secrets Manager integration
 - [HashiCorp Vault Provider](secrets-management-hashicorpvault.md) -- HashiCorp Vault integration
 - [Encina.Security.Secrets](../../src/Encina.Security.Secrets/) -- `ISecretReader`, `ISecretWriter`, `ISecretRotator`, `SecretsErrors`
-- [Google Cloud Secret Manager Documentation](https://cloud.google.com/secret-manager/docs)
+- [Google Cloud Secret Manager Documentation](https://docs.cloud.google.com/secret-manager/docs)
 - [Google.Cloud.SecretManager.V1 NuGet](https://www.nuget.org/packages/Google.Cloud.SecretManager.V1/)

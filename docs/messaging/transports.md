@@ -562,7 +562,7 @@ Since each transport has its own API, switching requires code changes. However, 
 
 ## Further Reading
 
-- [RabbitMQ Documentation](https://www.rabbitmq.com/documentation.html)
+- [RabbitMQ Documentation](https://www.rabbitmq.com/docs)
 - [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
 - [NATS Documentation](https://docs.nats.io/)
 - [Azure Service Bus Documentation](https://learn.microsoft.com/en-us/azure/service-bus-messaging/)

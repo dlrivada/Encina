@@ -185,7 +185,7 @@ Using the older XACML 2.0 specification.
 
 ## References
 
-- [XACML 3.0 Core Specification (OASIS)](http://docs.oasis-open.org/xacml/3.0/xacml-3.0-core-spec-os-en.html)
-- [XACML 3.0 Multiple Decision Profile](http://docs.oasis-open.org/xacml/3.0/multiple/v1.0/xacml-3.0-multiple-v1.0.html)
+- [XACML 3.0 Core Specification (OASIS)](https://docs.oasis-open.org/xacml/3.0/xacml-3.0-core-spec-os-en.html)
+- [XACML 3.0 Multiple Decision Profile](https://docs.oasis-open.org/xacml/3.0/multiple/v1.0/xacml-3.0-multiple-v1.0.html)
 - [NIST SP 800-162: Guide to ABAC Definition and Considerations](https://csrc.nist.gov/publications/detail/sp/800-162/final)
 - [AuthzForce CE (Java XACML 3.0 Implementation)](https://authzforce-ce-fiware.readthedocs.io/)
