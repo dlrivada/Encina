@@ -159,7 +159,7 @@ public sealed class InMemoryAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason.ShouldContain("forgery");
+            v.FailureReason!.ShouldContain("forgery");
         });
     }
 
@@ -196,7 +196,7 @@ public sealed class InMemoryAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason.ShouldContain("forgery");
+            v.FailureReason!.ShouldContain("forgery");
         });
     }
 
@@ -216,7 +216,7 @@ public sealed class InMemoryAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason.ShouldContain("forgery");
+            v.FailureReason!.ShouldContain("forgery");
         });
     }
 
@@ -242,7 +242,7 @@ public sealed class InMemoryAttestationProviderTests
         verifyResult.IfRight(v =>
         {
             v.IsValid.ShouldBeFalse();
-            v.FailureReason.ShouldContain("forgery");
+            v.FailureReason!.ShouldContain("forgery");
         });
     }
 

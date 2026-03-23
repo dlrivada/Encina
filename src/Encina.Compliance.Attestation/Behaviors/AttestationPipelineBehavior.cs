@@ -108,7 +108,7 @@ public sealed class AttestationPipelineBehavior<TRequest, TResponse> : IPipeline
         if (result.IsLeft)
             return result;
 
-        var outcome = result.IfRight(r => (object?)r);
+        var outcome = result.Match<object?>(Right: r => r, Left: _ => null);
         var serializedContent = JsonSerializer.Serialize(
             new { request, outcome },
             SerializerOptions);
