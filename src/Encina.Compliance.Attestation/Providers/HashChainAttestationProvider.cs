@@ -24,8 +24,8 @@ namespace Encina.Compliance.Attestation.Providers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The chain uses HMAC-SHA256 to compute:
-/// <c>signature = HMAC-SHA256(key, contentHash + ":" + previousSignature + ":" + chainIndex)</c>.
+/// The chain uses an HMAC matching the configured <see cref="HashChainOptions.HashAlgorithm"/> (default SHA-256) to compute:
+/// <c>signature = HMAC(key, contentHash + ":" + previousSignature + ":" + chainIndex)</c>.
 /// The genesis entry uses <c>"genesis"</c> as the previous signature.
 /// </para>
 /// <para>
@@ -44,6 +44,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
     private readonly List<AttestationReceipt> _chain = [];
     private readonly Lock _chainLock = new();
     private readonly byte[] _hmacKey;
+    private readonly HashAlgorithmName _hashAlgorithm;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<HashChainAttestationProvider> _logger;
     // Reserved for future persistence implementation
@@ -67,7 +68,11 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         _timeProvider = timeProvider;
         _logger = logger;
         _options = options.Value;
-        _hmacKey = _options.HmacKey ?? RandomNumberGenerator.GetBytes(32);
+        _hashAlgorithm = _options.HashAlgorithm;
+        // Validate algorithm eagerly to fail fast on misconfiguration
+        _ = ContentHasher.GetRecommendedKeySize(_hashAlgorithm);
+        _hmacKey = _options.HmacKey ?? RandomNumberGenerator.GetBytes(
+            ContentHasher.GetRecommendedKeySize(_hashAlgorithm));
     }
 
     /// <inheritdoc />
@@ -94,7 +99,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
                 return ValueTask.FromResult(Right<EncinaError, AttestationReceipt>(existing.Receipt));
             }
 
-            var contentHash = ContentHasher.ComputeSha256(record.SerializedContent);
+            var contentHash = ContentHasher.ComputeHash(record.SerializedContent, _hashAlgorithm);
             var now = _timeProvider.GetUtcNow();
 
             lock (_chainLock)
@@ -111,7 +116,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
                 }
 
                 var chainIndex = _chain.Count;
-                var signature = ComputeHmac(_hmacKey, $"{contentHash}:{_previousSignature}:{chainIndex}");
+                var signature = ComputeHmac(_hmacKey, $"{contentHash}:{_previousSignature}:{chainIndex}", _hashAlgorithm);
 
                 var receipt = new AttestationReceipt
                 {
@@ -125,7 +130,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
                     ProofMetadata = new Dictionary<string, string>
                     {
                         ["chain_index"] = chainIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        ["hash_algorithm"] = "HMAC-SHA256"
+                        ["hash_algorithm"] = $"HMAC-{_hashAlgorithm.Name}"
                     }.ToFrozenDictionary()
                 };
 
@@ -214,7 +219,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
                     : _chain[chainIndex - 1].Signature;
 
                 var expectedSignature = ComputeHmac(_hmacKey,
-                    $"{storedReceipt.ContentHash}:{previousSig}:{chainIndex}");
+                    $"{storedReceipt.ContentHash}:{previousSig}:{chainIndex}", _hashAlgorithm);
 
                 var isValid = SignaturesEqual(expectedSignature, storedReceipt.Signature);
 
@@ -316,7 +321,7 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
             {
                 var entry = _chain[i];
                 var expected = ComputeHmac(_hmacKey,
-                    $"{entry.ContentHash}:{previousSig}:{i}");
+                    $"{entry.ContentHash}:{previousSig}:{i}", _hashAlgorithm);
 
                 if (!SignaturesEqual(expected, entry.Signature))
                 {
@@ -331,9 +336,9 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         }
     }
 
-    private static string ComputeHmac(byte[] key, string content)
+    private static string ComputeHmac(byte[] key, string content, HashAlgorithmName algorithm)
     {
-        using var hmac = new HMACSHA256(key);
+        using var hmac = ContentHasher.CreateHmac(key, algorithm);
         var bytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(content));
         return Convert.ToHexStringLower(bytes);
     }

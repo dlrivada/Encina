@@ -26,6 +26,21 @@ public static class AttestationHasher
     }
 
     /// <summary>
+    /// Computes a content hash for an audit record using the specified algorithm.
+    /// The hash is computed over the record's <see cref="AuditRecord.SerializedContent"/>.
+    /// </summary>
+    /// <param name="record">The audit record to hash.</param>
+    /// <param name="algorithm">The hash algorithm to use (SHA-256, SHA-384, or SHA-512).</param>
+    /// <returns>A lowercase hex-encoded hash string.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="record"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="algorithm"/> is not supported.</exception>
+    public static string ComputeContentHash(AuditRecord record, HashAlgorithmName algorithm)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return ComputeHash(record.SerializedContent, algorithm);
+    }
+
+    /// <summary>
     /// Computes a lowercase hex-encoded SHA-256 hash of the given content string.
     /// </summary>
     /// <param name="content">The content to hash.</param>
@@ -36,5 +51,19 @@ public static class AttestationHasher
         ArgumentNullException.ThrowIfNull(content);
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
         return Convert.ToHexStringLower(bytes);
+    }
+
+    /// <summary>
+    /// Computes a lowercase hex-encoded hash of the given content string using the specified algorithm.
+    /// </summary>
+    /// <param name="content">The content to hash.</param>
+    /// <param name="algorithm">The hash algorithm to use (SHA-256, SHA-384, or SHA-512).</param>
+    /// <returns>A lowercase hex-encoded hash string.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="content"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="algorithm"/> is not supported.</exception>
+    public static string ComputeHash(string content, HashAlgorithmName algorithm)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return ContentHasher.ComputeHash(content, algorithm);
     }
 }
