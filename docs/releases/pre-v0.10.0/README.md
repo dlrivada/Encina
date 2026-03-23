@@ -3478,7 +3478,7 @@ Comprehensive research conducted on testing patterns and improvements based on:
 - [Vertical Slice Architecture](https://www.milanjovanovic.tech/blog/vertical-slice-architecture)
 - [FastEndpoints](https://fast-endpoints.com/)
 - [Carter Library](https://github.com/CarterCommunity/Carter)
-- [HotChocolate Documentation](https://chillicream.com/docs/hotchocolate/v14/)
+- [HotChocolate Documentation](https://chillicream.com/docs/hotchocolate/v15/)
 - [RFC 9457: Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html)
 - [Asp.Versioning](https://github.com/dotnet/aspnet-api-versioning)
 - [Microsoft.Extensions.AI](https://devblogs.microsoft.com/dotnet/introducing-microsoft-extensions-ai-preview/)
