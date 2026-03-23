@@ -31,7 +31,7 @@
 | **Domain Modeling Building Blocks** | 0 (+ 15 planificados: #367-#381) |
 | **Patrones Microservices** | 0 (+ 12 planificados: #382-#393) |
 | **Patrones Security** | 8 implementados (#394 Core Security, #395 Audit Trail, #396 Encryption, #397 PII, #398 AntiTampering, #399 Sanitization, #400/#603 Secrets Management, #401 ABAC) |
-| **Patrones Compliance (GDPR/EU)** | 11 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #411 Privacy by Design, #412 Cross-Border Transfer, #413 Lawful Basis Validation, #414 NIS2 Compliance) (+ 4 planificados: #404, #407, #415) |
+| **Patrones Compliance (GDPR/EU)** | 12 implementados (#402 GDPR Core/RoPA, #403 Consent Management, #405 Data Residency, #406 Data Retention, #408 Breach Notification, #409 DPIA, #410 Processor Agreements, #411 Privacy by Design, #412 Cross-Border Transfer, #413 Lawful Basis Validation, #414 NIS2 Compliance, #803 Audit Attestation) (+ 4 planificados: #404, #407, #415) |
 | **Patrones Event Sourcing** | 4 implementados (+ 13 planificados) |
 | **Providers de Base de Datos** | 14 (+ 16 patrones planificados) |
 | **Providers de Caching** | 8 (+ 13 mejoras planificadas) |
@@ -676,7 +676,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - Integración con `IIdempotentRequest` y `InboxPipelineBehavior`
 - **Use case**: Exactly-once execution de APIs y handlers
 - Labels: `area-idempotency`, `stripe-pattern`, `uber-pattern`, `netflix-pattern`
-- Referencias: [Stripe Idempotency](https://stripe.com/docs/api/idempotent_requests)
+- Referencias: [Stripe Idempotency](https://docs.stripe.com/api/idempotent_requests)
 
 #### Labels Nuevas Creadas (6)
 
@@ -3820,7 +3820,7 @@ Estas issues complementan y en algunos casos consolidan issues existentes:
 
 - **Arquitectura Hexagonal**:
   - [Hexagonal Architecture - Wikipedia](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software))
-  - [Alistair Cockburn - Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
+  - [Alistair Cockburn - Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture)
   - [Code Maze - Hexagonal Pattern in C#](https://code-maze.com/csharp-hexagonal-architectural-pattern/)
 
 - **Patrones DDD**:
@@ -4552,7 +4552,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - **[HybridCache .NET 9](https://devblogs.microsoft.com/dotnet/hybrid-cache-is-now-ga/)** - Tag invalidation, L1+L2, Microsoft implementation
 - **[Cache Stampede Solutions](https://howtech.substack.com/p/thundering-herd-problem-cache-stampede)** - Single-flight, PER, jitter patterns
 - **[Cache Warming 2025](https://newsletter.scalablethread.com/p/how-to-optimize-performance-with)** - Pre-warming strategies
-- **[OpenTelemetry Cache Metrics](https://uptrace.dev/blog/opentelemetry-metrics-cache-stats.html)** - Hit rate, latency metrics
+- **[OpenTelemetry Cache Metrics](https://uptrace.dev/blog/opentelemetry-go-metrics-cache-stats)** - Hit rate, latency metrics
 - **[Multi-tenant Azure Cache](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/cache-redis)** - SaaS caching patterns
 
 #### Prioridades de Implementación
@@ -4829,7 +4829,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Composición fluida de especificaciones reutilizables
 - Nuevo paquete planificado: `Encina.Specification`, `Encina.Specification.EntityFrameworkCore`
 - Labels: `area-ddd`, `area-database`, `aot-compatible`
-- Fuentes: [Ardalis Specification](http://specification.ardalis.com/), [DevIQ - Specification Pattern](https://deviq.com/design-patterns/specification-pattern/)
+- Fuentes: [Ardalis Specification](https://specification.ardalis.com/), [DevIQ - Specification Pattern](https://deviq.com/design-patterns/specification-pattern/)
 
 **#348 - API Versioning Integration**:
 
@@ -4876,7 +4876,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - Response caching con Idempotent-Replayed header
 - Store implementations: Redis, SQL Server, In-Memory
 - Labels: `area-resilience`, `area-caching`, `industry-best-practice`
-- Fuentes: [Stripe Idempotency](https://stripe.com/docs/api/idempotent_requests), [Milan Jovanovic - Idempotent APIs](https://www.milanjovanovic.tech/blog/implementing-idempotent-rest-apis-in-aspnetcore)
+- Fuentes: [Stripe Idempotency](https://docs.stripe.com/api/idempotent_requests), [Milan Jovanovic - Idempotent APIs](https://www.milanjovanovic.tech/blog/implementing-idempotent-rest-apis-in-aspnetcore)
 
 **#356 - Policy-Based Authorization Enhancement**:
 
@@ -4954,7 +4954,7 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 - **[NServiceBus](https://docs.particular.net/)** - Enterprise service bus with sagas
 - **[MassTransit](https://masstransit.io/)** - Open-source distributed application framework
 - **[Microsoft.FeatureManagement](https://github.com/microsoft/FeatureManagement-Dotnet)** - Feature flags for .NET
-- **[Ardalis.Specification](http://specification.ardalis.com/)** - Specification pattern implementation
+- **[Ardalis.Specification](https://specification.ardalis.com/)** - Specification pattern implementation
 - **[Milan Jovanović](https://www.milanjovanovic.tech/)** - CQRS, Modular Monolith, best practices
 - **[Jimmy Bogard - Vertical Slice Architecture](https://www.jimmybogard.com/vertical-slice-architecture/)** - VSA principles
 
@@ -5290,7 +5290,7 @@ Los patrones de testing fueron identificados tras investigación exhaustiva de:
 - `SliceTestBase<TSlice>` para testing aislado
 - Auto-register de endpoints con `AutoRegisterEndpoints = true`
 - Labels: `area-vertical-slice`, `area-cli`, `industry-best-practice`
-- Fuentes: [Jimmy Bogard - VSA](https://jimmybogard.com/vertical-slice-architecture/)
+- Fuentes: [Jimmy Bogard - VSA](https://www.jimmybogard.com/vertical-slice-architecture/)
 
 **#366 - Module Versioning**:
 
@@ -5721,7 +5721,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - ✅ 94 tests (41 unit, 36 guard, 6 property, 11 integration) + 17 benchmarks
 - **Paquete implementado**: `Encina.Security.AntiTampering`
 - Labels: `area-security`, `area-web-api`, `area-pipeline`, `industry-best-practice`, `owasp-pattern`
-- Referencias: [AWS Signature Version 4](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-signing.html), [Stripe Webhook Signatures](https://stripe.com/docs/webhooks/signatures)
+- Referencias: [AWS Signature Version 4](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html), [Stripe Webhook Signatures](https://docs.stripe.com/webhooks)
 
 **#399 - Encina.Security.Sanitization - Input/Output Sanitization** ✅ **IMPLEMENTADO (Feb 2026)**:
 
@@ -5984,7 +5984,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - **Testing**: 235+ tests across 6 test projects (unit, guard, contract, property, integration)
 - **Documentación**: [README](../src/Encina.Compliance.DataResidency/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-multi-tenancy`, `area-data-protection`, `pattern-data-sovereignty`, `area-cloud-native`, `saas-essential`
-- Referencias: [Schrems II Decision](https://curia.europa.eu/juris/liste.jsf?num=C-311/18), [EU SCCs](https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection/standard-contractual-clauses-scc_en)
+- Referencias: [Schrems II Decision](https://infocuria.curia.europa.eu/tabs/redirect/juris/liste.jsf?num=C-311/18), [EU SCCs](https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection/standard-contractual-clauses-scc_en)
 
 ##### Tier 2: Alta Prioridad (Data Lifecycle)
 
@@ -6278,7 +6278,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - [EDPB Guidelines](https://edpb.europa.eu/our-work-tools/general-guidance_en)
 - [ICO Guidance](https://ico.org.uk/for-organisations/guide-to-data-protection/)
 - [CNIL Best Practices](https://www.cnil.fr/en/home)
-- [Schrems II Decision (C-311/18)](https://curia.europa.eu/juris/liste.jsf?num=C-311/18)
+- [Schrems II Decision (C-311/18)](https://infocuria.curia.europa.eu/tabs/redirect/juris/liste.jsf?num=C-311/18)
 - [NIS2 Directive (EU 2022/2555)](https://eur-lex.europa.eu/eli/dir/2022/2555/oj)
 - [EU AI Act (EU 2024/1689)](https://eur-lex.europa.eu/eli/reg/2024/1689/oj)
 - [OneTrust GDPR Resources](https://www.onetrust.com/resources/)
@@ -7168,7 +7168,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Human-in-the-Loop (HITL) support
 - Cross-language agents vía MCP
 - Semantic Kernel adapter: `SemanticKernelAgentAdapter`
-- Inspiración: [Semantic Kernel Multi-Agent](https://devblogs.microsoft.com/semantic-kernel/semantic-kernel-multi-agent-orchestration/)
+- Inspiración: [Semantic Kernel Multi-Agent](https://devblogs.microsoft.com/agent-framework/semantic-kernel-multi-agent-orchestration/)
 - Labels: `new-package`, `area-ai-ml`, `area-workflow`, `area-mcp`
 
 **#488 - Structured Output Handler** (Media Prioridad):
@@ -7180,7 +7180,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - Fallback parsing para edge cases
 - Support para nested objects, arrays, enums
 - Handling de tipos no soportados (DateTime → string)
-- Inspiración: [Structured Output in Semantic Kernel](https://devblogs.microsoft.com/semantic-kernel/using-json-schema-for-structured-output-in-net-for-openai-models/)
+- Inspiración: [Structured Output in Semantic Kernel](https://devblogs.microsoft.com/agent-framework/using-json-schema-for-structured-output-in-net-for-openai-models/)
 - Labels: `area-ai-ml`, `area-pipeline`, `area-validation`
 
 **#489 - Function Calling Orchestration** (Media Prioridad):
@@ -7291,7 +7291,7 @@ Nueva categoría que agrupa los patrones de integración con Inteligencia Artifi
 - [LLM Observability 2025](https://www.braintrust.dev/articles/top-10-llm-observability-tools-2025) - Tools comparison
 - [Semantic Caching](https://www.scylladb.com/2025/11/24/cut-llm-costs-and-latency-with-scylladb-semantic-caching/) - Cost reduction
 - [RAG Patterns](https://www.microsoft.com/en-us/microsoft-cloud/blog/2025/02/04/common-retrieval-augmented-generation-rag-techniques-explained/) - Microsoft guide
-- [Structured Outputs](https://devblogs.microsoft.com/semantic-kernel/using-json-schema-for-structured-output-in-net-for-openai-models/) - Schema enforcement
+- [Structured Outputs](https://devblogs.microsoft.com/agent-framework/using-json-schema-for-structured-output-in-net-for-openai-models/) - Schema enforcement
 - [Rate Limiting AI Gateway](https://www.truefoundry.com/blog/rate-limiting-in-llm-gateway) - Token budgets
 
 ---

@@ -2459,7 +2459,7 @@ services.AddEncinaOpenApi(); // Auto-generate from handlers
 - [NestJS Documentation](https://docs.nestjs.com/)
 - [Encina ROADMAP](../ROADMAP.md) (90% to Pre-1.0)
 - [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/)
-- [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
+- [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/dotnet/)
 
 ---
 

@@ -435,6 +435,6 @@ gcloud iam service-accounts keys create key.json \
 
 - [Secrets Management Overview](../features/secrets-management.md) (if available)
 - [Encina.Secrets Core Abstractions](../../src/Encina.Secrets/) -- `ISecretProvider`, `Secret`, `SecretMetadata`, `SecretsErrorCodes`
-- [Google Cloud Secret Manager Documentation](https://cloud.google.com/secret-manager/docs)
+- [Google Cloud Secret Manager Documentation](https://docs.cloud.google.com/secret-manager/docs)
 - [Google.Cloud.SecretManager.V1 NuGet](https://www.nuget.org/packages/Google.Cloud.SecretManager.V1/)
-- [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials)
+- [Application Default Credentials](https://docs.cloud.google.com/docs/authentication/application-default-credentials)

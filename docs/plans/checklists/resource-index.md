@@ -138,7 +138,7 @@ A complete index of all resources for the testing dogfooding initiative.
 | Bogus | https://github.com/bchavez/Bogus |
 | FsCheck | https://fscheck.github.io/FsCheck/ |
 | PactNet | https://github.com/pact-foundation/pact-net |
-| WireMock.Net | https://github.com/WireMock-Net/WireMock.Net |
+| WireMock.Net | https://github.com/wiremock/WireMock.Net |
 | ArchUnitNET | https://archunitnet.readthedocs.io/ |
 | Verify | https://github.com/VerifyTests/Verify |
 | Respawn | https://github.com/jbogard/Respawn |

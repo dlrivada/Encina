@@ -350,7 +350,7 @@ Real-world measurements from performance testing:
 - [Source Generators](https://docs.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/source-generators-overview)
 - [Expression Trees Performance](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/expression-trees/how-to-execute-expression-trees)
 - [Native AOT](https://docs.microsoft.com/en-us/dotnet/core/deploying/native-aot/)
-- [MediatR Source Generator Discussion](https://github.com/jbogard/MediatR/discussions/797)
+- [MediatR Source Generator Discussion](https://github.com/LuckyPennySoftware/MediatR/discussions/797)
 
 ## Review
 

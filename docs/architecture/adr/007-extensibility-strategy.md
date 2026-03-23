@@ -510,7 +510,7 @@ We'll know this decision is successful when:
 - [Extensibility Analysis](../extensibility-analysis.md) - Detailed analysis of integration patterns
 - [ADR-001: Railway Oriented Programming](001-railway-oriented-programming.md) - Error handling foundation
 - [ADR-006: Pure ROP Exception Handling](006-pure-rop-exception-handling.md) - Exception philosophy
-- [MediatR](https://github.com/jbogard/MediatR) - Inspiration for Encina pattern
+- [MediatR](https://github.com/LuckyPennySoftware/MediatR) - Inspiration for Encina pattern
 - [Polly](https://github.com/App-vNext/Polly) - Resilience library
 - [FluentValidation](https://github.com/FluentValidation/FluentValidation) - Validation library
 - [OpenTelemetry .NET](https://github.com/open-telemetry/opentelemetry-dotnet) - Observability standard

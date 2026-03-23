@@ -11,7 +11,7 @@
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-pre--1.0-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Dependabot](https://img.shields.io/badge/Dependabot-Enabled-025E8C?logo=dependabot&logoColor=white)](https://docs.github.com/code-security/dependabot)
+[![Dependabot](https://img.shields.io/badge/Dependabot-Enabled-025E8C?logo=dependabot&logoColor=white)](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196)](https://www.conventionalcommits.org/)
 
 <!-- Code Quality (SonarCloud) -->
@@ -154,6 +154,7 @@ sequenceDiagram
 | **Scheduling** | `Hangfire`, `Quartz` | Job scheduling adapters |
 | **Resilience** | `Extensions.Resilience`, `Polly`, `Refit` | Retry, circuit breaker, HTTP clients |
 | **Event Sourcing** | `Marten` | Event store with projections |
+| **Compliance** | `Compliance.Attestation`, `Compliance.GDPR`, `Compliance.NIS2` | Audit attestation, GDPR, NIS2 |
 | **Observability** | `OpenTelemetry` | Distributed tracing and metrics |
 
 > **Note**: 3,800+ tests across all packages
@@ -423,6 +424,25 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 | **Other** | SignalR, gRPC, EF Core | `messaging`/`database`, `ready` |
 
 See [Encina.Messaging README](src/Encina.Messaging/README.md#health-checks) for detailed configuration options.
+
+## Compliance
+
+### Audit Attestation
+
+Provider-agnostic tamper-evident audit attestation — cryptographic proof that an audit record existed at a specific time and has not been modified since. Supports EU AI Act (Art. 13), GDPR (Art. 5.2), and NIS2 (Art. 23).
+
+```csharp
+services.AddEncinaAttestation(options =>
+{
+    options.UseHashChain();       // Self-hosted hash chain
+    // options.UseHttp(http =>    // External (Sigstore/Rekor, custom)
+    //     http.AttestEndpointUrl = new Uri("https://rekor.sigstore.dev/api/v1/log/entries"));
+});
+```
+
+Three built-in providers: `InMemoryAttestationProvider` (testing), `HashChainAttestationProvider` (self-hosted production), and `HttpAttestationProvider` (external attestation services).
+
+See [docs/features/audit-attestation.md](docs/features/audit-attestation.md) for provider selection guide and full API reference.
 
 ## Pipeline Behavior Example
 

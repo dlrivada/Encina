@@ -1,156 +1,93 @@
-# Audit Attestation in Encina
-
-> **Status: Planned — Not Yet Released**
-> This document describes the proposed `Encina.Compliance.Attestation` module and its APIs (`IAuditAttestationProvider`, `AddEncinaAttestation`, providers). These APIs are **not yet implemented or published**. Treat this as a design specification; do not depend on it until the corresponding package is available. See [#803](https://github.com/dlrivada/Encina/issues/803) for implementation tracking.
-
-Encina.Compliance.Attestation will provide a provider-agnostic, tamper-evident audit attestation framework at the CQRS pipeline level, enabling externally verifiable proof that audit records have not been modified retroactively.
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [The Problem](#the-problem)
-3. [The Solution](#the-solution)
-4. [Quick Start](#quick-start)
-5. [Core Types](#core-types)
-6. [Providers](#providers)
-7. [Pipeline Integration](#pipeline-integration)
-8. [Configuration Reference](#configuration-reference)
-9. [HTTP Attestation Provider](#http-attestation-provider)
-10. [Compatible Third-Party Attestation Services](#compatible-third-party-attestation-services)
-11. [Observability](#observability)
-12. [Health Check](#health-check)
-13. [Testing](#testing)
-
----
+# Audit Attestation
 
 ## Overview
 
-Encina.Compliance.Attestation adds an external proof layer to audit records. While internal audit stores (Marten event sourcing, `IAuditStore`) prove events were recorded in order, external attestation proves events existed at a specific time and have not been altered — satisfying requirements from EU AI Act (Art. 13), GDPR accountability (Art. 5(2)), and NIS2 incident reporting.
+The `Encina.Compliance.Attestation` module provides tamper-evident audit attestation — cryptographic proof that an audit record existed at a specific point in time, and that it has not been modified since. This addresses compliance requirements across multiple regulations:
 
-| Layer | What it proves | Who trusts it |
-|-------|---------------|---------------|
-| **Internal audit** (Marten ES, IAuditStore) | Events were recorded in order | Development and ops teams |
-| **External attestation** (this feature) | Events existed at a specific time and have not been altered | Regulators, auditors, insurers |
+- **EU AI Act (Art. 13)**: Transparency and traceability of high-risk AI system decisions
+- **GDPR (Art. 5.2)**: Accountability principle — demonstrating compliance with data protection rules
+- **NIS2 (Art. 23)**: Incident reporting evidence with verifiable timestamps
 
-## The Problem
+## Architecture
 
-A DBA with database access could alter internal audit records. For compliance-critical operations — high-risk AI decisions, data breach timelines, GDPR data subject requests — regulators may require proof that is independently verifiable, outside the system's own trust boundary.
+```
+Application Code
+    │
+    ▼
+[AttestDecision] attribute (declarative)
+    │
+    ▼
+IAuditAttestationProvider
+    ├── InMemoryAttestationProvider  (testing)
+    ├── HashChainAttestationProvider (self-hosted production)
+    └── HttpAttestationProvider      (external: Sigstore/Rekor, custom)
+```
 
-## The Solution
+All providers implement the same `IAuditAttestationProvider` interface, returning `Either<EncinaError, T>` for Railway Oriented error handling.
 
-`IAuditAttestationProvider` creates and verifies tamper-evident attestations for audit records. Implementations range from local hash chains (free, self-hosted) to cloud immutable ledgers and third-party services. All patterns are **opt-in** — attestation is only activated when explicitly configured.
+## Provider Selection Guide
 
-## Quick Start
+| Scenario | Provider | Rationale |
+|----------|----------|-----------|
+| Unit/integration tests | `InMemory` | Fast, no external dependencies |
+| Self-hosted compliance | `HashChain` | Zero cost, tamper-evident, no network calls |
+| Regulatory audit trail | `Http` (Sigstore/Rekor) | Third-party verifiable, immutable public ledger |
+| Enterprise compliance | `Http` (custom API) | Integrate with existing GRC tooling |
+
+## Hash Chain Mechanics
+
+The `HashChainAttestationProvider` implements a cryptographic hash chain:
+
+1. **Genesis**: First entry uses `"genesis"` as the previous signature
+2. **Chain link**: `signature = SHA256(contentHash + ":" + previousSignature + ":" + chainIndex)`
+3. **Verification**: Recompute the signature and compare — any mismatch indicates tampering
+4. **Full chain audit**: `VerifyChainIntegrity()` walks the entire chain from genesis
+
+Properties:
+- **Append-only**: New entries can only be added at the end
+- **No gaps**: Each entry references its predecessor
+- **Tamper-evident**: Modifying any entry breaks the chain from that point forward
+- **Idempotent**: Attesting the same `RecordId` twice returns the original receipt
+
+## Configuration
+
+### InMemory (Testing)
 
 ```csharp
-// Development / testing
-services.AddEncinaAttestation(options =>
-{
-    options.UseInMemory();
-});
+services.AddEncinaAttestation(options => options.UseInMemory());
+```
 
-// Self-hosted production (zero cost)
+### HashChain (Production)
+
+```csharp
 services.AddEncinaAttestation(options =>
 {
-    options.UseHashChain(chain =>
+    options.UseHashChain(hc =>
     {
-        chain.StoragePath = "/var/encina/attestations";
-        chain.HashAlgorithm = HashAlgorithmName.SHA256;
+        hc.StoragePath = "/var/data/attestation";
+        hc.HashAlgorithm = HashAlgorithmName.SHA256;
     });
+    options.AddHealthCheck = true;
 });
+```
 
-// External HTTP attestation endpoint
+### HTTP (External)
+
+```csharp
 services.AddEncinaAttestation(options =>
 {
     options.UseHttp(http =>
     {
-        http.EndpointUrl = new Uri("https://attestation.example.com/api/attest");
+        http.AttestEndpointUrl = new Uri("https://rekor.sigstore.dev/api/v1/log/entries");
+        http.VerifyEndpointUrl = new Uri("https://rekor.sigstore.dev/api/v1/log/entries/retrieve");
         http.AuthHeader = "Bearer <token>";
     });
 });
 ```
 
-## Core Types
+## HTTP Attestation Provider — REST Contract
 
-### IAuditAttestationProvider
-
-```csharp
-public interface IAuditAttestationProvider
-{
-    ValueTask<Either<EncinaError, AttestationReceipt>> AttestAsync(
-        AuditRecord record, CancellationToken ct = default);
-
-    ValueTask<Either<EncinaError, AttestationVerification>> VerifyAsync(
-        AttestationReceipt receipt, CancellationToken ct = default);
-}
-```
-
-### AttestationReceipt
-
-Immutable receipt proving an audit record was attested at a specific time. Includes `AttestationId`, `AuditRecordId`, `ContentHash`, `AttestedAtUtc`, `ProviderName`, `Signature`, and optional `ProofMetadata`.
-
-### AttestationVerification
-
-Result of verifying an attestation receipt. Contains `IsValid`, `VerifiedAtUtc`, `AttestationId`, `ProviderName`, and optional `FailureReason`.
-
-### AuditRecord
-
-Represents an audit record to be attested. Contains `RecordId`, `RecordType`, `OccurredAtUtc`, `SerializedContent`, and optional fields for `CorrelationId`, `ActorId`, `TenantId`, `ModuleId`, and `Metadata`.
-
-## Planned Providers
-
-| Provider | Package | Purpose | Mechanism |
-|----------|---------|---------|-----------|
-| `InMemoryAttestationProvider` | `Encina.Compliance.Attestation` | Testing and development | In-memory hash map |
-| `HashChainAttestationProvider` | `Encina.Compliance.Attestation` | Self-hosted, no cloud dependency | SHA-256 hash chain with append-only storage |
-| `HttpAttestationProvider` | `Encina.Compliance.Attestation` | External HTTP endpoints | POST + receipt storage, configurable auth/payload |
-
-### Future / Community Providers
-
-| Provider | Package | Backend |
-|----------|---------|---------|
-| `AzureLedgerAttestationProvider` | `Encina.Compliance.Attestation.Azure` | Azure Confidential Ledger |
-| `AwsQldbAttestationProvider` | `Encina.Compliance.Attestation.Aws` | Amazon QLDB |
-
-> All providers and packages listed above are planned and not yet published.
-
-## Pipeline Integration
-
-Attestation integrates as an optional decorator on the audit pipeline via the `[AttestDecision]` attribute:
-
-```csharp
-[RequireHumanOversight(Reason = "High-risk AI decision")]
-[AttestDecision(FailureMode = AttestationFailureMode.Enforce)]
-public record ApproveLoanCommand : ICommand<LoanDecision>;
-```
-
-The `AttestationPipelineBehavior<TRequest, TResponse>` processes commands marked with `[AttestDecision]`. The `FailureMode` property controls behavior when attestation fails:
-
-- `Enforce` — the command fails if attestation fails
-- `LogOnly` — the command proceeds, but attestation failure is logged
-
-## Configuration Reference
-
-### AttestationOptions
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `ProviderType` | `AttestationProviderType` | `InMemory` | Which provider to use |
-
-### HttpAttestationOptions
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `EndpointUrl` | `Uri` | — | Attestation service URL |
-| `AuthHeader` | `string?` | `null` | Authorization header value |
-| `AllowInsecureHttp` | `bool` | `false` | Allow HTTP (not HTTPS) endpoints |
-| `MaxResponseContentBufferSize` | `long` | `1048576` (1 MB) | Max response size |
-
-## HTTP Attestation Provider
-
-The `HttpAttestationProvider` works with any service implementing the following REST contract:
-
-### Expected REST Contract
+The `HttpAttestationProvider` works with any service implementing the following REST contract. This enables interoperability with third-party attestation backends.
 
 **Attest (create receipt):**
 
@@ -219,53 +156,17 @@ a stored receipt). This includes but is not limited to:
 
 ## Observability
 
-### OpenTelemetry
+The module instruments all operations with OpenTelemetry:
 
-Attestation operations emit traces and metrics:
-
-- **Traces**: `encina.attestation.attest`, `encina.attestation.verify`
-- **Counters**: `encina.attestation.verification.succeeded`, `encina.attestation.verification.failed`
-- **Histogram**: `encina.attestation.verification.duration`
-
-### Structured Logging
-
-Attestation logging should use `[LoggerMessage]` source generators, with EventIds reserved in `EventIdRanges.cs` once an attestation-specific range is allocated.
-
-## Health Check
-
-The attestation health check verifies provider availability without contaminating the hash chain — it verifies an existing receipt rather than creating a new one.
-
-```csharp
-services.AddHealthChecks()
-    .AddEncinaAttestationHealthCheck();
-```
+- **Activities**: `Attestation.Attest` and `Attestation.Verify` with semantic tags
+- **Metrics**: 5 instruments tracking attestation volume, success/failure rates, and latency
+- **Logging**: 6 structured events in the 9600-9605 EventId range using `[LoggerMessage]` source generator
 
 ## Testing
 
-### Using InMemoryAttestationProvider
-
-```csharp
-services.AddEncinaAttestation(options =>
-{
-    options.UseInMemory();
-});
-```
-
-The in-memory provider supports idempotent attestation (attesting the same record twice returns the existing receipt) and all verification operations, making it suitable for unit and integration tests.
-
-### Planned Test Strategy
-
-| Test Type | Planned Scope |
-|-----------|---------------|
-| **UnitTests** | All providers, receipt creation, hash chain integrity |
-| **GuardTests** | All public methods — null checks, invalid arguments |
-| **ContractTests** | `IAuditAttestationProvider` contract across all providers |
-| **PropertyTests** | Hash chain invariants: append-only, no gaps, tamper detection |
-
-## Related Features
-
-- [Anti-Tampering](anti-tampering.md) — HMAC-based request signing and integrity verification
-- [Read Auditing](read-auditing.md) — Internal audit record creation
-- [Audit Tracking](audit-tracking.md) — Change tracking and audit trail
-- [GDPR Compliance](gdpr-compliance.md) — Data protection compliance patterns
-- [NIS2 Compliance](nis2-compliance.md) — Network and information security directive
+Property-based tests (FsCheck) verify the core hash chain invariants:
+- Append-only: N records produce N receipts with sequential chain indices
+- No gaps: Each receipt's `previous_signature` matches its predecessor
+- Tamper detection: Modified content hashes fail verification
+- Idempotency: Same RecordId returns identical receipts
+- Determinism: Same content always produces the same hash

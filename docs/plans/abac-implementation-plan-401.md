@@ -1833,7 +1833,7 @@ General:
 - Table of contents in each document >50 lines
 
 REFERENCE FILES:
-- XACML 3.0 OASIS Standard (http://docs.oasis-open.org/xacml/3.0/xacml-3.0-core-spec-os-en.html)
+- XACML 3.0 OASIS Standard (https://docs.oasis-open.org/xacml/3.0/xacml-3.0-core-spec-os-en.html)
 - AuthzForce documentation (https://authzforce-ce-fiware.readthedocs.io/)
 - WSO2 XACML docs (https://is.docs.wso2.com/)
 - Spring Expression Language docs (https://docs.spring.io/spring-framework/reference/core/expressions.html)
