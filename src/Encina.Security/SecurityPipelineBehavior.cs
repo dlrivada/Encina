@@ -124,7 +124,7 @@ public sealed class SecurityPipelineBehavior<TRequest, TResponse> : IPipelineBeh
             if (_options.ThrowOnMissingSecurityContext && (securityAttributes.Count > 0 || _options.RequireAuthenticatedByDefault))
             {
                 var missingError = SecurityErrors.MissingContext(requestType);
-                RecordDenied(activity, startedAt, requestTypeName, SecurityErrors.MissingContextCode, securityContext?.UserId);
+                RecordDenied(activity, startedAt, requestTypeName, SecurityErrors.MissingContextCode, null);
                 return Left<EncinaError, TResponse>(missingError); // NOSONAR S6966
             }
 

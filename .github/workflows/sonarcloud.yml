@@ -17,122 +17,15 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  # Build job - shared by coverage and analysis
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore and Build
-        run: |
-          dotnet restore Encina.slnx
-          dotnet build Encina.slnx --configuration Release --no-restore
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-output
-          path: |
-            **/bin/Release/**
-            **/obj/**/*.assets.json
-          retention-days: 1
-
-  # Coverage collection - parallel shards (same as CI for full coverage)
-  coverage:
-    name: Coverage (${{ matrix.shard.name }})
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        shard:
-          - name: Testing
-            filter: "FullyQualifiedName~Encina.UnitTests.Testing"
-          - name: Messaging
-            filter: "FullyQualifiedName~Encina.UnitTests.Messaging|FullyQualifiedName~Encina.UnitTests.Caching"
-          - name: Data
-            filter: "FullyQualifiedName~Encina.UnitTests.EntityFrameworkCore|FullyQualifiedName~Encina.UnitTests.Dapper|FullyQualifiedName~Encina.UnitTests.ADO|FullyQualifiedName~Encina.UnitTests.MongoDB|FullyQualifiedName~Encina.UnitTests.Marten"
-          - name: Cloud
-            filter: "FullyQualifiedName~Encina.UnitTests.AzureFunctions|FullyQualifiedName~Encina.UnitTests.AzureServiceBus|FullyQualifiedName~Encina.UnitTests.Polly|FullyQualifiedName~Encina.UnitTests.AwsLambda|FullyQualifiedName~Encina.UnitTests.Aspire|FullyQualifiedName~Encina.UnitTests.OpenTelemetry"
-          - name: Remaining
-            filter: "FullyQualifiedName~Encina.UnitTests.Core|FullyQualifiedName~Encina.UnitTests.DomainModeling|FullyQualifiedName~Encina.UnitTests.AspNetCore|FullyQualifiedName~Encina.UnitTests.gRPC|FullyQualifiedName~Encina.UnitTests.SignalR|FullyQualifiedName~Encina.UnitTests.GuardClauses|FullyQualifiedName~Encina.UnitTests.MQTT|FullyQualifiedName~Encina.UnitTests.NATS|FullyQualifiedName~Encina.UnitTests.RabbitMQ|FullyQualifiedName~Encina.UnitTests.AmazonSQS|FullyQualifiedName~Encina.UnitTests.Kafka|FullyQualifiedName~Encina.UnitTests.Workflows|FullyQualifiedName~Encina.UnitTests.MiniValidator|FullyQualifiedName~Encina.UnitTests.FluentValidation|FullyQualifiedName~Encina.UnitTests.DataAnnotations|FullyQualifiedName~Encina.UnitTests.Quartz|FullyQualifiedName~Encina.UnitTests.Hangfire|FullyQualifiedName~Encina.UnitTests.Extensions|FullyQualifiedName~Encina.UnitTests.Refit|FullyQualifiedName~Encina.UnitTests.Cli"
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: build-output
-
-      - name: Restore test dependencies
-        run: dotnet restore tests/Encina.UnitTests/Encina.UnitTests.csproj
-
-      - name: Run tests with coverage
-        run: |
-          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj \
-            --no-build -c Release \
-            --filter "${{ matrix.shard.filter }}" \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings \
-            --results-directory artifacts/coverage \
-            --logger "console;verbosity=minimal"
-        continue-on-error: true
-
-      - name: List coverage files
-        run: find artifacts -name "*.xml" -type f 2>/dev/null || echo "No XML files found"
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-${{ matrix.shard.name }}
-          path: artifacts/coverage/**/coverage.opencover.xml
-          retention-days: 1
-          if-no-files-found: warn
-
-  # SonarCloud analysis - runs after coverage collection
+  # Single job: build + test with coverage + SonarCloud analysis
+  # SonarScanner for .NET requires begin → build → test → end in the SAME job
   sonarcloud:
     name: SonarCloud Analysis
-    needs: [build, coverage]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: read
-    if: always() && needs.build.result == 'success'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -153,40 +46,13 @@ jobs:
       - name: Install SonarScanner
         run: dotnet tool install --global dotnet-sonarscanner
 
-      - name: Download all coverage reports
-        uses: actions/download-artifact@v8
-        with:
-          pattern: coverage-*
-          path: artifacts/coverage
-          merge-multiple: true
-
-      - name: Find coverage reports
-        id: coverage
-        run: |
-          COVERAGE_FILES=$(find artifacts/coverage -name "coverage.opencover.xml" -type f 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-          if [ -n "$COVERAGE_FILES" ]; then
-            echo "paths=$COVERAGE_FILES" >> $GITHUB_OUTPUT
-            echo "Found coverage reports: $COVERAGE_FILES"
-          else
-            echo "paths=" >> $GITHUB_OUTPUT
-            echo "No coverage reports found"
-          fi
-
-      - name: Restore source projects
-        run: dotnet restore Encina.Source.sln
+      - name: Restore all projects
+        run: dotnet restore Encina.slnx
 
       - name: Begin SonarCloud analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          COVERAGE_ARG=""
-          if [ -n "${{ steps.coverage.outputs.paths }}" ]; then
-            COVERAGE_ARG="/d:sonar.cs.opencover.reportsPaths=${{ steps.coverage.outputs.paths }}"
-            echo "Using coverage reports: ${{ steps.coverage.outputs.paths }}"
-          else
-            echo "No coverage reports available"
-          fi
-
           # Coverage exclusions: Exclude packages where coverage comes from integration
           # tests (Docker/Testcontainers) rather than unit tests. Packages with unit test
           # coverage in Encina.UnitTests are INCLUDED (Core, Messaging, DomainModeling,
@@ -218,7 +84,7 @@ jobs:
             /o:"dlrivada" \
             /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
             /d:sonar.host.url="https://sonarcloud.io" \
-            $COVERAGE_ARG \
+            /d:sonar.cs.opencover.reportsPaths="artifacts/coverage/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="$COVERAGE_EXCLUSIONS" \
             /d:sonar.cpd.exclusions="$CPD_EXCLUSIONS" \
             /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**,tests/**/*" \
@@ -340,7 +206,23 @@ jobs:
             /d:sonar.verbose=false
 
       - name: Build for SonarCloud analysis
-        run: dotnet build Encina.Source.sln --configuration Release --no-restore
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run unit tests with coverage
+        run: |
+          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj \
+            -c Release --no-build \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage \
+            --logger "console;verbosity=minimal"
+        continue-on-error: true
+
+      - name: List coverage files
+        if: always()
+        run: |
+          echo "Coverage files found:"
+          find artifacts/coverage -name "coverage.opencover.xml" -type f 2>/dev/null || echo "No coverage files found"
 
       - name: End SonarCloud analysis
         env:

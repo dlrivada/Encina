@@ -135,7 +135,7 @@ internal static class ArithmeticFunctions
                 FunctionHelpers.ValidateArgCount(args, 2, XACMLFunctionIds.DoubleDivide);
                 var a = FunctionHelpers.CoerceToDouble(args[0], XACMLFunctionIds.DoubleDivide, 0);
                 var b = FunctionHelpers.CoerceToDouble(args[1], XACMLFunctionIds.DoubleDivide, 1);
-                if (b == 0.0)
+                if (Math.Abs(b) < double.Epsilon)
                 {
                     throw new InvalidOperationException(
                         $"'{XACMLFunctionIds.DoubleDivide}': division by zero.");

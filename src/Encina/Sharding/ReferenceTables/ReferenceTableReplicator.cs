@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -179,9 +180,8 @@ internal sealed class ReferenceTableReplicator(
             : Environment.ProcessorCount;
 
         var semaphore = new SemaphoreSlim(parallelism, parallelism);
-        var shardResults = new List<ShardReplicationResult>();
-        var failedShards = new List<ShardFailure>();
-        var lockObj = new object();
+        var shardResults = new ConcurrentBag<ShardReplicationResult>();
+        var failedShards = new ConcurrentBag<ShardFailure>();
 
         var tasks = targetShards.Select(async shard =>
         {
@@ -206,22 +206,16 @@ internal sealed class ReferenceTableReplicator(
                         syncActivity?.SetTag("reference_table.rows_synced", rows);
                         ReferenceTableDiagnostics.Complete(syncActivity, true);
 
-                        lock (lockObj)
-                        {
-                            shardResults.Add(new ShardReplicationResult(
-                                shard.ShardId,
-                                rows,
-                                shardStopwatch.Elapsed));
-                        }
+                        shardResults.Add(new ShardReplicationResult(
+                            shard.ShardId,
+                            rows,
+                            shardStopwatch.Elapsed));
                     },
                     Left: error =>
                     {
                         ReferenceTableDiagnostics.Complete(syncActivity, false, error.Message);
 
-                        lock (lockObj)
-                        {
-                            failedShards.Add(new ShardFailure(shard.ShardId, error));
-                        }
+                        failedShards.Add(new ShardFailure(shard.ShardId, error));
                     });
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -232,15 +226,12 @@ internal sealed class ReferenceTableReplicator(
                     shard.ShardId,
                     typeof(TEntity).Name);
 
-                lock (lockObj)
-                {
-                    failedShards.Add(new ShardFailure(
-                        shard.ShardId,
-                        EncinaErrors.FromException(
-                            ReferenceTableErrorCodes.ReplicationFailed,
-                            ex,
-                            $"Unexpected error replicating to shard '{shard.ShardId}'.")));
-                }
+                failedShards.Add(new ShardFailure(
+                    shard.ShardId,
+                    EncinaErrors.FromException(
+                        ReferenceTableErrorCodes.ReplicationFailed,
+                        ex,
+                        $"Unexpected error replicating to shard '{shard.ShardId}'.")));
             }
             finally
             {
@@ -268,8 +259,8 @@ internal sealed class ReferenceTableReplicator(
         var result = new ReplicationResult(
             totalRowsSynced,
             stopwatch.Elapsed,
-            shardResults.AsReadOnly(),
-            failedShards.AsReadOnly());
+            shardResults.ToList().AsReadOnly(),
+            failedShards.ToList().AsReadOnly());
 
         replicateActivity?.SetTag("reference_table.rows_synced", totalRowsSynced);
         replicateActivity?.SetTag("reference_table.shard_count", shardResults.Count);
