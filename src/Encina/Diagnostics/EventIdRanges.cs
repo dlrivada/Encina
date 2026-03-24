@@ -148,6 +148,9 @@ public static class EventIdRanges
     /// <summary>Encina.Compliance.PrivacyByDesign — privacy by design (Art. 25).</summary>
     public static readonly (int Min, int Max) CompliancePrivacyByDesign = (8900, 8949);
 
+    /// <summary>Encina.Security.Secrets — distributed cache operations. Event IDs: 8950-8999.</summary>
+    public static readonly (int Min, int Max) SecuritySecrets = (8950, 8999);
+
     // ═══════════════════════════════════════════════════════════════════════
     // Security extensions (9000-9199)
     // ═══════════════════════════════════════════════════════════════════════

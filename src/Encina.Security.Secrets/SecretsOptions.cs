@@ -1,3 +1,4 @@
+using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Resilience;
 
 namespace Encina.Security.Secrets;
@@ -24,11 +25,13 @@ namespace Encina.Security.Secrets;
 public sealed class SecretsOptions
 {
     /// <summary>
-    /// Gets or sets whether in-memory caching is enabled for secret reads.
+    /// Gets or sets whether caching is enabled for secret reads.
     /// </summary>
     /// <remarks>
-    /// When <c>true</c> (default), a <see cref="Caching.CachedSecretReaderDecorator"/> wraps
+    /// When <c>true</c> (default), a <c>CachingSecretReaderDecorator</c> wraps
     /// the registered <see cref="Abstractions.ISecretReader"/> to reduce calls to the backing provider.
+    /// Requires an <c>ICacheProvider</c> to be registered (from any Encina.Caching.* package).
+    /// Configure distributed caching behavior via <see cref="Caching"/>.
     /// </remarks>
     public bool EnableCaching { get; set; } = true;
 
@@ -39,6 +42,16 @@ public sealed class SecretsOptions
     /// Default is 5 minutes. Only applies when <see cref="EnableCaching"/> is <c>true</c>.
     /// </remarks>
     public TimeSpan DefaultCacheDuration { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Gets or sets the distributed caching configuration for secrets.
+    /// </summary>
+    /// <remarks>
+    /// Controls PubSub-based cross-instance cache invalidation, cache key prefix, and cache tags.
+    /// The core caching toggle is <see cref="EnableCaching"/> and the TTL is <see cref="DefaultCacheDuration"/>.
+    /// Only applies when <see cref="EnableCaching"/> is <c>true</c> and an <c>ICacheProvider</c> is registered.
+    /// </remarks>
+    public SecretCachingOptions Caching { get; set; } = new();
 
     /// <summary>
     /// Gets or sets whether automatic secret rotation is enabled.

@@ -2,6 +2,19 @@
 
 ### Added
 
+#### Encina.Security.Secrets — Replace IMemoryCache with ICacheProvider for Distributed Caching (#694)
+
+Replaced `CachedSecretReaderDecorator` (IMemoryCache) with `CachingSecretReaderDecorator` (ICacheProvider) for distributed cache support. Added `CachingSecretWriterDecorator` for write-through cache invalidation and `SecretCachePubSubHostedService` for cross-instance invalidation via PubSub.
+
+- **`CachingSecretReaderDecorator`**: Cache-aside reads via `ICacheProvider.GetOrSetAsync` with stampede protection, last-known-good stale fallback, graceful degradation on cache failures
+- **`CachingSecretWriterDecorator`**: Write-through invalidation — persists first, then evicts cache + publishes PubSub message
+- **`SecretCachePubSubHostedService`**: Subscribes to PubSub channel for cross-instance cache eviction
+- **`SecretCachingOptions`**: PubSub channel, cache key prefix, cache tag configuration
+- **`SecretCacheInvalidationMessage`**: Typed PubSub message for invalidation broadcasting
+- **EventId range 8950-8967**: Registered in `EventIdRanges.SecuritySecrets` for structured logging
+- **Breaking**: `IMemoryCache` dependency removed — `ICacheProvider` is now required when `EnableCaching = true` (use `AddEncinaMemoryCache()` for in-memory caching)
+- **Breaking**: `CachedSecretReaderDecorator.Invalidate(string)` replaced by `CachingSecretReaderDecorator.InvalidateAsync(string, CancellationToken)` (sync → async)
+
 #### Encina.Security — Core Security Abstractions and Pipeline Behavior (#394)
 
 Added the `Encina.Security` package providing attribute-based, transport-agnostic security at the CQRS pipeline level. Operates independently of ASP.NET Core, ensuring consistent authorization enforcement across HTTP, messaging, gRPC, and serverless transports.

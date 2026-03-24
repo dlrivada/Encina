@@ -1,3 +1,4 @@
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Health;
@@ -26,7 +27,7 @@ public sealed class SecretsHealthCheckTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
         services.AddEncinaSecrets();
         var provider = services.BuildServiceProvider();
 
@@ -91,7 +92,7 @@ public sealed class SecretsHealthCheckTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
         services.AddEncinaSecrets(o => o.EnableCaching = true);
         var provider = services.BuildServiceProvider();
 
@@ -124,7 +125,7 @@ public sealed class SecretsHealthCheckTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
         services.AddEncinaSecrets(o => o.EnableCaching = true);
         var provider = services.BuildServiceProvider();
 

@@ -1,22 +1,22 @@
 #pragma warning disable CA2012 // ValueTask should not be awaited multiple times - used via .AsTask().Result in sync property tests
 
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Providers;
 using FsCheck;
 using FsCheck.Xunit;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
+using NSubstitute;
 
 namespace Encina.PropertyTests.Security.Secrets;
 
 /// <summary>
 /// Property-based tests for <see cref="ISecretReader"/> invariants.
 /// Verifies behavioral properties across ConfigurationSecretProvider
-/// and CachedSecretReaderDecorator.
+/// and CachingSecretReaderDecorator.
 /// </summary>
 [Trait("Category", "Property")]
 [Trait("Feature", "Secrets")]
@@ -92,10 +92,10 @@ public sealed class SecretsPropertyTests
 
     #endregion
 
-    #region CachedSecretReader Returns Same Value for Same Key
+    #region CachingSecretReader Returns Same Value for Same Key
 
     [Property(MaxTest = 30)]
-    public bool CachedSecretReader_ReturnsSameValue_ForSameKey(
+    public bool CachingSecretReader_ReturnsSameValue_ForSameKey(
         NonEmptyString keyName,
         NonEmptyString keyValue)
     {
@@ -114,18 +114,41 @@ public sealed class SecretsPropertyTests
             configuration,
             NullLogger<ConfigurationSecretProvider>.Instance);
 
-        var options = Options.Create(new SecretsOptions
+        var secretsOptions = new SecretsOptions
         {
             EnableCaching = true,
             DefaultCacheDuration = TimeSpan.FromMinutes(5)
-        });
+        };
 
-        using var cache = new MemoryCache(new MemoryCacheOptions());
-        var cachedReader = new CachedSecretReaderDecorator(
+        var cache = Substitute.For<ICacheProvider>();
+        var cacheStore = new Dictionary<string, object?>();
+        cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var key = callInfo.ArgAt<string>(0);
+                return Task.FromResult(cacheStore.TryGetValue(key, out var val) ? (string?)val : null);
+            });
+        cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(async callInfo =>
+            {
+                var key = callInfo.ArgAt<string>(0);
+                if (cacheStore.TryGetValue(key, out var existing))
+                    return (string)existing!;
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<string>>>(1);
+                var value = await factory(CancellationToken.None);
+                cacheStore[key] = value;
+                return value;
+            });
+        var cachedReader = new CachingSecretReaderDecorator(
             innerProvider,
             cache,
-            options,
-            NullLogger<CachedSecretReaderDecorator>.Instance);
+            new SecretCachingOptions(),
+            secretsOptions,
+            NullLogger<CachingSecretReaderDecorator>.Instance);
 
         // Act - read twice
         var result1 = cachedReader.GetSecretAsync(sanitizedKey).AsTask().Result;

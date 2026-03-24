@@ -1,5 +1,7 @@
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
+using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.GoogleCloudSecretManager;
 using FluentAssertions;
 using Google.Cloud.SecretManager.V1;
@@ -15,7 +17,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         // Pre-register a mock SecretManagerServiceClient so the real factory
         // (which needs GCP credentials) is never invoked. TryAddSingleton
@@ -72,7 +74,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddGoogleCloudSecretManager_WriterAndRotator_ResolveSameProviderInstance()
+    public void AddGoogleCloudSecretManager_RegistersWriterWithCachingDecorator()
     {
         var services = CreateServicesWithMockClient();
 
@@ -83,7 +85,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
         var writer = provider.GetRequiredService<ISecretWriter>();
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
-        writer.Should().BeSameAs(underlying);
+        writer.Should().BeOfType<CachingSecretWriterDecorator>();
         rotator.Should().BeSameAs(underlying);
     }
 

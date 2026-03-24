@@ -1,5 +1,7 @@
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
+using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.HashiCorpVault;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +18,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         // Pre-register a mock IVaultClient so the real factory (which needs
         // a running Vault server) is never invoked. TryAddSingleton in the
@@ -79,7 +81,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddHashiCorpVaultSecrets_WriterAndRotator_ResolveSameProviderInstance()
+    public void AddHashiCorpVaultSecrets_RegistersWriterWithCachingDecorator()
     {
         var services = CreateServicesWithMockClient();
 
@@ -90,7 +92,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
         var writer = provider.GetRequiredService<ISecretWriter>();
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
-        writer.Should().BeSameAs(underlying);
+        writer.Should().BeOfType<CachingSecretWriterDecorator>();
         rotator.Should().BeSameAs(underlying);
     }
 

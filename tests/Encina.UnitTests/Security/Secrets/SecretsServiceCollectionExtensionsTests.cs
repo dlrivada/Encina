@@ -1,3 +1,4 @@
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
@@ -22,7 +23,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         services.AddEncinaSecrets();
 
@@ -35,13 +36,13 @@ public sealed class SecretsServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         services.AddEncinaSecrets(o => o.EnableCaching = true);
 
         var provider = services.BuildServiceProvider();
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<CachedSecretReaderDecorator>();
+        reader.Should().BeOfType<CachingSecretReaderDecorator>();
     }
 
     [Fact]
@@ -80,7 +81,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         services.AddEncinaSecrets();
 
@@ -169,7 +170,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
         services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
@@ -177,7 +178,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<CachedSecretReaderDecorator>();
+        reader.Should().BeOfType<CachingSecretReaderDecorator>();
     }
 
     [Fact]
@@ -361,7 +362,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         services.AddEncinaSecrets(options => options.EnableMetrics = true);
 

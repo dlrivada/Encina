@@ -20,15 +20,64 @@ internal static partial class Log
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Secret provider '{ProviderName}' is unavailable")]
     public static partial void ProviderUnavailable(ILogger logger, string providerName, Exception exception);
 
-    // Caching operations: EventIds 20-39
-    [LoggerMessage(EventId = 20, Level = LogLevel.Debug, Message = "Cache hit for secret '{SecretName}'")]
+    // ── Distributed caching operations: EventIds 8950-8968 (see EventIdRanges.SecuritySecrets) ──
+
+    [LoggerMessage(EventId = 8950, Level = LogLevel.Debug, Message = "Cache hit for secret '{SecretName}'")]
     public static partial void CacheHit(ILogger logger, string secretName);
 
-    [LoggerMessage(EventId = 21, Level = LogLevel.Debug, Message = "Cache miss for secret '{SecretName}'")]
+    [LoggerMessage(EventId = 8951, Level = LogLevel.Debug, Message = "Cache miss for secret '{SecretName}'")]
     public static partial void CacheMiss(ILogger logger, string secretName);
 
-    [LoggerMessage(EventId = 22, Level = LogLevel.Debug, Message = "Cache invalidated for secret '{SecretName}'")]
+    [LoggerMessage(EventId = 8952, Level = LogLevel.Debug, Message = "Cache invalidated for secret '{SecretName}'")]
     public static partial void CacheInvalidated(ILogger logger, string secretName);
+
+    [LoggerMessage(EventId = 8953, Level = LogLevel.Warning, Message = "Cache operation failed for secret '{SecretName}' with key '{CacheKey}'")]
+    public static partial void CacheError(ILogger logger, string secretName, string cacheKey, Exception exception);
+
+    [LoggerMessage(EventId = 8954, Level = LogLevel.Debug, Message = "PubSub invalidation published for secret '{SecretName}' to channel '{Channel}'")]
+    public static partial void PubSubInvalidationPublished(ILogger logger, string secretName, string channel);
+
+    [LoggerMessage(EventId = 8955, Level = LogLevel.Debug, Message = "PubSub invalidation received for secret '{SecretName}' (operation: {Operation}) on channel '{Channel}'")]
+    public static partial void PubSubInvalidationReceived(ILogger logger, string secretName, string operation, string channel);
+
+    [LoggerMessage(EventId = 8956, Level = LogLevel.Information, Message = "PubSub subscription started on channel '{Channel}'")]
+    public static partial void PubSubSubscriptionStarted(ILogger logger, string channel);
+
+    [LoggerMessage(EventId = 8957, Level = LogLevel.Warning, Message = "PubSub subscription failed on channel '{Channel}'")]
+    public static partial void PubSubSubscriptionFailed(ILogger logger, string channel, Exception exception);
+
+    [LoggerMessage(EventId = 8958, Level = LogLevel.Warning, Message = "Serving stale (last-known-good) value for secret '{SecretName}'")]
+    public static partial void CacheStaleFallbackServed(ILogger logger, string secretName);
+
+    [LoggerMessage(EventId = 8959, Level = LogLevel.Debug, Message = "Bulk cache invalidation for pattern '{Pattern}'")]
+    public static partial void CacheBulkInvalidated(ILogger logger, string pattern);
+
+    [LoggerMessage(EventId = 8960, Level = LogLevel.Debug, Message = "Writer invalidated cache for secret '{SecretName}'")]
+    public static partial void WriterCacheInvalidation(ILogger logger, string secretName);
+
+    [LoggerMessage(EventId = 8961, Level = LogLevel.Warning, Message = "Cache write error for key '{CacheKey}'")]
+    public static partial void CacheWriteError(ILogger logger, string cacheKey, Exception exception);
+
+    [LoggerMessage(EventId = 8962, Level = LogLevel.Warning, Message = "Cache invalidation error for secret '{SecretName}'")]
+    public static partial void CacheInvalidationError(ILogger logger, string secretName, Exception exception);
+
+    [LoggerMessage(EventId = 8963, Level = LogLevel.Warning, Message = "PubSub publish error for secret '{SecretName}' on channel '{Channel}'")]
+    public static partial void PubSubPublishError(ILogger logger, string secretName, string channel, Exception exception);
+
+    [LoggerMessage(EventId = 8964, Level = LogLevel.Information, Message = "PubSub subscription stopped on channel '{Channel}'")]
+    public static partial void PubSubSubscriptionStopped(ILogger logger, string channel);
+
+    [LoggerMessage(EventId = 8965, Level = LogLevel.Warning, Message = "PubSub subscription stop error on channel '{Channel}'")]
+    public static partial void PubSubSubscriptionStopError(ILogger logger, string channel, Exception exception);
+
+    [LoggerMessage(EventId = 8966, Level = LogLevel.Warning, Message = "Cache eviction error for secret '{SecretName}' (operation: {Operation})")]
+    public static partial void CacheEvictionError(ILogger logger, string secretName, string operation, Exception exception);
+
+    [LoggerMessage(EventId = 8967, Level = LogLevel.Warning, Message = "Cache key/pattern removal error for '{KeyOrPattern}'")]
+    public static partial void CacheKeyRemovalError(ILogger logger, string keyOrPattern, Exception exception);
+
+    [LoggerMessage(EventId = 8968, Level = LogLevel.Information, Message = "PubSub provider not registered — cross-instance cache invalidation disabled for channel '{Channel}'")]
+    public static partial void PubSubNotConfigured(ILogger logger, string channel);
 
     // Configuration provider: EventIds 40-59
     [LoggerMessage(EventId = 40, Level = LogLevel.Information, Message = "Loading secrets into configuration from ISecretReader")]
@@ -122,7 +171,5 @@ internal static partial class Log
     [LoggerMessage(EventId = 124, Level = LogLevel.Warning, Message = "Secret operation timed out after {TimeoutSeconds:F0}s")]
     public static partial void ResilienceTimeoutExceeded(ILogger logger, double timeoutSeconds);
 
-    // Stale fallback: EventId 125
-    [LoggerMessage(EventId = 125, Level = LogLevel.Warning, Message = "Serving stale cached value for secret '{SecretName}' because provider is unavailable")]
-    public static partial void StaleFallbackServed(ILogger logger, string secretName);
+    // Stale fallback: superseded by CacheStaleFallbackServed (EventId 8958) in the registered range
 }
