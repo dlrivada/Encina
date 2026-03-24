@@ -5,6 +5,7 @@ using Encina.Compliance.Attestation.Providers;
 
 using FluentAssertions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -211,7 +212,7 @@ public sealed class AttestationGuardTests
     [Fact]
     public void AddEncinaAttestation_NullServices_Throws()
     {
-        var act = () => ServiceCollectionExtensions.AddEncinaAttestation(null!, _ => { });
+        var act = () => global::Encina.Compliance.Attestation.ServiceCollectionExtensions.AddEncinaAttestation(null!, _ => { });
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("services");
     }

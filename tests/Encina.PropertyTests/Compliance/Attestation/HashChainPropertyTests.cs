@@ -63,7 +63,7 @@ public class HashChainPropertyTests
 
                 // Chain indices are sequential (0..N-1)
                 var indices = receipts
-                    .Select(r => int.Parse(r.ProofMetadata!["chain_index"]))
+                    .Select(r => int.Parse(r.ProofMetadata!["chain_index"], System.Globalization.CultureInfo.InvariantCulture))
                     .ToList();
                 indices.ShouldBe(Enumerable.Range(0, count).ToList());
             });
