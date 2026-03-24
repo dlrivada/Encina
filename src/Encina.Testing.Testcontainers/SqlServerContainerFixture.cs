@@ -62,7 +62,7 @@ public class SqlServerContainerFixture : ContainerFixtureBase<MsSqlContainer>
     /// <summary>
     /// Default SQL Server SA password.
     /// </summary>
-    private const string DefaultPassword = "StrongP@ssw0rd!";
+    private const string DefaultPassword = "StrongP@ssw0rd!"; // NOSONAR S2068 - Test container password, not a real credential
 
     /// <summary>
     /// Environment variable name for SQL Server Docker image override.

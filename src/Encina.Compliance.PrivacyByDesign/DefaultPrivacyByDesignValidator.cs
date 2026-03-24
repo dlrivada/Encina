@@ -234,20 +234,19 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
             var allowedFieldsSet = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
             var violatingFields = new List<string>();
 
-            var hasPurposeDefinition = false;
-
-            purposeResult.Match(
+            var hasPurposeDefinition = purposeResult.Match(
                 Right: option => option.Match(
                     Some: definition =>
                     {
-                        hasPurposeDefinition = true;
                         foreach (var field in definition.AllowedFields)
                         {
                             allowedFieldsSet.Add(field);
                         }
+
+                        return true;
                     },
-                    None: () => { }),
-                Left: _ => { });
+                    None: () => false),
+                Left: _ => false);
 
             if (hasPurposeDefinition)
             {

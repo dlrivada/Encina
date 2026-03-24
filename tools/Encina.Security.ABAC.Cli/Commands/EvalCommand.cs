@@ -60,14 +60,17 @@ internal static class EvalCommand
         // First, verify it compiles
         var compileResult = await compiler.CompileAsync(expression).ConfigureAwait(false);
 
-        var compileFailed = false;
-        compileResult.Match(
+        var compileFailed = compileResult.Match(
             Left: error =>
             {
                 AnsiConsole.MarkupLine($"[red]Compilation failed:[/] {Markup.Escape(error.Message)}");
-                compileFailed = true;
+                return true;
             },
-            Right: _ => AnsiConsole.MarkupLine("[green]Compilation:[/] OK"));
+            Right: _ =>
+            {
+                AnsiConsole.MarkupLine("[green]Compilation:[/] OK");
+                return false;
+            });
 
         if (compileFailed)
         {
