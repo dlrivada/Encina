@@ -43,7 +43,7 @@ public sealed class ConfigurationEdgeCaseContracts
         services.AddEncina(System.Array.Empty<Assembly>());
 
         var pipelineDescriptors = services.Where(IsPipelineDescriptor).ToList();
-        pipelineDescriptors.Count.ShouldBe(4, "Default pipeline behaviors should remain intact when no assemblies are provided.");
+        pipelineDescriptors.Count.ShouldBe(6, "Default pipeline behaviors should remain intact when no assemblies are provided.");
     }
 
     private static bool ImplementationMatches(ServiceDescriptor descriptor, Type candidate)
