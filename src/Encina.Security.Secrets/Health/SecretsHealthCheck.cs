@@ -1,5 +1,4 @@
 using Encina.Security.Secrets.Abstractions;
-using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Providers;
 using Encina.Security.Secrets.Resilience;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,8 +95,9 @@ public sealed class SecretsHealthCheck : IHealthCheck
                 data["failoverProviders"] = failoverReader.ProviderCount;
             }
 
-            // Report decorator chain
-            if (secretReader is CachingSecretReaderDecorator)
+            // Report decorator chain (check options, not runtime type,
+            // because auditing/resilience decorators wrap the caching decorator)
+            if (options is { EnableCaching: true })
             {
                 data["decorators"] = "cached";
             }

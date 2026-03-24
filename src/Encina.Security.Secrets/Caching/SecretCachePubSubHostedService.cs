@@ -65,8 +65,8 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.InvalidationChannel, "options.InvalidationChannel");
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.CacheKeyPrefix, "options.CacheKeyPrefix");
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.InvalidationChannel);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.CacheKeyPrefix);
 
         _cache = cache;
         _pubSub = pubSub;

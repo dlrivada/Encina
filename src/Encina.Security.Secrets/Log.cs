@@ -61,9 +61,6 @@ internal static partial class Log
     [LoggerMessage(EventId = 8962, Level = LogLevel.Warning, Message = "Cache invalidation error for secret '{SecretName}'")]
     public static partial void CacheInvalidationError(ILogger logger, string secretName, Exception exception);
 
-    [LoggerMessage(EventId = 8967, Level = LogLevel.Warning, Message = "Cache key/pattern removal error for '{KeyOrPattern}'")]
-    public static partial void CacheKeyRemovalError(ILogger logger, string keyOrPattern, Exception exception);
-
     [LoggerMessage(EventId = 8963, Level = LogLevel.Warning, Message = "PubSub publish error for secret '{SecretName}' on channel '{Channel}'")]
     public static partial void PubSubPublishError(ILogger logger, string secretName, string channel, Exception exception);
 
@@ -75,6 +72,9 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 8966, Level = LogLevel.Warning, Message = "Cache eviction error for secret '{SecretName}' (operation: {Operation})")]
     public static partial void CacheEvictionError(ILogger logger, string secretName, string operation, Exception exception);
+
+    [LoggerMessage(EventId = 8967, Level = LogLevel.Warning, Message = "Cache key/pattern removal error for '{KeyOrPattern}'")]
+    public static partial void CacheKeyRemovalError(ILogger logger, string keyOrPattern, Exception exception);
 
     [LoggerMessage(EventId = 8968, Level = LogLevel.Information, Message = "PubSub provider not registered — cross-instance cache invalidation disabled for channel '{Channel}'")]
     public static partial void PubSubNotConfigured(ILogger logger, string channel);
