@@ -441,7 +441,7 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
             if (entity is IVersionedEntity versionedEntity)
             {
                 var originalVersion = versionedEntity.Version;
-                versionedEntity.Version = (int)(originalVersion + 1);
+                versionedEntity.Version = originalVersion + 1;
 
                 // Build parameters combining entity properties with original version
                 var parameters = new DynamicParameters(entity);
@@ -587,7 +587,7 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
                     if (entity is IVersionedEntity versionedEntity)
                     {
                         var originalVersion = versionedEntity.Version;
-                        versionedEntity.Version = (int)(originalVersion + 1);
+                        versionedEntity.Version = originalVersion + 1;
 
                         var parameters = new DynamicParameters(entity);
                         parameters.Add("OriginalVersion", originalVersion);

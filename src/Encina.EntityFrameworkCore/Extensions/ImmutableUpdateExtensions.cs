@@ -146,16 +146,9 @@ public static class ImmutableUpdateExtensions
         TEntity? FindTrackedEntity(DbContext ctx, object keyValue)
         {
             // Search in the Local cache for an entity with matching key
-            foreach (var entry in ctx.ChangeTracker.Entries<TEntity>())
-            {
-                var entryKeyValue = ctx.GetPrimaryKeyValue(entry.Entity);
-                if (entryKeyValue.Equals(keyValue))
-                {
-                    return entry.Entity;
-                }
-            }
-
-            return null;
+            return ctx.ChangeTracker.Entries<TEntity>()
+                .Select(entry => entry.Entity)
+                .FirstOrDefault(entity => ctx.GetPrimaryKeyValue(entity).Equals(keyValue));
         }
     }
 

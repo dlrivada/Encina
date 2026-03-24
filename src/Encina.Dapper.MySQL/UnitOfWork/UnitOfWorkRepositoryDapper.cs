@@ -507,7 +507,7 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
             if (entity is IVersionedEntity versionedEntity)
             {
                 var originalVersion = versionedEntity.Version;
-                versionedEntity.Version = (int)(originalVersion + 1);
+                versionedEntity.Version = originalVersion + 1;
 
                 // Build parameters combining entity properties with original version
                 var parameters = BuildEntityParameters(entity, excludeUpdate: true);
@@ -695,7 +695,7 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
                     if (entity is IVersionedEntity versionedEntity)
                     {
                         var originalVersion = versionedEntity.Version;
-                        versionedEntity.Version = (int)(originalVersion + 1);
+                        versionedEntity.Version = originalVersion + 1;
 
                         var parameters = BuildEntityParameters(entity, excludeUpdate: true);
                         parameters["OriginalVersion"] = originalVersion;
@@ -879,10 +879,12 @@ internal sealed class UnitOfWorkRepositoryDapper<TEntity, TId> : IFunctionalRepo
         var parameters = new Dictionary<string, object?>();
         var entityType = typeof(TEntity);
 
-        foreach (var (propertyName, columnName) in _mapping.ColumnMappings)
+        foreach (var (propertyName, _) in _mapping.ColumnMappings)
         {
             // Skip excluded properties based on operation type
             if (excludeInsert && _mapping.InsertExcludedProperties.Contains(propertyName))
+                continue;
+            if (excludeUpdate && _mapping.UpdateExcludedProperties.Contains(propertyName))
                 continue;
 
             var property = entityType.GetProperty(propertyName);

@@ -91,12 +91,10 @@ public sealed class ColocationGroupRegistry
             string.Empty));
 
         // Add to the colocated entities list if it's a mutable list
-        if (group.ColocatedEntities is List<Type> mutableList)
+        if (group.ColocatedEntities is List<Type> mutableList &&
+            !mutableList.Contains(colocatedEntity))
         {
-            if (!mutableList.Contains(colocatedEntity))
-            {
-                mutableList.Add(colocatedEntity);
-            }
+            mutableList.Add(colocatedEntity);
         }
 
         // Register the root entity mapping

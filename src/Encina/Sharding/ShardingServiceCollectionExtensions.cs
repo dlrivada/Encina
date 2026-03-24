@@ -560,18 +560,16 @@ public static class ShardingServiceCollectionExtensions
         if (rootInfo.Mechanism == ShardKeyMechanism.SingleAttribute &&
             colocatedInfo.Mechanism == ShardKeyMechanism.SingleAttribute &&
             rootInfo.ResolvedType is not null &&
-            colocatedInfo.ResolvedType is not null)
+            colocatedInfo.ResolvedType is not null &&
+            !rootInfo.ResolvedType.IsAssignableFrom(colocatedInfo.ResolvedType) &&
+            !colocatedInfo.ResolvedType.IsAssignableFrom(rootInfo.ResolvedType))
         {
-            if (!rootInfo.ResolvedType.IsAssignableFrom(colocatedInfo.ResolvedType) &&
-                !colocatedInfo.ResolvedType.IsAssignableFrom(rootInfo.ResolvedType))
-            {
-                throw new ColocationViolationException(
-                    rootEntityType,
-                    colocatedType,
-                    "Shard key property types are incompatible.",
-                    rootInfo.ResolvedType.Name,
-                    colocatedInfo.ResolvedType.Name);
-            }
+            throw new ColocationViolationException(
+                rootEntityType,
+                colocatedType,
+                "Shard key property types are incompatible.",
+                rootInfo.ResolvedType.Name,
+                colocatedInfo.ResolvedType.Name);
         }
     }
 

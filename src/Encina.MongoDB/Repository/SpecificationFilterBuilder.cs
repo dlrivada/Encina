@@ -476,20 +476,18 @@ public sealed class SpecificationFilterBuilder<TEntity>
         }
 
         // Handle Enumerable.Contains for IN queries
-        if (methodName == "Contains" && methodCall.Method.DeclaringType?.FullName?.StartsWith("System.Linq.Enumerable", StringComparison.Ordinal) == true)
+        // Pattern: collection.Contains(entity.Property)
+        if (methodName == "Contains" && methodCall.Method.DeclaringType?.FullName?.StartsWith("System.Linq.Enumerable", StringComparison.Ordinal) == true &&
+            methodCall.Arguments.Count == 2 &&
+            methodCall.Arguments[1] is MemberExpression propertyMember)
         {
-            // Pattern: collection.Contains(entity.Property)
-            if (methodCall.Arguments.Count == 2 &&
-                methodCall.Arguments[1] is MemberExpression propertyMember)
-            {
-                var values = GetValue(methodCall.Arguments[0]);
-                var fieldName = GetFieldName(propertyMember);
+            var values = GetValue(methodCall.Arguments[0]);
+            var fieldName = GetFieldName(propertyMember);
 
-                if (values is System.Collections.IEnumerable enumerable)
-                {
-                    var valueList = enumerable.Cast<object?>().ToList();
-                    return Builders<TEntity>.Filter.In(fieldName, valueList);
-                }
+            if (values is System.Collections.IEnumerable enumerable)
+            {
+                var valueList = enumerable.Cast<object?>().ToList();
+                return Builders<TEntity>.Filter.In(fieldName, valueList);
             }
         }
 

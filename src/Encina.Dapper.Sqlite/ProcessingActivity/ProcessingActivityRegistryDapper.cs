@@ -272,7 +272,7 @@ public sealed class ProcessingActivityRegistryDapper : IProcessingActivityRegist
         Safeguards = row.Safeguards is null or DBNull ? null : (string)row.Safeguards,
         RetentionPeriodTicks = (long)row.RetentionPeriodTicks,
         SecurityMeasures = (string)row.SecurityMeasures,
-        CreatedAtUtc = DateTimeOffset.Parse((string)row.CreatedAtUtc, null, DateTimeStyles.RoundtripKind),
-        LastUpdatedAtUtc = DateTimeOffset.Parse((string)row.LastUpdatedAtUtc, null, DateTimeStyles.RoundtripKind)
+        CreatedAtUtc = DateTimeOffset.Parse((string)row.CreatedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+        LastUpdatedAtUtc = DateTimeOffset.Parse((string)row.LastUpdatedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
     };
 }

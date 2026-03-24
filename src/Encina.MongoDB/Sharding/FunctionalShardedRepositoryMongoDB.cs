@@ -1193,7 +1193,7 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
     private async Task<Either<EncinaError, AggregationResult<TResult>>> ExecuteNativeAggregationAsync<TPartial, TResult>(
         Func<IMongoCollection<TEntity>, Task<IReadOnlyList<ShardAggregatePartial<TPartial>>>> pipelineExecutor,
         Func<ShardedQueryResult<ShardAggregatePartial<TPartial>>, AggregationResult<TResult>> combiner,
-        CancellationToken cancellationToken)
+        CancellationToken _)
         where TPartial : struct
     {
         var collectionResult = _collectionFactory.GetDefaultCollection<TEntity>(_collectionName);

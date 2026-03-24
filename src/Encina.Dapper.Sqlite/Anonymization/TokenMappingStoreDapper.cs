@@ -186,10 +186,10 @@ public sealed class TokenMappingStoreDapper : ITokenMappingStore
             OriginalValueHash = (string)row.OriginalValueHash,
             EncryptedOriginalValue = (byte[])row.EncryptedOriginalValue,
             KeyId = (string)row.KeyId,
-            CreatedAtUtc = DateTimeOffset.Parse((string)row.CreatedAtUtc, null, DateTimeStyles.RoundtripKind),
+            CreatedAtUtc = DateTimeOffset.Parse((string)row.CreatedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
             ExpiresAtUtc = row.ExpiresAtUtc is null or DBNull
                 ? null
-                : DateTimeOffset.Parse((string)row.ExpiresAtUtc, null, DateTimeStyles.RoundtripKind)
+                : DateTimeOffset.Parse((string)row.ExpiresAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
         };
 
         return TokenMappingMapper.ToDomain(entity);

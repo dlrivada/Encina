@@ -95,7 +95,7 @@ public sealed class ReadWriteRoutingPipelineBehavior<TRequest, TResponse> : IPip
         return await nextStep();
     }
 
-    private static DatabaseIntent DetermineIntent(TRequest request)
+    private static DatabaseIntent DetermineIntent(TRequest _)
     {
         var requestType = typeof(TRequest);
 

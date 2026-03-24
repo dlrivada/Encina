@@ -74,7 +74,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 sql,
                 new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
 
-            return (IEnumerable<IOutboxMessage>)messages.Cast<IOutboxMessage>();
+            return messages.Cast<IOutboxMessage>();
         }, "outbox.get_pending_failed").ConfigureAwait(false);
     }
 

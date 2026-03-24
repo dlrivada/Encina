@@ -93,7 +93,6 @@ internal sealed class CuttingOverPhase : IReshardingPhase
 
                 if (lagResult.IsLeft)
                 {
-                    var error = lagResult.Match(Right: _ => default!, Left: e => e);
                     _logger.LogWarning(
                         "Failed to check replication lag during cutover. ReshardingId={ReshardingId}, Source={SourceShardId}",
                         context.ReshardingId, step.SourceShardId);
@@ -119,8 +118,6 @@ internal sealed class CuttingOverPhase : IReshardingPhase
 
             if (swapResult.IsLeft)
             {
-                var error = swapResult.Match(Right: _ => default!, Left: e => e);
-
                 _logger.LogError(
                     "Topology swap failed. ReshardingId={ReshardingId}",
                     context.ReshardingId);
@@ -164,7 +161,7 @@ internal sealed class CuttingOverPhase : IReshardingPhase
     /// by <see cref="IReshardingServices.SwapTopologyAsync"/>. This method returns the
     /// current topology as-is because the topology provider will be refreshed externally.
     /// </summary>
-    private static ShardTopology BuildNewTopology(ShardTopology currentTopology, ReshardingPlan plan)
+    private static ShardTopology BuildNewTopology(ShardTopology currentTopology, ReshardingPlan _)
     {
         // The new topology is the one the user originally requested via ReshardingRequest.NewTopology.
         // By the time we reach cutover, the topology provider should be updated to serve

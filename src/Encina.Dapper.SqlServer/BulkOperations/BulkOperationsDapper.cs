@@ -306,12 +306,10 @@ public sealed class BulkOperationsDapper<TEntity, TId> : IBulkOperations<TEntity
         // For Update/Merge operations, always include the Id column even if excluded from update
         // because it's needed for the MERGE ON clause matching
         var idPropertyName = _mapping.ColumnMappings.FirstOrDefault(kvp => kvp.Value == _mapping.IdColumnName).Key;
-        if (!forInsert && !string.IsNullOrEmpty(idPropertyName) && !propertiesToInclude.Exists(kvp => kvp.Key == idPropertyName))
+        if (!forInsert && !string.IsNullOrEmpty(idPropertyName) && !propertiesToInclude.Exists(kvp => kvp.Key == idPropertyName) &&
+            _mapping.ColumnMappings.TryGetValue(idPropertyName, out var idColumnName))
         {
-            if (_mapping.ColumnMappings.TryGetValue(idPropertyName, out var idColumnName))
-            {
-                propertiesToInclude.Insert(0, new KeyValuePair<string, string>(idPropertyName, idColumnName));
-            }
+            propertiesToInclude.Insert(0, new KeyValuePair<string, string>(idPropertyName, idColumnName));
         }
 
         foreach (var (propertyName, columnName) in propertiesToInclude)

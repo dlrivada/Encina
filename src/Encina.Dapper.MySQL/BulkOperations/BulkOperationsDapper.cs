@@ -519,12 +519,9 @@ public sealed class BulkOperationsDapper<TEntity, TId> : IBulkOperations<TEntity
         // Check AggregateException inner exceptions
         if (ex is AggregateException aggEx)
         {
-            foreach (var inner in aggEx.InnerExceptions)
+            if (aggEx.InnerExceptions.Any(IsDuplicateKeyException))
             {
-                if (IsDuplicateKeyException(inner))
-                {
-                    return true;
-                }
+                return true;
             }
         }
 

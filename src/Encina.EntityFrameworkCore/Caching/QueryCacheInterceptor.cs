@@ -357,13 +357,13 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
             return false;
         }
 
-        foreach (var entityType in cacheKey.EntityTypes)
+        var excludedType = cacheKey.EntityTypes
+            .FirstOrDefault(et => _options.ExcludedEntityTypes.Contains(et));
+
+        if (excludedType is not null)
         {
-            if (_options.ExcludedEntityTypes.Contains(entityType))
-            {
-                QueryCacheLog.EntityTypeExcluded(_logger, entityType);
-                return true;
-            }
+            QueryCacheLog.EntityTypeExcluded(_logger, excludedType);
+            return true;
         }
 
         return false;
@@ -503,15 +503,11 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
             return;
         }
 
-        var affectedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var entry in context.ChangeTracker.Entries())
-        {
-            if (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
-            {
-                affectedTypes.Add(entry.Metadata.ClrType.Name);
-            }
-        }
+        var affectedTypes = new HashSet<string>(
+            context.ChangeTracker.Entries()
+                .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                .Select(e => e.Metadata.ClrType.Name),
+            StringComparer.OrdinalIgnoreCase);
 
         if (affectedTypes.Count > 0)
         {

@@ -168,10 +168,6 @@ internal sealed class ReshardingOrchestrator : IReshardingOrchestrator
                         "Resharding failed. ReshardingId={ReshardingId}, ErrorCode={ErrorCode}",
                         reshardingId, error.GetCode().IfNone("unknown"));
 
-                    // Build a partial result with rollback metadata
-                    var rollbackMetadata = new RollbackMetadata(plan, oldTopology, GetLastCompletedPhase(error));
-                    var failedResult = new ReshardingResult(
-                        reshardingId, ReshardingPhase.Failed, [], rollbackMetadata);
                     return Either<EncinaError, ReshardingResult>.Left(error);
                 });
         }
@@ -294,7 +290,7 @@ internal sealed class ReshardingOrchestrator : IReshardingOrchestrator
                     $"Resharding operation '{reshardingId}' not found.")));
     }
 
-    private Dictionary<ReshardingPhase, IReshardingPhase> BuildPhases(ReshardingOptions options)
+    private Dictionary<ReshardingPhase, IReshardingPhase> BuildPhases(ReshardingOptions _)
     {
         return new Dictionary<ReshardingPhase, IReshardingPhase>
         {

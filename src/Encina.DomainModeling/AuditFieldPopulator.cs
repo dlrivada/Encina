@@ -189,7 +189,7 @@ public static class AuditFieldPopulator
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        if (entity is ISoftDeletable softDeletable)
+        if (entity is ISoftDeletable)
         {
             var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 

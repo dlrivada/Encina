@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Dapper;
@@ -390,7 +391,7 @@ public sealed class AuditStoreDapper : IAuditStore
             return DateTimeOffset.MinValue;
         }
 
-        return DateTimeOffset.Parse(value, null, System.Globalization.DateTimeStyles.RoundtripKind);
+        return DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
     }
 
     private static string? SerializeMetadata(IReadOnlyDictionary<string, object?> metadata)

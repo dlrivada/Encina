@@ -460,7 +460,7 @@ public sealed class BulkOperationsADO<TEntity, TId> : IBulkOperations<TEntity>
 
     #region SQL Generation
 
-    private string BuildMergeUpdateSql(DataTable dataTable, BulkConfig config)
+    private string BuildMergeUpdateSql(DataTable _, BulkConfig config)
     {
         var excludedProperties = _mapping.UpdateExcludedProperties;
         var propertiesToInclude = GetFilteredProperties(config, excludedProperties, forUpdate: true);
@@ -477,7 +477,7 @@ public sealed class BulkOperationsADO<TEntity, TId> : IBulkOperations<TEntity>
                 UPDATE SET {string.Join(", ", setClauses)};";
     }
 
-    private string BuildMergeSql(DataTable dataTable, BulkConfig config)
+    private string BuildMergeSql(DataTable _, BulkConfig config)
     {
         var insertExcluded = _mapping.InsertExcludedProperties;
         var updateExcluded = _mapping.UpdateExcludedProperties;

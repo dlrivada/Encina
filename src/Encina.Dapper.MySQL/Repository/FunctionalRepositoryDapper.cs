@@ -443,7 +443,7 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
             if (entity is IVersionedEntity versionedEntity)
             {
                 var originalVersion = versionedEntity.Version;
-                versionedEntity.Version = (int)(originalVersion + 1);
+                versionedEntity.Version = originalVersion + 1;
 
                 // Build parameters with original version for WHERE clause
                 var parameters = BuildEntityParameters(entity, excludeUpdate: true);
@@ -593,7 +593,7 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
                     if (entity is IVersionedEntity versionedEntity)
                     {
                         var originalVersion = versionedEntity.Version;
-                        versionedEntity.Version = (int)(originalVersion + 1);
+                        versionedEntity.Version = originalVersion + 1;
 
                         var parameters = BuildEntityParameters(entity, excludeUpdate: true);
                         parameters["OriginalVersion"] = originalVersion;
@@ -757,10 +757,12 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
         var parameters = new Dictionary<string, object?>();
         var entityType = typeof(TEntity);
 
-        foreach (var (propertyName, columnName) in _mapping.ColumnMappings)
+        foreach (var (propertyName, _) in _mapping.ColumnMappings)
         {
             // Skip excluded properties based on operation type
             if (excludeInsert && _mapping.InsertExcludedProperties.Contains(propertyName))
+                continue;
+            if (excludeUpdate && _mapping.UpdateExcludedProperties.Contains(propertyName))
                 continue;
 
             var property = entityType.GetProperty(propertyName);
