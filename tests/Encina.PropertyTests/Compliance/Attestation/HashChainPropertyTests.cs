@@ -1,11 +1,10 @@
+using System.Globalization;
 using Encina.Compliance.Attestation;
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
-
 using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -63,7 +62,7 @@ public class HashChainPropertyTests
 
                 // Chain indices are sequential (0..N-1)
                 var indices = receipts
-                    .Select(r => int.Parse(r.ProofMetadata!["chain_index"]))
+                    .Select(r => int.Parse(r.ProofMetadata!["chain_index"], CultureInfo.InvariantCulture))
                     .ToList();
                 indices.ShouldBe(Enumerable.Range(0, count).ToList());
             });
