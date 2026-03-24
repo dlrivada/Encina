@@ -86,7 +86,7 @@ public sealed class ScheduledMessageStoreDapper : IScheduledMessageStore
                 sql,
                 new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
 
-            return (IEnumerable<IScheduledMessage>)messages.Cast<IScheduledMessage>();
+            return messages.Cast<IScheduledMessage>();
         }, "scheduling.get_due_failed").ConfigureAwait(false);
     }
 

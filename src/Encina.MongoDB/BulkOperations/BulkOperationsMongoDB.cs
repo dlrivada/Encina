@@ -164,7 +164,7 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
         }
 
         // Track whether we're dealing with versioned entities for conflict detection
-        var hasVersionedEntities = entityList.Count > 0 && entityList[0] is IVersioned;
+        var hasVersionedEntities = entityList[0] is IVersioned;
 
         try
         {
@@ -184,7 +184,7 @@ public sealed class BulkOperationsMongoDB<TEntity, TId> : IBulkOperations<TEntit
                     {
                         var originalVersion = versionedEntity.Version;
                         filter = BuildVersionedFilter(filter, originalVersion);
-                        versionedEntity.Version = (int)(originalVersion + 1);
+                        versionedEntity.Version = originalVersion + 1;
                     }
                     else if (entity is IVersioned versioned)
                     {

@@ -638,7 +638,7 @@ public sealed class TenantAwareFunctionalRepositoryMongoDB<TEntity, TId> : IFunc
                 {
                     var originalVersion = versionedEntity.Version;
                     combinedFilter = BuildVersionedFilter(combinedFilter, originalVersion);
-                    versionedEntity.Version = (int)(originalVersion + 1);
+                    versionedEntity.Version = originalVersion + 1;
                 }
                 else if (entity is IVersioned versioned)
                 {

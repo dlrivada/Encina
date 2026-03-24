@@ -534,7 +534,7 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
             if (entity is IVersionedEntity versionedEntity)
             {
                 var originalVersion = versionedEntity.Version;
-                versionedEntity.Version = (int)(originalVersion + 1);
+                versionedEntity.Version = originalVersion + 1;
 
                 var versionedSql = BuildVersionedUpdateSql();
 
@@ -747,7 +747,7 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
                     if (entity is IVersionedEntity versionedEntity)
                     {
                         var originalVersion = versionedEntity.Version;
-                        versionedEntity.Version = (int)(originalVersion + 1);
+                        versionedEntity.Version = originalVersion + 1;
 
                         var parameters = BuildEntityParameters(entity);
                         parameters["OriginalVersion"] = originalVersion;
@@ -972,7 +972,7 @@ public sealed class TenantAwareFunctionalRepositoryDapper<TEntity, TId> : IFunct
         var parameters = new Dictionary<string, object?>();
         var entityType = typeof(TEntity);
 
-        foreach (var (propertyName, columnName) in _mapping.ColumnMappings)
+        foreach (var (propertyName, _) in _mapping.ColumnMappings)
         {
             var property = entityType.GetProperty(propertyName);
             if (property == null) continue;

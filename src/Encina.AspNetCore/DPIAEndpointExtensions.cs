@@ -230,9 +230,9 @@ public static class DPIAEndpointExtensions
         string requestType,
         AssessDPIARequest? request,
         IDPIAService service,
-        IDPIAAssessmentEngine engine,
+        IDPIAAssessmentEngine _,
         IDPIATemplateProvider templateProvider,
-        IOptions<DPIAOptions> options,
+        IOptions<DPIAOptions> __,
         HttpContext httpContext,
         ILogger<DPIAEndpointMarker> logger,
         CancellationToken cancellationToken)

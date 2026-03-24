@@ -102,7 +102,7 @@ public sealed class ShardedMongoDbDatabaseHealthMonitor : IShardedDatabaseHealth
                     }
                     finally
                     {
-                        (client as IDisposable)?.Dispose();
+                        client.Dispose();
                     }
                 },
                 Left: _ => Task.FromResult(ShardHealthResult.Unhealthy(

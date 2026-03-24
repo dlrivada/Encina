@@ -523,7 +523,7 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
             if (entity is IVersionedEntity versionedEntity)
             {
                 var originalVersion = versionedEntity.Version;
-                versionedEntity.Version = (int)(originalVersion + 1);
+                versionedEntity.Version = originalVersion + 1;
 
                 var versionedSql = BuildVersionedUpdateSql();
 
@@ -699,7 +699,7 @@ public sealed class FunctionalRepositoryADO<TEntity, TId> : IFunctionalRepositor
                     if (entity is IVersionedEntity versionedEntity)
                     {
                         var originalVersion = versionedEntity.Version;
-                        versionedEntity.Version = (int)(originalVersion + 1);
+                        versionedEntity.Version = originalVersion + 1;
 
                         using var command = _connection.CreateCommand();
                         command.CommandText = versionedSql;

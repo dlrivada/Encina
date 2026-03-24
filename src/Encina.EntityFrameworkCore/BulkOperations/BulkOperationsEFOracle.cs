@@ -457,8 +457,6 @@ public sealed class BulkOperationsEFOracle<TEntity> : IBulkOperations<TEntity>
         {
             // Oracle MERGE statement
             var insertColumns = properties.Select(p => $"\"{p.Value}\"").ToList();
-            var updateColumns = properties.Where(p => p.Value != _idColumnName).ToList();
-
             var insertParams = new List<string>();
             var updateClauses = new List<string>();
             var parameters = new List<OracleParameter>();

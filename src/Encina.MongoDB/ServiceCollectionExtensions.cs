@@ -531,7 +531,6 @@ public static class ServiceCollectionExtensions
         repositoryOptions.Validate();
 
         var collectionName = repositoryOptions.GetEffectiveCollectionName();
-        var idProperty = repositoryOptions.IdProperty!;
 
         // Build soft delete mapping
         var mappingBuilder = new SoftDeleteEntityMappingBuilder<TEntity, TId>();

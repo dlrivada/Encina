@@ -140,13 +140,11 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
     private Either<EncinaError, string> GetConnectionStringForTenant(TenantInfo tenant)
     {
         // Only DatabasePerTenant strategy uses tenant-specific connection strings
-        if (tenant.Strategy == TenantIsolationStrategy.DatabasePerTenant)
+        // Use tenant's connection string if available, otherwise fall back to default
+        if (tenant.Strategy == TenantIsolationStrategy.DatabasePerTenant &&
+            !string.IsNullOrEmpty(tenant.ConnectionString))
         {
-            // Use tenant's connection string if available, otherwise fall back to default
-            if (!string.IsNullOrEmpty(tenant.ConnectionString))
-            {
-                return tenant.ConnectionString;
-            }
+            return tenant.ConnectionString;
         }
 
         // SharedSchema and SchemaPerTenant use the default connection string

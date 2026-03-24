@@ -303,7 +303,7 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
         EntityId = row.EntityId,
         UserId = row.UserId,
         TenantId = row.TenantId,
-        AccessedAtUtc = DateTimeOffset.Parse(row.AccessedAtUtc, null, DateTimeStyles.RoundtripKind),
+        AccessedAtUtc = DateTimeOffset.Parse(row.AccessedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
         CorrelationId = row.CorrelationId,
         Purpose = row.Purpose,
         AccessMethod = (ReadAccessMethod)row.AccessMethod,

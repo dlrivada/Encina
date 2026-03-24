@@ -144,7 +144,7 @@ public sealed class SagaStoreDapper : ISagaStore
                     ThresholdUtc = thresholdUtc
                 });
 
-            return (IEnumerable<ISagaState>)sagas.Cast<ISagaState>();
+            return sagas.Cast<ISagaState>();
         }, "saga.get_stuck_failed").ConfigureAwait(false);
     }
 
@@ -178,7 +178,7 @@ public sealed class SagaStoreDapper : ISagaStore
                     NowUtc = nowUtc
                 });
 
-            return (IEnumerable<ISagaState>)sagas.Cast<ISagaState>();
+            return sagas.Cast<ISagaState>();
         }, "saga.get_expired_failed").ConfigureAwait(false);
     }
 

@@ -62,7 +62,7 @@ internal sealed class ShadowWritePipelineBehavior<TCommand, TResponse>(
         return result;
     }
 
-    private async Task ExecuteShadowWriteAsync(TCommand request, IRequestContext context)
+    private async Task ExecuteShadowWriteAsync(TCommand request, IRequestContext _)
     {
         var commandType = typeof(TCommand).Name;
 

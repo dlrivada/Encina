@@ -224,10 +224,10 @@ public sealed class TokenMappingStoreADO : ITokenMappingStore
             OriginalValueHash = reader.GetString(reader.GetOrdinal("OriginalValueHash")),
             EncryptedOriginalValue = (byte[])reader.GetValue(reader.GetOrdinal("EncryptedOriginalValue")),
             KeyId = reader.GetString(reader.GetOrdinal("KeyId")),
-            CreatedAtUtc = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("CreatedAtUtc")), null, DateTimeStyles.RoundtripKind),
+            CreatedAtUtc = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("CreatedAtUtc")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
             ExpiresAtUtc = reader.IsDBNull(reader.GetOrdinal("ExpiresAtUtc"))
                 ? null
-                : DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("ExpiresAtUtc")), null, DateTimeStyles.RoundtripKind)
+                : DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("ExpiresAtUtc")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
         };
 
         return TokenMappingMapper.ToDomain(entity);

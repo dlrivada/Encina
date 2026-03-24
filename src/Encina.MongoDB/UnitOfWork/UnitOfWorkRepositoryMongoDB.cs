@@ -647,7 +647,7 @@ internal sealed class UnitOfWorkRepositoryMongoDB<TEntity, TId> : IFunctionalRep
                 if (entity is IVersionedEntity versionedEntity)
                 {
                     originalVersions[entity] = versionedEntity.Version;
-                    versionedEntity.Version = (int)(versionedEntity.Version + 1);
+                    versionedEntity.Version = versionedEntity.Version + 1;
                 }
                 else if (entity is IVersioned versioned)
                 {

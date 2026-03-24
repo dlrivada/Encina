@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Encina.Messaging;
 using Encina.Messaging.Sagas;
 using LanguageExt;
@@ -240,18 +241,18 @@ public sealed class SagaStoreADO : ISagaStore
             SagaType = reader.GetString(reader.GetOrdinal("SagaType")),
             Data = reader.GetString(reader.GetOrdinal("Data")),
             Status = reader.GetString(reader.GetOrdinal("Status")),
-            StartedAtUtc = DateTime.Parse(reader.GetString(reader.GetOrdinal("StartedAtUtc")), null, System.Globalization.DateTimeStyles.RoundtripKind),
-            LastUpdatedAtUtc = DateTime.Parse(reader.GetString(reader.GetOrdinal("LastUpdatedAtUtc")), null, System.Globalization.DateTimeStyles.RoundtripKind),
+            StartedAtUtc = DateTime.Parse(reader.GetString(reader.GetOrdinal("StartedAtUtc")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            LastUpdatedAtUtc = DateTime.Parse(reader.GetString(reader.GetOrdinal("LastUpdatedAtUtc")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
             CompletedAtUtc = reader.IsDBNull(reader.GetOrdinal("CompletedAtUtc"))
                 ? null
-                : DateTime.Parse(reader.GetString(reader.GetOrdinal("CompletedAtUtc")), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                : DateTime.Parse(reader.GetString(reader.GetOrdinal("CompletedAtUtc")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
             ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("ErrorMessage")),
             CurrentStep = reader.GetInt32(reader.GetOrdinal("CurrentStep")),
             TimeoutAtUtc = reader.IsDBNull(reader.GetOrdinal("TimeoutAtUtc"))
                 ? null
-                : DateTime.Parse(reader.GetString(reader.GetOrdinal("TimeoutAtUtc")), null, System.Globalization.DateTimeStyles.RoundtripKind)
+                : DateTime.Parse(reader.GetString(reader.GetOrdinal("TimeoutAtUtc")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
         };
     }
 

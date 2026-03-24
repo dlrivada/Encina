@@ -565,16 +565,14 @@ public static class EntityConfigurationExtensions
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+            .Where(et => typeof(ISoftDeletable).IsAssignableFrom(et.ClrType)))
         {
-            if (typeof(ISoftDeletable).IsAssignableFrom(entityType.ClrType))
-            {
-                var method = typeof(EntityConfigurationExtensions)
-                    .GetMethod(nameof(ApplySoftDeleteQueryFilterInternal), BindingFlags.NonPublic | BindingFlags.Static)!
-                    .MakeGenericMethod(entityType.ClrType);
+            var method = typeof(EntityConfigurationExtensions)
+                .GetMethod(nameof(ApplySoftDeleteQueryFilterInternal), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(entityType.ClrType);
 
-                method.Invoke(null, [modelBuilder]);
-            }
+            method.Invoke(null, [modelBuilder]);
         }
 
         return modelBuilder;
@@ -630,27 +628,20 @@ public static class EntityConfigurationExtensions
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        foreach (var (clrType, methodName) in modelBuilder.Model.GetEntityTypes()
+            .Select(et => et.ClrType)
+            .Select(clrType => typeof(IConcurrencyAware).IsAssignableFrom(clrType)
+                ? (clrType, methodName: nameof(ApplyConcurrencyAwareConfigurationInternal))
+                : typeof(IVersioned).IsAssignableFrom(clrType)
+                    ? (clrType, methodName: nameof(ApplyVersionedConfigurationInternal))
+                    : (clrType, methodName: (string?)null))
+            .Where(x => x.methodName is not null))
         {
-            var clrType = entityType.ClrType;
+            var method = typeof(EntityConfigurationExtensions)
+                .GetMethod(methodName!, BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(clrType);
 
-            // IConcurrencyAware takes precedence (native row versioning)
-            if (typeof(IConcurrencyAware).IsAssignableFrom(clrType))
-            {
-                var method = typeof(EntityConfigurationExtensions)
-                    .GetMethod(nameof(ApplyConcurrencyAwareConfigurationInternal), BindingFlags.NonPublic | BindingFlags.Static)!
-                    .MakeGenericMethod(clrType);
-
-                method.Invoke(null, [modelBuilder]);
-            }
-            else if (typeof(IVersioned).IsAssignableFrom(clrType))
-            {
-                var method = typeof(EntityConfigurationExtensions)
-                    .GetMethod(nameof(ApplyVersionedConfigurationInternal), BindingFlags.NonPublic | BindingFlags.Static)!
-                    .MakeGenericMethod(clrType);
-
-                method.Invoke(null, [modelBuilder]);
-            }
+            method.Invoke(null, [modelBuilder]);
         }
 
         return modelBuilder;

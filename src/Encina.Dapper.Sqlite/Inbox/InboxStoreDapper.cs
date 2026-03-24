@@ -149,7 +149,7 @@ public sealed class InboxStoreDapper : IInboxStore
                 LIMIT @BatchSize";
 
             var messages = await _connection.QueryAsync<InboxMessage>(sql, new { BatchSize = batchSize, NowUtc = nowUtc });
-            return (IEnumerable<IInboxMessage>)messages.Cast<IInboxMessage>();
+            return messages.Cast<IInboxMessage>();
         }, "inbox.get_expired_failed").ConfigureAwait(false);
     }
 

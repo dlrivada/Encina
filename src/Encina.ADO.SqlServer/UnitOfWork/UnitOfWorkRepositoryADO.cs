@@ -477,7 +477,7 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
             if (entity is IVersionedEntity versionedEntity)
             {
                 var originalVersion = versionedEntity.Version;
-                versionedEntity.Version = (int)(originalVersion + 1);
+                versionedEntity.Version = originalVersion + 1;
 
                 var versionedSql = BuildVersionedUpdateSql();
 
@@ -657,7 +657,7 @@ internal sealed class UnitOfWorkRepositoryADO<TEntity, TId> : IFunctionalReposit
                     if (entity is IVersionedEntity versionedEntity)
                     {
                         var originalVersion = versionedEntity.Version;
-                        versionedEntity.Version = (int)(originalVersion + 1);
+                        versionedEntity.Version = originalVersion + 1;
 
                         using var command = CreateCommand(versionedSql);
                         AddEntityParameters(command, entity, forInsert: false);

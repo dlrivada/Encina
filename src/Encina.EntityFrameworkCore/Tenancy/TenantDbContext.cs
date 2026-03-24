@@ -160,13 +160,9 @@ public abstract class TenantDbContext : DbContext
     /// <param name="modelBuilder">The model builder.</param>
     private void ApplyTenantQueryFilters(ModelBuilder modelBuilder)
     {
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+            .Where(et => typeof(ITenantEntity).IsAssignableFrom(et.ClrType)))
         {
-            if (!typeof(ITenantEntity).IsAssignableFrom(entityType.ClrType))
-            {
-                continue;
-            }
-
             // Build expression: e => e.TenantId == CurrentTenantId
             var parameter = Expression.Parameter(entityType.ClrType, "e");
             var tenantIdProperty = Expression.Property(parameter, nameof(ITenantEntity.TenantId));
