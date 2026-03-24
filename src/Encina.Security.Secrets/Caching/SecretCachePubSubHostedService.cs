@@ -11,8 +11,9 @@ namespace Encina.Security.Secrets.Caching;
 /// <remarks>
 /// <para>
 /// This service is only registered when <see cref="SecretCachingOptions.EnablePubSubInvalidation"/>
-/// is <c>true</c> and both <see cref="ICacheProvider"/> and <see cref="IPubSubProvider"/> are
-/// available in the DI container.
+/// is <c>true</c> and <see cref="ICacheProvider"/> is available in the DI container.
+/// When <see cref="IPubSubProvider"/> is not registered in DI, the hosted service starts as
+/// a no-op and logs a warning.
 /// </para>
 /// <para>
 /// On <see cref="StartAsync"/>, it subscribes to the
@@ -126,14 +127,30 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
             Log.PubSubInvalidationReceived(
                 _logger, message.SecretName, message.Operation, _options.InvalidationChannel);
 
-            // Evict cache entries for the affected secret using pattern match
-            var pattern = message.SecretName == "*"
-                ? $"{_options.CacheKeyPrefix}:*"
-                : $"{_options.CacheKeyPrefix}:*:{message.SecretName}*";
-
-            await _cache.RemoveByPatternAsync(pattern, CancellationToken.None).ConfigureAwait(false);
-
-            Log.CacheBulkInvalidated(_logger, pattern);
+            if (message.Operation == "BulkInvalidate")
+            {
+                // Bulk invalidation: evict all secrets from cache
+                var pattern = $"{_options.CacheKeyPrefix}:*";
+                await _cache.RemoveByPatternAsync(pattern, CancellationToken.None).ConfigureAwait(false);
+                Log.CacheBulkInvalidated(_logger, pattern);
+            }
+            else
+            {
+                // Per-secret invalidation: remove explicit keys + typed variants
+                await _cache.RemoveAsync(
+                    $"{_options.CacheKeyPrefix}:v:{message.SecretName}",
+                    CancellationToken.None).ConfigureAwait(false);
+                await _cache.RemoveAsync(
+                    $"{_options.CacheKeyPrefix}:lkg:{message.SecretName}",
+                    CancellationToken.None).ConfigureAwait(false);
+                await _cache.RemoveByPatternAsync(
+                    $"{_options.CacheKeyPrefix}:t:{message.SecretName}:*",
+                    CancellationToken.None).ConfigureAwait(false);
+                await _cache.RemoveByPatternAsync(
+                    $"{_options.CacheKeyPrefix}:lkg:t:{message.SecretName}:*",
+                    CancellationToken.None).ConfigureAwait(false);
+                Log.CacheBulkInvalidated(_logger, $"{_options.CacheKeyPrefix}:*:{message.SecretName}");
+            }
         }
         catch (Exception ex)
         {

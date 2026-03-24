@@ -95,9 +95,20 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
     {
         try
         {
-            // Remove all cached variants: {prefix}:*:{secretName}*
+            // Remove explicit known keys for the secret
+            await _cache.RemoveAsync(
+                $"{_options.CacheKeyPrefix}:v:{secretName}",
+                cancellationToken).ConfigureAwait(false);
+            await _cache.RemoveAsync(
+                $"{_options.CacheKeyPrefix}:lkg:{secretName}",
+                cancellationToken).ConfigureAwait(false);
+
+            // Remove typed variants via pattern (type suffix is unknown at invalidation time)
             await _cache.RemoveByPatternAsync(
-                $"{_options.CacheKeyPrefix}:*:{secretName}*",
+                $"{_options.CacheKeyPrefix}:t:{secretName}:*",
+                cancellationToken).ConfigureAwait(false);
+            await _cache.RemoveByPatternAsync(
+                $"{_options.CacheKeyPrefix}:lkg:t:{secretName}:*",
                 cancellationToken).ConfigureAwait(false);
 
             Log.WriterCacheInvalidation(_logger, secretName);

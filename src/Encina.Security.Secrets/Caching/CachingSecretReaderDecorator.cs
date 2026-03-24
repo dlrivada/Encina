@@ -107,6 +107,8 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         string secretName,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(secretName);
+
         if (!_secretsOptions.EnableCaching)
         {
             return await _inner.GetSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
@@ -168,6 +170,8 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         string secretName,
         CancellationToken cancellationToken = default) where T : class
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(secretName);
+
         if (!_secretsOptions.EnableCaching)
         {
             return await _inner.GetSecretAsync<T>(secretName, cancellationToken).ConfigureAwait(false);
@@ -237,9 +241,16 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
 
         try
         {
-            // Remove all variants using pattern: {prefix}:*:{secretName}*
+            // Remove explicit known keys for the secret
+            await _cache.RemoveAsync(ValueKey(secretName), cancellationToken).ConfigureAwait(false);
+            await _cache.RemoveAsync(LkgKey(secretName), cancellationToken).ConfigureAwait(false);
+
+            // Remove typed variants via pattern (type suffix is unknown at invalidation time)
             await _cache.RemoveByPatternAsync(
-                $"{_cachingOptions.CacheKeyPrefix}:*:{secretName}*",
+                $"{_cachingOptions.CacheKeyPrefix}:t:{secretName}:*",
+                cancellationToken).ConfigureAwait(false);
+            await _cache.RemoveByPatternAsync(
+                $"{_cachingOptions.CacheKeyPrefix}:lkg:t:{secretName}:*",
                 cancellationToken).ConfigureAwait(false);
 
             Log.CacheInvalidated(_logger, secretName);

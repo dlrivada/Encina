@@ -17,17 +17,17 @@ namespace Encina.Security.Secrets.Caching;
 /// </para>
 /// </remarks>
 /// <param name="SecretName">
-/// The name of the secret that was modified, or <c>"*"</c> for bulk invalidation
-/// operations that affect all secrets.
+/// The name of the secret that was modified. Bulk invalidation is controlled
+/// by <paramref name="Operation"/> set to <c>"BulkInvalidate"</c>.
 /// </param>
 /// <param name="Operation">
 /// The operation that triggered the invalidation (e.g., <c>"Set"</c>, <c>"Remove"</c>,
 /// <c>"Rotate"</c>, <c>"BulkInvalidate"</c>).
 /// </param>
-/// <param name="TimestampUtc">
+/// <param name="InvalidatedAtUtc">
 /// The UTC timestamp when the invalidation event occurred.
 /// </param>
 public sealed record SecretCacheInvalidationMessage(
     string SecretName,
     string Operation,
-    DateTime TimestampUtc);
+    DateTime InvalidatedAtUtc);

@@ -213,6 +213,10 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var decorator = new CachingSecretReaderDecorator(
             _innerReader, _cache, new SecretCachingOptions(), options, _logger);
 
+        // Inject a LKG value that would be served IF stale fallback were enabled
+        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>("stale-value"));
+
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
                 SecretsErrors.CircuitBreakerOpen("secrets")));
@@ -242,6 +246,10 @@ public sealed class CachingSecretReaderStaleFallbackTests
         };
         var decorator = new CachingSecretReaderDecorator(
             _innerReader, _cache, new SecretCachingOptions(), options, _logger);
+
+        // Inject a LKG value that would be served IF resilience were enabled
+        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>("stale-value"));
 
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(

@@ -185,9 +185,15 @@ public sealed class CachingSecretReaderDecoratorTests
         // Act
         await decorator.InvalidateAsync("my-secret");
 
-        // Assert
-        await _cache.Received(1).RemoveByPatternAsync(
-            Arg.Is<string>(p => p.Contains("my-secret")),
+        // Assert — explicit keys removed + typed variants via pattern
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":v:my-secret")),
+            Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":lkg:my-secret")),
+            Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveByPatternAsync(
+            Arg.Is<string>(p => p.Contains(":t:my-secret:")),
             Arg.Any<CancellationToken>());
     }
 

@@ -225,11 +225,11 @@ KEY RULES:
 2. **Create `CachingSecretReaderDecorator.cs`** in `src/Encina.Security.Secrets/Caching/`
    - Namespace: `Encina.Security.Secrets.Caching`
    - Implements `ISecretReader`
-   - Constructor: `(ISecretReader inner, ICacheProvider cache, IPubSubProvider? pubSub, SecretCachingOptions cachingOptions, SecretsOptions secretsOptions, ILogger<CachingSecretReaderDecorator> logger)`
+   - Constructor: `(ISecretReader inner, ICacheProvider cache, SecretCachingOptions cachingOptions, SecretsOptions secretsOptions, ILogger<CachingSecretReaderDecorator> logger, SecretsMetrics? metrics = null)`
    - **Methods**:
      - `GetSecretAsync(string, CancellationToken)` — cache-aside with `ICacheProvider.GetOrSetAsync<string>()`, only cache `Right` results
      - `GetSecretAsync<T>(string, CancellationToken)` — cache-aside with type-discriminated key `{prefix}:t:{name}:{typeof(T).FullName}`
-     - `Invalidate(string secretName)` — remove all cache variants for a secret (preserve existing public API)
+     - `InvalidateAsync(string secretName, CancellationToken)` — remove all cache variants for a secret (async replacement of old sync API)
    - **Cache keys**: `{prefix}:v:{name}` for string, `{prefix}:t:{name}:{typeName}` for typed
    - **Last-known-good**: Store `Right` results in `{prefix}:lkg:{name}` with extended TTL when resilience is enabled
    - **Stale fallback**: On cache miss + provider failure (resilience error), serve LKG value
@@ -280,7 +280,7 @@ TASK:
    - All cache operations wrapped in try/catch — cache failures fall through to inner
    - Per-secret TTL override support
    - IPubSubProvider is optional (null-checked)
-   - Preserve Invalidate(string) public method from old decorator
+   - Provide InvalidateAsync(string, CancellationToken) public method (async replacement of old sync API)
 
 3. Create CachingSecretWriterDecorator.cs implementing ISecretWriter:
    - Write-through: persist first via inner, then invalidate cache + broadcast

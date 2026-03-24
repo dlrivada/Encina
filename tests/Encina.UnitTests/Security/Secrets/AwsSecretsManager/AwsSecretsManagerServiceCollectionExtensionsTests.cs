@@ -88,7 +88,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
         // Writer is wrapped by CachingSecretWriterDecorator when caching is enabled (default).
-        // Verify the writer is either the underlying provider or a caching decorator.
+        // Verify the writer is wrapped by the caching invalidation decorator.
         writer.Should().BeOfType<CachingSecretWriterDecorator>();
         rotator.Should().BeSameAs(underlying);
     }

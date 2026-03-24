@@ -45,8 +45,8 @@ public sealed class CachingSecretWriterDecoratorTests
 
         // Assert
         result.IsRight.Should().BeTrue();
-        await _cache.Received(1).RemoveByPatternAsync(
-            Arg.Is<string>(p => p.Contains("key")),
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":v:key")),
             Arg.Any<CancellationToken>());
         await _pubSub.Received(1).PublishAsync(
             _options.InvalidationChannel,
@@ -73,7 +73,7 @@ public sealed class CachingSecretWriterDecoratorTests
 
         // Assert
         result.IsLeft.Should().BeTrue();
-        await _cache.DidNotReceive().RemoveByPatternAsync(
+        await _cache.DidNotReceive().RemoveAsync(
             Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _pubSub.DidNotReceive().PublishAsync(
             Arg.Any<string>(), Arg.Any<SecretCacheInvalidationMessage>(), Arg.Any<CancellationToken>());
@@ -97,8 +97,9 @@ public sealed class CachingSecretWriterDecoratorTests
 
         // Assert
         result.IsRight.Should().BeTrue();
-        await _cache.Received(1).RemoveByPatternAsync(
-            Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":v:key")),
+            Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -122,6 +123,14 @@ public sealed class CachingSecretWriterDecoratorTests
 
         // Assert — inner write succeeded, pubsub failure is swallowed
         result.IsRight.Should().BeTrue();
+
+        // Verify local cache invalidation still happened despite PubSub failure
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":v:key")),
+            Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":lkg:key")),
+            Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -145,6 +154,14 @@ public sealed class CachingSecretWriterDecoratorTests
         result.IsRight.Should().BeTrue();
         await _pubSub.DidNotReceive().PublishAsync(
             Arg.Any<string>(), Arg.Any<SecretCacheInvalidationMessage>(), Arg.Any<CancellationToken>());
+
+        // Verify local cache invalidation still happened even though PubSub is disabled
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":v:key")),
+            Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":lkg:key")),
+            Arg.Any<CancellationToken>());
     }
 
     #endregion

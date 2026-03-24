@@ -6,7 +6,7 @@
 
 Replaced `CachedSecretReaderDecorator` (IMemoryCache) with `CachingSecretReaderDecorator` (ICacheProvider) for distributed cache support. Added `CachingSecretWriterDecorator` for write-through cache invalidation and `SecretCachePubSubHostedService` for cross-instance invalidation via PubSub.
 
-- **`CachingSecretReaderDecorator`**: Cache-aside reads via `ICacheProvider.GetOrSetAsync`, stampede protection, last-known-good stale fallback, graceful degradation on cache failures
+- **`CachingSecretReaderDecorator`**: Cache-aside reads via `ICacheProvider`, last-known-good stale fallback, graceful degradation on cache failures
 - **`CachingSecretWriterDecorator`**: Write-through invalidation — persists first, then evicts cache + publishes PubSub message
 - **`SecretCachePubSubHostedService`**: Subscribes to PubSub channel for cross-instance cache eviction
 - **`SecretCachingOptions`**: PubSub channel, cache key prefix, cache tag configuration
