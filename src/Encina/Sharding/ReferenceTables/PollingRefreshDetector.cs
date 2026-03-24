@@ -25,14 +25,12 @@ internal sealed class PollingRefreshDetector(
     IReferenceTableStoreFactory storeFactory,
     IShardTopologyProvider topologyProvider,
     IReferenceTableStateStore stateStore,
-    IReferenceTableRegistry registry,
     ILogger<PollingRefreshDetector> logger)
 {
     private readonly IReferenceTableReplicator _replicator = replicator ?? throw new ArgumentNullException(nameof(replicator));
     private readonly IReferenceTableStoreFactory _storeFactory = storeFactory ?? throw new ArgumentNullException(nameof(storeFactory));
     private readonly IShardTopologyProvider _topologyProvider = topologyProvider ?? throw new ArgumentNullException(nameof(topologyProvider));
     private readonly IReferenceTableStateStore _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
-    private readonly IReferenceTableRegistry _registry = registry ?? throw new ArgumentNullException(nameof(registry));
     private readonly ILogger<PollingRefreshDetector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <summary>

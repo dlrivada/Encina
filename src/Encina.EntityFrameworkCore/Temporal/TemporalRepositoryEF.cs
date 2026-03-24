@@ -63,7 +63,6 @@ public sealed class TemporalRepositoryEF<TEntity, TId> : ITemporalRepository<TEn
     where TEntity : class, IEntity<TId>
     where TId : notnull
 {
-    private readonly DbContext _dbContext;
     private readonly DbSet<TEntity> _dbSet;
     private readonly Messaging.Temporal.TemporalTableOptions _options;
     private readonly ILogger<TemporalRepositoryEF<TEntity, TId>> _logger;
@@ -84,7 +83,6 @@ public sealed class TemporalRepositoryEF<TEntity, TId> : ITemporalRepository<TEn
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _dbContext = dbContext;
         _dbSet = dbContext.Set<TEntity>();
         _options = options;
         _logger = logger;

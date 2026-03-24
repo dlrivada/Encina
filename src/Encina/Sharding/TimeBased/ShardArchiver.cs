@@ -40,7 +40,6 @@ namespace Encina.Sharding.TimeBased;
 public sealed class ShardArchiver : IShardArchiver
 {
     private readonly ITierStore _tierStore;
-    private readonly IShardTopologyProvider _topologyProvider;
     private readonly IReadOnlyEnforcer? _readOnlyEnforcer;
 
     /// <summary>
@@ -61,7 +60,6 @@ public sealed class ShardArchiver : IShardArchiver
         ArgumentNullException.ThrowIfNull(topologyProvider);
 
         _tierStore = tierStore;
-        _topologyProvider = topologyProvider;
         _readOnlyEnforcer = readOnlyEnforcer;
     }
 

@@ -30,7 +30,6 @@ namespace Encina.MongoDB.Auditing;
 public sealed class ReadAuditStoreMongoDB : IReadAuditStore
 {
     private readonly IMongoCollection<ReadAuditEntryDocument> _collection;
-    private readonly ILogger<ReadAuditStoreMongoDB> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReadAuditStoreMongoDB"/> class.
@@ -50,7 +49,6 @@ public sealed class ReadAuditStoreMongoDB : IReadAuditStore
         var config = options.Value;
         var database = mongoClient.GetDatabase(config.DatabaseName);
         _collection = database.GetCollection<ReadAuditEntryDocument>(config.Collections.ReadAuditEntries);
-        _logger = logger;
     }
 
     /// <inheritdoc/>

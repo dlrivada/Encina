@@ -80,7 +80,6 @@ namespace Encina.EntityFrameworkCore.UnitOfWork;
 public sealed class UnitOfWorkEF : IUnitOfWork
 {
     private readonly DbContext _dbContext;
-    private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<Type, object> _repositories = new();
     private IDbContextTransaction? _transaction;
     private bool _disposed;
@@ -99,7 +98,6 @@ public sealed class UnitOfWorkEF : IUnitOfWork
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
         _dbContext = dbContext;
-        _serviceProvider = serviceProvider;
     }
 
     /// <summary>

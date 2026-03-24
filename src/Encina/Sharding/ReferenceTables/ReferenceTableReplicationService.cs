@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Encina.Sharding.ReferenceTables;
 
@@ -24,13 +23,11 @@ internal sealed class ReferenceTableReplicationService(
     IReferenceTableReplicator replicator,
     IReferenceTableRegistry registry,
     PollingRefreshDetector pollingDetector,
-    IOptions<ReferenceTableGlobalOptions> globalOptions,
     ILogger<ReferenceTableReplicationService> logger) : BackgroundService
 {
     private readonly IReferenceTableReplicator _replicator = replicator ?? throw new ArgumentNullException(nameof(replicator));
     private readonly IReferenceTableRegistry _registry = registry ?? throw new ArgumentNullException(nameof(registry));
     private readonly PollingRefreshDetector _pollingDetector = pollingDetector ?? throw new ArgumentNullException(nameof(pollingDetector));
-    private readonly ReferenceTableGlobalOptions _globalOptions = globalOptions?.Value ?? throw new ArgumentNullException(nameof(globalOptions));
     private readonly ILogger<ReferenceTableReplicationService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
