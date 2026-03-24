@@ -254,7 +254,7 @@ internal sealed class ReferenceTableReplicator(
 
         var totalRowsSynced = shardResults.Sum(r => r.RowsUpserted);
 
-        if (failedShards.Count > 0 && failedShards.Count == targetShards.Count)
+        if (failedShards.Count == targetShards.Count)
         {
             ReferenceTableDiagnostics.Complete(replicateActivity, false,
                 $"All {failedShards.Count} target shards failed");

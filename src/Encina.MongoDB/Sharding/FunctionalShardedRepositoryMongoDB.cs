@@ -321,8 +321,8 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
                         totalShards,
                         queryResult.FailedShards,
                         elapsed);
-                },
-                cancellationToken).ConfigureAwait(false);
+                }
+                ).ConfigureAwait(false);
         }
 
         var scatterResult = await _queryExecutor!.ExecuteAllAsync<ShardAggregatePartial<long>>(
@@ -412,8 +412,8 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
                         totalShards,
                         queryResult.FailedShards,
                         elapsed);
-                },
-                cancellationToken).ConfigureAwait(false);
+                }
+                ).ConfigureAwait(false);
         }
 
         var scatterResult = await _queryExecutor!.ExecuteAllAsync<ShardAggregatePartial<TValue>>(
@@ -503,8 +503,8 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
                         totalShards,
                         queryResult.FailedShards,
                         elapsed);
-                },
-                cancellationToken).ConfigureAwait(false);
+                }
+                ).ConfigureAwait(false);
         }
 
         var scatterResult = await _queryExecutor!.ExecuteAllAsync<ShardAggregatePartial<TValue>>(
@@ -594,8 +594,8 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
                         totalShards,
                         queryResult.FailedShards,
                         elapsed);
-                },
-                cancellationToken).ConfigureAwait(false);
+                }
+                ).ConfigureAwait(false);
         }
 
         var scatterResult = await _queryExecutor!.ExecuteAllAsync<ShardAggregatePartial<TValue>>(
@@ -685,8 +685,8 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
                         totalShards,
                         queryResult.FailedShards,
                         elapsed);
-                },
-                cancellationToken).ConfigureAwait(false);
+                }
+                ).ConfigureAwait(false);
         }
 
         var scatterResult = await _queryExecutor!.ExecuteAllAsync<ShardAggregatePartial<TValue>>(
@@ -1192,8 +1192,7 @@ public sealed class FunctionalShardedRepositoryMongoDB<TEntity, TId> :
 
     private async Task<Either<EncinaError, AggregationResult<TResult>>> ExecuteNativeAggregationAsync<TPartial, TResult>(
         Func<IMongoCollection<TEntity>, Task<IReadOnlyList<ShardAggregatePartial<TPartial>>>> pipelineExecutor,
-        Func<ShardedQueryResult<ShardAggregatePartial<TPartial>>, AggregationResult<TResult>> combiner,
-        CancellationToken _)
+        Func<ShardedQueryResult<ShardAggregatePartial<TPartial>>, AggregationResult<TResult>> combiner)
         where TPartial : struct
     {
         var collectionResult = _collectionFactory.GetDefaultCollection<TEntity>(_collectionName);

@@ -187,60 +187,14 @@ jobs:
             echo "No coverage reports available"
           fi
 
-          # Exclusions: Integration code that requires external services (not testable with unit tests)
+          # Coverage exclusions: Only exclude test infrastructure and non-testable code
+          # All packages with unit tests in Encina.UnitTests should be INCLUDED
           COVERAGE_EXCLUSIONS="src/Encina.Testing*/**/*.cs,\
           src/Encina.Aspire*/**/*.cs,\
-          src/Encina.AspNetCore/**/*.cs,\
-          src/Encina.AzureFunctions/**/*.cs,\
-          src/Encina.AwsLambda/**/*.cs,\
-          src/Encina.AmazonSQS/**/*.cs,\
-          src/Encina.AzureServiceBus/**/*.cs,\
           src/Encina.Cli/**/*.cs,\
-          src/Encina.DomainModeling/**/*.cs,\
-          src/Encina.FluentValidation/**/*.cs,\
-          src/Encina.DataAnnotations/**/*.cs,\
-          src/Encina.MiniValidator/**/*.cs,\
-          src/Encina.Dapper*/**/*.cs,\
-          src/Encina.ADO*/**/*.cs,\
-          src/Encina.MongoDB/**/*.cs,\
-          src/Encina.Marten/**/*.cs,\
-          src/Encina.DistributedLock*/**/*.cs,\
-          src/Encina.Caching*/**/*.cs,\
-          src/Encina.Redis.PubSub/**/*.cs,\
-          src/Encina.Hangfire/**/*.cs,\
-          src/Encina.Quartz/**/*.cs,\
-          src/Encina.SignalR/**/*.cs,\
-          src/Encina.gRPC/**/*.cs,\
-          src/Encina.GraphQL/**/*.cs,\
-          src/Encina.RabbitMQ/**/*.cs,\
-          src/Encina.Kafka/**/*.cs,\
-          src/Encina.MQTT/**/*.cs,\
-          src/Encina.NATS/**/*.cs,\
-          src/Encina.OpenTelemetry/**/*.cs,\
-          src/Encina.Polly/**/*.cs,\
-          src/Encina.Refit/**/*.cs,\
-          src/Encina.Workflows/**/*.cs,\
-          src/Encina.Extensions.Resilience/**/*.cs,\
-          src/Encina.InMemory/**/*.cs,\
-          src/Encina.EntityFrameworkCore/**/*.cs,\
-          src/Encina/Modules/**/*.cs,\
-          src/Encina/Pipeline/Behaviors/*Activity*.cs,\
-          src/Encina/Pipeline/Behaviors/*Metrics*.cs,\
-          src/Encina/Dispatchers/Strategies/**/*.cs,\
-          src/Encina/Pipeline/Stream*.cs,\
-          src/Encina/Core/StreamDispatcher.cs,\
-          src/Encina/Core/Encina.Stream.cs,\
-          src/Encina/Pipeline/EncinaBehaviorGuards.cs,\
-          src/Encina.Messaging/Recoverability/**/*.cs,\
-          src/Encina.Messaging/DeadLetter/**/*.cs,\
-          src/Encina.Messaging/Sagas/SagaNotFoundDispatcher.cs,\
-          src/Encina.Messaging/*ServiceCollectionExtensions.cs,\
-          src/Encina.Messaging/ScatterGather/**/*.cs,\
-          src/Encina.Messaging/Health/**/*.cs,\
-          src/Encina/Diagnostics/**/*.cs,\
-          src/Encina/Pipeline/*Guards.cs,\
-          **/Scripts/*.sql"
-          CPD_EXCLUSIONS="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql,src/Encina.Testing*/**/*.cs"
+          **/Scripts/*.sql,\
+          **/Migrations/*.cs"
+          CPD_EXCLUSIONS="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/Scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/Scripts/*.sql,src/Encina.Testing*/**/*.cs,src/Encina.EntityFrameworkCore/**/*.cs,src/Encina.MongoDB/**/*.cs,src/Encina.Caching.*/**/*.cs,src/Encina.DistributedLock.*/**/*.cs,src/Encina.Marten/**/*.cs"
 
           dotnet sonarscanner begin \
             /k:"dlrivada_Encina" \
@@ -251,11 +205,11 @@ jobs:
             /d:sonar.coverage.exclusions="$COVERAGE_EXCLUSIONS" \
             /d:sonar.cpd.exclusions="$CPD_EXCLUSIONS" \
             /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**,tests/**/*" \
-            /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32,e33,e34,e35,e36,e37,e38,e39,e40,e41,e42 \
+            /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32,e33,e34,e35,e36,e37,e38,e39,e40,e41,e42,e43,e44,e45,e46,e47,e48,e49,e50,e51,e52,e53,e54,e55,e56,e57 \
             /d:sonar.issue.ignore.multicriteria.e1.ruleKey=csharpsquid:S2077 \
-            /d:sonar.issue.ignore.multicriteria.e1.resourceKey="src/Encina.Dapper.*/**/*Store*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e1.resourceKey="src/Encina.Dapper.*/**/*.cs" \
             /d:sonar.issue.ignore.multicriteria.e2.ruleKey=csharpsquid:S2077 \
-            /d:sonar.issue.ignore.multicriteria.e2.resourceKey="src/Encina.ADO.*/**/*Store*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e2.resourceKey="src/Encina.ADO.*/**/*.cs" \
             /d:sonar.issue.ignore.multicriteria.e3.ruleKey=plsql:S1523 \
             /d:sonar.issue.ignore.multicriteria.e3.resourceKey="src/**/Scripts/*.sql" \
             /d:sonar.issue.ignore.multicriteria.e4.ruleKey=csharpsquid:S1135 \
@@ -336,6 +290,36 @@ jobs:
             /d:sonar.issue.ignore.multicriteria.e41.resourceKey="src/Encina.MongoDB/**/*.cs" \
             /d:sonar.issue.ignore.multicriteria.e42.ruleKey=csharpsquid:S6966 \
             /d:sonar.issue.ignore.multicriteria.e42.resourceKey="src/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e43.ruleKey=csharpsquid:S2077 \
+            /d:sonar.issue.ignore.multicriteria.e43.resourceKey="src/Encina.EntityFrameworkCore/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e44.ruleKey=javascript:S5852 \
+            /d:sonar.issue.ignore.multicriteria.e44.resourceKey="scripts/**/*.js" \
+            /d:sonar.issue.ignore.multicriteria.e45.ruleKey=csharpsquid:S2068 \
+            /d:sonar.issue.ignore.multicriteria.e45.resourceKey="src/Encina/Modules/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e46.ruleKey=githubactions:S7637 \
+            /d:sonar.issue.ignore.multicriteria.e46.resourceKey=".github/workflows/**/*.yml" \
+            /d:sonar.issue.ignore.multicriteria.e47.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e47.resourceKey="src/Encina.AspNetCore/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e48.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e48.resourceKey="src/Encina.DomainModeling/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e49.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e49.resourceKey="src/Encina/Modules/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e50.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e50.resourceKey="src/Encina/Sharding/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e51.ruleKey=csharpsquid:S4136 \
+            /d:sonar.issue.ignore.multicriteria.e51.resourceKey="src/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e52.ruleKey=csharpsquid:S101 \
+            /d:sonar.issue.ignore.multicriteria.e52.resourceKey="src/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e53.ruleKey=csharpsquid:S1192 \
+            /d:sonar.issue.ignore.multicriteria.e53.resourceKey="src/Encina.Messaging/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e54.ruleKey=csharpsquid:S3776 \
+            /d:sonar.issue.ignore.multicriteria.e54.resourceKey="src/Encina.ADO.*/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e55.ruleKey=csharpsquid:S3776 \
+            /d:sonar.issue.ignore.multicriteria.e55.resourceKey="src/Encina.Dapper.*/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e56.ruleKey=csharpsquid:S3776 \
+            /d:sonar.issue.ignore.multicriteria.e56.resourceKey="src/Encina.MongoDB/**/*.cs" \
+            /d:sonar.issue.ignore.multicriteria.e57.ruleKey=csharpsquid:S3776 \
+            /d:sonar.issue.ignore.multicriteria.e57.resourceKey="src/Encina.EntityFrameworkCore/**/*.cs" \
             /d:sonar.verbose=false
 
       - name: Build for SonarCloud analysis

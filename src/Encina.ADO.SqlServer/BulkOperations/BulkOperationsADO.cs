@@ -136,7 +136,7 @@ public sealed class BulkOperationsADO<TEntity, TId> : IBulkOperations<TEntity>
             }
 
             var dataTable = CreateDataTable(entityList, forInsert: false, config, forUpdate: true);
-            var sql = BuildMergeUpdateSql(dataTable, config);
+            var sql = BuildMergeUpdateSql(config);
 
             using var command = sqlConnection.CreateCommand();
             command.CommandText = sql;
@@ -235,7 +235,7 @@ public sealed class BulkOperationsADO<TEntity, TId> : IBulkOperations<TEntity>
             }
 
             var dataTable = CreateDataTable(entityList, forInsert: false, config, forUpdate: true);
-            var sql = BuildMergeSql(dataTable, config);
+            var sql = BuildMergeSql(config);
 
             using var command = sqlConnection.CreateCommand();
             command.CommandText = sql;
@@ -460,7 +460,7 @@ public sealed class BulkOperationsADO<TEntity, TId> : IBulkOperations<TEntity>
 
     #region SQL Generation
 
-    private string BuildMergeUpdateSql(DataTable _, BulkConfig config)
+    private string BuildMergeUpdateSql(BulkConfig config)
     {
         var excludedProperties = _mapping.UpdateExcludedProperties;
         var propertiesToInclude = GetFilteredProperties(config, excludedProperties, forUpdate: true);
@@ -477,7 +477,7 @@ public sealed class BulkOperationsADO<TEntity, TId> : IBulkOperations<TEntity>
                 UPDATE SET {string.Join(", ", setClauses)};";
     }
 
-    private string BuildMergeSql(DataTable _, BulkConfig config)
+    private string BuildMergeSql(BulkConfig config)
     {
         var insertExcluded = _mapping.InsertExcludedProperties;
         var updateExcluded = _mapping.UpdateExcludedProperties;

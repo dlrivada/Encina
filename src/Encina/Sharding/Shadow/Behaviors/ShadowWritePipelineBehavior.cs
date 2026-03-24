@@ -56,13 +56,13 @@ internal sealed class ShadowWritePipelineBehavior<TCommand, TResponse>(
         // Only fire shadow write if production succeeded
         if (result.IsRight)
         {
-            _ = ExecuteShadowWriteAsync(request, context);
+            _ = ExecuteShadowWriteAsync(request);
         }
 
         return result;
     }
 
-    private async Task ExecuteShadowWriteAsync(TCommand request, IRequestContext _)
+    private async Task ExecuteShadowWriteAsync(TCommand request)
     {
         var commandType = typeof(TCommand).Name;
 
