@@ -1,15 +1,12 @@
+using System.Globalization;
 using Encina.Compliance.Attestation;
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
-
 using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System.Globalization;
-
 using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.PropertyTests.Compliance.Attestation;
