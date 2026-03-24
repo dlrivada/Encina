@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
@@ -9,7 +10,6 @@ using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
 using FluentAssertions;
 using LanguageExt;
-using Encina.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
