@@ -176,6 +176,7 @@ public sealed class CachingSecretReaderDecoratorTests
         await decorator.GetSecretAsync("key");
 
         // Assert
+        await _cache.DidNotReceive().GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _cache.DidNotReceive().GetOrSetAsync(
             Arg.Any<string>(),
             Arg.Any<Func<CancellationToken, Task<string>>>(),

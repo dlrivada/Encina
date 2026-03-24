@@ -77,7 +77,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAzureKeyVaultSecrets_WriterAndRotator_ResolveSameProviderInstance()
+    public void AddAzureKeyVaultSecrets_RegistersWriterWithCachingDecorator()
     {
         var services = CreateServicesWithMockClient();
 

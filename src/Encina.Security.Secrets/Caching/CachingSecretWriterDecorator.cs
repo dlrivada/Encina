@@ -76,6 +76,9 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         string value,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(secretName);
+        ArgumentNullException.ThrowIfNull(value);
+
         // 1. Persist via inner writer first
         var result = await _inner.SetSecretAsync(secretName, value, cancellationToken).ConfigureAwait(false);
 
@@ -84,10 +87,13 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         // so a slow cache backend doesn't starve the PubSub broadcast.
         if (result.IsRight)
         {
-            using var invalidateCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            // Post-write invalidation uses linked tokens (bounded timeout + caller cancellation).
+            using var invalidateCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            invalidateCts.CancelAfter(TimeSpan.FromSeconds(5));
             await InvalidateCacheAsync(secretName, invalidateCts.Token).ConfigureAwait(false);
 
-            using var publishCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var publishCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            publishCts.CancelAfter(TimeSpan.FromSeconds(5));
             await PublishInvalidationAsync(secretName, "Set", publishCts.Token).ConfigureAwait(false);
         }
 
@@ -100,35 +106,41 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
     {
         // Best-effort invalidation: each key/pattern is independent.
         // Failure on one doesn't prevent attempting the others.
-        await TryRemoveAsync($"{_options.CacheKeyPrefix}:v:{secretName}", cancellationToken).ConfigureAwait(false);
-        await TryRemoveAsync($"{_options.CacheKeyPrefix}:lkg:{secretName}", cancellationToken).ConfigureAwait(false);
-        await TryRemoveByPatternAsync($"{_options.CacheKeyPrefix}:t:{secretName}:*", cancellationToken).ConfigureAwait(false);
-        await TryRemoveByPatternAsync($"{_options.CacheKeyPrefix}:lkg:t:{secretName}:*", cancellationToken).ConfigureAwait(false);
+        var anySuccess = false;
+        anySuccess |= await TryRemoveAsync($"{_options.CacheKeyPrefix}:v:{secretName}", cancellationToken).ConfigureAwait(false);
+        anySuccess |= await TryRemoveAsync($"{_options.CacheKeyPrefix}:lkg:{secretName}", cancellationToken).ConfigureAwait(false);
+        anySuccess |= await TryRemoveByPatternAsync($"{_options.CacheKeyPrefix}:t:{secretName}:*", cancellationToken).ConfigureAwait(false);
+        anySuccess |= await TryRemoveByPatternAsync($"{_options.CacheKeyPrefix}:lkg:t:{secretName}:*", cancellationToken).ConfigureAwait(false);
 
-        Log.WriterCacheInvalidation(_logger, secretName);
+        if (anySuccess)
+            Log.WriterCacheInvalidation(_logger, secretName);
     }
 
-    private async Task TryRemoveAsync(string key, CancellationToken cancellationToken)
+    private async Task<bool> TryRemoveAsync(string key, CancellationToken cancellationToken)
     {
         try
         {
             await _cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
+            return true;
         }
         catch (Exception ex)
         {
             Log.CacheKeyRemovalError(_logger, key, ex);
+            return false;
         }
     }
 
-    private async Task TryRemoveByPatternAsync(string pattern, CancellationToken cancellationToken)
+    private async Task<bool> TryRemoveByPatternAsync(string pattern, CancellationToken cancellationToken)
     {
         try
         {
             await _cache.RemoveByPatternAsync(pattern, cancellationToken).ConfigureAwait(false);
+            return true;
         }
         catch (Exception ex)
         {
             Log.CacheKeyRemovalError(_logger, pattern, ex);
+            return false;
         }
     }
 

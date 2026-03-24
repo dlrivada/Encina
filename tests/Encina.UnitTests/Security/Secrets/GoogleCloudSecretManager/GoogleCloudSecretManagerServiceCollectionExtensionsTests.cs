@@ -74,7 +74,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddGoogleCloudSecretManager_WriterAndRotator_ResolveSameProviderInstance()
+    public void AddGoogleCloudSecretManager_RegistersWriterWithCachingDecorator()
     {
         var services = CreateServicesWithMockClient();
 

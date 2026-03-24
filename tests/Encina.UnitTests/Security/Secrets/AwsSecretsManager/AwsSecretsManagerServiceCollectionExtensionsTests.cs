@@ -76,7 +76,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAwsSecretsManager_WriterAndRotator_ResolveSameProviderInstance()
+    public void AddAwsSecretsManager_RegistersWriterWithCachingDecorator()
     {
         var services = CreateServicesWithMockClient();
 

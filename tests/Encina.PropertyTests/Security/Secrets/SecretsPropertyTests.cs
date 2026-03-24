@@ -92,10 +92,10 @@ public sealed class SecretsPropertyTests
 
     #endregion
 
-    #region CachedSecretReader Returns Same Value for Same Key
+    #region CachingSecretReader Returns Same Value for Same Key
 
     [Property(MaxTest = 30)]
-    public bool CachedSecretReader_ReturnsSameValue_ForSameKey(
+    public bool CachingSecretReader_ReturnsSameValue_ForSameKey(
         NonEmptyString keyName,
         NonEmptyString keyValue)
     {
@@ -121,18 +121,27 @@ public sealed class SecretsPropertyTests
         };
 
         var cache = Substitute.For<ICacheProvider>();
-        // Return null on GetAsync (miss), then GetOrSetAsync invokes the factory
+        var cacheStore = new Dictionary<string, object?>();
         cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<string?>(null));
+            .Returns(callInfo =>
+            {
+                var key = callInfo.ArgAt<string>(0);
+                return Task.FromResult(cacheStore.TryGetValue(key, out var val) ? (string?)val : null);
+            });
         cache.GetOrSetAsync(
                 Arg.Any<string>(),
                 Arg.Any<Func<CancellationToken, Task<string>>>(),
                 Arg.Any<TimeSpan?>(),
                 Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
+            .Returns(async callInfo =>
             {
+                var key = callInfo.ArgAt<string>(0);
+                if (cacheStore.TryGetValue(key, out var existing))
+                    return (string)existing!;
                 var factory = callInfo.ArgAt<Func<CancellationToken, Task<string>>>(1);
-                return factory(CancellationToken.None);
+                var value = await factory(CancellationToken.None);
+                cacheStore[key] = value;
+                return value;
             });
         var cachedReader = new CachingSecretReaderDecorator(
             innerProvider,

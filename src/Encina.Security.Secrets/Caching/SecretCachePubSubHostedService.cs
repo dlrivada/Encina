@@ -79,8 +79,7 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
     {
         if (_pubSub is null)
         {
-            Log.PubSubSubscriptionFailed(_logger, _options.InvalidationChannel,
-                new InvalidOperationException("IPubSubProvider is not registered — cross-instance cache invalidation disabled."));
+            Log.PubSubNotConfigured(_logger, _options.InvalidationChannel);
             return;
         }
 

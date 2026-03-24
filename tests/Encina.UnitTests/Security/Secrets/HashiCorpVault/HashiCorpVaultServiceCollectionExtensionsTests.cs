@@ -81,7 +81,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddHashiCorpVaultSecrets_WriterAndRotator_ResolveSameProviderInstance()
+    public void AddHashiCorpVaultSecrets_RegistersWriterWithCachingDecorator()
     {
         var services = CreateServicesWithMockClient();
 

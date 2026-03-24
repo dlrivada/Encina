@@ -20,7 +20,7 @@ internal static partial class Log
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Secret provider '{ProviderName}' is unavailable")]
     public static partial void ProviderUnavailable(ILogger logger, string providerName, Exception exception);
 
-    // ── Distributed caching operations: EventIds 8950-8967 (see EventIdRanges.SecuritySecrets) ──
+    // ── Distributed caching operations: EventIds 8950-8968 (see EventIdRanges.SecuritySecrets) ──
 
     [LoggerMessage(EventId = 8950, Level = LogLevel.Debug, Message = "Cache hit for secret '{SecretName}'")]
     public static partial void CacheHit(ILogger logger, string secretName);
@@ -75,6 +75,9 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 8966, Level = LogLevel.Warning, Message = "Cache eviction error for secret '{SecretName}' (operation: {Operation})")]
     public static partial void CacheEvictionError(ILogger logger, string secretName, string operation, Exception exception);
+
+    [LoggerMessage(EventId = 8968, Level = LogLevel.Information, Message = "PubSub provider not registered — cross-instance cache invalidation disabled for channel '{Channel}'")]
+    public static partial void PubSubNotConfigured(ILogger logger, string channel);
 
     // Configuration provider: EventIds 40-59
     [LoggerMessage(EventId = 40, Level = LogLevel.Information, Message = "Loading secrets into configuration from ISecretReader")]
