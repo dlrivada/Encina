@@ -56,7 +56,6 @@ public sealed class DefaultConsentValidator : IConsentValidator
         ArgumentNullException.ThrowIfNull(requiredPurposes);
 
         var errors = new List<string>();
-        var warnings = new List<string>();
         var missingPurposes = new List<string>();
 
         foreach (var purpose in requiredPurposes)
@@ -116,13 +115,7 @@ public sealed class DefaultConsentValidator : IConsentValidator
         if (missingPurposes.Count > 0)
         {
             return Right<EncinaError, ConsentValidationResult>(
-                ConsentValidationResult.Invalid(errors, warnings, missingPurposes));
-        }
-
-        if (warnings.Count > 0)
-        {
-            return Right<EncinaError, ConsentValidationResult>(
-                ConsentValidationResult.ValidWithWarnings([.. warnings]));
+                ConsentValidationResult.Invalid(errors, missingPurposes));
         }
 
         return Right<EncinaError, ConsentValidationResult>(ConsentValidationResult.Valid());
