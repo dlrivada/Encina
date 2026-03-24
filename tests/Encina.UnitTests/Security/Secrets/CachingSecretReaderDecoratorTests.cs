@@ -38,13 +38,9 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_CacheHit_ReturnsFromCache_DoesNotCallInner()
     {
-        // Arrange — GetOrSetAsync returns cached value without invoking factory
-        _cache.GetOrSetAsync(
-                Arg.Any<string>(),
-                Arg.Any<Func<CancellationToken, Task<string>>>(),
-                Arg.Any<TimeSpan?>(),
-                Arg.Any<CancellationToken>())
-            .Returns("cached-value");
+        // Arrange — GetAsync returns cached value (hit detection)
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>("cached-value"));
         var decorator = CreateDecorator();
 
         // Act
@@ -54,6 +50,12 @@ public sealed class CachingSecretReaderDecoratorTests
         result.IsRight.Should().BeTrue();
         result.IfRight(v => v.Should().Be("cached-value"));
         await _innerReader.DidNotReceive().GetSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        // GetOrSetAsync should NOT be called on cache hit
+        await _cache.DidNotReceive().GetOrSetAsync(
+            Arg.Any<string>(),
+            Arg.Any<Func<CancellationToken, Task<string>>>(),
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -63,7 +65,9 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_CacheMiss_CallsInner_StoresInCache()
     {
-        // Arrange — GetOrSetAsync invokes factory (simulating cache miss)
+        // Arrange — GetAsync returns null (miss), GetOrSetAsync invokes factory
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("inner-value"));
         _cache.GetOrSetAsync(
@@ -99,7 +103,9 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_InnerReturnsError_DoesNotCache()
     {
-        // Arrange — factory throws StoreResultException when inner returns Left
+        // Arrange — GetAsync returns null (miss), factory throws StoreResultException
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
                 SecretsErrors.NotFound("key")));
@@ -132,7 +138,9 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_CacheProviderFails_FallsToInner()
     {
-        // Arrange — GetOrSetAsync throws (cache infrastructure failure)
+        // Arrange — GetAsync returns null (miss), GetOrSetAsync throws (cache infrastructure failure)
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
         _cache.GetOrSetAsync(
                 Arg.Any<string>(),
                 Arg.Any<Func<CancellationToken, Task<string>>>(),
@@ -184,6 +192,8 @@ public sealed class CachingSecretReaderDecoratorTests
     public async Task GetSecretAsync_TypedSecret_UsesSeparateCacheKey()
     {
         // Arrange
+        _cache.GetAsync<TestConfig>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<TestConfig?>(null));
         var expected = new TestConfig { Host = "localhost" };
         _innerReader.GetSecretAsync<TestConfig>("config", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, TestConfig>>(expected));

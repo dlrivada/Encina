@@ -121,9 +121,19 @@ public sealed class SecretsPropertyTests
         };
 
         var cache = Substitute.For<ICacheProvider>();
-        // Return null on first call (miss), then let it pass through to inner
+        // Return null on GetAsync (miss), then GetOrSetAsync invokes the factory
         cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>(null));
+        cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<string>>>(1);
+                return factory(CancellationToken.None);
+            });
         var cachedReader = new CachingSecretReaderDecorator(
             innerProvider,
             cache,

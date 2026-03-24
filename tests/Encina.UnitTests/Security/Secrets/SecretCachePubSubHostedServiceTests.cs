@@ -104,6 +104,65 @@ public sealed class SecretCachePubSubHostedServiceTests
         await act.Should().NotThrowAsync();
     }
 
+    #region Handler Callback Invocation
+
+    [Fact]
+    public async Task HandleMessage_PerSecretInvalidation_RemovesCorrectKeys()
+    {
+        // Arrange
+        Func<SecretCacheInvalidationMessage, Task>? capturedHandler = null;
+        _pubSub.SubscribeAsync<SecretCacheInvalidationMessage>(
+                Arg.Any<string>(), Arg.Any<Func<SecretCacheInvalidationMessage, Task>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                capturedHandler = callInfo.Arg<Func<SecretCacheInvalidationMessage, Task>>();
+                return Task.FromResult<IAsyncDisposable>(Substitute.For<IAsyncDisposable>());
+            });
+        var sut = CreateService();
+        await sut.StartAsync(CancellationToken.None);
+
+        // Act
+        capturedHandler.Should().NotBeNull();
+        var message = new SecretCacheInvalidationMessage("my-secret", "Set", DateTime.UtcNow);
+        await capturedHandler!(message);
+
+        // Assert — explicit key removal
+        await _cache.Received().RemoveAsync(
+            $"{_options.CacheKeyPrefix}:v:my-secret", Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveAsync(
+            $"{_options.CacheKeyPrefix}:lkg:my-secret", Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveByPatternAsync(
+            $"{_options.CacheKeyPrefix}:t:my-secret:*", Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveByPatternAsync(
+            $"{_options.CacheKeyPrefix}:lkg:t:my-secret:*", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleMessage_BulkInvalidation_RemovesAllSecrets()
+    {
+        // Arrange
+        Func<SecretCacheInvalidationMessage, Task>? capturedHandler = null;
+        _pubSub.SubscribeAsync<SecretCacheInvalidationMessage>(
+                Arg.Any<string>(), Arg.Any<Func<SecretCacheInvalidationMessage, Task>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                capturedHandler = callInfo.Arg<Func<SecretCacheInvalidationMessage, Task>>();
+                return Task.FromResult<IAsyncDisposable>(Substitute.For<IAsyncDisposable>());
+            });
+        var sut = CreateService();
+        await sut.StartAsync(CancellationToken.None);
+
+        // Act
+        var message = new SecretCacheInvalidationMessage("any", "BulkInvalidate", DateTime.UtcNow);
+        await capturedHandler!(message);
+
+        // Assert — bulk pattern removal
+        await _cache.Received().RemoveByPatternAsync(
+            $"{_options.CacheKeyPrefix}:*", Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
     #region Constructor Validation
 
     [Fact]

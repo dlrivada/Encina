@@ -112,6 +112,27 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         var cacheKey = ValueKey(secretName);
         var lkgKey = LkgKey(secretName);
 
+        // 1. Check cache for hit detection
+        try
+        {
+            var cached = await _cache.GetAsync<string>(cacheKey, cancellationToken).ConfigureAwait(false);
+            if (cached is not null)
+            {
+                Log.CacheHit(_logger, secretName);
+                _metrics?.RecordCacheHit(secretName);
+                return cached;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Cache read failure — fall through to inner reader via GetOrSetAsync
+            Log.CacheError(_logger, secretName, cacheKey, ex);
+        }
+
+        // 2. Cache miss — use GetOrSetAsync for stampede protection
+        Log.CacheMiss(_logger, secretName);
+        _metrics?.RecordCacheMiss(secretName);
+
         try
         {
             var value = await _cache.GetOrSetAsync(
@@ -122,8 +143,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
                     return result.Match(
                         Right: v =>
                         {
-                            // Store LKG on successful read (fire-and-forget within factory)
-                            _ = StoreLastKnownGoodAsync(lkgKey, v, CancellationToken.None);
+                            _ = StoreLastKnownGoodAsync(lkgKey, v, ct);
                             return v;
                         },
                         Left: e => throw new StoreResultException(e));
@@ -131,16 +151,11 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
                 _secretsOptions.DefaultCacheDuration,
                 cancellationToken).ConfigureAwait(false);
 
-            Log.CacheHit(_logger, secretName);
-            _metrics?.RecordCacheHit(secretName);
             return value;
         }
         catch (StoreResultException ex)
         {
-            // Inner reader returned Left(error) — not cached
-            Log.CacheMiss(_logger, secretName);
-            _metrics?.RecordCacheMiss(secretName);
-
+            // Inner reader returned Left — check stale fallback
             if (IsResilienceError(ex.Error))
             {
                 var stale = await TryGetLastKnownGoodAsync<string>(secretName, lkgKey, cancellationToken).ConfigureAwait(false);
@@ -158,7 +173,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
         catch (Exception ex)
         {
-            // Cache infrastructure failure — fallback to inner reader directly
+            // Cache infrastructure failure — fallback to inner reader
             Log.CacheError(_logger, secretName, cacheKey, ex);
             return await _inner.GetSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
         }
@@ -180,6 +195,27 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         var cacheKey = TypedKey(secretName, typeName);
         var lkgKey = TypedLkgKey(secretName, typeName);
 
+        // 1. Check cache for hit detection
+        try
+        {
+            var cached = await _cache.GetAsync<T>(cacheKey, cancellationToken).ConfigureAwait(false);
+            if (cached is not null)
+            {
+                Log.CacheHit(_logger, secretName);
+                _metrics?.RecordCacheHit(secretName);
+                return cached;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Cache read failure — fall through to inner reader via GetOrSetAsync
+            Log.CacheError(_logger, secretName, cacheKey, ex);
+        }
+
+        // 2. Cache miss — use GetOrSetAsync for stampede protection
+        Log.CacheMiss(_logger, secretName);
+        _metrics?.RecordCacheMiss(secretName);
+
         try
         {
             var value = await _cache.GetOrSetAsync(
@@ -190,8 +226,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
                     return result.Match(
                         Right: v =>
                         {
-                            // Store LKG on successful read (fire-and-forget within factory)
-                            _ = StoreLastKnownGoodAsync(lkgKey, v, CancellationToken.None);
+                            _ = StoreLastKnownGoodAsync(lkgKey, v, ct);
                             return v;
                         },
                         Left: e => throw new StoreResultException(e));
@@ -199,16 +234,11 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
                 _secretsOptions.DefaultCacheDuration,
                 cancellationToken).ConfigureAwait(false);
 
-            Log.CacheHit(_logger, secretName);
-            _metrics?.RecordCacheHit(secretName);
             return value;
         }
         catch (StoreResultException ex)
         {
-            // Inner reader returned Left(error) — not cached
-            Log.CacheMiss(_logger, secretName);
-            _metrics?.RecordCacheMiss(secretName);
-
+            // Inner reader returned Left — check stale fallback
             if (IsResilienceError(ex.Error))
             {
                 var stale = await TryGetLastKnownGoodAsync<T>(secretName, lkgKey, cancellationToken).ConfigureAwait(false);
@@ -226,7 +256,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
         catch (Exception ex)
         {
-            // Cache infrastructure failure — fallback to inner reader directly
+            // Cache infrastructure failure — fallback to inner reader
             Log.CacheError(_logger, secretName, cacheKey, ex);
             return await _inner.GetSecretAsync<T>(secretName, cancellationToken).ConfigureAwait(false);
         }

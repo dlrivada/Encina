@@ -67,6 +67,9 @@ public sealed class CachingSecretReaderStaleFallbackTests
     {
         // Arrange
         SetupGetOrSetInvokesFactory();
+        // Initial GetAsync for hit detection returns null (miss)
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:db-password"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
         var decorator = CreateDecorator();
         _innerReader.GetSecretAsync("db-password", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("super-secret"));
@@ -80,7 +83,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
 
         // Verify LKG was stored with extended TTL
         await _cache.Received().SetAsync(
-            Arg.Is<string>(k => k.Contains(":lkg:")),
+            Arg.Is<string>(k => k == "encina:secrets:lkg:db-password"),
             "super-secret",
             TimeSpan.FromHours(1),
             Arg.Any<CancellationToken>());
@@ -95,8 +98,11 @@ public sealed class CachingSecretReaderStaleFallbackTests
     {
         // Arrange — GetOrSetAsync invokes factory, factory throws StoreResultException
         SetupGetOrSetInvokesFactory();
-        // LKG available via GetAsync (used in catch block)
-        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+        // Initial GetAsync for hit detection returns null (cache miss)
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:api-key"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        // LKG available via GetAsync (used in stale fallback path)
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:lkg:api-key"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("cached-value"));
         _innerReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
@@ -116,7 +122,9 @@ public sealed class CachingSecretReaderStaleFallbackTests
     {
         // Arrange
         SetupGetOrSetInvokesFactory();
-        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:conn-string"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:lkg:conn-string"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("Server=prod;"));
         _innerReader.GetSecretAsync("conn-string", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
@@ -136,7 +144,9 @@ public sealed class CachingSecretReaderStaleFallbackTests
     {
         // Arrange
         SetupGetOrSetInvokesFactory();
-        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:token"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:lkg:token"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("bearer-xyz"));
         _innerReader.GetSecretAsync("token", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
@@ -206,7 +216,9 @@ public sealed class CachingSecretReaderStaleFallbackTests
     {
         // Arrange — LKG available, but non-resilience error should NOT serve stale
         SetupGetOrSetInvokesFactory();
-        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:secret-x"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:lkg:secret-x"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("old-value"));
         _innerReader.GetSecretAsync("secret-x", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
@@ -226,7 +238,9 @@ public sealed class CachingSecretReaderStaleFallbackTests
     {
         // Arrange
         SetupGetOrSetInvokesFactory();
-        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:restricted"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:lkg:restricted"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("was-available"));
         _innerReader.GetSecretAsync("restricted", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
@@ -260,8 +274,11 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var decorator = new CachingSecretReaderDecorator(
             _innerReader, _cache, new SecretCachingOptions(), options, _logger);
 
-        // Inject a LKG value that would be served IF stale fallback were enabled
-        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+        // Initial GetAsync for hit detection returns null (miss)
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:key"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        // LKG value that would be served IF stale fallback were enabled
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:lkg:key"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("stale-value"));
 
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
@@ -295,8 +312,11 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var decorator = new CachingSecretReaderDecorator(
             _innerReader, _cache, new SecretCachingOptions(), options, _logger);
 
-        // Inject a LKG value that would be served IF resilience were enabled
-        _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
+        // Initial GetAsync for hit detection returns null (miss)
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:v:key"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        // LKG value that would be served IF resilience were enabled
+        _cache.GetAsync<string>(Arg.Is<string>(k => k == "encina:secrets:lkg:key"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("stale-value"));
 
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
@@ -318,9 +338,14 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_Typed_ResilienceError_WithLKG_ReturnsStaleValue()
     {
         // Arrange
+        var typeName = typeof(TestConfig).FullName;
         SetupGetOrSetInvokesFactory<TestConfig>();
         var staleConfig = new TestConfig { Host = "prod-server", Port = 5432 };
-        _cache.GetAsync<TestConfig>(Arg.Is<string>(k => k.Contains(":lkg:t:")), Arg.Any<CancellationToken>())
+        // Initial GetAsync for hit detection returns null (miss)
+        _cache.GetAsync<TestConfig>(Arg.Is<string>(k => k == $"encina:secrets:t:db-config:{typeName}"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<TestConfig?>(null));
+        // LKG available for stale fallback
+        _cache.GetAsync<TestConfig>(Arg.Is<string>(k => k == $"encina:secrets:lkg:t:db-config:{typeName}"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TestConfig?>(staleConfig));
         _innerReader.GetSecretAsync<TestConfig>("db-config", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, TestConfig>>(
@@ -343,8 +368,12 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_Typed_ResilienceError_NoLKG_ReturnsError()
     {
         // Arrange
+        var typeName = typeof(TestConfig).FullName;
         SetupGetOrSetInvokesFactory<TestConfig>();
-        _cache.GetAsync<TestConfig>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        // Both hit-detection and LKG return null
+        _cache.GetAsync<TestConfig>(Arg.Is<string>(k => k == $"encina:secrets:t:new-config:{typeName}"), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<TestConfig?>(null));
+        _cache.GetAsync<TestConfig>(Arg.Is<string>(k => k == $"encina:secrets:lkg:t:new-config:{typeName}"), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TestConfig?>(null));
         _innerReader.GetSecretAsync<TestConfig>("new-config", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, TestConfig>>(

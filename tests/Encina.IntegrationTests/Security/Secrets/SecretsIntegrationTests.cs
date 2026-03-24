@@ -365,9 +365,20 @@ public sealed class SecretsIntegrationTests : IDisposable
 #pragma warning restore CA2012
 
         var cache = Substitute.For<ICacheProvider>();
-        // Simulate cache miss (returns null)
+        // Simulate cache miss (returns null on GetAsync)
         cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>(null));
+        // GetOrSetAsync invokes the factory (stampede protection layer)
+        cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<string>>>(1);
+                return factory(CancellationToken.None);
+            });
 
         var secretsOptions = new SecretsOptions
         {
@@ -379,18 +390,18 @@ public sealed class SecretsIntegrationTests : IDisposable
         var reader = new CachingSecretReaderDecorator(
             mockReader, cache, new SecretCachingOptions(), secretsOptions, logger);
 
-        // First call - cache miss, goes to inner
+        // First call - cache miss, goes to inner via GetOrSetAsync
         var result1 = await reader.GetSecretAsync("cached-secret");
         result1.IfRight(v => v.Should().Be("value-1"));
 
-        // Verify cache was populated
-        await cache.Received(1).SetAsync(
+        // Verify GetOrSetAsync was used for stampede protection
+        await cache.Received(1).GetOrSetAsync(
             Arg.Is<string>(k => k.Contains("cached-secret")),
-            "value-1",
+            Arg.Any<Func<CancellationToken, Task<string>>>(),
             Arg.Any<TimeSpan?>(),
             Arg.Any<CancellationToken>());
 
-        // Second call - simulate cache hit
+        // Second call - simulate cache hit via GetAsync
         cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":v:cached-secret")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("value-1"));
         var result2 = await reader.GetSecretAsync("cached-secret");

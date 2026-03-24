@@ -20,7 +20,7 @@ internal static partial class Log
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Secret provider '{ProviderName}' is unavailable")]
     public static partial void ProviderUnavailable(ILogger logger, string providerName, Exception exception);
 
-    // ── Distributed caching operations: EventIds 8950-8967 (see EventIdRanges.SecuritySecrets) ──
+    // ── Distributed caching operations: EventIds 8950-8966 (see EventIdRanges.SecuritySecrets) ──
 
     [LoggerMessage(EventId = 8950, Level = LogLevel.Debug, Message = "Cache hit for secret '{SecretName}'")]
     public static partial void CacheHit(ILogger logger, string secretName);
@@ -28,49 +28,49 @@ internal static partial class Log
     [LoggerMessage(EventId = 8951, Level = LogLevel.Debug, Message = "Cache miss for secret '{SecretName}'")]
     public static partial void CacheMiss(ILogger logger, string secretName);
 
-    [LoggerMessage(EventId = 8953, Level = LogLevel.Debug, Message = "Cache invalidated for secret '{SecretName}'")]
+    [LoggerMessage(EventId = 8952, Level = LogLevel.Debug, Message = "Cache invalidated for secret '{SecretName}'")]
     public static partial void CacheInvalidated(ILogger logger, string secretName);
 
-    [LoggerMessage(EventId = 8954, Level = LogLevel.Warning, Message = "Cache operation failed for secret '{SecretName}' with key '{CacheKey}'")]
+    [LoggerMessage(EventId = 8953, Level = LogLevel.Warning, Message = "Cache operation failed for secret '{SecretName}' with key '{CacheKey}'")]
     public static partial void CacheError(ILogger logger, string secretName, string cacheKey, Exception exception);
 
-    [LoggerMessage(EventId = 8955, Level = LogLevel.Debug, Message = "PubSub invalidation published for secret '{SecretName}' to channel '{Channel}'")]
+    [LoggerMessage(EventId = 8954, Level = LogLevel.Debug, Message = "PubSub invalidation published for secret '{SecretName}' to channel '{Channel}'")]
     public static partial void PubSubInvalidationPublished(ILogger logger, string secretName, string channel);
 
-    [LoggerMessage(EventId = 8956, Level = LogLevel.Debug, Message = "PubSub invalidation received for secret '{SecretName}' (operation: {Operation}) on channel '{Channel}'")]
+    [LoggerMessage(EventId = 8955, Level = LogLevel.Debug, Message = "PubSub invalidation received for secret '{SecretName}' (operation: {Operation}) on channel '{Channel}'")]
     public static partial void PubSubInvalidationReceived(ILogger logger, string secretName, string operation, string channel);
 
-    [LoggerMessage(EventId = 8957, Level = LogLevel.Information, Message = "PubSub subscription started on channel '{Channel}'")]
+    [LoggerMessage(EventId = 8956, Level = LogLevel.Information, Message = "PubSub subscription started on channel '{Channel}'")]
     public static partial void PubSubSubscriptionStarted(ILogger logger, string channel);
 
-    [LoggerMessage(EventId = 8958, Level = LogLevel.Warning, Message = "PubSub subscription failed on channel '{Channel}'")]
+    [LoggerMessage(EventId = 8957, Level = LogLevel.Warning, Message = "PubSub subscription failed on channel '{Channel}'")]
     public static partial void PubSubSubscriptionFailed(ILogger logger, string channel, Exception exception);
 
-    [LoggerMessage(EventId = 8959, Level = LogLevel.Warning, Message = "Serving stale (last-known-good) value for secret '{SecretName}'")]
+    [LoggerMessage(EventId = 8958, Level = LogLevel.Warning, Message = "Serving stale (last-known-good) value for secret '{SecretName}'")]
     public static partial void CacheStaleFallbackServed(ILogger logger, string secretName);
 
-    [LoggerMessage(EventId = 8960, Level = LogLevel.Debug, Message = "Bulk cache invalidation for pattern '{Pattern}'")]
+    [LoggerMessage(EventId = 8959, Level = LogLevel.Debug, Message = "Bulk cache invalidation for pattern '{Pattern}'")]
     public static partial void CacheBulkInvalidated(ILogger logger, string pattern);
 
-    [LoggerMessage(EventId = 8961, Level = LogLevel.Debug, Message = "Writer invalidated cache for secret '{SecretName}'")]
+    [LoggerMessage(EventId = 8960, Level = LogLevel.Debug, Message = "Writer invalidated cache for secret '{SecretName}'")]
     public static partial void WriterCacheInvalidation(ILogger logger, string secretName);
 
-    [LoggerMessage(EventId = 8962, Level = LogLevel.Warning, Message = "Cache write error for key '{CacheKey}'")]
+    [LoggerMessage(EventId = 8961, Level = LogLevel.Warning, Message = "Cache write error for key '{CacheKey}'")]
     public static partial void CacheWriteError(ILogger logger, string cacheKey, Exception exception);
 
-    [LoggerMessage(EventId = 8963, Level = LogLevel.Warning, Message = "Cache invalidation error for secret '{SecretName}'")]
+    [LoggerMessage(EventId = 8962, Level = LogLevel.Warning, Message = "Cache invalidation error for secret '{SecretName}'")]
     public static partial void CacheInvalidationError(ILogger logger, string secretName, Exception exception);
 
-    [LoggerMessage(EventId = 8964, Level = LogLevel.Warning, Message = "PubSub publish error for secret '{SecretName}' on channel '{Channel}'")]
+    [LoggerMessage(EventId = 8963, Level = LogLevel.Warning, Message = "PubSub publish error for secret '{SecretName}' on channel '{Channel}'")]
     public static partial void PubSubPublishError(ILogger logger, string secretName, string channel, Exception exception);
 
-    [LoggerMessage(EventId = 8965, Level = LogLevel.Information, Message = "PubSub subscription stopped on channel '{Channel}'")]
+    [LoggerMessage(EventId = 8964, Level = LogLevel.Information, Message = "PubSub subscription stopped on channel '{Channel}'")]
     public static partial void PubSubSubscriptionStopped(ILogger logger, string channel);
 
-    [LoggerMessage(EventId = 8966, Level = LogLevel.Warning, Message = "PubSub subscription stop error on channel '{Channel}'")]
+    [LoggerMessage(EventId = 8965, Level = LogLevel.Warning, Message = "PubSub subscription stop error on channel '{Channel}'")]
     public static partial void PubSubSubscriptionStopError(ILogger logger, string channel, Exception exception);
 
-    [LoggerMessage(EventId = 8967, Level = LogLevel.Warning, Message = "Cache eviction error for secret '{SecretName}' (operation: {Operation})")]
+    [LoggerMessage(EventId = 8966, Level = LogLevel.Warning, Message = "Cache eviction error for secret '{SecretName}' (operation: {Operation})")]
     public static partial void CacheEvictionError(ILogger logger, string secretName, string operation, Exception exception);
 
     // Configuration provider: EventIds 40-59
@@ -165,5 +165,5 @@ internal static partial class Log
     [LoggerMessage(EventId = 124, Level = LogLevel.Warning, Message = "Secret operation timed out after {TimeoutSeconds:F0}s")]
     public static partial void ResilienceTimeoutExceeded(ILogger logger, double timeoutSeconds);
 
-    // Stale fallback: superseded by CacheStaleFallbackServed (EventId 8959) in the registered range
+    // Stale fallback: superseded by CacheStaleFallbackServed (EventId 8958) in the registered range
 }
