@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using Dapper;
@@ -410,6 +411,8 @@ public sealed class AuditStoreDapper : IAuditStore
     /// <summary>
     /// Internal row type for Dapper mapping.
     /// </summary>
+    [SuppressMessage("SonarAnalyzer.CSharp", "S1144", Justification = "Properties set by Dapper via reflection")]
+    [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Properties set by Dapper via reflection")]
     private sealed class AuditEntryRow
     {
         public Guid Id { get; init; }
