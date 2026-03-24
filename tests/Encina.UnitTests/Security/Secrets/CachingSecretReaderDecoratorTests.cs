@@ -38,9 +38,13 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_CacheHit_ReturnsFromCache_DoesNotCallInner()
     {
-        // Arrange
-        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<string?>("cached-value"));
+        // Arrange — GetOrSetAsync returns cached value without invoking factory
+        _cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .Returns("cached-value");
         var decorator = CreateDecorator();
 
         // Act
@@ -59,11 +63,20 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_CacheMiss_CallsInner_StoresInCache()
     {
-        // Arrange
-        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<string?>(null));
+        // Arrange — GetOrSetAsync invokes factory (simulating cache miss)
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("inner-value"));
+        _cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(async callInfo =>
+            {
+                // Invoke the factory to simulate cache miss
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<string>>>(1);
+                return await factory(CancellationToken.None).ConfigureAwait(false);
+            });
         var decorator = CreateDecorator();
 
         // Act
@@ -72,9 +85,9 @@ public sealed class CachingSecretReaderDecoratorTests
         // Assert
         result.IsRight.Should().BeTrue();
         result.IfRight(v => v.Should().Be("inner-value"));
-        await _cache.Received(1).SetAsync(
+        await _cache.Received(1).GetOrSetAsync(
             Arg.Is<string>(k => k.Contains(":v:key")),
-            "inner-value",
+            Arg.Any<Func<CancellationToken, Task<string>>>(),
             _secretsOptions.DefaultCacheDuration,
             Arg.Any<CancellationToken>());
     }
@@ -86,12 +99,20 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_InnerReturnsError_DoesNotCache()
     {
-        // Arrange
-        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<string?>(null));
+        // Arrange — factory throws StoreResultException when inner returns Left
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
                 SecretsErrors.NotFound("key")));
+        _cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(async callInfo =>
+            {
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<string>>>(1);
+                return await factory(CancellationToken.None).ConfigureAwait(false);
+            });
         var decorator = CreateDecorator();
 
         // Act
@@ -99,6 +120,7 @@ public sealed class CachingSecretReaderDecoratorTests
 
         // Assert
         result.IsLeft.Should().BeTrue();
+        // SetAsync should not be called for error results (LKG is also off since resilience is disabled)
         await _cache.DidNotReceive().SetAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
     }
@@ -110,8 +132,12 @@ public sealed class CachingSecretReaderDecoratorTests
     [Fact]
     public async Task GetSecretAsync_CacheProviderFails_FallsToInner()
     {
-        // Arrange
-        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        // Arrange — GetOrSetAsync throws (cache infrastructure failure)
+        _cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Cache down"));
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("fallback-value"));
@@ -142,7 +168,11 @@ public sealed class CachingSecretReaderDecoratorTests
         await decorator.GetSecretAsync("key");
 
         // Assert
-        await _cache.DidNotReceive().GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _cache.DidNotReceive().GetOrSetAsync(
+            Arg.Any<string>(),
+            Arg.Any<Func<CancellationToken, Task<string>>>(),
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>());
         await _innerReader.Received(1).GetSecretAsync("key", Arg.Any<CancellationToken>());
     }
 
@@ -154,20 +184,28 @@ public sealed class CachingSecretReaderDecoratorTests
     public async Task GetSecretAsync_TypedSecret_UsesSeparateCacheKey()
     {
         // Arrange
-        _cache.GetAsync<TestConfig>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<TestConfig?>(null));
         var expected = new TestConfig { Host = "localhost" };
         _innerReader.GetSecretAsync<TestConfig>("config", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, TestConfig>>(expected));
+        _cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<TestConfig>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(async callInfo =>
+            {
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<TestConfig>>>(1);
+                return await factory(CancellationToken.None).ConfigureAwait(false);
+            });
         var decorator = CreateDecorator();
 
         // Act
         await decorator.GetSecretAsync<TestConfig>("config");
 
         // Assert — typed key contains type name
-        await _cache.Received(1).SetAsync(
+        await _cache.Received(1).GetOrSetAsync(
             Arg.Is<string>(k => k.Contains(":t:config:") && k.Contains(nameof(TestConfig))),
-            expected,
+            Arg.Any<Func<CancellationToken, Task<TestConfig>>>(),
             Arg.Any<TimeSpan?>(),
             Arg.Any<CancellationToken>());
     }
@@ -194,6 +232,9 @@ public sealed class CachingSecretReaderDecoratorTests
             Arg.Any<CancellationToken>());
         await _cache.Received().RemoveByPatternAsync(
             Arg.Is<string>(p => p.Contains(":t:my-secret:")),
+            Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveByPatternAsync(
+            Arg.Is<string>(p => p.Contains(":lkg:t:my-secret:")),
             Arg.Any<CancellationToken>());
     }
 

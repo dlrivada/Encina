@@ -252,8 +252,9 @@ public static class ServiceCollectionExtensions
         }
 
         // ── Caching writer decorator + PubSub hosted service ──────────
-        // Writer and hosted service resolve options at runtime via IOptions<SecretsOptions>
-        // to support both configure delegate and IConfigureOptions<> binding.
+        // NOTE: Registration is based on the configure delegate value. If caching
+        // needs to be disabled via IConfigureOptions<SecretsOptions> binding at
+        // runtime, the app should also avoid registering ICacheProvider.
         if (optionsInstance.EnableCaching)
         {
             // Decorate ISecretWriter with caching invalidation

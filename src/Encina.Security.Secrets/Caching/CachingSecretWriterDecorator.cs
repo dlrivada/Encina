@@ -80,12 +80,13 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         var result = await _inner.SetSecretAsync(secretName, value, cancellationToken).ConfigureAwait(false);
 
         // 2. On success: invalidate cache + broadcast.
-        // Use CancellationToken.None — once the write succeeded, cache invalidation
-        // must complete regardless of whether the original request was cancelled.
+        // Post-write invalidation: use a bounded timeout so slow cache/PubSub
+        // backends don't block the write response indefinitely.
         if (result.IsRight)
         {
-            await InvalidateCacheAsync(secretName, CancellationToken.None).ConfigureAwait(false);
-            await PublishInvalidationAsync(secretName, "Set", CancellationToken.None).ConfigureAwait(false);
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await InvalidateCacheAsync(secretName, timeoutCts.Token).ConfigureAwait(false);
+            await PublishInvalidationAsync(secretName, "Set", timeoutCts.Token).ConfigureAwait(false);
         }
 
         return result;

@@ -28,9 +28,6 @@ internal static partial class Log
     [LoggerMessage(EventId = 8951, Level = LogLevel.Debug, Message = "Cache miss for secret '{SecretName}'")]
     public static partial void CacheMiss(ILogger logger, string secretName);
 
-    [LoggerMessage(EventId = 8952, Level = LogLevel.Debug, Message = "Cache entry stored for key '{CacheKey}'")]
-    public static partial void CacheSet(ILogger logger, string cacheKey);
-
     [LoggerMessage(EventId = 8953, Level = LogLevel.Debug, Message = "Cache invalidated for secret '{SecretName}'")]
     public static partial void CacheInvalidated(ILogger logger, string secretName);
 

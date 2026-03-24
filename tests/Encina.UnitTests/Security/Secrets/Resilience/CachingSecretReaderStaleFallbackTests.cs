@@ -23,10 +23,41 @@ public sealed class CachingSecretReaderStaleFallbackTests
         _innerReader = Substitute.For<ISecretReader>();
         _cache = Substitute.For<ICacheProvider>();
         _logger = Substitute.For<ILogger<CachingSecretReaderDecorator>>();
+    }
 
-        // Default: cache miss on primary keys
-        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<string?>(null));
+    /// <summary>
+    /// Sets up GetOrSetAsync to invoke the factory (simulating a cache miss),
+    /// which in turn calls the inner reader.
+    /// </summary>
+    private void SetupGetOrSetInvokesFactory()
+    {
+        _cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<string>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .ReturnsForAnyArgs(callInfo =>
+            {
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<string>>>(1);
+                return factory(CancellationToken.None);
+            });
+    }
+
+    /// <summary>
+    /// Sets up GetOrSetAsync&lt;T&gt; to invoke the factory (simulating a cache miss).
+    /// </summary>
+    private void SetupGetOrSetInvokesFactory<T>()
+    {
+        _cache.GetOrSetAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<CancellationToken, Task<T>>>(),
+                Arg.Any<TimeSpan?>(),
+                Arg.Any<CancellationToken>())
+            .ReturnsForAnyArgs(callInfo =>
+            {
+                var factory = callInfo.ArgAt<Func<CancellationToken, Task<T>>>(1);
+                return factory(CancellationToken.None);
+            });
     }
 
     #region Successful result stores LKG
@@ -35,6 +66,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_SuccessfulResult_StoresLastKnownGoodValue()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory();
         var decorator = CreateDecorator();
         _innerReader.GetSecretAsync("db-password", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("super-secret"));
@@ -61,7 +93,9 @@ public sealed class CachingSecretReaderStaleFallbackTests
     [Fact]
     public async Task GetSecretAsync_CircuitBreakerOpen_WithLKG_ReturnsStaleValue()
     {
-        // Arrange — LKG available
+        // Arrange — GetOrSetAsync invokes factory, factory throws StoreResultException
+        SetupGetOrSetInvokesFactory();
+        // LKG available via GetAsync (used in catch block)
         _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("cached-value"));
         _innerReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
@@ -81,6 +115,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_ResilienceTimeout_WithLKG_ReturnsStaleValue()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory();
         _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("Server=prod;"));
         _innerReader.GetSecretAsync("conn-string", Arg.Any<CancellationToken>())
@@ -100,6 +135,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_ProviderUnavailable_WithLKG_ReturnsStaleValue()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory();
         _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("bearer-xyz"));
         _innerReader.GetSecretAsync("token", Arg.Any<CancellationToken>())
@@ -122,7 +158,11 @@ public sealed class CachingSecretReaderStaleFallbackTests
     [Fact]
     public async Task GetSecretAsync_CircuitBreakerOpen_NoLKG_ReturnsError()
     {
-        // Arrange — no LKG
+        // Arrange — no LKG, GetOrSetAsync invokes factory which calls inner reader
+        SetupGetOrSetInvokesFactory();
+        // No LKG mock — NSubstitute default returns null for GetAsync<string>
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
         _innerReader.GetSecretAsync("missing-key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
                 SecretsErrors.CircuitBreakerOpen("secrets")));
@@ -140,6 +180,10 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_ResilienceTimeout_NoLKG_ReturnsError()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory();
+        // No LKG mock — NSubstitute default returns null for GetAsync<string>
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
         _innerReader.GetSecretAsync("new-secret", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
                 SecretsErrors.ResilienceTimeout("new-secret", TimeSpan.FromSeconds(30))));
@@ -161,6 +205,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_NotFound_WithLKG_ReturnsError()
     {
         // Arrange — LKG available, but non-resilience error should NOT serve stale
+        SetupGetOrSetInvokesFactory();
         _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("old-value"));
         _innerReader.GetSecretAsync("secret-x", Arg.Any<CancellationToken>())
@@ -180,6 +225,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_AccessDenied_WithLKG_ReturnsError()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory();
         _cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":lkg:")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("was-available"));
         _innerReader.GetSecretAsync("restricted", Arg.Any<CancellationToken>())
@@ -203,6 +249,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_MaxStaleDurationZero_DoesNotServeStaleFallback()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory();
         var options = new SecretsOptions
         {
             EnableCaching = true,
@@ -237,6 +284,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_ResilienceDisabled_DoesNotServeStaleFallback()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory();
         var options = new SecretsOptions
         {
             EnableCaching = true,
@@ -270,11 +318,10 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_Typed_ResilienceError_WithLKG_ReturnsStaleValue()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory<TestConfig>();
         var staleConfig = new TestConfig { Host = "prod-server", Port = 5432 };
         _cache.GetAsync<TestConfig>(Arg.Is<string>(k => k.Contains(":lkg:t:")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TestConfig?>(staleConfig));
-        _cache.GetAsync<TestConfig>(Arg.Is<string>(k => !k.Contains(":lkg:")), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<TestConfig?>(null));
         _innerReader.GetSecretAsync<TestConfig>("db-config", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, TestConfig>>(
                 SecretsErrors.CircuitBreakerOpen("secrets")));
@@ -296,6 +343,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
     public async Task GetSecretAsync_Typed_ResilienceError_NoLKG_ReturnsError()
     {
         // Arrange
+        SetupGetOrSetInvokesFactory<TestConfig>();
         _cache.GetAsync<TestConfig>(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TestConfig?>(null));
         _innerReader.GetSecretAsync<TestConfig>("new-config", Arg.Any<CancellationToken>())

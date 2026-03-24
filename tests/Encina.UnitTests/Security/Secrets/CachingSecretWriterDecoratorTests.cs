@@ -45,12 +45,28 @@ public sealed class CachingSecretWriterDecoratorTests
 
         // Assert
         result.IsRight.Should().BeTrue();
+
+        // Verify all cache key variants are invalidated
         await _cache.Received().RemoveAsync(
             Arg.Is<string>(k => k.Contains(":v:key")),
             Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveAsync(
+            Arg.Is<string>(k => k.Contains(":lkg:key")),
+            Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveByPatternAsync(
+            Arg.Is<string>(p => p.Contains(":t:key:")),
+            Arg.Any<CancellationToken>());
+        await _cache.Received().RemoveByPatternAsync(
+            Arg.Is<string>(p => p.Contains(":lkg:t:key:")),
+            Arg.Any<CancellationToken>());
+
+        // Verify PubSub message has correct fields
         await _pubSub.Received(1).PublishAsync(
             _options.InvalidationChannel,
-            Arg.Any<SecretCacheInvalidationMessage>(),
+            Arg.Is<SecretCacheInvalidationMessage>(m =>
+                m.SecretName == "key" &&
+                m.Operation == "Set" &&
+                m.InvalidatedAtUtc > DateTime.UtcNow.AddMinutes(-1)),
             Arg.Any<CancellationToken>());
     }
 
