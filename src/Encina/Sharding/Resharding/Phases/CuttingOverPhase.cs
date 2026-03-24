@@ -106,7 +106,7 @@ internal sealed class CuttingOverPhase : IReshardingPhase
 
             // 4. Build the new topology from the current topology + plan
             var currentTopology = _topologyProvider.GetTopology();
-            var newTopology = BuildNewTopology(currentTopology, context.Plan);
+            var newTopology = BuildNewTopology(currentTopology);
 
             // 5. Atomically swap the topology
             _logger.LogInformation(
@@ -161,7 +161,7 @@ internal sealed class CuttingOverPhase : IReshardingPhase
     /// by <see cref="IReshardingServices.SwapTopologyAsync"/>. This method returns the
     /// current topology as-is because the topology provider will be refreshed externally.
     /// </summary>
-    private static ShardTopology BuildNewTopology(ShardTopology currentTopology, ReshardingPlan _)
+    private static ShardTopology BuildNewTopology(ShardTopology currentTopology)
     {
         // The new topology is the one the user originally requested via ReshardingRequest.NewTopology.
         // By the time we reach cutover, the topology provider should be updated to serve

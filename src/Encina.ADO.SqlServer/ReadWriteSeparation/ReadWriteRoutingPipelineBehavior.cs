@@ -85,7 +85,7 @@ public sealed class ReadWriteRoutingPipelineBehavior<TRequest, TResponse> : IPip
         ArgumentNullException.ThrowIfNull(nextStep);
 
         // Determine the appropriate database intent
-        var intent = DetermineIntent(request);
+        var intent = DetermineIntent();
 
         Log.SettingDatabaseIntent(_logger, typeof(TRequest).Name, intent, context.CorrelationId);
 
@@ -95,7 +95,7 @@ public sealed class ReadWriteRoutingPipelineBehavior<TRequest, TResponse> : IPip
         return await nextStep();
     }
 
-    private static DatabaseIntent DetermineIntent(TRequest _)
+    private static DatabaseIntent DetermineIntent()
     {
         var requestType = typeof(TRequest);
 

@@ -57,7 +57,6 @@ public sealed class ReadWriteMongoCollectionFactory : IReadWriteMongoCollectionF
 {
     private readonly IMongoClient _mongoClient;
     private readonly EncinaMongoDbOptions _mongoOptions;
-    private readonly MongoReadWriteSeparationOptions _rwOptions;
     private readonly ReadPreference _readPreference;
     private readonly ReadConcern _readConcern;
 
@@ -75,11 +74,11 @@ public sealed class ReadWriteMongoCollectionFactory : IReadWriteMongoCollectionF
 
         _mongoClient = mongoClient;
         _mongoOptions = mongoOptions.Value;
-        _rwOptions = _mongoOptions.ReadWriteSeparationOptions;
+        var rwOptions = _mongoOptions.ReadWriteSeparationOptions;
 
         // Convert Encina read preference to MongoDB driver read preference
-        _readPreference = ConvertReadPreference(_rwOptions.ReadPreference, _rwOptions.MaxStaleness);
-        _readConcern = ConvertReadConcern(_rwOptions.ReadConcern);
+        _readPreference = ConvertReadPreference(rwOptions.ReadPreference, rwOptions.MaxStaleness);
+        _readConcern = ConvertReadConcern(rwOptions.ReadConcern);
     }
 
     /// <inheritdoc/>

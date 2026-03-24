@@ -25,7 +25,6 @@ namespace Encina.Dapper.MySQL.Auditing;
 public sealed class AuditLogStoreDapper : IAuditLogStore
 {
     private readonly IDbConnection _connection;
-    private readonly string _tableName;
     private readonly string _insertSql;
     private readonly string _selectSql;
 
@@ -39,18 +38,18 @@ public sealed class AuditLogStoreDapper : IAuditLogStore
     {
         ArgumentNullException.ThrowIfNull(connection);
         _connection = connection;
-        _tableName = SqlIdentifierValidator.ValidateTableName(tableName);
+        var validatedTableName = SqlIdentifierValidator.ValidateTableName(tableName);
 
         // Build and cache SQL statements
         _insertSql = $@"
-            INSERT INTO `{_tableName}`
+            INSERT INTO `{validatedTableName}`
             (`Id`, `EntityType`, `EntityId`, `Action`, `UserId`, `TimestampUtc`, `OldValues`, `NewValues`, `CorrelationId`)
             VALUES
             (@Id, @EntityType, @EntityId, @Action, @UserId, @TimestampUtc, @OldValues, @NewValues, @CorrelationId)";
 
         _selectSql = $@"
             SELECT `Id`, `EntityType`, `EntityId`, `Action`, `UserId`, `TimestampUtc`, `OldValues`, `NewValues`, `CorrelationId`
-            FROM `{_tableName}`
+            FROM `{validatedTableName}`
             WHERE `EntityType` = @EntityType AND `EntityId` = @EntityId
             ORDER BY `TimestampUtc` DESC";
     }

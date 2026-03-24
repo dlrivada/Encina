@@ -123,7 +123,7 @@ internal sealed class ReshardingOrchestrator : IReshardingOrchestrator
             }
 
             // Build phase implementations
-            var phases = BuildPhases(options);
+            var phases = BuildPhases();
 
             // Build shared context
             var context = new PhaseContext(
@@ -290,7 +290,7 @@ internal sealed class ReshardingOrchestrator : IReshardingOrchestrator
                     $"Resharding operation '{reshardingId}' not found.")));
     }
 
-    private Dictionary<ReshardingPhase, IReshardingPhase> BuildPhases(ReshardingOptions _)
+    private Dictionary<ReshardingPhase, IReshardingPhase> BuildPhases()
     {
         return new Dictionary<ReshardingPhase, IReshardingPhase>
         {

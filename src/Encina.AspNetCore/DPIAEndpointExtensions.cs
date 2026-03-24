@@ -226,6 +226,7 @@ public static class DPIAEndpointExtensions
     /// <summary>
     /// Triggers a risk assessment for a request type.
     /// </summary>
+#pragma warning disable S1172 // Parameters are resolved by ASP.NET Core minimal API DI
     private static async Task<IResult> HandleAssessRequestType(
         string requestType,
         AssessDPIARequest? request,
@@ -236,6 +237,7 @@ public static class DPIAEndpointExtensions
         HttpContext httpContext,
         ILogger<DPIAEndpointMarker> logger,
         CancellationToken cancellationToken)
+#pragma warning restore S1172
     {
         using var activity = DPIADiagnostics.StartEndpointExecution("assess");
         var startedAt = Stopwatch.GetTimestamp();
