@@ -272,25 +272,39 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(secretName);
 
+        // Best-effort invalidation: each key/pattern is independent.
+        // Failure on one doesn't prevent attempting the others.
+        await TryRemoveAsync(ValueKey(secretName), cancellationToken).ConfigureAwait(false);
+        await TryRemoveAsync(LkgKey(secretName), cancellationToken).ConfigureAwait(false);
+        await TryRemoveByPatternAsync(
+            $"{_cachingOptions.CacheKeyPrefix}:t:{secretName}:*", cancellationToken).ConfigureAwait(false);
+        await TryRemoveByPatternAsync(
+            $"{_cachingOptions.CacheKeyPrefix}:lkg:t:{secretName}:*", cancellationToken).ConfigureAwait(false);
+
+        Log.CacheInvalidated(_logger, secretName);
+    }
+
+    private async Task TryRemoveAsync(string key, CancellationToken cancellationToken)
+    {
         try
         {
-            // Remove explicit known keys for the secret
-            await _cache.RemoveAsync(ValueKey(secretName), cancellationToken).ConfigureAwait(false);
-            await _cache.RemoveAsync(LkgKey(secretName), cancellationToken).ConfigureAwait(false);
-
-            // Remove typed variants via pattern (type suffix is unknown at invalidation time)
-            await _cache.RemoveByPatternAsync(
-                $"{_cachingOptions.CacheKeyPrefix}:t:{secretName}:*",
-                cancellationToken).ConfigureAwait(false);
-            await _cache.RemoveByPatternAsync(
-                $"{_cachingOptions.CacheKeyPrefix}:lkg:t:{secretName}:*",
-                cancellationToken).ConfigureAwait(false);
-
-            Log.CacheInvalidated(_logger, secretName);
+            await _cache.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            Log.CacheInvalidationError(_logger, secretName, ex);
+            Log.CacheKeyRemovalError(_logger, key, ex);
+        }
+    }
+
+    private async Task TryRemoveByPatternAsync(string pattern, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _cache.RemoveByPatternAsync(pattern, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.CacheKeyRemovalError(_logger, pattern, ex);
         }
     }
 

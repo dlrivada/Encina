@@ -116,7 +116,7 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         }
         catch (Exception ex)
         {
-            Log.CacheInvalidationError(_logger, key, ex);
+            Log.CacheKeyRemovalError(_logger, key, ex);
         }
     }
 
@@ -128,7 +128,7 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         }
         catch (Exception ex)
         {
-            Log.CacheInvalidationError(_logger, pattern, ex);
+            Log.CacheKeyRemovalError(_logger, pattern, ex);
         }
     }
 

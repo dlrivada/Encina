@@ -20,7 +20,7 @@ internal static partial class Log
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Secret provider '{ProviderName}' is unavailable")]
     public static partial void ProviderUnavailable(ILogger logger, string providerName, Exception exception);
 
-    // ── Distributed caching operations: EventIds 8950-8966 (see EventIdRanges.SecuritySecrets) ──
+    // ── Distributed caching operations: EventIds 8950-8967 (see EventIdRanges.SecuritySecrets) ──
 
     [LoggerMessage(EventId = 8950, Level = LogLevel.Debug, Message = "Cache hit for secret '{SecretName}'")]
     public static partial void CacheHit(ILogger logger, string secretName);
@@ -60,6 +60,9 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 8962, Level = LogLevel.Warning, Message = "Cache invalidation error for secret '{SecretName}'")]
     public static partial void CacheInvalidationError(ILogger logger, string secretName, Exception exception);
+
+    [LoggerMessage(EventId = 8967, Level = LogLevel.Warning, Message = "Cache key/pattern removal error for '{KeyOrPattern}'")]
+    public static partial void CacheKeyRemovalError(ILogger logger, string keyOrPattern, Exception exception);
 
     [LoggerMessage(EventId = 8963, Level = LogLevel.Warning, Message = "PubSub publish error for secret '{SecretName}' on channel '{Channel}'")]
     public static partial void PubSubPublishError(ILogger logger, string secretName, string channel, Exception exception);
