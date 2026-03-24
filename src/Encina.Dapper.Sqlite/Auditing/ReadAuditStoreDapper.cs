@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using Dapper;
@@ -318,6 +319,8 @@ public sealed class ReadAuditStoreDapper : IReadAuditStore
     /// SQLite stores GUIDs and DateTimeOffsets as TEXT, so we use string properties
     /// and convert during mapping.
     /// </remarks>
+    [SuppressMessage("SonarAnalyzer.CSharp", "S1144", Justification = "Properties set by Dapper via reflection")]
+    [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Properties set by Dapper via reflection")]
     private sealed class ReadAuditEntryRow
     {
         public required string Id { get; init; }
