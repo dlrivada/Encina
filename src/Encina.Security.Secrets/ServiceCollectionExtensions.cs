@@ -264,15 +264,20 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredService<ILogger<CachingSecretWriterDecorator>>()));
 
             // Register PubSub hosted service for cross-instance cache invalidation.
-            // Requires IPubSubProvider to be registered in DI (same pattern as ABAC).
+            // Only activates when IPubSubProvider is actually available in DI —
+            // EnablePubSubInvalidation defaults to true, so apps without PubSub
+            // simply skip cross-instance invalidation without failing at startup.
             if (optionsInstance.Caching.EnablePubSubInvalidation)
             {
-                services.AddHostedService<SecretCachePubSubHostedService>(sp =>
-                    new SecretCachePubSubHostedService(
+                services.AddHostedService(sp =>
+                {
+                    var pubSub = sp.GetService<IPubSubProvider>();
+                    return new SecretCachePubSubHostedService(
                         sp.GetRequiredService<ICacheProvider>(),
-                        sp.GetRequiredService<IPubSubProvider>(),
+                        pubSub,
                         optionsInstance.Caching,
-                        sp.GetRequiredService<ILogger<SecretCachePubSubHostedService>>()));
+                        sp.GetRequiredService<ILogger<SecretCachePubSubHostedService>>());
+                });
             }
         }
 
@@ -316,7 +321,6 @@ public static class ServiceCollectionExtensions
             reader = new CachingSecretReaderDecorator(
                 reader,
                 sp.GetRequiredService<ICacheProvider>(),
-                sp.GetService<IPubSubProvider>(),
                 options.Caching,
                 options,
                 sp.GetRequiredService<ILogger<CachingSecretReaderDecorator>>(),

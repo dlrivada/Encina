@@ -13,6 +13,7 @@ Replaced `CachedSecretReaderDecorator` (IMemoryCache) with `CachingSecretReaderD
 - **`SecretCacheInvalidationMessage`**: Typed PubSub message for invalidation broadcasting
 - **EventId range 8950-8967**: Registered in `EventIdRanges.SecuritySecrets` for structured logging
 - **Breaking**: `IMemoryCache` dependency removed — `ICacheProvider` is now required when `EnableCaching = true` (use `AddEncinaMemoryCache()` for in-memory caching)
+- **Breaking**: `CachedSecretReaderDecorator.Invalidate(string)` replaced by `CachingSecretReaderDecorator.InvalidateAsync(string, CancellationToken)` (sync → async)
 
 #### Encina.Security — Core Security Abstractions and Pipeline Behavior (#394)
 

@@ -16,7 +16,6 @@ public sealed class CachingSecretReaderDecoratorTests
 {
     private readonly ISecretReader _innerReader;
     private readonly ICacheProvider _cache;
-    private readonly IPubSubProvider? _pubSub;
     private readonly SecretCachingOptions _cachingOptions;
     private readonly SecretsOptions _secretsOptions;
     private readonly ILogger<CachingSecretReaderDecorator> _logger;
@@ -25,7 +24,6 @@ public sealed class CachingSecretReaderDecoratorTests
     {
         _innerReader = Substitute.For<ISecretReader>();
         _cache = Substitute.For<ICacheProvider>();
-        _pubSub = null;
         _cachingOptions = new SecretCachingOptions();
         _secretsOptions = new SecretsOptions
         {
@@ -194,7 +192,7 @@ public sealed class CachingSecretReaderDecoratorTests
     }
 
     [Fact]
-    public async Task InvalidateAsync_NullSecretName_ThrowsArgumentException()
+    public async Task InvalidateAsync_NullSecretName_ThrowsArgumentNullException()
     {
         // Arrange
         var decorator = CreateDecorator();
@@ -221,7 +219,7 @@ public sealed class CachingSecretReaderDecoratorTests
     public void Constructor_NullInner_ThrowsArgumentNullException()
     {
         var act = () => new CachingSecretReaderDecorator(
-            null!, _cache, _pubSub, _cachingOptions, _secretsOptions, _logger);
+            null!, _cache, _cachingOptions, _secretsOptions, _logger);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
     }
@@ -230,7 +228,7 @@ public sealed class CachingSecretReaderDecoratorTests
     public void Constructor_NullCache_ThrowsArgumentNullException()
     {
         var act = () => new CachingSecretReaderDecorator(
-            _innerReader, null!, _pubSub, _cachingOptions, _secretsOptions, _logger);
+            _innerReader, null!, _cachingOptions, _secretsOptions, _logger);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("cache");
     }
@@ -239,7 +237,7 @@ public sealed class CachingSecretReaderDecoratorTests
     public void Constructor_NullCachingOptions_ThrowsArgumentNullException()
     {
         var act = () => new CachingSecretReaderDecorator(
-            _innerReader, _cache, _pubSub, null!, _secretsOptions, _logger);
+            _innerReader, _cache, null!, _secretsOptions, _logger);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("cachingOptions");
     }
@@ -248,7 +246,7 @@ public sealed class CachingSecretReaderDecoratorTests
     public void Constructor_NullSecretsOptions_ThrowsArgumentNullException()
     {
         var act = () => new CachingSecretReaderDecorator(
-            _innerReader, _cache, _pubSub, _cachingOptions, null!, _logger);
+            _innerReader, _cache, _cachingOptions, null!, _logger);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("secretsOptions");
     }
@@ -257,18 +255,9 @@ public sealed class CachingSecretReaderDecoratorTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new CachingSecretReaderDecorator(
-            _innerReader, _cache, _pubSub, _cachingOptions, _secretsOptions, null!);
+            _innerReader, _cache, _cachingOptions, _secretsOptions, null!);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
-    }
-
-    [Fact]
-    public void Constructor_NullPubSub_DoesNotThrow()
-    {
-        var act = () => new CachingSecretReaderDecorator(
-            _innerReader, _cache, null, _cachingOptions, _secretsOptions, _logger);
-
-        act.Should().NotThrow();
     }
 
     #endregion
@@ -276,7 +265,7 @@ public sealed class CachingSecretReaderDecoratorTests
     #region Helpers
 
     private CachingSecretReaderDecorator CreateDecorator() =>
-        new(_innerReader, _cache, _pubSub, _cachingOptions, _secretsOptions, _logger);
+        new(_innerReader, _cache, _cachingOptions, _secretsOptions, _logger);
 
     private sealed class TestConfig
     {

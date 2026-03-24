@@ -70,8 +70,9 @@ public sealed class SecretCachingOptions
     /// Gets or sets the tag applied to all cached secret entries for bulk invalidation.
     /// </summary>
     /// <remarks>
-    /// Tags enable efficient bulk eviction via <c>ICacheProvider.RemoveByTagAsync</c>
-    /// when the cache provider supports it.
+    /// Tags provide a logical grouping identifier for secret cache entries. Currently used
+    /// for semantic identification; bulk eviction is performed via
+    /// <c>ICacheProvider.RemoveByPatternAsync</c> using the <see cref="CacheKeyPrefix"/>.
     /// Default is <c>"secrets"</c>.
     /// </remarks>
     public string CacheTag { get; set; } = "secrets";

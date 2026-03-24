@@ -377,7 +377,7 @@ public sealed class SecretsIntegrationTests : IDisposable
         var logger = NullLoggerFactory.Instance.CreateLogger<CachingSecretReaderDecorator>();
 
         var reader = new CachingSecretReaderDecorator(
-            mockReader, cache, null, new SecretCachingOptions(), secretsOptions, logger);
+            mockReader, cache, new SecretCachingOptions(), secretsOptions, logger);
 
         // First call - cache miss, goes to inner
         var result1 = await reader.GetSecretAsync("cached-secret");

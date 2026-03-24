@@ -20,7 +20,7 @@ internal static partial class Log
     [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Secret provider '{ProviderName}' is unavailable")]
     public static partial void ProviderUnavailable(ILogger logger, string providerName, Exception exception);
 
-    // ── Distributed caching operations: EventIds 8950-8961 (see EventIdRanges.SecuritySecrets) ──
+    // ── Distributed caching operations: EventIds 8950-8967 (see EventIdRanges.SecuritySecrets) ──
 
     [LoggerMessage(EventId = 8950, Level = LogLevel.Debug, Message = "Cache hit for secret '{SecretName}'")]
     public static partial void CacheHit(ILogger logger, string secretName);

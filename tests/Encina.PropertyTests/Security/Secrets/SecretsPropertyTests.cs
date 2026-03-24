@@ -127,7 +127,6 @@ public sealed class SecretsPropertyTests
         var cachedReader = new CachingSecretReaderDecorator(
             innerProvider,
             cache,
-            null,
             new SecretCachingOptions(),
             secretsOptions,
             NullLogger<CachingSecretReaderDecorator>.Instance);

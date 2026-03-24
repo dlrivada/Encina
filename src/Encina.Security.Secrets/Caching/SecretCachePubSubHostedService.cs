@@ -40,7 +40,7 @@ namespace Encina.Security.Secrets.Caching;
 internal sealed class SecretCachePubSubHostedService : IHostedService
 {
     private readonly ICacheProvider _cache;
-    private readonly IPubSubProvider _pubSub;
+    private readonly IPubSubProvider? _pubSub;
     private readonly SecretCachingOptions _options;
     private readonly ILogger<SecretCachePubSubHostedService> _logger;
     private IAsyncDisposable? _subscription;
@@ -49,17 +49,19 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
     /// Initializes a new instance of the <see cref="SecretCachePubSubHostedService"/> class.
     /// </summary>
     /// <param name="cache">The cache provider for local cache eviction.</param>
-    /// <param name="pubSub">The PubSub provider for subscribing to invalidation messages.</param>
+    /// <param name="pubSub">
+    /// The PubSub provider for subscribing to invalidation messages.
+    /// When <c>null</c>, the hosted service starts as a no-op (logs a warning on startup).
+    /// </param>
     /// <param name="options">The secrets caching configuration.</param>
     /// <param name="logger">The logger instance.</param>
     public SecretCachePubSubHostedService(
         ICacheProvider cache,
-        IPubSubProvider pubSub,
+        IPubSubProvider? pubSub,
         SecretCachingOptions options,
         ILogger<SecretCachePubSubHostedService> logger)
     {
         ArgumentNullException.ThrowIfNull(cache);
-        ArgumentNullException.ThrowIfNull(pubSub);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -72,6 +74,13 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
     /// <inheritdoc/>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (_pubSub is null)
+        {
+            Log.PubSubSubscriptionFailed(_logger, _options.InvalidationChannel,
+                new InvalidOperationException("IPubSubProvider is not registered — cross-instance cache invalidation disabled."));
+            return;
+        }
+
         try
         {
             _subscription = await _pubSub.SubscribeAsync<SecretCacheInvalidationMessage>(

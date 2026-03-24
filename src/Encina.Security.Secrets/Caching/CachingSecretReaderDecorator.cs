@@ -8,15 +8,16 @@ namespace Encina.Security.Secrets.Caching;
 
 /// <summary>
 /// Decorator that wraps an <see cref="ISecretReader"/> with cache-aside reads
-/// via <see cref="ICacheProvider"/> for distributed caching with stampede protection,
+/// via <see cref="ICacheProvider"/> for distributed caching,
 /// and optional last-known-good stale fallback for resilience.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Read operations</b> use the cache-aside pattern: on cache miss, the inner reader is
-/// queried and the result is cached for <see cref="SecretsOptions.DefaultCacheDuration"/>. The
-/// <see cref="ICacheProvider.GetOrSetAsync{T}"/> method provides stampede protection —
-/// concurrent cold-cache requests result in a single provider call.
+/// queried and the result is cached for <see cref="SecretsOptions.DefaultCacheDuration"/>.
+/// Manual <see cref="ICacheProvider.GetAsync{T}"/> / <see cref="ICacheProvider.SetAsync{T}"/>
+/// calls are used (rather than <c>GetOrSetAsync</c>) to support ROP-aware caching where
+/// only <c>Right</c> results are cached.
 /// </para>
 /// <para>
 /// <b>ROP-aware caching:</b> Only <c>Right</c> (successful) results are cached. <c>Left</c>
@@ -58,7 +59,6 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
 {
     private readonly ISecretReader _inner;
     private readonly ICacheProvider _cache;
-    private readonly IPubSubProvider? _pubSub;
     private readonly SecretCachingOptions _cachingOptions;
     private readonly SecretsOptions _secretsOptions;
     private readonly ILogger<CachingSecretReaderDecorator> _logger;
@@ -76,10 +76,6 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
     /// </summary>
     /// <param name="inner">The inner secret reader to wrap.</param>
     /// <param name="cache">The cache provider for read/write operations.</param>
-    /// <param name="pubSub">
-    /// Optional pub/sub provider for cross-instance invalidation.
-    /// When <c>null</c>, PubSub invalidation is silently skipped.
-    /// </param>
     /// <param name="cachingOptions">The secrets caching configuration.</param>
     /// <param name="secretsOptions">The main secrets configuration (provides TTL and resilience settings).</param>
     /// <param name="logger">The logger instance.</param>
@@ -87,7 +83,6 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
     public CachingSecretReaderDecorator(
         ISecretReader inner,
         ICacheProvider cache,
-        IPubSubProvider? pubSub,
         SecretCachingOptions cachingOptions,
         SecretsOptions secretsOptions,
         ILogger<CachingSecretReaderDecorator> logger,
@@ -101,7 +96,6 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
 
         _inner = inner;
         _cache = cache;
-        _pubSub = pubSub;
         _cachingOptions = cachingOptions;
         _secretsOptions = secretsOptions;
         _logger = logger;
@@ -154,7 +148,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
             {
                 if (IsResilienceError(error))
                 {
-                    var stale = await TryGetLastKnownGoodAsync<string>(lkgKey, cancellationToken).ConfigureAwait(false);
+                    var stale = await TryGetLastKnownGoodAsync<string>(secretName, lkgKey, cancellationToken).ConfigureAwait(false);
                     if (stale is not null)
                     {
                         Log.CacheStaleFallbackServed(_logger, secretName);
@@ -216,7 +210,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
             {
                 if (IsResilienceError(error))
                 {
-                    var stale = await TryGetLastKnownGoodAsync<T>(lkgKey, cancellationToken).ConfigureAwait(false);
+                    var stale = await TryGetLastKnownGoodAsync<T>(secretName, lkgKey, cancellationToken).ConfigureAwait(false);
                     if (stale is not null)
                     {
                         Log.CacheStaleFallbackServed(_logger, secretName);
@@ -280,7 +274,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         await TryCacheAsync(lkgKey, value, _secretsOptions.Resilience.MaxStaleDuration, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<T?> TryGetLastKnownGoodAsync<T>(string lkgKey, CancellationToken cancellationToken)
+    private async Task<T?> TryGetLastKnownGoodAsync<T>(string secretName, string lkgKey, CancellationToken cancellationToken)
     {
         if (!_secretsOptions.EnableResilience || _secretsOptions.Resilience.MaxStaleDuration <= TimeSpan.Zero)
         {
@@ -293,7 +287,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
         catch (Exception ex)
         {
-            Log.CacheError(_logger, "lkg", lkgKey, ex);
+            Log.CacheError(_logger, secretName, lkgKey, ex);
             return default;
         }
     }

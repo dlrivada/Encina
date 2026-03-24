@@ -211,7 +211,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
             Resilience = new SecretsResilienceOptions { MaxStaleDuration = TimeSpan.Zero }
         };
         var decorator = new CachingSecretReaderDecorator(
-            _innerReader, _cache, null, new SecretCachingOptions(), options, _logger);
+            _innerReader, _cache, new SecretCachingOptions(), options, _logger);
 
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
@@ -241,7 +241,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
             Resilience = new SecretsResilienceOptions { MaxStaleDuration = TimeSpan.FromHours(1) }
         };
         var decorator = new CachingSecretReaderDecorator(
-            _innerReader, _cache, null, new SecretCachingOptions(), options, _logger);
+            _innerReader, _cache, new SecretCachingOptions(), options, _logger);
 
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
@@ -319,7 +319,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
             }
         };
         return new CachingSecretReaderDecorator(
-            _innerReader, _cache, null, new SecretCachingOptions(), options, _logger);
+            _innerReader, _cache, new SecretCachingOptions(), options, _logger);
     }
 
     private sealed class TestConfig
