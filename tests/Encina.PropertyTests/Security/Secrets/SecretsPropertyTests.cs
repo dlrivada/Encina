@@ -1,22 +1,22 @@
 #pragma warning disable CA2012 // ValueTask should not be awaited multiple times - used via .AsTask().Result in sync property tests
 
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Providers;
 using FsCheck;
 using FsCheck.Xunit;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
+using NSubstitute;
 
 namespace Encina.PropertyTests.Security.Secrets;
 
 /// <summary>
 /// Property-based tests for <see cref="ISecretReader"/> invariants.
 /// Verifies behavioral properties across ConfigurationSecretProvider
-/// and CachedSecretReaderDecorator.
+/// and CachingSecretReaderDecorator.
 /// </summary>
 [Trait("Category", "Property")]
 [Trait("Feature", "Secrets")]
@@ -114,18 +114,23 @@ public sealed class SecretsPropertyTests
             configuration,
             NullLogger<ConfigurationSecretProvider>.Instance);
 
-        var options = Options.Create(new SecretsOptions
+        var secretsOptions = new SecretsOptions
         {
             EnableCaching = true,
             DefaultCacheDuration = TimeSpan.FromMinutes(5)
-        });
+        };
 
-        using var cache = new MemoryCache(new MemoryCacheOptions());
-        var cachedReader = new CachedSecretReaderDecorator(
+        var cache = Substitute.For<ICacheProvider>();
+        // Return null on first call (miss), then let it pass through to inner
+        cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        var cachedReader = new CachingSecretReaderDecorator(
             innerProvider,
             cache,
-            options,
-            NullLogger<CachedSecretReaderDecorator>.Instance);
+            null,
+            new SecretCachingOptions(),
+            secretsOptions,
+            NullLogger<CachingSecretReaderDecorator>.Instance);
 
         // Act - read twice
         var result1 = cachedReader.GetSecretAsync(sanitizedKey).AsTask().Result;

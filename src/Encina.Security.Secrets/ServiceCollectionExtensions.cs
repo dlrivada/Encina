@@ -1,3 +1,4 @@
+using Encina.Caching;
 using Encina.Security.Audit;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
@@ -9,10 +10,10 @@ using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
 using Encina.Security.Secrets.Resilience;
 using Encina.Security.Secrets.Rotation;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -36,7 +37,7 @@ public static class ServiceCollectionExtensions
     /// <list type="bullet">
     /// <item><see cref="SecretsOptions"/> — Configured via the provided action</item>
     /// <item><see cref="ISecretReader"/> → <see cref="EnvironmentSecretProvider"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="CachedSecretReaderDecorator"/> — Wraps the reader when <see cref="SecretsOptions.EnableCaching"/> is <c>true</c></item>
+    /// <item><see cref="CachingSecretReaderDecorator"/> — Wraps the reader when <see cref="SecretsOptions.EnableCaching"/> is <c>true</c></item>
     /// <item><see cref="AuditedSecretReaderDecorator"/> — Wraps the reader when <see cref="SecretsOptions.EnableAccessAuditing"/> is <c>true</c></item>
     /// <item><see cref="SecretRotationCoordinator"/> — Registered when rotation handlers are present</item>
     /// <item><see cref="SecretsHealthCheck"/> — Registered when <see cref="SecretsOptions.ProviderHealthCheck"/> is <c>true</c></item>
@@ -250,6 +251,31 @@ public static class ServiceCollectionExtensions
                     sp.GetService<SecretsMetrics>()));
         }
 
+        // ── Caching writer decorator + PubSub hosted service ──────────
+        if (optionsInstance.EnableCaching)
+        {
+            // Decorate ISecretWriter with caching invalidation
+            DecorateService<ISecretWriter>(services, (inner, sp) =>
+                new CachingSecretWriterDecorator(
+                    inner,
+                    sp.GetRequiredService<ICacheProvider>(),
+                    sp.GetService<IPubSubProvider>(),
+                    optionsInstance.Caching,
+                    sp.GetRequiredService<ILogger<CachingSecretWriterDecorator>>()));
+
+            // Register PubSub hosted service for cross-instance cache invalidation.
+            // Requires IPubSubProvider to be registered in DI (same pattern as ABAC).
+            if (optionsInstance.Caching.EnablePubSubInvalidation)
+            {
+                services.AddHostedService<SecretCachePubSubHostedService>(sp =>
+                    new SecretCachePubSubHostedService(
+                        sp.GetRequiredService<ICacheProvider>(),
+                        sp.GetRequiredService<IPubSubProvider>(),
+                        optionsInstance.Caching,
+                        sp.GetRequiredService<ILogger<SecretCachePubSubHostedService>>()));
+            }
+        }
+
         // Register secret injection pipeline behavior if enabled
         if (optionsInstance.EnableSecretInjection)
         {
@@ -287,11 +313,13 @@ public static class ServiceCollectionExtensions
         // Layer 1: Caching (wraps resilience — cache hits bypass retries, stale fallback on error)
         if (options.EnableCaching)
         {
-            reader = new CachedSecretReaderDecorator(
+            reader = new CachingSecretReaderDecorator(
                 reader,
-                sp.GetRequiredService<IMemoryCache>(),
-                sp.GetRequiredService<IOptions<SecretsOptions>>(),
-                sp.GetRequiredService<ILogger<CachedSecretReaderDecorator>>(),
+                sp.GetRequiredService<ICacheProvider>(),
+                sp.GetService<IPubSubProvider>(),
+                options.Caching,
+                options,
+                sp.GetRequiredService<ILogger<CachingSecretReaderDecorator>>(),
                 sp.GetService<SecretsMetrics>());
         }
 

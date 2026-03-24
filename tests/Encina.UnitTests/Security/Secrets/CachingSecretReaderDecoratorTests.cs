@@ -1,0 +1,287 @@
+#pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
+
+using Encina.Caching;
+using Encina.Security.Secrets;
+using Encina.Security.Secrets.Abstractions;
+using Encina.Security.Secrets.Caching;
+using FluentAssertions;
+using LanguageExt;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+
+namespace Encina.UnitTests.Security.Secrets;
+
+public sealed class CachingSecretReaderDecoratorTests
+{
+    private readonly ISecretReader _innerReader;
+    private readonly ICacheProvider _cache;
+    private readonly IPubSubProvider? _pubSub;
+    private readonly SecretCachingOptions _cachingOptions;
+    private readonly SecretsOptions _secretsOptions;
+    private readonly ILogger<CachingSecretReaderDecorator> _logger;
+
+    public CachingSecretReaderDecoratorTests()
+    {
+        _innerReader = Substitute.For<ISecretReader>();
+        _cache = Substitute.For<ICacheProvider>();
+        _pubSub = null;
+        _cachingOptions = new SecretCachingOptions();
+        _secretsOptions = new SecretsOptions
+        {
+            EnableCaching = true,
+            DefaultCacheDuration = TimeSpan.FromMinutes(5)
+        };
+        _logger = Substitute.For<ILogger<CachingSecretReaderDecorator>>();
+    }
+
+    #region GetSecretAsync (string) - Cache Hit
+
+    [Fact]
+    public async Task GetSecretAsync_CacheHit_ReturnsFromCache_DoesNotCallInner()
+    {
+        // Arrange
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>("cached-value"));
+        var decorator = CreateDecorator();
+
+        // Act
+        var result = await decorator.GetSecretAsync("key");
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        result.IfRight(v => v.Should().Be("cached-value"));
+        await _innerReader.DidNotReceive().GetSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
+    #region GetSecretAsync (string) - Cache Miss
+
+    [Fact]
+    public async Task GetSecretAsync_CacheMiss_CallsInner_StoresInCache()
+    {
+        // Arrange
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, string>>("inner-value"));
+        var decorator = CreateDecorator();
+
+        // Act
+        var result = await decorator.GetSecretAsync("key");
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        result.IfRight(v => v.Should().Be("inner-value"));
+        await _cache.Received(1).SetAsync(
+            Arg.Is<string>(k => k.Contains(":v:key")),
+            "inner-value",
+            _secretsOptions.DefaultCacheDuration,
+            Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
+    #region GetSecretAsync (string) - Error Not Cached
+
+    [Fact]
+    public async Task GetSecretAsync_InnerReturnsError_DoesNotCache()
+    {
+        // Arrange
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+        _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, string>>(
+                SecretsErrors.NotFound("key")));
+        var decorator = CreateDecorator();
+
+        // Act
+        var result = await decorator.GetSecretAsync("key");
+
+        // Assert
+        result.IsLeft.Should().BeTrue();
+        await _cache.DidNotReceive().SetAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
+    #region GetSecretAsync (string) - Cache Provider Failure
+
+    [Fact]
+    public async Task GetSecretAsync_CacheProviderFails_FallsToInner()
+    {
+        // Arrange
+        _cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("Cache down"));
+        _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, string>>("fallback-value"));
+        var decorator = CreateDecorator();
+
+        // Act
+        var result = await decorator.GetSecretAsync("key");
+
+        // Assert
+        result.IsRight.Should().BeTrue();
+        result.IfRight(v => v.Should().Be("fallback-value"));
+    }
+
+    #endregion
+
+    #region GetSecretAsync (string) - Caching Disabled
+
+    [Fact]
+    public async Task GetSecretAsync_CachingDisabled_PassesThroughToInner()
+    {
+        // Arrange
+        _secretsOptions.EnableCaching = false;
+        _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, string>>("value"));
+        var decorator = CreateDecorator();
+
+        // Act
+        await decorator.GetSecretAsync("key");
+
+        // Assert
+        await _cache.DidNotReceive().GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _innerReader.Received(1).GetSecretAsync("key", Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
+    #region GetSecretAsync<T> (typed) - Separate Cache Key
+
+    [Fact]
+    public async Task GetSecretAsync_TypedSecret_UsesSeparateCacheKey()
+    {
+        // Arrange
+        _cache.GetAsync<TestConfig>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<TestConfig?>(null));
+        var expected = new TestConfig { Host = "localhost" };
+        _innerReader.GetSecretAsync<TestConfig>("config", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, TestConfig>>(expected));
+        var decorator = CreateDecorator();
+
+        // Act
+        await decorator.GetSecretAsync<TestConfig>("config");
+
+        // Assert — typed key contains type name
+        await _cache.Received(1).SetAsync(
+            Arg.Is<string>(k => k.Contains(":t:config:") && k.Contains(nameof(TestConfig))),
+            expected,
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
+    #region InvalidateAsync
+
+    [Fact]
+    public async Task InvalidateAsync_RemovesAllCacheVariantsByPattern()
+    {
+        // Arrange
+        var decorator = CreateDecorator();
+
+        // Act
+        await decorator.InvalidateAsync("my-secret");
+
+        // Assert
+        await _cache.Received(1).RemoveByPatternAsync(
+            Arg.Is<string>(p => p.Contains("my-secret")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvalidateAsync_NullSecretName_ThrowsArgumentException()
+    {
+        // Arrange
+        var decorator = CreateDecorator();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() => decorator.InvalidateAsync(null!));
+    }
+
+    [Fact]
+    public async Task InvalidateAsync_EmptySecretName_ThrowsArgumentException()
+    {
+        // Arrange
+        var decorator = CreateDecorator();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => decorator.InvalidateAsync(""));
+    }
+
+    #endregion
+
+    #region Constructor Validation
+
+    [Fact]
+    public void Constructor_NullInner_ThrowsArgumentNullException()
+    {
+        var act = () => new CachingSecretReaderDecorator(
+            null!, _cache, _pubSub, _cachingOptions, _secretsOptions, _logger);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+    }
+
+    [Fact]
+    public void Constructor_NullCache_ThrowsArgumentNullException()
+    {
+        var act = () => new CachingSecretReaderDecorator(
+            _innerReader, null!, _pubSub, _cachingOptions, _secretsOptions, _logger);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("cache");
+    }
+
+    [Fact]
+    public void Constructor_NullCachingOptions_ThrowsArgumentNullException()
+    {
+        var act = () => new CachingSecretReaderDecorator(
+            _innerReader, _cache, _pubSub, null!, _secretsOptions, _logger);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("cachingOptions");
+    }
+
+    [Fact]
+    public void Constructor_NullSecretsOptions_ThrowsArgumentNullException()
+    {
+        var act = () => new CachingSecretReaderDecorator(
+            _innerReader, _cache, _pubSub, _cachingOptions, null!, _logger);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("secretsOptions");
+    }
+
+    [Fact]
+    public void Constructor_NullLogger_ThrowsArgumentNullException()
+    {
+        var act = () => new CachingSecretReaderDecorator(
+            _innerReader, _cache, _pubSub, _cachingOptions, _secretsOptions, null!);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+    }
+
+    [Fact]
+    public void Constructor_NullPubSub_DoesNotThrow()
+    {
+        var act = () => new CachingSecretReaderDecorator(
+            _innerReader, _cache, null, _cachingOptions, _secretsOptions, _logger);
+
+        act.Should().NotThrow();
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private CachingSecretReaderDecorator CreateDecorator() =>
+        new(_innerReader, _cache, _pubSub, _cachingOptions, _secretsOptions, _logger);
+
+    private sealed class TestConfig
+    {
+        public string Host { get; set; } = "";
+    }
+
+    #endregion
+}

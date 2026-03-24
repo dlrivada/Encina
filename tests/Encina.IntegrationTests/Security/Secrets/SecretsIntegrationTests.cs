@@ -9,7 +9,7 @@ using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
 using FluentAssertions;
 using LanguageExt;
-using Microsoft.Extensions.Caching.Memory;
+using Encina.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -45,7 +45,7 @@ public sealed class SecretsIntegrationTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         services.AddEncinaSecrets();
         var provider = services.BuildServiceProvider();
@@ -59,13 +59,13 @@ public sealed class SecretsIntegrationTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         services.AddEncinaSecrets(o => o.EnableCaching = true);
         var provider = services.BuildServiceProvider();
 
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<CachedSecretReaderDecorator>();
+        reader.Should().BeOfType<CachingSecretReaderDecorator>();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class SecretsIntegrationTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         services.AddEncinaSecrets(o => o.EnableMetrics = true);
         var provider = services.BuildServiceProvider();
@@ -240,7 +240,7 @@ public sealed class SecretsIntegrationTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
         services.AddEncinaSecrets(o => o.ProviderHealthCheck = true);
 
         var provider = services.BuildServiceProvider();
@@ -364,33 +364,51 @@ public sealed class SecretsIntegrationTests : IDisposable
             });
 #pragma warning restore CA2012
 
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddMemoryCache();
-        var provider = services.BuildServiceProvider();
+        var cache = Substitute.For<ICacheProvider>();
+        // Simulate cache miss (returns null)
+        cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
 
-        var cache = provider.GetRequiredService<IMemoryCache>();
-        var options = Options.Create(new SecretsOptions
+        var secretsOptions = new SecretsOptions
         {
             EnableCaching = true,
             DefaultCacheDuration = TimeSpan.FromMinutes(5)
-        });
-        var logger = NullLoggerFactory.Instance.CreateLogger<CachedSecretReaderDecorator>();
+        };
+        var logger = NullLoggerFactory.Instance.CreateLogger<CachingSecretReaderDecorator>();
 
-        var reader = new CachedSecretReaderDecorator(mockReader, cache, options, logger);
+        var reader = new CachingSecretReaderDecorator(
+            mockReader, cache, null, new SecretCachingOptions(), secretsOptions, logger);
 
-        // First call - cache miss
+        // First call - cache miss, goes to inner
         var result1 = await reader.GetSecretAsync("cached-secret");
         result1.IfRight(v => v.Should().Be("value-1"));
 
-        // Second call - cache hit (same value)
+        // Verify cache was populated
+        await cache.Received(1).SetAsync(
+            Arg.Is<string>(k => k.Contains("cached-secret")),
+            "value-1",
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>());
+
+        // Second call - simulate cache hit
+        cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":v:cached-secret")), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>("value-1"));
         var result2 = await reader.GetSecretAsync("cached-secret");
         result2.IfRight(v => v.Should().Be("value-1"));
 
         // Invalidate cache
-        reader.Invalidate("cached-secret");
+        await reader.InvalidateAsync("cached-secret");
 
-        // Third call - cache miss again (new value)
+        // Verify pattern removal was called
+        await cache.Received().RemoveByPatternAsync(
+            Arg.Is<string>(p => p.Contains("cached-secret")),
+            Arg.Any<CancellationToken>());
+
+        // Reset mock to cache miss after invalidation
+        cache.GetAsync<string>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<string?>(null));
+
+        // Third call - cache miss again (new value from inner)
         var result3 = await reader.GetSecretAsync("cached-secret");
         result3.IfRight(v => v.Should().Be("value-2"));
     }

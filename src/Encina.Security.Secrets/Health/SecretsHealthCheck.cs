@@ -97,7 +97,7 @@ public sealed class SecretsHealthCheck : IHealthCheck
             }
 
             // Report decorator chain
-            if (secretReader is CachedSecretReaderDecorator)
+            if (secretReader is CachingSecretReaderDecorator)
             {
                 data["decorators"] = "cached";
             }

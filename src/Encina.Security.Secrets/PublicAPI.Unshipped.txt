@@ -9,11 +9,14 @@ Encina.Security.Secrets.Abstractions.ISecretRotator
 Encina.Security.Secrets.Abstractions.ISecretRotator.RotateSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.Secrets.Abstractions.ISecretWriter
 Encina.Security.Secrets.Abstractions.ISecretWriter.SetSecretAsync(string! secretName, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
-Encina.Security.Secrets.Caching.CachedSecretReaderDecorator
-Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.CachedSecretReaderDecorator(Encina.Security.Secrets.Abstractions.ISecretReader! inner, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Options.IOptions<Encina.Security.Secrets.SecretsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Caching.CachedSecretReaderDecorator!>! logger, Encina.Security.Secrets.Diagnostics.SecretsMetrics? metrics = null) -> void
-Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
-Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
-Encina.Security.Secrets.Caching.CachedSecretReaderDecorator.Invalidate(string! secretName) -> void
+Encina.Security.Secrets.Caching.CachingSecretReaderDecorator
+Encina.Security.Secrets.Caching.CachingSecretReaderDecorator.CachingSecretReaderDecorator(Encina.Security.Secrets.Abstractions.ISecretReader! inner, Encina.Caching.ICacheProvider! cache, Encina.Caching.IPubSubProvider? pubSub, Encina.Security.Secrets.Caching.SecretCachingOptions! cachingOptions, Encina.Security.Secrets.SecretsOptions! secretsOptions, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Caching.CachingSecretReaderDecorator!>! logger, Encina.Security.Secrets.Diagnostics.SecretsMetrics? metrics = null) -> void
+Encina.Security.Secrets.Caching.CachingSecretReaderDecorator.GetSecretAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, string!>>
+Encina.Security.Secrets.Caching.CachingSecretReaderDecorator.GetSecretAsync<T>(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, T!>>
+Encina.Security.Secrets.Caching.CachingSecretReaderDecorator.InvalidateAsync(string! secretName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Encina.Security.Secrets.Caching.CachingSecretWriterDecorator
+Encina.Security.Secrets.Caching.CachingSecretWriterDecorator.CachingSecretWriterDecorator(Encina.Security.Secrets.Abstractions.ISecretWriter! inner, Encina.Caching.ICacheProvider! cache, Encina.Caching.IPubSubProvider? pubSub, Encina.Security.Secrets.Caching.SecretCachingOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Secrets.Caching.CachingSecretWriterDecorator!>! logger) -> void
+Encina.Security.Secrets.Caching.CachingSecretWriterDecorator.SetSecretAsync(string! secretName, string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.Secrets.Configuration.SecretsConfigurationOptions
 Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.KeyDelimiter.get -> string!
 Encina.Security.Secrets.Configuration.SecretsConfigurationOptions.KeyDelimiter.set -> void
@@ -171,6 +174,26 @@ Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordCircuitBreakerTransitio
 Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordTimeout(double timeoutSeconds) -> void
 Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordStaleFallback(string! secretName) -> void
 Encina.Security.Secrets.Diagnostics.SecretsMetrics.RecordResilienceDuration(string! secretName, bool success, System.TimeSpan elapsed) -> void
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage.SecretCacheInvalidationMessage(string! SecretName, string! Operation, System.DateTime TimestampUtc) -> void
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage.SecretName.get -> string!
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage.SecretName.init -> void
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage.Operation.get -> string!
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage.Operation.init -> void
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage.TimestampUtc.get -> System.DateTime
+Encina.Security.Secrets.Caching.SecretCacheInvalidationMessage.TimestampUtc.init -> void
+Encina.Security.Secrets.Caching.SecretCachingOptions
+Encina.Security.Secrets.Caching.SecretCachingOptions.SecretCachingOptions() -> void
+Encina.Security.Secrets.Caching.SecretCachingOptions.EnablePubSubInvalidation.get -> bool
+Encina.Security.Secrets.Caching.SecretCachingOptions.EnablePubSubInvalidation.set -> void
+Encina.Security.Secrets.Caching.SecretCachingOptions.InvalidationChannel.get -> string!
+Encina.Security.Secrets.Caching.SecretCachingOptions.InvalidationChannel.set -> void
+Encina.Security.Secrets.Caching.SecretCachingOptions.CacheKeyPrefix.get -> string!
+Encina.Security.Secrets.Caching.SecretCachingOptions.CacheKeyPrefix.set -> void
+Encina.Security.Secrets.Caching.SecretCachingOptions.CacheTag.get -> string!
+Encina.Security.Secrets.Caching.SecretCachingOptions.CacheTag.set -> void
+Encina.Security.Secrets.SecretsOptions.Caching.get -> Encina.Security.Secrets.Caching.SecretCachingOptions!
+Encina.Security.Secrets.SecretsOptions.Caching.set -> void
 Encina.Security.Secrets.SecretsOptions.EnableResilience.get -> bool
 Encina.Security.Secrets.SecretsOptions.EnableResilience.set -> void
 Encina.Security.Secrets.SecretsOptions.Resilience.get -> Encina.Security.Secrets.Resilience.SecretsResilienceOptions!

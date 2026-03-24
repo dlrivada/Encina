@@ -1,9 +1,11 @@
 using Amazon;
 using Amazon.Runtime;
 using Amazon.SecretsManager;
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.AwsSecretsManager;
+using Encina.Security.Secrets.Caching;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -17,7 +19,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         // Pre-register a mock IAmazonSecretsManager so the real factory (which needs AWS
         // credentials) is never invoked. TryAddSingleton in the extension method
@@ -85,7 +87,9 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
         var writer = provider.GetRequiredService<ISecretWriter>();
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
-        writer.Should().BeSameAs(underlying);
+        // Writer is wrapped by CachingSecretWriterDecorator when caching is enabled (default).
+        // Verify the writer is either the underlying provider or a caching decorator.
+        writer.Should().BeOfType<CachingSecretWriterDecorator>();
         rotator.Should().BeSameAs(underlying);
     }
 

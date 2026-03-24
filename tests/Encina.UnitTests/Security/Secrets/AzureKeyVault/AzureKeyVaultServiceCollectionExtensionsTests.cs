@@ -1,8 +1,10 @@
 using Azure.Core;
 using Azure.Security.KeyVault.Secrets;
+using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.AzureKeyVault;
+using Encina.Security.Secrets.Caching;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -18,7 +20,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddSingleton(NSubstitute.Substitute.For<ICacheProvider>());
 
         // Pre-register a mock SecretClient so the real factory (which needs Azure
         // credentials) is never invoked. TryAddSingleton in the extension method
@@ -86,7 +88,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
         var writer = provider.GetRequiredService<ISecretWriter>();
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
-        writer.Should().BeSameAs(underlying);
+        writer.Should().BeOfType<CachingSecretWriterDecorator>();
         rotator.Should().BeSameAs(underlying);
     }
 
