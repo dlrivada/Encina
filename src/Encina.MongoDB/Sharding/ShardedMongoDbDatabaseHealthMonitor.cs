@@ -41,7 +41,6 @@ public sealed class ShardedMongoDbDatabaseHealthMonitor : IShardedDatabaseHealth
 {
     private readonly IMongoClient _defaultClient;
     private readonly ShardTopology _topology;
-    private readonly IShardedMongoCollectionFactory _collectionFactory;
     private readonly bool _useNativeSharding;
     private readonly TimeSpan _healthCheckTimeout;
 
@@ -66,7 +65,6 @@ public sealed class ShardedMongoDbDatabaseHealthMonitor : IShardedDatabaseHealth
 
         _defaultClient = defaultClient;
         _topology = topology;
-        _collectionFactory = collectionFactory;
         _useNativeSharding = useNativeSharding;
         _healthCheckTimeout = healthCheckTimeout ?? TimeSpan.FromSeconds(5);
     }

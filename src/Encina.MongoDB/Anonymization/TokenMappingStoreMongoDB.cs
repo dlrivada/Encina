@@ -27,7 +27,6 @@ namespace Encina.MongoDB.Anonymization;
 public sealed class TokenMappingStoreMongoDB : ITokenMappingStore
 {
     private readonly IMongoCollection<TokenMappingDocument> _collection;
-    private readonly ILogger<TokenMappingStoreMongoDB> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TokenMappingStoreMongoDB"/> class.
@@ -48,7 +47,6 @@ public sealed class TokenMappingStoreMongoDB : ITokenMappingStore
         var database = client.GetDatabase(opts.DatabaseName);
         _collection = database.GetCollection<TokenMappingDocument>(
             opts.Collections.TokenMappings);
-        _logger = logger;
     }
 
     /// <inheritdoc />

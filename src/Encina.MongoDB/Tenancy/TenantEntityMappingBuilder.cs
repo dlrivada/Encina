@@ -32,7 +32,6 @@ public sealed class TenantEntityMappingBuilder<TEntity, TId>
 {
     private string? _collectionName;
     private string? _idFieldName;
-    private string? _idPropertyName;
     private Func<TEntity, TId>? _idSelector;
     private string? _tenantFieldName;
     private string? _tenantPropertyName;
@@ -66,7 +65,6 @@ public sealed class TenantEntityMappingBuilder<TEntity, TId>
         ArgumentNullException.ThrowIfNull(propertySelector);
 
         var propertyName = GetPropertyName(propertySelector);
-        _idPropertyName = propertyName;
         _idFieldName = fieldName ?? "_id";
 
         var compiled = propertySelector.Compile();

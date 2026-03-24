@@ -34,7 +34,6 @@ public sealed class TenantEntityMappingBuilder<TEntity, TId>
 {
     private string? _tableName;
     private string? _idColumnName;
-    private string? _idPropertyName;
     private Func<TEntity, TId>? _idSelector;
     private string? _tenantColumnName;
     private string? _tenantPropertyName;
@@ -69,7 +68,6 @@ public sealed class TenantEntityMappingBuilder<TEntity, TId>
         ArgumentNullException.ThrowIfNull(propertySelector);
 
         var propertyName = GetPropertyName(propertySelector);
-        _idPropertyName = propertyName;
         _idColumnName = SqlIdentifierValidator.ValidateTableName(columnName ?? propertyName, nameof(columnName));
 
         var compiled = propertySelector.Compile();

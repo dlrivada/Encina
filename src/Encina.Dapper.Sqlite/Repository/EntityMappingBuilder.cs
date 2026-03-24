@@ -32,7 +32,6 @@ public sealed class EntityMappingBuilder<TEntity, TId>
 {
     private string? _tableName;
     private string? _idColumnName;
-    private string? _idPropertyName;
     private Func<TEntity, TId>? _idSelector;
     private readonly Dictionary<string, string> _columnMappings = new();
     private readonly HashSet<string> _insertExcluded = [];
@@ -66,7 +65,6 @@ public sealed class EntityMappingBuilder<TEntity, TId>
         ArgumentNullException.ThrowIfNull(propertySelector);
 
         var propertyName = GetPropertyName(propertySelector);
-        _idPropertyName = propertyName;
         _idColumnName = SqlIdentifierValidator.ValidateTableName(columnName ?? propertyName, nameof(columnName));
 
         // Create the ID selector

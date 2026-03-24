@@ -58,5 +58,9 @@ internal sealed class MigrationMetricsInitializer : IHostedService
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _metrics = null;
+        return Task.CompletedTask;
+    }
 }

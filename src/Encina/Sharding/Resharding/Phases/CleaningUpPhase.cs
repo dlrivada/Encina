@@ -10,13 +10,11 @@ namespace Encina.Sharding.Resharding.Phases;
 internal sealed class CleaningUpPhase : IReshardingPhase
 {
     private readonly ILogger _logger;
-    private readonly TimeProvider _timeProvider;
 
     public CleaningUpPhase(ILogger logger, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
-        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public ReshardingPhase Phase => ReshardingPhase.CleaningUp;

@@ -56,7 +56,11 @@ internal sealed class TimeBasedShardingMetricsInitializer : IHostedService
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _metrics = null;
+        return Task.CompletedTask;
+    }
 
     private static TimeBasedShardingMetricsCallbacks CreateCallbacksFromTierStore(
         ITierStore tierStore,
