@@ -252,30 +252,34 @@ public static class ServiceCollectionExtensions
         }
 
         // ── Caching writer decorator + PubSub hosted service ──────────
+        // Writer and hosted service resolve options at runtime via IOptions<SecretsOptions>
+        // to support both configure delegate and IConfigureOptions<> binding.
         if (optionsInstance.EnableCaching)
         {
             // Decorate ISecretWriter with caching invalidation
             DecorateService<ISecretWriter>(services, (inner, sp) =>
-                new CachingSecretWriterDecorator(
+            {
+                var resolvedOptions = sp.GetRequiredService<IOptions<SecretsOptions>>().Value;
+                return new CachingSecretWriterDecorator(
                     inner,
                     sp.GetRequiredService<ICacheProvider>(),
                     sp.GetService<IPubSubProvider>(),
-                    optionsInstance.Caching,
-                    sp.GetRequiredService<ILogger<CachingSecretWriterDecorator>>()));
+                    resolvedOptions.Caching,
+                    sp.GetRequiredService<ILogger<CachingSecretWriterDecorator>>());
+            });
 
             // Register PubSub hosted service for cross-instance cache invalidation.
-            // Only activates when IPubSubProvider is actually available in DI —
-            // EnablePubSubInvalidation defaults to true, so apps without PubSub
-            // simply skip cross-instance invalidation without failing at startup.
+            // At runtime, if IPubSubProvider is not registered, the service starts as
+            // a no-op and logs a warning — apps without PubSub won't fail at startup.
             if (optionsInstance.Caching.EnablePubSubInvalidation)
             {
                 services.AddHostedService(sp =>
                 {
-                    var pubSub = sp.GetService<IPubSubProvider>();
+                    var resolvedOptions = sp.GetRequiredService<IOptions<SecretsOptions>>().Value;
                     return new SecretCachePubSubHostedService(
                         sp.GetRequiredService<ICacheProvider>(),
-                        pubSub,
-                        optionsInstance.Caching,
+                        sp.GetService<IPubSubProvider>(),
+                        resolvedOptions.Caching,
                         sp.GetRequiredService<ILogger<SecretCachePubSubHostedService>>());
                 });
             }

@@ -149,14 +149,7 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
                 await _cache.RemoveByPatternAsync(
                     $"{_options.CacheKeyPrefix}:lkg:t:{message.SecretName}:*",
                     CancellationToken.None).ConfigureAwait(false);
-                var invalidationPatterns = new[]
-                {
-                    $"{_options.CacheKeyPrefix}:v:{message.SecretName}",
-                    $"{_options.CacheKeyPrefix}:lkg:{message.SecretName}",
-                    $"{_options.CacheKeyPrefix}:t:{message.SecretName}:*",
-                    $"{_options.CacheKeyPrefix}:lkg:t:{message.SecretName}:*"
-                };
-                Log.CacheBulkInvalidated(_logger, string.Join(", ", invalidationPatterns));
+                Log.CacheInvalidated(_logger, message.SecretName);
             }
         }
         catch (Exception ex)

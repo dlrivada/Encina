@@ -133,7 +133,11 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
             Log.CacheError(_logger, secretName, cacheKey, ex);
         }
 
-        // 2. Cache miss — load from inner reader
+        // 2. Cache miss — load from inner reader.
+        // NOTE: We intentionally use Get+Set (not GetOrSetAsync) because GetOrSetAsync
+        // caches the factory result unconditionally, but we must only cache Right results.
+        // Left (error) results must never be cached. This trade-off accepts potential
+        // concurrent calls to the inner provider on cold-cache misses.
         Log.CacheMiss(_logger, secretName);
         _metrics?.RecordCacheMiss(secretName);
         var result = await _inner.GetSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
@@ -197,7 +201,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
             Log.CacheError(_logger, secretName, cacheKey, ex);
         }
 
-        // 2. Cache miss — load from inner reader
+        // 2. Cache miss (same Get+Set rationale as string overload above)
         Log.CacheMiss(_logger, secretName);
         _metrics?.RecordCacheMiss(secretName);
         var result = await _inner.GetSecretAsync<T>(secretName, cancellationToken).ConfigureAwait(false);
@@ -268,6 +272,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         try
         {
             await _cache.SetAsync(key, value, duration, cancellationToken).ConfigureAwait(false);
+            Log.CacheSet(_logger, key);
         }
         catch (Exception ex)
         {

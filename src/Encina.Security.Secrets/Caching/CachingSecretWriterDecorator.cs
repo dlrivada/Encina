@@ -79,11 +79,13 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         // 1. Persist via inner writer first
         var result = await _inner.SetSecretAsync(secretName, value, cancellationToken).ConfigureAwait(false);
 
-        // 2. On success: invalidate cache + broadcast
+        // 2. On success: invalidate cache + broadcast.
+        // Use CancellationToken.None — once the write succeeded, cache invalidation
+        // must complete regardless of whether the original request was cancelled.
         if (result.IsRight)
         {
-            await InvalidateCacheAsync(secretName, cancellationToken).ConfigureAwait(false);
-            await PublishInvalidationAsync(secretName, "Set", cancellationToken).ConfigureAwait(false);
+            await InvalidateCacheAsync(secretName, CancellationToken.None).ConfigureAwait(false);
+            await PublishInvalidationAsync(secretName, "Set", CancellationToken.None).ConfigureAwait(false);
         }
 
         return result;
