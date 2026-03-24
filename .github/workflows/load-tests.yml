@@ -74,12 +74,11 @@ on:
     # Run weekly on Saturdays at 2:00 AM UTC
     - cron: "0 2 * * 6"
 
-permissions:
-  contents: read
-
 jobs:
   run-load-tests:
     runs-on: windows-latest
+    permissions:
+      contents: read
     defaults:
       run:
         shell: bash
@@ -156,6 +155,8 @@ jobs:
 
   run-database-load-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: run-load-tests
     # Run only on schedule or when explicitly requested via workflow_dispatch
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_database_tests == 'true')
@@ -301,6 +302,8 @@ jobs:
 
   run-messaging-load-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: run-load-tests
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_messaging_tests == 'true')
     defaults:
@@ -383,6 +386,8 @@ jobs:
 
   run-caching-load-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: run-load-tests
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_caching_tests == 'true')
     strategy:
@@ -472,6 +477,8 @@ jobs:
 
   run-locking-load-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: run-load-tests
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_locking_tests == 'true')
     strategy:
@@ -574,6 +581,8 @@ jobs:
 
   run-broker-load-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: run-load-tests
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_broker_tests == 'true')
     strategy:

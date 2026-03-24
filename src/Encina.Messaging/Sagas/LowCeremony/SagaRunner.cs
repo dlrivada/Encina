@@ -66,16 +66,12 @@ public sealed class SagaRunner : ISagaRunner
             definition.Timeout,
             cancellationToken).ConfigureAwait(false);
 
-        Guid sagaId = default;
-        EncinaError? startError = null;
-        startResult.Match(
-            Right: id => sagaId = id,
-            Left: error => startError = error);
-
-        if (startError is not null)
+        if (startResult.IsLeft)
         {
-            return startError.Value;
+            return (EncinaError)startResult;
         }
+
+        var sagaId = startResult.Match(Right: id => id, Left: _ => default);
 
         Log.SagaStarted(_logger, sagaId, definition.SagaType, definition.StepCount);
 
