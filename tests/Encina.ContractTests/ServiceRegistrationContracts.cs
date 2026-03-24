@@ -11,7 +11,9 @@ public sealed class ServiceRegistrationContracts
         typeof(CommandActivityPipelineBehavior<,>),
         typeof(CommandMetricsPipelineBehavior<,>),
         typeof(QueryActivityPipelineBehavior<,>),
-        typeof(QueryMetricsPipelineBehavior<,>)
+        typeof(QueryMetricsPipelineBehavior<,>),
+        typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowReadPipelineBehavior<,>),
+        typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowWritePipelineBehavior<,>)
     };
 
     [Fact]

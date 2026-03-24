@@ -84,14 +84,14 @@ public sealed class ISubjectKeyProviderContractTests
     public void Contract_InMemorySubjectKeyProvider_ImplementsInterface()
     {
         // Assert
-        typeof(InMemorySubjectKeyProvider).ShouldBeAssignableTo<ISubjectKeyProvider>();
+        typeof(ISubjectKeyProvider).IsAssignableFrom(typeof(InMemorySubjectKeyProvider)).ShouldBeTrue();
     }
 
     [Fact]
     public void Contract_PostgreSqlSubjectKeyProvider_ImplementsInterface()
     {
         // Assert
-        typeof(PostgreSqlSubjectKeyProvider).ShouldBeAssignableTo<ISubjectKeyProvider>();
+        typeof(ISubjectKeyProvider).IsAssignableFrom(typeof(PostgreSqlSubjectKeyProvider)).ShouldBeTrue();
     }
 
     [Fact]

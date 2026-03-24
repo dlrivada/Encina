@@ -79,7 +79,7 @@ public sealed class IDataErasureStrategyContractTests : IDisposable
     public void Contract_CryptoShredErasureStrategy_ImplementsInterface()
     {
         // Assert
-        typeof(CryptoShredErasureStrategy).ShouldBeAssignableTo<IDataErasureStrategy>();
+        typeof(IDataErasureStrategy).IsAssignableFrom(typeof(CryptoShredErasureStrategy)).ShouldBeTrue();
     }
 
     [Fact]

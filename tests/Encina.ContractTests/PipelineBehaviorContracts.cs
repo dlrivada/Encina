@@ -32,7 +32,9 @@ public sealed class PipelineBehaviorContracts
             typeof(CommandActivityPipelineBehavior<,>),
             typeof(CommandMetricsPipelineBehavior<,>),
             typeof(QueryActivityPipelineBehavior<,>),
-            typeof(QueryMetricsPipelineBehavior<,>)
+            typeof(QueryMetricsPipelineBehavior<,>),
+            typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowReadPipelineBehavior<,>),
+            typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowWritePipelineBehavior<,>)
         };
 
         var result = EncinaAssemblyScanner.GetRegistrations(TargetAssembly);
