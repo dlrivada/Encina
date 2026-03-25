@@ -1,0 +1,115 @@
+name: Release on Milestone Close
+
+on:
+  milestone:
+    types: [closed]
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  release:
+    # Only create releases for major milestones (vX.Y.0), not patch milestones
+    if: endsWith(github.event.milestone.title, '.0')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Extract version from milestone
+        id: version
+        run: |
+          MILESTONE_TITLE="${{ github.event.milestone.title }}"
+          # Strip leading 'v' if present
+          VERSION="${MILESTONE_TITLE#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "milestone_title=$MILESTONE_TITLE" >> "$GITHUB_OUTPUT"
+
+          # Calculate next dev version (bump minor)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          NEXT_MINOR=$((MINOR + 1))
+          NEXT_VERSION="$MAJOR.$NEXT_MINOR.0"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo "Release version: $VERSION"
+          echo "Next dev version: $NEXT_VERSION-dev"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Update version to release (remove -dev suffix)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Update VersionPrefix and remove VersionSuffix for release
+          sed -i "s|<VersionPrefix>.*</VersionPrefix>|<VersionPrefix>$VERSION</VersionPrefix>|" Directory.Build.props
+          sed -i "s|<VersionSuffix>.*</VersionSuffix>|<VersionSuffix></VersionSuffix>|" Directory.Build.props
+          echo "Updated Directory.Build.props to version $VERSION (release)"
+          cat Directory.Build.props | head -6
+
+      - name: Commit release version
+        run: |
+          git add Directory.Build.props
+          git commit -m "release: bump version to ${{ steps.version.outputs.version }}"
+
+      - name: Create tag
+        run: |
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+
+      - name: Update version to next dev
+        run: |
+          NEXT="${{ steps.version.outputs.next_version }}"
+          sed -i "s|<VersionPrefix>.*</VersionPrefix>|<VersionPrefix>$NEXT</VersionPrefix>|" Directory.Build.props
+          sed -i "s|<VersionSuffix></VersionSuffix>|<VersionSuffix>dev</VersionSuffix>|" Directory.Build.props
+          echo "Updated Directory.Build.props to version $NEXT-dev"
+          cat Directory.Build.props | head -6
+
+      - name: Commit next dev version
+        run: |
+          git add Directory.Build.props
+          git commit -m "chore: bump version to ${{ steps.version.outputs.next_version }}-dev"
+
+      - name: Push commits and tag
+        run: |
+          git push origin main --follow-tags
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          MILESTONE_TITLE="${{ steps.version.outputs.milestone_title }}"
+          MILESTONE_DESC="${{ github.event.milestone.description }}"
+          MILESTONE_URL="${{ github.event.milestone.html_url }}"
+          OPEN_ISSUES=${{ github.event.milestone.open_issues }}
+          CLOSED_ISSUES=${{ github.event.milestone.closed_issues }}
+
+          # Build release notes
+          cat > release-notes.md << EOF
+          ## ${MILESTONE_TITLE}
+
+          ${MILESTONE_DESC}
+
+          ### Stats
+          - ${CLOSED_ISSUES} issues closed
+
+          **Full milestone**: [${MILESTONE_TITLE}](${MILESTONE_URL}?closed=1)
+          **Full changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 HEAD~2 2>/dev/null || echo "initial")...${{ steps.version.outputs.tag }}
+          EOF
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "${{ steps.version.outputs.milestone_title }}" \
+            --notes-file release-notes.md \
+            --prerelease
