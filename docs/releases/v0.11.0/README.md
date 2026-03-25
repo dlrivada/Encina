@@ -1053,7 +1053,7 @@ This fix reinforces the importance of proper namespace organization when using `
 
 ---
 
-## Issue #173 - CI/CD Workflow Templates
+## Issue #173 - .github/ci/CD Workflow Templates
 
 **Date**: 2026-01-03
 **Milestone**: v0.11.0 - Testing Infrastructure
@@ -1061,7 +1061,7 @@ This fix reinforces the importance of proper namespace organization when using `
 
 ### Overview
 
-Created reusable GitHub Actions workflow templates to standardize CI/CD across projects using Encina. These templates provide best practices for .NET 10 testing, coverage, and package publishing.
+Created reusable GitHub Actions workflow templates to standardize .github/ci/CD across projects using Encina. These templates provide best practices for .NET 10 testing, coverage, and package publishing.
 
 ### Components Implemented
 
@@ -3161,7 +3161,7 @@ Implemented comprehensive NBomber load testing infrastructure for database featu
 | `readwrite-roundrobin-validation` | 100/sec | 1 min | Round-robin validation |
 | `readwrite-leastconnections-validation` | 75/sec | 1 min | Least-connections algorithm |
 
-#### Phase 3: CI/CD and Configuration
+#### Phase 3: .github/ci/CD and Configuration
 
 **Profile Configurations** (`tests/Encina.LoadTests/profiles/`):
 
@@ -3169,14 +3169,14 @@ Implemented comprehensive NBomber load testing infrastructure for database featu
 - `nbomber.database-tenancy.json` - Tenancy profile with 100 tenants
 - `nbomber.database-readwrite.json` - Read/Write profile with 3 replicas
 
-**Threshold Configuration** (`ci/nbomber-database-thresholds.json`):
+**Threshold Configuration** (`.github/ci/nbomber-database-thresholds.json`):
 
 - Global: 500+ ops/sec, <50ms mean, <200ms P95, <1% error rate
 - Feature-specific thresholds (UoW: 75ms, Tenancy: 40ms, ReadWrite: 30ms)
 - Provider-specific thresholds (SQLite fastest, SQL Server moderate)
 - Scenario-specific requirements (tenancy-isolation: 100% success)
 
-**CI/CD Workflow** (`.github/workflows/load-tests.yml`):
+**.github/ci/CD Workflow** (`.github/workflows/load-tests.yml`):
 
 - New `run-database-load-tests` job
 - Service containers: SQL Server, PostgreSQL, MySQL, MongoDB

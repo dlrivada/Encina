@@ -172,7 +172,7 @@ dotnet run --project tests/Encina.NBomber/Encina.NBomber.csproj -- \
     --duration 00:01:00
 ```
 
-### CI/CD
+### .github/ci/CD
 
 Database load tests run:
 
@@ -203,7 +203,7 @@ Results are uploaded as artifacts per provider.
 
 - `tests/Encina.NBomber/Scenarios/Database/` - Scenario implementations
 - `tests/Encina.LoadTests/profiles/nbomber.database-*.json` - Profile configurations
-- `ci/nbomber-database-thresholds.json` - CI threshold configurations
+- `.github/ci/nbomber-database-thresholds.json` - CI threshold configurations
 
 ---
 
@@ -249,7 +249,7 @@ The messaging load tests exercise the in-memory message bus and dispatcher patte
 ## Related Files (Messaging)
 
 - `tests/Encina.NBomber/Scenarios/Messaging/` - Scenario implementations
-- `ci/nbomber-messaging-thresholds.json` - CI threshold configurations
+- `.github/ci/nbomber-messaging-thresholds.json` - CI threshold configurations
 
 ---
 
@@ -293,7 +293,7 @@ The caching load tests exercise memory cache, Redis cache, and hybrid (L1/L2) ca
 ## Related Files (Caching)
 
 - `tests/Encina.NBomber/Scenarios/Caching/` - Scenario implementations
-- `ci/nbomber-caching-thresholds.json` - CI threshold configurations
+- `.github/ci/nbomber-caching-thresholds.json` - CI threshold configurations
 
 ---
 
@@ -344,7 +344,7 @@ All lock providers must guarantee:
 ## Related Files (Locking)
 
 - `tests/Encina.NBomber/Scenarios/Locking/` - Scenario implementations
-- `ci/nbomber-locking-thresholds.json` - CI threshold configurations
+- `.github/ci/nbomber-locking-thresholds.json` - CI threshold configurations
 
 ---
 
@@ -406,7 +406,7 @@ The broker load tests exercise message broker publish/subscribe patterns.
 ## Related Files (Brokers)
 
 - `tests/Encina.NBomber/Scenarios/Brokers/` - Scenario implementations
-- `ci/nbomber-brokers-thresholds.json` - CI threshold configurations
+- `.github/ci/nbomber-brokers-thresholds.json` - CI threshold configurations
 
 ---
 
@@ -446,7 +446,7 @@ dotnet run --project tests/Encina.NBomber/Encina.NBomber.csproj -- \
     --duration 00:01:00
 ```
 
-## CI/CD Schedule
+## .github/ci/CD Schedule
 
 All load tests run on a weekly schedule (Saturdays at 2:00 AM UTC) and can be triggered manually via workflow dispatch.
 
@@ -656,9 +656,9 @@ The CDC (Change Data Capture) load tests exercise the `CdcProcessor` event proce
 
 | File | Description |
 |------|-------------|
-| `ci/nbomber-database-thresholds.json` | Database load test thresholds |
-| `ci/nbomber-messaging-thresholds.json` | Messaging load test thresholds |
-| `ci/nbomber-caching-thresholds.json` | Caching load test thresholds |
-| `ci/nbomber-locking-thresholds.json` | Locking load test thresholds |
-| `ci/nbomber-brokers-thresholds.json` | Broker load test thresholds |
-| `.github/workflows/load-tests.yml` | CI/CD workflow for all categories |
+| `.github/ci/nbomber-database-thresholds.json` | Database load test thresholds |
+| `.github/ci/nbomber-messaging-thresholds.json` | Messaging load test thresholds |
+| `.github/ci/nbomber-caching-thresholds.json` | Caching load test thresholds |
+| `.github/ci/nbomber-locking-thresholds.json` | Locking load test thresholds |
+| `.github/ci/nbomber-brokers-thresholds.json` | Broker load test thresholds |
+| `.github/workflows/load-tests.yml` | .github/ci/CD workflow for all categories |

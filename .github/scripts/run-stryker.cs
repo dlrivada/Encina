@@ -21,7 +21,7 @@ try
         "run",
         "dotnet-stryker",
         "--config-file",
-        Path.Combine(repositoryRoot, "stryker-config.json"),
+        Path.Combine(repositoryRoot, ".github/stryker-config.json"),
         "--output",
         outputPath,
         "--verbosity",

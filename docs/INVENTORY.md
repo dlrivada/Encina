@@ -569,7 +569,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - `SchemaDefinition` con Format (Avro, Protobuf, JsonSchema)
 - `CompatibilityResult` para validación forward/backward
 - **Nuevos paquetes planificados**: `Encina.SchemaRegistry`, `Encina.SchemaRegistry.Confluent`, `Encina.SchemaRegistry.Azure`
-- **Use case**: Governance de eventos, evolución de esquemas, CI/CD
+- **Use case**: Governance de eventos, evolución de esquemas, .github/ci/CD
 - Labels: `area-schema-registry`, `transport-kafka`, `area-compliance`, `industry-best-practice`
 - Referencias: [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
 
@@ -3179,7 +3179,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | ~~#170~~ | ~~Improved Assertions~~ | ✅ AndConstraint, Collection, Streaming assertions | - | Shouldly |
 | ~~#171~~ | ~~TUnit Support~~ | ✅ EncinaTUnitFixture, TUnitEitherAssertions, NativeAOT compatible | - | TUnit Framework |
 | ~~#172~~ | ~~Mutation Testing (Stryker)~~ | ✅ NeedsMutationCoverage, MutationKiller attributes | - | Stryker.NET |
-| ~~#173~~ | ~~CI/CD Templates~~ | ✅ encina-test.yml, encina-matrix.yml, encina-full-ci.yml | - | GitHub Actions |
+| ~~#173~~ | ~~.github/ci/CD Templates~~ | ✅ encina-test.yml, encina-matrix.yml, encina-full-ci.yml | - | GitHub Actions |
 
 #### Detalle de Mejoras Planificadas
 
@@ -3289,7 +3289,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | `testing-data-generation` | Test data generation and fixtures | #1ABC9C |
 | `area-mutation-testing` | Mutation testing and test quality | #FF6B6B |
 | `area-architecture-testing` | Architecture rules and verification | #9B59B6 |
-| `area-ci-cd` | CI/CD pipelines and automation | #2088FF |
+| `area-ci-cd` | .github/ci/CD pipelines and automation | #2088FF |
 | `area-docker` | Docker and containerization | #2496ED |
 | `aot-compatible` | NativeAOT and trimming compatible | #7D3C98 |
 | `testing-property-based` | Property-based testing and invariant verification | #9B59B6 |
@@ -3906,11 +3906,11 @@ The `Encina.NBomber` project provides comprehensive load testing infrastructure 
 
 | File | Category | Description |
 |------|----------|-------------|
-| `ci/nbomber-database-thresholds.json` | Database | 13 provider thresholds, 3 feature thresholds |
-| `ci/nbomber-messaging-thresholds.json` | Messaging | InMemoryBus and Dispatcher thresholds |
-| `ci/nbomber-caching-thresholds.json` | Caching | Memory, Redis, Hybrid provider thresholds |
-| `ci/nbomber-locking-thresholds.json` | Locking | InMemory, Redis, SqlServer provider thresholds |
-| `ci/nbomber-brokers-thresholds.json` | Brokers | RabbitMQ, Kafka, NATS, MQTT provider thresholds |
+| `.github/ci/nbomber-database-thresholds.json` | Database | 13 provider thresholds, 3 feature thresholds |
+| `.github/ci/nbomber-messaging-thresholds.json` | Messaging | InMemoryBus and Dispatcher thresholds |
+| `.github/ci/nbomber-caching-thresholds.json` | Caching | Memory, Redis, Hybrid provider thresholds |
+| `.github/ci/nbomber-locking-thresholds.json` | Locking | InMemory, Redis, SqlServer provider thresholds |
+| `.github/ci/nbomber-brokers-thresholds.json` | Brokers | RabbitMQ, Kafka, NATS, MQTT provider thresholds |
 
 #### CLI Usage
 
@@ -3931,7 +3931,7 @@ dotnet run --project tests/Encina.NBomber -- --scenario locking --locking-provid
 dotnet run --project tests/Encina.NBomber -- --scenario brokers --broker-provider rabbitmq
 ```
 
-#### CI/CD Integration
+#### .github/ci/CD Integration
 
 Load tests run via `.github/workflows/load-tests.yml`:
 
@@ -5023,7 +5023,7 @@ Los patrones de resiliencia fueron identificados tras investigación exhaustiva 
 | ~~#170~~ | ~~Improved Assertions (Shouldly)~~ | ✅ Completo | - | `area-testing`, `testing-unit` |
 | ~~#171~~ | ~~TUnit Framework Support~~ | ✅ Completo | - | `area-testing`, `aot-compatible`, `new-package`, `dotnet-10` |
 | ~~#172~~ | ~~Mutation Testing (Stryker.NET)~~ | ✅ Completo | - | `area-testing`, `area-mutation-testing`, `area-ci-cd` |
-| ~~#173~~ | ~~CI/CD Workflow Templates~~ | ✅ Completo | - | `area-testing`, `area-ci-cd`, `area-docker` |
+| ~~#173~~ | ~~.github/ci/CD Workflow Templates~~ | ✅ Completo | - | `area-testing`, `area-ci-cd`, `area-docker` |
 
 #### Investigación de Testing - Fuentes Consultadas
 

@@ -6,7 +6,7 @@
 # Stack: OpenTelemetry Collector + Prometheus + Jaeger + Loki + Grafana
 #
 # Usage:
-#   docker compose -f docker-compose.observability.yml up -d
+#   docker compose -f .github/observability/docker-compose.observability.yml up -d
 #
 # See also: docs/infrastructure/docker-infrastructure.md
 # =============================================================================
@@ -18,7 +18,7 @@ services:
     container_name: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
-      - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
       - "4317:4317"   # OTLP gRPC receiver
       - "4318:4318"   # OTLP HTTP receiver
@@ -43,7 +43,7 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--enable-feature=otlp-write-receiver'  # Enable OTLP ingestion
     volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"   # Prometheus UI
@@ -72,7 +72,7 @@ services:
     container_name: loki
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ./observability/loki-config.yaml:/etc/loki/local-config.yaml
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
       - loki-data:/loki
     ports:
       - "3100:3100"   # Loki API
@@ -90,8 +90,8 @@ services:
       - GF_AUTH_DISABLE_LOGIN_FORM=true
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
       - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"   # Grafana UI

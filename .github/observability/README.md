@@ -24,14 +24,14 @@ flowchart TD
 cd D:\Proyectos\Encina
 
 # Full OpenTelemetry stack (Prometheus, Jaeger, Loki, Grafana)
-docker compose -f docker-compose.observability.yml up -d
+docker compose -f .github/observability/docker-compose.observability.yml up -d
 
 # Or use Seq for simpler structured logging (from main docker-compose)
 docker compose --profile observability up -d
 ```
 
 > **Note**: The main `docker-compose.yml` includes Seq for lightweight structured logging.
-> Use `docker-compose.observability.yml` for the full OpenTelemetry stack.
+> Use `.github/observability/docker-compose.observability.yml` for the full OpenTelemetry stack.
 > See [Docker Infrastructure Guide](docs/infrastructure/docker-infrastructure.md) for all available services.
 
 ### 2. Configure Your .NET Application
@@ -132,7 +132,7 @@ rate(Encina_requests_total{status="error"}[5m])
 
 ### OpenTelemetry Collector
 
-**File**: `observability/otel-collector-config.yaml`
+**File**: `.github/observability/otel-collector-config.yaml`
 
 - Receives: OTLP gRPC (4317), OTLP HTTP (4318)
 - Exports to: Prometheus, Jaeger, Loki
@@ -140,7 +140,7 @@ rate(Encina_requests_total{status="error"}[5m])
 
 ### Prometheus
 
-**File**: `observability/prometheus.yml`
+**File**: `.github/observability/prometheus.yml`
 
 - Scrapes: OpenTelemetry Collector (8889)
 - Retention: 15 days (default)
@@ -148,7 +148,7 @@ rate(Encina_requests_total{status="error"}[5m])
 
 ### Loki
 
-**File**: `observability/loki-config.yaml`
+**File**: `.github/observability/loki-config.yaml`
 
 - Retention: 7 days
 - Storage: Filesystem (local development)
@@ -158,8 +158,8 @@ rate(Encina_requests_total{status="error"}[5m])
 
 **Files**:
 
-- `observability/grafana/provisioning/datasources/datasources.yaml`
-- `observability/grafana/provisioning/dashboards/dashboards.yaml`
+- `.github/observability/grafana/provisioning/datasources/datasources.yaml`
+- `.github/observability/grafana/provisioning/dashboards/dashboards.yaml`
 
 - Datasources: Prometheus, Jaeger, Loki (auto-configured)
 - Dashboards: Auto-loaded from `/var/lib/grafana/dashboards`
@@ -365,10 +365,10 @@ public class SentryErrorBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 ## 🛑 Stop the Stack
 
 ```bash
-docker-compose -f docker-compose.observability.yml down
+docker-compose -f .github/observability/docker-compose.observability.yml down
 
 # With volume cleanup
-docker-compose -f docker-compose.observability.yml down -v
+docker-compose -f .github/observability/docker-compose.observability.yml down -v
 ```
 
 ## 📝 License

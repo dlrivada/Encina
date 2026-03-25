@@ -318,7 +318,7 @@ Results are written to `artifacts/nbomber/` with:
 
 ## Performance Thresholds
 
-Threshold configuration files in `ci/`:
+Threshold configuration files in `.github/ci/`:
 
 | File | Category |
 |------|----------|
@@ -372,7 +372,7 @@ Threshold configuration files in `ci/`:
 | NATS | 2,000+ | <15ms |
 | MQTT | 500+ | <40ms |
 
-## CI/CD Integration
+## .github/ci/CD Integration
 
 Load tests run automatically via `.github/workflows/load-tests.yml`:
 

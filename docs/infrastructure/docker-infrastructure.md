@@ -98,7 +98,7 @@ docker compose --profile cloud up -d
 For full observability stack (Prometheus, Jaeger, Loki, Grafana), see:
 
 ```bash
-docker compose -f docker-compose.observability.yml up -d
+docker compose -f .github/observability/docker-compose.observability.yml up -d
 ```
 
 ## Connection Strings
@@ -371,8 +371,8 @@ Use the mongodb MCP server to list databases
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Main infrastructure services |
-| `docker-compose.observability.yml` | OpenTelemetry stack (Prometheus, Jaeger, Loki, Grafana) |
-| `infrastructure/mosquitto/mosquitto.conf` | MQTT broker configuration |
-| `observability/otel-collector-config.yaml` | OpenTelemetry Collector configuration |
-| `observability/prometheus.yml` | Prometheus scrape configuration |
-| `observability/loki-config.yaml` | Loki log aggregation configuration |
+| `.github/observability/docker-compose.observability.yml` | OpenTelemetry stack (Prometheus, Jaeger, Loki, Grafana) |
+| `.github/infrastructure/mosquitto/mosquitto.conf` | MQTT broker configuration |
+| `.github/observability/otel-collector-config.yaml` | OpenTelemetry Collector configuration |
+| `.github/observability/prometheus.yml` | Prometheus scrape configuration |
+| `.github/observability/loki-config.yaml` | Loki log aggregation configuration |

@@ -35,7 +35,7 @@ Last updated: 2025-12-08
 - **Mutation testing** – run `dotnet run --file .github/scripts/run-stryker.cs`; refresh the badge with `.github/scripts/update-mutation-summary.cs`. CI enforces the 93.74% baseline.
 - **Zero Exceptions policy** – unit suites in `tests/Encina.Tests` (for example, `EncinaTests` and `PipelineBehaviorsTests`) assert Encina operations return functional results instead of throwing for expected failures; property suites reuse the same result patterns when exploring pipeline invariants.
 - **Benchmarks** – launch `.github/scripts/run-benchmarks.cs`, then fail builds if `.github/scripts/check-benchmarks.cs` detects regressions against the baseline snapshots.
-- **Load harnesses** – the console harness uses `.github/scripts/check-load-metrics.cs -- --config ci/load-thresholds.json`; NBomber profiles are summarised via `.github/scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json`.
+- **Load harnesses** – the console harness uses `.github/scripts/check-load-metrics.cs -- --config .github/ci/load-thresholds.json`; NBomber profiles are summarised via `.github/scripts/summarize-nbomber-run.cs -- --thresholds .github/ci/nbomber-thresholds.json`.
 
 ## Adding or Updating Requirements
 
@@ -52,8 +52,8 @@ Last updated: 2025-12-08
 | Coverage | `dotnet test` + reportgenerator | ≥90% line coverage |
 | Mutation | `.github/scripts/run-stryker.cs` | ≥93.74% mutation score |
 | Benchmarks | `.github/scripts/check-benchmarks.cs` | ≤15% latency regression, ≤25% allocation regression |
-| Load (console) | `.github/scripts/check-load-metrics.cs -- --config ci/load-thresholds.json` | CPU ≤3%, peak working set ≤160 MB, send/publish throughput ≥ configured mins |
-| Load (NBomber) | `.github/scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json` | Send-burst throughput ≥6.75M ops/sec, latency ≤0.85 ms |
+| Load (console) | `.github/scripts/check-load-metrics.cs -- --config .github/ci/load-thresholds.json` | CPU ≤3%, peak working set ≤160 MB, send/publish throughput ≥ configured mins |
+| Load (NBomber) | `.github/scripts/summarize-nbomber-run.cs -- --thresholds .github/ci/nbomber-thresholds.json` | Send-burst throughput ≥6.75M ops/sec, latency ≤0.85 ms |
 
 ## Maintainer Checklist
 

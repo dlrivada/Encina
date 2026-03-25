@@ -13,7 +13,7 @@
 
 ## Running The Suite
 
-- Execute `dotnet tool run dotnet-stryker --config-file stryker-config.json --solution Encina.slnx` from the repository root.
+- Execute `dotnet tool run dotnet-stryker --config-file .github/stryker-config.json --solution Encina.slnx` from the repository root.
 - Use the C# helper script for convenience: `dotnet run --file .github/scripts/run-stryker.cs`
 - Prefer Release builds to mirror CI behavior (`--configuration Release`).
 - The repository config pins `concurrency: 1` to avoid vstest runner hangs on Windows; adjust once the suite stabilizes.

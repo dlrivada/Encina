@@ -205,7 +205,7 @@ if (violations.Count > 0)
 
 static Dictionary<string, (double maxMeanMicroseconds, double maxAllocatedKb)>? LoadThresholds()
 {
-    const string configPath = "ci/benchmark-thresholds.json";
+    const string configPath = ".github/ci/benchmark-thresholds.json";
     if (!File.Exists(configPath))
     {
         return null;
