@@ -9,14 +9,14 @@
 
 - Project: `tests/Encina.LoadTests` (console harness targeting .NET 10.0).
 - NBomber project: `tests/Encina.NBomber` for profile-driven scenarios.
-- Script launcher: `dotnet run --file scripts/run-load-harness.cs [-- <options>]`.
+- Script launcher: `dotnet run --file .github/scripts/run-load-harness.cs [-- <options>]`.
 
 ## Usage
 
 Run the harness with optional overrides for duration and worker counts:
 
 ```pwsh
-dotnet run --file scripts/run-load-harness.cs -- --duration 00:01:00 --send-workers 8 --publish-workers 4
+dotnet run --file .github/scripts/run-load-harness.cs -- --duration 00:01:00 --send-workers 8 --publish-workers 4
 ```
 
 ### Arguments
@@ -32,13 +32,13 @@ Each worker resolves `IEncina` per iteration and issues either a synthetic comma
 Use the helper script to execute the harness while sampling CPU and memory:
 
 ```pwsh
-dotnet run --file scripts/collect-load-metrics.cs -- --duration 00:01:00 --send-workers 8 --publish-workers 4
+dotnet run --file .github/scripts/collect-load-metrics.cs -- --duration 00:01:00 --send-workers 8 --publish-workers 4
 ```
 
 - Outputs land in `artifacts/load-metrics/` (`harness-<timestamp>.log` and `metrics-<timestamp>.csv`).
 - CSV columns include timestamp, process CPU utilization, and private working set bytes. Empty `system_cpu_percent` values mean the script could not read system-wide counters (common on non-Windows environments).
 - Import the CSV into a spreadsheet or notebook to chart trends and identify regressions.
-- Run `dotnet run --file scripts/aggregate-performance-history.cs` to roll the collected CSV snapshots into Markdown tables under `docs/data/` (`load-history.md`, shared with benchmark history).
+- Run `dotnet run --file .github/scripts/aggregate-performance-history.cs` to roll the collected CSV snapshots into Markdown tables under `docs/data/` (`load-history.md`, shared with benchmark history).
 
 ## Output Interpretation
 
@@ -77,7 +77,7 @@ Publish throughput: 2 649 522.40 ops/sec
 Launch the profile-based scenarios through the same helper script:
 
 ```pwsh
-dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst
+dotnet run --file .github/scripts/run-load-harness.cs -- --nbomber send-burst
 ```
 
 - `--nbomber <alias>` maps to a JSON profile stored under `tests/Encina.LoadTests/profiles/`. Use `send-burst` for the command-only sweep or `mixed-traffic` to run publish/send scenarios side-by-side. Pass `--profile <path>` to reference a custom JSON manifest directly.
@@ -86,13 +86,13 @@ dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst
 - Each run emits:
   - `nbomber-report.csv/html/md/txt` — raw scenario stats straight from NBomber.
   - `nbomber-summary.json` — condensed throughput/latency snapshot for automation.
-  - `harness-<timestamp>.log` — formatted lines (`Send throughput`, `Send throughput P50`, etc.) consumed by `scripts/check-load-metrics.cs` and the history aggregator.
+  - `harness-<timestamp>.log` — formatted lines (`Send throughput`, `Send throughput P50`, etc.) consumed by `.github/scripts/check-load-metrics.cs` and the history aggregator.
   - `metrics-<timestamp>.csv` — placeholder CPU/memory sample to keep the CSV schema consistent with the console harness (values remain empty until process counters plug in).
 - NBomber prints a per-scenario summary (latency buckets, RPS, failure counts) to stdout and persists HTML/CSV artifacts; the helper script forwards the final 50 lines into the GitHub summary when run inside CI.
 
-GitHub Actions now executes `scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30` after the console guardrail check, so CI uploads both harness outputs under `artifacts/load-metrics/` and the workflow summary includes the NBomber tail logs.
+GitHub Actions now executes `.github/scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30` after the console guardrail check, so CI uploads both harness outputs under `artifacts/load-metrics/` and the workflow summary includes the NBomber tail logs.
 
-Use `dotnet run --file scripts/summarize-nbomber-run.cs [-- --directory <path>]` to parse the generated `nbomber-summary.json` and emit a concise throughput/latency report (the script automatically targets the most recent `nbomber-*` directory and appends to `$GITHUB_STEP_SUMMARY` when available). Pass `--thresholds <json>` to fail the run when metrics fall outside expected envelopes; CI points this to `ci/nbomber-thresholds.json`, which currently enforces ≥6.75 M ops/sec throughput and ≤0.85 ms latency for the send-burst profile.
+Use `dotnet run --file .github/scripts/summarize-nbomber-run.cs [-- --directory <path>]` to parse the generated `nbomber-summary.json` and emit a concise throughput/latency report (the script automatically targets the most recent `nbomber-*` directory and appends to `$GITHUB_STEP_SUMMARY` when available). Pass `--thresholds <json>` to fail the run when metrics fall outside expected envelopes; CI points this to `ci/nbomber-thresholds.json`, which currently enforces ≥6.75 M ops/sec throughput and ≤0.85 ms latency for the send-burst profile.
 
 ### Profile Layout
 
@@ -114,7 +114,7 @@ Profiles capture duration, warm-up, throughput targets, and reporting cadence:
 
 ### Aggregation & Thresholds
 
-- `scripts/aggregate-performance-history.cs` now picks up the NBomber directories automatically thanks to the generated `metrics-*` CSV and `harness-*` logs.
+- `.github/scripts/aggregate-performance-history.cs` now picks up the NBomber directories automatically thanks to the generated `metrics-*` CSV and `harness-*` logs.
 - Throughput percentiles currently reuse the mean RPS values because NBomber does not expose per-second percentile snapshots yet; the JSON summary retains latency percentiles so we can derive richer metrics once upstream support lands.
 
 ## Next Steps

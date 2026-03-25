@@ -706,7 +706,7 @@ public class OutboxStoreSqlServerIntegrationTests : IAsyncLifetime
 Run with:
 
 ```bash
-dotnet run --file scripts/run-integration-tests.cs
+dotnet run --file .github/scripts/run-integration-tests.cs
 ```
 
 #### Collection Fixtures (Container Reduction Strategy)
@@ -1030,7 +1030,7 @@ dotnet test Encina.slnx --configuration Release
 dotnet test --collect "XPlat Code Coverage"
 
 # Optional: Run mutation testing
-dotnet run --file scripts/run-stryker.cs
+dotnet run --file .github/scripts/run-stryker.cs
 ```
 
 **CI/CD enforces**:

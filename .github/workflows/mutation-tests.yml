@@ -54,11 +54,11 @@ jobs:
         run: dotnet tool restore
 
       - name: Run mutation tests
-        run: dotnet run --file scripts/run-stryker.cs
+        run: dotnet run --file .github/scripts/run-stryker.cs
 
       - name: Summarize mutation results
         run: |
-          output=$(dotnet run --file scripts/update-mutation-summary.cs)
+          output=$(dotnet run --file .github/scripts/update-mutation-summary.cs)
           echo "$output"
           {
             echo '### Mutation Summary';

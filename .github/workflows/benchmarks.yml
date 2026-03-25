@@ -35,13 +35,13 @@ jobs:
 
       - name: Run Benchmark suite
         id: run-benchmarks
-        run: dotnet run --file scripts/run-benchmarks.cs
+        run: dotnet run --file .github/scripts/run-benchmarks.cs
 
       - name: Enforce benchmark thresholds
-        run: dotnet run --file scripts/check-benchmarks.cs -- --directory "${{ steps.run-benchmarks.outputs.benchmark-dir }}"
+        run: dotnet run --file .github/scripts/check-benchmarks.cs -- --directory "${{ steps.run-benchmarks.outputs.benchmark-dir }}"
 
       - name: Aggregate performance history
-        run: dotnet run --file scripts/aggregate-performance-history.cs
+        run: dotnet run --file .github/scripts/aggregate-performance-history.cs
 
       - name: Publish performance history summary
         run: |

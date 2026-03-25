@@ -60,17 +60,17 @@ Run the provided SQL scripts to create the messaging tables:
 
 ```sql
 -- Run this script on your PostgreSQL database
--- Location: Scripts/000_CreateAllTables.sql
+-- Location: .github/scripts/000_CreateAllTables.sql
 ```
 
 Or create tables individually:
 
 ```bash
 # In your database
-psql -h localhost -U postgres -d YourDatabase -f Scripts/001_CreateOutboxMessagesTable.sql
-psql -h localhost -U postgres -d YourDatabase -f Scripts/002_CreateInboxMessagesTable.sql
-psql -h localhost -U postgres -d YourDatabase -f Scripts/003_CreateSagaStatesTable.sql
-psql -h localhost -U postgres -d YourDatabase -f Scripts/004_CreateScheduledMessagesTable.sql
+psql -h localhost -U postgres -d YourDatabase -f .github/scripts/001_CreateOutboxMessagesTable.sql
+psql -h localhost -U postgres -d YourDatabase -f .github/scripts/002_CreateInboxMessagesTable.sql
+psql -h localhost -U postgres -d YourDatabase -f .github/scripts/003_CreateSagaStatesTable.sql
+psql -h localhost -U postgres -d YourDatabase -f .github/scripts/004_CreateScheduledMessagesTable.sql
 ```
 
 ### 2. Register Services
@@ -189,7 +189,7 @@ All patterns work identically to Encina.EntityFrameworkCore. See the [EntityFram
 
    ```bash
    # You must run SQL scripts manually
-   psql -f Scripts/000_CreateAllTables.sql
+   psql -f .github/scripts/000_CreateAllTables.sql
    ```
 
 ## Database Schema
@@ -211,7 +211,7 @@ CREATE TABLE OutboxMessages (
 );
 ```
 
-See [Scripts/](./Scripts/) folder for complete schema definitions.
+See [.github/scripts/](./Scripts/) folder for complete schema definitions.
 
 ## Advanced Configuration
 

@@ -661,7 +661,7 @@ REFERENCE FILES:
    - `ToEntity(BreachAuditEntry) → BreachAuditEntryEntity`
    - `ToDomain(BreachAuditEntryEntity) → BreachAuditEntry`
 
-7. **SQL scripts** (`Scripts/` folder — referenced by satellite providers):
+7. **SQL scripts** (`.github/scripts/` folder — referenced by satellite providers):
    - Table: `BreachRecords` — columns matching entity properties
    - Table: `PhasedReports` — separate table for phased reports (1:N with BreachRecords)
    - Table: `BreachAuditEntries` — columns matching audit entity

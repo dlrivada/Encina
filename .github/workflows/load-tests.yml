@@ -124,19 +124,19 @@ jobs:
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
       - name: Run load harness (metrics)
-        run: dotnet run --file scripts/collect-load-metrics.cs -- --duration 00:00:30 --send-workers 8 --publish-workers 4
+        run: dotnet run --file .github/scripts/collect-load-metrics.cs -- --duration 00:00:30 --send-workers 8 --publish-workers 4
 
       - name: Check load harness metrics
-        run: dotnet run --file scripts/check-load-metrics.cs -- --config ci/load-thresholds.json
+        run: dotnet run --file .github/scripts/check-load-metrics.cs -- --config ci/load-thresholds.json
 
       - name: Run NBomber harness
-        run: dotnet run --file scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30
+        run: dotnet run --file .github/scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30
 
       - name: Summarize NBomber run
-        run: dotnet run --file scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json
+        run: dotnet run --file .github/scripts/summarize-nbomber-run.cs -- --thresholds ci/nbomber-thresholds.json
 
       - name: Aggregate performance history
-        run: dotnet run --file scripts/aggregate-performance-history.cs
+        run: dotnet run --file .github/scripts/aggregate-performance-history.cs
 
       - name: Publish performance history summary
         run: |
@@ -355,7 +355,7 @@ jobs:
 
       - name: Validate messaging thresholds
         run: |
-          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-messaging-thresholds.json
+          dotnet run --file .github/scripts/check-load-metrics.cs -- --config ci/nbomber-messaging-thresholds.json
         continue-on-error: true
 
       - name: Summarize messaging load test results
@@ -446,7 +446,7 @@ jobs:
 
       - name: Validate caching thresholds
         run: |
-          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-caching-thresholds.json
+          dotnet run --file .github/scripts/check-load-metrics.cs -- --config ci/nbomber-caching-thresholds.json
         continue-on-error: true
 
       - name: Summarize caching load test results
@@ -550,7 +550,7 @@ jobs:
 
       - name: Validate locking thresholds
         run: |
-          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-locking-thresholds.json
+          dotnet run --file .github/scripts/check-load-metrics.cs -- --config ci/nbomber-locking-thresholds.json
         continue-on-error: true
 
       - name: Summarize locking load test results
@@ -669,7 +669,7 @@ jobs:
 
       - name: Validate broker thresholds
         run: |
-          dotnet run --file scripts/check-load-metrics.cs -- --config ci/nbomber-brokers-thresholds.json
+          dotnet run --file .github/scripts/check-load-metrics.cs -- --config ci/nbomber-brokers-thresholds.json
         continue-on-error: true
 
       - name: Summarize broker load test results

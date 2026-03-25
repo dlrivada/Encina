@@ -135,7 +135,7 @@ Legacy Faker<T> usages: ?
 ## How to Update This Document
 
 1. After completing a project phase, update the corresponding table
-2. Run `scripts/audit-test-dependencies.ps1` for current metrics
+2. Run `.github/scripts/audit-test-dependencies.ps1` for current metrics
 3. Update "Recent Activity" with PR/commit references
 4. Add any blockers to the "Blockers & Issues" section
 

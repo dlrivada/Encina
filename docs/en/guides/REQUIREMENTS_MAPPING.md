@@ -20,9 +20,9 @@
 | `REQ-CONF-LIFETIME` | Handler lifetime configuration | Contract tests in `tests/Encina.ContractTests/ServiceRegistrationContracts.cs` |
 | `REQ-CONF-SCAN` | Assembly scanning fallbacks and caching | Unit tests in `tests/Encina.UnitTests/EncinaTests.cs` |
 | `REQ-CONF-EDGE` | Configuration extension edge cases | Contract tests in `tests/Encina.ContractTests/ServiceRegistrationContracts.cs` |
-| `REQ-QUAL-MUTATION` | Maintain ≥93.74% mutation score | CI step `scripts/run-stryker.cs` + summary `scripts/update-mutation-summary.cs`; documented in `MUTATION_TESTING.md` |
-| `REQ-PERF-BASELINE` | Benchmark latencies and allocations within thresholds | Benchmarks project + CI gate `scripts/run-benchmarks.cs`/`scripts/check-benchmarks.cs`; documented in `PERFORMANCE_TESTING.md` |
-| `REQ-LOAD-THROUGHPUT` | Sustained throughput under configurable load | Console harness `tests/Encina.LoadTests` plus NBomber scenarios `tests/Encina.NBomber` (profiles in `tests/Encina.LoadTests/profiles/`); both launched through `scripts/run-load-harness.cs`. CI enforces baseline guardrails via `ci/load-thresholds.json` (console harness) and `ci/nbomber-thresholds.json` (send-burst NBomber profile) through `scripts/check-load-metrics.cs` and `scripts/summarize-nbomber-run.cs`; documented in `LOAD_TESTING.md`. |
+| `REQ-QUAL-MUTATION` | Maintain ≥93.74% mutation score | CI step `.github/scripts/run-stryker.cs` + summary `.github/scripts/update-mutation-summary.cs`; documented in `MUTATION_TESTING.md` |
+| `REQ-PERF-BASELINE` | Benchmark latencies and allocations within thresholds | Benchmarks project + CI gate `.github/scripts/run-benchmarks.cs`/`.github/scripts/check-benchmarks.cs`; documented in `PERFORMANCE_TESTING.md` |
+| `REQ-LOAD-THROUGHPUT` | Sustained throughput under configurable load | Console harness `tests/Encina.LoadTests` plus NBomber scenarios `tests/Encina.NBomber` (profiles in `tests/Encina.LoadTests/profiles/`); both launched through `.github/scripts/run-load-harness.cs`. CI enforces baseline guardrails via `ci/load-thresholds.json` (console harness) and `ci/nbomber-thresholds.json` (send-burst NBomber profile) through `.github/scripts/check-load-metrics.cs` and `.github/scripts/summarize-nbomber-run.cs`; documented in `LOAD_TESTING.md`. |
 
 ## Gaps & Planned Work
 

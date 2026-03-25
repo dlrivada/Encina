@@ -75,13 +75,13 @@ Run the SQL migration scripts in order:
 
 ```bash
 # Option 1: Run all at once
-sqlite3 app.db < Scripts/000_CreateAllTables.sql
+sqlite3 app.db < .github/scripts/000_CreateAllTables.sql
 
 # Option 2: Run individually
-sqlite3 app.db < Scripts/001_CreateOutboxMessagesTable.sql
-sqlite3 app.db < Scripts/002_CreateInboxMessagesTable.sql
-sqlite3 app.db < Scripts/003_CreateSagaStatesTable.sql
-sqlite3 app.db < Scripts/004_CreateScheduledMessagesTable.sql
+sqlite3 app.db < .github/scripts/001_CreateOutboxMessagesTable.sql
+sqlite3 app.db < .github/scripts/002_CreateInboxMessagesTable.sql
+sqlite3 app.db < .github/scripts/003_CreateSagaStatesTable.sql
+sqlite3 app.db < .github/scripts/004_CreateScheduledMessagesTable.sql
 ```
 
 ### 3. Outbox Pattern (Reliable Event Publishing)
