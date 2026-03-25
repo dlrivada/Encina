@@ -504,7 +504,7 @@ dotnet test Encina.slnx --configuration Release
 dotnet test --collect:"XPlat Code Coverage"
 
 # Run mutation testing
-dotnet run --file scripts/run-stryker.cs
+dotnet run --file .github/scripts/run-stryker.cs
 ```
 
 ## Documentation

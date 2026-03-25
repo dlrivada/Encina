@@ -531,7 +531,7 @@ REFERENCE FILES:
    - `ToEntity(DPIAAuditEntry) → DPIAAuditEntryEntity`
    - `ToDomain(DPIAAuditEntryEntity) → DPIAAuditEntry`
 
-5. **SQL scripts** (`Scripts/` folder — referenced by satellite providers):
+5. **SQL scripts** (`.github/scripts/` folder — referenced by satellite providers):
    - Table: `DPIAAssessments` — columns matching entity properties
    - Table: `DPIAAuditEntries` — columns matching audit entity
    - Provider-specific DDL:

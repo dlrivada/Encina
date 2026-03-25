@@ -521,7 +521,7 @@ REFERENCE FILES:
 
 3. **SQL Scripts** — Create `XXX_CreateReadAuditEntriesTable.sql` for each provider:
 
-   **ADO.NET providers** (in `Scripts/` folder of each):
+   **ADO.NET providers** (in `.github/scripts/` folder of each):
    - `src/Encina.ADO.Sqlite/Scripts/020_CreateReadAuditEntriesTable.sql`
    - `src/Encina.ADO.SqlServer/Scripts/020_CreateReadAuditEntriesTable.sql`
    - `src/Encina.ADO.PostgreSQL/Scripts/020_CreateReadAuditEntriesTable.sql`
@@ -589,7 +589,7 @@ CONTEXT:
 TASK:
 1. Create ReadAuditEntryEntity in src/Encina.Security.Audit/ReadAuditEntryEntity.cs
 2. Create ReadAuditEntryMapper in src/Encina.Security.Audit/ReadAuditEntryMapper.cs
-3. Create SQL scripts (020_CreateReadAuditEntriesTable.sql) in all 8 ADO/Dapper provider Scripts/ folders
+3. Create SQL scripts (020_CreateReadAuditEntriesTable.sql) in all 8 ADO/Dapper provider .github/scripts/ folders
 4. Create EF Core entity configuration in src/Encina.EntityFrameworkCore/Auditing/
 5. Update 000_CreateAllTables.sql in all 8 providers
 

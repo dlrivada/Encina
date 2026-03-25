@@ -35,14 +35,14 @@ Quickly check the status of the most recent workflow run(s).
 
 ```bash
 # Check latest workflow
-dotnet run --file scripts/check-latest-workflow.cs
+dotnet run --file .github/scripts/check-latest-workflow.cs
 
 # Check latest workflow (with explicit token)
-dotnet run --file scripts/check-latest-workflow.cs -- --token YOUR_TOKEN
+dotnet run --file .github/scripts/check-latest-workflow.cs -- --token YOUR_TOKEN
 
 # Check specific workflow by name
-dotnet run --file scripts/check-latest-workflow.cs -- --workflow "SonarCloud"
-dotnet run --file scripts/check-latest-workflow.cs -- --workflow "dotnet-ci"
+dotnet run --file .github/scripts/check-latest-workflow.cs -- --workflow "SonarCloud"
+dotnet run --file .github/scripts/check-latest-workflow.cs -- --workflow "dotnet-ci"
 ```
 
 **Output:**
@@ -76,13 +76,13 @@ Continuously monitors GitHub Actions and automatically reports failures as they 
 
 ```bash
 # Monitor with default 60-second interval
-dotnet run --file scripts/monitor-workflows.cs
+dotnet run --file .github/scripts/monitor-workflows.cs
 
 # Monitor with custom interval (in seconds)
-dotnet run --file scripts/monitor-workflows.cs -- --interval 30
+dotnet run --file .github/scripts/monitor-workflows.cs -- --interval 30
 
 # Monitor specific repository
-dotnet run --file scripts/monitor-workflows.cs -- --repo "owner/repo" --interval 60
+dotnet run --file .github/scripts/monitor-workflows.cs -- --repo "owner/repo" --interval 60
 ```
 
 **Output:**
@@ -113,14 +113,14 @@ You can configure Claude Code to automatically run these scripts when workflows 
 1. User pushes code
 2. GitHub Actions runs
 3. If workflow fails, user tells Claude: "check the latest workflow"
-4. Claude runs: `dotnet run --file scripts/check-latest-workflow.cs`
+4. Claude runs: `dotnet run --file .github/scripts/check-latest-workflow.cs`
 5. Claude sees the failure details and fixes the issue automatically
 
 **Or use monitoring mode:**
 
 ```bash
 # In a separate terminal
-dotnet run --file scripts/monitor-workflows.cs
+dotnet run --file .github/scripts/monitor-workflows.cs
 ```
 
 Claude can read the output and react to failures immediately.
@@ -146,17 +146,17 @@ Claude can read the output and react to failures immediately.
 export GITHUB_TOKEN="ghp_xxxxxxxxxxxxx"
 
 # 2. Quick check before starting work
-dotnet run --file scripts/check-latest-workflow.cs
+dotnet run --file .github/scripts/check-latest-workflow.cs
 
 # 3. Start monitoring in background (optional)
-dotnet run --file scripts/monitor-workflows.cs &
+dotnet run --file .github/scripts/monitor-workflows.cs &
 
 # 4. Work on code...
 
 # 5. Push changes and check status
 git push
 sleep 60
-dotnet run --file scripts/check-latest-workflow.cs
+dotnet run --file .github/scripts/check-latest-workflow.cs
 ```
 
 ## Troubleshooting

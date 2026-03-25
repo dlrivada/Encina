@@ -668,9 +668,9 @@ REFERENCE FILES:
    - `ProcessorRegistryADO.cs` — raw ADO.NET with `@param` parameters, `MERGE` for upsert, `DATETIME2(7)`
    - `DPAStoreADO.cs` — DPA CRUD + status/expiration queries
    - `ProcessorAuditStoreADO.cs` — audit trail
-   - `Scripts/025_CreateProcessorsTable.sql` — `NVARCHAR(36)` IDs, `INT` depth, `NVARCHAR(MAX)` JSON
-   - `Scripts/026_CreateDataProcessingAgreementsTable.sql` — 8 `BIT` columns for mandatory terms
-   - `Scripts/027_CreateProcessorAgreementAuditEntriesTable.sql`
+   - `.github/scripts/025_CreateProcessorsTable.sql` — `NVARCHAR(36)` IDs, `INT` depth, `NVARCHAR(MAX)` JSON
+   - `.github/scripts/026_CreateDataProcessingAgreementsTable.sql` — 8 `BIT` columns for mandatory terms
+   - `.github/scripts/027_CreateProcessorAgreementAuditEntriesTable.sql`
 
 2. **SQLite** (`src/Encina.ADO.Sqlite/ProcessorAgreements/`):
    - Same 3 store classes + 3 SQL scripts
@@ -716,9 +716,9 @@ For EACH of 4 ADO.NET providers, create in src/Encina.ADO.{Provider}/ProcessorAg
 - ProcessorRegistryADO.cs (7 methods with raw SQL)
 - DPAStoreADO.cs (7 methods with raw SQL)
 - ProcessorAuditStoreADO.cs (2 methods with raw SQL)
-- Scripts/025_CreateProcessorsTable.sql
-- Scripts/026_CreateDataProcessingAgreementsTable.sql
-- Scripts/027_CreateProcessorAgreementAuditEntriesTable.sql
+- .github/scripts/025_CreateProcessorsTable.sql
+- .github/scripts/026_CreateDataProcessingAgreementsTable.sql
+- .github/scripts/027_CreateProcessorAgreementAuditEntriesTable.sql
 Update: ServiceCollectionExtensions.cs for each provider
 
 KEY RULES:

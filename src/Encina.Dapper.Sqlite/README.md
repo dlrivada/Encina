@@ -59,17 +59,17 @@ Run the provided SQL scripts to create the messaging tables:
 
 ```sql
 -- Run this script on your SQL Server database
--- Location: Scripts/000_CreateAllTables.sql
+-- Location: .github/scripts/000_CreateAllTables.sql
 ```
 
 Or create tables individually:
 
 ```bash
 # In your database
-sqlcmd -S localhost -d YourDatabase -i Scripts/001_CreateOutboxMessagesTable.sql
-sqlcmd -S localhost -d YourDatabase -i Scripts/002_CreateInboxMessagesTable.sql
-sqlcmd -S localhost -d YourDatabase -i Scripts/003_CreateSagaStatesTable.sql
-sqlcmd -S localhost -d YourDatabase -i Scripts/004_CreateScheduledMessagesTable.sql
+sqlcmd -S localhost -d YourDatabase -i .github/scripts/001_CreateOutboxMessagesTable.sql
+sqlcmd -S localhost -d YourDatabase -i .github/scripts/002_CreateInboxMessagesTable.sql
+sqlcmd -S localhost -d YourDatabase -i .github/scripts/003_CreateSagaStatesTable.sql
+sqlcmd -S localhost -d YourDatabase -i .github/scripts/004_CreateScheduledMessagesTable.sql
 ```
 
 ### 2. Register Services
@@ -188,7 +188,7 @@ All patterns work identically to Encina.EntityFrameworkCore. See the [EntityFram
 
    ```bash
    # You must run SQL scripts manually
-   sqlcmd -i Scripts/000_CreateAllTables.sql
+   sqlcmd -i .github/scripts/000_CreateAllTables.sql
    ```
 
 ## Database Schema
@@ -210,7 +210,7 @@ CREATE TABLE OutboxMessages (
 );
 ```
 
-See [Scripts/](./Scripts/) folder for complete schema definitions.
+See [.github/scripts/](./Scripts/) folder for complete schema definitions.
 
 ## Advanced Configuration
 

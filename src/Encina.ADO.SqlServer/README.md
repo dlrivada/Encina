@@ -64,13 +64,13 @@ Run the SQL migration scripts in order:
 
 ```sql
 -- Option 1: Run all at once
--- Execute Scripts/000_CreateAllTables.sql
+-- Execute .github/scripts/000_CreateAllTables.sql
 
 -- Option 2: Run individually
--- Execute Scripts/001_CreateOutboxMessagesTable.sql
--- Execute Scripts/002_CreateInboxMessagesTable.sql
--- Execute Scripts/003_CreateSagaStatesTable.sql (if using Sagas)
--- Execute Scripts/004_CreateScheduledMessagesTable.sql (if using Scheduling)
+-- Execute .github/scripts/001_CreateOutboxMessagesTable.sql
+-- Execute .github/scripts/002_CreateInboxMessagesTable.sql
+-- Execute .github/scripts/003_CreateSagaStatesTable.sql (if using Sagas)
+-- Execute .github/scripts/004_CreateScheduledMessagesTable.sql (if using Scheduling)
 ```
 
 ### 3. Outbox Pattern (Reliable Event Publishing)

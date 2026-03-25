@@ -64,13 +64,13 @@ Run the SQL migration scripts in order:
 
 ```bash
 # Option 1: Run all at once
-psql -h localhost -U postgres -d MyApp -f Scripts/000_CreateAllTables.sql
+psql -h localhost -U postgres -d MyApp -f .github/scripts/000_CreateAllTables.sql
 
 # Option 2: Run individually
-psql -h localhost -U postgres -d MyApp -f Scripts/001_CreateOutboxMessagesTable.sql
-psql -h localhost -U postgres -d MyApp -f Scripts/002_CreateInboxMessagesTable.sql
-psql -h localhost -U postgres -d MyApp -f Scripts/003_CreateSagaStatesTable.sql
-psql -h localhost -U postgres -d MyApp -f Scripts/004_CreateScheduledMessagesTable.sql
+psql -h localhost -U postgres -d MyApp -f .github/scripts/001_CreateOutboxMessagesTable.sql
+psql -h localhost -U postgres -d MyApp -f .github/scripts/002_CreateInboxMessagesTable.sql
+psql -h localhost -U postgres -d MyApp -f .github/scripts/003_CreateSagaStatesTable.sql
+psql -h localhost -U postgres -d MyApp -f .github/scripts/004_CreateScheduledMessagesTable.sql
 ```
 
 ### 3. Outbox Pattern (Reliable Event Publishing)

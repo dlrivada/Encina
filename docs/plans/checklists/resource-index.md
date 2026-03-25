@@ -69,8 +69,8 @@ A complete index of all resources for the testing dogfooding initiative.
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/audit-test-dependencies.ps1` | Analyze current dependencies |
-| `scripts/update-test-dependencies.ps1` | Add Encina.Testing.* references |
+| `.github/scripts/audit-test-dependencies.ps1` | Analyze current dependencies |
+| `.github/scripts/update-test-dependencies.ps1` | Add Encina.Testing.* references |
 
 ### Usage Examples
 

@@ -671,7 +671,7 @@ REFERENCE FILES:
    - `ToEntity(DSRAuditEntry) → DSRAuditEntryEntity`
    - `ToDomain(DSRAuditEntryEntity) → DSRAuditEntry`
 
-5. **SQL scripts** (`Scripts/` folder in each satellite provider package):
+5. **SQL scripts** (`.github/scripts/` folder in each satellite provider package):
    - Table: `DSRRequests` — columns matching entity properties
    - Table: `DSRAuditEntries` — columns matching audit entity
    - Provider-specific DDL:

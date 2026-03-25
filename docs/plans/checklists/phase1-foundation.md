@@ -12,7 +12,7 @@
 
 - [ ] Run `dotnet test` to ensure all tests pass before migration
 - [ ] Create a new branch: `feature/testing-dogfooding-phase1`
-- [ ] Review existing test dependencies with `scripts/audit-test-dependencies.ps1`
+- [ ] Review existing test dependencies with `.github/scripts/audit-test-dependencies.ps1`
 
 ## Core Package References
 

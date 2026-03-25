@@ -64,13 +64,13 @@ Run the SQL migration scripts in order:
 
 ```bash
 # Option 1: Run all at once
-mysql -u root -p MyApp < Scripts/000_CreateAllTables.sql
+mysql -u root -p MyApp < .github/scripts/000_CreateAllTables.sql
 
 # Option 2: Run individually
-mysql -u root -p MyApp < Scripts/001_CreateOutboxMessagesTable.sql
-mysql -u root -p MyApp < Scripts/002_CreateInboxMessagesTable.sql
-mysql -u root -p MyApp < Scripts/003_CreateSagaStatesTable.sql
-mysql -u root -p MyApp < Scripts/004_CreateScheduledMessagesTable.sql
+mysql -u root -p MyApp < .github/scripts/001_CreateOutboxMessagesTable.sql
+mysql -u root -p MyApp < .github/scripts/002_CreateInboxMessagesTable.sql
+mysql -u root -p MyApp < .github/scripts/003_CreateSagaStatesTable.sql
+mysql -u root -p MyApp < .github/scripts/004_CreateScheduledMessagesTable.sql
 ```
 
 ### 3. Outbox Pattern (Reliable Event Publishing)

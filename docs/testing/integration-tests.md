@@ -13,7 +13,7 @@ Encina uses Docker containers for integration testing against real database engi
 ### Run All Integration Tests
 
 ```bash
-dotnet run --file scripts/run-integration-tests.cs
+dotnet run --file .github/scripts/run-integration-tests.cs
 ```
 
 This command will:
@@ -27,13 +27,13 @@ This command will:
 
 ```bash
 # SQL Server only
-dotnet run --file scripts/run-integration-tests.cs -- --database sqlserver
+dotnet run --file .github/scripts/run-integration-tests.cs -- --database sqlserver
 
 # PostgreSQL only
-dotnet run --file scripts/run-integration-tests.cs -- --database postgres
+dotnet run --file .github/scripts/run-integration-tests.cs -- --database postgres
 
 # MySQL only
-dotnet run --file scripts/run-integration-tests.cs -- --database mysql
+dotnet run --file .github/scripts/run-integration-tests.cs -- --database mysql
 ```
 
 ### Manual Container Management
@@ -54,7 +54,7 @@ docker compose --profile databases --profile messaging up -d
 docker compose --profile full up -d
 
 # Run tests against running containers
-dotnet run --file scripts/run-integration-tests.cs -- --skip-docker
+dotnet run --file .github/scripts/run-integration-tests.cs -- --skip-docker
 
 # Stop databases
 docker compose --profile databases down

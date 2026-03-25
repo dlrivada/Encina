@@ -2957,7 +2957,7 @@ TUnit framework support for modern, source-generated testing with NativeAOT comp
     - New package planned: `Encina.Testing.TUnit`
   - **Mutation Testing Integration** (Issue #172) - Stryker.NET configuration
     - Pre-configured `stryker-config.json` for Encina projects
-    - `scripts/run-stryker.cs` helper script
+    - `.github/scripts/run-stryker.cs` helper script
     - GitHub Actions workflow for mutation testing
     - `MutationKillerAttribute` for edge case tests
   - **CI/CD Workflow Templates** (Issue #173) - Reusable GitHub Actions

@@ -14,7 +14,7 @@
 ## Running The Suite
 
 - Execute `dotnet tool run dotnet-stryker --config-file stryker-config.json --solution Encina.slnx` from the repository root.
-- Use the C# helper script for convenience: `dotnet run --file scripts/run-stryker.cs`
+- Use the C# helper script for convenience: `dotnet run --file .github/scripts/run-stryker.cs`
 - Prefer Release builds to mirror CI behavior (`--configuration Release`).
 - The repository config pins `concurrency: 1` to avoid vstest runner hangs on Windows; adjust once the suite stabilizes.
 
@@ -27,7 +27,7 @@
 ### Current Baseline (2025-12-08)
 
 - Mutation score: **93.74%** (449 killed, 2 survived, 0 timeout mutants) using `dotnet tool run dotnet-stryker` with the repo configuration.
-- CI runs `scripts/run-stryker.cs` and enforces the baseline; refresh the README badge via `scripts/update-mutation-summary.cs` right after local runs.
+- CI runs `.github/scripts/run-stryker.cs` and enforces the baseline; refresh the README badge via `.github/scripts/update-mutation-summary.cs` right after local runs.
 - Survivors mainly sit in historical reports; the live suite is green. Keep future contributions paired with targeted tests so surviving mutants stay at zero.
 
 ### Paused Hardening Tasks
@@ -36,7 +36,7 @@ The dedicated mutation-hardening initiative is paused until new feature work set
 
 1. Re-run `dotnet stryker --project src/Encina/Encina.csproj --test-projects tests/Encina.UnitTests/Encina.UnitTests.csproj` to focus on the Encina core mutants (previously IDs 280–366).
 2. Investigate any survivors and add unit or property tests around metrics pipeline integration and handler result validation.
-3. Update the mutation badge and dashboard via `scripts/update-mutation-summary.cs` once the new score is recorded.
+3. Update the mutation badge and dashboard via `.github/scripts/update-mutation-summary.cs` once the new score is recorded.
 
 ## Test Quality Patterns
 
