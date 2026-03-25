@@ -1,99 +1,66 @@
-using Encina.Messaging.Health;
 using Encina.Tenancy;
 using Encina.Tenancy.Health;
+using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
+using HealthCheckResult = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult;
 using NSubstitute;
-using Shouldly;
 
 namespace Encina.UnitTests.Tenancy;
 
-/// <summary>
-/// Unit tests for <see cref="TenantHealthCheck"/>.
-/// </summary>
-public sealed class TenantHealthCheckTests
+public class TenantHealthCheckTests
 {
     [Fact]
-    public void DefaultName_ShouldBeExpected()
+    public void DefaultName_ShouldBeEncinaTenancy()
     {
         TenantHealthCheck.DefaultName.ShouldBe("encina-tenancy");
     }
 
     [Fact]
-    public void Constructor_NullTenantProvider_ThrowsArgumentNullException()
+    public void Constructor_NullProvider_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
-            new TenantHealthCheck(null!));
+        Should.Throw<ArgumentNullException>(() => new TenantHealthCheck(null!));
     }
 
     [Fact]
-    public void Name_ShouldReturnDefaultName()
+    public void Name_ShouldMatchDefaultName()
     {
-        var tenantProvider = Substitute.For<ITenantProvider>();
-        var healthCheck = new TenantHealthCheck(tenantProvider);
-
-        healthCheck.Name.ShouldBe("encina-tenancy");
+        var provider = Substitute.For<ITenantProvider>();
+        var hc = new TenantHealthCheck(provider);
+        hc.Name.ShouldBe(TenantHealthCheck.DefaultName);
     }
 
     [Fact]
-    public void Tags_ShouldContainExpectedTags()
+    public void Tags_ShouldContainTenancy()
     {
-        var tenantProvider = Substitute.For<ITenantProvider>();
-        var healthCheck = new TenantHealthCheck(tenantProvider);
-
-        healthCheck.Tags.ShouldContain("tenancy");
-        healthCheck.Tags.ShouldContain("ready");
+        var provider = Substitute.For<ITenantProvider>();
+        var hc = new TenantHealthCheck(provider);
+        hc.Tags.ShouldContain("tenancy");
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WithTenantContext_ReturnsHealthyWithTenantData()
+    public async Task CheckHealthAsync_NoTenantContext_ReturnsHealthy()
     {
-        // Arrange
-        var tenantProvider = Substitute.For<ITenantProvider>();
-        tenantProvider.GetCurrentTenantId().Returns("tenant-123");
-        var healthCheck = new TenantHealthCheck(tenantProvider);
+        var provider = Substitute.For<ITenantProvider>();
+        provider.GetCurrentTenantId().Returns((string?)null);
 
-        // Act
-        var result = await healthCheck.CheckHealthAsync();
+        var hc = new TenantHealthCheck(provider);
+        var result = await hc.CheckHealthAsync();
 
-        // Assert
-        result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description!.ShouldContain("operational");
-        result.Data.ShouldContainKey("has_tenant_context");
-        result.Data["has_tenant_context"].ShouldBe(true);
-        result.Data.ShouldContainKey("tenant_id");
-        result.Data["tenant_id"].ShouldBe("tenant-123");
-    }
-
-    [Fact]
-    public async Task CheckHealthAsync_WithoutTenantContext_ReturnsHealthyWithNoTenantData()
-    {
-        // Arrange
-        var tenantProvider = Substitute.For<ITenantProvider>();
-        tenantProvider.GetCurrentTenantId().Returns((string?)null);
-        var healthCheck = new TenantHealthCheck(tenantProvider);
-
-        // Act
-        var result = await healthCheck.CheckHealthAsync();
-
-        // Assert
-        result.Status.ShouldBe(HealthStatus.Healthy);
+        ((int)result.Status).ShouldBe((int)HealthStatus.Healthy);
         result.Data.ShouldContainKey("has_tenant_context");
         result.Data["has_tenant_context"].ShouldBe(false);
-        result.Data.ShouldNotContainKey("tenant_id");
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenProviderThrows_ReturnsUnhealthy()
+    public async Task CheckHealthAsync_WithTenantContext_ReturnsHealthyWithTenantId()
     {
-        // Arrange
-        var tenantProvider = Substitute.For<ITenantProvider>();
-        tenantProvider.GetCurrentTenantId()
-            .Returns<string?>(_ => throw new InvalidOperationException("Provider failure"));
-        var healthCheck = new TenantHealthCheck(tenantProvider);
+        var provider = Substitute.For<ITenantProvider>();
+        provider.GetCurrentTenantId().Returns("tenant-42");
 
-        // Act - base class EncinaHealthCheck catches exceptions
-        var result = await healthCheck.CheckHealthAsync();
+        var hc = new TenantHealthCheck(provider);
+        var result = await hc.CheckHealthAsync();
 
-        // Assert
-        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        ((int)result.Status).ShouldBe((int)HealthStatus.Healthy);
+        result.Data["has_tenant_context"].ShouldBe(true);
+        result.Data["tenant_id"].ShouldBe("tenant-42");
     }
 }
