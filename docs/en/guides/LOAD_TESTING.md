@@ -65,7 +65,7 @@ Publish throughput: 2 649 522.40 ops/sec
 - **Reference**: the aggregated history in `docs/data/load-history.md` now surfaces CPU, memory, and send/publish throughput for every run, including early smoke checks and the stabilized high-concurrency profile.
 - **CPU/memory thresholds**: adjust guardrails by setting `Encina_LOAD_MAX_MEAN_CPU` and/or `Encina_LOAD_MAX_PEAK_MB` before invoking `check-load-metrics.cs` (CLI arguments still take precedence for ad-hoc runs). The default CPU ceiling is `3%` to account for the latest hosted-runner profile.
 - **Throughput guardrails**: enforce minimum send/publish throughput via env vars (`Encina_LOAD_MIN_SEND_MEAN_OPS`, `Encina_LOAD_MIN_SEND_P50_OPS`, `Encina_LOAD_MIN_SEND_P95_OPS`, and the analogous `Encina_LOAD_MIN_PUBLISH_*` keys) or CLI flags (`--min-send-mean-ops`, `--min-send-p50-ops`, etc.). CI now targets the hosted-runner envelope (send mean/P50/P95 ≥ 1.80 M / 1.70 M / 2.00 M ops/sec, publish mean/P50/P95 ≥ 0.25 M / 0.20 M / 0.30 M ops/sec) to leave room for variance while still catching regressions.
-- **Config file**: check the repo’s baseline thresholds at `.github/ci/load-thresholds.json` (currently 1.80 M / 1.70 M / 2.00 M for send mean/P50/P95 and 0.25 M / 0.20 M / 0.30 M for publish mean/P50/P95) and pass them with `--config .github/ci/load-thresholds.json`. CLI flags override env vars, which in turn override the config file defaults.
+- **Config file**: check the repo’s baseline thresholds at `ci/load-thresholds.json` (currently 1.80 M / 1.70 M / 2.00 M for send mean/P50/P95 and 0.25 M / 0.20 M / 0.30 M for publish mean/P50/P95) and pass them with `--config ci/load-thresholds.json`. CLI flags override env vars, which in turn override the config file defaults.
 - **Percentiles**: the load harness samples per-second throughput; `aggregate-performance-history.cs` records send/publish P50 and P95 so regressions in stability (not only averages) are visible in `docs/data/load-history.md` and CI summaries.
 - **CI summary**: `check-load-metrics.cs` scans the matching harness log and prints send/publish mean throughput plus P50/P95 breakdowns, making the GitHub summary actionable without chasing artifacts.
 - **Error snippets**: when the harness captures sample send/publish failures they are echoed directly in the CI summary, so triage starts with the precise pipeline error(s) that surfaced under load.
@@ -92,7 +92,7 @@ dotnet run --file .github/scripts/run-load-harness.cs -- --nbomber send-burst
 
 GitHub Actions now executes `.github/scripts/run-load-harness.cs -- --nbomber send-burst --duration 00:00:30` after the console guardrail check, so CI uploads both harness outputs under `artifacts/load-metrics/` and the workflow summary includes the NBomber tail logs.
 
-Use `dotnet run --file .github/scripts/summarize-nbomber-run.cs [-- --directory <path>]` to parse the generated `nbomber-summary.json` and emit a concise throughput/latency report (the script automatically targets the most recent `nbomber-*` directory and appends to `$GITHUB_STEP_SUMMARY` when available). Pass `--thresholds <json>` to fail the run when metrics fall outside expected envelopes; CI points this to `.github/ci/nbomber-thresholds.json`, which currently enforces ≥6.75 M ops/sec throughput and ≤0.85 ms latency for the send-burst profile.
+Use `dotnet run --file .github/scripts/summarize-nbomber-run.cs [-- --directory <path>]` to parse the generated `nbomber-summary.json` and emit a concise throughput/latency report (the script automatically targets the most recent `nbomber-*` directory and appends to `$GITHUB_STEP_SUMMARY` when available). Pass `--thresholds <json>` to fail the run when metrics fall outside expected envelopes; CI points this to `ci/nbomber-thresholds.json`, which currently enforces ≥6.75 M ops/sec throughput and ≤0.85 ms latency for the send-burst profile.
 
 ### Profile Layout
 
@@ -121,5 +121,5 @@ Profiles capture duration, warm-up, throughput targets, and reporting cadence:
 
 - Harden the console harness against `AccessViolationException` when using higher worker counts (e.g., 32/16) so stress levels can scale safely.
 - Capture NBomber baseline artefacts (send-burst and mixed-traffic) and feed their throughput/latency summaries into the history aggregator.
-- Monitor the enforced send-burst thresholds (`.github/ci/nbomber-thresholds.json`) and tighten or extend them (e.g., mixed-traffic, percentile limits) as variance data accumulates; consider mirroring the checks in `check-load-metrics.cs` if additional reports need to fail early.
+- Monitor the enforced send-burst thresholds (`ci/nbomber-thresholds.json`) and tighten or extend them (e.g., mixed-traffic, percentile limits) as variance data accumulates; consider mirroring the checks in `check-load-metrics.cs` if additional reports need to fail early.
 - Consider introducing configurable request/notification handlers that simulate I/O delays for broader coverage.
