@@ -87,12 +87,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: build-output
-      - name: Restore test project (for coverlet.collector)
-        run: dotnet restore tests/Encina.UnitTests/Encina.UnitTests.csproj
-
       - name: Run Unit tests (${{ matrix.shard.name }})
         run: |
-          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj --no-build -c Release \
+          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj -c Release \
             --filter "${{ matrix.shard.filter }}" \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/UnitTests-${{ matrix.shard.name }} \
@@ -157,12 +154,9 @@ jobs:
         with:
           name: build-output
 
-      - name: Restore test project (for coverlet.collector)
-        run: dotnet restore tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj
-
       - name: Run Integration tests (${{ matrix.shard.name }})
         run: |
-          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj --no-build -c Release \
+          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj -c Release \
             --filter "${{ matrix.shard.filter }}" \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/IntegrationTests-${{ matrix.shard.name }} \
@@ -200,12 +194,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: build-output
-      - name: Restore test project (for coverlet.collector)
-        run: dotnet restore tests/Encina.ContractTests/Encina.ContractTests.csproj
-
       - name: Run Contract tests
         run: |
-          dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj --no-build -c Release \
+          dotnet test tests/Encina.ContractTests/Encina.ContractTests.csproj -c Release \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/ContractTests \
             --logger "trx;LogFileName=ContractTests.trx"
@@ -241,12 +232,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: build-output
-      - name: Restore test project (for coverlet.collector)
-        run: dotnet restore tests/Encina.PropertyTests/Encina.PropertyTests.csproj
-
       - name: Run Property tests
         run: |
-          dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj --no-build -c Release \
+          dotnet test tests/Encina.PropertyTests/Encina.PropertyTests.csproj -c Release \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/PropertyTests \
             --logger "trx;LogFileName=PropertyTests.trx"
@@ -282,12 +270,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: build-output
-      - name: Restore test project (for coverlet.collector)
-        run: dotnet restore tests/Encina.GuardTests/Encina.GuardTests.csproj
-
       - name: Run Guard tests
         run: |
-          dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj --no-build -c Release \
+          dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj -c Release \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/GuardTests \
             --logger "trx;LogFileName=GuardTests.trx"
@@ -393,14 +378,11 @@ jobs:
         with:
           name: build-output
 
-      - name: Restore test project (for coverlet.collector)
-        run: dotnet restore tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj
-
       - name: Run EF Core ${{ matrix.database.name }} tests
         run: |
           # Filter for EF Core tests with specific database trait
           # Tests must have [Trait("Database", "{Provider}")] to be included
-          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj --no-build -c Release \
+          dotnet test tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj -c Release \
             --filter "FullyQualifiedName~EntityFrameworkCore&Database=${{ matrix.database.trait }}" \
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/EFCore-${{ matrix.database.name }} \
