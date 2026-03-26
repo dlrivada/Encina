@@ -111,7 +111,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: unit
-          directory: artifacts/test-results/UnitTests-${{ matrix.shard.name }}
+          files: artifacts/test-results/UnitTests-${{ matrix.shard.name }}/**/coverage.cobertura.xml
           fail_ci_if_error: false
 
   # Integration tests - split by data access provider for parallel execution
@@ -178,7 +178,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: integration
-          directory: artifacts/test-results/IntegrationTests-${{ matrix.shard.name }}
+          files: artifacts/test-results/IntegrationTests-${{ matrix.shard.name }}/**/coverage.cobertura.xml
           fail_ci_if_error: false
 
   # Contract tests
@@ -216,7 +216,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: contract
-          directory: artifacts/test-results/ContractTests
+          files: artifacts/test-results/ContractTests/**/coverage.cobertura.xml
           fail_ci_if_error: false
 
   # Property tests
@@ -254,7 +254,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: property
-          directory: artifacts/test-results/PropertyTests
+          files: artifacts/test-results/PropertyTests/**/coverage.cobertura.xml
           fail_ci_if_error: false
 
   # Guard tests
@@ -292,7 +292,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: guard
-          directory: artifacts/test-results/GuardTests
+          files: artifacts/test-results/GuardTests/**/coverage.cobertura.xml
           fail_ci_if_error: false
 
   # EF Core multi-provider integration tests
@@ -404,7 +404,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: integration
-          directory: artifacts/test-results/EFCore-${{ matrix.database.name }}
+          files: artifacts/test-results/EFCore-${{ matrix.database.name }}/**/coverage.cobertura.xml
           fail_ci_if_error: false
 
   # Aggregate coverage from all test jobs
