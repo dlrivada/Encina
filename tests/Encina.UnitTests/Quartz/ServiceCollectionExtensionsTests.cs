@@ -171,8 +171,108 @@ public class ServiceCollectionExtensionsTests
         optionsConfigureCalled.ShouldBeTrue();
     }
 
-    // Note: ScheduleRequest, ScheduleNotification, AddRequestJob, and AddNotificationJob
-    // are extension methods that require IScheduler or IServiceCollectionQuartzConfigurator
-    // These would be better tested as integration tests with a running Quartz scheduler
-    // For unit tests, we've verified the service registration works correctly
+    #region ScheduleRequest / ScheduleNotification
+
+    [Fact]
+    public async Task ScheduleRequest_SchedulesJobAndReturnsTriggerKey()
+    {
+        // Arrange
+        var scheduler = Substitute.For<IScheduler>();
+        var request = new TestQuartzRequest("test");
+        var trigger = TriggerBuilder.Create()
+            .WithIdentity("test-trigger")
+            .StartNow()
+            .Build();
+
+        // Act
+        var result = await scheduler.ScheduleRequest<TestQuartzRequest, TestQuartzResponse>(
+            request, trigger);
+
+        // Assert
+        result.ShouldBe(trigger.Key);
+        await scheduler.Received(1).ScheduleJob(
+            Arg.Any<IJobDetail>(), Arg.Is(trigger), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ScheduleRequest_WithCustomJobKey_UsesProvidedKey()
+    {
+        // Arrange
+        var scheduler = Substitute.For<IScheduler>();
+        var request = new TestQuartzRequest("custom");
+        var trigger = TriggerBuilder.Create().WithIdentity("t2").StartNow().Build();
+        var jobKey = new JobKey("my-custom-key");
+
+        // Act
+        await scheduler.ScheduleRequest<TestQuartzRequest, TestQuartzResponse>(
+            request, trigger, jobKey);
+
+        // Assert
+        await scheduler.Received(1).ScheduleJob(
+            Arg.Is<IJobDetail>(j => j.Key == jobKey),
+            Arg.Any<ITrigger>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ScheduleNotification_SchedulesJobAndReturnsTriggerKey()
+    {
+        // Arrange
+        var scheduler = Substitute.For<IScheduler>();
+        var notification = new TestQuartzNotification("event");
+        var trigger = TriggerBuilder.Create().WithIdentity("t3").StartNow().Build();
+
+        // Act
+        var result = await scheduler.ScheduleNotification(notification, trigger);
+
+        // Assert
+        result.ShouldBe(trigger.Key);
+        await scheduler.Received(1).ScheduleJob(
+            Arg.Any<IJobDetail>(), Arg.Is(trigger), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ScheduleNotification_WithCustomJobKey_UsesProvidedKey()
+    {
+        // Arrange
+        var scheduler = Substitute.For<IScheduler>();
+        var notification = new TestQuartzNotification("custom");
+        var trigger = TriggerBuilder.Create().WithIdentity("t4").StartNow().Build();
+        var jobKey = new JobKey("notif-key");
+
+        // Act
+        await scheduler.ScheduleNotification(notification, trigger, jobKey);
+
+        // Assert
+        await scheduler.Received(1).ScheduleJob(
+            Arg.Is<IJobDetail>(j => j.Key == jobKey),
+            Arg.Any<ITrigger>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
+    #region Constants and Options
+
+    [Fact]
+    public void QuartzConstants_HasExpectedValues()
+    {
+        QuartzConstants.RequestKey.ShouldBe("EncinaRequest");
+        QuartzConstants.NotificationKey.ShouldBe("EncinaNotification");
+    }
+
+    [Fact]
+    public void EncinaQuartzOptions_HasDefaultProviderHealthCheck()
+    {
+        var options = new EncinaQuartzOptions();
+        options.ProviderHealthCheck.ShouldNotBeNull();
+        options.ProviderHealthCheck.Enabled.ShouldBeTrue();
+    }
+
+    #endregion
+
+    // Test types
+    public record TestQuartzRequest(string Data) : IRequest<TestQuartzResponse>;
+    public record TestQuartzResponse(string Result);
+    public record TestQuartzNotification(string Message) : INotification;
 }
