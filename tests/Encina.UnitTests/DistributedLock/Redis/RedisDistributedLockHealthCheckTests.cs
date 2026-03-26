@@ -2,8 +2,8 @@ using Encina.DistributedLock.Redis.Health;
 using Encina.Messaging.Health;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 using StackExchange.Redis;
+using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace Encina.UnitTests.DistributedLock.Redis;
 

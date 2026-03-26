@@ -1,8 +1,8 @@
 using Encina.Tenancy;
 using Encina.Tenancy.Health;
-using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
-using HealthCheckResult = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult;
 using NSubstitute;
+using HealthCheckResult = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult;
+using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace Encina.UnitTests.Tenancy;
 
