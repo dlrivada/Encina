@@ -17,12 +17,12 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  # Single job: build + test with coverage + SonarCloud analysis
-  # SonarScanner for .NET requires begin → build → test → end in the SAME job
+  # Static analysis only — coverage is handled by Codecov (see ADR-023)
+  # SonarScanner for .NET requires begin → build → end in the SAME job
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: read
@@ -53,30 +53,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          # Coverage exclusions: Exclude packages where coverage comes from integration
-          # tests (Docker/Testcontainers) rather than unit tests. Packages with unit test
-          # coverage in Encina.UnitTests are INCLUDED (Core, Messaging, DomainModeling,
-          # Caching, Security, Compliance, OpenTelemetry, Sharding, etc.)
-          COVERAGE_EXCLUSIONS="src/Encina.Testing*/**/*.cs,\
-          src/Encina.Aspire*/**/*.cs,\
-          src/Encina.Cli/**/*.cs,\
-          src/Encina.Dapper*/**/*.cs,\
-          src/Encina.ADO*/**/*.cs,\
-          src/Encina.MongoDB/**/*.cs,\
-          src/Encina.EntityFrameworkCore/**/*.cs,\
-          src/Encina.Marten/**/*.cs,\
-          src/Encina.Audit.Marten/**/*.cs,\
-          src/Encina.Marten.GDPR/**/*.cs,\
-          src/Encina.AzureFunctions/**/*.cs,\
-          src/Encina.AwsLambda/**/*.cs,\
-          src/Encina.AspNetCore/**/*.cs,\
-          src/Encina.SignalR/**/*.cs,\
-          src/Encina.gRPC/**/*.cs,\
-          src/Encina.GraphQL/**/*.cs,\
-          src/Encina.Refit/**/*.cs,\
-          src/Encina.InMemory/**/*.cs,\
-          **/scripts/*.sql,\
-          **/Migrations/*.cs"
+          # Coverage is handled by Codecov (see ADR-023, Issue #911)
+          # SonarCloud focuses on static analysis: bugs, vulnerabilities, code smells, duplication
           CPD_EXCLUSIONS="src/Encina.Dapper.*/**/*.cs,src/Encina.Dapper.*/scripts/*.sql,src/Encina.ADO.*/**/*.cs,src/Encina.ADO.*/scripts/*.sql,src/Encina.Testing*/**/*.cs,src/Encina.EntityFrameworkCore/**/*.cs,src/Encina.MongoDB/**/*.cs,src/Encina.Caching.*/**/*.cs,src/Encina.DistributedLock.*/**/*.cs,src/Encina.Marten/**/*.cs"
 
           dotnet sonarscanner begin \
@@ -84,8 +62,6 @@ jobs:
             /o:"dlrivada" \
             /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
             /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.cs.opencover.reportsPaths="artifacts/coverage/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="$COVERAGE_EXCLUSIONS" \
             /d:sonar.cpd.exclusions="$CPD_EXCLUSIONS" \
             /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**,tests/**/*" \
             /d:sonar.issue.ignore.multicriteria=e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32,e33,e34,e35,e36,e37,e38,e39,e40,e41,e42,e43,e44,e45,e46,e47,e48,e49,e50,e51,e52,e53,e54,e55,e56,e57 \
@@ -208,21 +184,8 @@ jobs:
       - name: Build for SonarCloud analysis
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Run unit tests with coverage
-        run: |
-          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj \
-            -c Release --no-build \
-            --collect:"XPlat Code Coverage" \
-            --settings .github/coverlet.runsettings \
-            --results-directory artifacts/coverage \
-            --logger "console;verbosity=minimal"
-        continue-on-error: true
-
-      - name: List coverage files
-        if: always()
-        run: |
-          echo "Coverage files found:"
-          find artifacts/coverage -name "coverage.opencover.xml" -type f 2>/dev/null || echo "No coverage files found"
+      # No test execution needed — SonarScanner performs static analysis on built code
+      # Coverage is collected by Codecov in the CI workflow (see ADR-023)
 
       - name: End SonarCloud analysis
         env:

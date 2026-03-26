@@ -105,6 +105,15 @@ jobs:
           path: artifacts/test-results/UnitTests-${{ matrix.shard.name }}
           if-no-files-found: ignore
 
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unit
+          directory: artifacts/test-results/UnitTests-${{ matrix.shard.name }}
+          fail_ci_if_error: false
+
   # Integration tests - split by data access provider for parallel execution
   test-integration:
     needs: build
@@ -163,6 +172,15 @@ jobs:
           path: artifacts/test-results/IntegrationTests-${{ matrix.shard.name }}
           if-no-files-found: ignore
 
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration
+          directory: artifacts/test-results/IntegrationTests-${{ matrix.shard.name }}
+          fail_ci_if_error: false
+
   # Contract tests
   test-contract:
     needs: build
@@ -191,6 +209,15 @@ jobs:
           name: test-results-ContractTests
           path: artifacts/test-results/ContractTests
           if-no-files-found: ignore
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: contract
+          directory: artifacts/test-results/ContractTests
+          fail_ci_if_error: false
 
   # Property tests
   test-property:
@@ -221,6 +248,15 @@ jobs:
           path: artifacts/test-results/PropertyTests
           if-no-files-found: ignore
 
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: property
+          directory: artifacts/test-results/PropertyTests
+          fail_ci_if_error: false
+
   # Guard tests
   test-guard:
     needs: build
@@ -249,6 +285,15 @@ jobs:
           name: test-results-GuardTests
           path: artifacts/test-results/GuardTests
           if-no-files-found: ignore
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: guard
+          directory: artifacts/test-results/GuardTests
+          fail_ci_if_error: false
 
   # EF Core multi-provider integration tests
   # Tests EF Core against all 4 database providers (Sqlite, SqlServer, PostgreSQL, MySQL)
@@ -352,6 +397,15 @@ jobs:
           name: test-results-EFCore-${{ matrix.database.name }}
           path: artifacts/test-results/EFCore-${{ matrix.database.name }}
           if-no-files-found: ignore
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration
+          directory: artifacts/test-results/EFCore-${{ matrix.database.name }}
+          fail_ci_if_error: false
 
   # Aggregate coverage from all test jobs
   coverage:
