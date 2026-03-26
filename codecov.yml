@@ -23,178 +23,8 @@ coverage:
         target: 60%
         threshold: 5%
 
-  # Components: per-module thresholds
-  # https://docs.codecov.com/docs/components
-  component_management:
-    default_rules:
-      statuses:
-        - type: project
-          target: auto
-          threshold: 2%
-
-    individual_components:
-      - component_id: core-logic
-        name: "Core Logic"
-        paths:
-          - src/Encina/**
-          - src/Encina.Messaging/**
-          - src/Encina.DomainModeling/**
-          - src/Encina.GuardClauses/**
-          - src/Encina.IdGeneration/**
-        statuses:
-          - type: project
-            target: 85%
-            threshold: 2%
-
-      - component_id: security
-        name: "Security"
-        paths:
-          - src/Encina.Security/**
-          - src/Encina.Security.*/**
-        statuses:
-          - type: project
-            target: 80%
-            threshold: 2%
-
-      - component_id: compliance
-        name: "Compliance"
-        paths:
-          - src/Encina.Compliance.*/**
-        statuses:
-          - type: project
-            target: 75%
-            threshold: 2%
-
-      - component_id: caching
-        name: "Caching"
-        paths:
-          - src/Encina.Caching/**
-          - src/Encina.Caching.*/**
-        statuses:
-          - type: project
-            target: 80%
-            threshold: 2%
-
-      - component_id: database-providers
-        name: "Database Providers"
-        paths:
-          - src/Encina.ADO.*/**
-          - src/Encina.Dapper.*/**
-          - src/Encina.EntityFrameworkCore/**
-          - src/Encina.MongoDB/**
-        statuses:
-          - type: project
-            target: 50%
-            threshold: 5%
-
-      - component_id: message-transports
-        name: "Message Transports"
-        paths:
-          - src/Encina.RabbitMQ/**
-          - src/Encina.Kafka/**
-          - src/Encina.NATS/**
-          - src/Encina.MQTT/**
-          - src/Encina.AmazonSQS/**
-          - src/Encina.AzureServiceBus/**
-          - src/Encina.Redis.PubSub/**
-          - src/Encina.InMemory/**
-          - src/Encina.gRPC/**
-          - src/Encina.GraphQL/**
-        statuses:
-          - type: project
-            target: 75%
-            threshold: 2%
-
-      - component_id: cloud-serverless
-        name: "Cloud & Serverless"
-        paths:
-          - src/Encina.AzureFunctions/**
-          - src/Encina.AwsLambda/**
-          - src/Encina.Aspire.*/**
-        statuses:
-          - type: project
-            target: 60%
-            threshold: 5%
-
-      - component_id: observability
-        name: "Observability"
-        paths:
-          - src/Encina.OpenTelemetry/**
-        statuses:
-          - type: project
-            target: 60%
-            threshold: 5%
-
-      - component_id: infrastructure
-        name: "Infrastructure"
-        paths:
-          - src/Encina.Hangfire/**
-          - src/Encina.Quartz/**
-          - src/Encina.DistributedLock/**
-          - src/Encina.DistributedLock.*/**
-          - src/Encina.Tenancy/**
-          - src/Encina.Tenancy.*/**
-          - src/Encina.SignalR/**
-          - src/Encina.Refit/**
-        statuses:
-          - type: project
-            target: 70%
-            threshold: 2%
-
-      - component_id: validation
-        name: "Validation"
-        paths:
-          - src/Encina.FluentValidation/**
-          - src/Encina.DataAnnotations/**
-          - src/Encina.MiniValidator/**
-        statuses:
-          - type: project
-            target: 80%
-            threshold: 2%
-
-      - component_id: cdc
-        name: "Change Data Capture"
-        paths:
-          - src/Encina.Cdc/**
-          - src/Encina.Cdc.*/**
-        statuses:
-          - type: project
-            target: 60%
-            threshold: 5%
-
-      - component_id: secrets
-        name: "Secrets Management"
-        paths:
-          - src/Encina.Secrets/**
-          - src/Encina.Secrets.*/**
-          - src/Encina.Security.Secrets/**
-          - src/Encina.Security.Secrets.*/**
-        statuses:
-          - type: project
-            target: 60%
-            threshold: 5%
-
-      - component_id: encryption
-        name: "Messaging Encryption"
-        paths:
-          - src/Encina.Messaging.Encryption/**
-          - src/Encina.Messaging.Encryption.*/**
-          - src/Encina.Security.Encryption/**
-        statuses:
-          - type: project
-            target: 70%
-            threshold: 2%
-
-      - component_id: event-sourcing
-        name: "Event Sourcing"
-        paths:
-          - src/Encina.Marten/**
-          - src/Encina.Marten.*/**
-          - src/Encina.Audit.Marten/**
-        statuses:
-          - type: project
-            target: 50%
-            threshold: 5%
+  # Note: Components require Codecov Pro plan (not available on free tier)
+  # Per-module coverage is tracked via Flags and the code tree view instead.
 
 # Flags: one per test type, merged by Codecov
 flags:
@@ -221,15 +51,19 @@ flags:
 
 # Exclude from coverage analysis
 ignore:
-  - src/Encina.Testing*/**
-  - src/Encina.Cli/**
-  - tests/**
-  - docs/**
-  - scripts/**
+  - "src/Encina.Testing/**"
+  - "src/Encina.Testing.*/**"
+  - "src/Encina.Cli/**"
+  - "tests/**"
+  - "docs/**"
+  - "scripts/**"
+  - "tools/**"
   - "**/*.g.cs"
   - "**/Migrations/**"
   - "**/obj/**"
   - "**/bin/**"
+  - "**/GlobalSuppressions.cs"
+  - "**/AssemblyInfo.cs"
 
 # PR comment configuration
 comment:
