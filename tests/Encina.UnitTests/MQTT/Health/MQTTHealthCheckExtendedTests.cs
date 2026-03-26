@@ -1,9 +1,9 @@
 using Encina.MQTT.Health;
 using Microsoft.Extensions.DependencyInjection;
-using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
-using HealthCheckResult = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult;
 using MQTTnet;
 using NSubstitute;
+using HealthCheckResult = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult;
+using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace Encina.UnitTests.MQTT.Health;
 

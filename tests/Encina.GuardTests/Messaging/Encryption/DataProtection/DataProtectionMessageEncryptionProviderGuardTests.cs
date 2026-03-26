@@ -1,8 +1,8 @@
-using Encina.Messaging.Encryption.DataProtection;
+using System.Collections.Immutable;
 using Encina.Messaging.Encryption.Abstractions;
+using Encina.Messaging.Encryption.DataProtection;
 using Encina.Messaging.Encryption.Model;
 using Microsoft.AspNetCore.DataProtection;
-using System.Collections.Immutable;
 
 namespace Encina.GuardTests.Messaging.Encryption.DataProtection;
 
