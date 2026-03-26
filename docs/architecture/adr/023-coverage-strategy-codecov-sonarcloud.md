@@ -75,11 +75,13 @@ The CI workflow already runs all 5 test types with Coverlet. Codecov upload step
 - **Two services**: SonarCloud for quality + Codecov for coverage (instead of one)
 - **Additional secret**: `CODECOV_TOKEN` to manage
 - **Initial calibration**: Thresholds may need adjustment after first week of data
+- **SonarCloud Quality Gate shows FAIL**: The free plan does not allow custom Quality Gates, so "Sonar way" (which includes an 80% new code coverage condition) remains active. Since coverage is no longer reported to SonarCloud, the QG will always fail on that condition. This is cosmetic — the real coverage enforcement is done by Codecov status checks.
 
 ### Neutral
 
 - `coverlet.runsettings` becomes unused (was only for SonarCloud's OpenCover format)
-- Coverage data in SonarCloud dashboard will show 0% (expected, documented)
+- SonarCloud dashboard shows 0% coverage (expected — coverage is measured by Codecov)
+- SonarCloud QG FAIL badge is expected and should be ignored for coverage; check Codecov badge instead
 
 ## Configuration
 
