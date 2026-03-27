@@ -34,15 +34,16 @@ public sealed class NonceStorePropertyTests
     [Property(MaxTest = 30)]
     public bool TryAdd_DistinctNonces_AlwaysSucceed(NonEmptyString nonceA, NonEmptyString nonceB)
     {
-        // Skip if inputs happen to be equal
-        if (nonceA.Get == nonceB.Get) return true;
+        // Use prefixes to guarantee distinct nonces
+        var a = "a:" + nonceA.Get;
+        var b = "b:" + nonceB.Get;
 
         var timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
         using var store = new InMemoryNonceStore(timeProvider);
         var expiry = TimeSpan.FromMinutes(10);
 
-        var resultA = store.TryAddAsync(nonceA.Get, expiry).AsTask().Result;
-        var resultB = store.TryAddAsync(nonceB.Get, expiry).AsTask().Result;
+        var resultA = store.TryAddAsync(a, expiry).AsTask().Result;
+        var resultB = store.TryAddAsync(b, expiry).AsTask().Result;
 
         return resultA && resultB;
     }

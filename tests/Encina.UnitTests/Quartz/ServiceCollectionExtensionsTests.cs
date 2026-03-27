@@ -257,8 +257,8 @@ public class ServiceCollectionExtensionsTests
     [Fact]
     public void QuartzConstants_HasExpectedValues()
     {
-        QuartzConstants.RequestKey.ShouldBe("EncinaRequest");
-        QuartzConstants.NotificationKey.ShouldBe("EncinaNotification");
+        QuartzConstants.RequestKey.ShouldBe("Encina.Request");
+        QuartzConstants.NotificationKey.ShouldBe("Encina.Notification");
     }
 
     [Fact]
