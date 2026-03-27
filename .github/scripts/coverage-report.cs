@@ -17,64 +17,111 @@ using System.Xml.Linq;
 
 var outputDir = "artifacts/coverage";
 var inputDir = "artifacts/test-results";
+var weightsFile = ".github/scripts/coverage-weights.json";
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
+    if (args[i] == "--weights" && i + 1 < args.Length) weightsFile = args[++i];
 }
 
-// ─── Package categories ──────────────────────────────────────────────────────
+// ─── Load package categories from JSON ──────────────────────────────────────
 
-var categories = new CategoryDef[]
+// Try multiple locations for the weights file
+if (!File.Exists(weightsFile))
 {
-    new("Full", TestType.All, 85.0, [
-        "Encina", "Encina.Messaging", "Encina.DomainModeling", "Encina.Caching",
-        "Encina.Security", "Encina.Security.*", "Encina.Compliance.*",
-        "Encina.IdGeneration", "Encina.GuardClauses",
-        "Encina.Messaging.Encryption", "Encina.Messaging.Encryption.*"
-    ]),
-    new("Logic", TestType.Unit | TestType.Guard | TestType.Property, 80.0, [
-        "Encina.OpenTelemetry", "Encina.Tenancy", "Encina.Tenancy.AspNetCore",
-        "Encina.Polly", "Encina.Extensions.Resilience", "Encina.Hangfire", "Encina.Quartz"
-    ]),
-    new("Provider", TestType.Unit | TestType.Guard | TestType.Integration, 50.0, [
-        "Encina.ADO.*", "Encina.Dapper.*", "Encina.EntityFrameworkCore",
-        "Encina.MongoDB", "Encina.Marten", "Encina.Marten.GDPR", "Encina.Audit.Marten"
-    ]),
-    new("Transport", TestType.Unit | TestType.Guard, 75.0, [
-        "Encina.Kafka", "Encina.RabbitMQ", "Encina.NATS", "Encina.MQTT",
-        "Encina.Redis.PubSub", "Encina.AmazonSQS", "Encina.AzureServiceBus", "Encina.InMemory"
-    ]),
-    new("Cloud", TestType.Unit | TestType.Guard, 60.0, [
-        "Encina.AwsLambda", "Encina.AzureFunctions", "Encina.AspNetCore",
-        "Encina.Aspire.Testing", "Encina.SignalR", "Encina.gRPC", "Encina.GraphQL", "Encina.Refit"
-    ]),
-    new("CDC", TestType.Unit | TestType.Guard | TestType.Integration, 60.0, [
-        "Encina.Cdc", "Encina.Cdc.*"
-    ]),
-    new("Validation", TestType.Unit | TestType.Guard | TestType.Contract, 80.0, [
-        "Encina.FluentValidation", "Encina.DataAnnotations", "Encina.MiniValidator"
-    ]),
-    new("DistributedLock", TestType.Unit | TestType.Guard | TestType.Integration, 70.0, [
-        "Encina.DistributedLock", "Encina.DistributedLock.*"
-    ]),
-    new("Excluded", TestType.None, 0.0, [
-        "Encina.Testing", "Encina.Testing.*", "Encina.TestInfrastructure", "Encina.Cli",
-        "Encina.Security.ABAC.Analyzers"
-    ]),
-};
+    // Try relative to the script file location
+    var scriptDir = Path.GetDirectoryName(AppContext.BaseDirectory) ?? ".";
+    var altPath = Path.Combine(scriptDir, "..", "..", ".github", "scripts", "coverage-weights.json");
+    if (File.Exists(altPath)) weightsFile = altPath;
+
+    // Try relative to git root (walk up from current dir)
+    var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+    while (dir is not null)
+    {
+        var candidate = Path.Combine(dir.FullName, ".github", "scripts", "coverage-weights.json");
+        if (File.Exists(candidate)) { weightsFile = candidate; break; }
+        dir = dir.Parent;
+    }
+}
+
+CategoryDef[] categories;
+
+if (File.Exists(weightsFile))
+{
+    Console.WriteLine($"Loading weights from: {weightsFile}");
+    var weightsJson = File.ReadAllText(weightsFile);
+    var jsonOpts = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
+    };
+    var config = JsonSerializer.Deserialize<WeightsConfig>(weightsJson, jsonOpts)!;
+    categories = config.Categories.Select(c =>
+    {
+        var testType = TestType.None;
+        foreach (var t in c.ApplicableTests)
+        {
+            testType |= t.ToLowerInvariant() switch
+            {
+                "unit" => TestType.Unit,
+                "guard" => TestType.Guard,
+                "contract" => TestType.Contract,
+                "property" => TestType.Property,
+                "integration" => TestType.Integration,
+                _ => TestType.None
+            };
+        }
+        return new CategoryDef(c.Name, testType, c.Target, c.Patterns);
+    }).ToArray();
+    Console.WriteLine($"Loaded {categories.Length} categories from JSON");
+}
+else
+{
+    Console.WriteLine($"WARNING: Weights file '{weightsFile}' not found. Using built-in defaults.");
+    categories = [
+        new("Full", TestType.All, 85.0, ["Encina", "Encina.Messaging", "Encina.DomainModeling",
+            "Encina.Caching", "Encina.Security", "Encina.Security.*", "Encina.Compliance.*",
+            "Encina.IdGeneration", "Encina.GuardClauses",
+            "Encina.Messaging.Encryption", "Encina.Messaging.Encryption.*"]),
+        new("Logic", TestType.Unit | TestType.Guard | TestType.Property, 80.0,
+            ["Encina.OpenTelemetry", "Encina.Tenancy", "Encina.Tenancy.AspNetCore",
+             "Encina.Polly", "Encina.Extensions.Resilience", "Encina.Hangfire", "Encina.Quartz"]),
+        new("Provider", TestType.Unit | TestType.Guard | TestType.Integration, 50.0,
+            ["Encina.ADO.*", "Encina.Dapper.*", "Encina.EntityFrameworkCore",
+             "Encina.MongoDB", "Encina.Marten", "Encina.Marten.GDPR", "Encina.Audit.Marten"]),
+        new("Transport", TestType.Unit | TestType.Guard, 75.0,
+            ["Encina.Kafka", "Encina.RabbitMQ", "Encina.NATS", "Encina.MQTT",
+             "Encina.Redis.PubSub", "Encina.AmazonSQS", "Encina.AzureServiceBus", "Encina.InMemory"]),
+        new("Cloud", TestType.Unit | TestType.Guard, 60.0,
+            ["Encina.AwsLambda", "Encina.AzureFunctions", "Encina.AspNetCore",
+             "Encina.Aspire.Testing", "Encina.SignalR", "Encina.gRPC", "Encina.GraphQL", "Encina.Refit"]),
+        new("CDC", TestType.Unit | TestType.Guard | TestType.Integration, 60.0,
+            ["Encina.Cdc", "Encina.Cdc.*"]),
+        new("Validation", TestType.Unit | TestType.Guard | TestType.Contract, 80.0,
+            ["Encina.FluentValidation", "Encina.DataAnnotations", "Encina.MiniValidator"]),
+        new("DistributedLock", TestType.Unit | TestType.Guard | TestType.Integration, 70.0,
+            ["Encina.DistributedLock", "Encina.DistributedLock.*"]),
+        new("Excluded", TestType.None, 0.0,
+            ["Encina.Testing", "Encina.Testing.*", "Encina.TestInfrastructure", "Encina.Cli",
+             "Encina.Security.ABAC.Analyzers"]),
+    ];
+}
 
 // ─── Directory → TestType mapping ────────────────────────────────────────────
 
 TestType ClassifyDirectory(string dirName)
 {
-    if (dirName.StartsWith("UnitTests", StringComparison.OrdinalIgnoreCase)) return TestType.Unit;
-    if (dirName.StartsWith("GuardTests", StringComparison.OrdinalIgnoreCase)) return TestType.Guard;
-    if (dirName.StartsWith("ContractTests", StringComparison.OrdinalIgnoreCase)) return TestType.Contract;
-    if (dirName.StartsWith("PropertyTests", StringComparison.OrdinalIgnoreCase)) return TestType.Property;
-    if (dirName.StartsWith("IntegrationTests", StringComparison.OrdinalIgnoreCase)) return TestType.Integration;
-    if (dirName.StartsWith("EFCore", StringComparison.OrdinalIgnoreCase)) return TestType.Integration;
+    // Handle both direct names (UnitTests-Messaging) and artifact names (test-results-UnitTests-Messaging)
+    if (dirName.Contains("UnitTests", StringComparison.OrdinalIgnoreCase)) return TestType.Unit;
+    if (dirName.Contains("GuardTests", StringComparison.OrdinalIgnoreCase)) return TestType.Guard;
+    if (dirName.Contains("ContractTests", StringComparison.OrdinalIgnoreCase)) return TestType.Contract;
+    if (dirName.Contains("PropertyTests", StringComparison.OrdinalIgnoreCase)) return TestType.Property;
+    if (dirName.Contains("IntegrationTests", StringComparison.OrdinalIgnoreCase)) return TestType.Integration;
+    if (dirName.Contains("EFCore-", StringComparison.OrdinalIgnoreCase)) return TestType.Integration;
     return TestType.None;
 }
 
@@ -718,6 +765,26 @@ enum TestType
 }
 
 record CategoryDef(string Name, TestType ApplicableTests, double Target, string[] Patterns);
+
+record WeightsConfig
+{
+    [JsonPropertyName("categories")]
+    public CategoryConfig[] Categories { get; init; } = [];
+}
+
+record CategoryConfig
+{
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = "";
+    [JsonPropertyName("description")]
+    public string Description { get; init; } = "";
+    [JsonPropertyName("applicableTests")]
+    public string[] ApplicableTests { get; init; } = [];
+    [JsonPropertyName("target")]
+    public double Target { get; init; }
+    [JsonPropertyName("patterns")]
+    public string[] Patterns { get; init; } = [];
+}
 
 record FileCoverage(string RelativePath, string Package, string Category, int TotalLines,
     int CoveredLines, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag);

@@ -1,0 +1,140 @@
+{
+  "$schema": "coverage-weights-schema.json",
+  "$comment": "Defines which test types apply to each package category and coverage targets. Edit this file to adjust weights without modifying the C# script.",
+  "categories": [
+    {
+      "name": "Full",
+      "description": "Core modules with full test coverage: all 5 test types apply",
+      "applicableTests": ["unit", "guard", "contract", "property", "integration"],
+      "target": 85.0,
+      "patterns": [
+        "Encina",
+        "Encina.Messaging",
+        "Encina.DomainModeling",
+        "Encina.Caching",
+        "Encina.Security",
+        "Encina.Security.*",
+        "Encina.Compliance.*",
+        "Encina.IdGeneration",
+        "Encina.GuardClauses",
+        "Encina.Messaging.Encryption",
+        "Encina.Messaging.Encryption.*"
+      ]
+    },
+    {
+      "name": "Logic",
+      "description": "Modules with testable logic but no persistence layer. Integration tests not applicable.",
+      "applicableTests": ["unit", "guard", "property"],
+      "target": 80.0,
+      "patterns": [
+        "Encina.OpenTelemetry",
+        "Encina.Tenancy",
+        "Encina.Tenancy.AspNetCore",
+        "Encina.Polly",
+        "Encina.Extensions.Resilience",
+        "Encina.Hangfire",
+        "Encina.Quartz"
+      ]
+    },
+    {
+      "name": "Provider",
+      "description": "Database providers (ADO/Dapper/EF/MongoDB). Most coverage comes from integration tests.",
+      "applicableTests": ["unit", "guard", "integration"],
+      "target": 50.0,
+      "patterns": [
+        "Encina.ADO.*",
+        "Encina.Dapper.*",
+        "Encina.EntityFrameworkCore",
+        "Encina.MongoDB",
+        "Encina.Marten",
+        "Encina.Marten.GDPR",
+        "Encina.Audit.Marten"
+      ]
+    },
+    {
+      "name": "Transport",
+      "description": "Message transports. Real broker not available in unit tests.",
+      "applicableTests": ["unit", "guard"],
+      "target": 75.0,
+      "patterns": [
+        "Encina.Kafka",
+        "Encina.RabbitMQ",
+        "Encina.NATS",
+        "Encina.MQTT",
+        "Encina.Redis.PubSub",
+        "Encina.AmazonSQS",
+        "Encina.AzureServiceBus",
+        "Encina.InMemory"
+      ]
+    },
+    {
+      "name": "Cloud",
+      "description": "Cloud/framework integrations. Require runtime environment for full testing.",
+      "applicableTests": ["unit", "guard"],
+      "target": 60.0,
+      "patterns": [
+        "Encina.AwsLambda",
+        "Encina.AzureFunctions",
+        "Encina.AspNetCore",
+        "Encina.Aspire.Testing",
+        "Encina.SignalR",
+        "Encina.gRPC",
+        "Encina.GraphQL",
+        "Encina.Refit"
+      ]
+    },
+    {
+      "name": "CDC",
+      "description": "Change Data Capture. Connectors are internal; testable through options, positions, and integration.",
+      "applicableTests": ["unit", "guard", "integration"],
+      "target": 60.0,
+      "patterns": [
+        "Encina.Cdc",
+        "Encina.Cdc.*"
+      ]
+    },
+    {
+      "name": "Validation",
+      "description": "Validation providers. Small surface area, fully testable.",
+      "applicableTests": ["unit", "guard", "contract"],
+      "target": 80.0,
+      "patterns": [
+        "Encina.FluentValidation",
+        "Encina.DataAnnotations",
+        "Encina.MiniValidator"
+      ]
+    },
+    {
+      "name": "DistributedLock",
+      "description": "Distributed lock providers. Integration tests need real backends.",
+      "applicableTests": ["unit", "guard", "integration"],
+      "target": 70.0,
+      "patterns": [
+        "Encina.DistributedLock",
+        "Encina.DistributedLock.*"
+      ]
+    },
+    {
+      "name": "Caching",
+      "description": "Caching providers beyond base Encina.Caching module.",
+      "applicableTests": ["unit", "guard", "integration"],
+      "target": 70.0,
+      "patterns": [
+        "Encina.Caching.*"
+      ]
+    },
+    {
+      "name": "Excluded",
+      "description": "Test infrastructure and tools. Not measured for coverage.",
+      "applicableTests": [],
+      "target": 0.0,
+      "patterns": [
+        "Encina.Testing",
+        "Encina.Testing.*",
+        "Encina.TestInfrastructure",
+        "Encina.Cli",
+        "Encina.Security.ABAC.Analyzers"
+      ]
+    }
+  ]
+}
