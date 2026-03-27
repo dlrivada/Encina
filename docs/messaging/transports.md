@@ -68,15 +68,15 @@ flowchart TD
     L -->|YES| Q[💾 InMemory]
     L -->|NO| R[Consider gRPC<br/>for RPC patterns]
 
-    style F fill:#c04a1a,stroke:#a03a10,color:#fff
-    style G fill:#1a7a40,stroke:#14602f,color:#fff
-    style H fill:#005a9e,stroke:#004680,color:#fff
-    style I fill:#cc7a00,stroke:#a06000,color:#fff
-    style J fill:#cc5200,stroke:#a04000,color:#fff
-    style M fill:#4d0073,stroke:#3a0058,color:#fff
-    style O fill:#1a7a40,stroke:#14602f,color:#fff
-    style P fill:#a02520,stroke:#801d18,color:#fff
-    style Q fill:#484f58,stroke:#383d42,color:#fff
+    style F fill:#FF6B35,stroke:#E55A2B,color:#fff
+    style G fill:#27AE60,stroke:#1E8449,color:#fff
+    style H fill:#0078D4,stroke:#005A9E,color:#fff
+    style I fill:#FF9900,stroke:#CC7A00,color:#fff
+    style J fill:#FF6600,stroke:#CC5200,color:#fff
+    style M fill:#660099,stroke:#4D0073,color:#fff
+    style O fill:#27AE60,stroke:#1E8449,color:#fff
+    style P fill:#DC382D,stroke:#B02D24,color:#fff
+    style Q fill:#6C757D,stroke:#545B62,color:#fff
 ```
 
 ### Quick Selection Guide
@@ -109,7 +109,7 @@ flowchart LR
     Q --> C1[Consumer 1]
     Q --> C2[Consumer 2]
 
-    style Q fill:#1c3328,stroke:#2e7d32,color:#fff
+    style Q fill:#E8F5E9,stroke:#4CAF50
 ```
 
 **Characteristics:**
@@ -131,7 +131,7 @@ flowchart LR
     T --> |offset 0| C2[Consumer B<br/>offset: 50]
     T --> |offset 0| C3[Consumer C<br/>offset: 0<br/>replaying]
 
-    style T fill:#3d2d1c,stroke:#e65100,color:#fff
+    style T fill:#FFF3E0,stroke:#FF9800
 ```
 
 **Characteristics:**
@@ -153,7 +153,7 @@ flowchart LR
     C --> S2[Subscriber 2]
     C --> S3[Subscriber 3]
 
-    style C fill:#1c3a5c,stroke:#1565c0,color:#fff
+    style C fill:#E3F2FD,stroke:#2196F3
 ```
 
 **Characteristics:**

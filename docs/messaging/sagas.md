@@ -51,8 +51,8 @@ flowchart TD
     C -->|YES| E[🎭 CHOREOGRAPHY]
     C -->|NO| E
 
-    style D fill:#1e6f31,stroke:#1a5c28,color:#fff
-    style E fill:#1565c0,stroke:#0d47a1,color:#fff
+    style D fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style E fill:#2196F3,stroke:#1565C0,color:#fff
 ```
 
 ### Quick Decision Guide
@@ -96,7 +96,7 @@ flowchart LR
     Orchestrator --> Ship[(Shipping)]
     Orchestrator --> Email[(Email)]
 
-    style Orchestrator fill:#1c3328,stroke:#2e7d32,color:#fff
+    style Orchestrator fill:#E8F5E9,stroke:#4CAF50
 ```
 
 **On Failure - Compensation in Reverse:**
@@ -112,7 +112,7 @@ flowchart RL
         C3 --> C2 --> C1
     end
 
-    style Compensation fill:#3d1f1f,stroke:#b71c1c,color:#fff
+    style Compensation fill:#FFEBEE,stroke:#F44336
 ```
 
 ### Configuration
@@ -268,10 +268,10 @@ flowchart TB
     P1 -->|PaymentProcessed| S1
     S1 -->|OrderShipped| O2
 
-    style Orders fill:#1c3a5c,stroke:#0d47a1,color:#fff
-    style Inventory fill:#2a1c42,stroke:#6a1b9a,color:#fff
-    style Payment fill:#1c3328,stroke:#2e7d32,color:#fff
-    style Shipping fill:#3d2d1c,stroke:#e65100,color:#fff
+    style Orders fill:#E3F2FD,stroke:#1976D2
+    style Inventory fill:#F3E5F5,stroke:#7B1FA2
+    style Payment fill:#E8F5E9,stroke:#388E3C
+    style Shipping fill:#FFF3E0,stroke:#F57C00
 ```
 
 **Failure Flow - Compensation Events:**
@@ -281,9 +281,9 @@ flowchart LR
     PF[PaymentFailed] -->|triggers| IR[InventoryReleased]
     IR -->|triggers| OC[OrderCancelled]
 
-    style PF fill:#3d1f1f,stroke:#b71c1c,color:#fff
-    style IR fill:#3d3520,stroke:#e65100,color:#fff
-    style OC fill:#3d1f1f,stroke:#b71c1c,color:#fff
+    style PF fill:#FFCDD2,stroke:#D32F2F
+    style IR fill:#FFECB3,stroke:#FFA000
+    style OC fill:#FFCDD2,stroke:#D32F2F
 ```
 
 ### Configuration

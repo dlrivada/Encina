@@ -156,9 +156,9 @@ flowchart TD
     H -->|Tight| I
     H -->|Flexible| F
 
-    style D fill:#e65100,stroke:#cc5200,color:#fff
-    style F fill:#1e6f31,stroke:#1a5c28,color:#fff
-    style I fill:#1565c0,stroke:#0d47a1,color:#fff
+    style D fill:#FF9800,stroke:#E65100,color:#fff
+    style F fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style I fill:#2196F3,stroke:#1565C0,color:#fff
 ```
 
 ---

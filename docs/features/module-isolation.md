@@ -87,8 +87,8 @@ flowchart LR
     Q1 -->|"SqlSchemaExtractor<br/>validates"| V1["Valid: orders is allowed"]
     Q2 -->|"SqlSchemaExtractor<br/>validates"| V2["Invalid: payments not allowed<br/>Throws ModuleIsolationViolationException"]
 
-    style V1 fill:#1c3328,stroke:#2e7d32,color:#fff
-    style V2 fill:#3d1f1f,stroke:#b71c1c,color:#fff
+    style V1 fill:#d4edda,stroke:#28a745
+    style V2 fill:#f8d7da,stroke:#dc3545
 ```
 
 **Pros:**
@@ -118,9 +118,9 @@ flowchart LR
     C -->|"DB permissions"| P2["shared schema: SELECT only"]
     C -.-x P3["payments schema: NO ACCESS"]
 
-    style P1 fill:#1c3328,stroke:#2e7d32,color:#fff
-    style P2 fill:#3d3520,stroke:#e65100,color:#fff
-    style P3 fill:#3d1f1f,stroke:#b71c1c,color:#fff
+    style P1 fill:#d4edda,stroke:#28a745
+    style P2 fill:#fff3cd,stroke:#ffc107
+    style P3 fill:#f8d7da,stroke:#dc3545
 ```
 
 **Pros:**
@@ -203,9 +203,9 @@ flowchart TD
     H -->|YES| G
     H -->|NO| B
 
-    style B fill:#1e6f31,stroke:#1a5c28,color:#fff
-    style G fill:#1565c0,stroke:#0d47a1,color:#fff
-    style F fill:#e65100,stroke:#cc5200,color:#fff
+    style B fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style G fill:#2196F3,stroke:#1565C0,color:#fff
+    style F fill:#FF9800,stroke:#E65100,color:#fff
 ```
 
 ---

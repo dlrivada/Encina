@@ -566,7 +566,7 @@ graph LR
         E --> F["Request<br/>Handler"]
     end
 
-    style D fill:#1c3a5c,stroke:#0277bd,stroke-width:3px,color:#fff
+    style D fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
 ```
 
 ### Pipeline Order

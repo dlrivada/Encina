@@ -54,7 +54,7 @@ flowchart TB
 
     txBoundaries ~~~ note
 
-    style note fill:#3d3520,stroke:#e65100,color:#fff
+    style note fill:#fff3cd,stroke:#856404,color:#856404
 ```
 
 **Why no two-phase commit?** Distributed transactions (2PC) add significant latency (2-3x), require lock coordination across shards, and create availability risks when coordinators fail. Encina prioritizes availability and performance over strict cross-shard consistency.
@@ -94,9 +94,9 @@ flowchart TD
     step2success -- "Success" --> complete
     step2success -- "Failure" --> compensate
 
-    style complete fill:#1c3328,stroke:#2e7d32,color:#fff
-    style abort fill:#3d1f1f,stroke:#b71c1c,color:#fff
-    style compensate fill:#3d3520,stroke:#e65100,color:#fff
+    style complete fill:#d4edda,stroke:#28a745,color:#155724
+    style abort fill:#f8d7da,stroke:#dc3545,color:#721c24
+    style compensate fill:#fff3cd,stroke:#856404,color:#856404
 ```
 
 `SagaRunner` from `Encina.Messaging.Sagas.LowCeremony` handles the full lifecycle automatically:
@@ -863,7 +863,7 @@ flowchart LR
     shard1 ~~~ shard2 ~~~ shard3
     shard3 ~~~ refNote
 
-    style refNote fill:#2d333b,stroke:#484f58,color:#fff
+    style refNote fill:#e2e3e5,stroke:#6c757d,color:#383d41
 ```
 
 Reference tables enable local JOINs with lookup data. Keep them small and update infrequently.
