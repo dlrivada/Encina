@@ -5,6 +5,9 @@ using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using FluentAssertions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.SqlServer.ProcessingActivity;
 
@@ -20,26 +23,10 @@ public sealed class ProcessingActivityRegistryEFSqlServerTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await using var context = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
-        await context.Database.ExecuteSqlRawAsync("""
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProcessingActivities')
-            CREATE TABLE [ProcessingActivities] (
-                [Id] UNIQUEIDENTIFIER PRIMARY KEY,
-                [Name] NVARCHAR(500) NOT NULL,
-                [Purpose] NVARCHAR(1000) NOT NULL,
-                [LawfulBasis] INT NOT NULL,
-                [CategoriesOfDataSubjects] NVARCHAR(MAX) NOT NULL,
-                [CategoriesOfPersonalData] NVARCHAR(MAX) NOT NULL,
-                [Recipients] NVARCHAR(MAX) NOT NULL,
-                [RetentionPeriod] BIGINT NOT NULL,
-                [SecurityMeasures] NVARCHAR(2000) NOT NULL,
-                [RequestType] NVARCHAR(1000) NOT NULL,
-                [CreatedAtUtc] DATETIMEOFFSET NOT NULL,
-                [LastUpdatedAtUtc] DATETIMEOFFSET NOT NULL,
-                [TenantId] NVARCHAR(256) NULL,
-                [ModuleId] NVARCHAR(256) NULL
-            )
-            """);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM [ProcessingActivities]");
+        var creator = ((IInfrastructure<IServiceProvider>)context).Instance.GetRequiredService<IRelationalDatabaseCreator>();
+        try { await creator.CreateTablesAsync(); } catch { /* Tables may already exist */ }
+        context.ProcessingActivities.RemoveRange(context.ProcessingActivities);
+        await context.SaveChangesAsync();
     }
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

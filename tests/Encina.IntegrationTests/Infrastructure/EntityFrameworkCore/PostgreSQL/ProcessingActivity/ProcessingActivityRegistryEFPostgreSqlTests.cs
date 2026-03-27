@@ -5,6 +5,11 @@ using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using FluentAssertions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
+
+#pragma warning disable EF1001 // Internal EF Core API usage - needed for CreateTablesAsync on shared fixture
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.PostgreSQL.ProcessingActivity;
 
@@ -20,25 +25,11 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await using var context = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
-        await context.Database.ExecuteSqlRawAsync("""
-            CREATE TABLE IF NOT EXISTS "ProcessingActivities" (
-                "Id" UUID PRIMARY KEY,
-                "Name" VARCHAR(500) NOT NULL,
-                "Purpose" VARCHAR(1000) NOT NULL,
-                "LawfulBasis" INTEGER NOT NULL,
-                "CategoriesOfDataSubjects" TEXT NOT NULL,
-                "CategoriesOfPersonalData" TEXT NOT NULL,
-                "Recipients" TEXT NOT NULL,
-                "RetentionPeriod" INTERVAL NOT NULL,
-                "SecurityMeasures" VARCHAR(2000) NOT NULL,
-                "RequestType" VARCHAR(1000) NOT NULL,
-                "CreatedAtUtc" TIMESTAMPTZ NOT NULL,
-                "LastUpdatedAtUtc" TIMESTAMPTZ NOT NULL,
-                "TenantId" VARCHAR(256) NULL,
-                "ModuleId" VARCHAR(256) NULL
-            )
-            """);
-        await context.Database.ExecuteSqlRawAsync("""DELETE FROM "ProcessingActivities" """);
+        // Use EF Core's model to generate and apply the correct schema
+        var creator = ((IInfrastructure<IServiceProvider>)context).Instance.GetRequiredService<IRelationalDatabaseCreator>();
+        try { await creator.CreateTablesAsync(); } catch { /* Tables may already exist */ }
+        context.ProcessingActivities.RemoveRange(context.ProcessingActivities);
+        await context.SaveChangesAsync();
     }
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
