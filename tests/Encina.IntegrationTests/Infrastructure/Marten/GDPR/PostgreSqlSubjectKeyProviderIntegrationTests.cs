@@ -13,7 +13,7 @@ namespace Encina.IntegrationTests.Infrastructure.Marten.GDPR;
 [Collection(MartenCollection.Name)]
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
-public sealed class PostgreSqlSubjectKeyProviderIntegrationTests
+public sealed class PostgreSqlSubjectKeyProviderIntegrationTests : IAsyncLifetime
 {
     private readonly MartenFixture _fixture;
 
@@ -21,6 +21,14 @@ public sealed class PostgreSqlSubjectKeyProviderIntegrationTests
     {
         _fixture = fixture;
     }
+
+    public ValueTask InitializeAsync()
+    {
+        Assert.SkipUnless(_fixture.IsAvailable, "Marten PostgreSQL container not available");
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task GetOrCreateSubjectKeyAsync_NewSubject_CreatesKey()

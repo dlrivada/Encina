@@ -133,9 +133,11 @@ public sealed class TransactionPipelineBehaviorTests
             throw new InvalidOperationException("Test exception");
         };
 
-        // Act & Assert - Exception should propagate
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await behavior.Handle(request, context, next, CancellationToken.None));
+        // Act - behavior catches exception and returns Left (ROP pattern)
+        var result = await behavior.Handle(request, context, next, CancellationToken.None);
+
+        // Assert - should return Left (error) not throw
+        result.IsLeft.ShouldBeTrue("Handler exception should be caught and returned as Left");
 
         // Verify data was rolled back
         await using var verifyCommand = ((SqliteConnection)connection).CreateCommand();
