@@ -1,14 +1,8 @@
 <style>
-  /* Override just-the-docs centering layout for wide screens.
-     Default uses calc((100% - 66.5rem)/2 + 16.5rem) which centers
-     content in a 66.5rem box, wasting space on ultrawide monitors. */
-
-  /* Remove max-width cap on main content */
+  /* Override just-the-docs centering layout for wide screens */
   .main {
     max-width: none !important;
   }
-
-  /* Large desktop: pin sidebar to fixed width, not centered */
   @media (min-width: 66.5rem) {
     .side-bar {
       width: 16.5rem !important;
@@ -18,8 +12,6 @@
       margin-left: 16.5rem !important;
     }
   }
-
-  /* Font scaling for ultrawide */
   @media (min-width: 1400px) {
     .main-content {
       font-size: 1.05rem !important;
@@ -33,3 +25,69 @@
     }
   }
 </style>
+
+<script>
+  // Override Mermaid theme BEFORE just-the-docs initializes it.
+  // just-the-docs does not pass nested themeVariables from _config.yml.
+  window.mermaid_config = {
+    theme: "base",
+    themeVariables: {
+      darkMode: true,
+      background: "#0d1117",
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "14px",
+
+      primaryColor: "#1c2d42",
+      primaryTextColor: "#ffffff",
+      primaryBorderColor: "#58a6ff",
+
+      secondaryColor: "#2a1c42",
+      secondaryTextColor: "#ffffff",
+      secondaryBorderColor: "#bc8cff",
+
+      tertiaryColor: "#1c3328",
+      tertiaryTextColor: "#ffffff",
+      tertiaryBorderColor: "#56d364",
+
+      noteBkgColor: "#161b22",
+      noteTextColor: "#ffffff",
+      noteBorderColor: "#484f58",
+
+      lineColor: "#58a6ff",
+      textColor: "#ffffff",
+
+      mainBkg: "#1c2d42",
+      nodeBorder: "#58a6ff",
+      nodeTextColor: "#ffffff",
+
+      clusterBkg: "#0d1117",
+      clusterBorder: "#484f58",
+      titleColor: "#ffffff",
+      edgeLabelBackground: "#0d1117",
+
+      actorBkg: "#1c2d42",
+      actorTextColor: "#ffffff",
+      actorBorder: "#58a6ff",
+      actorLineColor: "#58a6ff",
+      signalColor: "#58a6ff",
+      signalTextColor: "#ffffff",
+      labelBoxBkgColor: "#1c2d42",
+      labelBoxBorderColor: "#58a6ff",
+      labelTextColor: "#ffffff",
+      loopTextColor: "#ffffff",
+      activationBorderColor: "#58a6ff",
+      activationBkgColor: "#1c2d42",
+      sequenceNumberColor: "#ffffff"
+    }
+  };
+
+  // Intercept mermaid.initialize to inject our theme
+  document.addEventListener("DOMContentLoaded", function() {
+    var checkMermaid = setInterval(function() {
+      if (window.mermaid) {
+        clearInterval(checkMermaid);
+        window.mermaid.initialize(window.mermaid_config);
+      }
+    }, 50);
+  });
+</script>
