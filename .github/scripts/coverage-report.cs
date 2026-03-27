@@ -18,12 +18,14 @@ using System.Xml.Linq;
 var outputDir = "artifacts/coverage";
 var inputDir = "artifacts/test-results";
 var weightsFile = ".github/scripts/coverage-weights.json";
+var manifestDir = ".github/coverage-manifest";
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
     if (args[i] == "--weights" && i + 1 < args.Length) weightsFile = args[++i];
+    if (args[i] == "--manifest" && i + 1 < args.Length) manifestDir = args[++i];
 }
 
 // ─── Load package categories from JSON ──────────────────────────────────────
@@ -109,6 +111,96 @@ else
             ["Encina.Testing", "Encina.Testing.*", "Encina.TestInfrastructure", "Encina.Cli",
              "Encina.Security.ABAC.Analyzers"]),
     ];
+}
+
+// ─── Load per-file manifest ─────────────────────────────────────────────────
+
+// manifest[package][relFilePath] = applicable TestType flags
+var manifest = new Dictionary<string, Dictionary<string, TestType>>(StringComparer.OrdinalIgnoreCase);
+
+// Try to find manifest directory
+if (!Directory.Exists(manifestDir))
+{
+    var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+    while (dir is not null)
+    {
+        var candidate = Path.Combine(dir.FullName, ".github", "coverage-manifest");
+        if (Directory.Exists(candidate)) { manifestDir = candidate; break; }
+        dir = dir.Parent;
+    }
+}
+
+if (Directory.Exists(manifestDir))
+{
+    var manifestJsonOpts = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
+    };
+
+    foreach (var mFile in Directory.GetFiles(manifestDir, "*.json")
+        .Where(f => Path.GetFileName(f) != "defaults.json"))
+    {
+        try
+        {
+            var mJson = JsonSerializer.Deserialize<ManifestFile>(File.ReadAllText(mFile), manifestJsonOpts);
+            if (mJson?.Package is null || mJson.Files is null) continue;
+
+            var pkgFiles = new Dictionary<string, TestType>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (filePath, entry) in mJson.Files)
+            {
+                // Override takes precedence over defaultTests
+                var testNames = entry.Override ?? entry.DefaultTests ?? [];
+                var testType = TestType.None;
+                foreach (var t in testNames)
+                {
+                    testType |= t.ToLowerInvariant() switch
+                    {
+                        "unit" => TestType.Unit,
+                        "guard" => TestType.Guard,
+                        "contract" => TestType.Contract,
+                        "property" => TestType.Property,
+                        "integration" => TestType.Integration,
+                        _ => TestType.None
+                    };
+                }
+                pkgFiles[filePath] = testType;
+            }
+            manifest[mJson.Package] = pkgFiles;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  WARNING: Failed to parse manifest {Path.GetFileName(mFile)}: {ex.Message}");
+        }
+    }
+    Console.WriteLine($"Loaded {manifest.Count} package manifests with {manifest.Values.Sum(p => p.Count)} file entries");
+}
+else
+{
+    Console.WriteLine($"WARNING: Manifest directory '{manifestDir}' not found. Using category-level weights only.");
+}
+
+// ─── Per-file test type lookup ──────────────────────────────────────────────
+
+TestType GetFileApplicableTests(string packageName, string fileRelPath)
+{
+    // 1. Try manifest (per-file granularity)
+    if (manifest.TryGetValue(packageName, out var pkgManifest))
+    {
+        if (pkgManifest.TryGetValue(fileRelPath, out var fileTests))
+            return fileTests;
+
+        // Try with just the filename (manifest might use filename only)
+        var fileName = Path.GetFileName(fileRelPath);
+        if (pkgManifest.TryGetValue(fileName, out var fnTests))
+            return fnTests;
+    }
+
+    // 2. Fallback to category-level weights
+    var (_, applicableTests, _) = GetCategory(packageName);
+    return applicableTests;
 }
 
 // ─── Directory → TestType mapping ────────────────────────────────────────────
@@ -254,7 +346,10 @@ foreach (var file in allFiles)
     if (parts.Length < 3 || parts[0] != "src") continue;
     var packageName = parts[1];
 
-    var (catName, applicableTests, target) = GetCategory(packageName);
+    // Get per-file applicable tests from manifest (falls back to category)
+    var fileRelPath = string.Join("/", parts[2..]); // path within package
+    var applicableTests = GetFileApplicableTests(packageName, fileRelPath);
+    var (catName, _, target) = GetCategory(packageName);
     if (applicableTests == TestType.None) continue; // Excluded
 
     // Merge lines from applicable flags
@@ -263,7 +358,7 @@ foreach (var file in allFiles)
 
     foreach (var (flag, flagData) in coverageByFlag)
     {
-        if (!applicableTests.HasFlag(flag)) continue; // Skip non-applicable
+        if (!applicableTests.HasFlag(flag)) continue; // Skip non-applicable per THIS FILE
         if (!flagData.TryGetValue(file, out var fileLines)) continue;
 
         int flagTotal = fileLines.Count;
@@ -795,3 +890,19 @@ record PackageCoverage(string Name, string Category, TestType ApplicableTests, d
 
 record CategoryCoverage(string Name, TestType ApplicableTests, double Target,
     int PackageCount, int TotalLines, int CoveredLines, double Percentage);
+
+record ManifestFile
+{
+    [JsonPropertyName("package")]
+    public string? Package { get; init; }
+    [JsonPropertyName("files")]
+    public Dictionary<string, ManifestFileEntry>? Files { get; init; }
+}
+
+record ManifestFileEntry
+{
+    [JsonPropertyName("defaultTests")]
+    public string[]? DefaultTests { get; init; }
+    [JsonPropertyName("override")]
+    public string[]? Override { get; init; }
+}
