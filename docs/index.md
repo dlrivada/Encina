@@ -1,10 +1,13 @@
 ---
+title: Home
 layout: default
+nav_order: 1
 ---
 
 # Encina
 
 **Build resilient, regulation-ready .NET 10 applications with Railway Oriented Programming.**
+{: .fs-6 .fw-300 }
 
 [![.NET CI](https://github.com/dlrivada/Encina/actions/workflows/ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/dlrivada/Encina/graph/badge.svg)](https://codecov.io/gh/dlrivada/Encina)
@@ -13,6 +16,8 @@ layout: default
 ![Status](https://img.shields.io/badge/status-pre--1.0-blue.svg)
 
 > **112 packages** · **13,000+ tests** · **13 database providers** · **8 cache providers** · **10 messaging transports** · **15 compliance modules**
+
+---
 
 ## What is Encina?
 
@@ -59,40 +64,9 @@ public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<Ord
 | **Event Sourcing** | Marten-based event store with projections, snapshots, GDPR crypto-shredding |
 | **Observability** | OpenTelemetry tracing/metrics, structured logging, automatic health checks |
 
-## Documentation
-
-### Guides
-
-- [Health Checks Integration](guides/health-checks.md)
-- [ID Generation Configuration](guides/id-generation-configuration.md)
-- [ID Generation Scaling](guides/id-generation-scaling.md)
-- [Reference Tables Scaling](guides/reference-tables-scaling.md)
-
-### Features
-
-- [Secrets Management](features/secrets-management.md)
-- [Multi-Tenancy](features/multi-tenancy.md)
-- [Database Sharding](features/compound-shard-keys.md)
-- [Change Data Capture](features/cdc.md)
-- [GDPR Compliance](features/gdpr-compliance.md)
-- [Message Encryption](features/message-encryption.md)
-- [ABAC Authorization](features/abac/quick-start.md)
-
-### Messaging
-
-- [Messaging Overview](messaging/index.md)
-- [Sagas](messaging/sagas.md)
-- [Transports](messaging/transports.md)
-
-### Architecture
-
-- [Architecture Patterns Guide](architecture/patterns-guide.md)
-- [Architecture Decision Records](architecture/adr/)
-- [Component Diagram](architecture/component-diagram.md)
-
 ## Quality & Coverage
 
-- [Coverage Dashboard](coverage/) — Per-package weighted coverage metrics
+- [Coverage Dashboard](https://dlrivada.github.io/Encina/coverage/) — Per-package weighted coverage metrics
 - [Codecov](https://codecov.io/gh/dlrivada/Encina) — Per-module thresholds
 - [SonarCloud](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina) — Static analysis
 
@@ -103,4 +77,3 @@ public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<Ord
 - [Changelog](https://github.com/dlrivada/Encina/blob/main/CHANGELOG.md)
 - [Contributing Guide](https://github.com/dlrivada/Encina/blob/main/CONTRIBUTING.md)
 - [Roadmap](https://github.com/dlrivada/Encina/blob/main/ROADMAP.md)
-- [License (MIT)](https://github.com/dlrivada/Encina/blob/main/LICENSE)

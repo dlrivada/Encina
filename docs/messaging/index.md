@@ -1,3 +1,10 @@
+---
+title: Messaging
+layout: default
+nav_order: 4
+has_children: true
+---
+
 # Messaging in Encina
 
 Encina provides comprehensive support for messaging patterns and transports in distributed systems.
