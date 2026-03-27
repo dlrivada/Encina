@@ -95,7 +95,7 @@ jobs:
             --results-directory artifacts/test-results/UnitTests-${{ matrix.shard.name }} \
             --logger "trx;LogFileName=UnitTests-${{ matrix.shard.name }}.trx" \
             -- xunit.parallelizeTestCollections=true
-        continue-on-error: true
+        # Test failures MUST fail the CI — no continue-on-error
 
       - name: Upload test results
         if: always()
@@ -162,7 +162,7 @@ jobs:
             --results-directory artifacts/test-results/IntegrationTests-${{ matrix.shard.name }} \
             --logger "trx;LogFileName=IntegrationTests-${{ matrix.shard.name }}.trx" \
             -- xunit.parallelizeTestCollections=true
-        continue-on-error: true
+        # Test failures MUST fail the CI — no continue-on-error
 
       - name: Upload test results
         if: always()
@@ -200,7 +200,7 @@ jobs:
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/ContractTests \
             --logger "trx;LogFileName=ContractTests.trx"
-        continue-on-error: true
+        # Test failures MUST fail the CI — no continue-on-error
 
       - name: Upload test results
         if: always()
@@ -238,7 +238,7 @@ jobs:
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/PropertyTests \
             --logger "trx;LogFileName=PropertyTests.trx"
-        continue-on-error: true
+        # Test failures MUST fail the CI — no continue-on-error
 
       - name: Upload test results
         if: always()
@@ -276,7 +276,7 @@ jobs:
             --collect "XPlat Code Coverage" \
             --results-directory artifacts/test-results/GuardTests \
             --logger "trx;LogFileName=GuardTests.trx"
-        continue-on-error: true
+        # Test failures MUST fail the CI — no continue-on-error
 
       - name: Upload test results
         if: always()
@@ -388,7 +388,7 @@ jobs:
             --results-directory artifacts/test-results/EFCore-${{ matrix.database.name }} \
             --logger "trx;LogFileName=EFCore-${{ matrix.database.name }}.trx" \
             -- xunit.parallelizeTestCollections=true
-        continue-on-error: true
+        # Test failures MUST fail the CI — no continue-on-error
 
       - name: Upload test results
         if: always()
@@ -475,6 +475,24 @@ jobs:
           name: coverage-report
           path: artifacts/coverage
           if-no-files-found: ignore
+
+      - name: Copy coverage dashboard to docs
+        if: always() && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p docs/coverage
+          cp -f artifacts/coverage/index.html docs/coverage/ 2>/dev/null || true
+          cp -f artifacts/coverage/badge.svg docs/coverage/ 2>/dev/null || true
+          cp -f artifacts/coverage/badge.json docs/coverage/ 2>/dev/null || true
+          cp -f artifacts/coverage/encina-coverage-summary.json docs/coverage/ 2>/dev/null || true
+
+      - name: Commit coverage dashboard
+        if: always() && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/coverage/ || true
+          git diff --cached --quiet || git commit -m "docs: update coverage dashboard [skip ci]"
+          git push || true
 
   # Pack and publish - runs after all tests
   pack:
