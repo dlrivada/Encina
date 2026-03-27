@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Encina Coverage Report</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <h1>Encina Weighted Coverage Report</h1>
+    <p id="timestamp" class="subtitle">Loading...</p>
+  </header>
+
+  <section id="overall" class="card overall-card">
+    <div id="overall-pct" class="big-number">--%</div>
+    <div id="overall-lines" class="subtitle">-- / -- applicable lines covered</div>
+  </section>
+
+  <section class="card">
+    <h2>By Category</h2>
+    <table id="category-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Tests</th>
+          <th>Coverage</th>
+          <th>Target</th>
+          <th class="bar-col">Bar</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Coverage Distribution</h2>
+    <canvas id="sunburst" width="400" height="400"></canvas>
+  </section>
+
+  <section class="card">
+    <h2>By Package</h2>
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">all</button>
+    </div>
+    <input type="text" id="pkg-search" placeholder="Search packages..." class="search-input">
+    <table id="package-table">
+      <thead>
+        <tr>
+          <th>Package</th>
+          <th>Category</th>
+          <th>Unit</th>
+          <th>Guard</th>
+          <th>Contract</th>
+          <th>Property</th>
+          <th>Integ</th>
+          <th>Combined</th>
+          <th>Target</th>
+          <th>Gap</th>
+          <th class="bar-col">Bar</th>
+          <th>Lines</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="card" id="files-section" style="display:none">
+    <h2>File Detail: <span id="files-pkg-name"></span></h2>
+    <button id="files-close" class="close-btn">Close</button>
+    <table id="files-table">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Lines</th>
+          <th>Covered</th>
+          <th>Coverage</th>
+          <th class="bar-col">Bar</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p>Encina Coverage System &mdash; Data from CI, manifest from <code>.github/coverage-manifest/</code></p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
