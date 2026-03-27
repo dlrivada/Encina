@@ -260,7 +260,7 @@ public sealed class ProcessingActivityRegistryADO : IProcessingActivityRegistry
         Safeguards = reader.IsDBNull(reader.GetOrdinal("Safeguards")) ? null : reader.GetString(reader.GetOrdinal("Safeguards")),
         RetentionPeriodTicks = reader.GetInt64(reader.GetOrdinal("RetentionPeriodTicks")),
         SecurityMeasures = reader.GetString(reader.GetOrdinal("SecurityMeasures")),
-        CreatedAtUtc = (DateTimeOffset)reader.GetValue(reader.GetOrdinal("CreatedAtUtc")),
-        LastUpdatedAtUtc = (DateTimeOffset)reader.GetValue(reader.GetOrdinal("LastUpdatedAtUtc"))
+        CreatedAtUtc = reader.GetDateTimeOffset(reader.GetOrdinal("CreatedAtUtc")),
+        LastUpdatedAtUtc = reader.GetDateTimeOffset(reader.GetOrdinal("LastUpdatedAtUtc"))
     };
 }

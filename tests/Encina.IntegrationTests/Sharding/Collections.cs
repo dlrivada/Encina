@@ -40,14 +40,6 @@ public class ShardingAdoMySqlCollection : ICollectionFixture<ShardedMySqlFixture
 {
 }
 
-/// <summary>
-/// Collection for ADO.NET SQLite sharding integration tests.
-/// </summary>
-[CollectionDefinition("Sharding-ADO-Sqlite", DisableParallelization = true)]
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "xUnit requires collection types to end with 'Collection'")]
-public class ShardingAdoSqliteCollection : ICollectionFixture<ShardedSqliteFixture>
-{
-}
 
 #endregion
 
@@ -80,14 +72,6 @@ public class ShardingDapperMySqlCollection : ICollectionFixture<ShardedMySqlFixt
 {
 }
 
-/// <summary>
-/// Collection for Dapper SQLite sharding integration tests.
-/// </summary>
-[CollectionDefinition("Sharding-Dapper-Sqlite", DisableParallelization = true)]
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "xUnit requires collection types to end with 'Collection'")]
-public class ShardingDapperSqliteCollection : ICollectionFixture<ShardedSqliteFixture>
-{
-}
 
 #endregion
 
@@ -120,14 +104,6 @@ public class ShardingEFCoreMySqlCollection : ICollectionFixture<ShardedMySqlFixt
 {
 }
 
-/// <summary>
-/// Collection for EF Core SQLite sharding integration tests.
-/// </summary>
-[CollectionDefinition("Sharding-EFCore-Sqlite", DisableParallelization = true)]
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "xUnit requires collection types to end with 'Collection'")]
-public class ShardingEFCoreSqliteCollection : ICollectionFixture<ShardedSqliteFixture>
-{
-}
 
 #endregion
 

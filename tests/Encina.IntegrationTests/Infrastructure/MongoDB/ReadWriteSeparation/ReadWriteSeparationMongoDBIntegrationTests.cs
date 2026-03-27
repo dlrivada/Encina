@@ -362,7 +362,7 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDatabaseNameAsync_WithEmptyDatabaseName_ShouldReturnEmpty()
+    public async Task GetDatabaseNameAsync_WithEmptyDatabaseName_ShouldFallbackToConnectionDefault()
     {
         // Arrange
         var factory = CreateFactory(options =>
@@ -373,8 +373,9 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
         // Act
         var result = await factory.GetDatabaseNameAsync();
 
-        // Assert — empty database name is handled gracefully
-        result.ShouldBe(string.Empty);
+        // Assert — empty config falls back to connection string's database name
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(name => name.ShouldNotBeNullOrWhiteSpace());
     }
 
     #endregion
