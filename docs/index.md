@@ -1,92 +1,106 @@
 ---
-_layout: landing
+layout: default
 ---
 
 # Encina
 
-**Railway Oriented Encina for .NET 10**
+**Build resilient, regulation-ready .NET 10 applications with Railway Oriented Programming.**
 
-Encina is a lightweight, functional Encina abstraction for .NET applications that embraces Railway Oriented Programming (ROP) principles. Built on top of [LanguageExt](https://github.com/louthy/language-ext), it provides explicit request/response contracts, composable pipeline behaviors, and rich observability features for building maintainable CQRS-style applications.
+[![.NET CI](https://github.com/dlrivada/Encina/actions/workflows/ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/dlrivada/Encina/graph/badge.svg)](https://codecov.io/gh/dlrivada/Encina)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/dlrivada/Encina/blob/main/LICENSE)
+![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
+![Status](https://img.shields.io/badge/status-pre--1.0-blue.svg)
 
-[![.NET Quality Gate](https://github.com/dlrivada/Encina/actions/workflows/ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/ci.yml)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=coverage)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)
-![Mutation](https://img.shields.io/badge/mutation-93.74%25-4C934C.svg)
+> **112 packages** · **13,000+ tests** · **13 database providers** · **8 cache providers** · **10 messaging transports** · **15 compliance modules**
 
-## Key Features
+## What is Encina?
 
-- **Functional Error Handling**: All operations return `Either<EncinaError, TValue>` for explicit, type-safe error handling
-- **Zero Exceptions Policy**: Operational failures travel through functional rails instead of exceptions
-- **Pipeline Composition**: Ordered behaviors, pre-processors, and post-processors for cross-cutting concerns
-- **Rich Observability**: Built-in OpenTelemetry support with activities, metrics, and structured logging
-- **CQRS Contracts**: Explicit `ICommand<T>`, `IQuery<T>`, and `INotification` interfaces
-- **Assembly Scanning**: Automatic discovery and registration of handlers, behaviors, and processors
-- **Functional Failure Detection**: Translate domain envelopes into consistent Encina errors
+Encina is a comprehensive toolkit for building robust .NET 10 applications. Built on [LanguageExt](https://github.com/louthy/language-ext), it provides explicit error handling through `Either<EncinaError, T>`, CQRS patterns, enterprise messaging, multi-provider database access, built-in GDPR/NIS2/AI Act compliance, and composable pipeline behaviors — all opt-in, pay-for-what-you-use.
 
-## Getting Started
-
-### Installation
+## Quick Start
 
 ```bash
 dotnet add package Encina
 ```
 
-### Basic Configuration
-
 ```csharp
-using Encina;
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddEncina(typeof(Program).Assembly);
+var app = builder.Build();
 
-services.AddEncina(cfg =>
+app.MapPost("/orders", async (IEncina encina, CancellationToken ct) =>
 {
-    cfg.RegisterServicesFromAssemblyContaining<ApplicationMarker>()
-       .AddPipelineBehavior(typeof(CommandActivityPipelineBehavior<,>))
-       .AddPipelineBehavior(typeof(QueryMetricsPipelineBehavior<,>));
+    var result = await encina.Send(new CreateOrder(Guid.NewGuid(), 99.99m), ct);
+    return result.Match(
+        Left: error => Results.BadRequest(error),
+        Right: orderId => Results.Created($"/orders/{orderId}", orderId));
 });
-```
 
-### Send a Command
+app.Run();
+```
 
 ```csharp
-public sealed record RegisterUser(string Email, string Password) : ICommand<Unit>;
-
-var result = await Encina.Send(new RegisterUser("user@example.com", "Pass@123"), ct);
-
-result.Match(
-    Left: error => logger.LogWarning("Registration failed: {Code}", error.GetEncinaCode()),
-    Right: _ => logger.LogInformation("User registered successfully"));
+public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<OrderId>;
 ```
+
+## Key Capabilities
+
+| Area | Highlights |
+|------|-----------|
+| **Core** | Railway Oriented Programming, CQRS (`ICommand<T>`, `IQuery<T>`, `INotification`), pipeline behaviors |
+| **Database (13 providers)** | ADO.NET, Dapper, EF Core across SQLite/SQL Server/PostgreSQL/MySQL + MongoDB |
+| **Caching (8 providers)** | Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB with stampede protection |
+| **Messaging (10 transports)** | Outbox, Inbox, Saga, Scheduling across RabbitMQ, Kafka, NATS, Azure Service Bus, SQS, MQTT |
+| **Security** | XACML 3.0 ABAC, field-level encryption, PII masking, anti-tampering, read audit |
+| **Compliance** | GDPR (Articles 5-49), NIS2, EU AI Act — consent, DSR, breach notification, DPIA, crypto-shredding |
+| **Sharding** | Hash, Range, Directory, Geo routing — compound keys, co-location, scatter-gather |
+| **CDC** | Real-time change streaming for SQL Server, PostgreSQL, MySQL, MongoDB, Debezium |
+| **Event Sourcing** | Marten-based event store with projections, snapshots, GDPR crypto-shredding |
+| **Observability** | OpenTelemetry tracing/metrics, structured logging, automatic health checks |
 
 ## Documentation
 
-- [API Reference](https://dlrivada.github.io/Encina/api/Encina.html) - Complete API documentation
-- [Getting Started](docs/getting-started.md) - Quick start guide
-- [Introduction](docs/introduction.md) - Core concepts and architecture
-- [Architecture Patterns](architecture/patterns-guide.md) - Design patterns and best practices
-- [Architecture Decision Records](architecture/adr/) - Key architectural decisions
+### Guides
 
-## Quality Metrics
+- [Health Checks Integration](guides/health-checks.md)
+- [ID Generation Configuration](guides/id-generation-configuration.md)
+- [ID Generation Scaling](guides/id-generation-scaling.md)
+- [Reference Tables Scaling](guides/reference-tables-scaling.md)
 
-| Metric | Current | Target | Status |
-|--------|---------|--------|--------|
-| Line Coverage | 92.5% | ≥90% | ✅ Exceeded |
-| Branch Coverage | 83.3% | ≥85% | 🟡 Near |
-| Mutation Score | 93.74% | ≥95% | 🟡 Near |
-| Build Warnings | 0 | 0 | ✅ Perfect |
-| XML Documentation | 100% | 100% | ✅ Perfect |
-| Tests Passing | 204/204 | 100% | ✅ Perfect |
+### Features
 
-## Architecture Highlights
+- [Secrets Management](features/secrets-management.md)
+- [Multi-Tenancy](features/multi-tenancy.md)
+- [Database Sharding](features/compound-shard-keys.md)
+- [Change Data Capture](features/cdc.md)
+- [GDPR Compliance](features/gdpr-compliance.md)
+- [Message Encryption](features/message-encryption.md)
+- [ABAC Authorization](features/abac/quick-start.md)
 
-- **Railway Oriented Programming**: Explicit success/failure paths through `Either<L, R>`
-- **Pipeline Pattern**: Composable behaviors for validation, logging, metrics, and more
-- **Dependency Injection**: First-class support for Microsoft.Extensions.DependencyInjection
-- **OpenTelemetry Ready**: Built-in ActivitySource and Metrics support
-- **Immutable Messages**: Commands, queries, and notifications are record types
+### Messaging
+
+- [Messaging Overview](messaging/index.md)
+- [Sagas](messaging/sagas.md)
+- [Transports](messaging/transports.md)
+
+### Architecture
+
+- [Architecture Patterns Guide](architecture/patterns-guide.md)
+- [Architecture Decision Records](architecture/adr/)
+- [Component Diagram](architecture/component-diagram.md)
+
+## Quality & Coverage
+
+- [Coverage Dashboard](coverage/) — Per-package weighted coverage metrics
+- [Codecov](https://codecov.io/gh/dlrivada/Encina) — Per-module thresholds
+- [SonarCloud](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina) — Static analysis
 
 ## Resources
 
 - [GitHub Repository](https://github.com/dlrivada/Encina)
+- [README](https://github.com/dlrivada/Encina#readme)
+- [Changelog](https://github.com/dlrivada/Encina/blob/main/CHANGELOG.md)
 - [Contributing Guide](https://github.com/dlrivada/Encina/blob/main/CONTRIBUTING.md)
-
----
-
-Built with ❤️ for the .NET community
+- [Roadmap](https://github.com/dlrivada/Encina/blob/main/ROADMAP.md)
+- [License (MIT)](https://github.com/dlrivada/Encina/blob/main/LICENSE)

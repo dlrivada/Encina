@@ -34,6 +34,8 @@ Encina is a comprehensive toolkit for building robust .NET 10 applications. Buil
 
 > **112 packages** | **13,000+ tests** | **13 database providers** | **8 cache providers** | **10 messaging transports** | **15 compliance modules**
 
+> **[Documentation Site](https://dlrivada.github.io/Encina/)** · **[Coverage Dashboard](https://dlrivada.github.io/Encina/coverage/)**
+
 ## Why Encina?
 
 - **Railway Oriented Programming**: All operations return `Either<EncinaError, T>` — no exceptions for business logic, explicit error propagation throughout every layer
