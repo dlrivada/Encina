@@ -479,19 +479,18 @@ jobs:
       - name: Copy coverage dashboard to docs
         if: always() && github.ref == 'refs/heads/main'
         run: |
-          mkdir -p docs/coverage
-          cp -f artifacts/coverage/index.html docs/coverage/ 2>/dev/null || true
-          cp -f artifacts/coverage/badge.svg docs/coverage/ 2>/dev/null || true
-          cp -f artifacts/coverage/badge.json docs/coverage/ 2>/dev/null || true
-          cp -f artifacts/coverage/encina-coverage-summary.json docs/coverage/ 2>/dev/null || true
+          mkdir -p docs/coverage/data
+          cp -f artifacts/coverage/encina-coverage-summary.json docs/coverage/data/latest.json 2>/dev/null || true
+          cp -f artifacts/coverage/badge.svg docs/coverage/badge.svg 2>/dev/null || true
+          cp -f artifacts/coverage/badge.json docs/coverage/badge.json 2>/dev/null || true
 
-      - name: Commit coverage dashboard
+      - name: Commit coverage data
         if: always() && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/coverage/ || true
-          git diff --cached --quiet || git commit -m "docs: update coverage dashboard [skip ci]"
+          git add docs/coverage/data/latest.json docs/coverage/badge.* || true
+          git diff --cached --quiet || git commit -m "docs: update coverage data [skip ci]"
           git push || true
 
   # Pack and publish - runs after all tests
