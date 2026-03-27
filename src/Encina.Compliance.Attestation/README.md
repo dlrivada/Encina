@@ -14,7 +14,7 @@ Provider-agnostic tamper-evident audit attestation for Encina. Creates cryptogra
 - **`[AttestDecision]` Attribute** -- Declarative marker for commands requiring attestation of their outcome
 - **Immutable Domain Model** -- `AuditRecord`, `AttestationReceipt`, `AttestationVerification` as sealed records with `required` properties
 - **Content Hashing** -- Deterministic hashing via `AttestationHasher` (SHA-256, SHA-384, SHA-512) for audit record fingerprinting
-- **Full Observability** -- OpenTelemetry `ActivitySource` with 2 activity types, `Meter` with 5 instruments (3 counters, 1 histogram), 9 structured log events (EventId 9600-9608)
+- **Full Observability** -- OpenTelemetry `ActivitySource` with 2 activity types, `Meter` with 5 instruments (4 counters, 1 histogram), 9 structured log events (EventId 9600-9608)
 - **Health Check** -- Opt-in `AttestationHealthCheck` verifying the registered provider is resolvable
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions for business logic
 - **.NET 10 Compatible** -- Built with C# 14, nullable reference types enabled
@@ -111,10 +111,10 @@ public class AuditService(IAuditAttestationProvider provider)
 
 The hash chain creates a tamper-evident, append-only sequence using HMAC:
 
-```
-Entry[0]: signature = HMAC-SHA256(key, contentHash + ":genesis:" + 0)
-Entry[1]: signature = HMAC-SHA256(key, contentHash + ":" + Entry[0].signature + ":" + 1)
-Entry[N]: signature = HMAC-SHA256(key, contentHash + ":" + Entry[N-1].signature + ":" + N)
+```text
+Entry[0]: signature = HMAC(key, contentHash + ":genesis:" + 0)
+Entry[1]: signature = HMAC(key, contentHash + ":" + Entry[0].signature + ":" + 1)
+Entry[N]: signature = HMAC(key, contentHash + ":" + Entry[N-1].signature + ":" + N)
 ```
 
 Modifying any entry breaks the chain from that point forward. Call `VerifyChainIntegrity()` to validate the full chain.
@@ -124,8 +124,8 @@ Modifying any entry breaks the chain from that point forward. Call `VerifyChainI
 | Scenario | Configuration |
 |----------|--------------|
 | Development / testing | Use `InMemoryAttestationProvider` — no key needed |
-| Single-process production | Omit `HmacKey` — ephemeral key (warning logged at startup) |
-| Multi-process / persistent | Provide stable `HmacKey` via secrets manager |
+| Single-process production | Omit `HmacKey` — ephemeral key (warning logged at startup); chain is in-memory only |
+| Multi-process / persistent | Provide stable `HmacKey` via secrets manager; note: chain data is still in-memory — use `HttpAttestationProvider` for cross-restart verification |
 | Regulatory / external audit | Use `HttpAttestationProvider` with external transparency log |
 
 ## Configuration Options

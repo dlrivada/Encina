@@ -39,7 +39,7 @@ All providers implement the same `IAuditAttestationProvider` interface, returnin
 The `HashChainAttestationProvider` implements a cryptographic hash chain:
 
 1. **Genesis**: First entry uses `"genesis"` as the previous signature
-2. **Chain link**: `signature = HMAC-SHA256(key, contentHash + ":" + previousSignature + ":" + chainIndex)`
+2. **Chain link**: `signature = HMAC(key, contentHash + ":" + previousSignature + ":" + chainIndex)` (default: HMAC-SHA256; configurable via `HashChainOptions.HashAlgorithm`)
 3. **Verification**: Recompute the HMAC and compare using constant-time comparison — any mismatch indicates tampering
 4. **Full chain audit**: `VerifyChainIntegrity()` walks the entire chain from genesis
 
@@ -55,8 +55,8 @@ Properties:
 | Scenario | Configuration | Trade-off |
 |----------|--------------|-----------|
 | Development / testing | Use `InMemoryAttestationProvider` | No key management needed |
-| Single-process production | Omit `HmacKey` (ephemeral) | Chain integrity within process lifetime only; a warning is logged at startup |
-| Multi-process / persistent | Provide stable `HmacKey` via secrets manager (Azure Key Vault, AWS Secrets Manager) | Full cross-restart verification |
+| Single-process production | Omit `HmacKey` (ephemeral) | Chain integrity within process lifetime only; warning logged at startup (EventId 9608) |
+| Multi-process / persistent | Provide stable `HmacKey` via secrets manager + external store or `HttpAttestationProvider` | A stable key alone is not sufficient — chain data is in-memory and lost on restart |
 | Regulatory / external audit | Use `HttpAttestationProvider` with transparency log | External trust anchor independent of key management |
 
 **Important**: When using an ephemeral key (default), all previously attested receipts become unverifiable after a process restart. The provider logs a `Warning` (EventId 9608) at startup to make this visible to operators. For compliance-critical deployments, always provide a persistent key.

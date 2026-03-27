@@ -44,7 +44,7 @@ internal static partial class AttestationLogMessages
     internal static partial void AttestationLogOnly(ILogger logger, string requestType, string error);
 
     [LoggerMessage(9608, LogLevel.Warning,
-        "HashChain provider is using an ephemeral HMAC key. Receipts will not survive process restarts. " +
-        "Provide a stable key via HashChainOptions.HmacKey for persistent verification.")]
+        "HashChain provider is using an ephemeral HMAC key. The chain is in-memory and will be lost on process restart. " +
+        "For persistent verification, provide a stable key via HashChainOptions.HmacKey and use an external store or the HttpAttestationProvider.")]
     internal static partial void EphemeralHmacKeyWarning(ILogger logger);
 }
