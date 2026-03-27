@@ -4,6 +4,7 @@ using Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.ProcessingActiv
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using FluentAssertions;
 using LanguageExt;
+using Microsoft.EntityFrameworkCore;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.SqlServer.ProcessingActivity;
 

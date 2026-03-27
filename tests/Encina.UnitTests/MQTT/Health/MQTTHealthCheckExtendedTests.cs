@@ -69,7 +69,7 @@ public class MQTTHealthCheckExtendedTests
         var hc = new MQTTHealthCheck(sp, null);
 
         var result = await hc.CheckHealthAsync();
-        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        ((int)result.Status).ShouldBe((int)HealthStatus.Unhealthy);
     }
 
     [Fact]
