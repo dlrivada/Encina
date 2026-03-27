@@ -15,7 +15,7 @@ namespace Encina.Audit.Marten.Crypto;
 /// The document ID follows the convention <c>"temporal-destroyed:{period}"</c>.
 /// </para>
 /// </remarks>
-internal sealed class TemporalKeyDestroyedMarker
+public sealed class TemporalKeyDestroyedMarker
 {
     /// <summary>
     /// Unique document identifier following the convention <c>"temporal-destroyed:{period}"</c>.
