@@ -26,6 +26,8 @@ public sealed class MartenTemporalKeyProviderIntegrationTests
     [Fact]
     public async Task GetOrCreateKeyAsync_NewPeriod_PersistsToMarten()
     {
+        Assert.SkipUnless(_fixture.IsAvailable, "Marten PostgreSQL container not available");
+
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
         var sut = new MartenTemporalKeyProvider(

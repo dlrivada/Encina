@@ -16,7 +16,29 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
 
     public ProcessingActivityRegistryEFPostgreSqlTests(EFCorePostgreSqlFixture fixture) => _fixture = fixture;
 
-    public async ValueTask InitializeAsync() => await _fixture.ClearAllDataAsync();
+    public async ValueTask InitializeAsync()
+    {
+        await using var context = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS "ProcessingActivities" (
+                "Id" UUID PRIMARY KEY,
+                "Name" VARCHAR(500) NOT NULL,
+                "Purpose" VARCHAR(1000) NOT NULL,
+                "LawfulBasis" INTEGER NOT NULL,
+                "CategoriesOfDataSubjects" TEXT NOT NULL,
+                "CategoriesOfPersonalData" TEXT NOT NULL,
+                "Recipients" TEXT NOT NULL,
+                "RetentionPeriod" INTERVAL NOT NULL,
+                "SecurityMeasures" VARCHAR(2000) NOT NULL,
+                "RequestType" VARCHAR(1000) NOT NULL,
+                "CreatedAtUtc" TIMESTAMPTZ NOT NULL,
+                "LastUpdatedAtUtc" TIMESTAMPTZ NOT NULL,
+                "TenantId" VARCHAR(256) NULL,
+                "ModuleId" VARCHAR(256) NULL
+            )
+            """);
+        await context.Database.ExecuteSqlRawAsync("""DELETE FROM "ProcessingActivities" """);
+    }
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static global::Encina.Compliance.GDPR.ProcessingActivity CreateActivity(Type? requestType = null) => new()

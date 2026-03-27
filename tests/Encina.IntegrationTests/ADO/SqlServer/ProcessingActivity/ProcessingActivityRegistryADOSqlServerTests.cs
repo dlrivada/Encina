@@ -18,6 +18,31 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
+        // Create table if not exists (shared fixture may not have it)
+        using var conn = _fixture.CreateConnection();
+        await conn.OpenAsync();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProcessingActivities')
+            CREATE TABLE [ProcessingActivities] (
+                [Id] UNIQUEIDENTIFIER PRIMARY KEY,
+                [Name] NVARCHAR(500) NOT NULL,
+                [Purpose] NVARCHAR(1000) NOT NULL,
+                [LawfulBasis] INT NOT NULL,
+                [CategoriesOfDataSubjects] NVARCHAR(MAX) NOT NULL,
+                [CategoriesOfPersonalData] NVARCHAR(MAX) NOT NULL,
+                [Recipients] NVARCHAR(MAX) NOT NULL,
+                [RetentionPeriod] BIGINT NOT NULL,
+                [SecurityMeasures] NVARCHAR(2000) NOT NULL,
+                [RequestType] NVARCHAR(1000) NOT NULL,
+                [CreatedAtUtc] DATETIMEOFFSET NOT NULL,
+                [LastUpdatedAtUtc] DATETIMEOFFSET NOT NULL,
+                [TenantId] NVARCHAR(256) NULL,
+                [ModuleId] NVARCHAR(256) NULL
+            )
+            """;
+        await cmd.ExecuteNonQueryAsync();
+
         await _fixture.ClearAllDataAsync();
         _store = new ProcessingActivityRegistryADO(_fixture.ConnectionString);
     }

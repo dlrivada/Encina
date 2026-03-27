@@ -17,9 +17,16 @@ public class IdGenerationDocument
     [BsonRepresentation(BsonType.ObjectId)]
     public string Id { get; set; } = ObjectId.GenerateNewId().ToString();
 
+    [BsonIgnoreIfDefault]
     public SnowflakeId SnowflakeCol { get; set; }
+
+    [BsonIgnoreIfDefault]
     public UlidId UlidCol { get; set; }
+
+    [BsonIgnoreIfDefault]
     public UuidV7Id UuidV7Col { get; set; }
+
+    [BsonIgnoreIfDefault]
     public ShardPrefixedId ShardPrefixedCol { get; set; }
 }
 

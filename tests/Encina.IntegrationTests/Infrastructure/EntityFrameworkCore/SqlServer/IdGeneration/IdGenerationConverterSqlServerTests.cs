@@ -26,9 +26,18 @@ public sealed class IdGenerationConverterSqlServerTests : IAsyncLifetime
         if (!_fixture.IsAvailable) return;
 
         await using var context = CreateDbContext();
-        await context.Database.EnsureCreatedAsync();
-        context.IdGenerationEntities.RemoveRange(context.IdGenerationEntities);
-        await context.SaveChangesAsync();
+        // Use ExecuteSqlRaw to create table if not exists (EnsureCreatedAsync is a no-op if DB already exists)
+        await context.Database.ExecuteSqlRawAsync("""
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'IdGenerationEntities')
+            CREATE TABLE [IdGenerationEntities] (
+                [Id] INT IDENTITY(1,1) PRIMARY KEY,
+                [SnowflakeCol] BIGINT NULL,
+                [UlidCol] NVARCHAR(26) NULL,
+                [UuidV7Col] UNIQUEIDENTIFIER NULL,
+                [ShardPrefixedCol] NVARCHAR(256) NULL
+            )
+            """);
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM [IdGenerationEntities]");
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
