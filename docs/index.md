@@ -49,20 +49,26 @@ app.Run();
 public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<OrderId>;
 ```
 
-## Key Capabilities
+## Packages (112)
 
-| Area | Highlights |
-|------|-----------|
-| **Core** | Railway Oriented Programming, CQRS (`ICommand<T>`, `IQuery<T>`, `INotification`), pipeline behaviors |
-| **Database (13 providers)** | ADO.NET, Dapper, EF Core across SQLite/SQL Server/PostgreSQL/MySQL + MongoDB |
-| **Caching (8 providers)** | Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB with stampede protection |
-| **Messaging (10 transports)** | Outbox, Inbox, Saga, Scheduling across RabbitMQ, Kafka, NATS, Azure Service Bus, SQS, MQTT |
-| **Security** | XACML 3.0 ABAC, field-level encryption, PII masking, anti-tampering, read audit |
-| **Compliance** | GDPR (Articles 5-49), NIS2, EU AI Act — consent, DSR, breach notification, DPIA, crypto-shredding |
-| **Sharding** | Hash, Range, Directory, Geo routing — compound keys, co-location, scatter-gather |
-| **CDC** | Real-time change streaming for SQL Server, PostgreSQL, MySQL, MongoDB, Debezium |
-| **Event Sourcing** | Marten-based event store with projections, snapshots, GDPR crypto-shredding |
-| **Observability** | OpenTelemetry tracing/metrics, structured logging, automatic health checks |
+| Category | # | Highlights |
+|----------|--:|-----------|
+| **Core** | 9 | ROP foundations, CQRS, pipeline behaviors, DomainModeling, GuardClauses, AspNetCore, SignalR, gRPC, GraphQL, Refit, CLI |
+| **Database Providers** | 13 | ADO.NET, Dapper, EF Core across SQLite / SQL Server / PostgreSQL / MySQL + MongoDB. Same interfaces, swap with one line of DI |
+| **Caching** | 8 | Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB — stampede protection, tag invalidation, eager refresh |
+| **Messaging & Transports** | 10 | Outbox, Inbox, Saga, Scheduling + RabbitMQ, Kafka, NATS, Azure Service Bus, Amazon SQS, Redis PubSub, MQTT, InMemory |
+| **Message Encryption** | 4 | Encryption abstractions + Data Protection API, AWS KMS, Azure Key Vault |
+| **Security** | 13 | XACML 3.0 ABAC with EEL, Roslyn analyzers, field-level encryption, PII masking, sanitization, anti-tampering, read audit |
+| **Secrets Management** | 5 | Reader/writer abstractions + AWS Secrets Manager, Azure Key Vault, Google Secret Manager, HashiCorp Vault |
+| **Compliance — GDPR** | 11 | Core GDPR, consent, lawful basis, DSR, anonymization, data residency, cross-border transfer, DPIA, retention, privacy by design, processor agreements |
+| **Compliance — Other** | 4 | Breach notification, attestation, NIS2 Directive, EU AI Act |
+| **Change Data Capture** | 6 | CDC abstractions + SQL Server, PostgreSQL, MySQL, MongoDB, Debezium |
+| **Database Sharding** | — | Hash, Range, Directory, Geo routing — compound keys, co-location, time-based tiering, shadow sharding, scatter-gather |
+| **Infrastructure** | 12 | Distributed locks (InMemory, Redis, SqlServer), ID generation (GUID, Snowflake, Ulid), Hangfire, Quartz, Polly, resilience, OpenTelemetry, multi-tenancy |
+| **Validation** | 3 | FluentValidation, DataAnnotations, MiniValidator — all via centralized Orchestrator |
+| **Event Sourcing** | 2 | Marten event store with projections, snapshots, GDPR crypto-shredding |
+| **Cloud & Serverless** | 3 | AWS Lambda, Azure Functions, .NET Aspire testing |
+| **Testing** | 12 | Core fixtures, fakes, Respawn, WireMock, Shouldly, Verify, Bogus, FsCheck, ArchUnitNET, Testcontainers, TUnit, Pact |
 
 ## Quality & Coverage
 
