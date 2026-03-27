@@ -60,11 +60,11 @@ graph TB
 
     Encina -->|Log| Logging
 
-    style Encina fill:#e1f5ff
-    style RequestDispatcher fill:#fff4e1
-    style NotificationDispatcher fill:#fff4e1
-    style ReqHandler fill:#e8f5e9
-    style NotifHandler fill:#e8f5e9
+    style Encina fill:#1c3a5c,color:#fff
+    style RequestDispatcher fill:#3d2d1c,color:#fff
+    style NotificationDispatcher fill:#3d2d1c,color:#fff
+    style ReqHandler fill:#1c3328,color:#fff
+    style NotifHandler fill:#1c3328,color:#fff
 ```
 
 ## Request Processing Flow
@@ -259,10 +259,10 @@ graph LR
     Handler --> PostProc1
     PostProc1 --> PostProc2
 
-    style Handler fill:#4caf50,color:#fff
-    style Behavior1 fill:#2196f3,color:#fff
-    style Behavior2 fill:#2196f3,color:#fff
-    style Behavior3 fill:#2196f3,color:#fff
+    style Handler fill:#1e6f31,color:#fff
+    style Behavior1 fill:#1565c0,color:#fff
+    style Behavior2 fill:#1565c0,color:#fff
+    style Behavior3 fill:#1565c0,color:#fff
 ```
 
 **Key Insight:** Behaviors are nested delegates (onion architecture). The outermost behavior is called first but can execute code both before and after calling `next()`, giving it full control over the request/response lifecycle.
@@ -304,15 +304,15 @@ graph TB
     ErrorPostProc --> Return
     Success --> Return
 
-    style ErrorNull fill:#f44336,color:#fff
-    style ErrorMissing fill:#f44336,color:#fff
-    style ErrorType fill:#f44336,color:#fff
-    style ErrorPreProc fill:#f44336,color:#fff
-    style ErrorBehavior fill:#f44336,color:#fff
-    style ErrorHandler fill:#f44336,color:#fff
-    style ErrorCancel fill:#ff9800,color:#fff
-    style ErrorPostProc fill:#f44336,color:#fff
-    style Success fill:#4caf50,color:#fff
+    style ErrorNull fill:#b71c1c,color:#fff
+    style ErrorMissing fill:#b71c1c,color:#fff
+    style ErrorType fill:#b71c1c,color:#fff
+    style ErrorPreProc fill:#b71c1c,color:#fff
+    style ErrorBehavior fill:#b71c1c,color:#fff
+    style ErrorHandler fill:#b71c1c,color:#fff
+    style ErrorCancel fill:#e65100,color:#fff
+    style ErrorPostProc fill:#b71c1c,color:#fff
+    style Success fill:#1e6f31,color:#fff
 ```
 
 **Key Principle:** Any Left value short-circuits the pipeline. All errors flow through the same `Either<EncinaError, TResponse>` type, enabling consistent error handling.
@@ -344,9 +344,9 @@ graph TB
     InvokerCache -->|Cache Miss| Compiler
     Compiler -->|Compile Expression| Invoker
 
-    style ReqCache fill:#fff9c4
-    style InvokerCache fill:#fff9c4
-    style Compiler fill:#ffccbc
+    style ReqCache fill:#3d3520,color:#fff
+    style InvokerCache fill:#3d3520,color:#fff
+    style Compiler fill:#3d2520,color:#fff
 ```
 
 **Performance:**
@@ -395,9 +395,9 @@ graph TB
     Dispatchers -->|depends on| DI
     Pipeline -->|depends on| DI
 
-    style Contracts fill:#e1f5ff
-    style Handlers fill:#e8f5e9
-    style Encina fill:#fff4e1
+    style Contracts fill:#1c3a5c,color:#fff
+    style Handlers fill:#1c3328,color:#fff
+    style Encina fill:#3d2d1c,color:#fff
 ```
 
 ## Key Design Patterns
