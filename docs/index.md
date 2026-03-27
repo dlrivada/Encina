@@ -27,16 +27,21 @@ dotnet add package Encina
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEncina(typeof(Program).Assembly);
+var app = builder.Build();
+
+app.MapPost("/orders", async (IEncina encina, CancellationToken ct) =>
+{
+    var result = await encina.Send(new CreateOrder(Guid.NewGuid(), 99.99m), ct);
+    return result.Match(
+        Left: error => Results.BadRequest(error),
+        Right: orderId => Results.Created($"/orders/{orderId}", orderId));
+});
+
+app.Run();
 ```
 
 ```csharp
-public sealed record CreateOrder(Guid CustomerId, List<OrderItem> Items) : ICommand<OrderId>;
-
-var result = await encina.Send(new CreateOrder(customerId, items), ct);
-
-result.Match(
-    Left: error => logger.LogError("Order failed: {Code}", error.Code),
-    Right: orderId => logger.LogInformation("Order created: {Id}", orderId));
+public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<OrderId>;
 ```
 
 ## Key Capabilities
