@@ -9,12 +9,12 @@ Provider-agnostic tamper-evident audit attestation for Encina. Creates cryptogra
 
 - **`IAuditAttestationProvider`** -- Single interface for all attestation backends: `AttestAsync` and `VerifyAsync` returning `Either<EncinaError, T>`
 - **InMemory Provider** -- Thread-safe `ConcurrentDictionary`-based provider for testing and development, with idempotent attestation
-- **HashChain Provider** -- Self-hosted, zero-dependency append-only chain. Each entry incorporates the previous entry's hash (SHA-256), detecting retroactive tampering
+- **HashChain Provider** -- Self-hosted, zero-dependency append-only chain. Each entry's HMAC-SHA256 signature incorporates the previous entry's signature, detecting retroactive tampering. Ephemeral or persistent HMAC key supported
 - **Http Provider** -- Delegates to external endpoints (Sigstore/Rekor, custom APIs) with configurable authentication and payload mapping
 - **`[AttestDecision]` Attribute** -- Declarative marker for commands requiring attestation of their outcome
 - **Immutable Domain Model** -- `AuditRecord`, `AttestationReceipt`, `AttestationVerification` as sealed records with `required` properties
-- **Content Hashing** -- Deterministic SHA-256 via `ContentHasher.ComputeSha256` for audit record fingerprinting
-- **Full Observability** -- OpenTelemetry `ActivitySource` with 2 activity types, `Meter` with 5 instruments (3 counters, 1 histogram), 6 structured log events (EventId 9600-9605)
+- **Content Hashing** -- Deterministic hashing via `AttestationHasher` (SHA-256, SHA-384, SHA-512) for audit record fingerprinting
+- **Full Observability** -- OpenTelemetry `ActivitySource` with 2 activity types, `Meter` with 5 instruments (3 counters, 1 histogram), 9 structured log events (EventId 9600-9608)
 - **Health Check** -- Opt-in `AttestationHealthCheck` verifying the registered provider is resolvable
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions for business logic
 - **.NET 10 Compatible** -- Built with C# 14, nullable reference types enabled
@@ -109,15 +109,24 @@ public class AuditService(IAuditAttestationProvider provider)
 
 ### HashChain Provider Details
 
-The hash chain creates a tamper-evident, append-only sequence:
+The hash chain creates a tamper-evident, append-only sequence using HMAC:
 
 ```
-Entry[0]: signature = SHA256(contentHash + ":genesis:" + 0)
-Entry[1]: signature = SHA256(contentHash + ":" + Entry[0].signature + ":" + 1)
-Entry[N]: signature = SHA256(contentHash + ":" + Entry[N-1].signature + ":" + N)
+Entry[0]: signature = HMAC-SHA256(key, contentHash + ":genesis:" + 0)
+Entry[1]: signature = HMAC-SHA256(key, contentHash + ":" + Entry[0].signature + ":" + 1)
+Entry[N]: signature = HMAC-SHA256(key, contentHash + ":" + Entry[N-1].signature + ":" + N)
 ```
 
 Modifying any entry breaks the chain from that point forward. Call `VerifyChainIntegrity()` to validate the full chain.
+
+**Key management:**
+
+| Scenario | Configuration |
+|----------|--------------|
+| Development / testing | Use `InMemoryAttestationProvider` — no key needed |
+| Single-process production | Omit `HmacKey` — ephemeral key (warning logged at startup) |
+| Multi-process / persistent | Provide stable `HmacKey` via secrets manager |
+| Regulatory / external audit | Use `HttpAttestationProvider` with external transparency log |
 
 ## Configuration Options
 
@@ -126,6 +135,7 @@ Modifying any entry breaks the chain from that point forward. Call `VerifyChainI
 | `AttestationOptions` | `AddHealthCheck` | `bool` | Register health check (default: `false`) |
 | `HashChainOptions` | `StoragePath` | `string?` | Persistence path (null = in-memory only) |
 | `HashChainOptions` | `HashAlgorithm` | `HashAlgorithmName` | Hash algorithm (default: SHA-256) |
+| `HashChainOptions` | `HmacKey` | `byte[]?` | HMAC signing key (null = ephemeral, warning logged) |
 | `HttpAttestationOptions` | `AttestEndpointUrl` | `Uri` | POST endpoint for attestation (required) |
 | `HttpAttestationOptions` | `VerifyEndpointUrl` | `Uri?` | POST endpoint for verification (optional) |
 | `HttpAttestationOptions` | `AuthHeader` | `string?` | Authorization header value |
@@ -166,7 +176,7 @@ Meter: `Encina.Compliance.Attestation`
 
 ### Structured Logging
 
-EventId range: 9600-9605 (registered in `EventIdRanges.ComplianceAttestation`)
+EventId range: 9600-9608 (registered in `EventIdRanges.ComplianceAttestation`)
 
 | EventId | Level | Message |
 |---------|-------|---------|
@@ -176,6 +186,9 @@ EventId range: 9600-9605 (registered in `EventIdRanges.ComplianceAttestation`)
 | 9603 | Error | Hash chain integrity broken |
 | 9604 | Error | HTTP endpoint error |
 | 9605 | Debug | Health check completed |
+| 9606 | Warning | Attestation enforcement blocked pipeline |
+| 9607 | Warning | Attestation failed in LogOnly mode |
+| 9608 | Warning | Ephemeral HMAC key in use |
 
 ## Related Packages
 

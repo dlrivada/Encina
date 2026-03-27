@@ -42,4 +42,9 @@ internal static partial class AttestationLogMessages
     [LoggerMessage(9607, LogLevel.Warning,
         "Attestation failed in LogOnly mode — pipeline continues. RequestType={RequestType}, Error={Error}")]
     internal static partial void AttestationLogOnly(ILogger logger, string requestType, string error);
+
+    [LoggerMessage(9608, LogLevel.Warning,
+        "HashChain provider is using an ephemeral HMAC key. Receipts will not survive process restarts. " +
+        "Provide a stable key via HashChainOptions.HmacKey for persistent verification.")]
+    internal static partial void EphemeralHmacKeyWarning(ILogger logger);
 }

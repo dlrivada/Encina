@@ -39,8 +39,8 @@ All providers implement the same `IAuditAttestationProvider` interface, returnin
 The `HashChainAttestationProvider` implements a cryptographic hash chain:
 
 1. **Genesis**: First entry uses `"genesis"` as the previous signature
-2. **Chain link**: `signature = SHA256(contentHash + ":" + previousSignature + ":" + chainIndex)`
-3. **Verification**: Recompute the signature and compare — any mismatch indicates tampering
+2. **Chain link**: `signature = HMAC-SHA256(key, contentHash + ":" + previousSignature + ":" + chainIndex)`
+3. **Verification**: Recompute the HMAC and compare using constant-time comparison — any mismatch indicates tampering
 4. **Full chain audit**: `VerifyChainIntegrity()` walks the entire chain from genesis
 
 Properties:
@@ -48,6 +48,20 @@ Properties:
 - **No gaps**: Each entry references its predecessor
 - **Tamper-evident**: Modifying any entry breaks the chain from that point forward
 - **Idempotent**: Attesting the same `RecordId` twice returns the original receipt
+- **HMAC-signed**: Signatures require knowledge of the secret key, preventing forgery by database-level attackers
+
+### HMAC Key Management
+
+| Scenario | Configuration | Trade-off |
+|----------|--------------|-----------|
+| Development / testing | Use `InMemoryAttestationProvider` | No key management needed |
+| Single-process production | Omit `HmacKey` (ephemeral) | Chain integrity within process lifetime only; a warning is logged at startup |
+| Multi-process / persistent | Provide stable `HmacKey` via secrets manager (Azure Key Vault, AWS Secrets Manager) | Full cross-restart verification |
+| Regulatory / external audit | Use `HttpAttestationProvider` with transparency log | External trust anchor independent of key management |
+
+**Important**: When using an ephemeral key (default), all previously attested receipts become unverifiable after a process restart. The provider logs a `Warning` (EventId 9608) at startup to make this visible to operators. For compliance-critical deployments, always provide a persistent key.
+
+**Key rotation**: The current implementation does not support key rotation within a chain. Rotating the key starts a new chain. If key rotation is required, use the HTTP provider with an external service that manages key lifecycle independently.
 
 ## Configuration
 
@@ -160,13 +174,13 @@ The module instruments all operations with OpenTelemetry:
 
 - **Activities**: `Attestation.Attest` and `Attestation.Verify` with semantic tags
 - **Metrics**: 5 instruments tracking attestation volume, success/failure rates, and latency
-- **Logging**: 6 structured events in the 9600-9605 EventId range using `[LoggerMessage]` source generator
+- **Logging**: 9 structured events in the 9600-9608 EventId range using `[LoggerMessage]` source generator
 
 ## Testing
 
 Property-based tests (FsCheck) verify the core hash chain invariants:
 - Append-only: N records produce N receipts with sequential chain indices
-- No gaps: Each receipt's `previous_signature` matches its predecessor
+- No gaps: Each receipt's HMAC chain link matches its predecessor
 - Tamper detection: Modified content hashes fail verification
 - Idempotency: Same RecordId returns identical receipts
 - Determinism: Same content always produces the same hash
