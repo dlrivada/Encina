@@ -447,6 +447,8 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
                 // Build parameters with original version for WHERE clause
                 var parameters = BuildEntityParameters(entity, excludeUpdate: true);
+                // Re-add the Id parameter which is excluded from SET but needed for WHERE
+                EnsureIdParameter(parameters, id);
                 parameters["OriginalVersion"] = originalVersion;
 
                 var versionedSql = BuildVersionedUpdateSql();
@@ -475,6 +477,8 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
 
             // Non-versioned entity - use standard update
             var standardParameters = BuildEntityParameters(entity, excludeUpdate: true);
+            // Re-add the Id parameter which is excluded from SET but needed for WHERE
+            EnsureIdParameter(standardParameters, id);
             rowsAffected = await _connection.ExecuteAsync(_updateSql, standardParameters);
 
             if (rowsAffected == 0)
@@ -596,6 +600,8 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
                         versionedEntity.Version = originalVersion + 1;
 
                         var parameters = BuildEntityParameters(entity, excludeUpdate: true);
+                        // Re-add the Id parameter which is excluded from SET but needed for WHERE
+                        EnsureIdParameter(parameters, _mapping.GetId(entity));
                         parameters["OriginalVersion"] = originalVersion;
 
                         var rowsAffected = await _connection.ExecuteAsync(versionedSql, parameters);
@@ -616,7 +622,13 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
             }
 
             // Non-versioned entities - use standard bulk update
-            var parameterList = entityList.Select(e => BuildEntityParameters(e, excludeUpdate: true));
+            var parameterList = entityList.Select(e =>
+            {
+                var parameters = BuildEntityParameters(e, excludeUpdate: true);
+                // Re-add the Id parameter which is excluded from SET but needed for WHERE
+                EnsureIdParameter(parameters, _mapping.GetId(e));
+                return parameters;
+            });
             await _connection.ExecuteAsync(_updateSql, parameterList);
             return Right<EncinaError, Unit>(Unit.Default);
         }
@@ -747,6 +759,23 @@ public sealed class FunctionalRepositoryDapper<TEntity, TId> : IFunctionalReposi
     private string BuildExistsSql()
     {
         return $"SELECT EXISTS (SELECT 1 FROM `{_mapping.TableName}`)";
+    }
+
+    /// <summary>
+    /// Ensures the Id parameter is present in the parameters dictionary for WHERE clauses.
+    /// The Id is excluded from the SET clause by <see cref="BuildEntityParameters"/> when
+    /// <paramref name="parameters"/> is built with <c>excludeUpdate: true</c>, but it is still
+    /// needed for the WHERE clause in UPDATE statements.
+    /// </summary>
+    private void EnsureIdParameter(Dictionary<string, object?> parameters, TId id)
+    {
+        var idPropertyName = _mapping.ColumnMappings
+            .First(kvp => kvp.Value == _mapping.IdColumnName).Key;
+
+        if (!parameters.ContainsKey(idPropertyName))
+        {
+            parameters[idPropertyName] = ConvertIdForParameter(id);
+        }
     }
 
     /// <summary>

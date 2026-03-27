@@ -187,10 +187,12 @@ public sealed class MartenTemporalKeyProvider : ITemporalKeyProvider
             var allKeys = await _session.Query<TemporalKeyDocument>()
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
 
-            // Group by period and filter those older than cutoff
+            // Group by period and filter those whose period date is before the cutoff
+            var cutoff = new DateTimeOffset(olderThanUtc, TimeSpan.Zero);
             var periodsToDestroy = allKeys
                 .GroupBy(k => k.Period)
-                .Where(g => g.All(k => k.CreatedAtUtc < new DateTimeOffset(olderThanUtc, TimeSpan.Zero)))
+                .Where(g => TemporalPeriodHelper.TryParsePeriodToDate(g.Key, granularity, out var periodDate)
+                            && periodDate < cutoff)
                 .Select(g => g.Key)
                 .ToList();
 

@@ -116,7 +116,7 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
         result.IsLeft.ShouldBeTrue();
     }
 
-    [Fact(Skip = "Bug in DestroyKeysBeforeAsync period comparison logic — returns 0 destroyed")]
+    [Fact]
     public async Task DestroyKeysBeforeAsync_DestroysOlderPeriods()
     {
         // Arrange
