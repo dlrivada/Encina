@@ -73,6 +73,11 @@ public sealed class HashChainAttestationProvider : IAuditAttestationProvider, IA
         _ = ContentHasher.GetRecommendedKeySize(_hashAlgorithm);
         _hmacKey = _options.HmacKey ?? RandomNumberGenerator.GetBytes(
             ContentHasher.GetRecommendedKeySize(_hashAlgorithm));
+
+        if (_options.HmacKey is null)
+        {
+            AttestationLogMessages.EphemeralHmacKeyWarning(_logger);
+        }
     }
 
     /// <inheritdoc />
