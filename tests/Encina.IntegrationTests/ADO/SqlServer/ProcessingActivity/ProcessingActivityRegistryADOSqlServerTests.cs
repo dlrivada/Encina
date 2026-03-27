@@ -1,9 +1,9 @@
-using System.Data.Common;
 using Encina.ADO.SqlServer.ProcessingActivity;
 using Encina.Compliance.GDPR;
 using Encina.TestInfrastructure.Fixtures;
 using FluentAssertions;
 using LanguageExt;
+using Microsoft.Data.SqlClient;
 
 namespace Encina.IntegrationTests.ADO.SqlServer.ProcessingActivity;
 
@@ -19,10 +19,10 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        // Create table if not exists (shared fixture may not have it)
-        using var conn = (DbConnection)_fixture.CreateConnection();
+        // Create table if not exists using a fresh connection
+        await using var conn = new SqlConnection(_fixture.ConnectionString);
         await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
+        await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProcessingActivities')
             CREATE TABLE [ProcessingActivities] (
@@ -42,9 +42,10 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
                 [ModuleId] NVARCHAR(256) NULL
             )
             """;
-        await ((DbCommand)cmd).ExecuteNonQueryAsync();
-
-        await _fixture.ClearAllDataAsync();
+        await cmd.ExecuteNonQueryAsync();
+        await using var delCmd = conn.CreateCommand();
+        delCmd.CommandText = "DELETE FROM [ProcessingActivities]";
+        await delCmd.ExecuteNonQueryAsync();
         _store = new ProcessingActivityRegistryADO(_fixture.ConnectionString);
     }
 

@@ -43,7 +43,10 @@ public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
         // Act
         var result = await sut.GetOrCreateKeyAsync(period);
 
-        // Assert
+        // Assert — capture Left error for CI diagnostics
+        result.Match(
+            Right: _ => { },
+            Left: err => Assert.Fail($"GetOrCreateKeyAsync returned Left: {err}"));
         result.IsRight.ShouldBeTrue("Should create key for new period");
         result.IfRight(info =>
         {
