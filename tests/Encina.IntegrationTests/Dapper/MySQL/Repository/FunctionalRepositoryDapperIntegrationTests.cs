@@ -230,12 +230,15 @@ public class FunctionalRepositoryDapperIntegrationTests : IAsyncLifetime
         // Act
         var result = await _repository.UpdateAsync(entity);
 
-        // Assert
-        result.IsRight.ShouldBeTrue();
+        // Assert - capture error message for debugging
+        result.Match(
+            Right: _ => { },
+            Left: err => Assert.Fail($"UpdateAsync returned Left: {err}"));
 
         var stored = await _repository.GetByIdAsync(entity.Id);
-        stored.IsRight.ShouldBeTrue();
-        stored.IfRight(e => e.Name.ShouldBe("Updated"));
+        stored.Match(
+            Right: e => e.Name.ShouldBe("Updated"),
+            Left: err => Assert.Fail($"GetByIdAsync returned Left: {err}"));
     }
 
     #endregion

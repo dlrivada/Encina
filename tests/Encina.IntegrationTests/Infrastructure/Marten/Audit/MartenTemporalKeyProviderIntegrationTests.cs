@@ -14,7 +14,7 @@ namespace Encina.IntegrationTests.Infrastructure.Marten.Audit;
 [Collection(MartenCollection.Name)]
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
-public sealed class MartenTemporalKeyProviderIntegrationTests
+public sealed class MartenTemporalKeyProviderIntegrationTests : IAsyncLifetime
 {
     private readonly MartenFixture _fixture;
 
@@ -23,11 +23,17 @@ public sealed class MartenTemporalKeyProviderIntegrationTests
         _fixture = fixture;
     }
 
+    public ValueTask InitializeAsync()
+    {
+        Assert.SkipUnless(_fixture.IsAvailable, "Marten PostgreSQL container not available");
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetOrCreateKeyAsync_NewPeriod_PersistsToMarten()
     {
-        Assert.SkipUnless(_fixture.IsAvailable, "Marten PostgreSQL container not available");
-
         // Arrange
         await using var session = _fixture.Store!.LightweightSession();
         var sut = new MartenTemporalKeyProvider(
