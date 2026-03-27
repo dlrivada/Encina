@@ -1,0 +1,122 @@
+{
+  "$comment": "Default rules for coverage manifest generation. Rules are evaluated in order; first match wins. Edit this file to change what test types apply to each file pattern.",
+  "rules": [
+    {"$comment": "── No tests needed (generated/metadata/infrastructure) ──"},
+    {"pattern": "Log.cs", "match": "exact", "tests": [], "reason": "Source-generated [LoggerMessage] delegates, no logic"},
+    {"pattern": "GlobalSuppressions.cs", "match": "exact", "tests": [], "reason": "Only [SuppressMessage] attributes"},
+    {"pattern": "AssemblyInfo.cs", "match": "exact", "tests": [], "reason": "Assembly metadata"},
+    {"pattern": "*.g.cs", "match": "glob", "tests": [], "reason": "Auto-generated code"},
+    {"pattern": "PublicAPI.Shipped.txt", "match": "exact", "tests": [], "reason": "API surface tracking file"},
+    {"pattern": "PublicAPI.Unshipped.txt", "match": "exact", "tests": [], "reason": "API surface tracking file"},
+
+    {"$comment": "── Interfaces: no implementation to test ──"},
+    {"pattern": "^I[A-Z].*\\.cs$", "match": "regex", "tests": [], "reason": "Interfaces have no implementation to test", "condition": "contains_interface"},
+
+    {"$comment": "── Diagnostics: generated logging and tracing ──"},
+    {"pattern": "*LogMessages.cs", "match": "glob", "tests": [], "reason": "Source-generated [LoggerMessage] delegates"},
+    {"pattern": "*EventIdRanges.cs", "match": "glob", "tests": ["unit"], "reason": "Constants with uniqueness invariants"},
+
+    {"$comment": "── Domain entities and value objects: unit + guard ──"},
+    {"pattern": "*Message.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Domain entity with serialization/validation logic"},
+    {"pattern": "*State.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Saga/aggregate state with transitions"},
+    {"pattern": "*Entity.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Domain entity"},
+    {"pattern": "*Record.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Data record"},
+    {"pattern": "*Result.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Result type"},
+    {"pattern": "*Event.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Domain event"},
+    {"pattern": "*Command.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Command DTO"},
+    {"pattern": "*Query.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Query DTO"},
+    {"pattern": "*Dto.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Data transfer object"},
+
+    {"$comment": "── Configuration: simple properties, testable ──"},
+    {"pattern": "*Options.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Configuration POCO with defaults and validation"},
+    {"pattern": "*Config.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Configuration class"},
+    {"pattern": "*Settings.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Settings class"},
+    {"pattern": "*Constants.cs", "match": "glob", "tests": ["unit"], "reason": "Static constants, verify values"},
+
+    {"$comment": "── Error factories: static methods ──"},
+    {"pattern": "*Errors.cs", "match": "glob", "tests": ["unit"], "reason": "Static error factory methods"},
+    {"pattern": "*ErrorCodes.cs", "match": "glob", "tests": ["unit"], "reason": "Error code constants"},
+
+    {"$comment": "── DI registration: conditional logic ──"},
+    {"pattern": "*Extensions.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "ServiceCollection extensions with conditional registration"},
+
+    {"$comment": "── Health checks: mockeable dependencies ──"},
+    {"pattern": "*HealthCheck.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Health check with mockeable service dependencies"},
+
+    {"$comment": "── Pipeline behaviors: pure logic with mocked dependencies ──"},
+    {"pattern": "*PipelineBehavior.cs", "match": "glob", "tests": ["unit", "guard", "contract"], "reason": "Mediator pipeline with mockeable next delegate"},
+    {"pattern": "*Behavior.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Behavioral component"},
+
+    {"$comment": "── Validation: pure logic, property-testable ──"},
+    {"pattern": "*Validator.cs", "match": "glob", "tests": ["unit", "guard", "property"], "reason": "Validation logic with invariants"},
+
+    {"$comment": "── Data access: needs real database ──"},
+    {"pattern": "*StoreADO.cs", "match": "glob", "tests": ["integration"], "reason": "ADO.NET store with raw SQL — needs real database"},
+    {"pattern": "*StoreDapper.cs", "match": "glob", "tests": ["integration"], "reason": "Dapper store with raw SQL — needs real database"},
+    {"pattern": "*StoreEF.cs", "match": "glob", "tests": ["integration"], "reason": "EF Core store — needs real DbContext"},
+    {"pattern": "*StoreMongoDB.cs", "match": "glob", "tests": ["integration"], "reason": "MongoDB store — needs real MongoDB"},
+    {"pattern": "*Store.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Abstract/base store with mockeable deps"},
+    {"pattern": "*RepositoryADO.cs", "match": "glob", "tests": ["integration"], "reason": "ADO.NET repository — needs real database"},
+    {"pattern": "*RepositoryDapper.cs", "match": "glob", "tests": ["integration"], "reason": "Dapper repository — needs real database"},
+    {"pattern": "*RepositoryEF.cs", "match": "glob", "tests": ["integration"], "reason": "EF Core repository — needs real DbContext"},
+    {"pattern": "*RepositoryMongoDB.cs", "match": "glob", "tests": ["integration"], "reason": "MongoDB repository — needs real MongoDB"},
+    {"pattern": "*Repository.cs", "match": "glob", "tests": ["unit", "guard", "contract"], "reason": "Abstract/base repository"},
+
+    {"$comment": "── Background services: need hosting runtime ──"},
+    {"pattern": "*BackgroundService.cs", "match": "glob", "tests": ["integration"], "reason": "Needs IHost/IHostedService runtime"},
+    {"pattern": "*HostedService.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Hosted service — StartAsync/StopAsync testable with mocks"},
+
+    {"$comment": "── Observability wrappers ──"},
+    {"pattern": "*Metrics.cs", "match": "glob", "tests": ["unit"], "reason": "Meter/counter wrapper — verify tags and recording"},
+    {"pattern": "*ActivitySource.cs", "match": "glob", "tests": ["unit"], "reason": "Activity/span wrapper — verify creation and tags"},
+    {"pattern": "*Enricher.cs", "match": "glob", "tests": ["unit"], "reason": "Activity enricher — verify tag population"},
+
+    {"$comment": "── Builders: fluent API with logic ──"},
+    {"pattern": "*Builder.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Fluent builder with validation"},
+
+    {"$comment": "── Factories: creation logic ──"},
+    {"pattern": "*Factory.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Factory with creation logic"},
+
+    {"$comment": "── Providers: abstraction implementations ──"},
+    {"pattern": "*Provider.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Provider implementation with mockeable deps"},
+
+    {"$comment": "── Handlers: command/query handlers ──"},
+    {"pattern": "*Handler.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Handler with mockeable dependencies"},
+
+    {"$comment": "── Serializers/Mappers: transformation logic ──"},
+    {"pattern": "*Serializer.cs", "match": "glob", "tests": ["unit", "guard", "property"], "reason": "Serialization with round-trip invariant"},
+    {"pattern": "*Mapper.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Data mapping logic"},
+
+    {"$comment": "── Middleware: HTTP pipeline ──"},
+    {"pattern": "*Middleware.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Middleware with mockeable HttpContext"},
+
+    {"$comment": "── ADO/Dapper provider-specific code ──"},
+    {"pattern": "*SqlBuilder.cs", "match": "glob", "tests": ["unit"], "reason": "SQL generation — verify output strings"},
+    {"pattern": "*ParameterExtensions.cs", "match": "glob", "tests": ["unit"], "reason": "Parameter mapping helpers"},
+    {"pattern": "*SchemaValidating*.cs", "match": "glob", "tests": ["integration"], "reason": "Schema validation needs real DB connection"},
+    {"pattern": "*ConnectionFactory.cs", "match": "glob", "tests": ["integration"], "reason": "Connection factory needs real DB"},
+    {"pattern": "*UnitOfWork.cs", "match": "glob", "tests": ["integration"], "reason": "Transaction management needs real DB"},
+    {"pattern": "*UnitOfWorkRepository*.cs", "match": "glob", "tests": ["integration"], "reason": "UoW repository needs real DB"},
+    {"pattern": "*BulkOperations*.cs", "match": "glob", "tests": ["integration"], "reason": "Bulk operations need real DB"},
+    {"pattern": "*EntityMapping*.cs", "match": "glob", "tests": ["unit"], "reason": "Column/table mapping metadata"},
+    {"pattern": "*IdParameterExtensions.cs", "match": "glob", "tests": ["unit"], "reason": "ID parameter helpers"},
+
+    {"$comment": "── EF Core specific ──"},
+    {"pattern": "*DbContext.cs", "match": "glob", "tests": ["integration"], "reason": "DbContext needs real database"},
+    {"pattern": "*Configuration.cs", "match": "glob", "tests": ["unit"], "reason": "EF entity type configuration"},
+    {"pattern": "*Interceptor.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "EF interceptor with mockeable context"},
+    {"pattern": "*ValueConverter.cs", "match": "glob", "tests": ["unit", "property"], "reason": "Value converter with round-trip invariant"},
+
+    {"$comment": "── MongoDB specific ──"},
+    {"pattern": "*FilterBuilder.cs", "match": "glob", "tests": ["unit"], "reason": "MongoDB filter construction"},
+    {"pattern": "*Serializer*.cs", "match": "glob", "tests": ["unit", "property"], "reason": "BSON serialization"},
+
+    {"$comment": "── CDC specific ──"},
+    {"pattern": "*CdcConnector.cs", "match": "glob", "tests": ["integration"], "reason": "CDC connector needs real database with replication"},
+    {"pattern": "*CdcPosition.cs", "match": "glob", "tests": ["unit", "guard", "property"], "reason": "Position serialization with round-trip invariant"},
+    {"pattern": "*CdcOptions.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "CDC configuration"},
+
+    {"$comment": "── Fallback: anything not matched gets unit + guard ──"},
+    {"pattern": "*.cs", "match": "glob", "tests": ["unit", "guard"], "reason": "Default: assume testable with mocks"}
+  ]
+}
