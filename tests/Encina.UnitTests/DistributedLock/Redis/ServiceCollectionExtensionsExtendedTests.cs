@@ -1,6 +1,7 @@
 using Encina.DistributedLock;
 using Encina.DistributedLock.Redis;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NSubstitute;
 using StackExchange.Redis;
 
@@ -44,6 +45,7 @@ public class ServiceCollectionExtensionsExtendedTests
     {
         var mux = Substitute.For<IConnectionMultiplexer>();
         var services = new ServiceCollection();
+        services.AddLogging();
 
         services.AddEncinaDistributedLockRedis(mux);
 

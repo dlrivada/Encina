@@ -18,6 +18,9 @@ public class DSRRequestAggregatePropertyTests
     [Property(MaxTest = 100)]
     public bool Property_Submit_DeadlineAlways30DaysAfterReceivedAt(NonEmptyString subjectId)
     {
+        // Skip whitespace-only strings (the guard clause rejects them)
+        if (string.IsNullOrWhiteSpace(subjectId.Get)) return true;
+
         var receivedAt = DateTimeOffset.UtcNow;
         var aggregate = DSRRequestAggregate.Submit(
             Guid.NewGuid(), subjectId.Get, DataSubjectRight.Access, receivedAt);

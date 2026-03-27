@@ -44,15 +44,16 @@ public class RedisDistributedLockHealthCheckTests
     {
         var hc = new RedisDistributedLockHealthCheck(_connection, new ProviderHealthCheckOptions());
         var tags = hc.Tags.ToList();
-        tags.ShouldContain("redis");
-        tags.ShouldContain("distributed-lock");
+        // Default ProviderHealthCheckOptions has ["encina", "database", "ready"]
+        tags.ShouldContain("encina");
+        tags.ShouldContain("ready");
     }
 
     [Fact]
     public async Task CheckHealthAsync_SuccessfulSetNx_ReturnsHealthy()
     {
         var db = Substitute.For<IDatabase>();
-        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<bool>(), Arg.Any<When>(), Arg.Any<CommandFlags>())
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>(), Arg.Any<CommandFlags>())
             .Returns(true);
         db.KeyDeleteAsync(Arg.Any<RedisKey>(), Arg.Any<CommandFlags>())
             .Returns(true);

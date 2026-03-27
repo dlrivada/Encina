@@ -63,12 +63,13 @@ public class MQTTHealthCheckExtendedTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_NoClient_Throws()
+    public async Task CheckHealthAsync_NoClient_ReturnsUnhealthy()
     {
         var sp = new ServiceCollection().BuildServiceProvider();
         var hc = new MQTTHealthCheck(sp, null);
 
-        await Should.ThrowAsync<InvalidOperationException>(() => hc.CheckHealthAsync());
+        var result = await hc.CheckHealthAsync();
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]

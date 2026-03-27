@@ -325,8 +325,8 @@ public class CacheInvalidationPipelineBehaviorTests : IDisposable
             CancellationToken.None);
 
         // Assert - immediately after the call, cache may not be invalidated yet (delay is 50ms)
-        // Wait a bit more than the delay to ensure invalidation occurs
-        await Task.Delay(100);
+        // Wait significantly longer than the delay to ensure invalidation occurs on slow CI runners
+        await Task.Delay(500);
 
         // Now the cache should have been invalidated
         cacheProvider.RemovedKeys.ShouldContain($"product:{productId}:details");

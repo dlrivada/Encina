@@ -68,7 +68,7 @@ public sealed class NullModuleHandlerRegistryTests
     [Fact]
     public void BelongsToModule_ByName_WithNullName_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() =>
+        Assert.Throws<ArgumentNullException>(() =>
             _sut.BelongsToModule(typeof(string), null!));
     }
 

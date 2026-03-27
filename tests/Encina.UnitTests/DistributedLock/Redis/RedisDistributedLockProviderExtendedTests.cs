@@ -97,7 +97,7 @@ public class RedisDistributedLockProviderExtendedTests
     public async Task TryAcquireAsync_Success_ReturnsHandle()
     {
         var db = Substitute.For<IDatabase>();
-        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<bool>(), Arg.Any<When>(), Arg.Any<CommandFlags>())
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>(), Arg.Any<CommandFlags>())
             .Returns(true);
         _connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
 
@@ -114,7 +114,7 @@ public class RedisDistributedLockProviderExtendedTests
     public async Task TryAcquireAsync_Failure_ReturnsNull()
     {
         var db = Substitute.For<IDatabase>();
-        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<bool>(), Arg.Any<When>(), Arg.Any<CommandFlags>())
+        db.StringSetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<TimeSpan?>(), Arg.Any<When>(), Arg.Any<CommandFlags>())
             .Returns(false);
         _connection.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(db);
 
