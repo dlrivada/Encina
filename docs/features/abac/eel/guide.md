@@ -1,3 +1,9 @@
+---
+title: "EEL (Encina Expression Language) Guide"
+layout: default
+parent: "Features"
+---
+
 # EEL (Encina Expression Language) Guide
 
 ## Overview

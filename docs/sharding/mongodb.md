@@ -1,3 +1,9 @@
+---
+title: "MongoDB Sharding in Encina"
+layout: default
+parent: "Sharding"
+---
+
 # MongoDB Sharding in Encina
 
 This guide covers MongoDB-specific sharding configuration in Encina, including the dual-mode architecture that supports both native MongoDB sharding and application-level routing.

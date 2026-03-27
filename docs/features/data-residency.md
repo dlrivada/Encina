@@ -1,3 +1,9 @@
+---
+title: "Data Residency in Encina"
+layout: default
+parent: "Features"
+---
+
 # Data Residency in Encina
 
 This guide explains how to enforce GDPR Chapter V (Articles 44-49) data sovereignty and residency requirements -- declarative data residency enforcement at the CQRS pipeline level using the `Encina.Compliance.DataResidency` package. Residency enforcement operates independently of the transport layer, ensuring consistent data sovereignty compliance across all entry points.

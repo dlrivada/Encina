@@ -1,3 +1,10 @@
+---
+title: "ADR-006: Pure Railway Oriented Programming - Fail-Fast Exception Handling"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-006: Pure Railway Oriented Programming - Fail-Fast Exception Handling
 
 ## Status

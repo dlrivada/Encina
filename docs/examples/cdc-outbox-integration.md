@@ -1,3 +1,9 @@
+---
+title: "Example: CDC Outbox Integration"
+layout: default
+parent: "Examples"
+---
+
 # Example: CDC Outbox Integration
 
 This example shows how to replace the polling-based `OutboxProcessor` with CDC-driven outbox processing using `UseOutboxCdc()`.

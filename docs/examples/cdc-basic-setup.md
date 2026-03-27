@@ -1,3 +1,9 @@
+---
+title: "Example: Basic CDC Setup"
+layout: default
+parent: "Examples"
+---
+
 # Example: Basic CDC Setup
 
 This example shows the minimal setup to capture and handle database changes using Encina CDC with SQL Server.

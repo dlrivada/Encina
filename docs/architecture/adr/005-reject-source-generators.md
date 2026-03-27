@@ -1,3 +1,10 @@
+---
+title: "ADR-005: Decision to NOT Use Source Generators"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-005: Decision to NOT Use Source Generators
 
 **Status:** Rejected

@@ -1,3 +1,10 @@
+---
+title: "ADR-022: Provider-Agnostic Attestation via `IAuditAttestationProvider`"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-022: Provider-Agnostic Attestation via `IAuditAttestationProvider`
 
 ## Status

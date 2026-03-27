@@ -1,3 +1,9 @@
+---
+title: "Multi-Tenancy in Encina"
+layout: default
+parent: "Features"
+---
+
 # Multi-Tenancy in Encina
 
 This guide explains how to implement multi-tenant applications using Encina's comprehensive tenancy support across all data providers.

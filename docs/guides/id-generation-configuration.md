@@ -1,3 +1,9 @@
+---
+title: "ID Generation Configuration Guide"
+layout: default
+parent: "Guides"
+---
+
 # ID Generation Configuration Guide
 
 How to choose, configure, and tune each ID generation strategy for your application.

@@ -1,3 +1,9 @@
+---
+title: "📚 Roadmap de Documentación - Encina"
+layout: default
+nav_exclude: true
+---
+
 # 📚 Roadmap de Documentación - Encina
 
 ## Plan Estratégico para Alcanzar Calidad Documental de Nivel NestJS

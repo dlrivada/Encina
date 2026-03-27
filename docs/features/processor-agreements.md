@@ -1,3 +1,9 @@
+---
+title: "Processor Agreements (GDPR Article 28)"
+layout: default
+parent: "Features"
+---
+
 # Processor Agreements (GDPR Article 28)
 
 GDPR Article 28 compliance for managing Data Processing Agreements (DPAs) between controllers and processors. Provides a complete lifecycle for processor registration, DPA validation, sub-processor hierarchy tracking, mandatory terms compliance, and pipeline-level enforcement.

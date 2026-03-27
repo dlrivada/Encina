@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- HashiCorp Vault"
+layout: default
+parent: "Features"
+---
+
 # Secrets Management -- HashiCorp Vault
 
 This guide covers the HashiCorp Vault integration in Encina via the `Encina.Security.Secrets.HashiCorpVault` package. It explains prerequisites, authentication methods, KV v2 engine specifics, configuration, error mapping, and best practices specific to HashiCorp Vault.

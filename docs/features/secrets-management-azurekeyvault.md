@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- Azure Key Vault"
+layout: default
+parent: "Features"
+---
+
 # Secrets Management -- Azure Key Vault
 
 This guide covers the Azure Key Vault integration in Encina via the `Encina.Security.Secrets.AzureKeyVault` package. It explains prerequisites, authentication strategies, configuration, error handling, health checks, and best practices specific to Azure Key Vault.

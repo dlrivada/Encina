@@ -1,3 +1,10 @@
+---
+title: "ADR-019: Compliance Modules Event Sourcing Strategy with Marten"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-019: Compliance Modules Event Sourcing Strategy with Marten
 
 **Status:** Accepted

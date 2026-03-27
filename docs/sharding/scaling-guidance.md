@@ -1,3 +1,9 @@
+---
+title: "Sharding Scaling Guidance"
+layout: default
+parent: "Sharding"
+---
+
 # Sharding Scaling Guidance
 
 Strategic guidance for planning, implementing, and scaling database sharding in Encina applications.

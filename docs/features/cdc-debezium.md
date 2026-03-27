@@ -1,3 +1,9 @@
+---
+title: "CDC: Debezium Provider"
+layout: default
+parent: "Features"
+---
+
 # CDC: Debezium Provider
 
 Debezium CDC connector for `Encina.Cdc.Debezium` — supports two deployment modes: **HTTP Consumer** (Debezium Server) and **Kafka Consumer** (Debezium Connect). Both modes share the same event mapper and integrate with the standard Encina CDC handler pipeline.

@@ -1,3 +1,9 @@
+---
+title: "Security Authorization in Encina"
+layout: default
+parent: "Features"
+---
+
 # Security Authorization in Encina
 
 This guide explains how to enforce security requirements declaratively at the CQRS pipeline level using the `Encina.Security` package. Authorization operates independently of the transport layer (HTTP, messaging, gRPC, serverless), ensuring consistent enforcement across all entry points.

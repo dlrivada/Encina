@@ -1,3 +1,9 @@
+---
+title: "Data Protection Impact Assessment (DPIA) in Encina"
+layout: default
+parent: "Features"
+---
+
 # Data Protection Impact Assessment (DPIA) in Encina
 
 This guide explains how to manage GDPR Articles 35-36 Data Protection Impact Assessments -- pipeline-level DPIA enforcement, risk evaluation through pluggable criteria, DPO consultation workflows, periodic review monitoring, and audit trails using the `Encina.Compliance.DPIA` package. DPIA enforcement operates at the CQRS pipeline level, ensuring consistent compliance across all entry points.

@@ -1,3 +1,9 @@
+---
+title: "Database Resilience"
+layout: default
+parent: "Features"
+---
+
 # Database Resilience
 
 > Connection pool monitoring, circuit breakers, and connection warm-up for all 13 database providers.

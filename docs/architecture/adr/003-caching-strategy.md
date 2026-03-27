@@ -1,3 +1,10 @@
+---
+title: "ADR-003: Caching Strategy for Handler Resolution"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-003: Caching Strategy for Handler Resolution
 
 **Status:** Accepted

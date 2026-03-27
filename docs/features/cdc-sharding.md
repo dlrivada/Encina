@@ -1,3 +1,9 @@
+---
+title: "Sharded CDC Capture in Encina"
+layout: default
+parent: "Features"
+---
+
 # Sharded CDC Capture in Encina
 
 This guide explains how to capture change events across a sharded database topology using Encina's Sharded CDC infrastructure. Sharded CDC builds on the existing [CDC abstractions](cdc.md) and integrates with the [Database Sharding](../architecture/adr/010-database-sharding.md) module for shard topology discovery.

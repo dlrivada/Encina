@@ -1,3 +1,9 @@
+---
+title: "Encina Component Diagram"
+layout: default
+parent: "Architecture"
+---
+
 # Encina Component Diagram
 
 This document provides architectural diagrams showing the structure and flow of Encina.

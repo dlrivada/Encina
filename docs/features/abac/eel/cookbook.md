@@ -1,3 +1,9 @@
+---
+title: "EEL Expression Cookbook"
+layout: default
+parent: "Features"
+---
+
 # EEL Expression Cookbook
 
 ## Overview

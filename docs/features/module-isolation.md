@@ -1,3 +1,9 @@
+---
+title: "Module Isolation in Encina"
+layout: default
+parent: "Features"
+---
+
 # Module Isolation in Encina
 
 This guide explains how to implement database-level module isolation in modular monolith applications using Encina. Module isolation ensures bounded contexts cannot directly access each other's data, enforcing clean architecture at the database level.

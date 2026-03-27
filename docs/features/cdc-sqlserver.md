@@ -1,3 +1,9 @@
+---
+title: "CDC: SQL Server Provider"
+layout: default
+parent: "Features"
+---
+
 # CDC: SQL Server Provider
 
 SQL Server CDC connector using **Change Tracking** to capture row-level changes from SQL Server databases.

@@ -1,3 +1,9 @@
+---
+title: "Examples"
+layout: default
+nav_exclude: true
+---
+
 # Examples
 
 This file contains fully working, copy-pastable examples referenced from the CHANGELOG.

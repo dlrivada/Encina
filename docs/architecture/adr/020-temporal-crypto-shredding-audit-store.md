@@ -1,3 +1,10 @@
+---
+title: "ADR-020: Temporal Crypto-Shredding for Marten-Based Audit Store"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-020: Temporal Crypto-Shredding for Marten-Based Audit Store
 
 ## Status

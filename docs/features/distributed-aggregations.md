@@ -1,3 +1,9 @@
+---
+title: "Distributed Aggregations in Encina"
+layout: default
+parent: "Features"
+---
+
 # Distributed Aggregations in Encina
 
 This guide explains how to perform distributed aggregation operations (Count, Sum, Avg, Min, Max) across sharded repositories. Encina uses mathematically correct two-phase aggregation to avoid common pitfalls like the average-of-averages error.

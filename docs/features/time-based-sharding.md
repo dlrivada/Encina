@@ -1,3 +1,9 @@
+---
+title: "Time-Based Sharding in Encina"
+layout: default
+parent: "Features"
+---
+
 # Time-Based Sharding in Encina
 
 This guide explains how to use time-based sharding to partition data by time periods with automatic tier lifecycle management. Shards progress through storage tiers (Hot, Warm, Cold, Archived) as data ages, enabling cost-optimized storage and transparent query routing.

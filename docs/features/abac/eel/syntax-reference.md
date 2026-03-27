@@ -1,3 +1,9 @@
+---
+title: "EEL Syntax Reference"
+layout: default
+parent: "Features"
+---
+
 # EEL Syntax Reference
 
 ## Overview

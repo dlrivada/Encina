@@ -1,3 +1,9 @@
+---
+title: "Policy-Based Authorization"
+layout: default
+parent: "Features"
+---
+
 # Policy-Based Authorization
 
 Encina integrates with ASP.NET Core's native authorization system to provide CQRS-aware, declarative authorization for commands and queries. This feature **extends** ASP.NET Core Authorization — it does not replace it.

@@ -1,3 +1,10 @@
+---
+title: "ADR-001: Railway Oriented Programming for Error Handling"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-001: Railway Oriented Programming for Error Handling
 
 **Status:** Accepted

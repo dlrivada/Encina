@@ -1,3 +1,9 @@
+---
+title: "Cross-Shard Operations"
+layout: default
+parent: "Sharding"
+---
+
 # Cross-Shard Operations
 
 This guide covers how to work with data that spans multiple shards, including scatter-gather queries, transaction limitations, aggregation strategies, and the Saga pattern for distributed workflows.

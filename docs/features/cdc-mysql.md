@@ -1,3 +1,9 @@
+---
+title: "CDC: MySQL Provider"
+layout: default
+parent: "Features"
+---
+
 # CDC: MySQL Provider
 
 MySQL CDC connector using **Binary Log (binlog) Replication** to capture row-level changes from MySQL databases.

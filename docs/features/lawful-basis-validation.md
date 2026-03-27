@@ -1,3 +1,9 @@
+---
+title: "Lawful Basis Validation in Encina"
+layout: default
+parent: "Features"
+---
+
 # Lawful Basis Validation in Encina
 
 This guide explains how to enforce GDPR Article 6 lawful basis validation declaratively at the CQRS pipeline level using the `Encina.Compliance.GDPR` package. Lawful basis validation operates independently of the transport layer, ensuring consistent Article 6 compliance across all entry points.

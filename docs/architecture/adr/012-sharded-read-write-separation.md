@@ -1,3 +1,10 @@
+---
+title: "ADR-012: Sharded Read/Write Separation"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-012: Sharded Read/Write Separation
 
 ## Status

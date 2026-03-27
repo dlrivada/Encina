@@ -1,3 +1,9 @@
+---
+title: "Temporal Tables"
+layout: default
+parent: "Features"
+---
+
 # Temporal Tables
 
 Temporal tables provide built-in support for tracking data changes over time. Encina provides a repository abstraction for querying temporal data with point-in-time queries and history retrieval.

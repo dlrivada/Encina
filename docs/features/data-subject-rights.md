@@ -1,3 +1,9 @@
+---
+title: "Data Subject Rights in Encina"
+layout: default
+parent: "Features"
+---
+
 # Data Subject Rights in Encina
 
 This guide explains how to manage GDPR Data Subject Rights (Articles 15-22) declaratively at the CQRS pipeline level using the `Encina.Compliance.DataSubjectRights` package. Processing restriction enforcement operates independently of the transport layer, ensuring consistent Article 18 compliance across all entry points.

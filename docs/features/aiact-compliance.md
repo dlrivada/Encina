@@ -1,3 +1,9 @@
+---
+title: "EU AI Act Compliance in Encina"
+layout: default
+parent: "Features"
+---
+
 # EU AI Act Compliance in Encina
 
 This guide explains how to enforce EU AI Act (EU 2024/1689) requirements declaratively at the CQRS pipeline level using the `Encina.Compliance.AIAct` package. Compliance validation operates independently of the transport layer, ensuring consistent enforcement across all entry points.

@@ -1,3 +1,9 @@
+---
+title: "Specification-Based Scatter-Gather"
+layout: default
+parent: "Features"
+---
+
 # Specification-Based Scatter-Gather
 
 Reuse domain specifications for cross-shard queries with per-shard metadata, ordering, and pagination.

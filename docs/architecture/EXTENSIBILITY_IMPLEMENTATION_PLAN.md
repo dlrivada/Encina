@@ -1,3 +1,9 @@
+---
+title: "Extensibility Implementation Plan (Pre-1.0)"
+layout: default
+parent: "Architecture"
+---
+
 # Extensibility Implementation Plan (Pre-1.0)
 
 **Date:** 2025-12-14

@@ -1,3 +1,9 @@
+---
+title: "Design Patterns Guide"
+layout: default
+parent: "Architecture"
+---
+
 # Design Patterns Guide
 
 This guide explains the key design patterns used in Encina, their purpose, implementation details, and how they work together to create a robust, maintainable Encina library.

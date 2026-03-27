@@ -1,3 +1,9 @@
+---
+title: "Input Sanitization and Output Encoding in Encina"
+layout: default
+parent: "Features"
+---
+
 # Input Sanitization and Output Encoding in Encina
 
 Encina.Security.Sanitization provides automatic, attribute-based input sanitization and output encoding at the CQRS pipeline level, preventing XSS, SQL injection, command injection, and other OWASP Top 10 injection attacks.

@@ -1,3 +1,9 @@
+---
+title: "Query Caching (EF Core Second-Level Cache)"
+layout: default
+parent: "Features"
+---
+
 # Query Caching (EF Core Second-Level Cache)
 
 Encina provides a transparent EF Core query caching interceptor that acts as a second-level cache. It intercepts database queries at the `DbCommand` level, serves cached results when available, and automatically invalidates cached entries when entities are modified via `SaveChanges`.

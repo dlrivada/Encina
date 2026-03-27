@@ -1,3 +1,9 @@
+---
+title: "Cross-Border Data Transfer Compliance in Encina"
+layout: default
+parent: "Features"
+---
+
 # Cross-Border Data Transfer Compliance in Encina
 
 This guide explains how to enforce GDPR Chapter V (Articles 44-49) and Schrems II compliance for international personal data transfers using the `Encina.Compliance.CrossBorderTransfer` package. Transfer validation operates at the CQRS pipeline level, ensuring consistent enforcement across all entry points.

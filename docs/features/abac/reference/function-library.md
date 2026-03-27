@@ -1,3 +1,9 @@
+---
+title: "XACML Function Library Reference"
+layout: default
+parent: "Features"
+---
+
 # XACML Function Library Reference
 
 Complete reference for all XACML 3.0 standard functions implemented in `Encina.Security.ABAC`. These functions are registered automatically via `DefaultFunctionRegistry` and are available for use in `Apply` expression trees, `Match` elements, and the EEL (Encina Expression Language) compiler.

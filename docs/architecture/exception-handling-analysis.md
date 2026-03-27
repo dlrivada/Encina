@@ -1,3 +1,9 @@
+---
+title: "Exception Handling Architecture Analysis"
+layout: default
+parent: "Architecture"
+---
+
 # Exception Handling Architecture Analysis
 
 ## Contexto

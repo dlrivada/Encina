@@ -1,3 +1,9 @@
+---
+title: "Fluent DSL Guide for Building ABAC Policies"
+layout: default
+parent: "Features"
+---
+
 # Fluent DSL Guide for Building ABAC Policies
 
 ## 1. Overview

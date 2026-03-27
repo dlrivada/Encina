@@ -1,3 +1,9 @@
+---
+title: "Encina.Audit.Marten — Event-Sourced Audit with Temporal Crypto-Shredding"
+layout: default
+parent: "Features"
+---
+
 # Encina.Audit.Marten — Event-Sourced Audit with Temporal Crypto-Shredding
 
 ## Overview

@@ -1,3 +1,9 @@
+---
+title: "CDC: PostgreSQL Provider"
+layout: default
+parent: "Features"
+---
+
 # CDC: PostgreSQL Provider
 
 PostgreSQL CDC connector using **Logical Replication** to capture row-level changes from PostgreSQL databases.

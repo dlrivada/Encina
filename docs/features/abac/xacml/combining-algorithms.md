@@ -1,3 +1,9 @@
+---
+title: "XACML Combining Algorithms"
+layout: default
+parent: "Features"
+---
+
 # XACML Combining Algorithms
 
 ## Overview

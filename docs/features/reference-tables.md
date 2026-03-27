@@ -1,3 +1,9 @@
+---
+title: "Reference Tables (Broadcast Tables) in Encina"
+layout: default
+parent: "Features"
+---
+
 # Reference Tables (Broadcast Tables) in Encina
 
 This guide explains how to use reference tables — small, read-heavy lookup tables that are automatically replicated from a primary shard to all other shards, enabling efficient local JOINs without cross-shard traffic.

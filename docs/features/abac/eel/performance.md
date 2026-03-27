@@ -1,3 +1,9 @@
+---
+title: "EEL Performance Guide"
+layout: default
+parent: "Features"
+---
+
 # EEL Performance Guide
 
 ## Overview

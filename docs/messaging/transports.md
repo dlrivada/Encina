@@ -1,3 +1,9 @@
+---
+title: "Messaging Transports in Encina"
+layout: default
+parent: "Messaging"
+---
+
 # Messaging Transports in Encina
 
 This guide explains the messaging transport options available in Encina and helps you choose the right one for your use case.

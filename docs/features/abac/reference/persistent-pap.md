@@ -1,3 +1,9 @@
+---
+title: "Persistent PAP (Policy Administration Point)"
+layout: default
+parent: "Features"
+---
+
 # Persistent PAP (Policy Administration Point)
 
 ## Overview

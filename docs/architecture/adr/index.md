@@ -3,6 +3,7 @@ title: ADRs
 layout: default
 parent: Architecture
 nav_order: 10
+has_children: true
 ---
 
 # Architecture Decision Records

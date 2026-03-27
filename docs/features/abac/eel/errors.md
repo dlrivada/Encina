@@ -1,3 +1,9 @@
+---
+title: "EEL Error Reference"
+layout: default
+parent: "Features"
+---
+
 # EEL Error Reference
 
 ## Overview

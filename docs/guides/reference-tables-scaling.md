@@ -1,3 +1,9 @@
+---
+title: "Reference Tables — Scaling Guide"
+layout: default
+parent: "Guides"
+---
+
 # Reference Tables — Scaling Guide
 
 This guide provides recommendations for sizing, capacity planning, and monitoring reference table replication in production sharded deployments.

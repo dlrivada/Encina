@@ -1,3 +1,9 @@
+---
+title: "ID Generation Scaling Guide"
+layout: default
+parent: "Guides"
+---
+
 # ID Generation Scaling Guide
 
 Machine ID allocation strategies, cluster operations, and migration considerations for production deployments.

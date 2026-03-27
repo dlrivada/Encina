@@ -1,3 +1,9 @@
+---
+title: "Example: CDC Position Tracking"
+layout: default
+parent: "Examples"
+---
+
 # Example: CDC Position Tracking
 
 This example explains how CDC position tracking works and how to configure it for reliable change processing.

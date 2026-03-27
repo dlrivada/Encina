@@ -1,3 +1,9 @@
+---
+title: "Example: CDC Messaging Bridge"
+layout: default
+parent: "Examples"
+---
+
 # Example: CDC Messaging Bridge
 
 This example shows how to use the CDC messaging bridge to publish database changes as `INotification` through Encina's notification pipeline.

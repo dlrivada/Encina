@@ -1,3 +1,9 @@
+---
+title: "CDC-Driven Query Cache Invalidation in Encina"
+layout: default
+parent: "Features"
+---
+
 # CDC-Driven Query Cache Invalidation in Encina
 
 This guide explains how to use Encina's CDC infrastructure to automatically invalidate query cache entries across all application instances when database changes are detected from any source.

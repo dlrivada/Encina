@@ -1,3 +1,9 @@
+---
+title: "Distributed ID Generation in Encina"
+layout: default
+parent: "Features"
+---
+
 # Distributed ID Generation in Encina
 
 Multi-strategy distributed ID generation for sharded and non-sharded entities, with full provider support and observability.

@@ -1,3 +1,9 @@
+---
+title: "Crypto-Shredding in Encina"
+layout: default
+parent: "Features"
+---
+
 # Crypto-Shredding in Encina
 
 This guide explains how to implement GDPR Article 17 "Right to be Forgotten" compliance in Marten event-sourced systems using the `Encina.Marten.GDPR` package. Crypto-shredding encrypts PII at the field level with per-subject keys and enables data erasure by deleting keys — rendering PII permanently unreadable without modifying the immutable event log.

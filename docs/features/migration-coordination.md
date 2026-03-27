@@ -1,3 +1,9 @@
+---
+title: "Schema Migration Coordination for Shards"
+layout: default
+parent: "Features"
+---
+
 # Schema Migration Coordination for Shards
 
 Coordinated schema migration across all shards in a topology, with four deployment strategies, automatic rollback, schema drift detection, and full observability.

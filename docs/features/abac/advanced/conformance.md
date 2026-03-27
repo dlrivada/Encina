@@ -1,3 +1,9 @@
+---
+title: "XACML 3.0 Conformance Guide"
+layout: default
+parent: "Features"
+---
+
 # XACML 3.0 Conformance Guide
 
 Encina.Security.ABAC implements the OASIS XACML 3.0 standard (eXtensible Access Control Markup Language) as a native C# library integrated into the Encina CQRS pipeline. This guide documents the conformance level, what is implemented, what differs from the XML-based specification, and what is planned for future versions.

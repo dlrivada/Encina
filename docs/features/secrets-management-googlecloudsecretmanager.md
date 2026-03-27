@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- Google Cloud Secret Manager"
+layout: default
+parent: "Features"
+---
+
 # Secrets Management -- Google Cloud Secret Manager
 
 This guide covers the Google Cloud Secret Manager integration in Encina via the `Encina.Security.Secrets.GoogleCloudSecretManager` package. It explains prerequisites, IAM roles, credential resolution, configuration, error mapping, and best practices specific to Google Cloud Secret Manager.

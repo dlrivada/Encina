@@ -1,3 +1,9 @@
+---
+title: "Secrets Management in Encina"
+layout: default
+parent: "Features"
+---
+
 # Secrets Management in Encina
 
 This guide explains how to manage application secrets using Encina's ISP-compliant, provider-agnostic secrets management system. All operations follow Railway Oriented Programming (ROP), returning `Either<EncinaError, T>` instead of throwing exceptions.

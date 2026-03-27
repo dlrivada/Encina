@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- Basic Setup"
+layout: default
+parent: "Examples"
+---
+
 # Secrets Management -- Basic Setup
 
 This guide shows the minimal setup to start using Encina Secrets with each supported cloud provider. Every provider implements the same `ISecretProvider` interface, so the consuming code stays identical regardless of backend.

@@ -1,3 +1,9 @@
+---
+title: "Shadow Sharding in Encina"
+layout: default
+parent: "Features"
+---
+
 # Shadow Sharding in Encina
 
 Test new shard topologies under real production traffic without risk. Shadow sharding routes every operation through both the production and a shadow topology, comparing results while keeping the production path completely isolated.

@@ -1,3 +1,9 @@
+---
+title: "Encina Extensibility Analysis"
+layout: default
+parent: "Architecture"
+---
+
 # Encina Extensibility Analysis
 
 **Date:** 2025-12-14

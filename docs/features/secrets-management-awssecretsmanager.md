@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- AWS Secrets Manager"
+layout: default
+parent: "Features"
+---
+
 # Secrets Management -- AWS Secrets Manager
 
 This guide covers the AWS Secrets Manager integration in Encina via the `Encina.Security.Secrets.AwsSecretsManager` package. It explains prerequisites, IAM policies, credential resolution, configuration, error mapping, and best practices specific to AWS Secrets Manager.

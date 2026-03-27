@@ -1,3 +1,9 @@
+---
+title: "Online Resharding Workflow"
+layout: default
+parent: "Features"
+---
+
 # Online Resharding Workflow
 
 Online data resharding across shards with a 6-phase workflow, crash recovery, automatic rollback, and full observability.

@@ -1,3 +1,9 @@
+---
+title: "CDC: MongoDB Provider"
+layout: default
+parent: "Features"
+---
+
 # CDC: MongoDB Provider
 
 MongoDB CDC connector using **Change Streams** to capture document-level changes from MongoDB databases.

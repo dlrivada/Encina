@@ -1,3 +1,9 @@
+---
+title: "Compound Shard Keys in Encina"
+layout: default
+parent: "Features"
+---
+
 # Compound Shard Keys in Encina
 
 This guide explains how to use compound shard keys for multi-field routing decisions. Compound keys enable routing based on combinations of entity properties (e.g., `{region, customerId}`) with independent strategies per component.

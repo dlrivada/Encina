@@ -1,3 +1,9 @@
+---
+title: "Read/Write Separation for Sharded Topologies"
+layout: default
+parent: "Sharding"
+---
+
 # Read/Write Separation for Sharded Topologies
 
 This guide explains how to configure per-shard read/write separation in Encina sharded applications. Each shard can have its own set of read replicas with independent selection strategies, health tracking, and staleness tolerance.

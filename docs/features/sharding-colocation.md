@@ -1,3 +1,9 @@
+---
+title: "Entity Co-Location"
+layout: default
+parent: "Features"
+---
+
 # Entity Co-Location
 
 ## Overview

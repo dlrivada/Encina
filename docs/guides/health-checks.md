@@ -1,3 +1,9 @@
+---
+title: "Health Checks Integration Guide"
+layout: default
+parent: "Guides"
+---
+
 # Health Checks Integration Guide
 
 This guide explains how to integrate Encina's health checks with the ASP.NET Core health checks ecosystem and the `AspNetCore.HealthChecks.*` community packages.

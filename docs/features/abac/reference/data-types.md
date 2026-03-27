@@ -1,3 +1,9 @@
+---
+title: "XACML Data Types"
+layout: default
+parent: "Features"
+---
+
 # XACML Data Types
 
 ## Overview

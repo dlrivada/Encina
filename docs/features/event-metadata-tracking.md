@@ -1,3 +1,9 @@
+---
+title: "Event Metadata Tracking"
+layout: default
+parent: "Features"
+---
+
 # Event Metadata Tracking
 
 This document describes the event metadata tracking feature in Encina.Marten, which enables correlation and causation ID tracking for distributed tracing and debugging of event-sourced systems.

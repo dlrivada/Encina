@@ -1,3 +1,9 @@
+---
+title: "NIS2 Directive Compliance in Encina"
+layout: default
+parent: "Features"
+---
+
 # NIS2 Directive Compliance in Encina
 
 This guide explains how to enforce NIS2 Directive (EU 2022/2555) cybersecurity requirements declaratively at the CQRS pipeline level using the `Encina.Compliance.NIS2` package. Compliance validation operates independently of the transport layer, ensuring consistent Article 21 enforcement across all entry points.

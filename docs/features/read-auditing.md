@@ -1,3 +1,9 @@
+---
+title: "Read Auditing"
+layout: default
+parent: "Features"
+---
+
 # Read Auditing
 
 ## Overview

@@ -1,3 +1,9 @@
+---
+title: "Saga Patterns in Encina"
+layout: default
+parent: "Messaging"
+---
+
 # Saga Patterns in Encina
 
 This guide explains the two saga strategies available in Encina for managing distributed transactions: **Orchestration** and **Choreography**.

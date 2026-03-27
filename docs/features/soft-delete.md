@@ -1,3 +1,9 @@
+---
+title: "Soft Delete Pattern"
+layout: default
+parent: "Features"
+---
+
 # Soft Delete Pattern
 
 Soft delete is a pattern where records are marked as deleted rather than being physically removed from the database. This approach provides data recovery capabilities, audit trail preservation, and compliance with data retention policies.

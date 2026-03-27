@@ -1,3 +1,9 @@
+---
+title: "Cursor-Based Pagination in Encina"
+layout: default
+parent: "Features"
+---
+
 # Cursor-Based Pagination in Encina
 
 This guide explains how to implement efficient cursor-based (keyset) pagination using Encina's comprehensive pagination support across all data providers.

@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- Error Handling with ROP"
+layout: default
+parent: "Examples"
+---
+
 # Secrets Management -- Error Handling with ROP
 
 This guide covers how to handle errors from Encina Secrets using the Railway Oriented Programming (ROP) pattern. Every `ISecretProvider` method returns `Either<EncinaError, T>`, and this guide shows how to branch, transform, chain, and inspect errors using `Match()`, `Map()`, `Bind()`, and the error metadata API.

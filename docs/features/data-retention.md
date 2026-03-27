@@ -1,3 +1,9 @@
+---
+title: "Data Retention in Encina"
+layout: default
+parent: "Features"
+---
+
 # Data Retention in Encina
 
 This guide explains how to manage GDPR Article 5(1)(e) storage limitation -- declarative data retention management at the CQRS pipeline level using the `Encina.Compliance.Retention` package. Retention enforcement operates independently of the transport layer, ensuring consistent storage limitation compliance across all entry points.

@@ -1,3 +1,10 @@
+---
+title: "ADR-008: Aspire vs Testcontainers Integration Testing Strategy"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-008: Aspire vs Testcontainers Integration Testing Strategy
 
 **Status:** Accepted

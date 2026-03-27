@@ -1,3 +1,9 @@
+---
+title: "ABAC Observability Guide"
+layout: default
+parent: "Features"
+---
+
 # ABAC Observability Guide
 
 ## Overview

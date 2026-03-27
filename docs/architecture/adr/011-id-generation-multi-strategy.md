@@ -1,3 +1,10 @@
+---
+title: "ADR-011: Multi-Strategy Distributed ID Generation"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-011: Multi-Strategy Distributed ID Generation
 
 **Status:** Accepted

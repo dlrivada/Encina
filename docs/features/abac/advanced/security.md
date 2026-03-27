@@ -1,3 +1,9 @@
+---
+title: "ABAC Security Guide"
+layout: default
+parent: "Features"
+---
+
 # ABAC Security Guide
 
 Encina.Security.ABAC implements the OASIS XACML 3.0 standard with security built into every layer. This guide covers the security considerations, best practices, and configuration options for hardening your ABAC deployment.

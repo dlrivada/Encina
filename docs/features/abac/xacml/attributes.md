@@ -1,3 +1,9 @@
+---
+title: "XACML Attributes"
+layout: default
+parent: "Features"
+---
+
 # XACML Attributes
 
 ## Overview

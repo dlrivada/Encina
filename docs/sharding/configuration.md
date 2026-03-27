@@ -1,3 +1,9 @@
+---
+title: "Database Sharding in Encina"
+layout: default
+parent: "Sharding"
+---
+
 # Database Sharding in Encina
 
 This guide explains how to configure and use database sharding in Encina applications. Sharding distributes data across multiple database instances to achieve horizontal scalability, geographic distribution, and tenant isolation.

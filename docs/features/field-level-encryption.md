@@ -1,3 +1,9 @@
+---
+title: "Field-Level Encryption in Encina"
+layout: default
+parent: "Features"
+---
+
 # Field-Level Encryption in Encina
 
 Encina.Security.Encryption provides automatic, attribute-based field-level encryption and decryption at the CQRS pipeline level, using AES-256-GCM with key rotation and multi-tenant isolation.

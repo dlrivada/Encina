@@ -1,3 +1,9 @@
+---
+title: "Anti-Tampering in Encina"
+layout: default
+parent: "Features"
+---
+
 # Anti-Tampering in Encina
 
 Encina.Security.AntiTampering provides HMAC-based request signing, integrity verification, and replay attack protection at the CQRS pipeline level.

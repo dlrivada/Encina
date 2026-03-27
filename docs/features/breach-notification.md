@@ -1,3 +1,9 @@
+---
+title: "Breach Notification in Encina"
+layout: default
+parent: "Features"
+---
+
 # Breach Notification in Encina
 
 This guide explains how to manage GDPR Articles 33-34 breach notification -- pipeline-level breach detection, 72-hour supervisory authority notification, data subject communication, and phased reporting using the `Encina.Compliance.BreachNotification` package. Breach detection operates at the CQRS pipeline level, ensuring consistent monitoring across all entry points.

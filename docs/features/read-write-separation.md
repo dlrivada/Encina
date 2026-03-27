@@ -1,3 +1,9 @@
+---
+title: "Read/Write Database Separation in Encina"
+layout: default
+parent: "Features"
+---
+
 # Read/Write Database Separation in Encina
 
 This guide explains how to implement read/write database separation (CQRS physical split) in Encina applications. This pattern routes query operations to read replicas and command operations to the primary database, improving scalability and performance.

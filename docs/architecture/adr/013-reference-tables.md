@@ -1,3 +1,10 @@
+---
+title: "ADR-013: Reference Tables (Global Data Replication)"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-013: Reference Tables (Global Data Replication)
 
 ## Status

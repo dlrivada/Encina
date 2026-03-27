@@ -1,3 +1,9 @@
+---
+title: "Immutable Domain Models in Encina"
+layout: default
+parent: "Features"
+---
+
 # Immutable Domain Models in Encina
 
 This guide explains how to use immutable domain entities (C# records) with EF Core while preserving domain events. Immutability is a powerful pattern for Domain-Driven Design, ensuring entities cannot be modified after creation except through explicit state transitions.

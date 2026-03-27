@@ -1,3 +1,9 @@
+---
+title: "ABAC Quick Start"
+layout: default
+parent: "Features"
+---
+
 # ABAC Quick Start
 
 Get Attribute-Based Access Control working in your Encina application in 15 minutes.

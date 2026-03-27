@@ -1,3 +1,9 @@
+---
+title: "ABAC Configuration Reference"
+layout: default
+parent: "Features"
+---
+
 # ABAC Configuration Reference
 
 ## Overview

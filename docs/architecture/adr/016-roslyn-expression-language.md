@@ -1,3 +1,10 @@
+---
+title: "ADR-016: Roslyn Scripting for Expression Language"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-016: Roslyn Scripting for Expression Language
 
 **Status:** Accepted

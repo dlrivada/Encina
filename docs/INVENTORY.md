@@ -1,3 +1,9 @@
+---
+title: "Encina - Inventario Completo"
+layout: default
+nav_exclude: true
+---
+
 # Encina - Inventario Completo
 
 > **Documento generado**: 2 de febrero de 2026

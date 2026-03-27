@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- Caching Strategy"
+layout: default
+parent: "Examples"
+---
+
 # Secrets Management -- Caching Strategy
 
 This guide covers how the `CachedSecretProvider` decorator works, what gets cached and what does not, cache key formats, invalidation behavior, and how to tune the cache for your workload.

@@ -1,3 +1,9 @@
+---
+title: "Encina.GuardClauses - Análisis de Diseño e Implementación"
+layout: default
+parent: "Architecture"
+---
+
 # Encina.GuardClauses - Análisis de Diseño e Implementación
 
 ## 📋 Tabla de Contenidos

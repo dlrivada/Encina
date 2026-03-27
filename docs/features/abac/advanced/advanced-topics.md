@@ -1,3 +1,9 @@
+---
+title: "Advanced ABAC Topics"
+layout: default
+parent: "Features"
+---
+
 # Advanced ABAC Topics
 
 This guide covers advanced patterns, extensibility points, and integration strategies for

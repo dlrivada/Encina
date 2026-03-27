@@ -1,3 +1,9 @@
+---
+title: "Message Payload Encryption"
+layout: default
+parent: "Features"
+---
+
 # Message Payload Encryption
 
 ## Overview

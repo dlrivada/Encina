@@ -1,3 +1,10 @@
+---
+title: "ADR-007: Extensibility Strategy for External Library Integration (v2 - Pre-1.0)"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-007: Extensibility Strategy for External Library Integration (v2 - Pre-1.0)
 
 **Status:** Proposed (Pre-1.0 - Best Technical Solution)

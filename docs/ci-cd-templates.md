@@ -1,3 +1,9 @@
+---
+title: "Encina CI/CD Workflow Templates"
+layout: default
+nav_exclude: true
+---
+
 # Encina CI/CD Workflow Templates
 
 > **Version**: 1.0.0

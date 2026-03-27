@@ -1,3 +1,10 @@
+---
+title: "ADR-023: Coverage Strategy — Codecov Components + SonarCloud Static Analysis"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-023: Coverage Strategy — Codecov Components + SonarCloud Static Analysis
 
 ## Status

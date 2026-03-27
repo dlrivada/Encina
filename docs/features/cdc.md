@@ -1,3 +1,9 @@
+---
+title: "Change Data Capture (CDC) in Encina"
+layout: default
+parent: "Features"
+---
+
 # Change Data Capture (CDC) in Encina
 
 This guide explains how to capture and react to database changes in real-time using Encina's CDC infrastructure. Encina provides a provider-agnostic abstraction layer with connectors for SQL Server, PostgreSQL, MySQL, MongoDB, and Debezium.

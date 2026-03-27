@@ -1,3 +1,9 @@
+---
+title: "ABAC Tutorials — 8 Real-World Scenarios"
+layout: default
+parent: "Features"
+---
+
 # ABAC Tutorials — 8 Real-World Scenarios
 
 Hands-on tutorials demonstrating Encina ABAC in production-like scenarios.

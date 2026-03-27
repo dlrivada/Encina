@@ -1,3 +1,10 @@
+---
+title: "ADR-002: Dependency Injection Strategy"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-002: Dependency Injection Strategy
 
 **Status:** Accepted

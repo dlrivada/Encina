@@ -1,3 +1,9 @@
+---
+title: "XACML Functions"
+layout: default
+parent: "Features"
+---
+
 # XACML Functions
 
 ## Overview

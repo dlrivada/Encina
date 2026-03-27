@@ -1,3 +1,10 @@
+---
+title: "ADR-010: Database Sharding"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-010: Database Sharding
 
 ## Status

@@ -1,3 +1,10 @@
+---
+title: "ADR-018: Cross-Cutting Integration Principle"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-018: Cross-Cutting Integration Principle
 
 **Status:** Accepted

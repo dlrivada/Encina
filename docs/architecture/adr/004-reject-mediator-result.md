@@ -1,3 +1,10 @@
+---
+title: "ADR-004: Decision to NOT Implement EncinaResult<T>"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-004: Decision to NOT Implement EncinaResult<T>
 
 **Status:** Rejected

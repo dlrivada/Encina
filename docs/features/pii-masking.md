@@ -1,3 +1,9 @@
+---
+title: "PII Masking in Encina"
+layout: default
+parent: "Features"
+---
+
 # PII Masking in Encina
 
 Automatic masking of personally identifiable information at the CQRS pipeline level.

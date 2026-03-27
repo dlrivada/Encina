@@ -1,3 +1,9 @@
+---
+title: "Optimistic Concurrency in Encina"
+layout: default
+parent: "Features"
+---
+
 # Optimistic Concurrency in Encina
 
 This guide explains how to implement optimistic concurrency control across all database providers in Encina. The feature provides consistent version-based conflict detection with Railway Oriented Programming (ROP) for explicit error handling.

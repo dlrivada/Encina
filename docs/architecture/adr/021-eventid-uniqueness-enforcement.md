@@ -1,3 +1,10 @@
+---
+title: "ADR-021: EventId Uniqueness Enforcement — Central Registry + Architecture Test"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-021: EventId Uniqueness Enforcement — Central Registry + Architecture Test
 
 ## Status

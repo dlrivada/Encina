@@ -1,3 +1,9 @@
+---
+title: "Encina vs NestJS: Análisis Comparativo Detallado"
+layout: default
+nav_exclude: true
+---
+
 # Encina vs NestJS: Análisis Comparativo Detallado
 
 > **Fecha**: 21 de diciembre de 2025  

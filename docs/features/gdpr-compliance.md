@@ -1,3 +1,9 @@
+---
+title: "GDPR Compliance in Encina"
+layout: default
+parent: "Features"
+---
+
 # GDPR Compliance in Encina
 
 This guide explains how to enforce GDPR compliance declaratively at the CQRS pipeline level using the `Encina.Compliance.GDPR` package. Processing activity tracking operates independently of the transport layer, ensuring consistent Article 30 compliance across all entry points.

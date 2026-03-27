@@ -1,3 +1,9 @@
+---
+title: "Secrets Management -- IConfiguration Integration"
+layout: default
+parent: "Examples"
+---
+
 # Secrets Management -- IConfiguration Integration
 
 This guide explains how to bridge Encina Secrets into the standard .NET `IConfiguration` system, so secrets stored in Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, or Google Secret Manager become accessible through `IConfiguration["Key"]` and `IOptions<T>` bindings.

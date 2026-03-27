@@ -1,3 +1,10 @@
+---
+title: "ADR-014: Data Residency — GDPR Chapter V (International Transfers)"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-014: Data Residency — GDPR Chapter V (International Transfers)
 
 ## Status

@@ -1,3 +1,10 @@
+---
+title: "ADR-017: EEL — Encina Expression Language Naming and Design"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-017: EEL — Encina Expression Language Naming and Design
 
 **Status:** Accepted

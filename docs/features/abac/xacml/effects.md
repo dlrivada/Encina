@@ -1,3 +1,9 @@
+---
+title: "XACML Decision Effects"
+layout: default
+parent: "Features"
+---
+
 # XACML Decision Effects
 
 ## Overview

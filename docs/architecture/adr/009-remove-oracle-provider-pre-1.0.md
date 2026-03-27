@@ -1,3 +1,10 @@
+---
+title: "ADR-009: Remove Oracle Provider from Pre-1.0 Scope"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-009: Remove Oracle Provider from Pre-1.0 Scope
 
 ## Status

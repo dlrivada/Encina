@@ -1,3 +1,9 @@
+---
+title: "ABAC Architecture"
+layout: default
+parent: "Features"
+---
+
 # ABAC Architecture
 
 Encina.Security.ABAC implements the OASIS XACML 3.0 standard for Attribute-Based Access Control, integrated natively into the Encina CQRS/MediatR pipeline. This document describes the architectural components, their responsibilities, and how they collaborate to authorize requests.

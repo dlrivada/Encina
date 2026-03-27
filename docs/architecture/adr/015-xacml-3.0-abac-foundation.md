@@ -1,3 +1,10 @@
+---
+title: "ADR-015: XACML 3.0 as ABAC Foundation"
+layout: default
+parent: ADRs
+grand_parent: Architecture
+---
+
 # ADR-015: XACML 3.0 as ABAC Foundation
 
 **Status:** Accepted

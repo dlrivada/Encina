@@ -1,3 +1,9 @@
+---
+title: "Audit Trail Tracking in Encina"
+layout: default
+parent: "Features"
+---
+
 # Audit Trail Tracking in Encina
 
 This guide explains how to automatically track audit information (who created/modified an entity and when) across all database providers. Encina provides both automatic tracking via EF Core interceptors and explicit helpers for non-EF Core providers.

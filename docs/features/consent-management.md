@@ -1,3 +1,9 @@
+---
+title: "Consent Management in Encina"
+layout: default
+parent: "Features"
+---
+
 # Consent Management in Encina
 
 This guide explains how to enforce GDPR-compliant consent management declaratively at the CQRS pipeline level using the `Encina.Compliance.Consent` package. Consent validation operates independently of the transport layer, ensuring consistent Article 7 compliance across all entry points.

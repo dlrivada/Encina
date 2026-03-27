@@ -1,3 +1,9 @@
+---
+title: "XACML Policy Language"
+layout: default
+parent: "Features"
+---
+
 # XACML Policy Language
 
 The XACML 3.0 policy language provides a structured, hierarchical model for expressing authorization logic. Encina.Security.ABAC implements this model as immutable C# records with a companion fluent builder API that makes policy construction type-safe and concise.
