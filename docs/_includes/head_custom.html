@@ -1,10 +1,25 @@
 <style>
-  /* Override just-the-docs width cap (default: .main { max-width: 50rem }) */
+  /* Override just-the-docs centering layout for wide screens.
+     Default uses calc((100% - 66.5rem)/2 + 16.5rem) which centers
+     content in a 66.5rem box, wasting space on ultrawide monitors. */
+
+  /* Remove max-width cap on main content */
   .main {
     max-width: none !important;
   }
 
-  /* Responsive font scaling for ultrawide monitors */
+  /* Large desktop: pin sidebar to fixed width, not centered */
+  @media (min-width: 66.5rem) {
+    .side-bar {
+      width: 16.5rem !important;
+      min-width: 16.5rem !important;
+    }
+    .side-bar + .main {
+      margin-left: 16.5rem !important;
+    }
+  }
+
+  /* Font scaling for ultrawide */
   @media (min-width: 1400px) {
     .main-content {
       font-size: 1.05rem !important;
