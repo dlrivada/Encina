@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Encina.ADO.SqlServer.ProcessingActivity;
 using Encina.Compliance.GDPR;
 using Encina.TestInfrastructure.Fixtures;
@@ -19,7 +20,7 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         // Create table if not exists (shared fixture may not have it)
-        using var conn = _fixture.CreateConnection();
+        using var conn = (DbConnection)_fixture.CreateConnection();
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
@@ -41,7 +42,7 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
                 [ModuleId] NVARCHAR(256) NULL
             )
             """;
-        await cmd.ExecuteNonQueryAsync();
+        await ((DbCommand)cmd).ExecuteNonQueryAsync();
 
         await _fixture.ClearAllDataAsync();
         _store = new ProcessingActivityRegistryADO(_fixture.ConnectionString);
