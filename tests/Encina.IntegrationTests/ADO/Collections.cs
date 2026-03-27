@@ -36,12 +36,3 @@ public class ADOPostgreSqlCollection : ICollectionFixture<PostgreSqlFixture>
 public class ADOMySqlCollection : ICollectionFixture<MySqlFixture>
 {
 }
-
-/// <summary>
-/// Collection for SQLite ADO.NET integration tests.
-/// </summary>
-[CollectionDefinition("ADO-Sqlite", DisableParallelization = true)]
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "xUnit requires collection types to end with 'Collection'")]
-public class ADOSqliteCollection : ICollectionFixture<SqliteFixture>
-{
-}

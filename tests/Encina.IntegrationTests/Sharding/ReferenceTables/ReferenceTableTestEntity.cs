@@ -5,7 +5,7 @@ namespace Encina.IntegrationTests.Sharding.ReferenceTables;
 
 /// <summary>
 /// Test entity for reference table integration tests.
-/// Maps to the "Country" table created by <see cref="TestInfrastructure.Fixtures.Sharding.ShardedSqliteFixture"/>.
+/// Maps to the "Country" table created by the sharded database fixtures.
 /// </summary>
 [Table("Country")]
 internal sealed class CountryRef

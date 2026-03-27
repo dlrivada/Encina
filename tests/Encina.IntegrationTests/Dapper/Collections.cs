@@ -36,12 +36,3 @@ public class DapperPostgreSqlCollection : ICollectionFixture<PostgreSqlFixture>
 public class DapperMySqlCollection : ICollectionFixture<MySqlFixture>
 {
 }
-
-/// <summary>
-/// Collection for SQLite Dapper integration tests.
-/// </summary>
-[CollectionDefinition("Dapper-Sqlite", DisableParallelization = true)]
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "xUnit requires collection types to end with 'Collection'")]
-public class DapperSqliteCollection : ICollectionFixture<SqliteFixture>
-{
-}
