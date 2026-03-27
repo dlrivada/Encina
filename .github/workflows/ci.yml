@@ -457,6 +457,17 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Generate weighted coverage report
+        if: always()
+        run: dotnet run .github/scripts/coverage-report.cs -- --output artifacts/coverage --input artifacts/test-results || true
+
+      - name: Post weighted coverage to job summary
+        if: always()
+        run: |
+          if [ -f "artifacts/coverage/encina-coverage-report.md" ]; then
+            cat artifacts/coverage/encina-coverage-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v7
