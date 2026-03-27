@@ -23,8 +23,15 @@ public sealed class ProcessingActivityRegistryEFSqlServerTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await using var context = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
+        // Generate and execute the CREATE TABLE SQL from the EF model
         var creator = ((IInfrastructure<IServiceProvider>)context).Instance.GetRequiredService<IRelationalDatabaseCreator>();
-        try { await creator.CreateTablesAsync(); } catch { /* Tables may already exist */ }
+        var sql = creator.GenerateCreateScript();
+        // Execute each statement separately, ignoring "already exists" errors
+        foreach (var statement in sql.Split("GO", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (string.IsNullOrWhiteSpace(statement)) continue;
+            try { await context.Database.ExecuteSqlRawAsync(statement); } catch { /* table may exist */ }
+        }
         context.ProcessingActivities.RemoveRange(context.ProcessingActivities);
         await context.SaveChangesAsync();
     }

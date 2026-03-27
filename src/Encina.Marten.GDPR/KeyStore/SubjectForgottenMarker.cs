@@ -14,7 +14,7 @@ namespace Encina.Marten.GDPR;
 /// The document ID follows the convention <c>"forgotten:{subjectId}"</c>.
 /// </para>
 /// </remarks>
-internal sealed class SubjectForgottenMarker
+public sealed class SubjectForgottenMarker
 {
     /// <summary>
     /// Unique document identifier following the convention <c>"forgotten:{subjectId}"</c>.

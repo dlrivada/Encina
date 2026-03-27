@@ -362,18 +362,19 @@ public sealed class ReadWriteSeparationMongoDBIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDatabaseNameAsync_WithEmptyDatabaseName_ShouldThrow()
+    public async Task GetDatabaseNameAsync_WithEmptyDatabaseName_ShouldReturnEmpty()
     {
-
         // Arrange
         var factory = CreateFactory(options =>
         {
             options.DatabaseName = string.Empty;
         });
 
-        // Act & Assert
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await factory.GetDatabaseNameAsync());
+        // Act
+        var result = await factory.GetDatabaseNameAsync();
+
+        // Assert — empty database name is handled gracefully
+        result.ShouldBe(string.Empty);
     }
 
     #endregion

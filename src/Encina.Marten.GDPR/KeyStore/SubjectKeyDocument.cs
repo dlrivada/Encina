@@ -20,7 +20,7 @@ namespace Encina.Marten.GDPR;
 /// all key versions for a given subject.
 /// </para>
 /// </remarks>
-internal sealed class SubjectKeyDocument
+public sealed class SubjectKeyDocument
 {
     /// <summary>
     /// Unique key identifier following the convention <c>"subject:{subjectId}:v{version}"</c>.

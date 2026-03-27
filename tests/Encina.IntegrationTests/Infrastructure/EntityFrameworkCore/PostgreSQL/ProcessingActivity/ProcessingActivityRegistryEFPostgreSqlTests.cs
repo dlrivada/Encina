@@ -25,11 +25,14 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await using var context = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
-        // Use EF Core's model to generate and apply the correct schema
         var creator = ((IInfrastructure<IServiceProvider>)context).Instance.GetRequiredService<IRelationalDatabaseCreator>();
         try { await creator.CreateTablesAsync(); } catch { /* Tables may already exist */ }
-        context.ProcessingActivities.RemoveRange(context.ProcessingActivities);
-        await context.SaveChangesAsync();
+        try
+        {
+            context.ProcessingActivities.RemoveRange(context.ProcessingActivities);
+            await context.SaveChangesAsync();
+        }
+        catch { /* Table might not exist yet if CreateTablesAsync failed */ }
     }
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

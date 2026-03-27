@@ -14,7 +14,10 @@ public sealed class MySqlFixture : DatabaseFixture<MySqlContainer>
     private MySqlContainer? _container;
 
     /// <inheritdoc />
-    public override string ConnectionString => _container?.GetConnectionString() ?? string.Empty;
+    public override string ConnectionString =>
+        _container is not null
+            ? _container.GetConnectionString() + ";Allow User Variables=true"
+            : string.Empty;
 
     /// <inheritdoc />
     public override string ProviderName => "MySQL";

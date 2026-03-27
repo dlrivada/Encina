@@ -26,20 +26,20 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
         cmd.CommandText = """
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProcessingActivities')
             CREATE TABLE [ProcessingActivities] (
-                [Id] UNIQUEIDENTIFIER PRIMARY KEY,
-                [Name] NVARCHAR(500) NOT NULL,
-                [Purpose] NVARCHAR(1000) NOT NULL,
-                [LawfulBasis] INT NOT NULL,
-                [CategoriesOfDataSubjects] NVARCHAR(MAX) NOT NULL,
-                [CategoriesOfPersonalData] NVARCHAR(MAX) NOT NULL,
-                [Recipients] NVARCHAR(MAX) NOT NULL,
-                [RetentionPeriod] BIGINT NOT NULL,
+                [Id] NVARCHAR(36) PRIMARY KEY,
+                [RequestTypeName] NVARCHAR(512) NOT NULL,
+                [Name] NVARCHAR(256) NOT NULL,
+                [Purpose] NVARCHAR(1024) NOT NULL,
+                [LawfulBasisValue] INT NOT NULL,
+                [CategoriesOfDataSubjectsJson] NVARCHAR(4000) NOT NULL,
+                [CategoriesOfPersonalDataJson] NVARCHAR(4000) NOT NULL,
+                [RecipientsJson] NVARCHAR(4000) NOT NULL,
+                [ThirdCountryTransfers] NVARCHAR(2000) NULL,
+                [Safeguards] NVARCHAR(2000) NULL,
+                [RetentionPeriodTicks] BIGINT NOT NULL,
                 [SecurityMeasures] NVARCHAR(2000) NOT NULL,
-                [RequestType] NVARCHAR(1000) NOT NULL,
                 [CreatedAtUtc] DATETIMEOFFSET NOT NULL,
-                [LastUpdatedAtUtc] DATETIMEOFFSET NOT NULL,
-                [TenantId] NVARCHAR(256) NULL,
-                [ModuleId] NVARCHAR(256) NULL
+                [LastUpdatedAtUtc] DATETIMEOFFSET NOT NULL
             )
             """;
         await cmd.ExecuteNonQueryAsync();

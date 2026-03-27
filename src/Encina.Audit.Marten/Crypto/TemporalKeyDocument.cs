@@ -20,7 +20,7 @@ namespace Encina.Audit.Marten.Crypto;
 /// all key versions for a given time period.
 /// </para>
 /// </remarks>
-internal sealed class TemporalKeyDocument
+public sealed class TemporalKeyDocument
 {
     /// <summary>
     /// Unique key identifier following the convention <c>"temporal:{period}:v{version}"</c>.
