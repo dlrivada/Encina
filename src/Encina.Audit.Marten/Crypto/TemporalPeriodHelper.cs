@@ -113,6 +113,78 @@ public static class TemporalPeriodHelper
     }
 
     /// <summary>
+    /// Attempts to parse a period string back into its start date as a <see cref="DateTimeOffset"/>.
+    /// </summary>
+    /// <param name="period">The period string (e.g., <c>"2020-01"</c>, <c>"2026-Q1"</c>, or <c>"2026"</c>).</param>
+    /// <param name="granularity">The time-partitioning granularity used to interpret the period string.</param>
+    /// <param name="periodStart">
+    /// When this method returns <c>true</c>, contains the start of the period as a UTC <see cref="DateTimeOffset"/>.
+    /// </param>
+    /// <returns><c>true</c> if the period string was successfully parsed; otherwise, <c>false</c>.</returns>
+    /// <remarks>
+    /// <para>
+    /// Parsing rules by granularity:
+    /// <list type="bullet">
+    /// <item><see cref="TemporalKeyGranularity.Monthly"/> — expects <c>"yyyy-MM"</c> format.</item>
+    /// <item><see cref="TemporalKeyGranularity.Quarterly"/> — expects <c>"yyyy-QN"</c> format (N = 1–4).</item>
+    /// <item><see cref="TemporalKeyGranularity.Yearly"/> — expects <c>"yyyy"</c> format.</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public static bool TryParsePeriodToDate(
+        string period,
+        TemporalKeyGranularity granularity,
+        out DateTimeOffset periodStart)
+    {
+        periodStart = default;
+
+        if (string.IsNullOrWhiteSpace(period))
+        {
+            return false;
+        }
+
+        switch (granularity)
+        {
+            case TemporalKeyGranularity.Monthly:
+                if (DateTimeOffset.TryParseExact(
+                    period, "yyyy-MM", CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out periodStart))
+                {
+                    return true;
+                }
+                return false;
+
+            case TemporalKeyGranularity.Quarterly:
+                // Expected format: "yyyy-QN"
+                if (period.Length >= 6 &&
+                    period[4] == '-' &&
+                    period[5] == 'Q' &&
+                    int.TryParse(period.AsSpan(0, 4), out var qYear) &&
+                    period.Length >= 7 &&
+                    int.TryParse(period.AsSpan(6), out var quarter) &&
+                    quarter is >= 1 and <= 4)
+                {
+                    var month = (quarter - 1) * 3 + 1;
+                    periodStart = new DateTimeOffset(qYear, month, 1, 0, 0, 0, TimeSpan.Zero);
+                    return true;
+                }
+                return false;
+
+            case TemporalKeyGranularity.Yearly:
+                if (int.TryParse(period, out var year) && year is >= 1 and <= 9999)
+                {
+                    periodStart = new DateTimeOffset(year, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                    return true;
+                }
+                return false;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
     /// Returns the calendar quarter (1–4) for a given month.
     /// </summary>
     private static int GetQuarter(int month) => (month - 1) / 3 + 1;
