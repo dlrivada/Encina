@@ -16,7 +16,11 @@ public sealed class ProcessingActivityRegistryEFMySqlTests : IAsyncLifetime
 
     public ProcessingActivityRegistryEFMySqlTests(EFCoreMySqlFixture fixture) => _fixture = fixture;
 
-    public async ValueTask InitializeAsync() => await _fixture.ClearAllDataAsync();
+    public async ValueTask InitializeAsync()
+    {
+        if (!_fixture.IsAvailable) Assert.Skip("EF Core MySQL requires Pomelo v10.0.0 (not yet released)");
+        await _fixture.ClearAllDataAsync();
+    }
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private static global::Encina.Compliance.GDPR.ProcessingActivity CreateActivity(Type? requestType = null) => new()
