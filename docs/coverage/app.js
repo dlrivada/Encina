@@ -32,10 +32,33 @@
     return d.total > 0 ? d.coverage : 0;
   }
 
-  function flagCell(perFlag, flag) {
+  // Map category short codes to flag names
+  const FLAG_SHORT = { U: 'unit', G: 'guard', C: 'contract', P: 'property', I: 'integration' };
+
+  function isApplicableFlag(catTests, flag) {
+    if (!catTests) return false;
+    const short = Object.entries(FLAG_SHORT).find(([, v]) => v === flag);
+    return short ? catTests.includes(short[0]) : false;
+  }
+
+  // 3-state cell: applicable+data, applicable+nodata, not-applicable
+  function flagCell(perFlag, flag, catTests) {
+    const applicable = isApplicableFlag(catTests, flag);
     const pct = flagPct(perFlag, flag);
-    if (pct === null) return '<td class="na">-</td>';
+
+    if (!applicable) return '<td class="na" title="Not applicable for this category">-</td>';
+    if (pct === null) return '<td class="nodata" title="No coverage data (expected)">?</td>';
+    if (pct === 0) return '<td class="zero" title="Has data but 0% covered">0%</td>';
     return `<td class="pct">${Math.round(pct)}%</td>`;
+  }
+
+  // For TSV export
+  function flagCellText(perFlag, flag, catTests) {
+    const applicable = isApplicableFlag(catTests, flag);
+    const pct = flagPct(perFlag, flag);
+    if (!applicable) return '-';
+    if (pct === null) return '?';
+    return Math.round(pct) + '%';
   }
 
   // ── Fetch data ──────────────────────────────────────────────────────
@@ -69,9 +92,11 @@
   // ── Categories ──────────────────────────────────────────────────────
   const catBody = document.querySelector('#category-table tbody');
   const categoryNames = new Set();
+  const catTestsMap = {}; // category name → "U+G+C+P+I"
 
   for (const cat of data.categories) {
     categoryNames.add(cat.name);
+    catTestsMap[cat.name] = cat.tests || '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${cat.name}</td>
@@ -108,7 +133,7 @@
     });
 
     for (const pkg of filtered) {
-      const tests = pkg.tests || '';
+      const catTests = catTestsMap[pkg.category] || '';
       const gap = pkg.coverage - pkg.target;
       const gapStr = gap >= 0 ? `+${Math.round(gap)}%` : `${Math.round(gap)}%`;
       const gapClass = gap >= 0 ? 'gap-positive' : 'gap-negative';
@@ -117,11 +142,11 @@
       tr.innerHTML = `
         <td class="pkg-name" data-pkg="${pkg.name}">${pkg.name}</td>
         <td>${pkg.category}</td>
-        ${flagCell(pkg.perFlag, 'unit')}
-        ${flagCell(pkg.perFlag, 'guard')}
-        ${flagCell(pkg.perFlag, 'contract')}
-        ${flagCell(pkg.perFlag, 'property')}
-        ${flagCell(pkg.perFlag, 'integration')}
+        ${flagCell(pkg.perFlag, 'unit', catTests)}
+        ${flagCell(pkg.perFlag, 'guard', catTests)}
+        ${flagCell(pkg.perFlag, 'contract', catTests)}
+        ${flagCell(pkg.perFlag, 'property', catTests)}
+        ${flagCell(pkg.perFlag, 'integration', catTests)}
         <td class="pct">${pkg.coverage}%</td>
         <td class="pct">${pkg.target}%</td>
         <td class="${gapClass}">${gapStr}</td>
@@ -146,6 +171,33 @@
   document.getElementById('pkg-search').addEventListener('input', e => {
     searchTerm = e.target.value.toLowerCase();
     renderPackages();
+  });
+
+  // ── Copy to Excel (TSV) ────────────────────────────────────────────
+  document.getElementById('copy-table').addEventListener('click', async e => {
+    const btn = e.target;
+    const headers = ['Package', 'Category', 'Unit', 'Guard', 'Contract', 'Property', 'Integ', 'Combined', 'Target', 'Gap', 'Lines'];
+    const rows = [headers.join('\t')];
+    for (const pkg of allPackages) {
+      const catTests = catTestsMap[pkg.category] || '';
+      const gap = pkg.coverage - pkg.target;
+      rows.push([
+        pkg.name, pkg.category,
+        flagCellText(pkg.perFlag, 'unit', catTests),
+        flagCellText(pkg.perFlag, 'guard', catTests),
+        flagCellText(pkg.perFlag, 'contract', catTests),
+        flagCellText(pkg.perFlag, 'property', catTests),
+        flagCellText(pkg.perFlag, 'integration', catTests),
+        Math.round(pkg.coverage) + '%',
+        pkg.target + '%',
+        (gap >= 0 ? '+' : '') + Math.round(gap) + '%',
+        pkg.lines
+      ].join('\t'));
+    }
+    await navigator.clipboard.writeText(rows.join('\n'));
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy to Excel'; btn.classList.remove('copied'); }, 2000);
   });
 
   // ── File detail (click package name) ────────────────────────────────
@@ -250,8 +302,18 @@
   function renderTrendChart(history) {
     const canvas = document.getElementById('trend-chart');
     if (!canvas) return;
+    // Size canvas to fill container width
+    const container = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    const displayW = container.clientWidth - 40; // subtract card padding
+    const displayH = 250;
+    canvas.width = displayW * dpr;
+    canvas.height = displayH * dpr;
+    canvas.style.width = displayW + 'px';
+    canvas.style.height = displayH + 'px';
     const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
+    ctx.scale(dpr, dpr);
+    const W = displayW, H = displayH;
     const pad = { top: 20, right: 20, bottom: 40, left: 50 };
     const plotW = W - pad.left - pad.right;
     const plotH = H - pad.top - pad.bottom;
