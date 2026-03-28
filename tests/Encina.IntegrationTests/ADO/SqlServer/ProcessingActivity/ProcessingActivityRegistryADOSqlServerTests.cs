@@ -42,7 +42,8 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
                 [RetentionPeriodTicks] BIGINT NOT NULL,
                 [SecurityMeasures] NVARCHAR(2000) NOT NULL,
                 [CreatedAtUtc] DATETIMEOFFSET NOT NULL,
-                [LastUpdatedAtUtc] DATETIMEOFFSET NOT NULL
+                [LastUpdatedAtUtc] DATETIMEOFFSET NOT NULL,
+                CONSTRAINT [IX_ProcessingActivities_RequestTypeName] UNIQUE ([RequestTypeName])
             )
             """;
         await cmd.ExecuteNonQueryAsync();
