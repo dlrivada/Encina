@@ -487,12 +487,16 @@ jobs:
           cp -f artifacts/coverage/badge.svg docs/coverage/badge.svg 2>/dev/null || true
           cp -f artifacts/coverage/badge.json docs/coverage/badge.json 2>/dev/null || true
 
+      - name: Append coverage history
+        if: always() && github.ref == 'refs/heads/main'
+        run: dotnet run .github/scripts/coverage-history.cs -- --latest docs/coverage/data/latest.json --history docs/coverage/data/history.json || true
+
       - name: Commit coverage data
         if: always() && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/coverage/data/latest.json docs/coverage/badge.* || true
+          git add docs/coverage/data/ docs/coverage/badge.* || true
           git diff --cached --quiet || git commit -m "docs: update coverage data [skip ci]"
           git push || true
 
