@@ -32,7 +32,7 @@ docker compose --profile observability up -d
 
 > **Note**: The main `docker-compose.yml` includes Seq for lightweight structured logging.
 > Use `.github/observability/docker-compose.observability.yml` for the full OpenTelemetry stack.
-> See [Docker Infrastructure Guide](docs/infrastructure/docker-infrastructure.md) for all available services.
+> See [Docker Infrastructure Guide](../../docs/infrastructure/docker-infrastructure.md) for all available services.
 
 ### 2. Configure Your .NET Application
 

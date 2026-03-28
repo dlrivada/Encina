@@ -12,7 +12,9 @@
   }
 
   function barHtml(pct, target) {
-    const color = pct >= target ? 'var(--bar-green)' : pct >= target * 0.8 ? 'var(--bar-yellow)' : 'var(--bar-red)';
+    let color = 'var(--bar-red)';
+    if (pct >= target) color = 'var(--bar-green)';
+    else if (pct >= target * 0.8) color = 'var(--bar-yellow)';
     const targetLeft = Math.min(target, 100);
     return `<div class="bar-container">
       <div class="bar-fill" style="width:${Math.min(pct, 100)}%;background:${color}"></div>
@@ -27,8 +29,8 @@
   }
 
   function flagPct(perFlag, flag) {
-    if (!perFlag || !perFlag[flag]) return null;
-    const d = perFlag[flag];
+    const d = perFlag?.[flag];
+    if (!d) return null;
     return d.total > 0 ? d.coverage : 0;
   }
 
@@ -85,7 +87,7 @@
   const ov = data.overall;
   document.getElementById('overall-pct').textContent = `${ov.coverage}%`;
   document.getElementById('overall-pct').className =
-    `big-number ${ov.coverage >= 80 ? 'green' : ov.coverage >= 60 ? 'yellow' : 'red'}`;
+    `big-number ${ov.coverage >= 80 ? 'green' : (ov.coverage >= 60 ? 'yellow' : 'red')}`;
   document.getElementById('overall-lines').textContent =
     `${ov.covered.toLocaleString()} / ${ov.lines.toLocaleString()} applicable lines covered`;
 
@@ -248,7 +250,7 @@
     for (const pkg of allPackages.sort((a, b) => b.lines - a.lines)) {
       const sweep = (pkg.lines / totalLines) * Math.PI * 2;
       const col = pctColor(pkg.coverage, pkg.target);
-      ctx.fillStyle = col === 'green' ? '#238636' : col === 'yellow' ? '#9e6a03' : '#da3633';
+      ctx.fillStyle = col === 'green' ? '#238636' : (col === 'yellow' ? '#9e6a03' : '#da3633');
       ctx.globalAlpha = 0.6 + (pkg.coverage / 100) * 0.4;
       ctx.beginPath();
       ctx.arc(cx, cy, outerR, angle, angle + sweep);
@@ -392,7 +394,7 @@
     // Dots
     for (const p of points) {
       const px = x(p.t), py = y(p.v);
-      ctx.fillStyle = p.v >= 85 ? '#238636' : p.v >= 68 ? '#9e6a03' : '#da3633';
+      ctx.fillStyle = p.v >= 85 ? '#238636' : (p.v >= 68 ? '#9e6a03' : '#da3633');
       ctx.beginPath();
       ctx.arc(px, py, 3, 0, Math.PI * 2);
       ctx.fill();
@@ -419,7 +421,7 @@
     const latest = points[points.length - 1];
     const first = points[0];
     const delta = latest.v - first.v;
-    const arrow = delta > 0 ? '\u2191' : delta < 0 ? '\u2193' : '\u2192';
+    const arrow = delta > 0 ? '\u2191' : (delta < 0 ? '\u2193' : '\u2192');
     document.getElementById('trend-info').textContent =
       `${points.length} data points \u2014 ${first.t.toLocaleDateString()} to ${latest.t.toLocaleDateString()} \u2014 ${arrow} ${delta > 0 ? '+' : ''}${delta}% change`;
   }

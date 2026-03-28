@@ -59,7 +59,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
+        using var activity = AttestationDiagnostics.StartAttestation(ProviderName, record.RecordType);
         var sw = Stopwatch.StartNew();
         AttestationDiagnostics.AttestationTotal.Add(1,
             new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
@@ -100,8 +100,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 AttestationDiagnostics.AttestationFailed.Add(1,
                     new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
-                activity?.Dispose();
-                return AttestationErrors.HttpEndpointError(
+                    return AttestationErrors.HttpEndpointError(
                     _options.AttestEndpointUrl, (int)response.StatusCode, truncatedBody);
             }
 
@@ -116,8 +115,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 AttestationDiagnostics.AttestationFailed.Add(1,
                     new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, "Missing attestation_id");
-                activity?.Dispose();
-                return AttestationErrors.ProviderUnavailable(ProviderName, msg);
+                    return AttestationErrors.ProviderUnavailable(ProviderName, msg);
             }
 
             if (!responseJson.TryGetProperty("signature", out var sigProp)
@@ -128,8 +126,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 AttestationDiagnostics.AttestationFailed.Add(1,
                     new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, "Missing signature");
-                activity?.Dispose();
-                return AttestationErrors.ProviderUnavailable(ProviderName, msg);
+                    return AttestationErrors.ProviderUnavailable(ProviderName, msg);
             }
 
             var receipt = new AttestationReceipt
@@ -151,7 +148,6 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationLogMessages.AttestationCreated(_logger, record.RecordId, ProviderName);
             AttestationDiagnostics.RecordSuccess(activity);
-            activity?.Dispose();
             return Right<EncinaError, AttestationReceipt>(receipt);
         }
         catch (HttpRequestException ex)
@@ -160,13 +156,11 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
             AttestationDiagnostics.AttestationFailed.Add(1,
                 new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationDiagnostics.RecordFailure(activity, "Endpoint unreachable");
-            activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, $"HTTP endpoint unreachable: {ex.Message}");
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
             AttestationDiagnostics.RecordFailure(activity, "Cancelled");
-            activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, "Attestation request was cancelled.");
         }
         catch (TaskCanceledException ex)
@@ -174,7 +168,6 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
             AttestationDiagnostics.AttestationFailed.Add(1,
                 new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
             AttestationDiagnostics.RecordFailure(activity, "Timeout");
-            activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, $"HTTP attestation endpoint timed out: {ex.Message}");
         }
     }
@@ -185,7 +178,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
     {
         ArgumentNullException.ThrowIfNull(receipt);
 
-        var activity = AttestationDiagnostics.StartVerification(ProviderName);
+        using var activity = AttestationDiagnostics.StartVerification(ProviderName);
         AttestationDiagnostics.VerificationTotal.Add(1,
             new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
 
@@ -194,7 +187,6 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         if (_options.VerifyEndpointUrl is null)
         {
             AttestationDiagnostics.RecordFailure(activity, "Verification endpoint not configured");
-            activity?.Dispose();
 
             return Right<EncinaError, AttestationVerification>(new AttestationVerification
             {
@@ -229,8 +221,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
             if (!response.IsSuccessStatusCode)
             {
                 AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
-                activity?.Dispose();
-
+    
                 return Right<EncinaError, AttestationVerification>(new AttestationVerification
                 {
                     IsValid = false,
@@ -246,8 +237,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 && contentLength > MaxResponseContentBytes)
             {
                 AttestationDiagnostics.RecordFailure(activity, "Response too large");
-                activity?.Dispose();
-                return AttestationErrors.HttpResponseTooLarge(
+                    return AttestationErrors.HttpResponseTooLarge(
                     ProviderName, contentLength, MaxResponseContentBytes);
             }
 
@@ -261,7 +251,6 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
             else
                 AttestationDiagnostics.RecordFailure(activity, "Remote verification failed");
 
-            activity?.Dispose();
 
             return Right<EncinaError, AttestationVerification>(new AttestationVerification
             {
@@ -279,19 +268,16 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
         catch (HttpRequestException ex)
         {
             AttestationDiagnostics.RecordFailure(activity, "Verification endpoint unreachable");
-            activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, $"Verification endpoint unreachable: {ex.Message}");
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
             AttestationDiagnostics.RecordFailure(activity, "Cancelled");
-            activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, "Verification request was cancelled.");
         }
         catch (TaskCanceledException ex)
         {
             AttestationDiagnostics.RecordFailure(activity, "Timeout");
-            activity?.Dispose();
             return AttestationErrors.ProviderUnavailable(ProviderName, $"Verification endpoint timed out: {ex.Message}");
         }
     }

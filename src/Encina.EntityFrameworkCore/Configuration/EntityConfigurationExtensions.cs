@@ -630,11 +630,7 @@ public static class EntityConfigurationExtensions
 
         foreach (var (clrType, methodName) in modelBuilder.Model.GetEntityTypes()
             .Select(et => et.ClrType)
-            .Select(clrType => typeof(IConcurrencyAware).IsAssignableFrom(clrType)
-                ? (clrType, methodName: nameof(ApplyConcurrencyAwareConfigurationInternal))
-                : typeof(IVersioned).IsAssignableFrom(clrType)
-                    ? (clrType, methodName: nameof(ApplyVersionedConfigurationInternal))
-                    : (clrType, methodName: (string?)null))
+            .Select(clrType => (clrType, methodName: GetConcurrencyMethodName(clrType)))
             .Where(x => x.methodName is not null))
         {
             var method = typeof(EntityConfigurationExtensions)
@@ -645,6 +641,24 @@ public static class EntityConfigurationExtensions
         }
 
         return modelBuilder;
+    }
+
+    /// <summary>
+    /// Gets the internal configuration method name for a CLR type based on its concurrency interface.
+    /// </summary>
+    private static string? GetConcurrencyMethodName(Type clrType)
+    {
+        if (typeof(IConcurrencyAware).IsAssignableFrom(clrType))
+        {
+            return nameof(ApplyConcurrencyAwareConfigurationInternal);
+        }
+
+        if (typeof(IVersioned).IsAssignableFrom(clrType))
+        {
+            return nameof(ApplyVersionedConfigurationInternal);
+        }
+
+        return null;
     }
 
     /// <summary>

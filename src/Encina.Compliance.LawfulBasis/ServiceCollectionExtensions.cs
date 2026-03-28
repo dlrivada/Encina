@@ -118,11 +118,19 @@ public static class ServiceCollectionExtensions
 
         if (optionsInstance.AutoRegisterFromAttributes || optionsInstance.DefaultBases.Count > 0)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan.ToList()
-                : optionsInstance.AutoRegisterFromAttributes
-                    ? [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()]
-                    : new List<Assembly>();
+            List<Assembly> assembliesToScan;
+            if (optionsInstance.AssembliesToScan.Count > 0)
+            {
+                assembliesToScan = optionsInstance.AssembliesToScan.ToList();
+            }
+            else if (optionsInstance.AutoRegisterFromAttributes)
+            {
+                assembliesToScan = [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            }
+            else
+            {
+                assembliesToScan = new List<Assembly>();
+            }
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new LawfulBasisAutoRegistrationDescriptor(

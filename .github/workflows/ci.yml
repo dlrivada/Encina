@@ -8,9 +8,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -420,6 +417,8 @@ jobs:
       - test-guard
       - test-ef-providers
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: always()
     timeout-minutes: 10
     steps:

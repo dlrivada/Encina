@@ -302,21 +302,6 @@ internal sealed class ReshardingOrchestrator : IReshardingOrchestrator
         };
     }
 
-    private static ReshardingPhase GetLastCompletedPhase(EncinaError error)
-    {
-        // Try to infer the last completed phase from the error code
-        var code = error.GetCode().IfNone(string.Empty);
 
-        return code switch
-        {
-            ReshardingErrorCodes.CopyFailed => ReshardingPhase.Planning,
-            ReshardingErrorCodes.ReplicationFailed => ReshardingPhase.Copying,
-            ReshardingErrorCodes.VerificationFailed => ReshardingPhase.Replicating,
-            ReshardingErrorCodes.CutoverFailed or ReshardingErrorCodes.CutoverTimeout => ReshardingPhase.Verifying,
-            ReshardingErrorCodes.CutoverAborted => ReshardingPhase.Verifying,
-            ReshardingErrorCodes.CleanupFailed => ReshardingPhase.CuttingOver,
-            _ => ReshardingPhase.Planning,
-        };
-    }
 }
 #pragma warning restore CA1848
