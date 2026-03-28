@@ -22,9 +22,12 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
         // Create table if not exists using a fresh connection
         await using var conn = new SqlConnection(_fixture.ConnectionString);
         await conn.OpenAsync();
+        // Drop and recreate to ensure schema is correct (EF Core test may have created with different schema)
+        await using var dropCmd = conn.CreateCommand();
+        dropCmd.CommandText = "IF OBJECT_ID('ProcessingActivities', 'U') IS NOT NULL DROP TABLE [ProcessingActivities]";
+        await dropCmd.ExecuteNonQueryAsync();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProcessingActivities')
             CREATE TABLE [ProcessingActivities] (
                 [Id] NVARCHAR(36) PRIMARY KEY,
                 [RequestTypeName] NVARCHAR(512) NOT NULL,
@@ -43,9 +46,6 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
             )
             """;
         await cmd.ExecuteNonQueryAsync();
-        await using var delCmd = conn.CreateCommand();
-        delCmd.CommandText = "DELETE FROM [ProcessingActivities]";
-        await delCmd.ExecuteNonQueryAsync();
         _store = new ProcessingActivityRegistryADO(_fixture.ConnectionString);
     }
 
@@ -90,10 +90,11 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
     public async Task GetActivityByRequestTypeAsync_Registered_ShouldReturnSome()
     {
         var activity = CreateActivity(typeof(int));
-        await _store.RegisterActivityAsync(activity);
+        var registerResult = await _store.RegisterActivityAsync(activity);
+        registerResult.Match(Right: _ => { }, Left: err => Assert.Fail($"RegisterActivityAsync failed: {err}"));
 
         var result = await _store.GetActivityByRequestTypeAsync(typeof(int));
-        result.IsRight.Should().BeTrue();
+        result.Match(Right: _ => { }, Left: err => Assert.Fail($"GetActivityByRequestTypeAsync failed: {err}"));
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)result;
         option.IsSome.Should().BeTrue();
     }
