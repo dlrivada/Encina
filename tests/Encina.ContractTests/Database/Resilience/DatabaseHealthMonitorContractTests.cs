@@ -28,13 +28,11 @@ public sealed class DatabaseHealthMonitorContractTests
     /// </summary>
     private static readonly Type[] AllMonitorTypes =
     [
-        // ADO.NET (4)
-        typeof(SqlServerDatabaseHealthMonitor),
+        // ADO.NET (3)
         typeof(SqlServerDatabaseHealthMonitor),
         typeof(PostgreSqlDatabaseHealthMonitor),
         typeof(MySqlDatabaseHealthMonitor),
-        // Dapper (4)
-        typeof(DapperSqlServerDatabaseHealthMonitor),
+        // Dapper (3)
         typeof(DapperSqlServerDatabaseHealthMonitor),
         typeof(DapperPostgreSqlDatabaseHealthMonitor),
         typeof(DapperMySqlDatabaseHealthMonitor),
@@ -50,10 +48,8 @@ public sealed class DatabaseHealthMonitorContractTests
     private static readonly Type[] BaseClassMonitorTypes =
     [
         typeof(SqlServerDatabaseHealthMonitor),
-        typeof(SqlServerDatabaseHealthMonitor),
         typeof(PostgreSqlDatabaseHealthMonitor),
         typeof(MySqlDatabaseHealthMonitor),
-        typeof(DapperSqlServerDatabaseHealthMonitor),
         typeof(DapperSqlServerDatabaseHealthMonitor),
         typeof(DapperPostgreSqlDatabaseHealthMonitor),
         typeof(DapperMySqlDatabaseHealthMonitor),
@@ -65,8 +61,8 @@ public sealed class DatabaseHealthMonitorContractTests
     /// </summary>
     private static readonly string[] ExpectedProviderNames =
     [
-        "ado-SqlServer", "ado-sqlserver", "ado-postgresql", "ado-mysql",
-        "dapper-SqlServer", "dapper-sqlserver", "dapper-postgresql", "dapper-mysql",
+        "ado-sqlserver", "ado-postgresql", "ado-mysql",
+        "dapper-sqlserver", "dapper-postgresql", "dapper-mysql",
         "efcore",
         "mongodb",
     ];
