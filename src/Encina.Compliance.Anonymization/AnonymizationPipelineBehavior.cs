@@ -404,7 +404,7 @@ public sealed class AnonymizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
         if (field.AnonymizeGranularity.HasValue)
         {
-            parameters ??= [];
+            parameters = [];
             parameters["Granularity"] = field.AnonymizeGranularity.Value;
         }
 

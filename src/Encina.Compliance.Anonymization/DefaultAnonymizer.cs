@@ -241,7 +241,8 @@ public sealed class DefaultAnonymizer : IAnonymizer
         var type = typeof(T);
         var properties = GetProperties(type);
 
-        // Use MemberwiseClone via reflection if available, otherwise manual copy
+        // S3011: NonPublic reflection required — MemberwiseClone is protected on System.Object,
+        // used here for efficient shallow copy of anonymized entity instances
         var cloneMethod = type.GetMethod(
             "MemberwiseClone",
             BindingFlags.Instance | BindingFlags.NonPublic);

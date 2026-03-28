@@ -114,8 +114,17 @@ public sealed class RetentionPeriodAttribute : Attribute
     /// by the pipeline behavior or policy validation logic.
     /// </para>
     /// </remarks>
-    public TimeSpan RetentionPeriod =>
-        Days > 0 ? TimeSpan.FromDays(Days) :
-        Years > 0 ? TimeSpan.FromDays(Years * 365) :
-        TimeSpan.Zero;
+    public TimeSpan RetentionPeriod
+    {
+        get
+        {
+            if (Days > 0)
+                return TimeSpan.FromDays(Days);
+
+            if (Years > 0)
+                return TimeSpan.FromDays(Years * 365);
+
+            return TimeSpan.Zero;
+        }
+    }
 }

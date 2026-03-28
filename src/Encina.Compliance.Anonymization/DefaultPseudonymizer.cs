@@ -302,6 +302,7 @@ public sealed class DefaultPseudonymizer : IPseudonymizer
 
     private static T ShallowCopy<T>(T source)
     {
+        // S3011: NonPublic reflection required — MemberwiseClone is protected on System.Object
         var cloneMethod = typeof(T).GetMethod(
             "MemberwiseClone",
             BindingFlags.Instance | BindingFlags.NonPublic);

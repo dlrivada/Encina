@@ -331,6 +331,8 @@ public sealed class CachedDataReader : DbDataReader
     [SuppressMessage("Usage", "CA2201:Do not raise reserved exception types",
         Justification = "DbDataReader.GetOrdinal() API contract specifies IndexOutOfRangeException " +
                         "when the column name is not found.")]
+    [SuppressMessage("Design", "S112:General exceptions should not be thrown",
+        Justification = "ADO.NET DbDataReader contract requires IndexOutOfRangeException for invalid column names.")]
     public override int GetOrdinal(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -453,6 +455,8 @@ public sealed class CachedDataReader : DbDataReader
     [SuppressMessage("Usage", "CA2201:Do not raise reserved exception types",
         Justification = "DbDataReader accessors require IndexOutOfRangeException for invalid ordinals " +
                         "per the ADO.NET data provider contract.")]
+    [SuppressMessage("Design", "S112:General exceptions should not be thrown",
+        Justification = "ADO.NET DbDataReader contract requires IndexOutOfRangeException for invalid ordinals.")]
     private void ValidateOrdinal(int ordinal)
     {
         // _result is guaranteed non-null here because ThrowIfClosed() is always called

@@ -47,13 +47,10 @@ internal static class SetFunctions
                 var result = new List<AttributeValue>();
                 foreach (var v1 in bag1.Values)
                 {
-                    if (bag2.Values.Any(v2 => BagFunctions.ValuesEqual(v1.Value, v2.Value)))
+                    if (bag2.Values.Any(v2 => BagFunctions.ValuesEqual(v1.Value, v2.Value))
+                        && !result.Any(r => BagFunctions.ValuesEqual(r.Value, v1.Value)))
                     {
-                        // Avoid duplicates in the result
-                        if (!result.Any(r => BagFunctions.ValuesEqual(r.Value, v1.Value)))
-                        {
-                            result.Add(v1);
-                        }
+                        result.Add(v1);
                     }
                 }
 
