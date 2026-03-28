@@ -223,7 +223,7 @@ public sealed class ReadWriteSeparationContractTests
     {
         // Assert
         ADOSqlServerRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-ado-SqlServer");
+            "encina-read-write-separation-ado");
     }
 
 
@@ -248,7 +248,7 @@ public sealed class ReadWriteSeparationContractTests
     {
         // Assert
         DapperSqlServerRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-dapper-SqlServer");
+            "encina-read-write-separation-dapper");
     }
 
 
