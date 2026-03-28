@@ -24,7 +24,7 @@ public sealed class DatabaseHealthMonitorContractTests
 {
     /// <summary>
     /// All concrete types that implement <see cref="IDatabaseHealthMonitor"/>.
-    /// 9 inherit from <see cref="DatabaseHealthMonitorBase"/> and 1 (MongoDB) implements directly.
+    /// 7 inherit from <see cref="DatabaseHealthMonitorBase"/> and 1 (MongoDB) implements directly.
     /// </summary>
     private static readonly Type[] AllMonitorTypes =
     [
@@ -90,9 +90,9 @@ public sealed class DatabaseHealthMonitorContractTests
     }
 
     [Fact]
-    public void Contract_ExactlyTenImplementationsExist()
+    public void Contract_ExactlyEightImplementationsExist()
     {
-        AllMonitorTypes.Length.ShouldBe(10, "There should be exactly 10 IDatabaseHealthMonitor implementations");
+        AllMonitorTypes.Length.ShouldBe(8, "There should be exactly 8 IDatabaseHealthMonitor implementations (3 ADO + 3 Dapper + 1 EFCore + 1 MongoDB)");
     }
 
     #endregion
