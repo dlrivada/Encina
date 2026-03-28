@@ -32,8 +32,10 @@ internal static partial class SqlSanitizer
         // 2. Remove single-line comment markers: --
         result = result.Replace("--", string.Empty, StringComparison.Ordinal);
 
-        // 3. Remove multi-line comment sequences: /* ... */
+        // 3. Remove multi-line comment sequences: /* ... */ and unclosed markers
         result = BlockCommentPattern().Replace(result, string.Empty);
+        result = result.Replace("/*", string.Empty, StringComparison.Ordinal);
+        result = result.Replace("*/", string.Empty, StringComparison.Ordinal);
 
         // 4. Remove semicolons that could terminate statements
         result = result.Replace(";", string.Empty, StringComparison.Ordinal);
