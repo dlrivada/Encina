@@ -3,11 +3,9 @@ using Encina.Testing.Shouldly;
 using Shouldly;
 using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
 using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
-using ADOSqliteTenancy = Encina.ADO.Sqlite.Tenancy;
 using ADOSqlServerTenancy = Encina.ADO.SqlServer.Tenancy;
 using DapperMySQLTenancy = Encina.Dapper.MySQL.Tenancy;
 using DapperPostgreSQLTenancy = Encina.Dapper.PostgreSQL.Tenancy;
-using DapperSqliteTenancy = Encina.Dapper.Sqlite.Tenancy;
 using DapperSqlServerTenancy = Encina.Dapper.SqlServer.Tenancy;
 using MongoDbTenancy = Encina.MongoDB.Tenancy;
 
@@ -23,10 +21,10 @@ public sealed class TenantEntityMappingPropertyTests
     #region ADO Provider Mapping Tests
 
     [Fact]
-    public void Property_ADOSqliteMapping_HasTenantIdAlwaysExcludesFromUpdates()
+    public void Property_ADOSqlServerMapping_HasTenantIdAlwaysExcludesFromUpdates()
     {
         // Property: HasTenantId MUST always add property to UpdateExcludedProperties
-        var mapping = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var mapping = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
@@ -38,20 +36,6 @@ public sealed class TenantEntityMappingPropertyTests
         mapping.UpdateExcludedProperties.ShouldContain("TenantId", "TenantId must ALWAYS be excluded from updates");
     }
 
-    [Fact]
-    public void Property_ADOSqlServerMapping_HasTenantIdAlwaysExcludesFromUpdates()
-    {
-        var mapping = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
-            .ToTable("Orders")
-            .HasId(o => o.Id)
-            .HasTenantId(o => o.TenantId)
-            .MapProperty(o => o.CustomerId)
-            .Build()
-            .ShouldBeSuccess();
-
-        mapping.IsTenantEntity.ShouldBeTrue();
-        mapping.UpdateExcludedProperties.ShouldContain("TenantId");
-    }
 
     [Fact]
     public void Property_ADOPostgreSQLMapping_HasTenantIdAlwaysExcludesFromUpdates()
@@ -88,21 +72,6 @@ public sealed class TenantEntityMappingPropertyTests
     #region Dapper Provider Mapping Tests
 
     [Fact]
-    public void Property_DapperSqliteMapping_HasTenantIdAlwaysExcludesFromUpdates()
-    {
-        var mapping = new DapperSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
-            .ToTable("Orders")
-            .HasId(o => o.Id)
-            .HasTenantId(o => o.TenantId)
-            .MapProperty(o => o.CustomerId)
-            .Build()
-            .ShouldBeSuccess();
-
-        mapping.IsTenantEntity.ShouldBeTrue();
-        mapping.UpdateExcludedProperties.ShouldContain("TenantId");
-    }
-
-    [Fact]
     public void Property_DapperSqlServerMapping_HasTenantIdAlwaysExcludesFromUpdates()
     {
         var mapping = new DapperSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
@@ -116,6 +85,7 @@ public sealed class TenantEntityMappingPropertyTests
         mapping.IsTenantEntity.ShouldBeTrue();
         mapping.UpdateExcludedProperties.ShouldContain("TenantId");
     }
+
 
     [Fact]
     public void Property_DapperPostgreSQLMapping_HasTenantIdAlwaysExcludesFromUpdates()
@@ -204,16 +174,16 @@ public sealed class TenantEntityMappingPropertyTests
     public void Property_WithoutHasTenantId_IsTenantEntityIsFalse()
     {
         // Property: Without HasTenantId, IsTenantEntity must ALWAYS be false
-        var adoSqlite = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var ADOSqlServer = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.CustomerId).Build().ShouldBeSuccess();
 
-        var dapperSqlite = new DapperSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var DapperSqlServer = new DapperSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.CustomerId).Build().ShouldBeSuccess();
 
-        adoSqlite.IsTenantEntity.ShouldBeFalse("Without HasTenantId, IsTenantEntity must be false");
-        adoSqlite.TenantColumnName.ShouldBeNull("Without HasTenantId, TenantColumnName must be null");
-        dapperSqlite.IsTenantEntity.ShouldBeFalse();
-        dapperSqlite.TenantColumnName.ShouldBeNull();
+        ADOSqlServer.IsTenantEntity.ShouldBeFalse("Without HasTenantId, IsTenantEntity must be false");
+        ADOSqlServer.TenantColumnName.ShouldBeNull("Without HasTenantId, TenantColumnName must be null");
+        DapperSqlServer.IsTenantEntity.ShouldBeFalse();
+        DapperSqlServer.TenantColumnName.ShouldBeNull();
     }
 
     [Theory]
@@ -223,7 +193,7 @@ public sealed class TenantEntityMappingPropertyTests
     public void Property_CustomTenantColumnName_IsRespected(string customColumnName)
     {
         // Property: Custom tenant column name MUST be stored correctly
-        var mapping = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var mapping = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId, customColumnName)
@@ -237,7 +207,7 @@ public sealed class TenantEntityMappingPropertyTests
     public void Property_GetTenantId_ReturnsCorrectValue()
     {
         // Property: GetTenantId must ALWAYS return the actual property value
-        var mapping = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var mapping = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
@@ -257,7 +227,7 @@ public sealed class TenantEntityMappingPropertyTests
     public void Property_SetTenantId_SetsCorrectValue()
     {
         // Property: SetTenantId must ALWAYS set the property correctly
-        var mapping = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var mapping = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
@@ -278,7 +248,7 @@ public sealed class TenantEntityMappingPropertyTests
     public void Property_ColumnMappingsIncludeTenantId()
     {
         // Property: When HasTenantId is called, ColumnMappings must include the tenant column
-        var mapping = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var mapping = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .ToTable("Orders")
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
@@ -297,7 +267,7 @@ public sealed class TenantEntityMappingPropertyTests
     public void Property_BuildWithoutTableName_ReturnsError()
     {
         // Property: Build without ToTable MUST return an error
-        var result = new ADOSqliteTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
+        var result = new ADOSqlServerTenancy.TenantEntityMappingBuilder<TenantTestOrder, Guid>()
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .Build();

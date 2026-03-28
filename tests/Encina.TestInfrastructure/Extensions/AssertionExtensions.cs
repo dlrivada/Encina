@@ -1,7 +1,7 @@
-using Encina.Dapper.Sqlite.Inbox;
-using Encina.Dapper.Sqlite.Outbox;
-using Encina.Dapper.Sqlite.Sagas;
-using Encina.Dapper.Sqlite.Scheduling;
+using Encina.Dapper.SqlServer.Inbox;
+using Encina.Dapper.SqlServer.Outbox;
+using Encina.Dapper.SqlServer.Sagas;
+using Encina.Dapper.SqlServer.Scheduling;
 using Xunit;
 
 namespace Encina.TestInfrastructure.Extensions;

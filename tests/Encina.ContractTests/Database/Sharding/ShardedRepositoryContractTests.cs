@@ -3,11 +3,9 @@ using Encina.Sharding;
 using Shouldly;
 using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
 using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
-using ADOSqliteSharding = Encina.ADO.Sqlite.Sharding;
 using ADOSqlServerSharding = Encina.ADO.SqlServer.Sharding;
 using DapperMySQLSharding = Encina.Dapper.MySQL.Sharding;
 using DapperPostgreSQLSharding = Encina.Dapper.PostgreSQL.Sharding;
-using DapperSqliteSharding = Encina.Dapper.Sqlite.Sharding;
 using DapperSqlServerSharding = Encina.Dapper.SqlServer.Sharding;
 using EFCoreSharding = Encina.EntityFrameworkCore.Sharding;
 using MongoDBSharding = Encina.MongoDB.Sharding;
@@ -26,18 +24,12 @@ public sealed class ShardedRepositoryContractTests
     #region All Providers Implement IFunctionalShardedRepository
 
     [Fact]
-    public void Contract_ADO_Sqlite_ImplementsIFunctionalShardedRepository()
-    {
-        var repoType = typeof(ADOSqliteSharding.FunctionalShardedRepositoryADO<,>);
-        VerifyImplementsInterface(repoType);
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_ImplementsIFunctionalShardedRepository()
     {
         var repoType = typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>);
         VerifyImplementsInterface(repoType);
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_ImplementsIFunctionalShardedRepository()
@@ -54,18 +46,12 @@ public sealed class ShardedRepositoryContractTests
     }
 
     [Fact]
-    public void Contract_Dapper_Sqlite_ImplementsIFunctionalShardedRepository()
-    {
-        var repoType = typeof(DapperSqliteSharding.FunctionalShardedRepositoryDapper<,>);
-        VerifyImplementsInterface(repoType);
-    }
-
-    [Fact]
     public void Contract_Dapper_SqlServer_ImplementsIFunctionalShardedRepository()
     {
         var repoType = typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>);
         VerifyImplementsInterface(repoType);
     }
+
 
     [Fact]
     public void Contract_Dapper_PostgreSQL_ImplementsIFunctionalShardedRepository()
@@ -149,11 +135,11 @@ public sealed class ShardedRepositoryContractTests
     {
         var implementations = new[]
         {
-            typeof(ADOSqliteSharding.FunctionalShardedRepositoryADO<,>),
+            typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>),
             typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>),
             typeof(ADOPostgreSQLSharding.FunctionalShardedRepositoryADO<,>),
             typeof(ADOMySQLSharding.FunctionalShardedRepositoryADO<,>),
-            typeof(DapperSqliteSharding.FunctionalShardedRepositoryDapper<,>),
+            typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>),
             typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>),
             typeof(DapperPostgreSQLSharding.FunctionalShardedRepositoryDapper<,>),
             typeof(DapperMySQLSharding.FunctionalShardedRepositoryDapper<,>),
@@ -174,7 +160,7 @@ public sealed class ShardedRepositoryContractTests
     [Fact]
     public void Contract_ADO_Providers_FollowNamingConvention()
     {
-        typeof(ADOSqliteSharding.FunctionalShardedRepositoryADO<,>).Name.ShouldStartWith("FunctionalShardedRepositoryADO");
+        typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>).Name.ShouldStartWith("FunctionalShardedRepositoryADO");
         typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>).Name.ShouldStartWith("FunctionalShardedRepositoryADO");
         typeof(ADOPostgreSQLSharding.FunctionalShardedRepositoryADO<,>).Name.ShouldStartWith("FunctionalShardedRepositoryADO");
         typeof(ADOMySQLSharding.FunctionalShardedRepositoryADO<,>).Name.ShouldStartWith("FunctionalShardedRepositoryADO");
@@ -183,7 +169,7 @@ public sealed class ShardedRepositoryContractTests
     [Fact]
     public void Contract_Dapper_Providers_FollowNamingConvention()
     {
-        typeof(DapperSqliteSharding.FunctionalShardedRepositoryDapper<,>).Name.ShouldStartWith("FunctionalShardedRepositoryDapper");
+        typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>).Name.ShouldStartWith("FunctionalShardedRepositoryDapper");
         typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>).Name.ShouldStartWith("FunctionalShardedRepositoryDapper");
         typeof(DapperPostgreSQLSharding.FunctionalShardedRepositoryDapper<,>).Name.ShouldStartWith("FunctionalShardedRepositoryDapper");
         typeof(DapperMySQLSharding.FunctionalShardedRepositoryDapper<,>).Name.ShouldStartWith("FunctionalShardedRepositoryDapper");

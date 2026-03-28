@@ -1,6 +1,5 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
-using Microsoft.Data.Sqlite;
 using MySqlConnector;
 using Npgsql;
 
@@ -54,8 +53,8 @@ public static class AdoCommandHelper
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
 
-        // SQLite and MySQL store GUIDs as strings
-        if (provider is DatabaseProvider.Sqlite or DatabaseProvider.MySql)
+        // MySQL stores GUIDs as strings
+        if (provider is DatabaseProvider.MySql)
         {
             parameter.Value = value.ToString();
             parameter.DbType = DbType.String;
@@ -85,12 +84,6 @@ public static class AdoCommandHelper
         {
             parameter.Value = DBNull.Value;
         }
-        else if (provider == DatabaseProvider.Sqlite)
-        {
-            // SQLite stores DateTime as ISO 8601 text
-            parameter.Value = value.Value.ToString("O");
-            parameter.DbType = DbType.String;
-        }
         else
         {
             parameter.Value = value.Value;
@@ -110,7 +103,6 @@ public static class AdoCommandHelper
     {
         return command switch
         {
-            SqliteCommand sqliteCmd => await sqliteCmd.ExecuteNonQueryAsync(cancellationToken),
             SqlCommand sqlCmd => await sqlCmd.ExecuteNonQueryAsync(cancellationToken),
             NpgsqlCommand npgsqlCmd => await npgsqlCmd.ExecuteNonQueryAsync(cancellationToken),
             MySqlCommand mysqlCmd => await mysqlCmd.ExecuteNonQueryAsync(cancellationToken),
@@ -128,7 +120,6 @@ public static class AdoCommandHelper
     {
         return command switch
         {
-            SqliteCommand sqliteCmd => await sqliteCmd.ExecuteReaderAsync(cancellationToken),
             SqlCommand sqlCmd => await sqlCmd.ExecuteReaderAsync(cancellationToken),
             NpgsqlCommand npgsqlCmd => await npgsqlCmd.ExecuteReaderAsync(cancellationToken),
             MySqlCommand mysqlCmd => await mysqlCmd.ExecuteReaderAsync(cancellationToken),
@@ -146,7 +137,6 @@ public static class AdoCommandHelper
     {
         return command switch
         {
-            SqliteCommand sqliteCmd => await sqliteCmd.ExecuteScalarAsync(cancellationToken),
             SqlCommand sqlCmd => await sqlCmd.ExecuteScalarAsync(cancellationToken),
             NpgsqlCommand npgsqlCmd => await npgsqlCmd.ExecuteScalarAsync(cancellationToken),
             MySqlCommand mysqlCmd => await mysqlCmd.ExecuteScalarAsync(cancellationToken),
@@ -164,7 +154,6 @@ public static class AdoCommandHelper
     {
         return reader switch
         {
-            SqliteDataReader sqliteReader => await sqliteReader.ReadAsync(cancellationToken),
             SqlDataReader sqlReader => await sqlReader.ReadAsync(cancellationToken),
             NpgsqlDataReader npgsqlReader => await npgsqlReader.ReadAsync(cancellationToken),
             MySqlDataReader mysqlReader => await mysqlReader.ReadAsync(cancellationToken),
@@ -186,9 +175,6 @@ public static class AdoCommandHelper
 
         switch (connection)
         {
-            case SqliteConnection sqliteConn:
-                await sqliteConn.OpenAsync(cancellationToken);
-                break;
             case SqlConnection sqlConn:
                 await sqlConn.OpenAsync(cancellationToken);
                 break;
@@ -213,7 +199,7 @@ public static class AdoCommandHelper
     /// <returns>The GUID value.</returns>
     public static Guid GetGuid(IDataReader reader, int ordinal, DatabaseProvider provider)
     {
-        if (provider is DatabaseProvider.Sqlite or DatabaseProvider.MySql)
+        if (provider is DatabaseProvider.MySql)
         {
             return Guid.Parse(reader.GetString(ordinal));
         }
@@ -247,11 +233,6 @@ public static class AdoCommandHelper
     /// <returns>The DateTime value.</returns>
     public static DateTime GetDateTime(IDataReader reader, int ordinal, DatabaseProvider provider)
     {
-        if (provider == DatabaseProvider.Sqlite)
-        {
-            return DateTime.Parse(reader.GetString(ordinal), null, System.Globalization.DateTimeStyles.RoundtripKind);
-        }
-
         return reader.GetDateTime(ordinal);
     }
 

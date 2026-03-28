@@ -50,20 +50,6 @@ public sealed class EntityFrameworkBenchmarkDbContext : DbContext
         return new EntityFrameworkBenchmarkDbContext(options);
     }
 
-    /// <summary>
-    /// Creates a SQLite in-memory database context for realistic SQL benchmarks.
-    /// </summary>
-    /// <param name="connection">The SQLite connection to use.</param>
-    /// <returns>A configured DbContext using SQLite provider.</returns>
-    public static EntityFrameworkBenchmarkDbContext CreateSqlite(Microsoft.Data.Sqlite.SqliteConnection connection)
-    {
-        var options = new DbContextOptionsBuilder<EntityFrameworkBenchmarkDbContext>()
-            .UseSqlite(connection)
-            .Options;
-
-        return new EntityFrameworkBenchmarkDbContext(options);
-    }
-
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

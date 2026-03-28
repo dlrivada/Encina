@@ -4,11 +4,9 @@ using Encina.Sharding.Routing;
 using Shouldly;
 using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
 using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
-using ADOSqliteSharding = Encina.ADO.Sqlite.Sharding;
 using ADOSqlServerSharding = Encina.ADO.SqlServer.Sharding;
 using DapperMySQLSharding = Encina.Dapper.MySQL.Sharding;
 using DapperPostgreSQLSharding = Encina.Dapper.PostgreSQL.Sharding;
-using DapperSqliteSharding = Encina.Dapper.Sqlite.Sharding;
 using DapperSqlServerSharding = Encina.Dapper.SqlServer.Sharding;
 using EFCoreSharding = Encina.EntityFrameworkCore.Sharding;
 using MongoDBSharding = Encina.MongoDB.Sharding;
@@ -25,16 +23,11 @@ public sealed class ShardingServiceRegistrationContractTests
     #region All Providers Have ShardingServiceCollectionExtensions
 
     [Fact]
-    public void Contract_ADO_Sqlite_HasShardingServiceCollectionExtensions()
-    {
-        VerifyExtensionClassExists(typeof(ADOSqliteSharding.FunctionalShardedRepositoryADO<,>).Assembly, "Encina.ADO.Sqlite.Sharding");
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_HasShardingServiceCollectionExtensions()
     {
         VerifyExtensionClassExists(typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>).Assembly, "Encina.ADO.SqlServer.Sharding");
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_HasShardingServiceCollectionExtensions()
@@ -49,16 +42,11 @@ public sealed class ShardingServiceRegistrationContractTests
     }
 
     [Fact]
-    public void Contract_Dapper_Sqlite_HasShardingServiceCollectionExtensions()
-    {
-        VerifyExtensionClassExists(typeof(DapperSqliteSharding.FunctionalShardedRepositoryDapper<,>).Assembly, "Encina.Dapper.Sqlite.Sharding");
-    }
-
-    [Fact]
     public void Contract_Dapper_SqlServer_HasShardingServiceCollectionExtensions()
     {
         VerifyExtensionClassExists(typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>).Assembly, "Encina.Dapper.SqlServer.Sharding");
     }
+
 
     [Fact]
     public void Contract_Dapper_PostgreSQL_HasShardingServiceCollectionExtensions()
@@ -93,11 +81,11 @@ public sealed class ShardingServiceRegistrationContractTests
     {
         var expectedNamespaces = new[]
         {
-            "Encina.ADO.Sqlite.Sharding",
+            "Encina.ADO.SqlServer.Sharding",
             "Encina.ADO.SqlServer.Sharding",
             "Encina.ADO.PostgreSQL.Sharding",
             "Encina.ADO.MySQL.Sharding",
-            "Encina.Dapper.Sqlite.Sharding",
+            "Encina.Dapper.SqlServer.Sharding",
             "Encina.Dapper.SqlServer.Sharding",
             "Encina.Dapper.PostgreSQL.Sharding",
             "Encina.Dapper.MySQL.Sharding",
@@ -107,11 +95,11 @@ public sealed class ShardingServiceRegistrationContractTests
 
         var repoTypes = new[]
         {
-            typeof(ADOSqliteSharding.FunctionalShardedRepositoryADO<,>),
+            typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>),
             typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>),
             typeof(ADOPostgreSQLSharding.FunctionalShardedRepositoryADO<,>),
             typeof(ADOMySQLSharding.FunctionalShardedRepositoryADO<,>),
-            typeof(DapperSqliteSharding.FunctionalShardedRepositoryDapper<,>),
+            typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>),
             typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>),
             typeof(DapperPostgreSQLSharding.FunctionalShardedRepositoryDapper<,>),
             typeof(DapperMySQLSharding.FunctionalShardedRepositoryDapper<,>),

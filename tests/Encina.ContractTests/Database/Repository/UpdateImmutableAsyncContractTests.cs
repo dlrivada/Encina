@@ -3,11 +3,9 @@ using LanguageExt;
 using Shouldly;
 using ADOMySQLRepo = Encina.ADO.MySQL.Repository;
 using ADOPostgreSQLRepo = Encina.ADO.PostgreSQL.Repository;
-using ADOSqliteRepo = Encina.ADO.Sqlite.Repository;
 using ADOSqlServerRepo = Encina.ADO.SqlServer.Repository;
 using DapperMySQLRepo = Encina.Dapper.MySQL.Repository;
 using DapperPostgreSQLRepo = Encina.Dapper.PostgreSQL.Repository;
-using DapperSqliteRepo = Encina.Dapper.Sqlite.Repository;
 using DapperSqlServerRepo = Encina.Dapper.SqlServer.Repository;
 using EfCoreRepo = Encina.EntityFrameworkCore.Repository;
 using MongoDBRepo = Encina.MongoDB.Repository;
@@ -108,7 +106,7 @@ public sealed class UpdateImmutableAsyncContractTests
         // Contract: All ADO.NET FunctionalRepository implementations must have identical signatures
         var adoTypes = new[]
         {
-            typeof(ADOSqliteRepo.FunctionalRepositoryADO<,>),
+            typeof(ADOSqlServerRepo.FunctionalRepositoryADO<,>),
             typeof(ADOSqlServerRepo.FunctionalRepositoryADO<,>),
             typeof(ADOPostgreSQLRepo.FunctionalRepositoryADO<,>),
             typeof(ADOMySQLRepo.FunctionalRepositoryADO<,>)
@@ -123,7 +121,7 @@ public sealed class UpdateImmutableAsyncContractTests
         // Contract: All Dapper FunctionalRepository implementations must have identical signatures
         var dapperTypes = new[]
         {
-            typeof(DapperSqliteRepo.FunctionalRepositoryDapper<,>),
+            typeof(DapperSqlServerRepo.FunctionalRepositoryDapper<,>),
             typeof(DapperSqlServerRepo.FunctionalRepositoryDapper<,>),
             typeof(DapperPostgreSQLRepo.FunctionalRepositoryDapper<,>),
             typeof(DapperMySQLRepo.FunctionalRepositoryDapper<,>)
@@ -138,8 +136,8 @@ public sealed class UpdateImmutableAsyncContractTests
         // Contract: All provider families (ADO, Dapper, EF Core, MongoDB) must have consistent signatures
         var representativeTypes = new[]
         {
-            typeof(ADOSqliteRepo.FunctionalRepositoryADO<,>),
-            typeof(DapperSqliteRepo.FunctionalRepositoryDapper<,>),
+            typeof(ADOSqlServerRepo.FunctionalRepositoryADO<,>),
+            typeof(DapperSqlServerRepo.FunctionalRepositoryDapper<,>),
             typeof(EfCoreRepo.FunctionalRepositoryEF<,>),
             typeof(MongoDBRepo.FunctionalRepositoryMongoDB<,>)
         };
@@ -156,12 +154,12 @@ public sealed class UpdateImmutableAsyncContractTests
         return
         [
             // ADO.NET providers (4)
-            typeof(ADOSqliteRepo.FunctionalRepositoryADO<,>),
+            typeof(ADOSqlServerRepo.FunctionalRepositoryADO<,>),
             typeof(ADOSqlServerRepo.FunctionalRepositoryADO<,>),
             typeof(ADOPostgreSQLRepo.FunctionalRepositoryADO<,>),
             typeof(ADOMySQLRepo.FunctionalRepositoryADO<,>),
             // Dapper providers (4)
-            typeof(DapperSqliteRepo.FunctionalRepositoryDapper<,>),
+            typeof(DapperSqlServerRepo.FunctionalRepositoryDapper<,>),
             typeof(DapperSqlServerRepo.FunctionalRepositoryDapper<,>),
             typeof(DapperPostgreSQLRepo.FunctionalRepositoryDapper<,>),
             typeof(DapperMySQLRepo.FunctionalRepositoryDapper<,>),

@@ -1,10 +1,8 @@
 using Encina.ADO.MySQL.Health;
 using Encina.ADO.PostgreSQL.Health;
-using Encina.ADO.Sqlite.Health;
 using Encina.ADO.SqlServer.Health;
 using Encina.Dapper.MySQL.Health;
 using Encina.Dapper.PostgreSQL.Health;
-using Encina.Dapper.Sqlite.Health;
 using Encina.Dapper.SqlServer.Health;
 using Encina.Database;
 using Encina.EntityFrameworkCore.Resilience;
@@ -22,14 +20,6 @@ namespace Encina.GuardTests.Database;
 public sealed class DatabaseHealthMonitorGuardsTests
 {
     #region ADO.NET Providers
-
-    [Fact]
-    public void SqliteDatabaseHealthMonitor_NullServiceProvider_ThrowsArgumentNullException()
-    {
-        // Act & Assert
-        var ex = Should.Throw<ArgumentNullException>(() => new SqliteDatabaseHealthMonitor(null!));
-        ex.ParamName.ShouldNotBeNull();
-    }
 
     [Fact]
     public void SqlServerDatabaseHealthMonitor_NullServiceProvider_ThrowsArgumentNullException()
@@ -60,20 +50,13 @@ public sealed class DatabaseHealthMonitorGuardsTests
     #region Dapper Providers
 
     [Fact]
-    public void DapperSqliteDatabaseHealthMonitor_NullServiceProvider_ThrowsArgumentNullException()
-    {
-        // Act & Assert
-        var ex = Should.Throw<ArgumentNullException>(() => new DapperSqliteDatabaseHealthMonitor(null!));
-        ex.ParamName.ShouldNotBeNull();
-    }
-
-    [Fact]
     public void DapperSqlServerDatabaseHealthMonitor_NullServiceProvider_ThrowsArgumentNullException()
     {
         // Act & Assert
         var ex = Should.Throw<ArgumentNullException>(() => new DapperSqlServerDatabaseHealthMonitor(null!));
         ex.ParamName.ShouldNotBeNull();
     }
+
 
     [Fact]
     public void DapperPostgreSqlDatabaseHealthMonitor_NullServiceProvider_ThrowsArgumentNullException()

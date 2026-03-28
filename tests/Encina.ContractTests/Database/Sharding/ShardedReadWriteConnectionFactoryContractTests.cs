@@ -3,11 +3,9 @@ using Encina.Sharding.Data;
 using Shouldly;
 using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
 using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
-using ADOSqliteSharding = Encina.ADO.Sqlite.Sharding;
 using ADOSqlServerSharding = Encina.ADO.SqlServer.Sharding;
 using DapperMySQLSharding = Encina.Dapper.MySQL.Sharding;
 using DapperPostgreSQLSharding = Encina.Dapper.PostgreSQL.Sharding;
-using DapperSqliteSharding = Encina.Dapper.Sqlite.Sharding;
 using DapperSqlServerSharding = Encina.Dapper.SqlServer.Sharding;
 
 namespace Encina.ContractTests.Database.Sharding;
@@ -26,16 +24,11 @@ public sealed class ShardedReadWriteConnectionFactoryContractTests
     #region ADO Providers Implement IShardedReadWriteConnectionFactory
 
     [Fact]
-    public void Contract_ADO_Sqlite_ImplementsIShardedReadWriteConnectionFactory()
-    {
-        VerifyImplementsBaseFactory(typeof(ADOSqliteSharding.ShardedReadWriteConnectionFactory));
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_ImplementsIShardedReadWriteConnectionFactory()
     {
         VerifyImplementsBaseFactory(typeof(ADOSqlServerSharding.ShardedReadWriteConnectionFactory));
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_ImplementsIShardedReadWriteConnectionFactory()
@@ -54,16 +47,11 @@ public sealed class ShardedReadWriteConnectionFactoryContractTests
     #region Dapper Providers Implement IShardedReadWriteConnectionFactory
 
     [Fact]
-    public void Contract_Dapper_Sqlite_ImplementsIShardedReadWriteConnectionFactory()
-    {
-        VerifyImplementsBaseFactory(typeof(DapperSqliteSharding.ShardedReadWriteConnectionFactory));
-    }
-
-    [Fact]
     public void Contract_Dapper_SqlServer_ImplementsIShardedReadWriteConnectionFactory()
     {
         VerifyImplementsBaseFactory(typeof(DapperSqlServerSharding.ShardedReadWriteConnectionFactory));
     }
+
 
     [Fact]
     public void Contract_Dapper_PostgreSQL_ImplementsIShardedReadWriteConnectionFactory()
@@ -82,16 +70,11 @@ public sealed class ShardedReadWriteConnectionFactoryContractTests
     #region ADO Providers Implement Generic IShardedReadWriteConnectionFactory<TConnection>
 
     [Fact]
-    public void Contract_ADO_Sqlite_ImplementsGenericShardedReadWriteConnectionFactory()
-    {
-        VerifyImplementsGenericFactory(typeof(ADOSqliteSharding.ShardedReadWriteConnectionFactory));
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_ImplementsGenericShardedReadWriteConnectionFactory()
     {
         VerifyImplementsGenericFactory(typeof(ADOSqlServerSharding.ShardedReadWriteConnectionFactory));
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_ImplementsGenericShardedReadWriteConnectionFactory()
@@ -115,7 +98,7 @@ public sealed class ShardedReadWriteConnectionFactoryContractTests
         // Dapper works with IDbConnection, so Dapper providers only implement the non-generic interface
         var dapperFactories = new[]
         {
-            typeof(DapperSqliteSharding.ShardedReadWriteConnectionFactory),
+            typeof(DapperSqlServerSharding.ShardedReadWriteConnectionFactory),
             typeof(DapperSqlServerSharding.ShardedReadWriteConnectionFactory),
             typeof(DapperPostgreSQLSharding.ShardedReadWriteConnectionFactory),
             typeof(DapperMySQLSharding.ShardedReadWriteConnectionFactory),
@@ -160,11 +143,11 @@ public sealed class ShardedReadWriteConnectionFactoryContractTests
     {
         var factories = new[]
         {
-            typeof(ADOSqliteSharding.ShardedReadWriteConnectionFactory),
+            typeof(ADOSqlServerSharding.ShardedReadWriteConnectionFactory),
             typeof(ADOSqlServerSharding.ShardedReadWriteConnectionFactory),
             typeof(ADOPostgreSQLSharding.ShardedReadWriteConnectionFactory),
             typeof(ADOMySQLSharding.ShardedReadWriteConnectionFactory),
-            typeof(DapperSqliteSharding.ShardedReadWriteConnectionFactory),
+            typeof(DapperSqlServerSharding.ShardedReadWriteConnectionFactory),
             typeof(DapperSqlServerSharding.ShardedReadWriteConnectionFactory),
             typeof(DapperPostgreSQLSharding.ShardedReadWriteConnectionFactory),
             typeof(DapperMySQLSharding.ShardedReadWriteConnectionFactory),

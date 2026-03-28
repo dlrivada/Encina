@@ -4,11 +4,9 @@ using Encina.Testing.Shouldly;
 using Shouldly;
 using ADOMySQLRepository = Encina.ADO.MySQL.Repository;
 using ADOPostgreSQLRepository = Encina.ADO.PostgreSQL.Repository;
-using ADOSqliteRepository = Encina.ADO.Sqlite.Repository;
 using ADOSqlServerRepository = Encina.ADO.SqlServer.Repository;
 using DapperMySQLRepository = Encina.Dapper.MySQL.Repository;
 using DapperPostgreSQLRepository = Encina.Dapper.PostgreSQL.Repository;
-using DapperSqliteRepository = Encina.Dapper.Sqlite.Repository;
 using DapperSqlServerRepository = Encina.Dapper.SqlServer.Repository;
 using EfCoreRepository = Encina.EntityFrameworkCore.Repository;
 using MongoDbRepository = Encina.MongoDB.Repository;
@@ -28,7 +26,7 @@ public sealed class RepositoryContractTests
     public void Contract_AllADOProviders_IEntityMapping_HaveIdenticalMembers()
     {
         // Contract: All ADO.NET providers must have identical IEntityMapping interface members
-        var adoSqliteType = typeof(ADOSqliteRepository.IEntityMapping<,>);
+        var adoSqliteType = typeof(ADOSqlServerRepository.IEntityMapping<,>);
         var adoSqlServerType = typeof(ADOSqlServerRepository.IEntityMapping<,>);
         var adoPostgresType = typeof(ADOPostgreSQLRepository.IEntityMapping<,>);
         var adoMySQLType = typeof(ADOMySQLRepository.IEntityMapping<,>);
@@ -41,19 +39,19 @@ public sealed class RepositoryContractTests
         VerifyInterfaceMembersMatch(adoSqliteType, adoMySQLType, "ADO.MySQL");
 
         // Verify required properties exist
-        referenceMembers.ShouldContain("TableName", "ADO.Sqlite.IEntityMapping must have TableName property");
-        referenceMembers.ShouldContain("IdColumnName", "ADO.Sqlite.IEntityMapping must have IdColumnName property");
-        referenceMembers.ShouldContain("ColumnMappings", "ADO.Sqlite.IEntityMapping must have ColumnMappings property");
-        referenceMembers.ShouldContain("GetId", "ADO.Sqlite.IEntityMapping must have GetId method");
-        referenceMembers.ShouldContain("InsertExcludedProperties", "ADO.Sqlite.IEntityMapping must have InsertExcludedProperties property");
-        referenceMembers.ShouldContain("UpdateExcludedProperties", "ADO.Sqlite.IEntityMapping must have UpdateExcludedProperties property");
+        referenceMembers.ShouldContain("TableName", "ADO.SqlServer.IEntityMapping must have TableName property");
+        referenceMembers.ShouldContain("IdColumnName", "ADO.SqlServer.IEntityMapping must have IdColumnName property");
+        referenceMembers.ShouldContain("ColumnMappings", "ADO.SqlServer.IEntityMapping must have ColumnMappings property");
+        referenceMembers.ShouldContain("GetId", "ADO.SqlServer.IEntityMapping must have GetId method");
+        referenceMembers.ShouldContain("InsertExcludedProperties", "ADO.SqlServer.IEntityMapping must have InsertExcludedProperties property");
+        referenceMembers.ShouldContain("UpdateExcludedProperties", "ADO.SqlServer.IEntityMapping must have UpdateExcludedProperties property");
     }
 
     [Fact]
     public void Contract_AllDapperProviders_IEntityMapping_HaveIdenticalMembers()
     {
         // Contract: All Dapper providers must have identical IEntityMapping interface members
-        var dapperSqliteType = typeof(DapperSqliteRepository.IEntityMapping<,>);
+        var dapperSqliteType = typeof(DapperSqlServerRepository.IEntityMapping<,>);
         var dapperSqlServerType = typeof(DapperSqlServerRepository.IEntityMapping<,>);
         var dapperPostgresType = typeof(DapperPostgreSQLRepository.IEntityMapping<,>);
         var dapperMySQLType = typeof(DapperMySQLRepository.IEntityMapping<,>);
@@ -68,10 +66,10 @@ public sealed class RepositoryContractTests
     public void Contract_ADOAndDapper_IEntityMapping_AreEquivalent()
     {
         // Contract: ADO and Dapper IEntityMapping interfaces must be equivalent
-        var adoType = typeof(ADOSqliteRepository.IEntityMapping<,>);
-        var dapperType = typeof(DapperSqliteRepository.IEntityMapping<,>);
+        var adoType = typeof(ADOSqlServerRepository.IEntityMapping<,>);
+        var dapperType = typeof(DapperSqlServerRepository.IEntityMapping<,>);
 
-        VerifyInterfaceMembersMatch(adoType, dapperType, "Dapper.Sqlite vs ADO.Sqlite");
+        VerifyInterfaceMembersMatch(adoType, dapperType, "Dapper.SqlServer vs ADO.SqlServer");
     }
 
     #endregion
@@ -82,7 +80,7 @@ public sealed class RepositoryContractTests
     public void Contract_AllADOProviders_EntityMappingBuilder_HaveIdenticalMethods()
     {
         // Contract: All ADO.NET providers must have identical EntityMappingBuilder methods
-        var adoSqliteType = typeof(ADOSqliteRepository.EntityMappingBuilder<,>);
+        var adoSqliteType = typeof(ADOSqlServerRepository.EntityMappingBuilder<,>);
         var adoSqlServerType = typeof(ADOSqlServerRepository.EntityMappingBuilder<,>);
         var adoPostgresType = typeof(ADOPostgreSQLRepository.EntityMappingBuilder<,>);
         var adoMySQLType = typeof(ADOMySQLRepository.EntityMappingBuilder<,>);
@@ -106,7 +104,7 @@ public sealed class RepositoryContractTests
     public void Contract_AllDapperProviders_EntityMappingBuilder_HaveIdenticalMethods()
     {
         // Contract: All Dapper providers must have identical EntityMappingBuilder methods
-        var dapperSqliteType = typeof(DapperSqliteRepository.EntityMappingBuilder<,>);
+        var dapperSqliteType = typeof(DapperSqlServerRepository.EntityMappingBuilder<,>);
         var dapperSqlServerType = typeof(DapperSqlServerRepository.EntityMappingBuilder<,>);
         var dapperPostgresType = typeof(DapperPostgreSQLRepository.EntityMappingBuilder<,>);
         var dapperMySQLType = typeof(DapperMySQLRepository.EntityMappingBuilder<,>);
@@ -121,33 +119,33 @@ public sealed class RepositoryContractTests
     public void Contract_ADOAndDapper_EntityMappingBuilder_AreEquivalent()
     {
         // Contract: ADO and Dapper EntityMappingBuilder classes must have equivalent APIs
-        var adoType = typeof(ADOSqliteRepository.EntityMappingBuilder<,>);
-        var dapperType = typeof(DapperSqliteRepository.EntityMappingBuilder<,>);
+        var adoType = typeof(ADOSqlServerRepository.EntityMappingBuilder<,>);
+        var dapperType = typeof(DapperSqlServerRepository.EntityMappingBuilder<,>);
 
-        VerifyPublicMethodsMatch(adoType, dapperType, "Dapper.Sqlite vs ADO.Sqlite");
+        VerifyPublicMethodsMatch(adoType, dapperType, "Dapper.SqlServer vs ADO.SqlServer");
     }
 
     [Fact]
     public void Contract_AllProviders_EntityMappingBuilder_ToTable_ReturnsSelf()
     {
         // Contract: ToTable must return the builder instance for fluent chaining
-        var adoSqlite = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
+        var adoSqlite = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var adoSqlServer = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var adoPostgres = new ADOPostgreSQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var adoMySQL = new ADOMySQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
 
-        var dapperSqlite = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
+        var dapperSqlite = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var dapperSqlServer = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var dapperPostgres = new DapperPostgreSQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
         var dapperMySQL = new DapperMySQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>();
 
         // All ToTable calls must return the same instance
-        adoSqlite.ToTable("Entities").ShouldBe(adoSqlite, "ADO.Sqlite ToTable must return self");
+        adoSqlite.ToTable("Entities").ShouldBe(adoSqlite, "ADO.SqlServer ToTable must return self");
         adoSqlServer.ToTable("Entities").ShouldBe(adoSqlServer, "ADO.SqlServer ToTable must return self");
         adoPostgres.ToTable("Entities").ShouldBe(adoPostgres, "ADO.PostgreSQL ToTable must return self");
         adoMySQL.ToTable("Entities").ShouldBe(adoMySQL, "ADO.MySQL ToTable must return self");
 
-        dapperSqlite.ToTable("Entities").ShouldBe(dapperSqlite, "Dapper.Sqlite ToTable must return self");
+        dapperSqlite.ToTable("Entities").ShouldBe(dapperSqlite, "Dapper.SqlServer ToTable must return self");
         dapperSqlServer.ToTable("Entities").ShouldBe(dapperSqlServer, "Dapper.SqlServer ToTable must return self");
         dapperPostgres.ToTable("Entities").ShouldBe(dapperPostgres, "Dapper.PostgreSQL ToTable must return self");
         dapperMySQL.ToTable("Entities").ShouldBe(dapperMySQL, "Dapper.MySQL ToTable must return self");
@@ -157,12 +155,12 @@ public sealed class RepositoryContractTests
     public void Contract_AllProviders_EntityMappingBuilder_Build_RequiresTableName()
     {
         // Contract: Build without ToTable must return an error
-        new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .HasId(e => e.Id)
             .Build()
             .ShouldBeErrorContaining("Table");
 
-        new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .HasId(e => e.Id)
             .Build()
             .ShouldBeErrorContaining("Table");
@@ -172,12 +170,12 @@ public sealed class RepositoryContractTests
     public void Contract_AllProviders_EntityMappingBuilder_Build_RequiresPrimaryKey()
     {
         // Contract: Build without HasId must return an error
-        new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities")
             .Build()
             .ShouldBeErrorContaining("Primary key");
 
-        new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities")
             .Build()
             .ShouldBeErrorContaining("Primary key");
@@ -187,10 +185,10 @@ public sealed class RepositoryContractTests
     public void Contract_AllProviders_EntityMappingBuilder_Build_ProducesValidMapping()
     {
         // Contract: Build with valid configuration must produce a working mapping
-        var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var adoSqliteMapping = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
-        var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var dapperSqliteMapping = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         var adoPostgresMapping = new ADOPostgreSQLRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
@@ -200,13 +198,13 @@ public sealed class RepositoryContractTests
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
         // Verify consistent behavior
-        adoSqliteMapping.TableName.ShouldBe("Entities", "ADO.Sqlite");
-        dapperSqliteMapping.TableName.ShouldBe("Entities", "Dapper.Sqlite");
+        adoSqliteMapping.TableName.ShouldBe("Entities", "ADO.SqlServer");
+        dapperSqliteMapping.TableName.ShouldBe("Entities", "Dapper.SqlServer");
         adoPostgresMapping.TableName.ShouldBe("Entities", "ADO.PostgreSQL");
         dapperPostgresMapping.TableName.ShouldBe("Entities", "Dapper.PostgreSQL");
 
-        adoSqliteMapping.IdColumnName.ShouldBe("Id", "ADO.Sqlite");
-        dapperSqliteMapping.IdColumnName.ShouldBe("Id", "Dapper.Sqlite");
+        adoSqliteMapping.IdColumnName.ShouldBe("Id", "ADO.SqlServer");
+        dapperSqliteMapping.IdColumnName.ShouldBe("Id", "Dapper.SqlServer");
         adoPostgresMapping.IdColumnName.ShouldBe("Id", "ADO.PostgreSQL");
         dapperPostgresMapping.IdColumnName.ShouldBe("Id", "Dapper.PostgreSQL");
     }
@@ -221,60 +219,60 @@ public sealed class RepositoryContractTests
             Name = "Test"
         };
 
-        var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var adoSqliteMapping = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
-        var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var dapperSqliteMapping = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
-        adoSqliteMapping.GetId(testEntity).ShouldBe(testEntity.Id, "ADO.Sqlite");
-        dapperSqliteMapping.GetId(testEntity).ShouldBe(testEntity.Id, "Dapper.Sqlite");
+        adoSqliteMapping.GetId(testEntity).ShouldBe(testEntity.Id, "ADO.SqlServer");
+        dapperSqliteMapping.GetId(testEntity).ShouldBe(testEntity.Id, "Dapper.SqlServer");
     }
 
     [Fact]
     public void Contract_AllProviders_EntityMappingBuilder_IdIsExcludedFromUpdates()
     {
         // Contract: HasId must automatically exclude ID from updates
-        var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var adoSqliteMapping = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
-        var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var dapperSqliteMapping = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name).Build().ShouldBeSuccess();
 
-        adoSqliteMapping.UpdateExcludedProperties.ShouldContain("Id", "ADO.Sqlite must exclude Id from updates");
-        dapperSqliteMapping.UpdateExcludedProperties.ShouldContain("Id", "Dapper.Sqlite must exclude Id from updates");
+        adoSqliteMapping.UpdateExcludedProperties.ShouldContain("Id", "ADO.SqlServer must exclude Id from updates");
+        dapperSqliteMapping.UpdateExcludedProperties.ShouldContain("Id", "Dapper.SqlServer must exclude Id from updates");
     }
 
     [Fact]
     public void Contract_AllProviders_EntityMappingBuilder_ExcludeFromInsert_Works()
     {
         // Contract: ExcludeFromInsert must work consistently
-        var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var adoSqliteMapping = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
             .ExcludeFromInsert(e => e.Id).Build().ShouldBeSuccess();
 
-        var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var dapperSqliteMapping = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
             .ExcludeFromInsert(e => e.Id).Build().ShouldBeSuccess();
 
-        adoSqliteMapping.InsertExcludedProperties.ShouldContain("Id", "ADO.Sqlite");
-        dapperSqliteMapping.InsertExcludedProperties.ShouldContain("Id", "Dapper.Sqlite");
+        adoSqliteMapping.InsertExcludedProperties.ShouldContain("Id", "ADO.SqlServer");
+        dapperSqliteMapping.InsertExcludedProperties.ShouldContain("Id", "Dapper.SqlServer");
     }
 
     [Fact]
     public void Contract_AllProviders_EntityMappingBuilder_ExcludeFromUpdate_Works()
     {
         // Contract: ExcludeFromUpdate must work consistently
-        var adoSqliteMapping = new ADOSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var adoSqliteMapping = new ADOSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
             .ExcludeFromUpdate(e => e.Name).Build().ShouldBeSuccess();
 
-        var dapperSqliteMapping = new DapperSqliteRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
+        var dapperSqliteMapping = new DapperSqlServerRepository.EntityMappingBuilder<ContractTestEntity, Guid>()
             .ToTable("Entities").HasId(e => e.Id).MapProperty(e => e.Name)
             .ExcludeFromUpdate(e => e.Name).Build().ShouldBeSuccess();
 
-        adoSqliteMapping.UpdateExcludedProperties.ShouldContain("Name", "ADO.Sqlite");
-        dapperSqliteMapping.UpdateExcludedProperties.ShouldContain("Name", "Dapper.Sqlite");
+        adoSqliteMapping.UpdateExcludedProperties.ShouldContain("Name", "ADO.SqlServer");
+        dapperSqliteMapping.UpdateExcludedProperties.ShouldContain("Name", "Dapper.SqlServer");
     }
 
     #endregion
@@ -285,9 +283,9 @@ public sealed class RepositoryContractTests
     public void Contract_AllProviders_FunctionalRepository_ImplementCorrectInterface()
     {
         // Contract: All FunctionalRepository implementations must implement IFunctionalRepository
-        typeof(ADOSqliteRepository.FunctionalRepositoryADO<,>).GetInterfaces()
+        typeof(ADOSqlServerRepository.FunctionalRepositoryADO<,>).GetInterfaces()
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
-            "ADO.Sqlite FunctionalRepositoryADO must implement IFunctionalRepository<,>");
+            "ADO.SqlServer FunctionalRepositoryADO must implement IFunctionalRepository<,>");
 
         typeof(ADOSqlServerRepository.FunctionalRepositoryADO<,>).GetInterfaces()
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
@@ -301,9 +299,9 @@ public sealed class RepositoryContractTests
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
             "ADO.MySQL FunctionalRepositoryADO must implement IFunctionalRepository<,>");
 
-        typeof(DapperSqliteRepository.FunctionalRepositoryDapper<,>).GetInterfaces()
+        typeof(DapperSqlServerRepository.FunctionalRepositoryDapper<,>).GetInterfaces()
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
-            "Dapper.Sqlite FunctionalRepositoryDapper must implement IFunctionalRepository<,>");
+            "Dapper.SqlServer FunctionalRepositoryDapper must implement IFunctionalRepository<,>");
 
         typeof(DapperSqlServerRepository.FunctionalRepositoryDapper<,>).GetInterfaces()
             .ShouldContain(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFunctionalRepository<,>),
@@ -330,22 +328,22 @@ public sealed class RepositoryContractTests
     public void Contract_AllProviders_FunctionalRepository_HaveConsistentGenericConstraints()
     {
         // Contract: All FunctionalRepository implementations must have the same generic constraints
-        var adoSqliteConstraints = GetGenericConstraints(typeof(ADOSqliteRepository.FunctionalRepositoryADO<,>));
+        var adoSqliteConstraints = GetGenericConstraints(typeof(ADOSqlServerRepository.FunctionalRepositoryADO<,>));
         var adoSqlServerConstraints = GetGenericConstraints(typeof(ADOSqlServerRepository.FunctionalRepositoryADO<,>));
-        var dapperSqliteConstraints = GetGenericConstraints(typeof(DapperSqliteRepository.FunctionalRepositoryDapper<,>));
+        var dapperSqliteConstraints = GetGenericConstraints(typeof(DapperSqlServerRepository.FunctionalRepositoryDapper<,>));
         var efCoreConstraints = GetGenericConstraints(typeof(EfCoreRepository.FunctionalRepositoryEF<,>));
         var mongoDbConstraints = GetGenericConstraints(typeof(MongoDbRepository.FunctionalRepositoryMongoDB<,>));
 
         // TEntity constraints: class (and potentially new() for ADO/Dapper)
-        adoSqliteConstraints.EntityConstraints.ShouldContain("class", "ADO.Sqlite TEntity must be class");
+        adoSqliteConstraints.EntityConstraints.ShouldContain("class", "ADO.SqlServer TEntity must be class");
         adoSqlServerConstraints.EntityConstraints.ShouldContain("class", "ADO.SqlServer TEntity must be class");
-        dapperSqliteConstraints.EntityConstraints.ShouldContain("class", "Dapper.Sqlite TEntity must be class");
+        dapperSqliteConstraints.EntityConstraints.ShouldContain("class", "Dapper.SqlServer TEntity must be class");
         efCoreConstraints.EntityConstraints.ShouldContain("class", "EfCore TEntity must be class");
         mongoDbConstraints.EntityConstraints.ShouldContain("class", "MongoDB TEntity must be class");
 
         // TId constraints: notnull
-        adoSqliteConstraints.IdConstraints.ShouldContain("notnull", "ADO.Sqlite TId must be notnull");
-        dapperSqliteConstraints.IdConstraints.ShouldContain("notnull", "Dapper.Sqlite TId must be notnull");
+        adoSqliteConstraints.IdConstraints.ShouldContain("notnull", "ADO.SqlServer TId must be notnull");
+        dapperSqliteConstraints.IdConstraints.ShouldContain("notnull", "Dapper.SqlServer TId must be notnull");
         efCoreConstraints.IdConstraints.ShouldContain("notnull", "EfCore TId must be notnull");
         mongoDbConstraints.IdConstraints.ShouldContain("notnull", "MongoDB TId must be notnull");
     }
@@ -358,7 +356,7 @@ public sealed class RepositoryContractTests
     public void Contract_AllADOProviders_SpecificationSqlBuilder_HaveIdenticalMethods()
     {
         // Contract: All ADO.NET providers must have identical SpecificationSqlBuilder methods
-        var adoSqliteType = typeof(ADOSqliteRepository.SpecificationSqlBuilder<>);
+        var adoSqliteType = typeof(ADOSqlServerRepository.SpecificationSqlBuilder<>);
         var adoSqlServerType = typeof(ADOSqlServerRepository.SpecificationSqlBuilder<>);
         var adoPostgresType = typeof(ADOPostgreSQLRepository.SpecificationSqlBuilder<>);
         var adoMySQLType = typeof(ADOMySQLRepository.SpecificationSqlBuilder<>);
@@ -380,7 +378,7 @@ public sealed class RepositoryContractTests
     public void Contract_AllDapperProviders_SpecificationSqlBuilder_HaveIdenticalMethods()
     {
         // Contract: All Dapper providers must have identical SpecificationSqlBuilder methods
-        var dapperSqliteType = typeof(DapperSqliteRepository.SpecificationSqlBuilder<>);
+        var dapperSqliteType = typeof(DapperSqlServerRepository.SpecificationSqlBuilder<>);
         var dapperSqlServerType = typeof(DapperSqlServerRepository.SpecificationSqlBuilder<>);
         var dapperPostgresType = typeof(DapperPostgreSQLRepository.SpecificationSqlBuilder<>);
         var dapperMySQLType = typeof(DapperMySQLRepository.SpecificationSqlBuilder<>);
@@ -395,10 +393,10 @@ public sealed class RepositoryContractTests
     public void Contract_ADOAndDapper_SpecificationSqlBuilder_AreEquivalent()
     {
         // Contract: ADO and Dapper SpecificationSqlBuilder classes must have equivalent APIs
-        var adoType = typeof(ADOSqliteRepository.SpecificationSqlBuilder<>);
-        var dapperType = typeof(DapperSqliteRepository.SpecificationSqlBuilder<>);
+        var adoType = typeof(ADOSqlServerRepository.SpecificationSqlBuilder<>);
+        var dapperType = typeof(DapperSqlServerRepository.SpecificationSqlBuilder<>);
 
-        VerifyPublicMethodsMatch(adoType, dapperType, "Dapper.Sqlite vs ADO.Sqlite SpecificationSqlBuilder");
+        VerifyPublicMethodsMatch(adoType, dapperType, "Dapper.SqlServer vs ADO.SqlServer SpecificationSqlBuilder");
     }
 
     #endregion
@@ -455,7 +453,7 @@ public sealed class RepositoryContractTests
         // Contract: All ADO.NET providers must use consistent class naming
         var providers = new[]
         {
-            (typeof(ADOSqliteRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.Sqlite"),
+            (typeof(ADOSqlServerRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.SqlServer"),
             (typeof(ADOSqlServerRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.SqlServer"),
             (typeof(ADOPostgreSQLRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.PostgreSQL"),
             (typeof(ADOMySQLRepository.FunctionalRepositoryADO<,>).Assembly, "ADO.MySQL"),
@@ -484,7 +482,7 @@ public sealed class RepositoryContractTests
         // Contract: All Dapper providers must use consistent class naming
         var providers = new[]
         {
-            (typeof(DapperSqliteRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.Sqlite"),
+            (typeof(DapperSqlServerRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.SqlServer"),
             (typeof(DapperSqlServerRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.SqlServer"),
             (typeof(DapperPostgreSQLRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.PostgreSQL"),
             (typeof(DapperMySQLRepository.FunctionalRepositoryDapper<,>).Assembly, "Dapper.MySQL"),

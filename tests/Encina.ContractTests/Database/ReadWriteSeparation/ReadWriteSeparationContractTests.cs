@@ -6,11 +6,9 @@ using Xunit;
 using ADOMySQLRW = Encina.ADO.MySQL.ReadWriteSeparation;
 using ADOPostgreSQLRW = Encina.ADO.PostgreSQL.ReadWriteSeparation;
 // Provider-specific aliases for factories
-using ADOSqliteRW = Encina.ADO.Sqlite.ReadWriteSeparation;
 using ADOSqlServerRW = Encina.ADO.SqlServer.ReadWriteSeparation;
 using DapperMySQLRW = Encina.Dapper.MySQL.ReadWriteSeparation;
 using DapperPostgreSQLRW = Encina.Dapper.PostgreSQL.ReadWriteSeparation;
-using DapperSqliteRW = Encina.Dapper.Sqlite.ReadWriteSeparation;
 using DapperSqlServerRW = Encina.Dapper.SqlServer.ReadWriteSeparation;
 using EntityFrameworkCoreRW = Encina.EntityFrameworkCore.ReadWriteSeparation;
 
@@ -38,15 +36,6 @@ public sealed class ReadWriteSeparationContractTests
     #region Interface Implementation Tests - ADO Providers
 
     [Fact]
-    public void ADOSqlite_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
-    {
-        // Assert
-        typeof(ADOSqliteRW.IReadWriteConnectionFactory).IsAssignableFrom(
-            typeof(ADOSqliteRW.ReadWriteConnectionFactory)).ShouldBeTrue(
-            "ADO.Sqlite.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
-    }
-
-    [Fact]
     public void ADOSqlServer_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
     {
         // Assert
@@ -54,6 +43,7 @@ public sealed class ReadWriteSeparationContractTests
             typeof(ADOSqlServerRW.ReadWriteConnectionFactory)).ShouldBeTrue(
             "ADO.SqlServer.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
     }
+
 
     [Fact]
     public void ADOPostgreSQL_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
@@ -78,15 +68,6 @@ public sealed class ReadWriteSeparationContractTests
     #region Interface Implementation Tests - Dapper Providers
 
     [Fact]
-    public void DapperSqlite_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
-    {
-        // Assert
-        typeof(DapperSqliteRW.IReadWriteConnectionFactory).IsAssignableFrom(
-            typeof(DapperSqliteRW.ReadWriteConnectionFactory)).ShouldBeTrue(
-            "Dapper.Sqlite.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
-    }
-
-    [Fact]
     public void DapperSqlServer_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
     {
         // Assert
@@ -94,6 +75,7 @@ public sealed class ReadWriteSeparationContractTests
             typeof(DapperSqlServerRW.ReadWriteConnectionFactory)).ShouldBeTrue(
             "Dapper.SqlServer.ReadWriteConnectionFactory must implement IReadWriteConnectionFactory");
     }
+
 
     [Fact]
     public void DapperPostgreSQL_ReadWriteConnectionFactory_ImplementsIReadWriteConnectionFactory()
@@ -133,11 +115,11 @@ public sealed class ReadWriteSeparationContractTests
     #region Consistent Method Signatures - IReadWriteConnectionFactory
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
@@ -153,11 +135,11 @@ public sealed class ReadWriteSeparationContractTests
     }
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
@@ -173,11 +155,11 @@ public sealed class ReadWriteSeparationContractTests
     }
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
@@ -193,11 +175,11 @@ public sealed class ReadWriteSeparationContractTests
     }
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
@@ -213,11 +195,11 @@ public sealed class ReadWriteSeparationContractTests
     }
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.IReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperSqliteRW.IReadWriteConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.IReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.IReadWriteConnectionFactory))]
@@ -237,20 +219,13 @@ public sealed class ReadWriteSeparationContractTests
     #region Health Check Implementations
 
     [Fact]
-    public void ADOSqlite_HasHealthCheckWithCorrectName()
-    {
-        // Assert
-        ADOSqliteRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-ado-sqlite");
-    }
-
-    [Fact]
     public void ADOSqlServer_HasHealthCheckWithCorrectName()
     {
         // Assert
         ADOSqlServerRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-ado");
+            "encina-read-write-separation-ado-SqlServer");
     }
+
 
     [Fact]
     public void ADOPostgreSQL_HasHealthCheckWithCorrectName()
@@ -269,20 +244,13 @@ public sealed class ReadWriteSeparationContractTests
     }
 
     [Fact]
-    public void DapperSqlite_HasHealthCheckWithCorrectName()
-    {
-        // Assert
-        DapperSqliteRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-dapper-sqlite");
-    }
-
-    [Fact]
     public void DapperSqlServer_HasHealthCheckWithCorrectName()
     {
         // Assert
         DapperSqlServerRW.ReadWriteSeparationHealthCheck.DefaultName.ShouldBe(
-            "encina-read-write-separation-dapper");
+            "encina-read-write-separation-dapper-SqlServer");
     }
+
 
     [Fact]
     public void DapperPostgreSQL_HasHealthCheckWithCorrectName()
@@ -305,11 +273,11 @@ public sealed class ReadWriteSeparationContractTests
     #region Pipeline Behavior Implementations
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.ReadWriteRoutingPipelineBehavior<,>))]
+    [InlineData(typeof(ADOSqlServerRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(ADOSqlServerRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(ADOPostgreSQLRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(ADOMySQLRW.ReadWriteRoutingPipelineBehavior<,>))]
-    [InlineData(typeof(DapperSqliteRW.ReadWriteRoutingPipelineBehavior<,>))]
+    [InlineData(typeof(DapperSqlServerRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(DapperSqlServerRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(DapperPostgreSQLRW.ReadWriteRoutingPipelineBehavior<,>))]
     [InlineData(typeof(DapperMySQLRW.ReadWriteRoutingPipelineBehavior<,>))]
@@ -328,11 +296,11 @@ public sealed class ReadWriteSeparationContractTests
     #region Factory Implementation Consistency
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.ReadWriteConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.ReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperSqliteRW.ReadWriteConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.ReadWriteConnectionFactory))]
@@ -343,11 +311,11 @@ public sealed class ReadWriteSeparationContractTests
     }
 
     [Theory]
-    [InlineData(typeof(ADOSqliteRW.ReadWriteConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(ADOMySQLRW.ReadWriteConnectionFactory))]
-    [InlineData(typeof(DapperSqliteRW.ReadWriteConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperSqlServerRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLRW.ReadWriteConnectionFactory))]
     [InlineData(typeof(DapperMySQLRW.ReadWriteConnectionFactory))]

@@ -2,11 +2,9 @@ using System.Reflection;
 
 using Encina.ADO.MySQL.Health;
 using Encina.ADO.PostgreSQL.Health;
-using Encina.ADO.Sqlite.Health;
 using Encina.ADO.SqlServer.Health;
 using Encina.Dapper.MySQL.Health;
 using Encina.Dapper.PostgreSQL.Health;
-using Encina.Dapper.Sqlite.Health;
 using Encina.Dapper.SqlServer.Health;
 using Encina.Database;
 using Encina.EntityFrameworkCore.Resilience;
@@ -31,12 +29,12 @@ public sealed class DatabaseHealthMonitorContractTests
     private static readonly Type[] AllMonitorTypes =
     [
         // ADO.NET (4)
-        typeof(SqliteDatabaseHealthMonitor),
+        typeof(SqlServerDatabaseHealthMonitor),
         typeof(SqlServerDatabaseHealthMonitor),
         typeof(PostgreSqlDatabaseHealthMonitor),
         typeof(MySqlDatabaseHealthMonitor),
         // Dapper (4)
-        typeof(DapperSqliteDatabaseHealthMonitor),
+        typeof(DapperSqlServerDatabaseHealthMonitor),
         typeof(DapperSqlServerDatabaseHealthMonitor),
         typeof(DapperPostgreSqlDatabaseHealthMonitor),
         typeof(DapperMySqlDatabaseHealthMonitor),
@@ -51,11 +49,11 @@ public sealed class DatabaseHealthMonitorContractTests
     /// </summary>
     private static readonly Type[] BaseClassMonitorTypes =
     [
-        typeof(SqliteDatabaseHealthMonitor),
+        typeof(SqlServerDatabaseHealthMonitor),
         typeof(SqlServerDatabaseHealthMonitor),
         typeof(PostgreSqlDatabaseHealthMonitor),
         typeof(MySqlDatabaseHealthMonitor),
-        typeof(DapperSqliteDatabaseHealthMonitor),
+        typeof(DapperSqlServerDatabaseHealthMonitor),
         typeof(DapperSqlServerDatabaseHealthMonitor),
         typeof(DapperPostgreSqlDatabaseHealthMonitor),
         typeof(DapperMySqlDatabaseHealthMonitor),
@@ -67,8 +65,8 @@ public sealed class DatabaseHealthMonitorContractTests
     /// </summary>
     private static readonly string[] ExpectedProviderNames =
     [
-        "ado-sqlite", "ado-sqlserver", "ado-postgresql", "ado-mysql",
-        "dapper-sqlite", "dapper-sqlserver", "dapper-postgresql", "dapper-mysql",
+        "ado-SqlServer", "ado-sqlserver", "ado-postgresql", "ado-mysql",
+        "dapper-SqlServer", "dapper-sqlserver", "dapper-postgresql", "dapper-mysql",
         "efcore",
         "mongodb",
     ];
@@ -189,7 +187,7 @@ public sealed class DatabaseHealthMonitorContractTests
     {
         var adoTypes = new[]
         {
-            typeof(SqliteDatabaseHealthMonitor),
+            typeof(SqlServerDatabaseHealthMonitor),
             typeof(SqlServerDatabaseHealthMonitor),
             typeof(PostgreSqlDatabaseHealthMonitor),
             typeof(MySqlDatabaseHealthMonitor),
@@ -212,7 +210,7 @@ public sealed class DatabaseHealthMonitorContractTests
     {
         var dapperTypes = new[]
         {
-            typeof(DapperSqliteDatabaseHealthMonitor),
+            typeof(DapperSqlServerDatabaseHealthMonitor),
             typeof(DapperSqlServerDatabaseHealthMonitor),
             typeof(DapperPostgreSqlDatabaseHealthMonitor),
             typeof(DapperMySqlDatabaseHealthMonitor),

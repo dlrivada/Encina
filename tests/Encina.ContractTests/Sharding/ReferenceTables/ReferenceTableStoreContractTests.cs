@@ -3,11 +3,9 @@ using Encina.Sharding.ReferenceTables;
 using Shouldly;
 using ADOMySQLRefTable = Encina.ADO.MySQL.Sharding.ReferenceTables;
 using ADOPostgreSQLRefTable = Encina.ADO.PostgreSQL.Sharding.ReferenceTables;
-using ADOSqliteRefTable = Encina.ADO.Sqlite.Sharding.ReferenceTables;
 using ADOSqlServerRefTable = Encina.ADO.SqlServer.Sharding.ReferenceTables;
 using DapperMySQLRefTable = Encina.Dapper.MySQL.Sharding.ReferenceTables;
 using DapperPostgreSQLRefTable = Encina.Dapper.PostgreSQL.Sharding.ReferenceTables;
-using DapperSqliteRefTable = Encina.Dapper.Sqlite.Sharding.ReferenceTables;
 using DapperSqlServerRefTable = Encina.Dapper.SqlServer.Sharding.ReferenceTables;
 using EFCoreRefTable = Encina.EntityFrameworkCore.Sharding.ReferenceTables;
 using MongoDBRefTable = Encina.MongoDB.Sharding.ReferenceTables;
@@ -112,15 +110,6 @@ public sealed class ReferenceTableStoreContractTests
     #region All ADO Providers Implement IReferenceTableStoreFactory
 
     [Fact]
-    public void Contract_ADO_Sqlite_Factory_ImplementsIReferenceTableStoreFactory()
-    {
-        VerifyImplementsInterface(
-            typeof(ADOSqliteRefTable.ReferenceTableStoreFactoryADO),
-            FactoryInterfaceType,
-            "ADO.Sqlite");
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_Factory_ImplementsIReferenceTableStoreFactory()
     {
         VerifyImplementsInterface(
@@ -128,6 +117,7 @@ public sealed class ReferenceTableStoreContractTests
             FactoryInterfaceType,
             "ADO.SqlServer");
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_Factory_ImplementsIReferenceTableStoreFactory()
@@ -152,15 +142,6 @@ public sealed class ReferenceTableStoreContractTests
     #region All Dapper Providers Implement IReferenceTableStoreFactory
 
     [Fact]
-    public void Contract_Dapper_Sqlite_Factory_ImplementsIReferenceTableStoreFactory()
-    {
-        VerifyImplementsInterface(
-            typeof(DapperSqliteRefTable.ReferenceTableStoreFactoryDapper),
-            FactoryInterfaceType,
-            "Dapper.Sqlite");
-    }
-
-    [Fact]
     public void Contract_Dapper_SqlServer_Factory_ImplementsIReferenceTableStoreFactory()
     {
         VerifyImplementsInterface(
@@ -168,6 +149,7 @@ public sealed class ReferenceTableStoreContractTests
             FactoryInterfaceType,
             "Dapper.SqlServer");
     }
+
 
     [Fact]
     public void Contract_Dapper_PostgreSQL_Factory_ImplementsIReferenceTableStoreFactory()
@@ -216,15 +198,6 @@ public sealed class ReferenceTableStoreContractTests
     #region All ADO Providers Implement IReferenceTableStore
 
     [Fact]
-    public void Contract_ADO_Sqlite_Store_ImplementsIReferenceTableStore()
-    {
-        VerifyImplementsInterface(
-            typeof(ADOSqliteRefTable.ReferenceTableStoreADO),
-            StoreInterfaceType,
-            "ADO.Sqlite");
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_Store_ImplementsIReferenceTableStore()
     {
         VerifyImplementsInterface(
@@ -232,6 +205,7 @@ public sealed class ReferenceTableStoreContractTests
             StoreInterfaceType,
             "ADO.SqlServer");
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_Store_ImplementsIReferenceTableStore()
@@ -256,15 +230,6 @@ public sealed class ReferenceTableStoreContractTests
     #region All Dapper Providers Implement IReferenceTableStore
 
     [Fact]
-    public void Contract_Dapper_Sqlite_Store_ImplementsIReferenceTableStore()
-    {
-        VerifyImplementsInterface(
-            typeof(DapperSqliteRefTable.ReferenceTableStoreDapper),
-            StoreInterfaceType,
-            "Dapper.Sqlite");
-    }
-
-    [Fact]
     public void Contract_Dapper_SqlServer_Store_ImplementsIReferenceTableStore()
     {
         VerifyImplementsInterface(
@@ -272,6 +237,7 @@ public sealed class ReferenceTableStoreContractTests
             StoreInterfaceType,
             "Dapper.SqlServer");
     }
+
 
     [Fact]
     public void Contract_Dapper_PostgreSQL_Store_ImplementsIReferenceTableStore()
@@ -320,8 +286,8 @@ public sealed class ReferenceTableStoreContractTests
     [Fact]
     public void Contract_AllStoreImplementations_HaveConsistentPublicMethods()
     {
-        // Use the ADO.Sqlite store as the reference implementation
-        var referenceType = typeof(ADOSqliteRefTable.ReferenceTableStoreADO);
+        // Use the ADO.SqlServer store as the reference implementation
+        var referenceType = typeof(ADOSqlServerRefTable.ReferenceTableStoreADO);
         var referenceMethods = GetPublicInstanceMethods(referenceType);
 
         var storeTypes = new (Type Type, string Name)[]
@@ -329,7 +295,7 @@ public sealed class ReferenceTableStoreContractTests
             (typeof(ADOSqlServerRefTable.ReferenceTableStoreADO), "ADO.SqlServer"),
             (typeof(ADOPostgreSQLRefTable.ReferenceTableStoreADO), "ADO.PostgreSQL"),
             (typeof(ADOMySQLRefTable.ReferenceTableStoreADO), "ADO.MySQL"),
-            (typeof(DapperSqliteRefTable.ReferenceTableStoreDapper), "Dapper.Sqlite"),
+            (typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper), "Dapper.SqlServer"),
             (typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper), "Dapper.SqlServer"),
             (typeof(DapperPostgreSQLRefTable.ReferenceTableStoreDapper), "Dapper.PostgreSQL"),
             (typeof(DapperMySQLRefTable.ReferenceTableStoreDapper), "Dapper.MySQL"),
@@ -344,7 +310,7 @@ public sealed class ReferenceTableStoreContractTests
             foreach (var method in referenceMethods)
             {
                 storeMethods.ShouldContain(method,
-                    $"{providerName} ReferenceTableStore is missing method '{method}' present in ADO.Sqlite reference");
+                    $"{providerName} ReferenceTableStore is missing method '{method}' present in ADO.SqlServer reference");
             }
         }
     }
@@ -352,8 +318,8 @@ public sealed class ReferenceTableStoreContractTests
     [Fact]
     public void Contract_AllFactoryImplementations_HaveConsistentPublicMethods()
     {
-        // Use the ADO.Sqlite factory as the reference implementation
-        var referenceType = typeof(ADOSqliteRefTable.ReferenceTableStoreFactoryADO);
+        // Use the ADO.SqlServer factory as the reference implementation
+        var referenceType = typeof(ADOSqlServerRefTable.ReferenceTableStoreFactoryADO);
         var referenceMethods = GetPublicInstanceMethods(referenceType);
 
         var factoryTypes = new (Type Type, string Name)[]
@@ -361,7 +327,7 @@ public sealed class ReferenceTableStoreContractTests
             (typeof(ADOSqlServerRefTable.ReferenceTableStoreFactoryADO), "ADO.SqlServer"),
             (typeof(ADOPostgreSQLRefTable.ReferenceTableStoreFactoryADO), "ADO.PostgreSQL"),
             (typeof(ADOMySQLRefTable.ReferenceTableStoreFactoryADO), "ADO.MySQL"),
-            (typeof(DapperSqliteRefTable.ReferenceTableStoreFactoryDapper), "Dapper.Sqlite"),
+            (typeof(DapperSqlServerRefTable.ReferenceTableStoreFactoryDapper), "Dapper.SqlServer"),
             (typeof(DapperSqlServerRefTable.ReferenceTableStoreFactoryDapper), "Dapper.SqlServer"),
             (typeof(DapperPostgreSQLRefTable.ReferenceTableStoreFactoryDapper), "Dapper.PostgreSQL"),
             (typeof(DapperMySQLRefTable.ReferenceTableStoreFactoryDapper), "Dapper.MySQL"),
@@ -375,7 +341,7 @@ public sealed class ReferenceTableStoreContractTests
             foreach (var method in referenceMethods)
             {
                 factoryMethods.ShouldContain(method,
-                    $"{providerName} ReferenceTableStoreFactory is missing method '{method}' present in ADO.Sqlite reference");
+                    $"{providerName} ReferenceTableStoreFactory is missing method '{method}' present in ADO.SqlServer reference");
             }
         }
     }
@@ -389,11 +355,11 @@ public sealed class ReferenceTableStoreContractTests
     {
         var storeTypes = new (Type Type, string Name)[]
         {
-            (typeof(ADOSqliteRefTable.ReferenceTableStoreADO), "ADO.Sqlite"),
+            (typeof(ADOSqlServerRefTable.ReferenceTableStoreADO), "ADO.SqlServer"),
             (typeof(ADOSqlServerRefTable.ReferenceTableStoreADO), "ADO.SqlServer"),
             (typeof(ADOPostgreSQLRefTable.ReferenceTableStoreADO), "ADO.PostgreSQL"),
             (typeof(ADOMySQLRefTable.ReferenceTableStoreADO), "ADO.MySQL"),
-            (typeof(DapperSqliteRefTable.ReferenceTableStoreDapper), "Dapper.Sqlite"),
+            (typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper), "Dapper.SqlServer"),
             (typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper), "Dapper.SqlServer"),
             (typeof(DapperPostgreSQLRefTable.ReferenceTableStoreDapper), "Dapper.PostgreSQL"),
             (typeof(DapperMySQLRefTable.ReferenceTableStoreDapper), "Dapper.MySQL"),
@@ -413,11 +379,11 @@ public sealed class ReferenceTableStoreContractTests
     {
         var factoryTypes = new (Type Type, string Name)[]
         {
-            (typeof(ADOSqliteRefTable.ReferenceTableStoreFactoryADO), "ADO.Sqlite"),
+            (typeof(ADOSqlServerRefTable.ReferenceTableStoreFactoryADO), "ADO.SqlServer"),
             (typeof(ADOSqlServerRefTable.ReferenceTableStoreFactoryADO), "ADO.SqlServer"),
             (typeof(ADOPostgreSQLRefTable.ReferenceTableStoreFactoryADO), "ADO.PostgreSQL"),
             (typeof(ADOMySQLRefTable.ReferenceTableStoreFactoryADO), "ADO.MySQL"),
-            (typeof(DapperSqliteRefTable.ReferenceTableStoreFactoryDapper), "Dapper.Sqlite"),
+            (typeof(DapperSqlServerRefTable.ReferenceTableStoreFactoryDapper), "Dapper.SqlServer"),
             (typeof(DapperSqlServerRefTable.ReferenceTableStoreFactoryDapper), "Dapper.SqlServer"),
             (typeof(DapperPostgreSQLRefTable.ReferenceTableStoreFactoryDapper), "Dapper.PostgreSQL"),
             (typeof(DapperMySQLRefTable.ReferenceTableStoreFactoryDapper), "Dapper.MySQL"),
@@ -439,7 +405,7 @@ public sealed class ReferenceTableStoreContractTests
     [Fact]
     public void Contract_AllADOProviders_UseReferenceTableStoreADONaming()
     {
-        typeof(ADOSqliteRefTable.ReferenceTableStoreADO).Name.ShouldBe("ReferenceTableStoreADO");
+        typeof(ADOSqlServerRefTable.ReferenceTableStoreADO).Name.ShouldBe("ReferenceTableStoreADO");
         typeof(ADOSqlServerRefTable.ReferenceTableStoreADO).Name.ShouldBe("ReferenceTableStoreADO");
         typeof(ADOPostgreSQLRefTable.ReferenceTableStoreADO).Name.ShouldBe("ReferenceTableStoreADO");
         typeof(ADOMySQLRefTable.ReferenceTableStoreADO).Name.ShouldBe("ReferenceTableStoreADO");
@@ -448,7 +414,7 @@ public sealed class ReferenceTableStoreContractTests
     [Fact]
     public void Contract_AllADOProviders_UseReferenceTableStoreFactoryADONaming()
     {
-        typeof(ADOSqliteRefTable.ReferenceTableStoreFactoryADO).Name.ShouldBe("ReferenceTableStoreFactoryADO");
+        typeof(ADOSqlServerRefTable.ReferenceTableStoreFactoryADO).Name.ShouldBe("ReferenceTableStoreFactoryADO");
         typeof(ADOSqlServerRefTable.ReferenceTableStoreFactoryADO).Name.ShouldBe("ReferenceTableStoreFactoryADO");
         typeof(ADOPostgreSQLRefTable.ReferenceTableStoreFactoryADO).Name.ShouldBe("ReferenceTableStoreFactoryADO");
         typeof(ADOMySQLRefTable.ReferenceTableStoreFactoryADO).Name.ShouldBe("ReferenceTableStoreFactoryADO");
@@ -457,7 +423,7 @@ public sealed class ReferenceTableStoreContractTests
     [Fact]
     public void Contract_AllDapperProviders_UseReferenceTableStoreDapperNaming()
     {
-        typeof(DapperSqliteRefTable.ReferenceTableStoreDapper).Name.ShouldBe("ReferenceTableStoreDapper");
+        typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper).Name.ShouldBe("ReferenceTableStoreDapper");
         typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper).Name.ShouldBe("ReferenceTableStoreDapper");
         typeof(DapperPostgreSQLRefTable.ReferenceTableStoreDapper).Name.ShouldBe("ReferenceTableStoreDapper");
         typeof(DapperMySQLRefTable.ReferenceTableStoreDapper).Name.ShouldBe("ReferenceTableStoreDapper");
@@ -466,7 +432,7 @@ public sealed class ReferenceTableStoreContractTests
     [Fact]
     public void Contract_AllDapperProviders_UseReferenceTableStoreFactoryDapperNaming()
     {
-        typeof(DapperSqliteRefTable.ReferenceTableStoreFactoryDapper).Name.ShouldBe("ReferenceTableStoreFactoryDapper");
+        typeof(DapperSqlServerRefTable.ReferenceTableStoreFactoryDapper).Name.ShouldBe("ReferenceTableStoreFactoryDapper");
         typeof(DapperSqlServerRefTable.ReferenceTableStoreFactoryDapper).Name.ShouldBe("ReferenceTableStoreFactoryDapper");
         typeof(DapperPostgreSQLRefTable.ReferenceTableStoreFactoryDapper).Name.ShouldBe("ReferenceTableStoreFactoryDapper");
         typeof(DapperMySQLRefTable.ReferenceTableStoreFactoryDapper).Name.ShouldBe("ReferenceTableStoreFactoryDapper");
@@ -497,11 +463,11 @@ public sealed class ReferenceTableStoreContractTests
 
         var types = new (Type Type, string Provider)[]
         {
-            (typeof(ADOSqliteRefTable.ReferenceTableStoreADO), "ADO.Sqlite"),
+            (typeof(ADOSqlServerRefTable.ReferenceTableStoreADO), "ADO.SqlServer"),
             (typeof(ADOSqlServerRefTable.ReferenceTableStoreADO), "ADO.SqlServer"),
             (typeof(ADOPostgreSQLRefTable.ReferenceTableStoreADO), "ADO.PostgreSQL"),
             (typeof(ADOMySQLRefTable.ReferenceTableStoreADO), "ADO.MySQL"),
-            (typeof(DapperSqliteRefTable.ReferenceTableStoreDapper), "Dapper.Sqlite"),
+            (typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper), "Dapper.SqlServer"),
             (typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper), "Dapper.SqlServer"),
             (typeof(DapperPostgreSQLRefTable.ReferenceTableStoreDapper), "Dapper.PostgreSQL"),
             (typeof(DapperMySQLRefTable.ReferenceTableStoreDapper), "Dapper.MySQL"),
@@ -528,11 +494,11 @@ public sealed class ReferenceTableStoreContractTests
         // that contain IReferenceTableStore implementations
         var storeImplementations = new[]
         {
-            typeof(ADOSqliteRefTable.ReferenceTableStoreADO),
+            typeof(ADOSqlServerRefTable.ReferenceTableStoreADO),
             typeof(ADOSqlServerRefTable.ReferenceTableStoreADO),
             typeof(ADOPostgreSQLRefTable.ReferenceTableStoreADO),
             typeof(ADOMySQLRefTable.ReferenceTableStoreADO),
-            typeof(DapperSqliteRefTable.ReferenceTableStoreDapper),
+            typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper),
             typeof(DapperSqlServerRefTable.ReferenceTableStoreDapper),
             typeof(DapperPostgreSQLRefTable.ReferenceTableStoreDapper),
             typeof(DapperMySQLRefTable.ReferenceTableStoreDapper),

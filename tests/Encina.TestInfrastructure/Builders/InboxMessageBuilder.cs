@@ -1,4 +1,4 @@
-using Encina.Dapper.Sqlite.Inbox;
+using Encina.Dapper.SqlServer.Inbox;
 
 namespace Encina.TestInfrastructure.Builders;
 

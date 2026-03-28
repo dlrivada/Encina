@@ -3,11 +3,9 @@ using Encina.DomainModeling;
 using Shouldly;
 using ADOMySQLUoW = Encina.ADO.MySQL.UnitOfWork;
 using ADOPostgreSQLUoW = Encina.ADO.PostgreSQL.UnitOfWork;
-using ADOSqliteUoW = Encina.ADO.Sqlite.UnitOfWork;
 using ADOSqlServerUoW = Encina.ADO.SqlServer.UnitOfWork;
 using DapperMySQLUoW = Encina.Dapper.MySQL.UnitOfWork;
 using DapperPostgreSQLUoW = Encina.Dapper.PostgreSQL.UnitOfWork;
-using DapperSqliteUoW = Encina.Dapper.Sqlite.UnitOfWork;
 using DapperSqlServerUoW = Encina.Dapper.SqlServer.UnitOfWork;
 using EfCoreUoW = Encina.EntityFrameworkCore.UnitOfWork;
 using MongoDBUoW = Encina.MongoDB.UnitOfWork;
@@ -27,8 +25,8 @@ public sealed class UnitOfWorkContractTests
     public void Contract_AllADOProviders_ImplementIUnitOfWork()
     {
         // Contract: All ADO.NET UnitOfWork implementations must implement IUnitOfWork
-        typeof(IUnitOfWork).IsAssignableFrom(typeof(ADOSqliteUoW.UnitOfWorkADO)).ShouldBeTrue(
-            "ADO.Sqlite.UnitOfWorkADO must implement IUnitOfWork");
+        typeof(IUnitOfWork).IsAssignableFrom(typeof(ADOSqlServerUoW.UnitOfWorkADO)).ShouldBeTrue(
+            "ADO.SqlServer.UnitOfWorkADO must implement IUnitOfWork");
         typeof(IUnitOfWork).IsAssignableFrom(typeof(ADOSqlServerUoW.UnitOfWorkADO)).ShouldBeTrue(
             "ADO.SqlServer.UnitOfWorkADO must implement IUnitOfWork");
         typeof(IUnitOfWork).IsAssignableFrom(typeof(ADOPostgreSQLUoW.UnitOfWorkADO)).ShouldBeTrue(
@@ -41,8 +39,8 @@ public sealed class UnitOfWorkContractTests
     public void Contract_AllDapperProviders_ImplementIUnitOfWork()
     {
         // Contract: All Dapper UnitOfWork implementations must implement IUnitOfWork
-        typeof(IUnitOfWork).IsAssignableFrom(typeof(DapperSqliteUoW.UnitOfWorkDapper)).ShouldBeTrue(
-            "Dapper.Sqlite.UnitOfWorkDapper must implement IUnitOfWork");
+        typeof(IUnitOfWork).IsAssignableFrom(typeof(DapperSqlServerUoW.UnitOfWorkDapper)).ShouldBeTrue(
+            "Dapper.SqlServer.UnitOfWorkDapper must implement IUnitOfWork");
         typeof(IUnitOfWork).IsAssignableFrom(typeof(DapperSqlServerUoW.UnitOfWorkDapper)).ShouldBeTrue(
             "Dapper.SqlServer.UnitOfWorkDapper must implement IUnitOfWork");
         typeof(IUnitOfWork).IsAssignableFrom(typeof(DapperPostgreSQLUoW.UnitOfWorkDapper)).ShouldBeTrue(
@@ -69,7 +67,7 @@ public sealed class UnitOfWorkContractTests
     public void Contract_AllADOProviders_HaveIdenticalPublicApi()
     {
         // Contract: All ADO.NET UnitOfWorkADO classes must have identical public APIs
-        var adoSqliteType = typeof(ADOSqliteUoW.UnitOfWorkADO);
+        var adoSqliteType = typeof(ADOSqlServerUoW.UnitOfWorkADO);
         var adoSqlServerType = typeof(ADOSqlServerUoW.UnitOfWorkADO);
         var adoPostgresType = typeof(ADOPostgreSQLUoW.UnitOfWorkADO);
         var adoMySQLType = typeof(ADOMySQLUoW.UnitOfWorkADO);
@@ -84,7 +82,7 @@ public sealed class UnitOfWorkContractTests
     public void Contract_AllDapperProviders_HaveIdenticalPublicApi()
     {
         // Contract: All Dapper UnitOfWorkDapper classes must have identical public APIs
-        var dapperSqliteType = typeof(DapperSqliteUoW.UnitOfWorkDapper);
+        var dapperSqliteType = typeof(DapperSqlServerUoW.UnitOfWorkDapper);
         var dapperSqlServerType = typeof(DapperSqlServerUoW.UnitOfWorkDapper);
         var dapperPostgresType = typeof(DapperPostgreSQLUoW.UnitOfWorkDapper);
         var dapperMySQLType = typeof(DapperMySQLUoW.UnitOfWorkDapper);
@@ -99,10 +97,10 @@ public sealed class UnitOfWorkContractTests
     public void Contract_ADOAndDapper_HaveEquivalentPublicApi()
     {
         // Contract: ADO and Dapper UnitOfWork classes must have equivalent public APIs
-        var adoType = typeof(ADOSqliteUoW.UnitOfWorkADO);
-        var dapperType = typeof(DapperSqliteUoW.UnitOfWorkDapper);
+        var adoType = typeof(ADOSqlServerUoW.UnitOfWorkADO);
+        var dapperType = typeof(DapperSqlServerUoW.UnitOfWorkDapper);
 
-        VerifyPublicMethodsMatch(adoType, dapperType, "Dapper.Sqlite vs ADO.Sqlite");
+        VerifyPublicMethodsMatch(adoType, dapperType, "Dapper.SqlServer vs ADO.SqlServer");
     }
 
     #endregion
@@ -115,7 +113,7 @@ public sealed class UnitOfWorkContractTests
         // Contract: All ADO.NET UnitOfWorkADO classes must have the same constructor signature
         var providers = new[]
         {
-            typeof(ADOSqliteUoW.UnitOfWorkADO),
+            typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOPostgreSQLUoW.UnitOfWorkADO),
             typeof(ADOMySQLUoW.UnitOfWorkADO)
@@ -150,7 +148,7 @@ public sealed class UnitOfWorkContractTests
         // Contract: All Dapper UnitOfWorkDapper classes must have the same constructor signature
         var providers = new[]
         {
-            typeof(DapperSqliteUoW.UnitOfWorkDapper),
+            typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperPostgreSQLUoW.UnitOfWorkDapper),
             typeof(DapperMySQLUoW.UnitOfWorkDapper)
@@ -189,11 +187,11 @@ public sealed class UnitOfWorkContractTests
         // Contract: All UnitOfWork implementations must implement IAsyncDisposable
         var allProviders = new[]
         {
-            typeof(ADOSqliteUoW.UnitOfWorkADO),
+            typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOPostgreSQLUoW.UnitOfWorkADO),
             typeof(ADOMySQLUoW.UnitOfWorkADO),
-            typeof(DapperSqliteUoW.UnitOfWorkDapper),
+            typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperPostgreSQLUoW.UnitOfWorkDapper),
             typeof(DapperMySQLUoW.UnitOfWorkDapper),
@@ -218,11 +216,11 @@ public sealed class UnitOfWorkContractTests
         // Contract: All UnitOfWork implementations should be sealed for performance and safety
         var allProviders = new[]
         {
-            typeof(ADOSqliteUoW.UnitOfWorkADO),
+            typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOPostgreSQLUoW.UnitOfWorkADO),
             typeof(ADOMySQLUoW.UnitOfWorkADO),
-            typeof(DapperSqliteUoW.UnitOfWorkDapper),
+            typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperPostgreSQLUoW.UnitOfWorkDapper),
             typeof(DapperMySQLUoW.UnitOfWorkDapper),
@@ -247,11 +245,11 @@ public sealed class UnitOfWorkContractTests
         // Contract: All UnitOfWork implementations must have HasActiveTransaction property
         var allProviders = new[]
         {
-            typeof(ADOSqliteUoW.UnitOfWorkADO),
+            typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOPostgreSQLUoW.UnitOfWorkADO),
             typeof(ADOMySQLUoW.UnitOfWorkADO),
-            typeof(DapperSqliteUoW.UnitOfWorkDapper),
+            typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperPostgreSQLUoW.UnitOfWorkDapper),
             typeof(DapperMySQLUoW.UnitOfWorkDapper),
@@ -280,11 +278,11 @@ public sealed class UnitOfWorkContractTests
     public void Contract_AllADOProviders_HaveUnitOfWorkRepositoryADO()
     {
         // Contract: All ADO.NET providers must have a UnitOfWorkRepositoryADO class
-        var adoSqliteType = typeof(ADOSqliteUoW.UnitOfWorkADO).Assembly.GetType("Encina.ADO.Sqlite.UnitOfWork.UnitOfWorkRepositoryADO`2");
+        var adoSqliteType = typeof(ADOSqlServerUoW.UnitOfWorkADO).Assembly.GetType("Encina.ADO.SqlServer.UnitOfWork.UnitOfWorkRepositoryADO`2");
         var adoSqlServerType = typeof(ADOSqlServerUoW.UnitOfWorkADO).Assembly.GetType("Encina.ADO.SqlServer.UnitOfWork.UnitOfWorkRepositoryADO`2");
         var adoPostgresType = typeof(ADOPostgreSQLUoW.UnitOfWorkADO).Assembly.GetType("Encina.ADO.PostgreSQL.UnitOfWork.UnitOfWorkRepositoryADO`2");
         var adoMySQLType = typeof(ADOMySQLUoW.UnitOfWorkADO).Assembly.GetType("Encina.ADO.MySQL.UnitOfWork.UnitOfWorkRepositoryADO`2");
-        adoSqliteType.ShouldNotBeNull("ADO.Sqlite must have UnitOfWorkRepositoryADO");
+        adoSqliteType.ShouldNotBeNull("ADO.SqlServer must have UnitOfWorkRepositoryADO");
         adoSqlServerType.ShouldNotBeNull("ADO.SqlServer must have UnitOfWorkRepositoryADO");
         adoPostgresType.ShouldNotBeNull("ADO.PostgreSQL must have UnitOfWorkRepositoryADO");
         adoMySQLType.ShouldNotBeNull("ADO.MySQL must have UnitOfWorkRepositoryADO");
@@ -294,11 +292,11 @@ public sealed class UnitOfWorkContractTests
     public void Contract_AllDapperProviders_HaveUnitOfWorkRepositoryDapper()
     {
         // Contract: All Dapper providers must have a UnitOfWorkRepositoryDapper class
-        var dapperSqliteType = typeof(DapperSqliteUoW.UnitOfWorkDapper).Assembly.GetType("Encina.Dapper.Sqlite.UnitOfWork.UnitOfWorkRepositoryDapper`2");
+        var dapperSqliteType = typeof(DapperSqlServerUoW.UnitOfWorkDapper).Assembly.GetType("Encina.Dapper.SqlServer.UnitOfWork.UnitOfWorkRepositoryDapper`2");
         var dapperSqlServerType = typeof(DapperSqlServerUoW.UnitOfWorkDapper).Assembly.GetType("Encina.Dapper.SqlServer.UnitOfWork.UnitOfWorkRepositoryDapper`2");
         var dapperPostgresType = typeof(DapperPostgreSQLUoW.UnitOfWorkDapper).Assembly.GetType("Encina.Dapper.PostgreSQL.UnitOfWork.UnitOfWorkRepositoryDapper`2");
         var dapperMySQLType = typeof(DapperMySQLUoW.UnitOfWorkDapper).Assembly.GetType("Encina.Dapper.MySQL.UnitOfWork.UnitOfWorkRepositoryDapper`2");
-        dapperSqliteType.ShouldNotBeNull("Dapper.Sqlite must have UnitOfWorkRepositoryDapper");
+        dapperSqliteType.ShouldNotBeNull("Dapper.SqlServer must have UnitOfWorkRepositoryDapper");
         dapperSqlServerType.ShouldNotBeNull("Dapper.SqlServer must have UnitOfWorkRepositoryDapper");
         dapperPostgresType.ShouldNotBeNull("Dapper.PostgreSQL must have UnitOfWorkRepositoryDapper");
         dapperMySQLType.ShouldNotBeNull("Dapper.MySQL must have UnitOfWorkRepositoryDapper");

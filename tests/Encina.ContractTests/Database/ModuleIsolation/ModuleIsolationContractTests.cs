@@ -5,11 +5,9 @@ using Encina.Modules.Isolation;
 using ADOMySQLModules = Encina.ADO.MySQL.Modules;
 using ADOPostgreSQLModules = Encina.ADO.PostgreSQL.Modules;
 // Type aliases for all provider namespaces
-using ADOSqliteModules = Encina.ADO.Sqlite.Modules;
 using ADOSqlServerModules = Encina.ADO.SqlServer.Modules;
 using DapperMySQLModules = Encina.Dapper.MySQL.Modules;
 using DapperPostgreSQLModules = Encina.Dapper.PostgreSQL.Modules;
-using DapperSqliteModules = Encina.Dapper.Sqlite.Modules;
 using DapperSqlServerModules = Encina.Dapper.SqlServer.Modules;
 
 namespace Encina.ContractTests.Database.ModuleIsolation;
@@ -20,18 +18,6 @@ namespace Encina.ContractTests.Database.ModuleIsolation;
 public class ModuleIsolationContractTests
 {
     #region ADO.NET Provider Types
-
-    [Fact]
-    [Trait("Category", "Contract")]
-    [Trait("Feature", "ModuleIsolation")]
-    public void ADOSqlite_ModuleAwareConnectionFactory_ShouldExist()
-    {
-        var type = typeof(ADOSqliteModules.ModuleAwareConnectionFactory);
-        Assert.NotNull(type);
-        Assert.True(type.IsClass);
-        Assert.True(type.IsSealed);
-        Assert.True(type.IsPublic);
-    }
 
     [Fact]
     [Trait("Category", "Contract")]
@@ -76,18 +62,6 @@ public class ModuleIsolationContractTests
     [Fact]
     [Trait("Category", "Contract")]
     [Trait("Feature", "ModuleIsolation")]
-    public void DapperSqlite_ModuleAwareConnectionFactory_ShouldExist()
-    {
-        var type = typeof(DapperSqliteModules.ModuleAwareConnectionFactory);
-        Assert.NotNull(type);
-        Assert.True(type.IsClass);
-        Assert.True(type.IsSealed);
-        Assert.True(type.IsPublic);
-    }
-
-    [Fact]
-    [Trait("Category", "Contract")]
-    [Trait("Feature", "ModuleIsolation")]
     public void DapperSqlServer_ModuleAwareConnectionFactory_ShouldExist()
     {
         var type = typeof(DapperSqlServerModules.ModuleAwareConnectionFactory);
@@ -128,7 +102,7 @@ public class ModuleIsolationContractTests
     [Theory]
     [Trait("Category", "Contract")]
     [Trait("Feature", "ModuleIsolation")]
-    [InlineData(typeof(ADOSqliteModules.ModuleAwareConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOMySQLModules.ModuleAwareConnectionFactory))]
@@ -148,7 +122,7 @@ public class ModuleIsolationContractTests
     [Theory]
     [Trait("Category", "Contract")]
     [Trait("Feature", "ModuleIsolation")]
-    [InlineData(typeof(DapperSqliteModules.ModuleAwareConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory))]
@@ -164,7 +138,7 @@ public class ModuleIsolationContractTests
     [Theory]
     [Trait("Category", "Contract")]
     [Trait("Feature", "ModuleIsolation")]
-    [InlineData(typeof(DapperSqliteModules.ModuleAwareConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory))]
@@ -184,11 +158,11 @@ public class ModuleIsolationContractTests
     [Theory]
     [Trait("Category", "Contract")]
     [Trait("Feature", "ModuleIsolation")]
-    [InlineData(typeof(ADOSqliteModules.ModuleAwareConnectionFactory))]
+    [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(ADOMySQLModules.ModuleAwareConnectionFactory))]
-    [InlineData(typeof(DapperSqliteModules.ModuleAwareConnectionFactory))]
+    [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory))]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory))]
@@ -230,11 +204,11 @@ public class ModuleIsolationContractTests
     [Theory]
     [Trait("Category", "Contract")]
     [Trait("Feature", "ModuleIsolation")]
-    [InlineData(typeof(ADOSqliteModules.SchemaValidatingConnection))]
+    [InlineData(typeof(ADOSqlServerModules.SchemaValidatingConnection))]
     [InlineData(typeof(ADOSqlServerModules.SchemaValidatingConnection))]
     [InlineData(typeof(ADOPostgreSQLModules.SchemaValidatingConnection))]
     [InlineData(typeof(ADOMySQLModules.SchemaValidatingConnection))]
-    [InlineData(typeof(DapperSqliteModules.SchemaValidatingConnection))]
+    [InlineData(typeof(DapperSqlServerModules.SchemaValidatingConnection))]
     [InlineData(typeof(DapperSqlServerModules.SchemaValidatingConnection))]
     [InlineData(typeof(DapperPostgreSQLModules.SchemaValidatingConnection))]
     [InlineData(typeof(DapperMySQLModules.SchemaValidatingConnection))]
@@ -288,11 +262,11 @@ public class ModuleIsolationContractTests
     [Theory]
     [Trait("Category", "Contract")]
     [Trait("Feature", "ModuleIsolation")]
-    [InlineData(typeof(ADOSqliteModules.ModuleAwareConnectionFactory), "Encina.ADO.Sqlite.Modules")]
+    [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory), "Encina.ADO.SqlServer.Modules")]
     [InlineData(typeof(ADOSqlServerModules.ModuleAwareConnectionFactory), "Encina.ADO.SqlServer.Modules")]
     [InlineData(typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory), "Encina.ADO.PostgreSQL.Modules")]
     [InlineData(typeof(ADOMySQLModules.ModuleAwareConnectionFactory), "Encina.ADO.MySQL.Modules")]
-    [InlineData(typeof(DapperSqliteModules.ModuleAwareConnectionFactory), "Encina.Dapper.Sqlite.Modules")]
+    [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory), "Encina.Dapper.SqlServer.Modules")]
     [InlineData(typeof(DapperSqlServerModules.ModuleAwareConnectionFactory), "Encina.Dapper.SqlServer.Modules")]
     [InlineData(typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory), "Encina.Dapper.PostgreSQL.Modules")]
     [InlineData(typeof(DapperMySQLModules.ModuleAwareConnectionFactory), "Encina.Dapper.MySQL.Modules")]
@@ -310,10 +284,10 @@ public class ModuleIsolationContractTests
     [Trait("Feature", "ModuleIsolation")]
     public void AllADOProviders_ShouldHaveModuleIsolationSupport()
     {
-        // ADO.NET providers: Sqlite, SqlServer, PostgreSQL, MySQL
+        // ADO.NET providers: SqlServer, SqlServer, PostgreSQL, MySQL
         var adoProviderTypes = new[]
         {
-            typeof(ADOSqliteModules.ModuleAwareConnectionFactory),
+            typeof(ADOSqlServerModules.ModuleAwareConnectionFactory),
             typeof(ADOSqlServerModules.ModuleAwareConnectionFactory),
             typeof(ADOPostgreSQLModules.ModuleAwareConnectionFactory),
             typeof(ADOMySQLModules.ModuleAwareConnectionFactory),
@@ -328,10 +302,10 @@ public class ModuleIsolationContractTests
     [Trait("Feature", "ModuleIsolation")]
     public void AllDapperProviders_ShouldHaveModuleIsolationSupport()
     {
-        // Dapper providers: Sqlite, SqlServer, PostgreSQL, MySQL
+        // Dapper providers: SqlServer, SqlServer, PostgreSQL, MySQL
         var dapperProviderTypes = new[]
         {
-            typeof(DapperSqliteModules.ModuleAwareConnectionFactory),
+            typeof(DapperSqlServerModules.ModuleAwareConnectionFactory),
             typeof(DapperSqlServerModules.ModuleAwareConnectionFactory),
             typeof(DapperPostgreSQLModules.ModuleAwareConnectionFactory),
             typeof(DapperMySQLModules.ModuleAwareConnectionFactory),

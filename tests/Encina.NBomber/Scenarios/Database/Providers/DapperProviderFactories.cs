@@ -1,77 +1,8 @@
 using System.Data;
 using Encina.Tenancy;
 using Encina.TestInfrastructure.Fixtures;
-using Encina.TestInfrastructure.Schemas;
-using Microsoft.Data.Sqlite;
 
 namespace Encina.NBomber.Scenarios.Database;
-
-/// <summary>
-/// Dapper provider factory for SQLite.
-/// SQLite does not require a container - uses in-memory or file-based database.
-/// </summary>
-public sealed class DapperSqliteProviderFactory : DatabaseProviderFactoryBase
-{
-    private SqliteConnection? _connection;
-    private string _connectionString = "Data Source=:memory:";
-
-    /// <inheritdoc />
-    public override string ProviderName => "dapper-sqlite";
-
-    /// <inheritdoc />
-    public override ProviderCategory Category => ProviderCategory.Dapper;
-
-    /// <inheritdoc />
-    public override DatabaseType DatabaseType => DatabaseType.Sqlite;
-
-    /// <inheritdoc />
-    public override string ConnectionString => _connectionString;
-
-    /// <inheritdoc />
-    protected override async Task InitializeCoreAsync(CancellationToken cancellationToken)
-    {
-        // SQLite in-memory requires keeping connection open
-        _connection = new SqliteConnection(_connectionString);
-        await _connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await SqliteSchema.CreateOutboxSchemaAsync(_connection).ConfigureAwait(false);
-        await SqliteSchema.CreateInboxSchemaAsync(_connection).ConfigureAwait(false);
-        await SqliteSchema.CreateSagaSchemaAsync(_connection).ConfigureAwait(false);
-        await SqliteSchema.CreateSchedulingSchemaAsync(_connection).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public override IDbConnection CreateConnection()
-    {
-        EnsureInitialized();
-        // Return the same connection for SQLite in-memory
-        return _connection!;
-    }
-
-    /// <inheritdoc />
-    public override object? CreateUnitOfWork() => null;
-
-    /// <inheritdoc />
-    public override ITenantProvider CreateTenantProvider() => new InMemoryTenantProvider();
-
-    /// <inheritdoc />
-    public override object? CreateReadWriteSelector() => null;
-
-    /// <inheritdoc />
-    public override async Task ClearDataAsync(CancellationToken cancellationToken = default)
-    {
-        EnsureInitialized();
-        await SqliteSchema.ClearAllDataAsync(_connection!).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    protected override async ValueTask DisposeCoreAsync()
-    {
-        if (_connection is not null)
-        {
-            await _connection.DisposeAsync().ConfigureAwait(false);
-        }
-    }
-}
 
 /// <summary>
 /// Dapper provider factory for SQL Server using Testcontainers.

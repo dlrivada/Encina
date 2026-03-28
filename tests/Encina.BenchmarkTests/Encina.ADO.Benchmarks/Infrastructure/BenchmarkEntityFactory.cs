@@ -1,4 +1,4 @@
-using Encina.ADO.Sqlite.Repository;
+using Encina.ADO.SqlServer.Repository;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
