@@ -284,6 +284,11 @@ foreach (var xmlFile in xmlFiles)
         var doc = XDocument.Load(xmlFile);
         var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
 
+        // Check if <source> ends with /src/ — filenames may be relative to it
+        var sourceEl = doc.Descendants(ns + "source").FirstOrDefault()?.Value?.Replace('\\', '/') ?? "";
+        var sourceEndsSrc = sourceEl.EndsWith("/src/", StringComparison.Ordinal)
+                         || sourceEl.EndsWith("/src", StringComparison.Ordinal);
+
         foreach (var cls in doc.Descendants(ns + "class"))
         {
             var filename = cls.Attribute("filename")?.Value;
@@ -291,6 +296,12 @@ foreach (var xmlFile in xmlFiles)
 
             // Normalize path separators
             filename = filename.Replace('\\', '/');
+
+            // If filename is relative (no src/) and source ends with /src/, prepend src/
+            if (sourceEndsSrc && !filename.Contains("/src/") && !filename.StartsWith("src/"))
+            {
+                filename = "src/" + filename;
+            }
 
             // Only count src/ files
             if (!filename.Contains("/src/") && !filename.StartsWith("src/")) continue;
