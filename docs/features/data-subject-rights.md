@@ -609,9 +609,9 @@ The in-memory stores (`InMemoryDSRRequestStore`, `InMemoryDSRAuditStore`) are su
 
 | Provider Category | Providers | Registration |
 |-------------------|-----------|-------------|
-| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDataSubjectRights = true` in `AddEncinaADO()` |
-| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDataSubjectRights = true` in `AddEncinaDapper()` |
-| EF Core | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDataSubjectRights = true` in `AddEncinaEntityFrameworkCore()` |
+| ADO.NET | SQL Server, PostgreSQL, MySQL | `config.UseDataSubjectRights = true` in `AddEncinaADO()` |
+| Dapper | SQL Server, PostgreSQL, MySQL | `config.UseDataSubjectRights = true` in `AddEncinaDapper()` |
+| EF Core | SQL Server, PostgreSQL, MySQL | `config.UseDataSubjectRights = true` in `AddEncinaEntityFrameworkCore()` |
 | MongoDB | MongoDB | `config.UseDataSubjectRights = true` in `AddEncinaMongoDB()` |
 
 Each provider registers `IDSRRequestStore` and `IDSRAuditStore` backed by the corresponding database.

@@ -31,7 +31,7 @@ ADR-010 introduced database sharding with four routing strategies and 13-provide
 1. **Compose with existing sharding** — Reuse `ShardTopology`, `IShardRouter`, `ShardInfo` from ADR-010
 2. **Reuse intent detection** — Leverage `DatabaseRoutingContext` and `DatabaseIntent` from `Encina.Messaging.ReadWriteSeparation`
 3. **Per-shard override** — Global defaults with per-shard strategy and staleness overrides
-4. **Provider coherence** — Same factory interface across ADO.NET, Dapper, EF Core, MongoDB (13 providers)
+4. **Provider coherence** — Same factory interface across ADO.NET, Dapper, EF Core, MongoDB (10 providers)
 5. **Zero overhead when disabled** — No replica infrastructure if no replicas are configured
 6. **Thread-safe** — All selectors and health tracking must be safe under high concurrent access
 
@@ -194,15 +194,12 @@ classDiagram
 | **ADO.NET** | SqlServer | `IShardedReadWriteConnectionFactory<SqlConnection>` | `AddEncinaADOShardedReadWrite()` |
 | **ADO.NET** | PostgreSQL | `IShardedReadWriteConnectionFactory<NpgsqlConnection>` | `AddEncinaADOShardedReadWrite()` |
 | **ADO.NET** | MySQL | `IShardedReadWriteConnectionFactory<MySqlConnection>` | `AddEncinaADOShardedReadWrite()` |
-| **ADO.NET** | SQLite | `IShardedReadWriteConnectionFactory<SqliteConnection>` | `AddEncinaADOShardedReadWrite()` |
 | **Dapper** | SqlServer | `IShardedReadWriteConnectionFactory` (non-generic) | `AddEncinaDapperShardedReadWrite()` |
 | **Dapper** | PostgreSQL | `IShardedReadWriteConnectionFactory` (non-generic) | `AddEncinaDapperShardedReadWrite()` |
 | **Dapper** | MySQL | `IShardedReadWriteConnectionFactory` (non-generic) | `AddEncinaDapperShardedReadWrite()` |
-| **Dapper** | SQLite | `IShardedReadWriteConnectionFactory` (non-generic) | `AddEncinaDapperShardedReadWrite()` |
 | **EF Core** | SqlServer | `IShardedReadWriteDbContextFactory<TContext>` | `AddEncinaEFCoreShardedReadWriteSqlServer<T>()` |
 | **EF Core** | PostgreSQL | `IShardedReadWriteDbContextFactory<TContext>` | `AddEncinaEFCoreShardedReadWritePostgreSql<T>()` |
 | **EF Core** | MySQL | `IShardedReadWriteDbContextFactory<TContext>` | `AddEncinaEFCoreShardedReadWriteMySql<T>()` |
-| **EF Core** | SQLite | `IShardedReadWriteDbContextFactory<TContext>` | `AddEncinaEFCoreShardedReadWriteSqlite<T>()` |
 | **MongoDB** | MongoDB | `IShardedReadWriteMongoCollectionFactory` | `AddEncinaMongoDBShardedReadWrite()` |
 
 **Dapper design note**: Dapper only implements the non-generic `IShardedReadWriteConnectionFactory` because Dapper operates on `IDbConnection` rather than provider-specific connection types. This is by design — Dapper's API is inherently provider-agnostic through `IDbConnection`.
@@ -246,7 +243,7 @@ flowchart TD
 - **Transparent read scaling**: Applications get read throughput scaling with zero code changes beyond configuration
 - **Per-shard flexibility**: Different shards can use different strategies based on their hardware and access patterns
 - **Health-aware routing**: Unhealthy replicas are automatically excluded with configurable recovery windows
-- **Provider coherent**: All 13 providers support the same configuration model with identical factory interfaces
+- **Provider coherent**: All 10 providers support the same configuration model with identical factory interfaces
 - **Composable**: Layers cleanly on top of existing sharding without modifying core routing
 - **Thread-safe**: All selector implementations are lock-free or use `ConcurrentDictionary`, validated by benchmarks
 

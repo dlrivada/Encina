@@ -6,7 +6,7 @@ parent: "Features"
 
 # Database Resilience
 
-> Connection pool monitoring, circuit breakers, and connection warm-up for all 13 database providers.
+> Connection pool monitoring, circuit breakers, and connection warm-up for all 10 database providers.
 
 ## Overview
 
@@ -62,7 +62,7 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 
 ### IDatabaseHealthMonitor
 
-The central interface for database resilience monitoring. Each of the 13 providers registers its own implementation as a singleton.
+The central interface for database resilience monitoring. Each of the 10 providers registers its own implementation as a singleton.
 
 ```csharp
 public interface IDatabaseHealthMonitor
@@ -90,7 +90,7 @@ Console.WriteLine($"Max: {stats.MaxPoolSize}");
 Console.WriteLine($"Utilization: {stats.PoolUtilization:P0}");  // Computed, clamped [0, 1]
 ```
 
-Providers that do not expose pool statistics (SQLite, EF Core) return `ConnectionPoolStats.CreateEmpty()`.
+Providers that do not expose pool statistics (EF Core) return `ConnectionPoolStats.CreateEmpty()`.
 
 ### DatabaseHealthResult
 
@@ -159,7 +159,6 @@ The `DatabaseCircuitBreakerPipelineBehavior<TRequest, TResponse>` integrates wit
 | PostgreSQL | `NpgsqlException`, `PostgresException` |
 | MySQL | `MySqlException` |
 | MongoDB | `MongoException`, `MongoConnectionException` |
-| SQLite | `SqliteException` |
 | Generic | `DbException`, `TimeoutException`, `SocketException`, `IOException` |
 
 The predicate walks the exception hierarchy and checks inner exceptions.
@@ -182,7 +181,6 @@ The predicate walks the exception hierarchy and checks inner exceptions.
 | SQL Server (ADO/Dapper) | `RetrieveStatistics()` | `RetrieveStatistics()` | `RetrieveStatistics()` | Connection string |
 | PostgreSQL (ADO/Dapper) | 0 | 0 | 0 | Connection string |
 | MySQL (ADO/Dapper) | 0 | 0 | 0 | Connection string |
-| SQLite (ADO/Dapper) | `CreateEmpty()` | `CreateEmpty()` | `CreateEmpty()` | `CreateEmpty()` |
 | EF Core (all DBs) | `CreateEmpty()` | `CreateEmpty()` | `CreateEmpty()` | `CreateEmpty()` |
 | MongoDB | Cluster servers | 0 | Server count | Server count |
 
@@ -193,7 +191,6 @@ The predicate walks the exception hierarchy and checks inner exceptions.
 | SQL Server | `SqlConnection.ClearAllPools()` |
 | PostgreSQL | `NpgsqlConnection.ClearAllPools()` |
 | MySQL | `MySqlConnection.ClearPoolAsync()` |
-| SQLite | No-op (no traditional pooling) |
 | EF Core | No-op (delegates to ADO.NET driver) |
 | MongoDB | No-op (internal pool management) |
 
@@ -215,9 +212,6 @@ classDiagram
         Encina.Messaging
     }
 
-    class SqliteDatabaseHealthMonitor {
-        Encina.ADO.Sqlite
-    }
     class SqlServerDatabaseHealthMonitor {
         Encina.ADO.SqlServer
     }
@@ -226,9 +220,6 @@ classDiagram
     }
     class MySqlDatabaseHealthMonitor {
         Encina.ADO.MySQL
-    }
-    class DapperSqliteDatabaseHealthMonitor {
-        Encina.Dapper.Sqlite
     }
     class DapperSqlServerDatabaseHealthMonitor {
         Encina.Dapper.SqlServer
@@ -249,11 +240,9 @@ classDiagram
 
     IDatabaseHealthMonitor <|.. DatabaseHealthMonitorBase
     IDatabaseHealthMonitor <|.. MongoDbDatabaseHealthMonitor
-    DatabaseHealthMonitorBase <|-- SqliteDatabaseHealthMonitor
     DatabaseHealthMonitorBase <|-- SqlServerDatabaseHealthMonitor
     DatabaseHealthMonitorBase <|-- PostgreSqlDatabaseHealthMonitor
     DatabaseHealthMonitorBase <|-- MySqlDatabaseHealthMonitor
-    DatabaseHealthMonitorBase <|-- DapperSqliteDatabaseHealthMonitor
     DatabaseHealthMonitorBase <|-- DapperSqlServerDatabaseHealthMonitor
     DatabaseHealthMonitorBase <|-- DapperPostgreSqlDatabaseHealthMonitor
     DatabaseHealthMonitorBase <|-- DapperMySqlDatabaseHealthMonitor

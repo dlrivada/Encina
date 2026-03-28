@@ -19,7 +19,7 @@ Steps 1, 2, and 4 combined take microseconds. Step 3 takes milliseconds. Benchma
 
 ### 2. SQL Queries Are Trivially Simple
 
-The queries across all 13 providers are single-table operations with no complexity to optimize:
+The queries across all 10 providers are single-table operations with no complexity to optimize:
 
 - **No joins** to restructure
 - **No subqueries** to flatten
@@ -42,10 +42,10 @@ None of these factors can be captured in a BenchmarkDotNet micro-benchmark, whic
 
 ### 4. Adequate Coverage from Other Test Types
 
-- **Unit Tests**: Verify correct SQL generation for all 13 providers, including provider-specific syntax (SQL Server `TOP`, PostgreSQL `LIMIT`, MySQL backtick identifiers, SQLite parameterized DateTime)
+- **Unit Tests**: Verify correct SQL generation for all 10 providers, including provider-specific syntax (SQL Server `TOP`, PostgreSQL `LIMIT`, MySQL backtick identifiers)
 - **Guard Tests**: Verify parameter validation across all public methods and all providers
 - **Property Tests**: Verify store invariants (idempotency, consistency, uniqueness) with randomized inputs
-- **Contract Tests**: Verify behavioral equivalence across all 13 `ITokenMappingStore` implementations
+- **Contract Tests**: Verify behavioral equivalence across all 10 `ITokenMappingStore` implementations
 - **Integration Tests**: Verify actual query execution against real databases, ensuring SQL correctness and type mapping fidelity
 
 ### 5. Recommended Alternative
@@ -72,7 +72,7 @@ public class TokenMappingStoreOverheadBenchmarks
     [Benchmark]
     public async Task<TokenMapping?> DapperStore_GetToken()
     {
-        // Uses an in-memory SQLite database to minimize I/O variance
+        // Uses an in-memory database to minimize I/O variance
         return await _store.GetTokenAsync("subject", "field", "value");
     }
 }
@@ -83,11 +83,9 @@ public class TokenMappingStoreOverheadBenchmarks
 - `src/Encina.ADO.SqlServer/Anonymization/` - ADO.NET SQL Server implementation
 - `src/Encina.ADO.PostgreSQL/Anonymization/` - ADO.NET PostgreSQL implementation
 - `src/Encina.ADO.MySQL/Anonymization/` - ADO.NET MySQL implementation
-- `src/Encina.ADO.Sqlite/Anonymization/` - ADO.NET SQLite implementation
 - `src/Encina.Dapper.SqlServer/Anonymization/` - Dapper SQL Server implementation
 - `src/Encina.Dapper.PostgreSQL/Anonymization/` - Dapper PostgreSQL implementation
 - `src/Encina.Dapper.MySQL/Anonymization/` - Dapper MySQL implementation
-- `src/Encina.Dapper.Sqlite/Anonymization/` - Dapper SQLite implementation
 - `src/Encina.EntityFrameworkCore/Anonymization/` - EF Core implementation
 - `src/Encina.MongoDB/Anonymization/` - MongoDB implementation
 - `tests/Encina.UnitTests/Compliance/Anonymization/` - Unit tests

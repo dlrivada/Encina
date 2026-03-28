@@ -40,7 +40,7 @@ What factors will determine the best option?
 - [ ] Performance impact
 - [ ] Complexity / maintainability
 - [ ] Ecosystem compatibility (.NET 10)
-- [ ] Provider coverage (13 database providers)
+- [ ] Provider coverage (10 database providers)
 - [ ] Breaking change impact
 - [ ] Community/industry adoption
 - [ ] Other: ___

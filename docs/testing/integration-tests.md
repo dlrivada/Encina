@@ -78,7 +78,6 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 | PostgreSQL | localhost     | 5432 | Encina  | Encina123!  |
 | MySQL      | localhost     | 3306 | Encina  | Encina123!  |
 | Oracle XE  | localhost     | 1521 | system    | Encina123!  |
-| SQLite     | In-memory     | N/A  | N/A       | N/A                 |
 
 ### Docker Images
 
@@ -124,7 +123,7 @@ Connection strings are defined in `tests/appsettings.Testing.json`:
 
 ### Problem: Docker Container Explosion
 
-Without shared fixtures, each test class creates its own Docker container instance. With ~84 database integration test classes running in parallel, this means ~71 simultaneous containers, causing:
+Without shared fixtures, each test class creates its own Docker container instance. With many database integration test classes running in parallel, this means dozens of simultaneous containers, causing:
 
 - Docker resource exhaustion (`io_setup() failed with EAGAIN`)
 - `TimeoutException` during container startup
@@ -133,7 +132,7 @@ Without shared fixtures, each test class creates its own Docker container instan
 
 ### Solution: Shared xUnit Collection Fixtures
 
-xUnit `[CollectionDefinition]` + `ICollectionFixture<T>` shares ONE fixture instance (and thus one Docker container) across ALL test classes in the same collection. This reduces containers from ~71 to ~23 (68% reduction).
+xUnit `[CollectionDefinition]` + `ICollectionFixture<T>` shares ONE fixture instance (and thus one Docker container) across ALL test classes in the same collection.
 
 ### Collection Definitions
 
@@ -141,9 +140,9 @@ Collections are defined in `Collections.cs` files at the root of each provider d
 
 | File | Collections Defined |
 | ---- | ------------------- |
-| `tests/Encina.IntegrationTests/ADO/Collections.cs` | `ADO-SqlServer`, `ADO-PostgreSQL`, `ADO-MySQL`, `ADO-Sqlite` |
-| `tests/Encina.IntegrationTests/Dapper/Collections.cs` | `Dapper-SqlServer`, `Dapper-PostgreSQL`, `Dapper-MySQL`, `Dapper-Sqlite` |
-| `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/Collections.cs` | `EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL`, `EFCore-Sqlite` |
+| `tests/Encina.IntegrationTests/ADO/Collections.cs` | `ADO-SqlServer`, `ADO-PostgreSQL`, `ADO-MySQL` |
+| `tests/Encina.IntegrationTests/Dapper/Collections.cs` | `Dapper-SqlServer`, `Dapper-PostgreSQL`, `Dapper-MySQL` |
+| `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/Collections.cs` | `EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL` |
 
 ### Expected Container Count
 
@@ -152,7 +151,6 @@ Collections are defined in `Collections.cs` files at the root of each provider d
 | SqlServer | 1 | 1 | 1 | 2 (Concurrency) | 5 |
 | PostgreSQL | 1 | 1 | 1 | 1 (Marten) | 4 |
 | MySQL | 1 | 1 | 1 | - | 3 |
-| SQLite | 0 | 0 | 0 | - | 0 (in-memory) |
 | MongoDB | - | - | - | 2 | 2 |
 | Redis | - | - | - | 1 | 1 |
 | Messaging | - | - | - | ~5 | ~5 |
@@ -209,37 +207,6 @@ public class MyNewStoreTests : IAsyncLifetime
 
 4. **Use the correct traits**: Always include both `[Trait("Category", "Integration")]` and `[Trait("Database", "...")]` for filtering.
 
-### SQLite Special Rules
-
-SQLite uses `Mode=Memory;Cache=Shared` with a unique database name per fixture instance. The fixture's `CreateConnection()` returns the **same shared connection object** (not a new one). Disposing this connection destroys the in-memory database for ALL test classes in the collection.
-
-**Critical rules:**
-
-- ❌ **NEVER** dispose a connection obtained from `_fixture.CreateConnection()`
-- ❌ **NEVER** wrap it in `using` or `await using`
-- ❌ **NEVER** pass it to wrappers that call `Dispose()` on the inner connection (e.g., `SchemaValidatingConnection`, `ModuleAwareConnectionFactory`, `DatabaseHealthCheck` with `using var connection = ...`)
-- ✅ Store it in a field and use it without disposing
-- ✅ When you need a **disposable** connection (for wrappers, health checks, etc.), create a new independent one:
-
-```csharp
-// WRONG - this disposes the shared connection, destroying the in-memory DB
-await using var connection = _fixture.CreateConnection();  // ❌
-
-// WRONG - the wrapper will dispose the shared connection
-var inner = _fixture.CreateConnection();
-await using var wrapper = new SchemaValidatingConnection(inner, ...);  // ❌
-
-// CORRECT - store without disposing
-_connection = _fixture.CreateConnection();  // ✅
-
-// CORRECT - create independent connection for disposable scenarios
-var independent = new SqliteConnection(_fixture.ConnectionString);
-independent.Open();
-await using var wrapper = new SchemaValidatingConnection(independent, ...);  // ✅
-```
-
-**Why `DisableParallelization = true`?** SQLite collections disable parallel execution because all test classes share a single in-memory database. Parallel writes from different classes would cause data corruption and non-deterministic test results.
-
 ### Adding a New Collection
 
 If you need a new collection (e.g., for a new database provider or a specialized fixture):
@@ -265,7 +232,6 @@ For clean results without Docker contention, run tests by database group:
 
 ```bash
 # These groups run independently with zero failures
-dotnet test tests/Encina.IntegrationTests --filter "Database=Sqlite|Provider=ADO.Sqlite|Provider=Dapper.Sqlite"
 dotnet test tests/Encina.IntegrationTests --filter "Database=PostgreSQL"
 dotnet test tests/Encina.IntegrationTests --filter "Database=MySQL"
 dotnet test tests/Encina.IntegrationTests --filter "Database=SqlServer"
@@ -413,7 +379,6 @@ The following table shows which providers are supported by each testing approach
 | **SQL Server** | `MsSqlContainer` | `AddSqlServer()` | Testcontainers | Established fixtures, simpler API |
 | **MySQL** | `MySqlContainer` | `AddMySql()` | Testcontainers | Established fixtures, simpler API |
 | **Oracle** | `GenericContainer` | **Not Supported** | **Testcontainers Only** | Critical - no Aspire alternative |
-| **SQLite** | N/A (in-memory) | N/A | In-memory | No container needed |
 | **MongoDB** | `MongoDbContainer` | `AddMongoDB()` | Testcontainers | Established fixtures |
 | **Redis** | `RedisContainer` | `AddRedis()` | Testcontainers | Established fixtures |
 | **RabbitMQ** | `RabbitMqContainer` | `AddRabbitMQ()` | Testcontainers | Established fixtures |
@@ -459,14 +424,12 @@ The `Encina.TestInfrastructure` project provides:
 | Dapper.PostgreSQL    | ✅          | ✅       | ✅       | ✅   |
 | Dapper.MySQL         | ✅          | ✅       | ✅       | ✅   |
 | Dapper.Oracle        | ✅          | ✅       | ✅       | ✅   |
-| Dapper.Sqlite        | ✅          | ✅       | ✅       | ✅   |
 | ADO.SqlServer        | ✅          | ✅       | ✅       | ✅   |
 | ADO.PostgreSQL       | ✅          | ✅       | ✅       | ✅   |
 | ADO.MySQL            | ❌          | ✅       | ✅       | ✅   |
 | ADO.Oracle           | ❌          | ✅       | ✅       | ✅   |
-| ADO.Sqlite           | ❌          | ✅       | ✅       | ✅   |
 
-> **Note**: ADO MySQL/Oracle/Sqlite use Testcontainers-based integration tests in Contract/Property/Load projects instead of separate Integration projects.
+> **Note**: ADO MySQL/Oracle use Testcontainers-based integration tests in Contract/Property/Load projects instead of separate Integration projects.
 
 ## Resources
 

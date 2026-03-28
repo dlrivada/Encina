@@ -65,7 +65,6 @@ services.AddEncinaOpenTelemetry(config =>
 - `src/Encina.ADO.SqlServer/Pagination/CursorPaginationHelper.cs`
 - `src/Encina.ADO.PostgreSQL/Pagination/CursorPaginationHelper.cs`
 - `src/Encina.ADO.MySQL/Pagination/CursorPaginationHelper.cs`
-- `src/Encina.ADO.Sqlite/Pagination/CursorPaginationHelper.cs`
 - `tests/Encina.BenchmarkTests/Encina.DomainModeling.Benchmarks/` (cursor encoder benchmarks)
 
 ## Date: 2026-02-08

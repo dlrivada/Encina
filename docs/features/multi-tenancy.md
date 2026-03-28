@@ -329,7 +329,7 @@ public class AppDbContext : DbContext
 }
 ```
 
-### Dapper (SQL Server, PostgreSQL, MySQL, SQLite)
+### Dapper (SQL Server, PostgreSQL, MySQL)
 
 ```csharp
 // Configure tenancy for Dapper

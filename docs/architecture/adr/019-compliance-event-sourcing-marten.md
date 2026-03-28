@@ -227,7 +227,7 @@ Compliance modules using event sourcing **require PostgreSQL** via Marten. This 
 2. **PostgreSQL is the #1 database** — 25%+ market share and growing
 3. **Marten leverages PostgreSQL natively** — JSONB storage, advanced indexing, built-in projections
 4. **Production compliance systems already use PostgreSQL** — Common in GDPR-regulated environments
-5. **Non-compliance modules remain database-agnostic** — Outbox, inbox, saga, scheduling still support all 13 providers
+5. **Non-compliance modules remain database-agnostic** — Outbox, inbox, saga, scheduling still support all 10 providers
 
 ### Store Interface Removal
 
@@ -281,7 +281,7 @@ This is a well-established pattern in GDPR-compliant event-sourced systems. Impl
 
 ### Neutral
 
-- Non-compliance modules (outbox, inbox, saga, scheduling, repositories) are unaffected — they continue to support all 13 database providers
+- Non-compliance modules (outbox, inbox, saga, scheduling, repositories) are unaffected — they continue to support all 10 database providers
 - The `Encina.Marten` package already exists and is maintained; this decision increases its importance but not its maintenance burden
 - Compliance modules that don't migrate (Anonymization, PrivacyByDesign) remain unchanged
 
@@ -295,7 +295,7 @@ Maintain current approach with entity-based stores across 13 database providers.
 
 ### Option C: Custom Provider-Agnostic Event Store
 
-Build a new `IEventStore` abstraction with implementations for all 13 database providers.
+Build a new `IEventStore` abstraction with implementations for all 10 database providers.
 
 **Rejected because:** This is essentially reinventing Marten from scratch — event storage, projections, snapshots, versioning, concurrency — for every database provider. Estimated effort: 6-12 months for a suboptimal result. Marten has years of production hardening and PostgreSQL-specific optimizations that a generic implementation cannot match.
 

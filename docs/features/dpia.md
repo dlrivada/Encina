@@ -551,9 +551,9 @@ The in-memory stores (`InMemoryDPIAStore`, `InMemoryDPIAAuditStore`) are suitabl
 
 | Provider Category | Providers | Registration |
 |-------------------|-----------|-------------|
-| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDPIA = true` in `AddEncinaADO()` |
-| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDPIA = true` in `AddEncinaDapper()` |
-| EF Core | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDPIA = true` in `AddEncinaEntityFrameworkCore()` |
+| ADO.NET | SQL Server, PostgreSQL, MySQL | `config.UseDPIA = true` in `AddEncinaADO()` |
+| Dapper | SQL Server, PostgreSQL, MySQL | `config.UseDPIA = true` in `AddEncinaDapper()` |
+| EF Core | SQL Server, PostgreSQL, MySQL | `config.UseDPIA = true` in `AddEncinaEntityFrameworkCore()` |
 | MongoDB | MongoDB | `config.UseDPIA = true` in `AddEncinaMongoDB()` |
 
 Each provider registers `IDPIAStore` and `IDPIAAuditStore` backed by the corresponding database. Register the provider-specific package before calling `AddEncinaDPIA()` -- all registrations use `TryAdd`, so provider implementations take precedence over the in-memory defaults.

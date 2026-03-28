@@ -498,9 +498,9 @@ The in-memory stores (`InMemoryBreachRecordStore`, `InMemoryBreachAuditStore`) a
 
 | Provider Category | Providers | Registration |
 |-------------------|-----------|-------------|
-| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseBreachNotification = true` in `AddEncinaADO()` |
-| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseBreachNotification = true` in `AddEncinaDapper()` |
-| EF Core | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseBreachNotification = true` in `AddEncinaEntityFrameworkCore()` |
+| ADO.NET | SQL Server, PostgreSQL, MySQL | `config.UseBreachNotification = true` in `AddEncinaADO()` |
+| Dapper | SQL Server, PostgreSQL, MySQL | `config.UseBreachNotification = true` in `AddEncinaDapper()` |
+| EF Core | SQL Server, PostgreSQL, MySQL | `config.UseBreachNotification = true` in `AddEncinaEntityFrameworkCore()` |
 | MongoDB | MongoDB | `config.UseBreachNotification = true` in `AddEncinaMongoDB()` |
 
 Each provider registers `IBreachRecordStore` and `IBreachAuditStore` backed by the corresponding database.

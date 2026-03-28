@@ -319,7 +319,6 @@ When refactoring from direct Testcontainers to centralized fixtures:
 | `PostgreSqlFixture` | `Testcontainers.PostgreSql` | PostgreSQL |
 | `MySqlFixture` | `Testcontainers.MySql` | MySQL |
 | `OracleFixture` | `Testcontainers` (Generic) | Oracle |
-| `SqliteFixture` | N/A (in-memory) | SQLite |
 | `MongoDbFixture` | `Testcontainers.MongoDB` | MongoDB |
 | `RedisFixture` | `Testcontainers.Redis` | Redis |
 | `RabbitMqFixture` | `Testcontainers.RabbitMq` | RabbitMQ |

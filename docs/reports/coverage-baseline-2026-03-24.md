@@ -1,4 +1,6 @@
-# Coverage Baseline Report
+# Coverage Baseline Report (Historical Snapshot)
+
+> **Note**: This is a historical snapshot from SonarCloud (unit tests only). The current coverage system uses a weighted multi-test-type report available at [dlrivada.github.io/Encina/coverage/](https://dlrivada.github.io/Encina/coverage/).
 
 **Date**: 2026-03-24 21:45 UTC
 **SonarCloud Scan**: Run #23511615353

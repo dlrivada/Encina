@@ -83,7 +83,7 @@ Format: `{shardId}{delimiter}{sequence}` where the sequence portion can be ULID,
 
 ### Provider Integration
 
-Each ID type has dedicated type mapping for all 13 database providers:
+Each ID type has dedicated type mapping for all 10 database providers:
 
 | Layer | Mechanism | Files per database |
 |-------|-----------|-------------------|
@@ -107,7 +107,7 @@ Each ID type has dedicated type mapping for all 13 database providers:
 - **Complexity**: Four strategies require documentation, testing, and maintenance. Users must understand trade-offs
 - **Machine ID coordination**: Snowflake requires external coordination for unique `MachineId` values
 - **Clock dependency**: Snowflake and (to a lesser extent) ULID/UUIDv7 depend on system clock accuracy
-- **Testing burden**: 4 ID types x 13 providers = 52 type mapping combinations to validate
+- **Testing burden**: 4 ID types x 10 providers = 40 type mapping combinations to validate
 
 ### Neutral
 

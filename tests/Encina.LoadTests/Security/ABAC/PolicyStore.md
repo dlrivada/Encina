@@ -35,8 +35,8 @@ The `DefaultPolicySerializer` (System.Text.Json) is the only CPU-intensive compo
 - **Unit Tests**: Cover all serializer logic, entity mapping, error handling, and ROP patterns
 - **Guard Tests**: Verify null/empty parameter validation for all public methods
 - **Property Tests**: Verify serialization round-trip invariants with randomly generated policy graphs
-- **Contract Tests**: Verify all 13 provider implementations conform to the `IPolicyStore` contract
-- **Integration Tests** (182 tests across 11 providers): Verify actual database persistence with real Docker containers
+- **Contract Tests**: Verify all 10 provider implementations conform to the `IPolicyStore` contract
+- **Integration Tests** (182 tests across 10 providers): Verify actual database persistence with real Docker containers
 - **Benchmark Tests** (12 benchmarks): Measure serialization throughput and memory allocation at varying graph sizes
 
 ### 5. Recommended Alternative

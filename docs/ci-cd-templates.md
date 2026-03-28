@@ -173,7 +173,6 @@ The workflow sets these environment variables automatically:
 ConnectionStrings__PostgreSQL=Host=localhost;Port=5432;...
 ConnectionStrings__SqlServer=Server=localhost,1433;...
 ConnectionStrings__MySQL=Server=localhost;Port=3306;...
-ConnectionStrings__SQLite=Data Source=encina_test.db
 ConnectionStrings__Redis=localhost:6379
 ConnectionStrings__MongoDB=mongodb://localhost:27017/encina_test
 ```
@@ -306,14 +305,11 @@ All templates include NuGet and tool caching. Ensure your projects use `packages
 
 ### 4. Matrix Testing Strategy
 
-Start with SQLite for speed, add databases incrementally:
+Run database tests with a matrix strategy:
 
 ```yaml
-# Fast feedback
-test-databases: '["sqlite"]'
-
 # Comprehensive (nightly/weekly)
-test-databases: '["postgresql", "sqlserver", "mysql", "sqlite"]'
+test-databases: '["postgresql", "sqlserver", "mysql"]'
 ```
 
 ### 5. Mutation Testing

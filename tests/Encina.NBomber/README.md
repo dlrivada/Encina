@@ -8,7 +8,7 @@ This project provides comprehensive load testing scenarios for five categories:
 
 | Category | Description | Providers |
 |----------|-------------|-----------|
-| **Database** | Transaction management, tenant isolation, replica distribution | 13 DB providers |
+| **Database** | Transaction management, tenant isolation, replica distribution | 10 DB providers |
 | **Messaging** | In-memory pub/sub, dispatcher patterns | inmemory |
 | **Caching** | Memory cache, Redis, hybrid L1/L2 | memory, redis, hybrid |
 | **Locking** | Distributed lock coordination | inmemory, redis, sqlserver |
@@ -22,7 +22,7 @@ This project provides comprehensive load testing scenarios for five categories:
 # Run all database features for a provider
 dotnet run --project tests/Encina.NBomber -- \
     --scenario db-uow \
-    --provider efcore-sqlite \
+    --provider efcore-sqlserver \
     --feature UnitOfWork \
     --duration 00:01:00
 ```
@@ -104,7 +104,7 @@ dotnet run --project tests/Encina.NBomber -- \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--provider` | Database provider name | `efcore-sqlite` |
+| `--provider` | Database provider name | `efcore-sqlserver` |
 | `--feature` | Feature: `UnitOfWork`, `Tenancy`, `ReadWrite`, `All` | `All` |
 
 ### Messaging Options
@@ -140,9 +140,9 @@ dotnet run --project tests/Encina.NBomber -- \
 
 | Category | Providers |
 |----------|-----------|
-| ADO.NET | `ado-sqlite`, `ado-sqlserver`, `ado-postgresql`, `ado-mysql` |
-| Dapper | `dapper-sqlite`, `dapper-sqlserver`, `dapper-postgresql`, `dapper-mysql` |
-| EF Core | `efcore-sqlite`, `efcore-sqlserver`, `efcore-postgresql`, `efcore-mysql` |
+| ADO.NET | `ado-sqlserver`, `ado-postgresql`, `ado-mysql` |
+| Dapper | `dapper-sqlserver`, `dapper-postgresql`, `dapper-mysql` |
+| EF Core | `efcore-sqlserver`, `efcore-postgresql`, `efcore-mysql` |
 | MongoDB | `mongodb` |
 
 #### Unit of Work Scenarios
@@ -277,10 +277,6 @@ dotnet run --project tests/Encina.NBomber -- \
 
 ## Prerequisites
 
-### For SQLite / In-Memory Tests
-
-No external dependencies required.
-
 ### For SQL Server, PostgreSQL, MySQL, Redis
 
 Docker must be running. The load tests use Testcontainers to automatically start containers.
@@ -334,7 +330,6 @@ Threshold configuration files in `.github/ci/`:
 
 | Provider | Expected Ops/Sec | Mean Latency |
 |----------|------------------|--------------|
-| `*-sqlite` | 2,000-3,000+ | <20ms |
 | `*-sqlserver` | 800-1,000+ | <50ms |
 | `*-postgresql` | 1,000-1,200+ | <45ms |
 | `*-mysql` | 900-1,100+ | <48ms |
@@ -378,7 +373,7 @@ Load tests run automatically via `.github/workflows/load-tests.yml`:
 
 | Job | Schedule | Matrix |
 |-----|----------|--------|
-| `run-database-load-tests` | Weekly (Sat 2:00 AM UTC) | efcore-sqlite, efcore-sqlserver, efcore-postgresql, efcore-mysql |
+| `run-database-load-tests` | Weekly (Sat 2:00 AM UTC) | efcore-sqlserver, efcore-postgresql, efcore-mysql |
 | `run-messaging-load-tests` | Weekly | InMemoryBus, Dispatcher |
 | `run-caching-load-tests` | Weekly | memory, redis, hybrid |
 | `run-locking-load-tests` | Weekly | inmemory, redis, sqlserver |

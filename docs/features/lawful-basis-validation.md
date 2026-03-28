@@ -350,13 +350,13 @@ services.AddEncinaLawfulBasis(options =>
 
 ## Database Providers
 
-LawfulBasis registrations and LIA records can be persisted across all 13 supported providers:
+LawfulBasis registrations and LIA records can be persisted across all 10 supported providers:
 
 | Category | Providers | Registry Store | LIA Store |
 |----------|-----------|---------------|-----------|
-| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL | `LawfulBasisRegistryAdo*` | `LIAStoreAdo*` |
-| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL | `LawfulBasisRegistryDapper*` | `LIAStoreDapper*` |
-| **EF Core** | Sqlite, SqlServer, PostgreSQL, MySQL | `LawfulBasisRegistryEF` | `LIAStoreEF` |
+| **ADO.NET** | SqlServer, PostgreSQL, MySQL | `LawfulBasisRegistryAdo*` | `LIAStoreAdo*` |
+| **Dapper** | SqlServer, PostgreSQL, MySQL | `LawfulBasisRegistryDapper*` | `LIAStoreDapper*` |
+| **EF Core** | SqlServer, PostgreSQL, MySQL | `LawfulBasisRegistryEF` | `LIAStoreEF` |
 | **MongoDB** | MongoDB | `LawfulBasisRegistryMongo` | `LIAStoreMongo` |
 
 Each provider implements `ILawfulBasisRegistry` and `ILIAStore` with provider-specific SQL/queries and upsert semantics.

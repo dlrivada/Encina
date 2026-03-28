@@ -227,7 +227,6 @@ The `AspNetCore.HealthChecks.*` ecosystem provides health checks for most infras
 | SQL Server | `AspNetCore.HealthChecks.SqlServer` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.SqlServer.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.SqlServer/) |
 | MySQL | `AspNetCore.HealthChecks.MySql` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.MySql.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.MySql/) |
 | Oracle | `AspNetCore.HealthChecks.Oracle` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.Oracle.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.Oracle/) |
-| SQLite | `AspNetCore.HealthChecks.Sqlite` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.Sqlite.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.Sqlite/) |
 | MongoDB | `AspNetCore.HealthChecks.MongoDb` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.MongoDb.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.MongoDb/) |
 | CosmosDB | `AspNetCore.HealthChecks.CosmosDb` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.CosmosDb.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.CosmosDb/) |
 | DynamoDB | `AspNetCore.HealthChecks.DynamoDb` | [![NuGet](https://img.shields.io/nuget/v/AspNetCore.HealthChecks.DynamoDb.svg)](https://www.nuget.org/packages/AspNetCore.HealthChecks.DynamoDb/) |

@@ -3129,7 +3129,7 @@ Implemented comprehensive NBomber load testing infrastructure for database featu
 - `IDatabaseProviderFactory` - Common interface for all providers
 - `DatabaseProviderFactoryBase` - Base implementation with initialization lifecycle
 - `DatabaseProviderRegistry` - Maps provider names to factory types
-- Provider implementations for all 13 providers
+- Provider implementations for all 10 providers
 
 **CLI Options Extended**:
 
@@ -3528,7 +3528,7 @@ Updated tenant-aware repositories for all providers with the same pattern.
 
 **Issue**: [#286 - Audit Trail Pattern (IAuditableEntity)](https://github.com/dlrivada/Encina/issues/286)
 
-Implemented comprehensive audit trail tracking for entity creation, modification, and soft delete operations across all 13 database providers.
+Implemented comprehensive audit trail tracking for entity creation, modification, and soft delete operations across all 10 database providers.
 
 #### Phase 1: Granular Audit Interfaces
 

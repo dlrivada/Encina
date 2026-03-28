@@ -37,7 +37,7 @@ The orchestrator and phase executor add negligible overhead — they are thin co
 - **Guard Tests**: Ensure parameter validation for all public methods
 - **Property Tests**: Verify record invariants, progress tracking correctness
 - **Contract Tests**: Confirm interface contracts for IReshardingOrchestrator, IReshardingStateStore, IReshardingServices
-- **Integration Tests**: Validate real state persistence and workflow execution with SQLite
+- **Integration Tests**: Validate real state persistence and workflow execution
 
 ### 5. Recommended Alternative
 

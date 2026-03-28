@@ -64,7 +64,7 @@ Which Encina packages would this feature affect?
 
 Use the "Provider Applicability Matrix" in CLAUDE.md to determine which provider categories apply to this issue:
 
-- Database features (stores, repositories, UoW, persistence): 13 database providers required
+- Database features (stores, repositories, UoW, persistence): 10 database providers required
 - Caching features: 8 caching providers
 - Messaging/transport features: 10+ messaging transport providers
 - Distributed locking features: 4+ lock providers
@@ -75,19 +75,16 @@ Use the "Provider Applicability Matrix" in CLAUDE.md to determine which provider
 - Observability features: OpenTelemetry + exporters
 - Scheduling features: Built-in, Hangfire, Quartz adapters
 
-Example of 13 database providers matrix:
+Example of 10 database providers matrix:
 
 | Provider | Feature A | Feature B | Notes |
 |----------|:-:|:-:|-------|
-| ADO-SQLite | | | |
 | ADO-SqlServer | | | |
 | ADO-PostgreSQL | | | |
 | ADO-MySQL | | | |
-| Dapper-SQLite | | | |
 | Dapper-SqlServer | | | |
 | Dapper-PostgreSQL | | | |
 | Dapper-MySQL | | | |
-| EFCore-SQLite | | | |
 | EFCore-SqlServer | | | |
 | EFCore-PostgreSQL | | | |
 | EFCore-MySQL | | | |

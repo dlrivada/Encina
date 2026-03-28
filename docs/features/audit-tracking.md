@@ -507,19 +507,16 @@ public class Order : FullyAuditedAggregateRoot<Guid>
 
 ## Provider Support
 
-Audit tracking is supported across all 13 database providers:
+Audit tracking is supported across all 10 database providers:
 
 | Provider | Automatic (Interceptor/Repository) | Manual (Helpers) |
 |----------|-----------------------------------|------------------|
-| EF Core SQLite | ✅ via `AuditInterceptor` | ✅ |
 | EF Core SQL Server | ✅ via `AuditInterceptor` | ✅ |
 | EF Core PostgreSQL | ✅ via `AuditInterceptor` | ✅ |
 | EF Core MySQL | ✅ via `AuditInterceptor` | ✅ |
-| Dapper SQLite | ✅ via Repository (v0.12.0+) | ✅ |
 | Dapper SQL Server | ✅ via Repository (v0.12.0+) | ✅ |
 | Dapper PostgreSQL | ✅ via Repository (v0.12.0+) | ✅ |
 | Dapper MySQL | ✅ via Repository (v0.12.0+) | ✅ |
-| ADO.NET SQLite | ✅ via Repository (v0.12.0+) | ✅ |
 | ADO.NET SQL Server | ✅ via Repository (v0.12.0+) | ✅ |
 | ADO.NET PostgreSQL | ✅ via Repository (v0.12.0+) | ✅ |
 | ADO.NET MySQL | ✅ via Repository (v0.12.0+) | ✅ |
@@ -639,11 +636,11 @@ public class ModifierOnly : IModifiedBy
 
 ### What about persistent audit log storage?
 
-Encina provides persistent database-backed `IAuditLogStore` implementations for all 13 database providers:
+Encina provides persistent database-backed `IAuditLogStore` implementations for all 10 database providers:
 
-- **EF Core**: `AuditLogStoreEF` - works with SQLite, SQL Server, PostgreSQL, MySQL
-- **Dapper**: `AuditLogStoreDapper` - provider-specific implementations for all 4 databases
-- **ADO.NET**: `AuditLogStoreADO` - provider-specific implementations for all 4 databases
+- **EF Core**: `AuditLogStoreEF` - works with SQL Server, PostgreSQL, MySQL
+- **Dapper**: `AuditLogStoreDapper` - provider-specific implementations for all 3 databases
+- **ADO.NET**: `AuditLogStoreADO` - provider-specific implementations for all 3 databases
 - **MongoDB**: `AuditLogStoreMongoDB` - with optimized indexes for efficient history lookups
 
 Enable persistent audit logging:
@@ -714,9 +711,9 @@ services.AddScoped<IRequestContext, HttpRequestContext>();
 | Store | Package | Status | Use Case |
 |-------|---------|--------|----------|
 | `InMemoryAuditLogStore` | `Encina.DomainModeling` | ✅ Available | **Testing only** |
-| `AuditLogStoreEF` | `Encina.EntityFrameworkCore` | ✅ Available | EF Core (all 4 providers) |
-| `AuditLogStoreDapper` | `Encina.Dapper.*` | ✅ Available | Dapper (SQLite, SqlServer, PostgreSQL, MySQL) |
-| `AuditLogStoreADO` | `Encina.ADO.*` | ✅ Available | ADO.NET (SQLite, SqlServer, PostgreSQL, MySQL) |
+| `AuditLogStoreEF` | `Encina.EntityFrameworkCore` | ✅ Available | EF Core (all 3 providers) |
+| `AuditLogStoreDapper` | `Encina.Dapper.*` | ✅ Available | Dapper (SqlServer, PostgreSQL, MySQL) |
+| `AuditLogStoreADO` | `Encina.ADO.*` | ✅ Available | ADO.NET (SqlServer, PostgreSQL, MySQL) |
 | `AuditLogStoreMongoDB` | `Encina.MongoDB` | ✅ Available | MongoDB |
 
 ### Custom Implementation
@@ -1067,7 +1064,7 @@ migrationBuilder.CreateTable(
     });
 ```
 
-#### Dapper (SQLite, SQL Server, PostgreSQL, MySQL)
+#### Dapper (SQL Server, PostgreSQL, MySQL)
 
 Execute the appropriate SQL script for your database:
 
@@ -1159,36 +1156,7 @@ CREATE INDEX `IX_SecurityAuditEntries_EntityType_EntityId` ON `SecurityAuditEntr
 CREATE INDEX `IX_SecurityAuditEntries_TimestampUtc` ON `SecurityAuditEntries`(`TimestampUtc`);
 ```
 
-**SQLite:**
-
-```sql
-CREATE TABLE "SecurityAuditEntries" (
-    "Id" TEXT PRIMARY KEY,
-    "CorrelationId" TEXT NOT NULL,
-    "UserId" TEXT,
-    "TenantId" TEXT,
-    "Action" TEXT NOT NULL,
-    "EntityType" TEXT NOT NULL,
-    "EntityId" TEXT,
-    "Outcome" INTEGER NOT NULL,
-    "ErrorMessage" TEXT,
-    "TimestampUtc" TEXT NOT NULL,
-    "StartedAtUtc" TEXT NOT NULL,
-    "CompletedAtUtc" TEXT NOT NULL,
-    "IpAddress" TEXT,
-    "UserAgent" TEXT,
-    "RequestPayloadHash" TEXT,
-    "RequestPayload" TEXT,
-    "ResponsePayload" TEXT,
-    "Metadata" TEXT
-);
-
-CREATE INDEX "IX_SecurityAuditEntries_UserId" ON "SecurityAuditEntries"("UserId");
-CREATE INDEX "IX_SecurityAuditEntries_EntityType_EntityId" ON "SecurityAuditEntries"("EntityType", "EntityId");
-CREATE INDEX "IX_SecurityAuditEntries_TimestampUtc" ON "SecurityAuditEntries"("TimestampUtc");
-```
-
-#### ADO.NET (SQLite, SQL Server, PostgreSQL, MySQL)
+#### ADO.NET (SQL Server, PostgreSQL, MySQL)
 
 Use the same SQL scripts as Dapper (above).
 
@@ -1234,7 +1202,6 @@ store.Clear();  // Reset between tests
 | SQL Server | `UNIQUEIDENTIFIER` | `DATETIMEOFFSET` | `NVARCHAR(MAX)` | Full |
 | PostgreSQL | `UUID` | `TIMESTAMPTZ` | `JSONB` | Full + JSON |
 | MySQL | `CHAR(36)` | `DATETIME(6)` | `JSON` | Full + JSON |
-| SQLite | `TEXT` | `TEXT` (ISO 8601) | `TEXT` | Basic |
 | MongoDB | `UUID` (BSON) | `Date` | `Document` | Full + TTL |
 | EF Core | Provider-dependent | Provider-dependent | Provider-dependent | Via migrations |
 

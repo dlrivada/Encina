@@ -6,7 +6,7 @@
 
 ### 1. Pool Monitoring Operations Are Lightweight
 `GetPoolStatistics()` is a synchronous method that either:
-- Returns `ConnectionPoolStats.CreateEmpty()` (SQLite, EF Core, Dapper-SQLite/PostgreSQL/MySQL)
+- Returns `ConnectionPoolStats.CreateEmpty()` (EF Core, Dapper-PostgreSQL/MySQL)
 - Reads from `SqlConnection.RetrieveStatistics()` (SQL Server only)
 
 These are single-call, non-blocking operations with no connection pool contention. They do not create, open, or hold connections.
@@ -22,7 +22,7 @@ The circuit breaker state (`_isCircuitOpen`) is a `volatile bool` field. Reading
 - **Guard Tests**: 22 tests verifying null argument validation across all 10 monitors
 - **Contract Tests**: 20 tests verifying API consistency and naming conventions
 - **Property Tests**: 19 tests verifying `ConnectionPoolStats` mathematical invariants
-- **Integration Tests**: 15 tests verifying real database health checks with SQLite
+- **Integration Tests**: 15 tests verifying real database health checks
 
 ### 5. Recommended Alternative
 If load testing is needed in the future:
@@ -34,7 +34,6 @@ If load testing is needed in the future:
 - `src/Encina/Database/IDatabaseHealthMonitor.cs` - Core interface
 - `src/Encina.Messaging/Health/DatabaseHealthMonitorBase.cs` - Base implementation
 - `tests/Encina.UnitTests/Database/` - Unit tests
-- `tests/Encina.IntegrationTests/ADO/Sqlite/Resilience/` - Integration tests
 
 ## Date: 2026-02-08
 ## Issue: #290

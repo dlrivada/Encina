@@ -564,8 +564,6 @@ services.AddEncinaDapper<PostgreSqlConnection>(config =>
 | **PostgreSQL** | `encina-postgresql` | `database`, `postgresql`, `ready` |
 | **MySQL** | `encina-mysql` | `database`, `mysql`, `ready` |
 | **SQL Server** | `encina-sqlserver` | `database`, `sqlserver`, `ready` |
-| **SQLite** | `encina-sqlite` | `database`, `sqlite`, `ready` |
-| **Oracle** | `encina-oracle` | `database`, `oracle`, `ready` |
 | **MongoDB** | `encina-mongodb` | `database`, `mongodb`, `ready` |
 | **RabbitMQ** | `encina-rabbitmq` | `messaging`, `rabbitmq`, `ready` |
 | **Kafka** | `encina-kafka` | `messaging`, `kafka`, `ready` |

@@ -74,7 +74,6 @@ Immutable audit trail for all retention operations.
 | **SQL Server** | `datetimeoffset(7)` | Native offset support |
 | **PostgreSQL** | `timestamptz` | Stored as UTC |
 | **MySQL** | `datetime(6)` | Microsecond precision, stored as UTC |
-| **SQLite** | `TEXT` | ISO 8601 format (`"O"` specifier) |
 | **MongoDB** | `BsonDateTime` | UTC millisecond precision |
 
 ## Provider-Specific Boolean Storage
@@ -84,7 +83,6 @@ Immutable audit trail for all retention operations.
 | **SQL Server** | `BIT` | 0 / 1 |
 | **PostgreSQL** | `BOOLEAN` | true / false |
 | **MySQL** | `TINYINT(1)` | 0 / 1 |
-| **SQLite** | `INTEGER` | 0 / 1 |
 
 ## Key Queries for Provider Implementations
 
@@ -97,8 +95,6 @@ WHERE ExpiresAtUtc < @NowUtc
   AND Status = 0  -- Active
 ORDER BY ExpiresAtUtc ASC;
 ```
-
-> **SQLite**: Never use `datetime('now')` — always use parameterized `@NowUtc` with `DateTime.UtcNow`.
 
 ### Get Expiring Within Window (Alerts)
 
@@ -145,4 +141,4 @@ CREATE INDEX IX_RetentionAuditEntries_EntityId ON RetentionAuditEntries (EntityI
 CREATE INDEX IX_RetentionAuditEntries_OccurredAtUtc ON RetentionAuditEntries (OccurredAtUtc);
 ```
 
-> **Note**: Filtered indexes (`WHERE` clause in index) are supported by SQL Server and PostgreSQL. For SQLite and MySQL, use standard indexes without the filter.
+> **Note**: Filtered indexes (`WHERE` clause in index) are supported by SQL Server and PostgreSQL. For MySQL, use standard indexes without the filter.

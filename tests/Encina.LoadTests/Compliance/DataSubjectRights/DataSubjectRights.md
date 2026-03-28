@@ -5,7 +5,7 @@
 ## Justification
 
 ### 1. Event-Sourced Architecture Eliminates In-Memory Store Load Testing
-The DSR module was migrated from 13-provider entity-based persistence to Marten event sourcing (Issue #778). The previous load tests targeted `InMemoryDSRRequestStore` and `InMemoryDSRAuditStore`, which no longer exist. Load testing for the event-sourced architecture requires a running PostgreSQL + Marten infrastructure, which belongs in integration tests.
+The DSR module was migrated from multi-provider entity-based persistence to Marten event sourcing (Issue #778). The previous load tests targeted `InMemoryDSRRequestStore` and `InMemoryDSRAuditStore`, which no longer exist. Load testing for the event-sourced architecture requires a running PostgreSQL + Marten infrastructure, which belongs in integration tests.
 
 ### 2. Marten Event Store Performance Is Vendor-Validated
 Marten's event store is optimized for append-only workloads with well-documented performance characteristics. Load testing Marten internals provides minimal value over Marten's own benchmarks.

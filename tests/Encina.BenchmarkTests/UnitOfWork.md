@@ -41,7 +41,7 @@ This is a single dictionary lookup - sub-microsecond operation.
 
 - **Unit Tests**: Verify correct behavior of all operations
 - **Property Tests**: Verify invariants (transaction lifecycle, disposal)
-- **Contract Tests**: Verify consistent API across all 12 providers
+- **Contract Tests**: Verify consistent API across all 10 providers
 - **Integration Tests**: Test real transaction behavior against databases
 
 ### 5. Recommended Benchmarks (if needed)
@@ -52,13 +52,13 @@ If benchmarks are ever required, focus on end-to-end scenarios:
 [MemoryDiagnoser]
 public class UnitOfWorkBenchmarks
 {
-    private readonly SqliteConnection _connection;
+    private readonly SqlConnection _connection;
     private readonly IServiceProvider _serviceProvider;
 
     [GlobalSetup]
     public void Setup()
     {
-        _connection = new SqliteConnection("Data Source=:memory:");
+        _connection = new SqlConnection("Server=localhost,1433;...");
         _connection.Open();
         // Create tables...
     }

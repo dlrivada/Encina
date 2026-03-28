@@ -7,7 +7,7 @@ This document captures the detailed implementation history for v0.13.0 (February
 
 ## Milestone Overview
 
-v0.13.0 focuses on security infrastructure and regulatory compliance, providing GDPR-compliant data processing, consent management, data subject rights, anonymization, retention policies, secrets management, and data residency enforcement across all 13 database providers.
+v0.13.0 focuses on security infrastructure and regulatory compliance, providing GDPR-compliant data processing, consent management, data subject rights, anonymization, retention policies, secrets management, and data residency enforcement across all 10 database providers.
 
 ### Issues in Milestone
 
@@ -60,7 +60,7 @@ Implemented EU AI Act (EU 2024/1689) compliance with declarative, attribute-base
 
 **Issue**: [#405 - Data Residency](https://github.com/dlrivada/Encina/issues/405)
 
-Implemented data sovereignty and residency enforcement with GDPR Chapter V (Art. 44-49) cross-border transfer validation, 50+ pre-defined regions, adequacy decisions, and fluent policy configuration across all 13 database providers.
+Implemented data sovereignty and residency enforcement with GDPR Chapter V (Art. 44-49) cross-border transfer validation, 50+ pre-defined regions, adequacy decisions, and fluent policy configuration across all 10 database providers.
 
 **Package**: `Encina.Compliance.DataResidency`
 
@@ -86,7 +86,7 @@ Implemented data sovereignty and residency enforcement with GDPR Chapter V (Art.
 
 **Issue**: [#406 - Data Retention](https://github.com/dlrivada/Encina/issues/406)
 
-Implemented GDPR Art. 5(1)(e) data retention and automatic deletion with `[RetentionPeriod]` attribute, legal hold support, and retention enforcement across all 13 database providers.
+Implemented GDPR Art. 5(1)(e) data retention and automatic deletion with `[RetentionPeriod]` attribute, legal hold support, and retention enforcement across all 10 database providers.
 
 **Package**: `Encina.Compliance.Retention`
 
@@ -103,7 +103,7 @@ Implemented GDPR Art. 5(1)(e) data retention and automatic deletion with `[Reten
 
 **Issue**: [#407 - Anonymization](https://github.com/dlrivada/Encina/issues/407)
 
-Implemented GDPR Art. 4(5) data anonymization, pseudonymization, and tokenization with k-anonymity, l-diversity, t-closeness, and differential privacy across all 13 database providers.
+Implemented GDPR Art. 4(5) data anonymization, pseudonymization, and tokenization with k-anonymity, l-diversity, t-closeness, and differential privacy across all 10 database providers.
 
 **Package**: `Encina.Compliance.Anonymization`
 
@@ -175,7 +175,7 @@ Implemented GDPR Records of Processing Activities with `[ProcessingActivity]` at
 
 **Issue**: [#403 - Consent Management](https://github.com/dlrivada/Encina/issues/403)
 
-Implemented consent management with `[RequireConsent]` attribute, consent versioning, and consent enforcement across all 13 database providers.
+Implemented consent management with `[RequireConsent]` attribute, consent versioning, and consent enforcement across all 10 database providers.
 
 **Package**: `Encina.Compliance.Consent`
 
@@ -191,7 +191,7 @@ Implemented consent management with `[RequireConsent]` attribute, consent versio
 
 **Issue**: [#413 - Lawful Basis Validation](https://github.com/dlrivada/Encina/issues/413)
 
-Implemented `[LawfulBasis]` attribute with Legitimate Interest Assessment (LIA) support, EDPB three-part test, and validation across all 13 database providers.
+Implemented `[LawfulBasis]` attribute with Legitimate Interest Assessment (LIA) support, EDPB three-part test, and validation across all 10 database providers.
 
 **Package**: `Encina.Compliance.GDPR`
 
@@ -208,7 +208,7 @@ Implemented `[LawfulBasis]` attribute with Legitimate Interest Assessment (LIA) 
 
 **Issue**: [#404 - Data Subject Rights](https://github.com/dlrivada/Encina/issues/404)
 
-Implemented DSR pipeline behavior with restriction enforcement, personal data discovery, erasure (right to be forgotten), and data portability across all 13 database providers.
+Implemented DSR pipeline behavior with restriction enforcement, personal data discovery, erasure (right to be forgotten), and data portability across all 10 database providers.
 
 **Package**: `Encina.Compliance.GDPR`
 

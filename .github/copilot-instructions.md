@@ -44,25 +44,24 @@ dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj
 
 ## Multi-Provider Rule (MANDATORY)
 
-All provider-dependent features MUST be implemented for ALL 13 database providers:
+All provider-dependent features MUST be implemented for ALL 10 database providers:
 
 | Category | Providers | Count |
 |----------|-----------|-------|
-| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
-| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
-| **EF Core** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| **ADO.NET** | SqlServer, PostgreSQL, MySQL | 3 |
+| **Dapper** | SqlServer, PostgreSQL, MySQL | 3 |
+| **EF Core** | SqlServer, PostgreSQL, MySQL | 3 |
 | **MongoDB** | MongoDB | 1 |
 
 **Provider-specific SQL differences:**
 
 | Provider | Parameters | LIMIT | Boolean | Notes |
 |----------|------------|-------|---------|-------|
-| SQLite | `@param` | `LIMIT @n` | `0/1` | String-based DateTime storage |
 | SQL Server | `@param` | `TOP (@n)` | `bit` | Native DateTime, GUID |
 | PostgreSQL | `@param` | `LIMIT @n` | `true/false` | Case-sensitive identifiers |
 | MySQL | `@param` | `LIMIT @n` | `0/1` | Backtick identifiers |
 
-Beyond the 13 database providers, there are specialized categories: **Caching (8)**, **Transport (10+)**, **Lock (4+)**, **Validation (3)**, **Cloud (3)**, **Resilience (3)**, **Observability (1+)**. See `CLAUDE.md` for full details.
+Beyond the 10 database providers, there are specialized categories: **Caching (8)**, **Transport (10+)**, **Lock (4+)**, **Validation (3)**, **Cloud (3)**, **Resilience (3)**, **Observability (1+)**. See `CLAUDE.md` for full details.
 
 ## Code Conventions
 
@@ -125,15 +124,12 @@ Integration tests use shared xUnit `[Collection]` fixtures to minimize Docker co
 | `ADO-SqlServer` | `SqlServerFixture` | |
 | `ADO-PostgreSQL` | `PostgreSqlFixture` | |
 | `ADO-MySQL` | `MySqlFixture` | |
-| `ADO-Sqlite` | `SqliteFixture` | `DisableParallelization = true` |
 | `Dapper-SqlServer` | `SqlServerFixture` | |
 | `Dapper-PostgreSQL` | `PostgreSqlFixture` | |
 | `Dapper-MySQL` | `MySqlFixture` | |
-| `Dapper-Sqlite` | `SqliteFixture` | `DisableParallelization = true` |
 | `EFCore-SqlServer` | `EFCoreSqlServerFixture` | |
 | `EFCore-PostgreSQL` | `EFCorePostgreSqlFixture` | |
 | `EFCore-MySQL` | `EFCoreMySqlFixture` | |
-| `EFCore-Sqlite` | `EFCoreSqliteFixture` | `DisableParallelization = true` |
 
 **New test class template:**
 
@@ -157,13 +153,6 @@ public class MyNewTests : IAsyncLifetime
 2. NEVER call `new SqlServerFixture()` or `_fixture = new()` - inject via constructor
 3. NEVER call `_fixture.DisposeAsync()` from tests - the collection owns the lifecycle
 4. Use `_fixture.ClearAllDataAsync()` in `InitializeAsync()` for data cleanup
-
-### SQLite Special Rules (Shared In-Memory DB)
-
-- `CreateConnection()` returns the SAME shared connection object
-- NEVER wrap it in `using`/`await using`
-- NEVER pass it to wrappers that dispose (like `SchemaValidatingConnection`)
-- When a disposable connection is needed, create: `new SqliteConnection(_fixture.ConnectionString)`
 
 ### Test Structure
 
@@ -206,20 +195,6 @@ BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, config);
 
 - Always materialize `IQueryable<T>` with `.ToList()` in benchmark methods
 - Verify filtering before full execution: `dotnet run -c Release -- --list flat --filter "*MyBenchmark*"`
-
-## SQLite DateTime Format Incompatibility
-
-Never use `datetime('now')` in SQLite Dapper queries. Always use parameterized `@NowUtc`:
-
-```csharp
-// WRONG - datetime('now') format incompatible with ISO 8601
-var sql = "SELECT * FROM Messages WHERE ProcessedAtUtc < datetime('now')";
-
-// CORRECT - Use parameterized DateTime from C#
-var nowUtc = DateTime.UtcNow;
-var sql = "SELECT * FROM Messages WHERE ProcessedAtUtc < @NowUtc";
-await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
-```
 
 ## .NET 10 / C# 14 Notes
 

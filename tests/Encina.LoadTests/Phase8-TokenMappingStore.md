@@ -4,7 +4,7 @@
 
 ## Justification
 
-The `ITokenMappingStore` implementations across all 13 database providers are thin data access wrappers containing 2-5 lines of SQL per operation. Load testing these wrappers would primarily stress the underlying database engines rather than the Encina store code itself.
+The `ITokenMappingStore` implementations across all 10 database providers are thin data access wrappers containing 2-5 lines of SQL per operation. Load testing these wrappers would primarily stress the underlying database engines rather than the Encina store code itself.
 
 ### 1. Thin Wrappers Over Database Operations
 
@@ -44,10 +44,10 @@ There are no joins, subqueries, aggregations, or complex WHERE clauses that coul
 
 ### 4. Adequate Coverage from Other Test Types
 
-- **Unit Tests**: Verify SQL generation correctness, parameter binding, and result mapping for all 13 providers. Cover edge cases like duplicate tokens, missing mappings, and concurrent store/retrieve operations
+- **Unit Tests**: Verify SQL generation correctness, parameter binding, and result mapping for all 10 providers. Cover edge cases like duplicate tokens, missing mappings, and concurrent store/retrieve operations
 - **Guard Tests**: Verify null/empty parameter rejection for all public methods across all providers
 - **Property Tests**: Verify store invariants (store-then-retrieve returns original, remove-then-get returns null) with randomized token values across all providers
-- **Contract Tests**: Verify all 13 `ITokenMappingStore` implementations satisfy the interface contract identically
+- **Contract Tests**: Verify all 10 `ITokenMappingStore` implementations satisfy the interface contract identically
 - **Integration Tests**: Verify operations against real database instances (Docker/Testcontainers) for all supported databases
 
 ### 5. Recommended Alternative
@@ -70,11 +70,9 @@ dotnet run --project tests/Encina.LoadTests -- --scenario TokenMappingStore --da
 - `src/Encina.ADO.SqlServer/Anonymization/` - ADO.NET SQL Server implementation
 - `src/Encina.ADO.PostgreSQL/Anonymization/` - ADO.NET PostgreSQL implementation
 - `src/Encina.ADO.MySQL/Anonymization/` - ADO.NET MySQL implementation
-- `src/Encina.ADO.Sqlite/Anonymization/` - ADO.NET SQLite implementation
 - `src/Encina.Dapper.SqlServer/Anonymization/` - Dapper SQL Server implementation
 - `src/Encina.Dapper.PostgreSQL/Anonymization/` - Dapper PostgreSQL implementation
 - `src/Encina.Dapper.MySQL/Anonymization/` - Dapper MySQL implementation
-- `src/Encina.Dapper.Sqlite/Anonymization/` - Dapper SQLite implementation
 - `src/Encina.EntityFrameworkCore/Anonymization/` - EF Core implementation
 - `src/Encina.MongoDB/Anonymization/` - MongoDB implementation
 - `tests/Encina.UnitTests/Compliance/Anonymization/` - Unit tests

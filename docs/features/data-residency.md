@@ -621,9 +621,9 @@ The in-memory stores (`InMemoryResidencyPolicyStore`, `InMemoryDataLocationStore
 
 | Provider Category | Providers | Registration |
 |-------------------|-----------|-------------|
-| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDataResidency = true` in `AddEncinaADO()` |
-| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDataResidency = true` in `AddEncinaDapper()` |
-| EF Core | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseDataResidency = true` in `AddEncinaEntityFrameworkCore()` |
+| ADO.NET | SQL Server, PostgreSQL, MySQL | `config.UseDataResidency = true` in `AddEncinaADO()` |
+| Dapper | SQL Server, PostgreSQL, MySQL | `config.UseDataResidency = true` in `AddEncinaDapper()` |
+| EF Core | SQL Server, PostgreSQL, MySQL | `config.UseDataResidency = true` in `AddEncinaEntityFrameworkCore()` |
 | MongoDB | MongoDB | `config.UseDataResidency = true` in `AddEncinaMongoDB()` |
 
 Each provider registers `IResidencyPolicyStore`, `IDataLocationStore`, and `IResidencyAuditStore` backed by the corresponding database.

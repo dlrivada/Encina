@@ -232,15 +232,12 @@ When `EnablePubSubInvalidation` is `true`, a `PolicyCachePubSubHostedService` su
 | EF Core (SqlServer) | `Encina.EntityFrameworkCore.SqlServer` | `PolicyStoreEF` |
 | EF Core (PostgreSQL) | `Encina.EntityFrameworkCore.PostgreSQL` | `PolicyStoreEF` |
 | EF Core (MySQL) | `Encina.EntityFrameworkCore.MySQL` | `PolicyStoreEF` |
-| EF Core (SQLite) | `Encina.EntityFrameworkCore.Sqlite` | `PolicyStoreEF` |
 | Dapper (SqlServer) | `Encina.Dapper.SqlServer` | `PolicyStoreDapper` |
 | Dapper (PostgreSQL) | `Encina.Dapper.PostgreSQL` | `PolicyStoreDapper` |
 | Dapper (MySQL) | `Encina.Dapper.MySQL` | `PolicyStoreDapper` |
-| Dapper (SQLite) | `Encina.Dapper.Sqlite` | `PolicyStoreDapper` |
 | ADO.NET (SqlServer) | `Encina.ADO.SqlServer` | `PolicyStoreADO` |
 | ADO.NET (PostgreSQL) | `Encina.ADO.PostgreSQL` | `PolicyStoreADO` |
 | ADO.NET (MySQL) | `Encina.ADO.MySQL` | `PolicyStoreADO` |
-| ADO.NET (SQLite) | `Encina.ADO.Sqlite` | `PolicyStoreADO` |
 | MongoDB | `Encina.MongoDB` | `PolicyStoreMongoDB` |
 
 ## Complete Configuration Example

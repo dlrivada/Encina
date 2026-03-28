@@ -455,7 +455,7 @@ var summary = await healthCheck.CheckReplicaHealthAsync(ct);
 
 ## Provider-Specific Setup
 
-### ADO.NET (SqlServer, PostgreSQL, MySQL, SQLite)
+### ADO.NET (SqlServer, PostgreSQL, MySQL)
 
 ```csharp
 // ADO.NET: IShardedReadWriteConnectionFactory returns IDbConnection
@@ -481,7 +481,7 @@ result.IfRight(sqlConnection =>
 });
 ```
 
-### Dapper (SqlServer, PostgreSQL, MySQL, SQLite)
+### Dapper (SqlServer, PostgreSQL, MySQL)
 
 ```csharp
 // Dapper: IShardedReadWriteConnectionFactory returns IDbConnection
@@ -496,7 +496,7 @@ result.IfRight(async connection =>
 
 Dapper providers implement `IShardedReadWriteConnectionFactory` (non-generic), since Dapper works with `IDbConnection` directly.
 
-### EF Core (SqlServer, PostgreSQL, MySQL, SQLite)
+### EF Core (SqlServer, PostgreSQL, MySQL)
 
 ```csharp
 // EF Core: IShardedReadWriteDbContextFactory<TContext>

@@ -8,7 +8,7 @@
 
 `GetPoolStatistics()` is called on-demand (health check endpoints, diagnostic tools) rather than on every request. Typical invocation frequency is seconds or minutes, not microseconds:
 
-- **SQLite, EF Core, Dapper-SQLite/PostgreSQL/MySQL**: Returns `ConnectionPoolStats.CreateEmpty()` — a static factory call with zero allocation beyond the record itself.
+- **EF Core, Dapper-PostgreSQL/MySQL**: Returns `ConnectionPoolStats.CreateEmpty()` — a static factory call with zero allocation beyond the record itself.
 - **SQL Server (ADO + Dapper)**: Calls `SqlConnection.RetrieveStatistics()` — a dictionary read from the driver's internal counters. Single-digit microsecond operation.
 - **PostgreSQL, MySQL (ADO)**: Read connection string properties (`MaxPoolSize`). No database round-trip.
 - **MongoDB**: Calls `IMongoClient.Cluster.Description` — reads cached cluster metadata.
@@ -29,7 +29,7 @@ The `IsCircuitOpen` property reads a `volatile bool` field. This is a single CPU
 - **Guard Tests**: 22 tests verifying null argument validation across all 10 monitors
 - **Contract Tests**: 20 tests verifying API consistency and naming conventions
 - **Property Tests**: 19 tests verifying `ConnectionPoolStats` mathematical invariants (PoolUtilization clamping, equality, hash codes)
-- **Integration Tests**: 15 tests verifying real database health checks with SQLite
+- **Integration Tests**: 15 tests verifying real database health checks
 
 ### 5. Recommended Alternative
 
@@ -45,7 +45,6 @@ If performance measurement is needed in the future:
 - `src/Encina/Database/ConnectionPoolStats.cs` - Pool statistics record
 - `src/Encina.Messaging/Health/DatabaseHealthMonitorBase.cs` - Base implementation
 - `tests/Encina.UnitTests/Database/` - Unit tests
-- `tests/Encina.IntegrationTests/ADO/Sqlite/Resilience/` - Integration tests
 
 ## Date: 2026-02-08
 ## Issue: #290

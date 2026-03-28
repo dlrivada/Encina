@@ -67,8 +67,8 @@ nav_exclude: true
 **Mensajería & Bases de Datos** (10 proveedores completos):
 
 - ✅ `Encina.EntityFrameworkCore` - EF Core con transacciones
-- ✅ **Dapper Providers** (5): SqlServer, PostgreSQL, MySQL, Oracle, Sqlite
-- ✅ **ADO Providers** (5): SqlServer, PostgreSQL, MySQL, Oracle, Sqlite
+- ✅ **Dapper Providers** (4): SqlServer, PostgreSQL, MySQL, Oracle
+- ✅ **ADO Providers** (4): SqlServer, PostgreSQL, MySQL, Oracle
 
 **Patrones Soportados en todos los proveedores**:
 
@@ -1229,8 +1229,8 @@ public class OrderCreatedHandler : INotificationHandler<OrderCreatedNotification
 4. **Functional error handling** (Either monad)
 5. **Saga Orchestration** con persistencia en 11 proveedores:
    - EntityFrameworkCore
-   - Dapper (5 DBs: SqlServer, PostgreSQL, MySQL, Sqlite, Oracle)
-   - ADO.NET (5 DBs: SqlServer, PostgreSQL, MySQL, Sqlite, Oracle)
+   - Dapper (4 DBs: SqlServer, PostgreSQL, MySQL, Oracle)
+   - ADO.NET (4 DBs: SqlServer, PostgreSQL, MySQL, Oracle)
 6. **Saga Choreography** (event-driven sagas):
    - `IChoreographySaga<TState>` - Saga state machine
    - `IEventReaction<TEvent>` - Event handlers

@@ -18,7 +18,7 @@ GDPR Chapter V (Articles 44-49) data sovereignty and residency enforcement for E
 - **Immutable Audit Trail** -- Every residency decision recorded via `IResidencyAuditStore`
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions
 - **Full Observability** -- OpenTelemetry tracing, 7 counters, 2 histograms, 35 structured log events, health check
-- **13 Database Providers** -- ADO.NET, Dapper, EF Core (SQLite, SQL Server, PostgreSQL, MySQL) + MongoDB
+- **10 Database Providers** -- ADO.NET, Dapper, EF Core (SQL Server, PostgreSQL, MySQL) + MongoDB
 - **.NET 10 Compatible** -- Built with latest C# features
 
 ## Installation
@@ -181,10 +181,10 @@ services.AddEncinaDataResidency(options =>
 
 ## Database Providers
 
-The core package ships with `InMemoryResidencyPolicyStore`, `InMemoryDataLocationStore`, and `InMemoryResidencyAuditStore` for development and testing. Database-backed implementations for the 13 providers are available via satellite packages:
+The core package ships with `InMemoryResidencyPolicyStore`, `InMemoryDataLocationStore`, and `InMemoryResidencyAuditStore` for development and testing. Database-backed implementations for the 10 providers are available via satellite packages:
 
 ```csharp
-// ADO.NET (SQLite example)
+// ADO.NET (SQL Server example)
 services.AddEncinaADO(config =>
 {
     config.UseDataResidency = true;

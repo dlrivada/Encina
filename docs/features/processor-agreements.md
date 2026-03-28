@@ -300,15 +300,13 @@ Seven domain notifications integrate with downstream workflows:
 
 ## Database Providers
 
-All 13 database providers implement the three store interfaces:
+All 10 database providers implement the three store interfaces:
 
 | Provider | Registry | DPA Store | Audit Store |
 |----------|----------|-----------|-------------|
-| **ADO.NET SQLite** | `ProcessorRegistryADO` | `DPAStoreADO` | `ProcessorAuditStoreADO` |
 | **ADO.NET SQL Server** | `ProcessorRegistryADO` | `DPAStoreADO` | `ProcessorAuditStoreADO` |
 | **ADO.NET PostgreSQL** | `ProcessorRegistryADO` | `DPAStoreADO` | `ProcessorAuditStoreADO` |
 | **ADO.NET MySQL** | `ProcessorRegistryADO` | `DPAStoreADO` | `ProcessorAuditStoreADO` |
-| **Dapper SQLite** | `ProcessorRegistryDapper` | `DPAStoreDapper` | `ProcessorAuditStoreDapper` |
 | **Dapper SQL Server** | `ProcessorRegistryDapper` | `DPAStoreDapper` | `ProcessorAuditStoreDapper` |
 | **Dapper PostgreSQL** | `ProcessorRegistryDapper` | `DPAStoreDapper` | `ProcessorAuditStoreDapper` |
 | **Dapper MySQL** | `ProcessorRegistryDapper` | `DPAStoreDapper` | `ProcessorAuditStoreDapper` |

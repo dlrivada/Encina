@@ -165,7 +165,7 @@ Encina always uses the two-phase approach for averages, collecting both SUM and 
 For SQL providers, the average operation generates a single query that retrieves both values:
 
 ```sql
--- SQL Server / PostgreSQL / SQLite
+-- SQL Server / PostgreSQL
 SELECT SUM([Amount]) AS SumValue, COUNT(*) AS CountValue
 FROM [Orders]
 WHERE [Status] = @p0
@@ -256,13 +256,13 @@ result.Match(
 
 ## Provider Support
 
-Distributed aggregation is supported across all 13 database providers:
+Distributed aggregation is supported across all 10 database providers:
 
 | Provider Category | Providers | Status |
 |-------------------|-----------|--------|
-| **ADO.NET** | SqlServer, PostgreSQL, MySQL, SQLite | ✅ Supported |
-| **Dapper** | SqlServer, PostgreSQL, MySQL, SQLite | ✅ Supported |
-| **EF Core** | SqlServer, PostgreSQL, MySQL, SQLite | ✅ Supported |
+| **ADO.NET** | SqlServer, PostgreSQL, MySQL | ✅ Supported |
+| **Dapper** | SqlServer, PostgreSQL, MySQL | ✅ Supported |
+| **EF Core** | SqlServer, PostgreSQL, MySQL | ✅ Supported |
 | **MongoDB** | MongoDB | ✅ Supported |
 
 ### Provider-Specific SQL
@@ -274,7 +274,6 @@ Each SQL provider generates correctly quoted SQL for its database:
 | SQL Server | `[column]` | `SELECT SUM([Amount]) FROM [Orders]` |
 | PostgreSQL | `"column"` | `SELECT SUM("Amount") FROM "Orders"` |
 | MySQL | `` `column` `` | ``SELECT SUM(`Amount`) FROM `Orders` `` |
-| SQLite | `"column"` | `SELECT SUM("Amount") FROM "Orders"` |
 
 ### MongoDB
 

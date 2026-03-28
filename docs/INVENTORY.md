@@ -1,9 +1,3 @@
----
-title: "Encina - Inventario Completo"
-layout: default
-nav_exclude: true
----
-
 # Encina - Inventario Completo
 
 > **Documento generado**: 2 de febrero de 2026
@@ -74,13 +68,13 @@ nav_exclude: true
 
 ### Proveedores de Base de Datos (13 obligatorios)
 
-Los patrones de mensajería (Outbox, Inbox, Saga, Scheduling) DEBEN implementarse para los 13 proveedores de base de datos:
+Los patrones de mensajería (Outbox, Inbox, Saga, Scheduling) DEBEN implementarse para los 10 proveedores de base de datos:
 
 | Categoría | Proveedores | Total |
 |-----------|-------------|-------|
-| ADO.NET | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
-| Dapper | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
-| EF Core | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| ADO.NET | SqlServer, PostgreSQL, MySQL | 3 |
+| Dapper | SqlServer, PostgreSQL, MySQL | 3 |
+| EF Core | SqlServer, PostgreSQL, MySQL | 3 |
 | MongoDB | MongoDB | 1 |
 
 ### Proveedores Especializados por Categoría
@@ -575,7 +569,7 @@ Esta nueva categoría agrupa patrones avanzados de Event-Driven Architecture ide
 - `SchemaDefinition` con Format (Avro, Protobuf, JsonSchema)
 - `CompatibilityResult` para validación forward/backward
 - **Nuevos paquetes planificados**: `Encina.SchemaRegistry`, `Encina.SchemaRegistry.Confluent`, `Encina.SchemaRegistry.Azure`
-- **Use case**: Governance de eventos, evolución de esquemas, .github/ci/CD
+- **Use case**: Governance de eventos, evolución de esquemas, CI/CD
 - Labels: `area-schema-registry`, `transport-kafka`, `area-compliance`, `industry-best-practice`
 - Referencias: [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
 
@@ -1357,12 +1351,12 @@ src/
 | **Encina.Dapper.PostgreSQL** | Dapper | PostgreSQL | ✅ Completo |
 | **Encina.Dapper.MySQL** | Dapper | MySQL/MariaDB | ✅ Completo |
 | **Encina.Dapper.Oracle** | Dapper | Oracle | ✅ Completo |
-| **Encina.Dapper.Sqlite** | Dapper | SQLite | ✅ Completo |
+| ~~Encina.Dapper.Sqlite~~ | Dapper | SQLite | ❌ Removed |
 | **Encina.ADO.SqlServer** | ADO.NET | SQL Server | ✅ Completo |
 | **Encina.ADO.PostgreSQL** | ADO.NET | PostgreSQL | ✅ Completo |
 | **Encina.ADO.MySQL** | ADO.NET | MySQL/MariaDB | ✅ Completo |
 | **Encina.ADO.Oracle** | ADO.NET | Oracle | ✅ Completo |
-| **Encina.ADO.Sqlite** | ADO.NET | SQLite | ✅ Completo |
+| ~~Encina.ADO.Sqlite~~ | ADO.NET | SQLite | ❌ Removed |
 | **Encina.MongoDB** | MongoDB Driver | MongoDB | ✅ Completo |
 | **Encina.Marten** | Marten | PostgreSQL (Event Store) | ✅ Completo |
 | **Encina.Marten.GDPR** | Marten + Encryption | PostgreSQL (Crypto-Shredding) | ✅ Completo (#322) |
@@ -1687,15 +1681,15 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
   - `DirectoryShardRouter`: `IShardDirectoryStore` (pluggable), `InMemoryShardDirectoryStore` built-in
   - `GeoShardRouter`: Region-based with fallback chains, cycle detection
 - **Scatter-Gather**: `IShardedQueryExecutor` con `ScatterGatherOptions` (MaxParallelism, Timeout, AllowPartialResults)
-- **13 providers**: ADO×4 (`IShardedConnectionFactory`), Dapper×4 (reutiliza ADO), EF Core×4 (`IShardedDbContextFactory`), MongoDB (`IShardedMongoCollectionFactory`)
+- **10 providers**: ADO×3 (`IShardedConnectionFactory`), Dapper×3 (reutiliza ADO), EF Core×3 (`IShardedDbContextFactory`), MongoDB (`IShardedMongoCollectionFactory`)
 - **MongoDB dual-mode**: `UseNativeSharding` — native mongos (production) vs app-level routing (dev/test)
 - **Observability**: 9 métricas ("Encina" meter), 5 traces ("Encina.Sharding" ActivitySource), 15 error codes `encina.sharding.*`
 - **Health**: `ShardHealthResult` (Healthy/Degraded/Unhealthy), `ShardedHealthSummary`
 - **Documentation**: ADR-010, 5 guides (configuration, scaling, MongoDB, cross-shard operations, [distributed aggregations](./features/distributed-aggregations.md))
 - **Compound Shard Keys** (#641): `CompoundShardKey`, `ICompoundShardable`, `CompoundShardKeyExtractor`, `CompoundShardRouter`, `CompoundRoutingBuilder`, `ShardKeyAttribute.Order`, partial key routing (scatter-gather), 4 new error codes
-- **Distributed Aggregation** (#640): `IShardedAggregationSupport<TEntity, TId>`, `ShardAggregatePartial<TValue>`, `AggregationResult<T>`, `AggregationCombiner` (Count/Sum/Avg/Min/Max), `ShardedAggregationExtensions`, two-phase aggregation (correct average), 13 providers (ADO×4 `BuildAggregationSql`, Dapper×4, EF Core×4 LINQ-based, MongoDB `AggregationPipelineBuilder`), 2 new error codes, 2 new metrics, 2 new traces
+- **Distributed Aggregation** (#640): `IShardedAggregationSupport<TEntity, TId>`, `ShardAggregatePartial<TValue>`, `AggregationResult<T>`, `AggregationCombiner` (Count/Sum/Avg/Min/Max), `ShardedAggregationExtensions`, two-phase aggregation (correct average), 10 providers (ADO×3 `BuildAggregationSql`, Dapper×3, EF Core×3 LINQ-based, MongoDB `AggregationPipelineBuilder`), 2 new error codes, 2 new metrics, 2 new traces
 - **Entity Co-Location** (#647): `IColocationGroup`, `ColocationGroup`, `ColocationGroupBuilder`, `ColocationGroupRegistry`, `[ColocatedWith]` attribute, `ColocationViolationException`, all 5 routers extended with `GetColocationGroup(Type)`, `ColocationMetrics` (3 instruments), `ColocationLog` (5 source-generated events), 3 trace attributes, 4 new error codes (`ColocationEntityNotShardable`, `ColocationShardKeyMismatch`, `ColocationDuplicateRegistration`, `ColocationSelfReference`)
-- **Reference Tables** (#639): `IReferenceTableReplicator`, `IReferenceTableRegistry`, `IReferenceTableStore`, `IReferenceTableStoreFactory`, `IReferenceTableStateStore`, `ReferenceTableOptions`, `ReferenceTableGlobalOptions`, `ReferenceTableConfiguration`, `ReferenceTableHealthCheckOptions`, `[ReferenceTable]` attribute, `RefreshStrategy` enum (CdcDriven/Polling/Manual), `ReplicationResult`/`ShardReplicationResult`/`ShardFailure` records, `ReferenceTableHashComputer` (XxHash64), `EntityMetadataCache` (reflection-based `[Table]`/`[Key]`/`[Column]` discovery), `ReferenceTableErrorCodes` (15 stable codes), 13 providers (ADO×4 `ReferenceTableStoreADO`, Dapper×4 `ReferenceTableStoreDapper`, EF Core×1 `ReferenceTableStoreEF<TContext>`, MongoDB×1 `ReferenceTableStoreMongoDB`), per-provider upsert SQL (SQLite `INSERT OR REPLACE`, SqlServer `MERGE`, PostgreSQL `ON CONFLICT DO UPDATE`, MySQL `ON DUPLICATE KEY UPDATE`, MongoDB `BulkWriteAsync`), `ReferenceTableMetrics` (5 instruments), `ReferenceTableActivityEnricher` (6 tag constants), `ReferenceTableHealthCheck` (three-state), `InMemoryReferenceTableStateStore`, `ReferenceTableReplicationService` (BackgroundService), documentation: [ADR-013](architecture/adr/013-reference-tables.md), [Feature Guide](features/reference-tables.md), [Configuration Guide](configuration/reference-tables.md), [Scaling Guide](guides/reference-tables-scaling.md)
+- **Reference Tables** (#639): `IReferenceTableReplicator`, `IReferenceTableRegistry`, `IReferenceTableStore`, `IReferenceTableStoreFactory`, `IReferenceTableStateStore`, `ReferenceTableOptions`, `ReferenceTableGlobalOptions`, `ReferenceTableConfiguration`, `ReferenceTableHealthCheckOptions`, `[ReferenceTable]` attribute, `RefreshStrategy` enum (CdcDriven/Polling/Manual), `ReplicationResult`/`ShardReplicationResult`/`ShardFailure` records, `ReferenceTableHashComputer` (XxHash64), `EntityMetadataCache` (reflection-based `[Table]`/`[Key]`/`[Column]` discovery), `ReferenceTableErrorCodes` (15 stable codes), 10 providers (ADO×3 `ReferenceTableStoreADO`, Dapper×3 `ReferenceTableStoreDapper`, EF Core×1 `ReferenceTableStoreEF<TContext>`, MongoDB×1 `ReferenceTableStoreMongoDB`), per-provider upsert SQL (SqlServer `MERGE`, PostgreSQL `ON CONFLICT DO UPDATE`, MySQL `ON DUPLICATE KEY UPDATE`, MongoDB `BulkWriteAsync`), `ReferenceTableMetrics` (5 instruments), `ReferenceTableActivityEnricher` (6 tag constants), `ReferenceTableHealthCheck` (three-state), `InMemoryReferenceTableStateStore`, `ReferenceTableReplicationService` (BackgroundService), documentation: [ADR-013](architecture/adr/013-reference-tables.md), [Feature Guide](features/reference-tables.md), [Configuration Guide](configuration/reference-tables.md), [Scaling Guide](guides/reference-tables-scaling.md)
 - **Time-Based Sharding & Archival** (#650): `ITimeBasedShardRouter`, `TimeBasedShardRouter` (binary search over sorted period ranges, `FrozenDictionary` lookup, fallback creation, co-location), `ShardPeriod` (Daily/Weekly/Monthly/Quarterly/Yearly), `ShardTier` (Hot/Warm/Cold/Archived), `ShardTierInfo`, `TierTransition`, `PeriodBoundaryCalculator` (period boundaries, labels, enumeration), `ITierStore`/`InMemoryTierStore`, `IShardArchiver`/`ShardArchiver`, `IReadOnlyEnforcer`, `IShardFallbackCreator`, `ArchiveOptions`, `TierTransitionScheduler` (BackgroundService), `TimeBasedShardingOptions`/`TimeBasedShardRouterOptions`, health checks (`TierTransitionHealthCheck`, `ShardCreationHealthCheck`), `TimeBasedShardingMetrics` (6 instruments), 6 error codes, 227 tests (unit 161, guard 31, contract 23, property 12)
 - **Shadow Sharding** (#649): `IShadowShardRouter`, `ShadowShardRouterDecorator` (production delegation + shadow comparison with `Stopwatch` latency), `ShadowComparisonResult` (immutable record with `LatencyDifference`), `ShadowShardingOptions` (topology, dual-write, read percentage, timeout, discrepancy handler, router factory), `ShadowWritePipelineBehavior` (fire-and-forget with timeout), `ShadowReadPipelineBehavior` (percentage-based sampling, hash comparison, discrepancy handler invocation), `WithShadowSharding()` fluent config, `ShadowShardingServiceCollectionExtensions`, `ShadowShardingMetrics` (6 instruments), `ShadowShardingActivityEnricher` (2 static methods), `ShadowShardingLog` (source-generated), 5 `ActivityTagNames.Shadow` constants, 1 error code (`shadow_routing_failed`), 90 tests (unit 55, guard 18, contract 9, property 8) + 5 benchmarks, documentation: [Feature Guide](features/shadow-sharding.md)
 - **Schema Migration Coordination** (#651): `IShardedMigrationCoordinator` (5 methods: `ApplyToAllShardsAsync`, `RollbackAsync`, `DetectDriftAsync`, `GetProgressAsync`, `GetAppliedMigrationsAsync`), `ShardedMigrationCoordinator` (internal, in-memory progress tracking, history table initialization, per-shard error isolation), `MigrationScript` (immutable record: Id, UpSql, DownSql, Description, Checksum), `MigrationResult` (per-shard status with computed `AllSucceeded`/`SucceededCount`/`FailedCount`), `MigrationProgress` (real-time tracking with `RemainingShards`/`IsFinished`), `MigrationOptions`/`MigrationCoordinationOptions`, `MigrationCoordinationBuilder` (fluent: `UseStrategy`/`WithMaxParallelism`/`StopOnFirstFailure`/`WithPerShardTimeout`/`ValidateBeforeApply`/`OnShardMigrated`/`WithDriftDetection`), `MigrationServiceCollectionExtensions.AddEncinaShardMigrationCoordination()`, 4 strategies (`IMigrationStrategy` internal): `SequentialMigrationStrategy` (one-at-a-time), `ParallelMigrationStrategy` (semaphore-throttled), `RollingUpdateStrategy` (configurable batch), `CanaryFirstStrategy` (canary then parallel), `MigrationStrategy` enum (Sequential/Parallel/RollingUpdate/CanaryFirst), `MigrationOutcome` enum (Pending/InProgress/Succeeded/Failed/RolledBack), `ShardMigrationStatus` record, provider abstractions: `IMigrationExecutor` (DDL execution), `IMigrationHistoryStore` (5 methods: GetApplied/RecordApplied/RecordRolledBack/EnsureHistoryTable/ApplyHistorical), `ISchemaIntrospector` (schema inspection), schema types: `ColumnSchema`/`TableSchema`/`ShardSchema`/`SchemaIntrospectionOptions`, drift detection: `SchemaComparer` (internal static), `SchemaComparisonDepth` enum (TablesOnly/TablesAndColumns/Full), `DriftDetectionOptions`, `SchemaDriftReport`/`ShardSchemaDiff`/`TableDiff`/`TableDiffType` (Missing/Extra/Modified), `MigrationErrorCodes` (5 constants: NoActiveShards/MigrationFailed/RollbackFailed/DriftDetectionFailed/HistoryQueryFailed), observability (`Encina.OpenTelemetry`): `MigrationMetrics` (6 instruments: shards_migrated_total, shards_failed_total, duration_per_shard_ms, total_duration_ms, drift_detected_count gauge, rollbacks_total), `MigrationActivitySource` (3 methods: StartMigrationCoordination/StartShardMigration/Complete), `MigrationMetricsCallbacks`, `MigrationMetricsInitializer` (hosted service), `SchemaDriftHealthCheck` (three-state: Unhealthy/Degraded/Healthy based on critical table drift), `SchemaDriftHealthCheckOptions`, 14 `ActivityTagNames.Migration` constants, 169 tests (unit 47, guard 54, contract 26, property 31, integration 11 with real SQLite), documentation: [Feature Guide](features/migration-coordination.md)
@@ -1715,10 +1709,10 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - **4 readonly record struct** ID types con Parse/TryParse/TryParseEither, zero-allocation
 - **Railway Oriented Programming**: Todas las operaciones retornan `Either<EncinaError, TId>`
 - **4 error codes**: `ClockDriftDetected`, `SequenceExhausted`, `InvalidShardId`, `IdParseFailure`
-- **13 providers** type mapping:
-  - ADO.NET×4: `IdParameterExtensions` con `AddSnowflakeId`, `AddUlidId`, `AddUuidV7Id`, `AddShardPrefixedId`
-  - Dapper×4: `SqlMapper.TypeHandler<T>` por cada ID type (16 type handlers)
-  - EF Core×4: `ValueConverter<TId, TStore>` + `IdGenerationModelConfigurationExtensions` (4 converters)
+- **10 providers** type mapping:
+  - ADO.NET×3: `IdParameterExtensions` con `AddSnowflakeId`, `AddUlidId`, `AddUuidV7Id`, `AddShardPrefixedId`
+  - Dapper×3: `SqlMapper.TypeHandler<T>` por cada ID type (16 type handlers)
+  - EF Core×3: `ValueConverter<TId, TStore>` + `IdGenerationModelConfigurationExtensions` (4 converters)
   - MongoDB×1: `IBsonSerializer<T>` + `IdGenerationSerializerRegistration` (4 serializers)
 - **Observability**: 4 métricas (`encina.idgen.*`), 2 traces (`Encina.IdGeneration` ActivitySource), source-generated logging
 - **Health check**: `IdGeneratorHealthCheck` con `ClockDriftThresholdMs` configurable
@@ -1737,7 +1731,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `DatabaseHealthMonitorBase` abstract base class for relational providers
 - `DatabaseCircuitBreakerPipelineBehavior` (Encina.Polly)
 - `DatabaseTransientErrorPredicate` for transient error detection
-- Health monitors for all 13 database providers (ADO.NET, Dapper, EF Core, MongoDB)
+- Health monitors for all 10 database providers (ADO.NET, Dapper, EF Core, MongoDB)
 - `ConnectionPoolMonitoringInterceptor` for EF Core
 - Test coverage: 189 tests (113 unit + 22 guard + 20 contract + 19 property + 15 integration)
 
@@ -1782,7 +1776,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - **Global Query Filter**: Exclusión automática de entidades soft-deleted
 - **Pipeline Behavior**: `SoftDeleteQueryFilterBehavior<TRequest, TResponse>` con `IIncludeDeleted` marker interface
 - **Temporal Tables** (SQL Server): `ITemporalRepository<TEntity, TId>` con GetAsOfAsync, GetHistoryAsync, GetChangedBetweenAsync, ListAsOfAsync
-- **Provider Support**: EF Core (4 DBs), Dapper (4 DBs), ADO.NET (4 DBs), MongoDB (1) - Total 13 providers
+- **Provider Support**: EF Core (3 DBs), Dapper (3 DBs), ADO.NET (3 DBs), MongoDB (1) - Total 10 providers
 - **Tests**: 52+ tests (Unit, Guard, Integration)
 
 **#286 - Audit Trail Pattern** ✅ **COMPLETADO (30-ene-2026)**:
@@ -1794,7 +1788,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
 - `TimeProvider` para timestamps testeables
 - Opcional: `IAuditLogStore`, `InMemoryAuditLogStore` para log detallado de cambios
 - Base classes: `AuditedEntity<TId>`, `AuditedAggregateRoot<TId>`, `FullyAuditedAggregateRoot<TId>`
-- Soporte para los 13 providers (EF Core 4, Dapper 4, ADO.NET 4, MongoDB 1)
+- Soporte para los 10 providers (EF Core 3, Dapper 3, ADO.NET 3, MongoDB 1)
 - 154+ tests (Unit, Guard)
 
 ##### Domain Model Patterns (Issues #287, #292-#293)
@@ -1816,7 +1810,7 @@ Basado en investigación exhaustiva de patrones enterprise .NET (Ardalis.Specifi
   - `FirstWriteWinsResolver<T>` - Database wins, mantiene estado actual
   - `MergeResolver<T>` - Custom merge logic (abstract)
 - `RepositoryErrors.ConcurrencyConflict()` factory methods para ROP integration
-- Soporte completo para 13 providers + Marten (event stream versioning)
+- Soporte completo para 10 providers + Marten (event stream versioning)
 - 79+ unit tests, 10 guard tests, integration tests para EF Core y Dapper
 
 **#292 - Domain Entity Base Classes** ✅ **COMPLETADO (enero 2026)**:
@@ -3185,7 +3179,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | ~~#170~~ | ~~Improved Assertions~~ | ✅ AndConstraint, Collection, Streaming assertions | - | Shouldly |
 | ~~#171~~ | ~~TUnit Support~~ | ✅ EncinaTUnitFixture, TUnitEitherAssertions, NativeAOT compatible | - | TUnit Framework |
 | ~~#172~~ | ~~Mutation Testing (Stryker)~~ | ✅ NeedsMutationCoverage, MutationKiller attributes | - | Stryker.NET |
-| ~~#173~~ | ~~.github/ci/CD Templates~~ | ✅ encina-test.yml, encina-matrix.yml, encina-full-ci.yml | - | GitHub Actions |
+| ~~#173~~ | ~~CI/CD Templates~~ | ✅ encina-test.yml, encina-matrix.yml, encina-full-ci.yml | - | GitHub Actions |
 
 #### Detalle de Mejoras Planificadas
 
@@ -3295,7 +3289,7 @@ Los patrones de observabilidad fueron identificados tras investigación exhausti
 | `testing-data-generation` | Test data generation and fixtures | #1ABC9C |
 | `area-mutation-testing` | Mutation testing and test quality | #FF6B6B |
 | `area-architecture-testing` | Architecture rules and verification | #9B59B6 |
-| `area-ci-cd` | .github/ci/CD pipelines and automation | #2088FF |
+| `area-ci-cd` | CI/CD pipelines and automation | #2088FF |
 | `area-docker` | Docker and containerization | #2496ED |
 | `aot-compatible` | NativeAOT and trimming compatible | #7D3C98 |
 | `testing-property-based` | Property-based testing and invariant verification | #9B59B6 |
@@ -3346,7 +3340,7 @@ Esta nueva categoría agrupa patrones avanzados de TDD identificados tras invest
 - Análisis de FK para delete determinístico (3x más rápido que truncate)
 - `ResetDatabaseAsync()` entre tests
 - Configuración: `TablesToIgnore`, `ResetEncinaMessagingTables`
-- Providers: SQL Server, PostgreSQL, MySQL, Oracle, SQLite
+- Providers: SQL Server, PostgreSQL, MySQL, Oracle
 - Integración con Testcontainers existentes
 - **Paquete**: `Encina.Testing.Respawn`
 - **Inspiración**: [Respawn](https://github.com/jbogard/Respawn) de Jimmy Bogard
@@ -3912,11 +3906,11 @@ The `Encina.NBomber` project provides comprehensive load testing infrastructure 
 
 | File | Category | Description |
 |------|----------|-------------|
-| `.github/ci/nbomber-database-thresholds.json` | Database | 13 provider thresholds, 3 feature thresholds |
-| `.github/ci/nbomber-messaging-thresholds.json` | Messaging | InMemoryBus and Dispatcher thresholds |
-| `.github/ci/nbomber-caching-thresholds.json` | Caching | Memory, Redis, Hybrid provider thresholds |
-| `.github/ci/nbomber-locking-thresholds.json` | Locking | InMemory, Redis, SqlServer provider thresholds |
-| `.github/ci/nbomber-brokers-thresholds.json` | Brokers | RabbitMQ, Kafka, NATS, MQTT provider thresholds |
+| `ci/nbomber-database-thresholds.json` | Database | 10 provider thresholds, 3 feature thresholds |
+| `ci/nbomber-messaging-thresholds.json` | Messaging | InMemoryBus and Dispatcher thresholds |
+| `ci/nbomber-caching-thresholds.json` | Caching | Memory, Redis, Hybrid provider thresholds |
+| `ci/nbomber-locking-thresholds.json` | Locking | InMemory, Redis, SqlServer provider thresholds |
+| `ci/nbomber-brokers-thresholds.json` | Brokers | RabbitMQ, Kafka, NATS, MQTT provider thresholds |
 
 #### CLI Usage
 
@@ -3937,7 +3931,7 @@ dotnet run --project tests/Encina.NBomber -- --scenario locking --locking-provid
 dotnet run --project tests/Encina.NBomber -- --scenario brokers --broker-provider rabbitmq
 ```
 
-#### .github/ci/CD Integration
+#### CI/CD Integration
 
 Load tests run via `.github/workflows/load-tests.yml`:
 
@@ -4378,7 +4372,7 @@ EF Core second-level query caching via `DbCommandInterceptor` + `ISaveChangesInt
 
 #### ✅ #290 - Connection Pool Resilience (Completado 08-feb-2026)
 
-Connection pool monitoring, circuit breakers, transient error detection across all 13 database providers.
+Connection pool monitoring, circuit breakers, transient error detection across all 10 database providers.
 
 **Componentes implementados**:
 
@@ -5029,7 +5023,7 @@ Los patrones de resiliencia fueron identificados tras investigación exhaustiva 
 | ~~#170~~ | ~~Improved Assertions (Shouldly)~~ | ✅ Completo | - | `area-testing`, `testing-unit` |
 | ~~#171~~ | ~~TUnit Framework Support~~ | ✅ Completo | - | `area-testing`, `aot-compatible`, `new-package`, `dotnet-10` |
 | ~~#172~~ | ~~Mutation Testing (Stryker.NET)~~ | ✅ Completo | - | `area-testing`, `area-mutation-testing`, `area-ci-cd` |
-| ~~#173~~ | ~~.github/ci/CD Workflow Templates~~ | ✅ Completo | - | `area-testing`, `area-ci-cd`, `area-docker` |
+| ~~#173~~ | ~~CI/CD Workflow Templates~~ | ✅ Completo | - | `area-testing`, `area-ci-cd`, `area-docker` |
 
 #### Investigación de Testing - Fuentes Consultadas
 
@@ -5633,10 +5627,10 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - `PagedResult<T>` para resultados paginados con navegación
 - `DefaultSensitiveDataRedactor` (implementa `IPiiMasker`) para redacción automática de campos sensibles
 - `AuditRetentionService` (BackgroundService) para auto-purge basado en RetentionDays
-- **Store implementations para todos los 13 providers**:
-  - `AuditStoreEF` (EF Core: SQLite, SQL Server, PostgreSQL, MySQL)
-  - `AuditStoreDapper` (Dapper: SQLite, SQL Server, PostgreSQL, MySQL)
-  - `AuditStoreADO` (ADO.NET: SQLite, SQL Server, PostgreSQL, MySQL)
+- **Store implementations para todos los 10 providers**:
+  - `AuditStoreEF` (EF Core: SQL Server, PostgreSQL, MySQL)
+  - `AuditStoreDapper` (Dapper: SQL Server, PostgreSQL, MySQL)
+  - `AuditStoreADO` (ADO.NET: SQL Server, PostgreSQL, MySQL)
   - `AuditStoreMongoDB` (MongoDB)
   - `InMemoryAuditStore` (Testing/Development)
 - **Paquete**: `Encina.Security.Audit` (core) + store implementations en cada provider package
@@ -5654,10 +5648,10 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - `ReadAuditQuery` + `ReadAuditQueryBuilder` con filtros y paginación (DefaultPageSize=50, MaxPageSize=1000)
 - `AuditedRepository<TEntity, TId>` decorator con fire-and-forget, sampling, y resiliencia
 - `ReadAuditRetentionService` (BackgroundService) para auto-purge con RetentionDays configurable
-- **Store implementations para todos los 13 providers**:
-  - `ReadAuditStoreEF` (EF Core: SQLite, SQL Server, PostgreSQL, MySQL)
-  - `ReadAuditStoreDapper` (Dapper: SQLite, SQL Server, PostgreSQL, MySQL)
-  - `ReadAuditStoreADO` (ADO.NET: SQLite, SQL Server, PostgreSQL, MySQL)
+- **Store implementations para todos los 10 providers**:
+  - `ReadAuditStoreEF` (EF Core: SQL Server, PostgreSQL, MySQL)
+  - `ReadAuditStoreDapper` (Dapper: SQL Server, PostgreSQL, MySQL)
+  - `ReadAuditStoreADO` (ADO.NET: SQL Server, PostgreSQL, MySQL)
   - `ReadAuditStoreMongoDB` (MongoDB)
   - `InMemoryReadAuditStore` (Testing/Development)
 - OpenTelemetry: traces (`Encina.ReadAudit`), metrics (`encina.read_audit.*`), structured logging (`ReadAuditLog`)
@@ -5878,11 +5872,11 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - 3 enforcement modes: `Block` (reject), `Warn` (log + proceed), `Disabled` (no-op)
 - `GDPROptions` con `EnforcementMode`, `AutoRegisterFromAttributes`, `ScanAssemblies`
 - In-memory implementation: `InMemoryProcessingActivityRegistry`
-- 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1) — `ProcessingActivityRegistryADO*`, `ProcessingActivityRegistryDapper*`, `ProcessingActivityRegistryEF`, `ProcessingActivityRegistryMongoDB` (#681)
+- 10 database provider implementations (ADO.NET ×3, Dapper ×3, EF Core ×3, MongoDB ×1) — `ProcessingActivityRegistryADO*`, `ProcessingActivityRegistryDapper*`, `ProcessingActivityRegistryEF`, `ProcessingActivityRegistryMongoDB` (#681)
 - `ProcessingActivityMapper` for entity↔domain conversion with JSON serialization for collection fields
 - `ProcessingActivityEntity` shared flat entity for all relational providers
 - `ProcessingActivityDocument` MongoDB-specific BSON document with unique index on `request_type_name`
-- SQL schema scripts per provider: `ProcessingActivitySchema.sql` (Sqlite, SqlServer, PostgreSQL, MySQL)
+- SQL schema scripts per provider: `ProcessingActivitySchema.sql` (SqlServer, PostgreSQL, MySQL)
 - RoPA export: `ProcessingActivityJsonExporter`, `ProcessingActivityCsvExporter` for compliance audit reports
 - `ProcessingActivityHealthCheck` with `IHealthCheck` integration and opt-in via `AddHealthCheck = true`
 - OpenTelemetry tracing via dedicated `Encina.Compliance.GDPR.ProcessingActivity` ActivitySource
@@ -5891,7 +5885,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - DI registration via `AddEncinaProcessingActivity*()` extension methods (10 provider-specific methods)
 - `GDPRAutoRegistrationHostedService` para assembly scanning al startup
 - **Paquete**: `Encina.Compliance.GDPR` (+ satellite packages: `Encina.ADO.*`, `Encina.Dapper.*`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`)
-- **Testing**: Unit tests (60+), guard tests (27), contract tests (8), property tests (FsCheck invariants), integration tests (×13 providers) + LoadTest/Benchmark justification docs
+- **Testing**: Unit tests (60+), guard tests (27), contract tests (8), property tests (FsCheck invariants), integration tests (×10 providers) + LoadTest/Benchmark justification docs
 - **Documentación**: [README](../src/Encina.Compliance.GDPR/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`, `foundational`
 - Referencias: [GDPR Article 30](https://gdpr-info.eu/art-30-gdpr/), [ICO Records of Processing](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/records-of-processing-activities/)
@@ -5981,7 +5975,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - `DataResidencyOptions` con DefaultRegion, EnforcementMode (Block/Warn/Disabled), TrackDataLocations, TrackAuditTrail, BlockNonCompliantTransfers
 - 7 error codes via `DataResidencyErrors` (region_not_allowed, cross_border_denied, region_not_resolved, policy_not_found, etc.)
 - In-memory implementations: `InMemoryResidencyPolicyStore`, `InMemoryDataLocationStore`, `InMemoryResidencyAuditStore`
-- Mapper infrastructure: `ResidencyPolicyMapper`, `DataLocationMapper`, `ResidencyAuditEntryMapper` + entities (ready for 13 providers)
+- Mapper infrastructure: `ResidencyPolicyMapper`, `DataLocationMapper`, `ResidencyAuditEntryMapper` + entities (ready for 10 providers)
 - `DataResidencyHealthCheck` con Healthy/Degraded/Unhealthy states
 - OpenTelemetry tracing via `Encina.Compliance.DataResidency` ActivitySource, 7 counters, 2 histograms
 - 35 structured log events via `[LoggerMessage]` source generator (event IDs 8600-8674)
@@ -6074,10 +6068,10 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - ✅ `DPIAOptions` con MinimumRiskCriteria, ReviewIntervalDays, RequireDPOConsultation, EnforcementMode
 - ✅ `DPIAErrors` con 8 error codes estructurados (`dpia.not_found`, `dpia.already_exists`, etc.)
 - ✅ InMemory implementations: `InMemoryDPIAStore`, `InMemoryDPIAAuditStore`
-- ✅ 13 database provider implementations (ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB ×1)
+- ✅ 10 database provider implementations (ADO.NET ×3, Dapper ×3, EF Core ×3, MongoDB ×1)
 - ✅ ASP.NET Core endpoints via `MapDPIAEndpoints()`
 - ✅ OpenTelemetry: ActivitySource + Meter + structured log events (zero-allocation)
-- ✅ 166+ tests: integration tests across 13 providers + unit, guard, contract, property tests
+- ✅ 166+ tests: integration tests across 10 providers + unit, guard, contract, property tests
 - **Paquete**: `Encina.Compliance.DPIA`
 - **Documentación**: [Feature Guide](features/dpia.md), [README](../src/Encina.Compliance.DPIA/README.md)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `industry-best-practice`
@@ -6109,7 +6103,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - Structured logging via `[LoggerMessage]` source generator (zero-allocation, EventId 8900-8989)
 - Optional health check (`ProcessorAgreementHealthCheck`) verifying DI and service availability
 - DI registration via `AddEncinaProcessorAgreements()` + `AddProcessorAgreementAggregates()` extension methods
-- **Dependencias**: `Encina.Marten`, `Encina.Caching` (nuevas), eliminadas dependencias de 13 database providers
+- **Dependencias**: `Encina.Marten`, `Encina.Caching` (nuevas), eliminadas dependencias de database providers
 - **Paquete**: `Encina.Compliance.ProcessorAgreements`
 - **Testing**: Unit tests (aggregate, projection, service, pipeline, health check, handler), guard tests (services, handler), property tests (aggregate invariants), integration tests (pipeline behavior)
 - **Documentación**: [Feature Guide](features/processor-agreements.md), [README](../src/Encina.Compliance.ProcessorAgreements/README.md)
@@ -6174,7 +6168,7 @@ Basado en investigación exhaustiva de GDPR Articles 5-49, NIS2 Directive (EU 20
 - DI registration: `AddEncinaLawfulBasis()` + `AddLawfulBasisAggregates()` (Marten)
 - **Dependencias**: `Encina.DomainModeling`, `Encina.Marten`, `Encina.Caching`, `Encina.Compliance.GDPR`
 - **En GDPR permanecen**: `LawfulBasis` enum, `LawfulBasisAttribute`, `IConsentStatusProvider`, `ILawfulBasisSubjectIdExtractor`, `LIAOutcome` enum
-- **Eliminado**: `ILawfulBasisRegistry`, `ILIAStore`, `ILegitimateInterestAssessment`, `InMemoryLawfulBasisRegistry`, `InMemoryLIAStore`, `DefaultLegitimateInterestAssessment`, 13 provider store implementations, entity/mapper types
+- **Eliminado**: `ILawfulBasisRegistry`, `ILIAStore`, `ILegitimateInterestAssessment`, `InMemoryLawfulBasisRegistry`, `InMemoryLIAStore`, `DefaultLegitimateInterestAssessment`, provider store implementations, entity/mapper types
 - **Testing**: 239 xUnit tests (113 unit, 18 guard, 12 property FsCheck, 87 contract, 9 integration Marten/PostgreSQL)
 - Labels: `area-compliance`, `area-gdpr`, `eu-regulation`, `area-data-protection`, `area-pipeline`, `industry-best-practice`
 - Referencias: [GDPR Article 6](https://gdpr-info.eu/art-6-gdpr/), [ICO Lawful Basis Tool](https://ico.org.uk/for-organisations/guidance-for-organisations/lawful-basis-interactive-guidance-tool/), [EDPB Legitimate Interest Guidelines](https://edpb.europa.eu/our-work-tools/our-documents/opinion-board-art-64/guidelines-legitimate-interest_en)
@@ -7356,12 +7350,10 @@ src/
 ├── Encina.Dapper.PostgreSQL/        # Dapper PostgreSQL
 ├── Encina.Dapper.MySQL/             # Dapper MySQL
 ├── Encina.Dapper.Oracle/            # Dapper Oracle
-├── Encina.Dapper.Sqlite/            # Dapper SQLite
 ├── Encina.ADO.SqlServer/            # ADO.NET SQL Server
 ├── Encina.ADO.PostgreSQL/           # ADO.NET PostgreSQL
 ├── Encina.ADO.MySQL/                # ADO.NET MySQL
 ├── Encina.ADO.Oracle/               # ADO.NET Oracle
-├── Encina.ADO.Sqlite/               # ADO.NET SQLite
 ├── Encina.MongoDB/                  # MongoDB provider
 ├── Encina.Marten/                   # Event sourcing with Marten
 ├── Encina.InMemory/                 # In-memory message bus

@@ -50,7 +50,6 @@ dotnet add package Encina.Dapper.PostgreSQL
 >
 > - `Encina.Dapper.SqlServer` - SQL Server support
 > - `Encina.Dapper.MySQL` - MySQL/MariaDB support
-> - `Encina.Dapper.Sqlite` - SQLite support
 
 ## Quick Start
 

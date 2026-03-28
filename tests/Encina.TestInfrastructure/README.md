@@ -8,11 +8,10 @@ This project provides reusable test infrastructure components that enable real d
 
 ## Features
 
-- ✅ **Database Fixtures** - Automated container lifecycle management for 5 databases
+- ✅ **Database Fixtures** - Automated container lifecycle management for 4 databases
 - ✅ **SQL Schema Builders** - Ready-to-use schemas for Outbox, Inbox, Sagas, Scheduling
 - ✅ **Test Data Builders** - Fluent API for creating test messages and saga states
 - ✅ **Assertion Extensions** - Domain-specific assertions for messaging entities
-- ✅ **Dapper Type Handlers** - SQLite compatibility utilities
 
 ## Architecture
 
@@ -22,23 +21,18 @@ Encina.TestInfrastructure/
 │   ├── DatabaseFixture.cs  # Abstract base class
 │   ├── SqlServerFixture.cs
 │   ├── PostgreSqlFixture.cs
-│   ├── MySqlFixture.cs
-│   ├── OracleFixture.cs
-│   └── SqliteFixture.cs
+│   └── MySqlFixture.cs
 ├── Schemas/                # SQL schema creation scripts
 │   ├── SqlServerSchema.cs
 │   ├── PostgreSqlSchema.cs
-│   ├── MySqlSchema.cs
-│   ├── OracleSchema.cs
-│   └── SqliteSchema.cs
+│   └── MySqlSchema.cs
 ├── Builders/               # Test data builders
 │   ├── OutboxMessageBuilder.cs
 │   ├── InboxMessageBuilder.cs
 │   ├── SagaStateBuilder.cs
 │   └── ScheduledMessageBuilder.cs
 └── Extensions/             # Helper extensions
-    ├── AssertionExtensions.cs
-    └── DapperTypeHandlers.cs
+    └── AssertionExtensions.cs
 ```
 
 ## Usage
@@ -150,23 +144,6 @@ scheduledMessage.ShouldBeDue();
 scheduledMessage.ShouldBeRecurring();
 ```
 
-### 4. Dapper Type Handlers
-
-For SQLite compatibility, register type handlers:
-
-```csharp
-using Encina.TestInfrastructure.Extensions;
-
-public class OutboxStoreDapperTests : IClassFixture<SqliteFixture>
-{
-    public OutboxStoreDapperTests()
-    {
-        // Register once per test run
-        DapperTypeHandlers.RegisterSqliteHandlers();
-    }
-}
-```
-
 ## Supported Databases
 
 | Database   | Fixture Class          | Container Image                     |
@@ -174,8 +151,6 @@ public class OutboxStoreDapperTests : IClassFixture<SqliteFixture>
 | SQL Server | `SqlServerFixture`     | `mcr.microsoft.com/mssql/server:2022-latest` |
 | PostgreSQL | `PostgreSqlFixture`    | `postgres:17-alpine`                |
 | MySQL      | `MySqlFixture`         | `mysql:9.1`                         |
-| Oracle     | `OracleFixture`        | `gvenzl/oracle-free:23-slim-faststart` |
-| SQLite     | `SqliteFixture`        | In-memory (no container)            |
 
 ## Database Schemas
 
@@ -234,14 +209,14 @@ dotnet test --filter "Category!=Integration"
 
 ### DRY (Don't Repeat Yourself)
 
-- ✅ **Shared Fixtures** - Same fixture classes for all 11 database providers
+- ✅ **Shared Fixtures** - Same fixture classes for all 10 database providers
 - ✅ **Shared Schemas** - SQL scripts optimized per database dialect
 - ✅ **Shared Builders** - Test data creation standardized across all tests
 - ✅ **Shared Assertions** - Common validation logic for all messaging entities
 
 ### Provider Coherence
 
-All database providers (Dapper.Sqlite, Dapper.SqlServer, ADO.PostgreSQL, etc.) use:
+All database providers (Dapper.SqlServer, ADO.PostgreSQL, etc.) use:
 
 - ✅ **Same fixture base class** (`DatabaseFixture<T>`)
 - ✅ **Same builder API** (OutboxMessageBuilder, etc.)
@@ -252,15 +227,15 @@ All database providers (Dapper.Sqlite, Dapper.SqlServer, ADO.PostgreSQL, etc.) u
 
 See existing test projects:
 
-- `Encina.Dapper.Sqlite.Tests` - Reference implementation
+- `Encina.Dapper.SqlServer.Tests` - Reference implementation
 - More providers coming soon (Phase 4 of roadmap)
 
 ## Roadmap
 
 - ✅ **Phase 1** - Create TestInfrastructure with Testcontainers fixtures
-- ⏳ **Phase 2** - Refactor Dapper.Sqlite.Tests to use new infrastructure
-- ⏳ **Phase 3** - Delete obsolete test projects
-- ⏳ **Phase 4** - Create tests for all 11 database providers
+- ✅ **Phase 2** - SQLite removed from provider matrix (no longer tested)
+- ✅ **Phase 3** - Delete obsolete test projects
+- ⏳ **Phase 4** - Create tests for all 10 database providers
 - ⏳ **Phase 5** - Achieve 100% test coverage
 
 ## Contributing

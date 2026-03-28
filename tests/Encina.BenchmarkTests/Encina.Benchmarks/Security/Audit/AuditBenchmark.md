@@ -13,7 +13,7 @@ Audit write performance depends entirely on the backing store (SQL Server, Postg
 ### 3. Adequate Coverage from Other Test Types
 - **Unit Tests**: Cover audit entry creation, outcome mapping, filtering logic
 - **Load Tests**: Cover concurrent audit writes under high request volume (to be created)
-- **Integration Tests**: Cover real DB performance across 13 providers (to be created)
+- **Integration Tests**: Cover real DB performance across 10 providers (to be created)
 
 ### 4. Recommended Alternative
 If audit throughput becomes a concern, benchmark the specific `IAuditStore` implementation (e.g., SQL Server batch insert) using BenchmarkDotNet with a real database connection.

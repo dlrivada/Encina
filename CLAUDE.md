@@ -146,18 +146,20 @@ Run: `dotnet run append-api.cs`
 
 #### Multi-Provider Implementation Rule (MANDATORY)
 
-> **CRITICAL**: All provider-dependent features MUST be implemented for ALL 13 providers. This is a fundamental project rule, not just a testing requirement.
+> **CRITICAL**: All provider-dependent features MUST be implemented for ALL 10 providers. This is a fundamental project rule, not just a testing requirement.
 
-**The 13 Providers:**
+**The 10 Providers:**
 
 | Category | Providers | Count |
 |----------|-----------|-------|
-| **ADO.NET** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
-| **Dapper** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
-| **EF Core** | Sqlite, SqlServer, PostgreSQL, MySQL | 4 |
+| **ADO.NET** | SqlServer, PostgreSQL, MySQL | 3 |
+| **Dapper** | SqlServer, PostgreSQL, MySQL | 3 |
+| **EF Core** | SqlServer, PostgreSQL, MySQL | 3 |
 | **MongoDB** | MongoDB | 1 |
 
 > **Note**: Oracle was removed from pre-1.0 scope due to disproportionate maintenance cost. See [ADR-009](docs/architecture/adr/009-remove-oracle-provider-pre-1.0.md) for details. Oracle code is preserved in `.backup/oracle/` for potential future restoration.
+>
+> **Note**: SQLite was removed from the supported provider matrix. It lacks features required for production use (proper DateTime/DateTimeOffset handling, concurrent write access, distributed scenarios). Source packages (`Encina.ADO.Sqlite`, `Encina.Dapper.Sqlite`) remain in the codebase but are not tested or guaranteed.
 
 **When this rule applies:**
 
@@ -170,7 +172,6 @@ Run: `dotnet run append-api.cs`
 
 | Provider | Parameters | LIMIT | Boolean | Notes |
 |----------|------------|-------|---------|-------|
-| SQLite | `@param` | `LIMIT @n` | `0/1` | String-based DateTime storage |
 | SQL Server | `@param` | `TOP (@n)` | `bit` | Native DateTime, GUID |
 | PostgreSQL | `@param` | `LIMIT @n` | `true/false` | Case-sensitive identifiers |
 | MySQL | `@param` | `LIMIT @n` | `0/1` | Backtick identifiers |
@@ -181,9 +182,9 @@ Run: `dotnet run append-api.cs`
 - Caching: Redis, Memory
 - Event sourcing: Marten
 
-#### Specialized Provider Categories (Beyond the 13 Database Providers)
+#### Specialized Provider Categories (Beyond the 10 Database Providers)
 
-Beyond the 13 database providers, Encina has **specialized provider categories** that apply to specific feature areas. Each category has its own coherence rules.
+Beyond the 10 database providers, Encina has **specialized provider categories** that apply to specific feature areas. Each category has its own coherence rules.
 
 ##### 1. Caching Providers (8 providers)
 
@@ -372,7 +373,7 @@ When implementing cloud-specific features, consider AWS/Azure/GCP coverage.
 
 Use this matrix to determine which providers apply to each feature type:
 
-| Feature Type | Database (13) | Caching (8) | Transport (10+) | Lock (4+) | Validation (3) |
+| Feature Type | Database (10) | Caching (8) | Transport (10+) | Lock (4+) | Validation (3) |
 |--------------|:-------------:|:-----------:|:---------------:|:---------:|:--------------:|
 | **Outbox/Inbox/Saga** | ✅ Required | ❌ | ❌ | ❌ | ❌ |
 | **Scheduled Messages** | ✅ Required | ❌ | ❌ | ❌ | ❌ |
@@ -388,7 +389,7 @@ Use this matrix to determine which providers apply to each feature type:
 
 | Scenario | Providers to Consider |
 |----------|----------------------|
-| Implementing a messaging store feature | All 13 database providers |
+| Implementing a messaging store feature | All 10 database providers |
 | Adding a new cache pattern | All 8 caching providers |
 | Creating a new transport-agnostic feature | All messaging transports |
 | Adding cloud-specific feature | AWS + Azure + GCP (triangle) |
@@ -722,15 +723,12 @@ dotnet run --file .github/scripts/run-integration-tests.cs
 | `ADO-SqlServer` | `SqlServerFixture` | |
 | `ADO-PostgreSQL` | `PostgreSqlFixture` | |
 | `ADO-MySQL` | `MySqlFixture` | |
-| `ADO-Sqlite` | `SqliteFixture` | `DisableParallelization = true` |
 | `Dapper-SqlServer` | `SqlServerFixture` | |
 | `Dapper-PostgreSQL` | `PostgreSqlFixture` | |
 | `Dapper-MySQL` | `MySqlFixture` | |
-| `Dapper-Sqlite` | `SqliteFixture` | `DisableParallelization = true` |
 | `EFCore-SqlServer` | `EFCoreSqlServerFixture` | |
 | `EFCore-PostgreSQL` | `EFCorePostgreSqlFixture` | |
 | `EFCore-MySQL` | `EFCoreMySqlFixture` | |
-| `EFCore-Sqlite` | `EFCoreSqliteFixture` | `DisableParallelization = true` |
 
 **New test class template:**
 
@@ -755,14 +753,7 @@ public class MyNewTests : IAsyncLifetime
 2. ❌ NEVER call `new SqlServerFixture()` or `_fixture = new()` - inject via constructor
 3. ❌ NEVER call `_fixture.DisposeAsync()` from tests - the collection owns the lifecycle
 4. ✅ Use `_fixture.ClearAllDataAsync()` in `InitializeAsync()` for data cleanup
-5. ✅ Use `_fixture.CreateConnection()` for shared connections (but NEVER dispose them for SQLite)
-
-**SQLite special rules** (shared in-memory DB):
-
-- `CreateConnection()` returns the SAME shared connection object
-- NEVER wrap it in `using`/`await using`
-- NEVER pass it to wrappers that dispose (like `SchemaValidatingConnection`)
-- When a disposable connection is needed, create: `new SqliteConnection(_fixture.ConnectionString)`
+5. ✅ Use `_fixture.CreateConnection()` for shared connections
 
 See [Integration Test Container Strategy](docs/testing/integration-tests.md#collection-fixture-strategy) for full details.
 
@@ -794,11 +785,11 @@ tests/
 └── Encina.Testing.Examples/   # Reference examples
 ```
 
-#### Test Coverage for All 13 Providers
+#### Test Coverage for All 10 Providers
 
-Tests MUST cover ALL 13 providers as defined in the [Multi-Provider Implementation Rule](#multi-provider-implementation-rule-mandatory) section above.
+Tests MUST cover ALL 10 providers as defined in the [Multi-Provider Implementation Rule](#multi-provider-implementation-rule-mandatory) section above.
 
-> **Reminder**: The 13 providers are: ADO.NET (4), Dapper (4), EF Core (4), and MongoDB (1).
+> **Reminder**: The 10 providers are: ADO.NET (3), Dapper (3), EF Core (3), and MongoDB (1).
 
 #### Test Type Guidelines by Feature Category
 
@@ -1300,26 +1291,6 @@ The `Microsoft.CodeAnalysis.PublicApiAnalyzers` package tracks public API change
 > **Note**: After test consolidation (January 2026), the MSBuild CLR crash issue has been resolved.
 > The full solution `Encina.slnx` now builds without issues. Solution filters (`.slnf`) are no longer needed.
 
-#### SQLite DateTime Format Incompatibility
-
-**Problem**: SQLite stores DateTime values as ISO 8601 text (e.g., `2026-01-05T12:30:00.0000000`), but SQLite's built-in `datetime('now')` function returns a different format (`2026-01-05 12:30:00`). This causes datetime comparisons in SQL queries to fail silently.
-
-**Solution**: Never use `datetime('now')` in SQLite Dapper queries. Always use parameterized `@NowUtc` with `DateTime.UtcNow` from C#:
-
-```csharp
-// ❌ WRONG - datetime('now') format incompatible with ISO 8601
-var sql = "SELECT * FROM Messages WHERE ProcessedAtUtc < datetime('now')";
-
-// ✅ CORRECT - Use parameterized DateTime from C#
-var nowUtc = DateTime.UtcNow;
-var sql = "SELECT * FROM Messages WHERE ProcessedAtUtc < @NowUtc";
-await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
-```
-
-**Affected stores**: All `Encina.Dapper.Sqlite` stores use `TimeProvider` or `DateTime.UtcNow` for time-based queries.
-
-**For tests**: When testing time-based behavior, use `TimeProvider` injection for deterministic time control.
-
 ### Spanish/English
 
 - User communicates in Spanish
@@ -1354,7 +1325,7 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 5. ❌ Don't make patterns mandatory - everything is opt-in
 6. ❌ Don't mix provider-specific code with abstractions
 7. ❌ Don't compromise design for non-existent legacy users
-8. ❌ Don't implement database features for only some providers - ALL 13 database providers required
+8. ❌ Don't implement database features for only some providers - ALL 10 database providers required
 9. ❌ Don't implement caching features for only some providers - ALL 8 caching providers required
 10. ❌ Don't implement messaging features for only some transports - consider ALL applicable transports
 11. ❌ Don't implement cloud features without considering AWS/Azure/GCP triangle
@@ -1365,7 +1336,7 @@ await connection.QueryAsync<Message>(sql, new { NowUtc = nowUtc });
 16. ❌ Don't use `[LoggerMessage]` EventIds without registering the range in `EventIdRanges.cs` first
 17. ❌ Don't create sparse EventId allocations (e.g., 8400, 8410, 8420...) — pack sequentially to stay within range
 
-> **Provider Rules Summary**: See [Specialized Provider Categories](#specialized-provider-categories-beyond-the-13-database-providers) for detailed rules on each provider category.
+> **Provider Rules Summary**: See [Specialized Provider Categories](#specialized-provider-categories-beyond-the-10-database-providers) for detailed rules on each provider category.
 
 ### Remember
 >

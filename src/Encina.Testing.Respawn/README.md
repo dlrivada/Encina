@@ -93,7 +93,7 @@ if (adapter.HasValue)
 | SQL Server | `SqlServerRespawner` | Respawn library |
 | PostgreSQL | `PostgreSqlRespawner` | Respawn library |
 | MySQL/MariaDB | `MySqlRespawner` | Respawn library |
-| SQLite | `SqliteRespawner` | Custom implementation |
+| SQLite | `SqliteRespawner` | Custom implementation (unsupported) |
 | Oracle | - | Not included (requires Oracle.ManagedDataAccess.Core) |
 
 ## Configuration

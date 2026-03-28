@@ -320,7 +320,7 @@ services.AddEncinaSharding<UserProfile>(options =>
 
 ## Provider-Specific Setup
 
-### ADO.NET (SQLite, SqlServer, PostgreSQL, MySQL)
+### ADO.NET (SqlServer, PostgreSQL, MySQL)
 
 ```csharp
 // Core sharding registration (required for all providers)
@@ -344,7 +344,7 @@ services.AddEncinaADOSharding<Order, string>(mapping =>
 
 **Registers**: `IShardedConnectionFactory`, `IShardedConnectionFactory<TConnection>`, `IShardedQueryExecutor`, `IFunctionalShardedRepository<Order, string>`.
 
-### Dapper (SQLite, SqlServer, PostgreSQL, MySQL)
+### Dapper (SqlServer, PostgreSQL, MySQL)
 
 Dapper sharding reuses ADO.NET's `IShardedConnectionFactory`. Both registrations are required:
 
@@ -378,7 +378,7 @@ services.AddEncinaDapperSharding<Order, string>(mapping =>
 
 > **Why both registrations?** Dapper is a thin extension over ADO.NET. Rather than duplicating connection management, Dapper's sharded repository injects `IShardedConnectionFactory` from the ADO registration and adds Dapper-specific query execution on top.
 
-### EF Core (SQLite, SqlServer, PostgreSQL, MySQL)
+### EF Core (SqlServer, PostgreSQL, MySQL)
 
 ```csharp
 // Core sharding

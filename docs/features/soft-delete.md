@@ -297,7 +297,6 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 
 | Provider | Soft Delete | Notes |
 |----------|:-----------:|-------|
-| EF Core (SQLite) | ✅ | Full support with interceptor |
 | EF Core (SQL Server) | ✅ | Full support with interceptor |
 | EF Core (PostgreSQL) | ✅ | Full support with interceptor |
 | EF Core (MySQL) | ✅ | Full support with interceptor |

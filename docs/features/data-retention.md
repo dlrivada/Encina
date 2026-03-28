@@ -556,9 +556,9 @@ The in-memory stores (`InMemoryRetentionRecordStore`, `InMemoryRetentionPolicySt
 
 | Provider Category | Providers | Registration |
 |-------------------|-----------|-------------|
-| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseRetention = true` in `AddEncinaADO()` |
-| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseRetention = true` in `AddEncinaDapper()` |
-| EF Core | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseRetention = true` in `AddEncinaEntityFrameworkCore()` |
+| ADO.NET | SQL Server, PostgreSQL, MySQL | `config.UseRetention = true` in `AddEncinaADO()` |
+| Dapper | SQL Server, PostgreSQL, MySQL | `config.UseRetention = true` in `AddEncinaDapper()` |
+| EF Core | SQL Server, PostgreSQL, MySQL | `config.UseRetention = true` in `AddEncinaEntityFrameworkCore()` |
 | MongoDB | MongoDB | `config.UseRetention = true` in `AddEncinaMongoDB()` |
 
 Each provider registers `IRetentionRecordStore`, `IRetentionPolicyStore`, `ILegalHoldStore`, and `IRetentionAuditStore` backed by the corresponding database.

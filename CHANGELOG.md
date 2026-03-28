@@ -2564,6 +2564,12 @@ Added the `Encina.Compliance.Attestation` package providing provider-agnostic ta
 
 ---
 
+### Removed
+
+- **SQLite provider support**: Removed SQLite as a supported database provider. The database provider count is now 10 (was 13): ADO.NET (SqlServer, PostgreSQL, MySQL), Dapper (SqlServer, PostgreSQL, MySQL), EF Core (SqlServer, PostgreSQL, MySQL), and MongoDB. All SQLite tests have been removed. SQLite source packages still exist in the codebase but are no longer tested or supported.
+
+---
+
 ## [0.12.0] - 2026-02-16 - Database & Repository
 
 ### Added

@@ -225,12 +225,12 @@ public string GetShardForOrder(SnowflakeId orderId)
 
 ### Database Column Types
 
-| ID Type | SQLite | SQL Server | PostgreSQL | MySQL |
-|---------|--------|------------|------------|-------|
-| `SnowflakeId` | `INTEGER` | `BIGINT` | `BIGINT` | `BIGINT` |
-| `UlidId` | `TEXT` | `CHAR(26)` | `CHAR(26)` | `CHAR(26)` |
-| `UuidV7Id` | `TEXT` | `UNIQUEIDENTIFIER` | `UUID` | `CHAR(36)` |
-| `ShardPrefixedId` | `TEXT` | `NVARCHAR(255)` | `VARCHAR(255)` | `VARCHAR(255)` |
+| ID Type | SQL Server | PostgreSQL | MySQL |
+|---------|------------|------------|-------|
+| `SnowflakeId` | `BIGINT` | `BIGINT` | `BIGINT` |
+| `UlidId` | `CHAR(26)` | `CHAR(26)` | `CHAR(26)` |
+| `UuidV7Id` | `UNIQUEIDENTIFIER` | `UUID` | `CHAR(36)` |
+| `ShardPrefixedId` | `NVARCHAR(255)` | `VARCHAR(255)` | `VARCHAR(255)` |
 
 ---
 
@@ -278,7 +278,7 @@ Monitors:
 | Guard Tests | 4 | Null argument validation |
 | Contract Tests | 43 | Interface contract compliance |
 | Property Tests | 19 | FsCheck invariant verification |
-| Integration Tests | 14 files | All 13 providers (SQLite runs, others skip gracefully) |
+| Integration Tests | 14 files | All 10 providers |
 | Load Tests | 7 scenarios | NBomber collision detection under concurrency |
 | Benchmarks | 20 | BenchmarkDotNet throughput and allocation measurement |
 

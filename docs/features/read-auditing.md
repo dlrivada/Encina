@@ -98,15 +98,13 @@ public class GetPatientHandler
 
 ## Supported Providers
 
-Read auditing is implemented for all 13 database providers:
+Read auditing is implemented for all 10 database providers:
 
 | Category | Provider | Implementation |
 |----------|----------|----------------|
-| **ADO.NET** | SQLite | `ReadAuditStoreADO` |
 | **ADO.NET** | SQL Server | `ReadAuditStoreADO` |
 | **ADO.NET** | PostgreSQL | `ReadAuditStoreADO` |
 | **ADO.NET** | MySQL | `ReadAuditStoreADO` |
-| **Dapper** | SQLite | `ReadAuditStoreDapper` |
 | **Dapper** | SQL Server | `ReadAuditStoreDapper` |
 | **Dapper** | PostgreSQL | `ReadAuditStoreDapper` |
 | **Dapper** | MySQL | `ReadAuditStoreDapper` |
