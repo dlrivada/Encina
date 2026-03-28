@@ -359,7 +359,6 @@ Use the mongodb MCP server to list databases
 
 - [Integration Testing with Docker](../testing/integration-tests.md)
 - [Testcontainers Direct Usage](../testing/testcontainers-direct-usage.md)
-- [Observability Stack](../../observability/README.md)
 - [ADR-008: Aspire vs Testcontainers](../architecture/adr/008-aspire-vs-testcontainers-testing-strategy.md)
 
 ## Files Reference
