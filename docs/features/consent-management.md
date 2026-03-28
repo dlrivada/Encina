@@ -403,9 +403,9 @@ The in-memory stores are suitable for development and testing. For production, u
 
 | Provider Category | Providers | Registration |
 |-------------------|-----------|-------------|
-| ADO.NET | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseConsent = true` in `AddEncinaADO()` |
-| Dapper | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseConsent = true` in `AddEncinaDapper()` |
-| EF Core | SQLite, SQL Server, PostgreSQL, MySQL | `config.UseConsent = true` in `AddEncinaEntityFrameworkCore()` |
+| ADO.NET | SQL Server, PostgreSQL, MySQL | `config.UseConsent = true` in `AddEncinaADO()` |
+| Dapper | SQL Server, PostgreSQL, MySQL | `config.UseConsent = true` in `AddEncinaDapper()` |
+| EF Core | SQL Server, PostgreSQL, MySQL | `config.UseConsent = true` in `AddEncinaEntityFrameworkCore()` |
 | MongoDB | MongoDB | `config.UseConsent = true` in `AddEncinaMongoDB()` |
 
 Each provider registers `IConsentStore`, `IConsentAuditStore`, and `IConsentVersionManager`.

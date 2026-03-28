@@ -57,7 +57,7 @@ The O(1) vs O(n) performance difference is well-documented:
 
 - [Use The Index, Luke - Pagination Done Right](https://use-the-index-luke.com/sql/partial-results/fetch-next-page)
 - [SQL Server Execution Plans - Offset vs Keyset](https://sqlperformance.com/2015/01/t-sql-queries/pagination-with-offset-fetch)
-- PostgreSQL, MySQL, and SQLite documentation on cursor-based pagination
+- PostgreSQL and MySQL documentation on cursor-based pagination
 
 ### 5. When Benchmarks Would Be Valuable
 

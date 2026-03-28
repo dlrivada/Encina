@@ -20,7 +20,7 @@ GDPR 72-hour breach notification compliance for Encina. Provides pipeline-level 
 - **Domain Notifications** -- `BreachDetectedNotification`, `AuthorityNotifiedNotification`, `SubjectsNotifiedNotification`, `DeadlineWarningNotification`, `BreachResolvedNotification`
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions
 - **Full Observability** -- OpenTelemetry tracing (4 activity types), 6 counters, 3 histograms, structured log events, health check
-- **13 Database Providers** -- ADO.NET, Dapper, EF Core (SQLite, SQL Server, PostgreSQL, MySQL) + MongoDB
+- **10 Database Providers** -- ADO.NET, Dapper, EF Core (SQL Server, PostgreSQL, MySQL) + MongoDB
 - **.NET 10 Compatible** -- Built with latest C# features
 
 ## Installation
@@ -201,10 +201,10 @@ services.AddEncinaBreachNotification(options =>
 
 ## Database Providers
 
-The core package ships with `InMemoryBreachRecordStore` and `InMemoryBreachAuditStore` for development and testing. Database-backed implementations for the 13 providers are available via satellite packages:
+The core package ships with `InMemoryBreachRecordStore` and `InMemoryBreachAuditStore` for development and testing. Database-backed implementations for the 10 providers are available via satellite packages:
 
 ```csharp
-// ADO.NET (SQLite example)
+// ADO.NET (SQL Server example)
 services.AddEncinaADO(config =>
 {
     config.UseBreachNotification = true;

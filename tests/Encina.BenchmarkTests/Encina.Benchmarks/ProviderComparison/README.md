@@ -8,7 +8,7 @@ This directory contains BenchmarkDotNet benchmarks comparing the performance of 
 
 Compares Outbox pattern performance across three providers:
 
-- **ADO.NET**: Raw ADO.NET implementation with SqliteCommand/SqliteDataReader
+- **ADO.NET**: Raw ADO.NET implementation with DbCommand/DbDataReader
 - **Dapper**: Micro-ORM with parameterized queries
 - **EF Core**: Full ORM with change tracking
 
@@ -161,16 +161,15 @@ dotnet run -c Release --filter *OutboxProviderComparisonBenchmarks* --job short 
 
 ## Architecture Notes
 
-### Why SQLite Only?
+### Why In-Memory Databases?
 
-We benchmark only SQLite because:
+We benchmark using in-memory configurations to:
 
-1. **In-Memory Performance**: `:memory:` databases eliminate network latency
-2. **Consistent Results**: No external DB server variables
-3. **CI/CD Friendly**: No Docker/infrastructure dependencies
-4. **Provider Comparison**: Isolates ORM overhead from DB server differences
+1. **Consistent Results**: No external DB server variables
+2. **CI/CD Friendly**: Minimal Docker/infrastructure dependencies
+3. **Provider Comparison**: Isolates ORM overhead from DB server differences
 
-For real-world database performance (SQL Server, PostgreSQL, MySQL, Oracle):
+For real-world database performance (SQL Server, PostgreSQL, MySQL):
 
 - Network latency dominates (100-1000x slower than in-memory)
 - Provider differences become less significant
@@ -183,16 +182,16 @@ We use namespace aliases to resolve ambiguity:
 
 ```csharp
 // Outbox/Inbox (ADO, Dapper, EF Core)
-using ADOOutbox = Encina.ADO.Sqlite.Outbox;
-using DapperOutbox = Encina.Dapper.Sqlite.Outbox;
+using ADOOutbox = Encina.ADO.SqlServer.Outbox;
+using DapperOutbox = Encina.Dapper.SqlServer.Outbox;
 using EFOutbox = Encina.EntityFrameworkCore.Outbox;
 
 // Saga (Dapper, EF Core only - NO ADO support)
-using DapperSagas = Encina.Dapper.Sqlite.Sagas;
+using DapperSagas = Encina.Dapper.SqlServer.Sagas;
 using EFSagas = Encina.EntityFrameworkCore.Sagas;
 
 // Scheduling (Dapper, EF Core only - NO ADO support)
-using DapperScheduling = Encina.Dapper.Sqlite.Scheduling;
+using DapperScheduling = Encina.Dapper.SqlServer.Scheduling;
 using EFScheduling = Encina.EntityFrameworkCore.Scheduling;
 
 // Usage
@@ -227,7 +226,7 @@ Shows heap allocations per operation:
 
 ### ADO.NET
 
-- Reuse `SqliteCommand` objects
+- Reuse `DbCommand` objects
 - Use parameterized queries
 - Avoid boxing/unboxing
 - Use `Span<T>` for string operations

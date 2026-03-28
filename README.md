@@ -42,8 +42,8 @@ Encina is a comprehensive toolkit for building robust .NET applications. Built o
 - **Temporal Tables**: SQL Server point-in-time queries and entity history (see [docs](docs/features/temporal-tables.md))
 - **Streaming**: `IAsyncEnumerable` support via `IStreamRequest<TItem>`
 - **Change Data Capture (CDC)**: Real-time database change streaming with support for SQL Server, PostgreSQL, MySQL, MongoDB, and Debezium (HTTP + Kafka modes), plus sharded CDC for multi-shard topologies (see [docs](docs/features/cdc.md), [sharded CDC](docs/features/cdc-sharding.md))
-- **Database Sharding**: Horizontal partitioning with 4 routing strategies (Hash, Range, Directory, Geo), compound shard keys for multi-field routing, entity co-location for optimized local JOINs, time-based sharding with automatic tier lifecycle (Hot/Warm/Cold/Archived), shadow sharding for risk-free topology migration testing, scatter-gather queries, and MongoDB dual-mode across all 13 providers (see [docs](docs/sharding/configuration.md), [compound keys](docs/features/compound-shard-keys.md), [co-location](docs/features/sharding-colocation.md), [time-based](docs/features/time-based-sharding.md), [shadow sharding](docs/features/shadow-sharding.md))
-- **Database Resilience**: Connection pool monitoring, circuit breakers, and warm-up across all 13 providers (see [docs](docs/features/database-resilience.md))
+- **Database Sharding**: Horizontal partitioning with 4 routing strategies (Hash, Range, Directory, Geo), compound shard keys for multi-field routing, entity co-location for optimized local JOINs, time-based sharding with automatic tier lifecycle (Hot/Warm/Cold/Archived), shadow sharding for risk-free topology migration testing, scatter-gather queries, and MongoDB dual-mode across all 10 providers (see [docs](docs/sharding/configuration.md), [compound keys](docs/features/compound-shard-keys.md), [co-location](docs/features/sharding-colocation.md), [time-based](docs/features/time-based-sharding.md), [shadow sharding](docs/features/shadow-sharding.md))
+- **Database Resilience**: Connection pool monitoring, circuit breakers, and warm-up across all 10 providers (see [docs](docs/features/database-resilience.md))
 - **Observability**: Built-in OpenTelemetry integration with ActivitySource and Metrics
 - **Pay-for-What-You-Use**: All features are opt-in via satellite packages
 
@@ -295,7 +295,7 @@ await unitOfWork.SaveChangesAsync(ct);
 
 See [Immutable Domain Models](docs/features/immutable-domain-models.md) for full documentation.
 
-### Dapper / ADO.NET / PostgreSQL / MySQL / SQLite / Oracle
+### Dapper / ADO.NET / PostgreSQL / MySQL / Oracle
 
 ```csharp
 // SQL Server with Dapper
@@ -418,7 +418,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 | Category | Providers | Default Tags |
 |----------|-----------|--------------|
-| **Databases** | PostgreSQL, MySQL, SQL Server, SQLite, Oracle, MongoDB, Marten | `database`, `ready` |
+| **Databases** | PostgreSQL, MySQL, SQL Server, Oracle, MongoDB, Marten | `database`, `ready` |
 | **Message Brokers** | RabbitMQ, Kafka, NATS, MQTT, Azure Service Bus, Amazon SQS | `messaging`, `ready` |
 | **Caching** | Redis (and compatible: Valkey, KeyDB, Dragonfly, Garnet) | `caching`, `ready` |
 | **Scheduling** | Hangfire, Quartz | `scheduling`, `ready` |

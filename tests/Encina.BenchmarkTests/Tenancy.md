@@ -44,9 +44,9 @@ If benchmarks are added, focus on:
 - ITenantProvider resolution speed
 
 ## Providers Not Benchmarked
-- ADO: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
-- Dapper: Sqlite, SqlServer, PostgreSQL, MySQL, Oracle
-- EntityFrameworkCore
+- ADO: SqlServer, PostgreSQL, MySQL
+- Dapper: SqlServer, PostgreSQL, MySQL
+- EF Core: SqlServer, PostgreSQL, MySQL
 - MongoDB
 
 ## Related Files

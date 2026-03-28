@@ -74,7 +74,7 @@ Direct comparison across providers:
 |------------|----------|---------|
 | Dapper vs ADO.NET | `Encina.Dapper.Benchmarks/ProviderComparison/` | Micro-ORM overhead |
 | EF Core vs Dapper | `Encina.Benchmarks/ProviderComparison/` | ORM vs micro-ORM |
-| SQLite vs SqlServer vs PostgreSQL vs MySQL | Various | Provider characteristics |
+| SqlServer vs PostgreSQL vs MySQL | Various | Provider characteristics |
 
 ## Running Benchmarks
 
@@ -191,8 +191,8 @@ All benchmark projects use consistent test entities:
 
 Each provider project has a connection factory for in-memory databases:
 
-- `DapperConnectionFactory.CreateSharedMemorySqliteConnection(name)`
-- `AdoConnectionFactory.CreateSharedMemorySqliteConnection(name)`
+- `DapperConnectionFactory.CreateConnection(provider)`
+- `AdoConnectionFactory.CreateConnection(provider)`
 
 ### Schema Builders
 
@@ -222,10 +222,6 @@ When adding new benchmarks:
 ### BenchmarkSwitcher
 
 All benchmark projects use `BenchmarkSwitcher.FromAssembly().Run(args, config)` to support command-line filtering. Do not use `BenchmarkRunner.Run<T>()` which ignores filters.
-
-### SQLite DateTime Format
-
-SQLite stores DateTime as ISO 8601 text. Always use `DateTime.UtcNow` from C# with `CultureInfo.InvariantCulture` for parsing.
 
 ### CA1001 Suppression
 

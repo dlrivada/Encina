@@ -504,11 +504,9 @@ public class OrderService
 | **Dapper SqlServer** | ✅ | ❌ | ✅ | Version WHERE clause |
 | **Dapper PostgreSQL** | ✅ | ❌ | ✅ | Version WHERE clause |
 | **Dapper MySQL** | ✅ | ❌ | ✅ | Version WHERE clause |
-| **Dapper SQLite** | ✅ | ❌ | ✅ | Version WHERE clause |
 | **ADO SqlServer** | ✅ | ❌ | ✅ | Version WHERE clause |
 | **ADO PostgreSQL** | ✅ | ❌ | ✅ | Version WHERE clause |
 | **ADO MySQL** | ✅ | ❌ | ✅ | Version WHERE clause |
-| **ADO SQLite** | ✅ | ❌ | ✅ | Version WHERE clause |
 | **MongoDB** | ✅ | ❌ | ✅ | Version filter |
 | **Marten** | N/A | N/A | ✅ | Event stream versioning |
 
@@ -521,7 +519,6 @@ Each provider generates appropriate SQL:
 | **SQL Server** | `[Version]` | `WHERE [Id] = @Id AND [Version] = @OriginalVersion` |
 | **PostgreSQL** | `"Version"` | `WHERE "Id" = @Id AND "Version" = @OriginalVersion` |
 | **MySQL** | `` `Version` `` | ``WHERE `Id` = @Id AND `Version` = @OriginalVersion`` |
-| **SQLite** | `"Version"` | `WHERE "Id" = @Id AND "Version" = @OriginalVersion` |
 
 ### Marten Event Sourcing
 

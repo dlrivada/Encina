@@ -47,7 +47,6 @@ If database pagination performance needs validation:
 - `src/Encina.ADO.SqlServer/Pagination/CursorPaginationHelper.cs`
 - `src/Encina.ADO.PostgreSQL/Pagination/CursorPaginationHelper.cs`
 - `src/Encina.ADO.MySQL/Pagination/CursorPaginationHelper.cs`
-- `src/Encina.ADO.Sqlite/Pagination/CursorPaginationHelper.cs`
 - `tests/Encina.UnitTests/ADO/*/Pagination/CursorPaginationHelperTests.cs`
 - `tests/Encina.IntegrationTests/ADO/*/Pagination/CursorPaginationHelperIntegrationTests.cs`
 

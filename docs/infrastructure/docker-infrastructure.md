@@ -52,8 +52,6 @@ docker compose --profile cloud up -d
 | **Oracle XE** | `container-registry.oracle.com/database/express:21.3.0-xe` | 1521 | `Encina.ADO.Oracle`, `Encina.Dapper.Oracle` | `databases`, `full` |
 | **MongoDB** | `mongo:7` | 27017 | `Encina.MongoDB` | `databases`, `full` |
 
-> **Note**: SQLite (`Encina.ADO.Sqlite`, `Encina.Dapper.Sqlite`) is file-based and doesn't require a container.
-
 > **Note**: Marten (event sourcing) uses PostgreSQL as its backend.
 
 ### Messaging
@@ -172,12 +170,10 @@ All services use development-only default credentials. Override with environment
 | `Encina.ADO.PostgreSQL` | postgres | 5432 | ✅ |
 | `Encina.ADO.MySQL` | mysql | 3306 | ✅ |
 | `Encina.ADO.Oracle` | oracle | 1521 | ✅ |
-| `Encina.ADO.Sqlite` | (file-based) | N/A | ✅ |
 | `Encina.Dapper.SqlServer` | sqlserver | 1433 | ✅ |
 | `Encina.Dapper.PostgreSQL` | postgres | 5432 | ✅ |
 | `Encina.Dapper.MySQL` | mysql | 3306 | ✅ |
 | `Encina.Dapper.Oracle` | oracle | 1521 | ✅ |
-| `Encina.Dapper.Sqlite` | (file-based) | N/A | ✅ |
 | `Encina.EntityFrameworkCore` | (any SQL) | varies | ✅ |
 | `Encina.MongoDB` | mongodb | 27017 | ✅ |
 | `Encina.Marten` | postgres | 5432 | ✅ |

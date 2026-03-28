@@ -47,21 +47,38 @@ dotnet test tests/Encina.LoadTests/Encina.LoadTests.csproj
 dotnet run --project tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj -c Release
 ```
 
-## Coverage Snapshot
+## Coverage
 
-Run the Release configuration with coverage collection to refresh the stored baseline:
+### Automated (CI)
+
+The CI workflow collects coverage from all 5 measurable test types (Unit, Guard, Contract, Property, Integration) and generates a **weighted coverage report** using `.github/scripts/coverage-report.cs`. Each package is scored against its category target (e.g., 85% for core logic, 50% for database providers).
+
+Results are published to the **Coverage Dashboard**: [dlrivada.github.io/Encina/coverage/](https://dlrivada.github.io/Encina/coverage/)
+
+The dashboard shows:
+- Overall weighted coverage percentage
+- Per-category breakdown with pass/fail status
+- Per-package detail with per-test-type columns (Unit, Guard, Contract, Property, Integration)
+- Coverage trend over time (historical data accumulated in `docs/coverage/data/history.json`)
+- Interactive sunburst distribution chart
+
+Coverage data is committed automatically by CI to `docs/coverage/data/latest.json` after each successful run. Historical snapshots are appended to `history.json` (last 100 entries) by `.github/scripts/coverage-history.cs`.
+
+### Manual (local)
+
+Run the Release configuration with coverage collection:
 
 ```pwsh
 dotnet test --configuration Release --collect "XPlat Code Coverage"
 ```
 
-Then regenerate the aggregated report:
+Then regenerate the weighted report locally:
 
 ```pwsh
-dotnet tool run reportgenerator -reports:"artifacts/test-results/**/*.xml" -targetdir:"artifacts/coverage/latest" -reporttypes:HtmlInline_AzurePipelines;TextSummary
+dotnet run .github/scripts/coverage-report.cs -- --output artifacts/coverage --input artifacts/test-results
 ```
 
-The latest HTML and summary output lives under `artifacts/coverage/latest/`.
+The output includes `encina-coverage-summary.json`, `encina-coverage-report.md`, and ReportGenerator HTML under `artifacts/coverage/`.
 
 > **Note**: All test outputs are configured to go to `artifacts/` directory, never to the repository root.
 

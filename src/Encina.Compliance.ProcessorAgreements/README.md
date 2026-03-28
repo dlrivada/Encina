@@ -19,7 +19,7 @@ GDPR Article 28 compliance for Encina. Provides processor registry, Data Process
 - **Immutable Audit Trail** -- Every operation recorded via `IProcessorAuditStore` per Article 5(2)
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions
 - **Full Observability** -- OpenTelemetry tracing, structured logging via `[LoggerMessage]`, health check
-- **13 Database Providers** -- ADO.NET, Dapper, EF Core (SQLite, SQL Server, PostgreSQL, MySQL) + MongoDB
+- **10 Database Providers** -- ADO.NET, Dapper, EF Core (SQL Server, PostgreSQL, MySQL) + MongoDB
 - **.NET 10 Compatible** -- Built with latest C# features
 
 ## Installation

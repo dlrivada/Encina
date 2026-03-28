@@ -40,7 +40,7 @@ a `Random.Shared.NextDouble()` comparison — nanosecond-level cost.
 - **Unit Tests**: Verify behavioral correctness of all store operations
 - **Integration Tests**: Verify real database round-trip functionality
 - **Property Tests**: Verify invariants with random data generation
-- **Contract Tests**: Verify API consistency across all 13 providers
+- **Contract Tests**: Verify API consistency across all 10 providers
 
 ### 6. Recommended Alternative
 

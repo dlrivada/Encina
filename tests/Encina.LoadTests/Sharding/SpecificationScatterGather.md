@@ -39,7 +39,7 @@ For typical page sizes (10-100 items per shard × 3-10 shards), this completes i
 - **Unit Tests**: Verify specification application per shard, result merging, pagination strategies
 - **Guard Tests**: Ensure parameter validation for all public methods
 - **Property Tests**: Verify pagination invariants and merge completeness across random inputs
-- **Contract Tests**: Confirm all 13 providers implement `IShardedSpecificationSupport`
+- **Contract Tests**: Confirm all 10 providers implement `IShardedSpecificationSupport`
 - **Integration Tests**: Validate real database scatter-gather with specifications
 - **Benchmarks**: Micro-benchmarks for specification evaluation and merge overhead
 

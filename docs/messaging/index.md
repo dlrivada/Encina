@@ -35,7 +35,6 @@ All messaging patterns support multiple persistence providers:
 | Dapper (SQL Server) | `Encina.Dapper.SqlServer` | High performance, SQL Server |
 | Dapper (PostgreSQL) | `Encina.Dapper.PostgreSQL` | High performance, PostgreSQL |
 | Dapper (MySQL) | `Encina.Dapper.MySQL` | High performance, MySQL/MariaDB |
-| Dapper (SQLite) | `Encina.Dapper.Sqlite` | Testing, embedded |
 | Dapper (Oracle) | `Encina.Dapper.Oracle` | Enterprise, Oracle DB |
 | ADO.NET (all databases) | `Encina.ADO.*` | Maximum performance |
 | MongoDB | `Encina.MongoDB` | Document store |

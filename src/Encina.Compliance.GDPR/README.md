@@ -17,7 +17,7 @@ GDPR compliance abstractions and pipeline behaviors for Encina. Provides declara
 - **Enforcement Modes** - `Block` (reject non-compliant), `Warn` (log and proceed), or `Disabled`
 - **Auto-Registration** - Scan assemblies for `[ProcessingActivity]` and `[LawfulBasis]` attributes at startup
 - **Full Observability** - OpenTelemetry tracing, structured logging, health checks
-- **13 Persistence Providers** - ADO.NET, Dapper, EF Core (4 databases each) + MongoDB
+- **10 Persistence Providers** - ADO.NET, Dapper, EF Core (3 databases each) + MongoDB
 - **Extensible** - Custom `IProcessingActivityRegistry`, `ILawfulBasisRegistry`, `ILIAStore` implementations
 - **.NET 10 Compatible** - Built with latest C# features
 
@@ -353,23 +353,23 @@ If no `IConsentStatusProvider` is registered, a warning is logged (EventId 8209)
 
 ## Persistence Providers
 
-The in-memory `ILawfulBasisRegistry` and `ILIAStore` are suitable for development. For production, use one of the 13 database-backed providers:
+The in-memory `ILawfulBasisRegistry` and `ILIAStore` are suitable for development. For production, use one of the 10 database-backed providers:
 
 ### ADO.NET Providers
 
 ```bash
-dotnet add package Encina.ADO.Sqlite      # or SqlServer, PostgreSQL, MySQL
+dotnet add package Encina.ADO.SqlServer      # or PostgreSQL, MySQL
 ```
 
 ```csharp
 services.AddEncinaLawfulBasis();
-services.AddEncinaLawfulBasisADOSqlite(connectionString);
+services.AddEncinaLawfulBasisADOSqlServer(connectionString);
 ```
 
 ### Dapper Providers
 
 ```bash
-dotnet add package Encina.Dapper.PostgreSQL  # or Sqlite, SqlServer, MySQL
+dotnet add package Encina.Dapper.PostgreSQL  # or SqlServer, MySQL
 ```
 
 ```csharp
@@ -404,11 +404,9 @@ services.AddEncinaLawfulBasisMongoDB(connectionString, databaseName: "MyApp");
 
 | Provider | Extension Method |
 |----------|------------------|
-| ADO.NET SQLite | `AddEncinaLawfulBasisADOSqlite(connectionString)` |
 | ADO.NET SQL Server | `AddEncinaLawfulBasisADOSqlServer(connectionString)` |
 | ADO.NET PostgreSQL | `AddEncinaLawfulBasisADOPostgreSQL(connectionString)` |
 | ADO.NET MySQL | `AddEncinaLawfulBasisADOMySQL(connectionString)` |
-| Dapper SQLite | `AddEncinaLawfulBasisDapperSqlite(connectionString)` |
 | Dapper SQL Server | `AddEncinaLawfulBasisDapperSqlServer(connectionString)` |
 | Dapper PostgreSQL | `AddEncinaLawfulBasisDapperPostgreSQL(connectionString)` |
 | Dapper MySQL | `AddEncinaLawfulBasisDapperMySQL(connectionString)` |
@@ -419,23 +417,23 @@ All providers implement the same `ILawfulBasisRegistry` and `ILIAStore` interfac
 
 ## Processing Activity Persistence Providers
 
-The in-memory `IProcessingActivityRegistry` is suitable for development. For production, use one of the 13 database-backed providers:
+The in-memory `IProcessingActivityRegistry` is suitable for development. For production, use one of the 10 database-backed providers:
 
 ### ADO.NET Providers
 
 ```bash
-dotnet add package Encina.ADO.Sqlite      # or SqlServer, PostgreSQL, MySQL
+dotnet add package Encina.ADO.SqlServer      # or PostgreSQL, MySQL
 ```
 
 ```csharp
 services.AddEncinaGDPR();
-services.AddEncinaProcessingActivityADOSqlite(connectionString);
+services.AddEncinaProcessingActivityADOSqlServer(connectionString);
 ```
 
 ### Dapper Providers
 
 ```bash
-dotnet add package Encina.Dapper.PostgreSQL  # or Sqlite, SqlServer, MySQL
+dotnet add package Encina.Dapper.PostgreSQL  # or SqlServer, MySQL
 ```
 
 ```csharp
@@ -470,11 +468,9 @@ services.AddEncinaProcessingActivityMongoDB(connectionString, databaseName: "MyA
 
 | Provider | Extension Method |
 |----------|------------------|
-| ADO.NET SQLite | `AddEncinaProcessingActivityADOSqlite(connectionString)` |
 | ADO.NET SQL Server | `AddEncinaProcessingActivityADOSqlServer(connectionString)` |
 | ADO.NET PostgreSQL | `AddEncinaProcessingActivityADOPostgreSQL(connectionString)` |
 | ADO.NET MySQL | `AddEncinaProcessingActivityADOMySQL(connectionString)` |
-| Dapper SQLite | `AddEncinaProcessingActivityDapperSqlite(connectionString)` |
 | Dapper SQL Server | `AddEncinaProcessingActivityDapperSqlServer(connectionString)` |
 | Dapper PostgreSQL | `AddEncinaProcessingActivityDapperPostgreSQL(connectionString)` |
 | Dapper MySQL | `AddEncinaProcessingActivityDapperMySQL(connectionString)` |

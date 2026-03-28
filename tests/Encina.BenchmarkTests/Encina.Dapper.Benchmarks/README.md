@@ -41,7 +41,6 @@ All store benchmarks support the following database providers via `[Params]`:
 
 | Provider | Connection Type | Parameter Syntax | Boolean |
 |----------|-----------------|------------------|---------|
-| **SQLite** | `SqliteConnection` | `@param` | `0/1` |
 | **SQL Server** | `SqlConnection` | `@param` | `bit` |
 | **PostgreSQL** | `NpgsqlConnection` | `@param` | `true/false` |
 | **MySQL** | `MySqlConnection` | `@param` | `0/1` |
@@ -128,7 +127,7 @@ Measures `SpecificationSqlBuilder<TEntity>` SQL generation:
 | `BuildWhereClause_StringEndsWith` | `WHERE Name LIKE '%value'` | String operation |
 | `BuildOrderByClause_SingleColumn` | `ORDER BY Name` | Simple ordering |
 | `BuildOrderByClause_MultipleColumns` | `ORDER BY A DESC, B, C DESC` | Complex ordering |
-| `BuildPaginationClause` | `LIMIT @n OFFSET @m` | SQLite syntax |
+| `BuildPaginationClause` | `LIMIT @n OFFSET @m` | Standard syntax |
 | `BuildSelectStatement_Complete` | Full SELECT with WHERE, ORDER, LIMIT | End-to-end |
 | `SpecificationReuse_PreBuilt` | Pre-instantiated specification | Reuse pattern |
 | `SpecificationReuse_DynamicCreation` | New specification each time | Creation overhead |
@@ -259,10 +258,10 @@ Factory methods for creating test entities:
 
 ### DapperConnectionFactory
 
-Connection management for in-memory SQLite:
+Connection management for benchmark databases:
 
-- `CreateSharedMemorySqliteConnection(name)` - Named shared memory database
-- Uses `Mode=Memory;Cache=Shared` for test isolation
+- `CreateConnection(provider)` - Database connection per provider
+- Supports SQL Server, PostgreSQL, MySQL
 
 ### DapperSchemaBuilder
 
@@ -279,17 +278,6 @@ Schema creation for all supported providers:
 - **Encina.EntityFrameworkCore.Benchmarks** - EF Core-specific benchmarks
 
 ## Notes
-
-### SQLite DateTime Format
-
-SQLite stores DateTime as ISO 8601 text. All benchmarks use `DateTime.UtcNow` from C# (not SQLite's `datetime('now')`) to ensure format compatibility.
-
-### Type Handlers
-
-Dapper type handlers are registered in `GlobalSetup`:
-
-- `GuidTypeHandler` - String-based GUID storage for SQLite
-- Other providers use native types
 
 ### BenchmarkDotNet Configuration
 

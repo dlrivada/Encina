@@ -284,13 +284,13 @@ services.AddCursorPagination();
 // Use extension methods directly on IQueryable<T>
 ```
 
-### Dapper (SQLite, SQL Server, PostgreSQL, MySQL)
+### Dapper (SQL Server, PostgreSQL, MySQL)
 
 ```csharp
 // Each provider has its own package
-// Encina.Dapper.Sqlite, Encina.Dapper.SqlServer, etc.
+// Encina.Dapper.SqlServer, Encina.Dapper.PostgreSQL, etc.
 
-services.AddEncinaDapperSqlite(connectionString);
+services.AddEncinaDapperSqlServer(connectionString);
 services.AddCursorPagination();
 
 // Use CursorPaginationHelper<T>
@@ -309,13 +309,13 @@ services.AddCursorPagination();
 // Use extension methods on IMongoCollection<T>
 ```
 
-### ADO.NET (SQLite, SQL Server, PostgreSQL, MySQL)
+### ADO.NET (SQL Server, PostgreSQL, MySQL)
 
 Each ADO.NET provider has its own package with optimized SQL generation:
 
 ```csharp
 // Each provider has its own package
-// Encina.ADO.Sqlite, Encina.ADO.SqlServer, Encina.ADO.PostgreSQL, Encina.ADO.MySQL
+// Encina.ADO.SqlServer, Encina.ADO.PostgreSQL, Encina.ADO.MySQL
 
 services.AddCursorPagination();
 
@@ -359,7 +359,6 @@ Each provider generates optimized SQL with correct quoting and limiting syntax:
 | SQL Server | `[column]` | `TOP (n)` | `SELECT TOP (25) * FROM [Orders] WHERE [Id] > @cursor ORDER BY [Id]` |
 | PostgreSQL | `"column"` | `LIMIT n` | `SELECT * FROM "Orders" WHERE "Id" > @cursor ORDER BY "Id" LIMIT 25` |
 | MySQL | `` `column` `` | `LIMIT n` | ``SELECT * FROM `Orders` WHERE `Id` > @cursor ORDER BY `Id` LIMIT 25`` |
-| SQLite | `"column"` | `LIMIT n` | `SELECT * FROM "Orders" WHERE "Id" > @cursor ORDER BY "Id" LIMIT 25` |
 
 ---
 

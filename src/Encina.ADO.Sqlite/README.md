@@ -1,5 +1,7 @@
 # Encina.ADO.Sqlite
 
+> **Note**: SQLite has been removed as a supported/tested database provider. This package remains available for backward compatibility but is no longer actively maintained or tested.
+
 SQLite implementation of Encina messaging patterns using raw ADO.NET for maximum performance.
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 

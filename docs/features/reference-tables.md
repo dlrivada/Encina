@@ -296,15 +296,14 @@ shard-0             |                              +-- shard-1 (ok)
 
 ## Provider Support
 
-All 13 database providers are supported with provider-specific upsert SQL:
+All 10 database providers are supported with provider-specific upsert SQL:
 
 | Provider | Upsert Mechanism | Package |
 |----------|------------------|---------|
-| SQLite | `INSERT OR REPLACE INTO ...` | `Encina.ADO.Sqlite` / `Encina.Dapper.Sqlite` |
 | SQL Server | `MERGE ... WHEN MATCHED THEN UPDATE` | `Encina.ADO.SqlServer` / `Encina.Dapper.SqlServer` |
 | PostgreSQL | `INSERT ... ON CONFLICT DO UPDATE` | `Encina.ADO.PostgreSQL` / `Encina.Dapper.PostgreSQL` |
 | MySQL | `INSERT ... ON DUPLICATE KEY UPDATE` | `Encina.ADO.MySQL` / `Encina.Dapper.MySQL` |
-| EF Core (all 4) | Generic `DbContext`-based upsert | `Encina.EntityFrameworkCore` |
+| EF Core (all 3) | Generic `DbContext`-based upsert | `Encina.EntityFrameworkCore` |
 | MongoDB | `BulkWriteAsync` + `ReplaceOneModel` | `Encina.MongoDB` |
 
 ### Content Hash Consistency

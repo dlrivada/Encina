@@ -87,25 +87,23 @@ Measures `BulkOperationsEF<TEntity>` factory method and provider detection.
 | **SQL Server** | SqlBulkCopy | Native bulk copy (fastest) |
 | **PostgreSQL** | COPY command | Batched parameterized SQL |
 | **MySQL** | Extended inserts | Batched parameterized SQL |
-| **SQLite** | INSERT OR REPLACE | Batched parameterized SQL |
-| **Oracle** | INSERT ALL/MERGE | Batched statements |
 
 **Key benchmarks:**
 - `CreateBulkOperations_Factory` - Factory method overhead
 - `GetDbConnection_Cost` - Connection retrieval
 - `ConnectionType_PatternMatching` - Provider detection
 - `CachedBulkOperations_Usage` - Cached vs uncached comparison
-- `BulkInsertAsync_Sqlite` - Actual bulk insert [Params(100, 1000)]
+- `BulkInsertAsync` - Actual bulk insert [Params(100, 1000)]
 
 ## Database Provider Usage
 
 | Benchmark Class | Provider | Rationale |
 |-----------------|----------|-----------|
-| TransactionBehavior | SQLite in-memory | Requires real transaction support |
+| TransactionBehavior | SQL Server | Requires real transaction support |
 | SpecificationEvaluator | EF Core InMemory | Pure CPU measurement |
-| FunctionalRepository | SQLite in-memory | Requires actual persistence |
-| UnitOfWork | SQLite in-memory | Requires real database behavior |
-| BulkOperations | SQLite in-memory | Provider-specific SQL generation |
+| FunctionalRepository | SQL Server | Requires actual persistence |
+| UnitOfWork | SQL Server | Requires real database behavior |
+| BulkOperations | SQL Server | Provider-specific SQL generation |
 
 ## Performance Targets Summary
 
@@ -208,7 +206,7 @@ Simple test entity implementing `IEntity<Guid>` with properties:
 
 Configured with realistic indexes for query benchmarks. Supports:
 - `CreateInMemory()` - Pure CPU measurement
-- `CreateSqlite(connection)` - Real SQL behavior
+- `CreateSqlServer(connection)` - Real SQL behavior
 
 ### TestData
 
@@ -219,7 +217,7 @@ Factory methods for generating test entities:
 
 ## CA1001 Suppression Pattern
 
-BenchmarkDotNet classes with IDisposable fields (DbContext, SqliteConnection) use:
+BenchmarkDotNet classes with IDisposable fields (DbContext, SqlConnection) use:
 
 ```csharp
 #pragma warning disable CA1001 // BenchmarkDotNet handles disposal via GlobalCleanup

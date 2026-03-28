@@ -1,5 +1,7 @@
 # Encina.Dapper.Sqlite
 
+> **Note**: SQLite has been removed as a supported/tested database provider. This package remains available for backward compatibility but is no longer actively maintained or tested.
+
 SQL Server implementation of Encina messaging patterns using Dapper, including Outbox, Inbox, Saga orchestration, and Scheduled messages.
 
 ## Features
@@ -45,11 +47,11 @@ SQL Server implementation of Encina messaging patterns using Dapper, including O
 dotnet add package Encina.Dapper.Sqlite
 ```
 
-> **Note**: This package is specifically for SQL Server. For other databases, see:
+> **Note**: This package is specifically for SQLite. For other databases, see:
 >
+> - `Encina.Dapper.SqlServer` - SQL Server support
 > - `Encina.Dapper.PostgreSQL` - PostgreSQL support
 > - `Encina.Dapper.MySQL` - MySQL/MariaDB support
-> - `Encina.Dapper.Sqlite` - SQLite support
 
 ## Quick Start
 

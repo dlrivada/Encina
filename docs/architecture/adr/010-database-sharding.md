@@ -110,11 +110,11 @@ All steps return `Either<EncinaError, T>` following the project's Railway Orient
 | Category | DI Extension | Providers | Count |
 |----------|-------------|-----------|-------|
 | Core | `AddEncinaSharding<TEntity>()` | All (registers topology + router) | — |
-| ADO.NET | `AddEncinaADOSharding<TEntity, TId>()` | SQLite, SqlServer, PostgreSQL, MySQL | 4 |
-| Dapper | `AddEncinaDapperSharding<TEntity, TId>()` | SQLite, SqlServer, PostgreSQL, MySQL | 4 |
-| EF Core | `AddEncinaEFCoreSharding{Provider}<TContext, TEntity, TId>()` | SQLite, SqlServer, PostgreSQL, MySQL | 4 |
+| ADO.NET | `AddEncinaADOSharding<TEntity, TId>()` | SqlServer, PostgreSQL, MySQL | 3 |
+| Dapper | `AddEncinaDapperSharding<TEntity, TId>()` | SqlServer, PostgreSQL, MySQL | 3 |
+| EF Core | `AddEncinaEFCoreSharding{Provider}<TContext, TEntity, TId>()` | SqlServer, PostgreSQL, MySQL | 3 |
 | MongoDB | `AddEncinaMongoDBSharding<TEntity, TId>()` | MongoDB | 1 |
-| **Total** | | | **13** |
+| **Total** | | | **10** |
 
 ### MongoDB Dual-Mode
 
@@ -173,7 +173,7 @@ All tracing methods use `ActivitySource.HasListeners()` guards for zero-cost whe
 ### Positive
 
 1. **Linear horizontal scalability** — Add shards to distribute load; hash routing ensures uniform distribution
-2. **Provider-agnostic** — Same routing and topology abstractions across all 13 database providers
+2. **Provider-agnostic** — Same routing and topology abstractions across all 10 database providers
 3. **Sub-microsecond routing** — Hash and range routers use pre-computed data structures (binary search on cached arrays)
 4. **Production-ready observability** — Full OpenTelemetry integration with 7 metric instruments and 3 trace activities
 5. **Migration planning** — `IShardRebalancer` calculates exactly which key ranges move when topology changes
@@ -203,7 +203,7 @@ All tracing methods use `ActivitySource.HasListeners()` guards for zero-cost whe
 
 ### 3. MongoDB-Only Sharding (Rely on mongos Exclusively)
 
-**Rejected** — Would limit sharding to MongoDB users. The application-level approach serves all 13 providers. MongoDB users get the best of both worlds: native mongos (recommended) with app-level fallback.
+**Rejected** — Would limit sharding to MongoDB users. The application-level approach serves all 10 providers. MongoDB users get the best of both worlds: native mongos (recommended) with app-level fallback.
 
 ### 4. Proxy-Based Approach (Vitess/Citus)
 
@@ -216,7 +216,7 @@ All tracing methods use `ActivitySource.HasListeners()` guards for zero-cost whe
 ## Related Decisions
 
 - **ADR-001** (Railway Oriented Programming) — All sharding APIs return `Either<EncinaError, T>`
-- **ADR-009** (Remove Oracle Provider) — Reduces provider count from 16 to 13; sharding was designed for 13 providers
+- **ADR-009** (Remove Oracle Provider) — Reduces provider count from 16 to 13; SQLite subsequently removed reducing to 10 providers
 
 ## References
 

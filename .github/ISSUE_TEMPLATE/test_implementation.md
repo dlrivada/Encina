@@ -37,7 +37,7 @@ A clear description of the testing work needed.
 ## Infrastructure Required
 
 - [ ] Docker / Testcontainers
-- [ ] Real database (specify: SQLite / SQL Server / PostgreSQL / MySQL / MongoDB)
+- [ ] Real database (specify: SQL Server / PostgreSQL / MySQL / MongoDB)
 - [ ] Message broker (specify: RabbitMQ / Kafka / NATS / MQTT)
 - [ ] NBomber load testing framework
 - [ ] BenchmarkDotNet

@@ -36,7 +36,6 @@ All store benchmarks support the following database providers via `[Params]`:
 
 | Provider | Connection Type | Parameter Syntax | Boolean |
 |----------|-----------------|------------------|---------|
-| **SQLite** | `SqliteConnection` | `@param` | `0/1` |
 | **SQL Server** | `SqlConnection` | `@param` | `bit` |
 | **PostgreSQL** | `NpgsqlConnection` | `@param` | `true/false` |
 | **MySQL** | `MySqlConnection` | `@param` | `0/1` |
@@ -131,7 +130,7 @@ Measures `SpecificationSqlBuilder<TEntity>` SQL generation:
 | `BuildWhereClause_StringEndsWith` | `WHERE Name LIKE '%value'` | String operation |
 | `BuildOrderByClause_SingleColumn` | `ORDER BY Name` | Simple ordering |
 | `BuildOrderByClause_MultipleColumns` | `ORDER BY A DESC, B, C DESC` | Complex ordering |
-| `BuildPaginationClause` | `LIMIT @n OFFSET @m` | SQLite syntax |
+| `BuildPaginationClause` | `LIMIT @n OFFSET @m` | Standard syntax |
 | `BuildSelectStatement_Complete` | Full SELECT with WHERE, ORDER, LIMIT | End-to-end |
 | `SpecificationReuse_PreBuilt` | Pre-instantiated specification | Reuse pattern |
 | `SpecificationReuse_DynamicCreation` | New specification each time | Creation overhead |
@@ -246,10 +245,10 @@ Factory methods for creating test entities:
 
 ### AdoConnectionFactory
 
-Connection management for in-memory SQLite:
+Connection management for benchmark databases:
 
-- `CreateSharedMemorySqliteConnection(name)` - Named shared memory database
-- Uses `Mode=Memory;Cache=Shared` for test isolation
+- `CreateConnection(provider)` - Database connection per provider
+- Supports SQL Server, PostgreSQL, MySQL
 
 ### AdoSchemaBuilder
 
@@ -282,16 +281,11 @@ This benchmark class runs both implementations side-by-side using `[Params("Dapp
 
 ## Notes
 
-### SQLite DateTime Format
-
-SQLite stores DateTime as ISO 8601 text. All benchmarks use `DateTime.UtcNow` from C# with `CultureInfo.InvariantCulture` for parsing to ensure format compatibility.
-
 ### Manual Object Mapping
 
 ADO.NET requires manual mapping from `IDataReader` to entities. The `MapFromReader` helper methods handle:
 
 - Nullable column handling with `IsDBNull()`
-- String-to-GUID parsing for SQLite
 - DateTime parsing with invariant culture
 
 ### BenchmarkDotNet Configuration

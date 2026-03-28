@@ -38,7 +38,7 @@ Without reference tables, this query either:
 ### Design Constraints
 
 1. **Reuse sharding infrastructure** — Leverage `ShardTopology`, `IShardRouter`, connection factories from ADR-010
-2. **Provider coherence** — Same interface across all 13 database providers (ADO.NET x 4, Dapper x 4, EF Core x 4, MongoDB x 1)
+2. **Provider coherence** — Same interface across all 10 database providers (ADO.NET x 3, Dapper x 3, EF Core x 3, MongoDB x 1)
 3. **Opt-in** — No overhead when reference tables are not configured (pay-for-what-you-use)
 4. **Multiple strategies** — Different tables may need different refresh approaches
 5. **Observability** — Full OpenTelemetry metrics and tracing integration
@@ -111,7 +111,6 @@ We provide three strategies instead of one to cover different use cases:
 
 | Provider | SQL |
 |----------|-----|
-| SQLite | `INSERT OR REPLACE INTO ...` |
 | SQL Server | `MERGE ... WHEN MATCHED THEN UPDATE` |
 | PostgreSQL | `INSERT ... ON CONFLICT DO UPDATE` |
 | MySQL | `INSERT ... ON DUPLICATE KEY UPDATE` |
@@ -151,7 +150,7 @@ Use database materialized views to maintain copies of reference data.
 |--------|------------|
 | Pros | Database-native, SQL-optimized |
 | Cons | Provider-specific (PostgreSQL only), no cross-database support, manual refresh management |
-| Verdict | **Rejected** — not portable across 13 providers |
+| Verdict | **Rejected** — not portable across 10 providers |
 
 ### 3. Denormalization
 
@@ -178,7 +177,7 @@ Use database federation features to query across shards.
 ### Positive
 
 1. **Efficient local JOINs**: All shards have local copies of reference data, eliminating cross-shard traffic for lookup queries
-2. **Provider-agnostic**: Same `IReferenceTableStore` interface across all 13 providers
+2. **Provider-agnostic**: Same `IReferenceTableStore` interface across all 10 providers
 3. **Flexible strategies**: CdcDriven, Polling, and Manual cover all common use cases
 4. **Observable**: Full OpenTelemetry integration with 5 metrics, activity enrichment, and 15 error codes
 5. **Health-aware**: Built-in health check with three-state model (Healthy/Degraded/Unhealthy)

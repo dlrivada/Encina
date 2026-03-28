@@ -96,7 +96,7 @@ flowchart TD
 `SagaRunner` from `Encina.Messaging.Sagas.LowCeremony` handles the full lifecycle automatically:
 
 - **Step orchestration** — Executes steps sequentially, advancing state after each
-- **State persistence** — Each step is persisted to `ISagaStore` (all 13 database providers)
+- **State persistence** — Each step is persisted to `ISagaStore` (all 10 database providers)
 - **Compensation** — On failure, runs compensation in reverse order for completed steps
 - **Timeout management** — Optional per-saga timeout via `WithTimeout`
 - **Crash recovery** — `SagaOrchestrator.GetStuckSagasAsync` detects incomplete sagas after a process restart

@@ -437,7 +437,6 @@ public interface ISchemaIntrospector
 
 | Provider | IMigrationExecutor | IMigrationHistoryStore | ISchemaIntrospector |
 |----------|:-:|:-:|:-:|
-| ADO.NET SQLite | Planned | Planned | Planned |
 | ADO.NET SqlServer | Planned | Planned | Planned |
 | ADO.NET PostgreSQL | Planned | Planned | Planned |
 | ADO.NET MySQL | Planned | Planned | Planned |

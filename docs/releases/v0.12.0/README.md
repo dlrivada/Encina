@@ -40,7 +40,7 @@ v0.12.0 focuses on database and repository patterns, completing the data access 
 
 **Issue**: [#289 - Database Sharding](https://github.com/dlrivada/Encina/issues/289)
 
-Implemented comprehensive database sharding with four routing strategies, scatter-gather query execution, and MongoDB dual-mode support across all 13 database providers.
+Implemented comprehensive database sharding with four routing strategies, scatter-gather query execution, and MongoDB dual-mode support across all 10 database providers.
 
 #### Phases 1-9: Core Implementation & Testing
 
@@ -70,17 +70,14 @@ Implemented comprehensive database sharding with four routing strategies, scatte
 - `src/Encina/Sharding/Diagnostics/ShardingTracing.cs` - 3 trace activities
 - `src/Encina/Sharding/ShardingErrorCodes.cs` - 13 stable error codes
 
-**Provider Factories** (13 providers):
+**Provider Factories** (10 providers):
 
-- `src/Encina.ADO.Sqlite/Sharding/` - SQLite sharded connection factory
 - `src/Encina.ADO.SqlServer/Sharding/` - SQL Server sharded connection factory
 - `src/Encina.ADO.PostgreSQL/Sharding/` - PostgreSQL sharded connection factory
 - `src/Encina.ADO.MySQL/Sharding/` - MySQL sharded connection factory
-- `src/Encina.Dapper.Sqlite/Sharding/` - Reuses ADO factory
 - `src/Encina.Dapper.SqlServer/Sharding/` - Reuses ADO factory
 - `src/Encina.Dapper.PostgreSQL/Sharding/` - Reuses ADO factory
 - `src/Encina.Dapper.MySQL/Sharding/` - Reuses ADO factory
-- `src/Encina.EntityFrameworkCore.Sqlite/Sharding/` - Sharded DbContext factory
 - `src/Encina.EntityFrameworkCore.SqlServer/Sharding/` - Sharded DbContext factory
 - `src/Encina.EntityFrameworkCore.PostgreSQL/Sharding/` - Sharded DbContext factory
 - `src/Encina.EntityFrameworkCore.MySQL/Sharding/` - Sharded DbContext factory
@@ -109,7 +106,7 @@ Implemented comprehensive database sharding with four routing strategies, scatte
 
 #### Key Design Decisions
 
-- **Provider-agnostic**: Same `IShardRouter` + `ShardTopology` abstraction across all 13 providers
+- **Provider-agnostic**: Same `IShardRouter` + `ShardTopology` abstraction across all 10 providers
 - **Dapper reuses ADO**: Zero extra factory classes — Dapper sharding requires ADO registration first
 - **MongoDB dual-mode**: `UseNativeSharding` flag for native mongos (production) vs app-level routing (dev/test)
 - **No cross-shard 2PC**: Use Saga pattern from Encina.Messaging for distributed workflows
@@ -237,7 +234,7 @@ Implemented EF Core second-level query caching via `DbCommandInterceptor` + `ISa
 
 **Issue**: [#290 - Connection Pool Resilience](https://github.com/dlrivada/Encina/issues/290)
 
-Implemented connection pool monitoring, database-aware circuit breakers, transient error detection, and connection warm-up across all 13 database providers.
+Implemented connection pool monitoring, database-aware circuit breakers, transient error detection, and connection warm-up across all 10 database providers.
 
 #### Phase 1-5: Core Implementation
 
@@ -597,13 +594,13 @@ Updated `PublicAPI.Unshipped.txt` for packages with changed public constructor s
 - `src/Encina.DomainModeling/Sharding/ShardedSpecificationExtensions.cs` — Extension methods
 - `src/Encina.DomainModeling/Sharding/ScatterGatherResultMerger.cs` — Result merge/order/paginate
 
-#### Phase 2: Provider Implementations (13 providers)
+#### Phase 2: Provider Implementations (10 providers)
 
 All 10 provider repositories implement `IShardedSpecificationSupport<TEntity, TId>`:
 
-- ADO.NET: SqlServer, Sqlite, PostgreSQL, MySQL
-- Dapper: SqlServer, Sqlite, PostgreSQL, MySQL
-- EF Core: Generic implementation covering SqlServer, Sqlite, PostgreSQL, MySQL
+- ADO.NET: SqlServer, PostgreSQL, MySQL
+- Dapper: SqlServer, PostgreSQL, MySQL
+- EF Core: Generic implementation covering SqlServer, PostgreSQL, MySQL
 - MongoDB: Single implementation
 
 #### Phase 3: Observability

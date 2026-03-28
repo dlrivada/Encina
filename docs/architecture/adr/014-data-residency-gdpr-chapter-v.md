@@ -37,7 +37,7 @@ Without framework enforcement, the developer must manually verify region constra
 ### Design Constraints
 
 1. **Pipeline-level enforcement** — Must intercept all requests at the CQRS pipeline, not at the database or network layer
-2. **Provider coherence** — Same interfaces across all 13 database providers (ADO.NET x 4, Dapper x 4, EF Core x 4, MongoDB x 1)
+2. **Provider coherence** — Same interfaces across all 10 database providers (ADO.NET x 3, Dapper x 3, EF Core x 3, MongoDB x 1)
 3. **Opt-in** — No overhead when data residency is not configured (pay-for-what-you-use)
 4. **GDPR-accurate hierarchy** — Must follow the Chapter V preference order exactly
 5. **ROP compliance** — All operations return `Either<EncinaError, T>`
@@ -58,7 +58,7 @@ We enforce residency in the CQRS pipeline rather than via database-level restric
 **Rationale**:
 
 - Applies uniformly regardless of transport (HTTP, message queue, gRPC, serverless triggers)
-- Works with all 13 database providers without provider-specific configuration
+- Works with all 10 database providers without provider-specific configuration
 - Allows enforcement mode switching (Block, Warn, Disabled) without infrastructure changes
 - Enables audit trail recording at the application level where request context is available
 
@@ -202,13 +202,13 @@ Three stores support data residency persistence:
 | `IDataLocationStore` | Data location tracking | `data_locations` |
 | `IResidencyAuditStore` | Audit trail | `residency_audit_entries` |
 
-All three stores have implementations for all 13 database providers:
+All three stores have implementations for all 10 database providers:
 
 | Category | Providers |
 |----------|-----------|
-| ADO.NET | Sqlite, SqlServer, PostgreSQL, MySQL |
-| Dapper | Sqlite, SqlServer, PostgreSQL, MySQL |
-| EF Core | Sqlite, SqlServer, PostgreSQL, MySQL |
+| ADO.NET | SqlServer, PostgreSQL, MySQL |
+| Dapper | SqlServer, PostgreSQL, MySQL |
+| EF Core | SqlServer, PostgreSQL, MySQL |
 | MongoDB | MongoDB |
 
 Registered via the standard `config.UseDataResidency = true` option.
@@ -235,7 +235,7 @@ Enforce residency via database-level row-level security or connection routing.
 |--------|------------|
 | Pros | Enforced at the lowest level, cannot be bypassed by application code |
 | Cons | Provider-specific (SQL Server RLS differs from PostgreSQL), does not work for MongoDB, no audit trail at application level, complex to configure per data category |
-| Verdict | **Rejected** — not portable across 13 providers, loses application-level context |
+| Verdict | **Rejected** — not portable across 10 providers, loses application-level context |
 
 ### 2. Network-Level Enforcement
 

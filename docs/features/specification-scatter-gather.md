@@ -417,13 +417,13 @@ services.Configure<ShardingMetricsOptions>(options =>
 
 ## Provider-Specific Notes
 
-Specification-based scatter-gather is supported across all 13 database providers:
+Specification-based scatter-gather is supported across all 10 database providers:
 
 | Provider Category | Providers | Status |
 |-------------------|-----------|--------|
-| **EF Core** | SqlServer, PostgreSQL, MySQL, SQLite | Supported |
-| **Dapper** | SqlServer, PostgreSQL, MySQL, SQLite | Supported |
-| **ADO.NET** | SqlServer, PostgreSQL, MySQL, SQLite | Supported |
+| **EF Core** | SqlServer, PostgreSQL, MySQL | Supported |
+| **Dapper** | SqlServer, PostgreSQL, MySQL | Supported |
+| **ADO.NET** | SqlServer, PostgreSQL, MySQL | Supported |
 | **MongoDB** | MongoDB | Supported |
 
 ### EF Core
@@ -452,7 +452,6 @@ Specifications are translated to parameterized SQL via `SpecificationSqlBuilder`
 | SQL Server | `[Column]` | `@param` |
 | PostgreSQL | `"Column"` | `@param` |
 | MySQL | `` `Column` `` | `@param` |
-| SQLite | `"Column"` | `@param` |
 
 ### MongoDB
 

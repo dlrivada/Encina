@@ -156,17 +156,17 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 **All Features Delivered:**
 
-- ✅ Generic Repository Pattern [#279](https://github.com/dlrivada/Encina/issues/279) - IFunctionalRepository across all 13 providers
+- ✅ Generic Repository Pattern [#279](https://github.com/dlrivada/Encina/issues/279) - IFunctionalRepository across all 10 providers
 - ✅ Specification Pattern [#280](https://github.com/dlrivada/Encina/issues/280) - QuerySpecification with EF Core/Dapper/ADO.NET/MongoDB, ordering, pagination, keyset
 - ✅ Unit of Work Pattern [#281](https://github.com/dlrivada/Encina/issues/281) - IUnitOfWork across all providers
 - ✅ Multi-Tenancy Database Support [#282](https://github.com/dlrivada/Encina/issues/282) - Tenant isolation with three strategies
 - ✅ Read/Write Database Separation [#283](https://github.com/dlrivada/Encina/issues/283) - CQRS physical split with automatic routing and read replica support
 - ✅ Bulk Operations [#284](https://github.com/dlrivada/Encina/issues/284) - High-performance insert/update/delete up to 459x faster
 - ✅ Soft Delete & Temporal Tables [#285](https://github.com/dlrivada/Encina/issues/285) - ISoftDeletable, SoftDeleteInterceptor, SQL Server temporal tables
-- ✅ Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286), [#623](https://github.com/dlrivada/Encina/issues/623) - Granular interfaces, auto-population for all 13 providers
+- ✅ Audit Trail Pattern [#286](https://github.com/dlrivada/Encina/issues/286), [#623](https://github.com/dlrivada/Encina/issues/623) - Granular interfaces, auto-population for all 10 providers
 - ✅ Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) - Row versioning across all providers
 - ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) - ICdcConnector, 5 providers (SqlServer/PostgreSql/MySql/MongoDb/Debezium), messaging bridge, DLQ, query cache invalidation
-- ✅ Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) - 4 routing strategies (Hash/Range/Directory/Geo), compound shard keys, distributed aggregation, 13 providers, MongoDB dual-mode, scatter-gather, online resharding, time-based archival, ~1400+ tests
+- ✅ Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) - 4 routing strategies (Hash/Range/Directory/Geo), compound shard keys, distributed aggregation, 10 providers, MongoDB dual-mode, scatter-gather, online resharding, time-based archival, ~1400+ tests
 - ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) - Health-aware connection pooling
 - ✅ Query Cache [#291](https://github.com/dlrivada/Encina/issues/291) - Specification-based query caching
 - ✅ Domain Entity Base [#292](https://github.com/dlrivada/Encina/issues/292) - Base entity classes
@@ -184,12 +184,12 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 - ✅ Core Security abstractions [#394](https://github.com/dlrivada/Encina/issues/394) - `Encina.Security` with 7 security attributes, `SecurityPipelineBehavior`, RBAC/Permission-based auth, OpenTelemetry tracing
 - ✅ GDPR Core (RoPA) [#402](https://github.com/dlrivada/Encina/issues/402) - `Encina.Compliance.GDPR` with `[ProcessingActivity]` attribute, `GDPRCompliancePipelineBehavior`, JSON/CSV RoPA export, auto-registration
-- ✅ Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) - `Encina.Compliance.Consent` with `[RequireConsent]` attribute, `ConsentRequiredPipelineBehavior`, consent versioning, audit trail, 13 database providers
-- ✅ Lawful Basis Validation [#413](https://github.com/dlrivada/Encina/issues/413) - `[LawfulBasis]` attribute, `LawfulBasisValidationPipelineBehavior`, Legitimate Interest Assessment (LIA), EDPB three-part test, 13 database providers
+- ✅ Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) - `Encina.Compliance.Consent` with `[RequireConsent]` attribute, `ConsentRequiredPipelineBehavior`, consent versioning, audit trail, 10 database providers
+- ✅ Lawful Basis Validation [#413](https://github.com/dlrivada/Encina/issues/413) - `[LawfulBasis]` attribute, `LawfulBasisValidationPipelineBehavior`, Legitimate Interest Assessment (LIA), EDPB three-part test, 10 database providers
 - ✅ Data Subject Rights [#404](https://github.com/dlrivada/Encina/issues/404) - `Encina.Compliance.DataSubjectRights` with DSR pipeline behavior, restriction enforcement, personal data discovery, erasure, portability, audit trail, health check, OpenTelemetry
-- ✅ Data Residency [#405](https://github.com/dlrivada/Encina/issues/405) - `Encina.Compliance.DataResidency` with `[DataResidency]` attribute, `DataResidencyPipelineBehavior`, GDPR Chapter V cross-border transfer validation (Art. 44-49), 50+ pre-defined regions, adequacy decisions, fluent policy builder, audit trail, 13 database providers
-- ✅ Retention [#406](https://github.com/dlrivada/Encina/issues/406) - `Encina.Compliance.Retention` with GDPR Art. 5(1)(e) data retention and automatic deletion, 13 database providers
-- ✅ Anonymization [#407](https://github.com/dlrivada/Encina/issues/407) - `Encina.Compliance.Anonymization` with GDPR Art. 4(5) data anonymization, pseudonymization, and tokenization, 13 database providers
+- ✅ Data Residency [#405](https://github.com/dlrivada/Encina/issues/405) - `Encina.Compliance.DataResidency` with `[DataResidency]` attribute, `DataResidencyPipelineBehavior`, GDPR Chapter V cross-border transfer validation (Art. 44-49), 50+ pre-defined regions, adequacy decisions, fluent policy builder, audit trail, 10 database providers
+- ✅ Retention [#406](https://github.com/dlrivada/Encina/issues/406) - `Encina.Compliance.Retention` with GDPR Art. 5(1)(e) data retention and automatic deletion, 10 database providers
+- ✅ Anonymization [#407](https://github.com/dlrivada/Encina/issues/407) - `Encina.Compliance.Anonymization` with GDPR Art. 4(5) data anonymization, pseudonymization, and tokenization, 10 database providers
 - ✅ Field-Level Encryption [#396](https://github.com/dlrivada/Encina/issues/396) - `Encina.Security.Encryption` with AES-256-GCM field-level encryption
 - ✅ PII Masking [#397](https://github.com/dlrivada/Encina/issues/397) - `Encina.Security.PII` with PII masking and data protection pattern
 - ✅ Anti-Tampering [#398](https://github.com/dlrivada/Encina/issues/398) - `Encina.Security.AntiTampering` with HMAC request signing and integrity verification
@@ -197,9 +197,9 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 - ✅ Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) - `Encina.Security.Secrets` with ISP-compliant secrets management and vault integration (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager)
 - ✅ ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) - `Encina.Security.ABAC` with XACML 3.0 evaluation model, 70+ standard functions, 8 combining algorithms, EEL (Encina Expression Language), fluent builder DSL, obligations/advice, 764 unit tests, 22 documentation files, 3 ADRs
 - ✅ Persistent PAP [#691](https://github.com/dlrivada/Encina/issues/691) - Database-backed `PersistentPolicyAdministrationPoint` with `IPolicyStore`, `IPolicySerializer`, `CachingPolicyStoreDecorator` (cache-aside + PubSub invalidation), `PolicyEntityMapper`, 11 provider implementations (EF Core, Dapper, ADO.NET, MongoDB), 182 integration tests, serialization benchmarks
-- ✅ Processor Agreements [#410](https://github.com/dlrivada/Encina/issues/410) - `Encina.Compliance.ProcessorAgreements` with Art. 28 DPA management, `IProcessorRegistry`, `IDPAStore`, `IDPAValidator`, sub-processor hierarchy, mandatory terms compliance, 7 notifications, expiration scheduling, pipeline enforcement, 13 database providers, 360+ tests
-- ✅ Breach Notification [#408](https://github.com/dlrivada/Encina/issues/408) - `Encina.Compliance.BreachNotification` with GDPR Art. 33-34, 72-hour workflow, severity assessment, SIEM integration, 13 database providers
-- ✅ DPIA Automation [#409](https://github.com/dlrivada/Encina/issues/409) - `Encina.Compliance.DPIA` with Art. 35 risk assessment, necessity/proportionality analysis, DPA consultation workflow, 13 database providers
+- ✅ Processor Agreements [#410](https://github.com/dlrivada/Encina/issues/410) - `Encina.Compliance.ProcessorAgreements` with Art. 28 DPA management, `IProcessorRegistry`, `IDPAStore`, `IDPAValidator`, sub-processor hierarchy, mandatory terms compliance, 7 notifications, expiration scheduling, pipeline enforcement, 10 database providers, 360+ tests
+- ✅ Breach Notification [#408](https://github.com/dlrivada/Encina/issues/408) - `Encina.Compliance.BreachNotification` with GDPR Art. 33-34, 72-hour workflow, severity assessment, SIEM integration, 10 database providers
+- ✅ DPIA Automation [#409](https://github.com/dlrivada/Encina/issues/409) - `Encina.Compliance.DPIA` with Art. 35 risk assessment, necessity/proportionality analysis, DPA consultation workflow, 10 database providers
 - ✅ Privacy by Design [#411](https://github.com/dlrivada/Encina/issues/411) - `Encina.Compliance.PrivacyByDesign` with Art. 25 enforcement, data minimization, purpose limitation, privacy-by-default pipeline behavior
 - ✅ ADR-019: Compliance Event Sourcing Strategy [#776](https://github.com/dlrivada/Encina/issues/776) - Architectural decision to migrate stateful compliance modules from entity-based 13-provider persistence to Marten event sourcing for GDPR Art. 5(2) accountability
 
@@ -394,7 +394,7 @@ Key areas already completed:
   - Optimistic Concurrency [#287](https://github.com/dlrivada/Encina/issues/287) — IConcurrencyAware with conflict resolution
   - ✅ CDC Integration [#288](https://github.com/dlrivada/Encina/issues/288) — Change Data Capture with Debezium/Kafka - **COMPLETED** (ICdcConnector, IChangeEventHandler<T>, CdcProcessor, 5 providers + Debezium HTTP/Kafka dual-mode, messaging bridge, outbox CDC, 498+ tests)
   - Database Sharding [#289](https://github.com/dlrivada/Encina/issues/289) — Horizontal partitioning with shard routing
-  - ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) — Pool monitoring, circuit breaker, warm-up - **COMPLETED** (IDatabaseHealthMonitor across all 13 providers, ConnectionPoolStats, DatabaseCircuitBreakerPipelineBehavior, DatabaseTransientErrorPredicate, ConnectionWarmupHostedService)
+  - ✅ Connection Pool Resilience [#290](https://github.com/dlrivada/Encina/issues/290) — Pool monitoring, circuit breaker, warm-up - **COMPLETED** (IDatabaseHealthMonitor across all 10 providers, ConnectionPoolStats, DatabaseCircuitBreakerPipelineBehavior, DatabaseTransientErrorPredicate, ConnectionWarmupHostedService)
   - ✅ Query Cache Interceptor [#291](https://github.com/dlrivada/Encina/issues/291) — EF Core second-level cache - **COMPLETED** (QueryCacheInterceptor with automatic invalidation on SaveChanges, DefaultQueryCacheKeyGenerator with SHA256 hashing, CachedDataReader, SqlTableExtractor, multi-tenant support, entity type exclusions, works with all 8 cache providers)
   - Domain Entity Base Classes [#292](https://github.com/dlrivada/Encina/issues/292) — Entity<TId>, AggregateRoot<TId> with domain events
   - Pagination Abstractions [#293](https://github.com/dlrivada/Encina/issues/293) — PagedResult<T>, PaginationOptions, IPagedSpecification<T>
@@ -511,7 +511,7 @@ Key areas already completed:
 - **Security Patterns** (new - based on December 29, 2025 research):
   - Core Security [#394](https://github.com/dlrivada/Encina/issues/394) — `ISecurityContext`, `SecurityPipelineBehavior`, RBAC/ABAC/Permission-based auth (CRITICAL - foundational)
   - Audit Trail [#395](https://github.com/dlrivada/Encina/issues/395) — `IAuditLogger`, `AuditPipelineBehavior`, who/what/when/where compliance logging (CRITICAL - SOX/HIPAA/GDPR)
-  - ~~Read Auditing [#573](https://github.com/dlrivada/Encina/issues/573) — `IReadAuditStore`, `AuditedRepository<T>`, read access tracking, sampling, retention, 13 providers (CRITICAL - GDPR Art. 15/HIPAA)~~ ✅ **COMPLETADO** (v0.13.0)
+  - ~~Read Auditing [#573](https://github.com/dlrivada/Encina/issues/573) — `IReadAuditStore`, `AuditedRepository<T>`, read access tracking, sampling, retention, 10 providers (CRITICAL - GDPR Art. 15/HIPAA)~~ ✅ **COMPLETADO** (v0.13.0)
   - Field-Level Encryption [#396](https://github.com/dlrivada/Encina/issues/396) — `IFieldEncryptor`, `[Encrypt]` attribute, Azure Key Vault/AWS KMS integration (HIGH - PCI-DSS/GDPR)
   - PII Masking [#397](https://github.com/dlrivada/Encina/issues/397) — `IPIIMasker`, auto-detection, `[PII]` attribute, logging redaction (HIGH - GDPR essential)
   - Anti-Tampering [#398](https://github.com/dlrivada/Encina/issues/398) — `IRequestSigner`, HMAC/RSA signatures, replay attack prevention (HIGH - API security)
@@ -532,7 +532,7 @@ Key areas already completed:
   - Processor Agreements [#410](https://github.com/dlrivada/Encina/issues/410) — `IProcessorAgreementService`, Art. 28 compliance (MEDIUM - B2B SaaS)
   - ~~Privacy by Design [#411](https://github.com/dlrivada/Encina/issues/411) — `IPrivacyByDesignValidator`, data minimization, purpose limitation, default privacy enforcement (MEDIUM - Art. 25)~~ ✅ **COMPLETADO** (v0.13.0)
   - Cross-Border Transfer [#412](https://github.com/dlrivada/Encina/issues/412) — `ICrossBorderTransferValidator`, SCCs, adequacy, TIA (MEDIUM - Chapter V)
-  - ~~Lawful Basis [#413](https://github.com/dlrivada/Encina/issues/413) — `ILawfulBasisRegistry`, Art. 6 tracking, LIA workflow, `[LawfulBasis]` attribute, 13 providers (MEDIUM - processing foundation)~~ ✅ **COMPLETADO** (v0.13.0)
+  - ~~Lawful Basis [#413](https://github.com/dlrivada/Encina/issues/413) — `ILawfulBasisRegistry`, Art. 6 tracking, LIA workflow, `[LawfulBasis]` attribute, 10 providers (MEDIUM - processing foundation)~~ ✅ **COMPLETADO** (v0.13.0)
   - ~~NIS2 Directive [#414](https://github.com/dlrivada/Encina/issues/414) — `INIS2ComplianceValidator`, Art. 21 measure evaluators, MFA enforcement, encryption validation, supply chain security, incident notification timeline, management accountability (MEDIUM - EU 2022/2555)~~ ✅ **COMPLETADO** (v0.13.0)
   - EU AI Act [#415](https://github.com/dlrivada/Encina/issues/415) — `IAIActComplianceService`, risk classification, transparency requirements (MEDIUM - EU 2024/1689)
   - New packages planned: `Encina.Compliance.GDPR`, `Encina.Compliance.Consent`, `Encina.Compliance.DataSubjectRights`, `Encina.Compliance.DataResidency`, `Encina.Compliance.Retention`, `Encina.Compliance.Anonymization`, `Encina.Compliance.BreachNotification`, `Encina.Compliance.DPIA`, `Encina.Compliance.ProcessorAgreements`, `Encina.Compliance.PrivacyByDesign`, `Encina.Compliance.CrossBorderTransfer`, `Encina.Compliance.LawfulBasis`, `Encina.Compliance.NIS2`, `Encina.Compliance.AIAct`

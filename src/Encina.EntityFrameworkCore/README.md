@@ -1192,7 +1192,7 @@ result.IfLeft(error =>
 
 ### Requirements
 
-> **Note**: EF Core bulk operations require **SQL Server** with `SqlConnection`. Operations on other providers (SQLite, PostgreSQL via EF Core) will return `Left` with an appropriate error message.
+> **Note**: EF Core bulk operations require **SQL Server** with `SqlConnection`. Operations on other providers (PostgreSQL via EF Core) will return `Left` with an appropriate error message.
 
 For other databases, use the provider-specific packages:
 - **PostgreSQL**: Use `Encina.Dapper.PostgreSQL` or direct COPY command

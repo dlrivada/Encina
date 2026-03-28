@@ -221,9 +221,6 @@ services.AddHealthChecks()
 ### ADO.NET Providers
 
 ```csharp
-// SQLite
-services.AddEncinaADOReferenceTableStoreSqlite();
-
 // SQL Server
 services.AddEncinaADOReferenceTableStoreSqlServer();
 
@@ -237,9 +234,6 @@ services.AddEncinaADOReferenceTableStoreMySql();
 ### Dapper Providers
 
 ```csharp
-// SQLite
-services.AddEncinaDapperReferenceTableStoreSqlite();
-
 // SQL Server
 services.AddEncinaDapperReferenceTableStoreSqlServer();
 
@@ -253,9 +247,6 @@ services.AddEncinaDapperReferenceTableStoreMySql();
 ### EF Core Providers
 
 ```csharp
-// SQLite
-services.AddEncinaEFCoreReferenceTableStoreSqlite<AppDbContext>();
-
 // SQL Server
 services.AddEncinaEFCoreReferenceTableStoreSqlServer<AppDbContext>();
 

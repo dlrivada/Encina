@@ -44,8 +44,6 @@ directly through the `IReadAuditStore` interface with realistic entry volumes.
 
 - `src/Encina.Security.Audit/AuditedRepository.cs` — Fire-and-forget decorator
 - `src/Encina.Security.Audit/InMemoryReadAuditStore.cs` — Thread-safe in-memory store
-- `src/Encina.ADO.Sqlite/Auditing/ReadAuditStoreADO.cs` — ADO.NET implementation
-- `src/Encina.Dapper.Sqlite/Auditing/ReadAuditStoreDapper.cs` — Dapper implementation
 - `src/Encina.EntityFrameworkCore/Auditing/ReadAuditStoreEF.cs` — EF Core implementation
 - `src/Encina.MongoDB/Auditing/ReadAuditStoreMongoDB.cs` — MongoDB implementation
 - `tests/Encina.UnitTests/Security/Audit/ReadAudit/` — Unit test coverage

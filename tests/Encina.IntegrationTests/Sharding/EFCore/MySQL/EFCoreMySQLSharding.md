@@ -20,7 +20,7 @@ The `AddEncinaEFCoreShardingMySql<TContext, TEntity, TId>()` registration method
 ### 2. Tests Are Pre-Written and Ready
 
 The test files for EF Core MySQL sharding (CRUD, ScatterGather, RoutingVerification) follow the exact same
-pattern as the other EF Core providers (Sqlite, SqlServer, PostgreSQL). When Pomelo v10.0.0 is released:
+pattern as the other EF Core providers (SqlServer, PostgreSQL). When Pomelo v10.0.0 is released:
 
 1. Uncomment the Pomelo package reference in `Encina.IntegrationTests.csproj`
 2. Create the 3 test files using the same pattern as `EFCore/SqlServer/` tests
@@ -30,7 +30,7 @@ pattern as the other EF Core providers (Sqlite, SqlServer, PostgreSQL). When Pom
 
 - **ADO MySQL**: Full CRUD + routing integration tests verify MySQL sharding works at the database level
 - **Dapper MySQL**: Full CRUD + routing integration tests verify MySQL sharding with Dapper
-- **EF Core Sqlite/SqlServer/PostgreSQL**: Verify EF Core sharding infrastructure works correctly
+- **EF Core SqlServer/PostgreSQL**: Verify EF Core sharding infrastructure works correctly
 - **Unit Tests**: Cover EF Core sharding DI registration, factory, and repository logic
 
 ## Related Files
