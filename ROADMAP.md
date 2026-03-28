@@ -731,8 +731,6 @@ Key areas already completed:
   - AI Streaming [#492](https://github.com/dlrivada/Encina/issues/492) — `IAIStreamHandler` with token-level streaming, backpressure, SSE integration
   - New packages planned: `Encina.MCP`, `Encina.AI.Safety`, `Encina.AI.RAG`, `Encina.Agents`, `Encina.VectorData`, `Encina.VectorData.*`
 
-→ [View Phase 2 Issues](https://github.com/dlrivada/Encina/milestone/2)
-
 ### Phase 3: Testing & Quality
 
 *Achieve reliability through comprehensive testing*
@@ -761,8 +759,6 @@ Key deliverables:
 - MediatR migration guide
 - Runnable example projects
 
-→ [View Phase 5 Issues](https://github.com/dlrivada/Encina/milestone/5)
-
 ### Phase 6: Release Preparation
 
 *Security, publishing, and branding for 1.0*
@@ -773,8 +769,6 @@ Key deliverables:
 - NuGet package publishing workflow
 - Visual identity (logo, icons)
 - Final documentation review
-
-→ [View Phase 6 Issues](https://github.com/dlrivada/Encina/milestone/6)
 
 ---
 
