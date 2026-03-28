@@ -32,16 +32,10 @@
     return d.total > 0 ? d.coverage : 0;
   }
 
-  function flagCell(perFlag, flag, applicable) {
-    if (!applicable) return '<td class="na">-</td>';
+  function flagCell(perFlag, flag) {
     const pct = flagPct(perFlag, flag);
-    if (pct === null) return '<td class="pct">0%</td>';
+    if (pct === null) return '<td class="na">-</td>';
     return `<td class="pct">${Math.round(pct)}%</td>`;
-  }
-
-  function isApplicable(tests, flag) {
-    if (!tests) return false;
-    return tests.toLowerCase().includes(flag.charAt(0));
   }
 
   // ── Fetch data ──────────────────────────────────────────────────────
@@ -123,11 +117,11 @@
       tr.innerHTML = `
         <td class="pkg-name" data-pkg="${pkg.name}">${pkg.name}</td>
         <td>${pkg.category}</td>
-        ${flagCell(pkg.perFlag, 'unit', isApplicable(tests, 'u'))}
-        ${flagCell(pkg.perFlag, 'guard', isApplicable(tests, 'g'))}
-        ${flagCell(pkg.perFlag, 'contract', isApplicable(tests, 'c'))}
-        ${flagCell(pkg.perFlag, 'property', isApplicable(tests, 'p'))}
-        ${flagCell(pkg.perFlag, 'integration', isApplicable(tests, 'i'))}
+        ${flagCell(pkg.perFlag, 'unit')}
+        ${flagCell(pkg.perFlag, 'guard')}
+        ${flagCell(pkg.perFlag, 'contract')}
+        ${flagCell(pkg.perFlag, 'property')}
+        ${flagCell(pkg.perFlag, 'integration')}
         <td class="pct">${pkg.coverage}%</td>
         <td class="pct">${pkg.target}%</td>
         <td class="${gapClass}">${gapStr}</td>
