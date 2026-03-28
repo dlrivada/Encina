@@ -71,7 +71,7 @@ public sealed class SagaRunner : ISagaRunner
             return (EncinaError)startResult;
         }
 
-        var sagaId = startResult.Match(Right: id => id, Left: _ => default);
+        var sagaId = startResult.Match(Right: id => id, Left: _ => Guid.Empty);
 
         Log.SagaStarted(_logger, sagaId, definition.SagaType, definition.StepCount);
 

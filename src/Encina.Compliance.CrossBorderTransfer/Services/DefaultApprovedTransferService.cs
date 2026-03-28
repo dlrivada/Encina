@@ -255,24 +255,6 @@ internal sealed class DefaultApprovedTransferService : IApprovedTransferService
             });
     }
 
-    private static ApprovedTransferReadModel ProjectToReadModel(ApprovedTransferAggregate aggregate) =>
-        new()
-        {
-            Id = aggregate.Id,
-            SourceCountryCode = aggregate.SourceCountryCode,
-            DestinationCountryCode = aggregate.DestinationCountryCode,
-            DataCategory = aggregate.DataCategory,
-            Basis = aggregate.Basis,
-            SCCAgreementId = aggregate.SCCAgreementId,
-            TIAId = aggregate.TIAId,
-            ApprovedBy = aggregate.ApprovedBy,
-            ExpiresAtUtc = aggregate.ExpiresAtUtc,
-            IsRevoked = aggregate.IsRevoked,
-            RevokedAtUtc = aggregate.RevokedAtUtc,
-            TenantId = aggregate.TenantId,
-            ModuleId = aggregate.ModuleId
-        };
-
     private void InvalidateTransferCache(Guid transferId, ApprovedTransferAggregate aggregate, CancellationToken cancellationToken)
     {
         _ = _cache.RemoveAsync($"cbt:transfer:{transferId}", cancellationToken);

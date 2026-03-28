@@ -574,12 +574,9 @@ public sealed class BulkOperationsMySQL<TEntity, TId> : IBulkOperations<TEntity>
         }
 
         // Check AggregateException inner exceptions
-        if (ex is AggregateException aggEx)
+        if (ex is AggregateException aggEx && aggEx.InnerExceptions.Any(IsDuplicateKeyException))
         {
-            if (aggEx.InnerExceptions.Any(IsDuplicateKeyException))
-            {
-                return true;
-            }
+            return true;
         }
 
         return false;

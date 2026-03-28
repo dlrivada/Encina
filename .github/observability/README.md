@@ -1,0 +1,376 @@
+# Encina Observability Stack
+
+Production-ready observability solution using OpenTelemetry, Prometheus, Jaeger, Loki, and Grafana.
+
+## 🎯 Stack Overview
+
+```mermaid
+flowchart TD
+    App[".NET Application"] --> SDK["OpenTelemetry SDK"]
+    SDK --> Collector["OpenTelemetry Collector<br/>(OTLP receiver)"]
+    Collector --> Prometheus["Prometheus<br/>(Metrics)"]
+    Collector --> Jaeger["Jaeger<br/>(Traces)"]
+    Collector --> Loki["Loki<br/>(Logs)"]
+    Prometheus --> Grafana["Grafana<br/>(Unified Dashboards)"]
+    Jaeger --> Grafana
+    Loki --> Grafana
+```
+
+## 🚀 Quick Start
+
+### 1. Start the Observability Stack
+
+```bash
+cd D:\Proyectos\Encina
+
+# Full OpenTelemetry stack (Prometheus, Jaeger, Loki, Grafana)
+docker compose -f .github/observability/docker-compose.observability.yml up -d
+
+# Or use Seq for simpler structured logging (from main docker-compose)
+docker compose --profile observability up -d
+```
+
+> **Note**: The main `docker-compose.yml` includes Seq for lightweight structured logging.
+> Use `.github/observability/docker-compose.observability.yml` for the full OpenTelemetry stack.
+> See [Docker Infrastructure Guide](../../docs/infrastructure/docker-infrastructure.md) for all available services.
+
+### 2. Configure Your .NET Application
+
+```csharp
+using OpenTelemetry;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Logs;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add Encina
+builder.Services.AddEncina(config => { });
+
+// Add OpenTelemetry
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService("my-service", serviceVersion: "1.0.0"))
+    .WithTracing(tracing => tracing
+        .AddEncinaInstrumentation()
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(options =>
+        {
+            options.Endpoint = new Uri("http://localhost:4317");
+        }))
+    .WithMetrics(metrics => metrics
+        .AddEncinaInstrumentation()
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(options =>
+        {
+            options.Endpoint = new Uri("http://localhost:4317");
+        }))
+    .WithLogging(logging => logging
+        .AddOtlpExporter(options =>
+        {
+            options.Endpoint = new Uri("http://localhost:4317");
+        }));
+```
+
+### 3. Access the Dashboards
+
+- **Grafana**: <http://localhost:3000> (default dashboard auto-loaded)
+- **Prometheus**: <http://localhost:9090>
+- **Jaeger UI**: <http://localhost:16686>
+- **Loki**: <http://localhost:3100>
+
+## 📊 Available Dashboards
+
+### Encina Overview Dashboard
+
+Pre-configured dashboard with:
+
+- **Request Rate**: Real-time req/sec gauge
+- **Latency**: P50, P95, P99 latency graphs
+- **Success vs Error Rate**: Pie chart showing request outcomes
+- **Distributed Traces**: Jaeger trace viewer
+- **Application Logs**: Loki log aggregation
+
+## 🔍 Example Queries
+
+### Prometheus Queries
+
+```promql
+# Request rate
+rate(Encina_requests_total[5m])
+
+# P95 latency
+histogram_quantile(0.95, sum(rate(Encina_request_duration_seconds_bucket[5m])) by (le))
+
+# Error rate
+rate(Encina_requests_total{status="error"}[5m])
+```
+
+### Loki Queries (LogQL)
+
+```logql
+# All Encina logs
+{service_name="Encina"}
+
+# Error logs only
+{service_name="Encina"} |= "error"
+
+# Logs with trace correlation
+{service_name="Encina"} | json | traceID != ""
+```
+
+### Jaeger Queries
+
+- Service: `Encina`
+- Operation: `Encina.Send`
+- Tags: `request.type`, `handler.name`, `error`
+
+## 🛠️ Configuration Files
+
+### OpenTelemetry Collector
+
+**File**: `.github/observability/otel-collector-config.yaml`
+
+- Receives: OTLP gRPC (4317), OTLP HTTP (4318)
+- Exports to: Prometheus, Jaeger, Loki
+- Processors: batch, memory_limiter, resource
+
+### Prometheus
+
+**File**: `.github/observability/prometheus.yml`
+
+- Scrapes: OpenTelemetry Collector (8889)
+- Retention: 15 days (default)
+- OTLP write receiver enabled
+
+### Loki
+
+**File**: `.github/observability/loki-config.yaml`
+
+- Retention: 7 days
+- Storage: Filesystem (local development)
+- Schema: v13 (tsdb)
+
+### Grafana
+
+**Files**:
+
+- `.github/observability/grafana/provisioning/datasources/datasources.yaml`
+- `.github/observability/grafana/provisioning/dashboards/dashboards.yaml`
+
+- Datasources: Prometheus, Jaeger, Loki (auto-configured)
+- Dashboards: Auto-loaded from `/var/lib/grafana/dashboards`
+
+## 📈 Metrics Exposed by Encina
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `Encina_requests_total` | Counter | Total requests (by type, status) |
+| `Encina_request_duration_seconds` | Histogram | Request duration (P50, P95, P99) |
+| `Encina_pipeline_duration_seconds` | Histogram | Pipeline execution time |
+| `Encina_handler_duration_seconds` | Histogram | Handler execution time |
+| `Encina_validation_failures_total` | Counter | Validation failures |
+| `Encina_outbox_messages_total` | Counter | Outbox messages published |
+| `Encina_inbox_messages_total` | Counter | Inbox messages processed |
+| `Encina_saga_executions_total` | Counter | Saga executions |
+
+## 🏷️ Trace Attributes
+
+Traces include the following attributes:
+
+- `request.type`: Request type name
+- `request.id`: Unique request ID
+- `handler.name`: Handler class name
+- `pipeline.behavior`: Behavior name (if any)
+- `error`: Error message (if failed)
+- `validation.errors`: Validation error count
+- `outbox.message_id`: Outbox message ID
+- `inbox.message_id`: Inbox message ID
+- `saga.id`: Saga ID
+- `saga.step`: Current saga step
+
+## 🔧 Troubleshooting
+
+### Collector Not Receiving Data
+
+```bash
+# Check collector logs
+docker logs otel-collector
+
+# Verify endpoint is reachable
+curl http://localhost:4317
+```
+
+### Prometheus Not Scraping
+
+```bash
+# Check Prometheus targets
+open http://localhost:9090/targets
+
+# Verify collector metrics endpoint
+curl http://localhost:8889/metrics
+```
+
+### Grafana Dashboard Empty
+
+1. Verify datasources are configured: <http://localhost:3000/datasources>
+2. Check that data is flowing to Prometheus: <http://localhost:9090/graph>
+3. Verify time range in Grafana (default: last 1 hour)
+
+### Loki Not Receiving Logs
+
+```bash
+# Check Loki health
+curl http://localhost:3100/ready
+
+# Verify log ingestion
+curl -G -s "http://localhost:3100/loki/api/v1/query" --data-urlencode 'query={service_name="Encina"}'
+```
+
+## 🛡️ Sentry Integration (Error Monitoring)
+
+Encina supports [Sentry](https://sentry.io) for error monitoring with the **free Developer plan** (5K errors/month, 0€).
+
+### Quick Setup
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Add Sentry (reads DSN from configuration)
+builder.WebHost.UseSentry();
+
+// Add Encina with OpenTelemetry + Sentry
+builder.Services.AddEncina(config => { });
+builder.Services.AddOpenTelemetry()
+    .WithEncina()
+    .WithTracing(tracing => tracing
+        .AddEncinaInstrumentation()
+        .AddSentry());  // Sentry trace integration
+```
+
+### Configuration (appsettings.json)
+
+```json
+{
+  "Sentry": {
+    "Dsn": "https://YOUR_KEY@YOUR_ORG.ingest.de.sentry.io/YOUR_PROJECT_ID",
+    "Environment": "development",
+    "Release": "encina@1.0.0",
+    "TracesSampleRate": 1.0,
+    "ProfilesSampleRate": 0.1,
+    "Debug": false,
+    "MaxBreadcrumbs": 100,
+    "AttachStacktrace": true,
+    "SendDefaultPii": false
+  }
+}
+```
+
+### Environment Variables (Recommended for Production)
+
+```bash
+# Set DSN via environment variable (more secure)
+SENTRY_DSN=https://YOUR_KEY@YOUR_ORG.ingest.de.sentry.io/YOUR_PROJECT_ID
+SENTRY_ENVIRONMENT=production
+SENTRY_RELEASE=encina@1.0.0
+```
+
+### Free Plan Limits (Developer)
+
+| Feature | Limit |
+|---------|-------|
+| Errors | 5,000/month |
+| Performance spans | 10,000/month |
+| Users | 1 |
+| Retention | 30 days |
+| Cost | **0€** |
+
+### Sampling Strategy for Free Plan
+
+To stay within free limits, use aggressive sampling:
+
+```json
+{
+  "Sentry": {
+    "TracesSampleRate": 0.1,
+    "ProfilesSampleRate": 0.0,
+    "SampleRate": 0.5
+  }
+}
+```
+
+### Capturing Encina Errors
+
+Encina uses Railway Oriented Programming (`Either<EncinaError, T>`), so most errors are functional, not exceptions. To capture these:
+
+```csharp
+// Option 1: Capture Left results as Sentry events
+var result = await mediator.Send(command);
+result.Match(
+    Right: success => { /* handle success */ },
+    Left: error => SentrySdk.CaptureMessage(error.Message, SentryLevel.Error)
+);
+
+// Option 2: Use a custom pipeline behavior (advanced)
+public class SentryErrorBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+{
+    public async ValueTask<TResponse> Handle(...)
+    {
+        var result = await next();
+        // Capture Left results to Sentry
+        return result;
+    }
+}
+```
+
+### Dashboard Access
+
+- **Sentry Dashboard**: <https://sentry.io>
+- View errors, performance traces, and session replays
+
+## 🔒 Production Considerations
+
+### Security
+
+- Enable authentication on Grafana
+- Use TLS for OTLP endpoints
+- Restrict network access to observability stack
+- Rotate API keys regularly
+
+### Scalability
+
+- Use remote storage for Prometheus (Thanos, Cortex)
+- Deploy Loki with object storage (S3, GCS)
+- Run OpenTelemetry Collector as sidecar or gateway
+- Consider Jaeger with Elasticsearch/Cassandra backend
+
+### Performance
+
+- Adjust sampling rate for traces (use probabilistic sampler)
+- Set appropriate retention periods
+- Monitor collector resource usage
+- Use batch processors to reduce network overhead
+
+## 📚 Additional Resources
+
+- [OpenTelemetry .NET Documentation](https://opentelemetry.io/docs/instrumentation/net/)
+- [Prometheus Query Language](https://prometheus.io/docs/prometheus/latest/querying/basics/)
+- [Jaeger Tracing](https://www.jaegertracing.io/docs/)
+- [Loki LogQL](https://grafana.com/docs/loki/latest/logql/)
+- [Grafana Dashboards](https://grafana.com/docs/grafana/latest/dashboards/)
+
+## 🛑 Stop the Stack
+
+```bash
+docker-compose -f .github/observability/docker-compose.observability.yml down
+
+# With volume cleanup
+docker-compose -f .github/observability/docker-compose.observability.yml down -v
+```
+
+## 📝 License
+
+This observability stack configuration is part of Encina and follows the same license.

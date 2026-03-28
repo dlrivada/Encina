@@ -45,6 +45,9 @@ public static class EventIdUniquenessRule
 
             foreach (var type in GetLoadableTypes(assembly))
             {
+                // S3011: Non-public reflection is intentional here — [LoggerMessage] methods
+                // are commonly declared as private/internal partial methods, so we must scan
+                // non-public members to discover all EventId allocations across the codebase.
                 foreach (var method in type.GetMethods(
                     BindingFlags.Public | BindingFlags.NonPublic |
                     BindingFlags.Static | BindingFlags.Instance))

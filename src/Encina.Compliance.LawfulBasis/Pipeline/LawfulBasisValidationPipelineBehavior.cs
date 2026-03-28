@@ -164,7 +164,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
         }
 
         // Step 9: Record success and proceed
-        RecordPassed(activity, requestType, basis);
+        RecordPassed(activity, basis);
         _logger.ValidationPassed(requestType, basis);
         return await nextStep().ConfigureAwait(false);
     }
@@ -181,7 +181,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
     {
         if (!_options.RequireDeclaredBasis)
         {
-            RecordPassed(activity, requestType, null);
+            RecordPassed(activity, null);
             return await nextStep().ConfigureAwait(false);
         }
 
@@ -201,7 +201,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
         {
             // Service has a basis — proceed
             LawfulBasisDiagnostics.SetBasis(activity, registryBasis.Value);
-            RecordPassed(activity, requestType, registryBasis.Value);
+            RecordPassed(activity, registryBasis.Value);
             _logger.ValidationPassed(requestType, registryBasis.Value);
             return await nextStep().ConfigureAwait(false);
         }
@@ -218,7 +218,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
         }
 
         // Warn mode — continue despite violation
-        RecordPassed(activity, requestType, null);
+        RecordPassed(activity, null);
         return await nextStep().ConfigureAwait(false);
     }
 
@@ -355,7 +355,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
     // Observability
     // ================================================================
 
-    private static void RecordPassed(Activity? activity, Type requestType, GDPR.LawfulBasis? basis)
+    private static void RecordPassed(Activity? activity, GDPR.LawfulBasis? basis)
     {
         LawfulBasisDiagnostics.ValidationsTotal.Add(1, new TagList
         {
