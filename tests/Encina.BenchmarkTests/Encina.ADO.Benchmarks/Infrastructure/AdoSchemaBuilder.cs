@@ -102,17 +102,6 @@ public static class AdoSchemaBuilder
 
     private static string GetOutboxTableSql(DatabaseProvider provider) => provider switch
     {
-        DatabaseProvider.Sqlite => @"
-            CREATE TABLE IF NOT EXISTS OutboxMessages (
-                Id TEXT PRIMARY KEY,
-                NotificationType TEXT NOT NULL,
-                Content TEXT NOT NULL,
-                CreatedAtUtc TEXT NOT NULL,
-                ProcessedAtUtc TEXT,
-                ErrorMessage TEXT,
-                RetryCount INTEGER NOT NULL DEFAULT 0,
-                NextRetryAtUtc TEXT
-            )",
         DatabaseProvider.SqlServer => @"
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OutboxMessages' AND xtype='U')
             CREATE TABLE OutboxMessages (
@@ -152,19 +141,6 @@ public static class AdoSchemaBuilder
 
     private static string GetInboxTableSql(DatabaseProvider provider) => provider switch
     {
-        DatabaseProvider.Sqlite => @"
-            CREATE TABLE IF NOT EXISTS InboxMessages (
-                MessageId TEXT PRIMARY KEY,
-                RequestType TEXT NOT NULL,
-                ReceivedAtUtc TEXT NOT NULL,
-                ProcessedAtUtc TEXT,
-                ExpiresAtUtc TEXT NOT NULL,
-                Response TEXT,
-                ErrorMessage TEXT,
-                RetryCount INTEGER NOT NULL DEFAULT 0,
-                NextRetryAtUtc TEXT,
-                Metadata TEXT
-            )",
         DatabaseProvider.SqlServer => @"
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='InboxMessages' AND xtype='U')
             CREATE TABLE InboxMessages (
@@ -210,19 +186,6 @@ public static class AdoSchemaBuilder
 
     private static string GetSagaTableSql(DatabaseProvider provider) => provider switch
     {
-        DatabaseProvider.Sqlite => @"
-            CREATE TABLE IF NOT EXISTS SagaStates (
-                SagaId TEXT PRIMARY KEY,
-                SagaType TEXT NOT NULL,
-                Data TEXT NOT NULL,
-                Status TEXT NOT NULL,
-                CurrentStep INTEGER NOT NULL DEFAULT 0,
-                StartedAtUtc TEXT NOT NULL,
-                CompletedAtUtc TEXT,
-                ErrorMessage TEXT,
-                LastUpdatedAtUtc TEXT NOT NULL,
-                TimeoutAtUtc TEXT
-            )",
         DatabaseProvider.SqlServer => @"
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SagaStates' AND xtype='U')
             CREATE TABLE SagaStates (
@@ -268,21 +231,6 @@ public static class AdoSchemaBuilder
 
     private static string GetScheduledMessageTableSql(DatabaseProvider provider) => provider switch
     {
-        DatabaseProvider.Sqlite => @"
-            CREATE TABLE IF NOT EXISTS ScheduledMessages (
-                Id TEXT PRIMARY KEY,
-                RequestType TEXT NOT NULL,
-                Content TEXT NOT NULL,
-                ScheduledAtUtc TEXT NOT NULL,
-                CreatedAtUtc TEXT NOT NULL,
-                ProcessedAtUtc TEXT,
-                ErrorMessage TEXT,
-                RetryCount INTEGER NOT NULL DEFAULT 0,
-                NextRetryAtUtc TEXT,
-                IsRecurring INTEGER NOT NULL DEFAULT 0,
-                CronExpression TEXT,
-                LastExecutedAtUtc TEXT
-            )",
         DatabaseProvider.SqlServer => @"
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ScheduledMessages' AND xtype='U')
             CREATE TABLE ScheduledMessages (
@@ -334,18 +282,6 @@ public static class AdoSchemaBuilder
 
     private static string GetBenchmarkEntityTableSql(DatabaseProvider provider) => provider switch
     {
-        DatabaseProvider.Sqlite => @"
-            CREATE TABLE IF NOT EXISTS BenchmarkEntities (
-                Id TEXT PRIMARY KEY,
-                Name TEXT NOT NULL,
-                Description TEXT,
-                Price REAL NOT NULL,
-                Quantity INTEGER NOT NULL,
-                IsActive INTEGER NOT NULL DEFAULT 1,
-                Category TEXT NOT NULL,
-                CreatedAtUtc TEXT NOT NULL,
-                UpdatedAtUtc TEXT
-            )",
         DatabaseProvider.SqlServer => @"
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='BenchmarkEntities' AND xtype='U')
             CREATE TABLE BenchmarkEntities (

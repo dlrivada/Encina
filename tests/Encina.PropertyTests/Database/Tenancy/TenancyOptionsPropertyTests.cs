@@ -1,11 +1,9 @@
 using Shouldly;
 using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
 using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
-using ADOSqliteTenancy = Encina.ADO.Sqlite.Tenancy;
 using ADOSqlServerTenancy = Encina.ADO.SqlServer.Tenancy;
 using DapperMySQLTenancy = Encina.Dapper.MySQL.Tenancy;
 using DapperPostgreSQLTenancy = Encina.Dapper.PostgreSQL.Tenancy;
-using DapperSqliteTenancy = Encina.Dapper.Sqlite.Tenancy;
 using DapperSqlServerTenancy = Encina.Dapper.SqlServer.Tenancy;
 using EfCoreTenancy = Encina.EntityFrameworkCore.Tenancy;
 using MongoDbTenancy = Encina.MongoDB.Tenancy;
@@ -22,10 +20,10 @@ public sealed class TenancyOptionsPropertyTests
     #region ADO Provider Options Tests
 
     [Fact]
-    public void Property_ADOSqliteOptions_DefaultsAreConsistent()
+    public void Property_ADOSqlServerOptions_DefaultsAreConsistent()
     {
         // Property: Default options MUST have consistent secure defaults
-        var options = new ADOSqliteTenancy.ADOTenancyOptions();
+        var options = new ADOSqlServerTenancy.ADOTenancyOptions();
 
         // Invariants: All security options default to true
         options.AutoFilterTenantQueries.ShouldBeTrue("AutoFilter must default to true for security");
@@ -35,17 +33,6 @@ public sealed class TenancyOptionsPropertyTests
         options.TenantColumnName.ShouldBe("TenantId", "Default column name must be 'TenantId'");
     }
 
-    [Fact]
-    public void Property_ADOSqlServerOptions_DefaultsAreConsistent()
-    {
-        var options = new ADOSqlServerTenancy.ADOTenancyOptions();
-
-        options.AutoFilterTenantQueries.ShouldBeTrue();
-        options.AutoAssignTenantId.ShouldBeTrue();
-        options.ValidateTenantOnModify.ShouldBeTrue();
-        options.ThrowOnMissingTenantContext.ShouldBeTrue();
-        options.TenantColumnName.ShouldBe("TenantId");
-    }
 
     [Fact]
     public void Property_ADOPostgreSQLOptions_DefaultsAreConsistent()
@@ -76,18 +63,6 @@ public sealed class TenancyOptionsPropertyTests
     #region Dapper Provider Options Tests
 
     [Fact]
-    public void Property_DapperSqliteOptions_DefaultsAreConsistent()
-    {
-        var options = new DapperSqliteTenancy.DapperTenancyOptions();
-
-        options.AutoFilterTenantQueries.ShouldBeTrue();
-        options.AutoAssignTenantId.ShouldBeTrue();
-        options.ValidateTenantOnModify.ShouldBeTrue();
-        options.ThrowOnMissingTenantContext.ShouldBeTrue();
-        options.TenantColumnName.ShouldBe("TenantId");
-    }
-
-    [Fact]
     public void Property_DapperSqlServerOptions_DefaultsAreConsistent()
     {
         var options = new DapperSqlServerTenancy.DapperTenancyOptions();
@@ -98,6 +73,7 @@ public sealed class TenancyOptionsPropertyTests
         options.ThrowOnMissingTenantContext.ShouldBeTrue();
         options.TenantColumnName.ShouldBe("TenantId");
     }
+
 
     [Fact]
     public void Property_DapperPostgreSQLOptions_DefaultsAreConsistent()
@@ -165,30 +141,30 @@ public sealed class TenancyOptionsPropertyTests
     public void Property_AllADODapperProviders_HaveIdenticalDefaults()
     {
         // Property: All ADO/Dapper provider options MUST have identical defaults for consistency
-        var adoSqlite = new ADOSqliteTenancy.ADOTenancyOptions();
+        var ADOSqlServer = new ADOSqlServerTenancy.ADOTenancyOptions();
         var adoSqlServer = new ADOSqlServerTenancy.ADOTenancyOptions();
         var adoPostgres = new ADOPostgreSQLTenancy.ADOTenancyOptions();
         var adoMySQL = new ADOMySQLTenancy.ADOTenancyOptions();
-        var dapperSqlite = new DapperSqliteTenancy.DapperTenancyOptions();
+        var DapperSqlServer = new DapperSqlServerTenancy.DapperTenancyOptions();
         var dapperSqlServer = new DapperSqlServerTenancy.DapperTenancyOptions();
         var dapperPostgres = new DapperPostgreSQLTenancy.DapperTenancyOptions();
         var dapperMySQL = new DapperMySQLTenancy.DapperTenancyOptions();
 
         // All must have same AutoFilterTenantQueries default
-        adoSqlite.AutoFilterTenantQueries.ShouldBe(adoSqlServer.AutoFilterTenantQueries);
+        ADOSqlServer.AutoFilterTenantQueries.ShouldBe(adoSqlServer.AutoFilterTenantQueries);
         adoSqlServer.AutoFilterTenantQueries.ShouldBe(adoPostgres.AutoFilterTenantQueries);
         adoPostgres.AutoFilterTenantQueries.ShouldBe(adoMySQL.AutoFilterTenantQueries);
-        adoMySQL.AutoFilterTenantQueries.ShouldBe(dapperSqlite.AutoFilterTenantQueries);
-        dapperSqlite.AutoFilterTenantQueries.ShouldBe(dapperSqlServer.AutoFilterTenantQueries);
+        adoMySQL.AutoFilterTenantQueries.ShouldBe(DapperSqlServer.AutoFilterTenantQueries);
+        DapperSqlServer.AutoFilterTenantQueries.ShouldBe(dapperSqlServer.AutoFilterTenantQueries);
         dapperSqlServer.AutoFilterTenantQueries.ShouldBe(dapperPostgres.AutoFilterTenantQueries);
         dapperPostgres.AutoFilterTenantQueries.ShouldBe(dapperMySQL.AutoFilterTenantQueries);
 
         // All must have same TenantColumnName default
-        adoSqlite.TenantColumnName.ShouldBe(adoSqlServer.TenantColumnName);
+        ADOSqlServer.TenantColumnName.ShouldBe(adoSqlServer.TenantColumnName);
         adoSqlServer.TenantColumnName.ShouldBe(adoPostgres.TenantColumnName);
         adoPostgres.TenantColumnName.ShouldBe(adoMySQL.TenantColumnName);
-        adoMySQL.TenantColumnName.ShouldBe(dapperSqlite.TenantColumnName);
-        dapperSqlite.TenantColumnName.ShouldBe(dapperSqlServer.TenantColumnName);
+        adoMySQL.TenantColumnName.ShouldBe(DapperSqlServer.TenantColumnName);
+        DapperSqlServer.TenantColumnName.ShouldBe(dapperSqlServer.TenantColumnName);
         dapperSqlServer.TenantColumnName.ShouldBe(dapperPostgres.TenantColumnName);
         dapperPostgres.TenantColumnName.ShouldBe(dapperMySQL.TenantColumnName);
     }
@@ -202,8 +178,8 @@ public sealed class TenancyOptionsPropertyTests
     public void Property_TenantColumnName_CanBeCustomized(string customColumnName)
     {
         // Property: TenantColumnName must be customizable to any valid SQL identifier
-        var adoOptions = new ADOSqliteTenancy.ADOTenancyOptions { TenantColumnName = customColumnName };
-        var dapperOptions = new DapperSqliteTenancy.DapperTenancyOptions { TenantColumnName = customColumnName };
+        var adoOptions = new ADOSqlServerTenancy.ADOTenancyOptions { TenantColumnName = customColumnName };
+        var dapperOptions = new DapperSqlServerTenancy.DapperTenancyOptions { TenantColumnName = customColumnName };
 
         adoOptions.TenantColumnName.ShouldBe(customColumnName);
         dapperOptions.TenantColumnName.ShouldBe(customColumnName);
@@ -213,7 +189,7 @@ public sealed class TenancyOptionsPropertyTests
     public void Property_AllBooleanOptions_CanBeToggled()
     {
         // Property: All boolean options must be independently toggleable
-        var options = new ADOSqliteTenancy.ADOTenancyOptions
+        var options = new ADOSqlServerTenancy.ADOTenancyOptions
         {
             AutoFilterTenantQueries = false,
             AutoAssignTenantId = false,

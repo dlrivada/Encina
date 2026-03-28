@@ -43,19 +43,16 @@ public static class DatabaseProviderRegistry
     private static readonly Dictionary<string, Func<IDatabaseProviderFactory>> _factories = new(StringComparer.OrdinalIgnoreCase)
     {
         // ADO.NET providers
-        ["ado-sqlite"] = () => new AdoSqliteProviderFactory(),
         ["ado-sqlserver"] = () => new AdoSqlServerProviderFactory(),
         ["ado-postgresql"] = () => new AdoPostgreSqlProviderFactory(),
         ["ado-mysql"] = () => new AdoMySqlProviderFactory(),
 
         // Dapper providers
-        ["dapper-sqlite"] = () => new DapperSqliteProviderFactory(),
         ["dapper-sqlserver"] = () => new DapperSqlServerProviderFactory(),
         ["dapper-postgresql"] = () => new DapperPostgreSqlProviderFactory(),
         ["dapper-mysql"] = () => new DapperMySqlProviderFactory(),
 
         // EF Core providers
-        ["efcore-sqlite"] = () => new EFCoreSqliteProviderFactory(),
         ["efcore-sqlserver"] = () => new EFCoreSqlServerProviderFactory(),
         ["efcore-postgresql"] = () => new EFCorePostgreSqlProviderFactory(),
         ["efcore-mysql"] = () => new EFCoreMySqlProviderFactory(),

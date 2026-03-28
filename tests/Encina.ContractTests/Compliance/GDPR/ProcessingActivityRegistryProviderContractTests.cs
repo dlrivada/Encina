@@ -2,11 +2,9 @@ using System.Reflection;
 using Encina.Compliance.GDPR;
 using ADOMySQLPA = Encina.ADO.MySQL.ProcessingActivity;
 using ADOPostgreSQLPA = Encina.ADO.PostgreSQL.ProcessingActivity;
-using ADOSqlitePA = Encina.ADO.Sqlite.ProcessingActivity;
 using ADOSqlServerPA = Encina.ADO.SqlServer.ProcessingActivity;
 using DapperMySQLPA = Encina.Dapper.MySQL.ProcessingActivity;
 using DapperPostgreSQLPA = Encina.Dapper.PostgreSQL.ProcessingActivity;
-using DapperSqlitePA = Encina.Dapper.Sqlite.ProcessingActivity;
 using DapperSqlServerPA = Encina.Dapper.SqlServer.ProcessingActivity;
 using EFCorePA = Encina.EntityFrameworkCore.ProcessingActivity;
 using MongoDBPA = Encina.MongoDB.ProcessingActivity;
@@ -30,12 +28,12 @@ public sealed class ProcessingActivityRegistryProviderContractTests
     private static readonly Type[] AllProviderTypes =
     [
         // ADO.NET (4)
-        typeof(ADOSqlitePA.ProcessingActivityRegistryADO),
+        typeof(ADOSqlServerPA.ProcessingActivityRegistryADO),
         typeof(ADOSqlServerPA.ProcessingActivityRegistryADO),
         typeof(ADOPostgreSQLPA.ProcessingActivityRegistryADO),
         typeof(ADOMySQLPA.ProcessingActivityRegistryADO),
         // Dapper (4)
-        typeof(DapperSqlitePA.ProcessingActivityRegistryDapper),
+        typeof(DapperSqlServerPA.ProcessingActivityRegistryDapper),
         typeof(DapperSqlServerPA.ProcessingActivityRegistryDapper),
         typeof(DapperPostgreSQLPA.ProcessingActivityRegistryDapper),
         typeof(DapperMySQLPA.ProcessingActivityRegistryDapper),
@@ -66,7 +64,7 @@ public sealed class ProcessingActivityRegistryProviderContractTests
     {
         var adoTypes = new[]
         {
-            typeof(ADOSqlitePA.ProcessingActivityRegistryADO),
+            typeof(ADOSqlServerPA.ProcessingActivityRegistryADO),
             typeof(ADOSqlServerPA.ProcessingActivityRegistryADO),
             typeof(ADOPostgreSQLPA.ProcessingActivityRegistryADO),
             typeof(ADOMySQLPA.ProcessingActivityRegistryADO),
@@ -83,7 +81,7 @@ public sealed class ProcessingActivityRegistryProviderContractTests
     {
         var dapperTypes = new[]
         {
-            typeof(DapperSqlitePA.ProcessingActivityRegistryDapper),
+            typeof(DapperSqlServerPA.ProcessingActivityRegistryDapper),
             typeof(DapperSqlServerPA.ProcessingActivityRegistryDapper),
             typeof(DapperPostgreSQLPA.ProcessingActivityRegistryDapper),
             typeof(DapperMySQLPA.ProcessingActivityRegistryDapper),
@@ -139,11 +137,11 @@ public sealed class ProcessingActivityRegistryProviderContractTests
     {
         var providerTypes = new[]
         {
-            typeof(ADOSqlitePA.ProcessingActivityRegistryADO),
+            typeof(ADOSqlServerPA.ProcessingActivityRegistryADO),
             typeof(ADOSqlServerPA.ProcessingActivityRegistryADO),
             typeof(ADOPostgreSQLPA.ProcessingActivityRegistryADO),
             typeof(ADOMySQLPA.ProcessingActivityRegistryADO),
-            typeof(DapperSqlitePA.ProcessingActivityRegistryDapper),
+            typeof(DapperSqlServerPA.ProcessingActivityRegistryDapper),
             typeof(DapperSqlServerPA.ProcessingActivityRegistryDapper),
             typeof(DapperPostgreSQLPA.ProcessingActivityRegistryDapper),
             typeof(DapperMySQLPA.ProcessingActivityRegistryDapper),

@@ -3,11 +3,9 @@ using Encina.DomainModeling.Sharding;
 using Shouldly;
 using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
 using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
-using ADOSqliteSharding = Encina.ADO.Sqlite.Sharding;
 using ADOSqlServerSharding = Encina.ADO.SqlServer.Sharding;
 using DapperMySQLSharding = Encina.Dapper.MySQL.Sharding;
 using DapperPostgreSQLSharding = Encina.Dapper.PostgreSQL.Sharding;
-using DapperSqliteSharding = Encina.Dapper.Sqlite.Sharding;
 using DapperSqlServerSharding = Encina.Dapper.SqlServer.Sharding;
 using EFCoreSharding = Encina.EntityFrameworkCore.Sharding;
 using MongoDBSharding = Encina.MongoDB.Sharding;
@@ -26,18 +24,12 @@ public sealed class ShardedSpecificationSupportContractTests
     #region All Providers Implement IShardedSpecificationSupport
 
     [Fact]
-    public void Contract_ADO_Sqlite_ImplementsIShardedSpecificationSupport()
-    {
-        var repoType = typeof(ADOSqliteSharding.FunctionalShardedRepositoryADO<,>);
-        VerifyImplementsInterface(repoType);
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_ImplementsIShardedSpecificationSupport()
     {
         var repoType = typeof(ADOSqlServerSharding.FunctionalShardedRepositoryADO<,>);
         VerifyImplementsInterface(repoType);
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_ImplementsIShardedSpecificationSupport()
@@ -54,18 +46,12 @@ public sealed class ShardedSpecificationSupportContractTests
     }
 
     [Fact]
-    public void Contract_Dapper_Sqlite_ImplementsIShardedSpecificationSupport()
-    {
-        var repoType = typeof(DapperSqliteSharding.FunctionalShardedRepositoryDapper<,>);
-        VerifyImplementsInterface(repoType);
-    }
-
-    [Fact]
     public void Contract_Dapper_SqlServer_ImplementsIShardedSpecificationSupport()
     {
         var repoType = typeof(DapperSqlServerSharding.FunctionalShardedRepositoryDapper<,>);
         VerifyImplementsInterface(repoType);
     }
+
 
     [Fact]
     public void Contract_Dapper_PostgreSQL_ImplementsIShardedSpecificationSupport()

@@ -4,7 +4,6 @@ using Encina.Sharding.Data;
 using Shouldly;
 using ADOMySQLSharding = Encina.ADO.MySQL.Sharding;
 using ADOPostgreSQLSharding = Encina.ADO.PostgreSQL.Sharding;
-using ADOSqliteSharding = Encina.ADO.Sqlite.Sharding;
 using ADOSqlServerSharding = Encina.ADO.SqlServer.Sharding;
 
 namespace Encina.ContractTests.Database.Sharding;
@@ -22,18 +21,12 @@ public sealed class ShardedConnectionFactoryContractTests
     #region All ADO Providers Implement IShardedConnectionFactory
 
     [Fact]
-    public void Contract_ADO_Sqlite_ImplementsIShardedConnectionFactory()
-    {
-        var factoryType = typeof(ADOSqliteSharding.ShardedConnectionFactory);
-        VerifyImplementsBaseFactory(factoryType);
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_ImplementsIShardedConnectionFactory()
     {
         var factoryType = typeof(ADOSqlServerSharding.ShardedConnectionFactory);
         VerifyImplementsBaseFactory(factoryType);
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_ImplementsIShardedConnectionFactory()
@@ -54,18 +47,12 @@ public sealed class ShardedConnectionFactoryContractTests
     #region All ADO Providers Implement Generic IShardedConnectionFactory<TConnection>
 
     [Fact]
-    public void Contract_ADO_Sqlite_ImplementsGenericShardedConnectionFactory()
-    {
-        var factoryType = typeof(ADOSqliteSharding.ShardedConnectionFactory);
-        VerifyImplementsGenericFactory(factoryType);
-    }
-
-    [Fact]
     public void Contract_ADO_SqlServer_ImplementsGenericShardedConnectionFactory()
     {
         var factoryType = typeof(ADOSqlServerSharding.ShardedConnectionFactory);
         VerifyImplementsGenericFactory(factoryType);
     }
+
 
     [Fact]
     public void Contract_ADO_PostgreSQL_ImplementsGenericShardedConnectionFactory()
@@ -108,7 +95,7 @@ public sealed class ShardedConnectionFactoryContractTests
     {
         var factories = new[]
         {
-            typeof(ADOSqliteSharding.ShardedConnectionFactory),
+            typeof(ADOSqlServerSharding.ShardedConnectionFactory),
             typeof(ADOSqlServerSharding.ShardedConnectionFactory),
             typeof(ADOPostgreSQLSharding.ShardedConnectionFactory),
             typeof(ADOMySQLSharding.ShardedConnectionFactory)
@@ -127,7 +114,7 @@ public sealed class ShardedConnectionFactoryContractTests
     [Fact]
     public void Contract_AllProviders_UseShardedConnectionFactoryName()
     {
-        typeof(ADOSqliteSharding.ShardedConnectionFactory).Name.ShouldBe("ShardedConnectionFactory");
+        typeof(ADOSqlServerSharding.ShardedConnectionFactory).Name.ShouldBe("ShardedConnectionFactory");
         typeof(ADOSqlServerSharding.ShardedConnectionFactory).Name.ShouldBe("ShardedConnectionFactory");
         typeof(ADOPostgreSQLSharding.ShardedConnectionFactory).Name.ShouldBe("ShardedConnectionFactory");
         typeof(ADOMySQLSharding.ShardedConnectionFactory).Name.ShouldBe("ShardedConnectionFactory");

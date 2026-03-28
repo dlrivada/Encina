@@ -40,11 +40,3 @@ public class EFCoreMySqlCollection : ICollectionFixture<EFCoreMySqlFixture>
 {
 }
 
-/// <summary>
-/// Collection for SQLite EF Core tests.
-/// </summary>
-[CollectionDefinition("EFCore-Sqlite")]
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "xUnit requires collection types to end with 'Collection'")]
-public class EFCoreSqliteCollection : ICollectionFixture<EFCoreSqliteFixture>
-{
-}

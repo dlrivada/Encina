@@ -1,4 +1,4 @@
-using Encina.Dapper.Sqlite.Repository;
+using Encina.Dapper.SqlServer.Repository;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;

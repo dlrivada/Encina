@@ -5,11 +5,9 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using ADOMySQLPA = Encina.ADO.MySQL.ProcessingActivity;
 using ADOPostgreSQLPA = Encina.ADO.PostgreSQL.ProcessingActivity;
-using ADOSqlitePA = Encina.ADO.Sqlite.ProcessingActivity;
 using ADOSqlServerPA = Encina.ADO.SqlServer.ProcessingActivity;
 using DapperMySQLPA = Encina.Dapper.MySQL.ProcessingActivity;
 using DapperPostgreSQLPA = Encina.Dapper.PostgreSQL.ProcessingActivity;
-using DapperSqlitePA = Encina.Dapper.Sqlite.ProcessingActivity;
 using DapperSqlServerPA = Encina.Dapper.SqlServer.ProcessingActivity;
 using EFCorePA = Encina.EntityFrameworkCore.ProcessingActivity;
 
@@ -41,9 +39,9 @@ public class ProcessingActivityRegistryGuardTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void ADOSqlite_Constructor_InvalidConnectionString_ThrowsArgumentException(string? connectionString)
+    public void ADOSqlServer_Constructor_InvalidConnectionString_ThrowsArgumentException(string? connectionString)
     {
-        var act = () => new ADOSqlitePA.ProcessingActivityRegistryADO(connectionString!);
+        var act = () => new ADOSqlServerPA.ProcessingActivityRegistryADO(connectionString!);
         Should.Throw<ArgumentException>(act);
     }
 
@@ -51,15 +49,6 @@ public class ProcessingActivityRegistryGuardTests
     /// Verifies that the ADO.NET SQL Server ProcessingActivityRegistryADO constructor
     /// throws <see cref="ArgumentException"/> when given a null, empty, or whitespace connection string.
     /// </summary>
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void ADOSqlServer_Constructor_InvalidConnectionString_ThrowsArgumentException(string? connectionString)
-    {
-        var act = () => new ADOSqlServerPA.ProcessingActivityRegistryADO(connectionString!);
-        Should.Throw<ArgumentException>(act);
-    }
 
     /// <summary>
     /// Verifies that the ADO.NET PostgreSQL ProcessingActivityRegistryADO constructor
@@ -101,9 +90,9 @@ public class ProcessingActivityRegistryGuardTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void DapperSqlite_Constructor_InvalidConnectionString_ThrowsArgumentException(string? connectionString)
+    public void DapperSqlServer_Constructor_InvalidConnectionString_ThrowsArgumentException(string? connectionString)
     {
-        var act = () => new DapperSqlitePA.ProcessingActivityRegistryDapper(connectionString!);
+        var act = () => new DapperSqlServerPA.ProcessingActivityRegistryDapper(connectionString!);
         Should.Throw<ArgumentException>(act);
     }
 
@@ -111,15 +100,6 @@ public class ProcessingActivityRegistryGuardTests
     /// Verifies that the Dapper SQL Server ProcessingActivityRegistryDapper constructor
     /// throws <see cref="ArgumentException"/> when given a null, empty, or whitespace connection string.
     /// </summary>
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void DapperSqlServer_Constructor_InvalidConnectionString_ThrowsArgumentException(string? connectionString)
-    {
-        var act = () => new DapperSqlServerPA.ProcessingActivityRegistryDapper(connectionString!);
-        Should.Throw<ArgumentException>(act);
-    }
 
     /// <summary>
     /// Verifies that the Dapper PostgreSQL ProcessingActivityRegistryDapper constructor

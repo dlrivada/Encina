@@ -6,11 +6,6 @@ namespace Encina.ADO.Benchmarks.Infrastructure;
 public enum DatabaseProvider
 {
     /// <summary>
-    /// SQLite database (in-memory or file-based).
-    /// </summary>
-    Sqlite,
-
-    /// <summary>
     /// Microsoft SQL Server.
     /// </summary>
     SqlServer,

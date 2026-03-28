@@ -1,4 +1,3 @@
-using System.Data;
 using Dapper;
 
 namespace Encina.Dapper.Benchmarks.Infrastructure;
@@ -30,18 +29,7 @@ public static class ProviderTypeHandlers
                 return;
             }
 
-            // Register Guid handler for SQLite (stores as TEXT)
-            if (provider == DatabaseProvider.Sqlite)
-            {
-                SqlMapper.AddTypeHandler(new SqliteGuidTypeHandler());
-            }
-
-            // Register DateTime handler for SQLite (stores as TEXT in ISO 8601)
-            if (provider == DatabaseProvider.Sqlite)
-            {
-                SqlMapper.AddTypeHandler(new SqliteDateTimeTypeHandler());
-            }
-
+            // Provider-specific type handlers can be registered here as needed.
             _isRegistered = true;
         }
     }
@@ -56,56 +44,5 @@ public static class ProviderTypeHandlers
             _isRegistered = false;
             SqlMapper.ResetTypeHandlers();
         }
-    }
-}
-
-/// <summary>
-/// Dapper type handler for Guid values in SQLite.
-/// SQLite stores GUIDs as TEXT, so this handler converts between Guid and string.
-/// </summary>
-internal sealed class SqliteGuidTypeHandler : SqlMapper.TypeHandler<Guid>
-{
-    /// <inheritdoc/>
-    public override Guid Parse(object value)
-    {
-        return value switch
-        {
-            string stringValue => Guid.Parse(stringValue),
-            byte[] bytes => new Guid(bytes),
-            Guid guid => guid,
-            _ => throw new InvalidCastException($"Cannot convert {value.GetType().Name} to Guid")
-        };
-    }
-
-    /// <inheritdoc/>
-    public override void SetValue(IDbDataParameter parameter, Guid value)
-    {
-        parameter.Value = value.ToString();
-        parameter.DbType = DbType.String;
-    }
-}
-
-/// <summary>
-/// Dapper type handler for DateTime values in SQLite.
-/// SQLite stores DateTime as TEXT in ISO 8601 format.
-/// </summary>
-internal sealed class SqliteDateTimeTypeHandler : SqlMapper.TypeHandler<DateTime>
-{
-    /// <inheritdoc/>
-    public override DateTime Parse(object value)
-    {
-        return value switch
-        {
-            string stringValue => DateTime.Parse(stringValue, null, System.Globalization.DateTimeStyles.RoundtripKind),
-            DateTime dateTime => dateTime,
-            _ => throw new InvalidCastException($"Cannot convert {value.GetType().Name} to DateTime")
-        };
-    }
-
-    /// <inheritdoc/>
-    public override void SetValue(IDbDataParameter parameter, DateTime value)
-    {
-        parameter.Value = value.ToString("O"); // ISO 8601 format
-        parameter.DbType = DbType.String;
     }
 }

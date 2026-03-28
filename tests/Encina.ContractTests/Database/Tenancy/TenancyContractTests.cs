@@ -3,11 +3,9 @@ using Encina.Testing.Shouldly;
 using Shouldly;
 using ADOMySQLTenancy = Encina.ADO.MySQL.Tenancy;
 using ADOPostgreSQLTenancy = Encina.ADO.PostgreSQL.Tenancy;
-using ADOSqliteTenancy = Encina.ADO.Sqlite.Tenancy;
 using ADOSqlServerTenancy = Encina.ADO.SqlServer.Tenancy;
 using DapperMySQLTenancy = Encina.Dapper.MySQL.Tenancy;
 using DapperPostgreSQLTenancy = Encina.Dapper.PostgreSQL.Tenancy;
-using DapperSqliteTenancy = Encina.Dapper.Sqlite.Tenancy;
 using DapperSqlServerTenancy = Encina.Dapper.SqlServer.Tenancy;
 using EfCoreTenancy = Encina.EntityFrameworkCore.Tenancy;
 using MongoDbTenancy = Encina.MongoDB.Tenancy;
@@ -27,13 +25,13 @@ public sealed class TenancyContractTests
     public void Contract_AllProviders_TenantEntityMapping_ImplementCorrectInterface()
     {
         // Contract: All TenantEntityMapping implementations must implement ITenantEntityMapping interface from their provider
-        var adoSqliteMapping = new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        var ADOSqlServerMapping = new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
         var adoPostgresMapping = new ADOPostgreSQLTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
         var adoMySQLMapping = new ADOMySQLTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
-        var dapperSqliteMapping = new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        var DapperSqlServerMapping = new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
         var dapperPostgresMapping = new DapperPostgreSQLTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
@@ -41,10 +39,10 @@ public sealed class TenancyContractTests
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
 
         // All must implement their respective ITenantEntityMapping interfaces
-        adoSqliteMapping.ShouldBeAssignableTo<ADOSqliteTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
+        ADOSqlServerMapping.ShouldBeAssignableTo<ADOSqlServerTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
         adoPostgresMapping.ShouldBeAssignableTo<ADOPostgreSQLTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
         adoMySQLMapping.ShouldBeAssignableTo<ADOMySQLTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
-        dapperSqliteMapping.ShouldBeAssignableTo<DapperSqliteTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
+        DapperSqlServerMapping.ShouldBeAssignableTo<DapperSqlServerTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
         dapperPostgresMapping.ShouldBeAssignableTo<DapperPostgreSQLTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
         dapperMySQLMapping.ShouldBeAssignableTo<DapperMySQLTenancy.ITenantEntityMapping<ContractTestOrder, Guid>>();
     }
@@ -60,7 +58,7 @@ public sealed class TenancyContractTests
             Amount = 100m
         };
 
-        var adoSqlite = new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        var ADOSqlServer = new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
         var adoSqlServer = new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
@@ -70,12 +68,12 @@ public sealed class TenancyContractTests
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
 
         // Verify consistent behavior
-        adoSqlite.IsTenantEntity.ShouldBeTrue("ADO.SQLite");
+        ADOSqlServer.IsTenantEntity.ShouldBeTrue("ADO.SqlServer");
         adoSqlServer.IsTenantEntity.ShouldBeTrue("ADO.SqlServer");
         adoPostgres.IsTenantEntity.ShouldBeTrue("ADO.PostgreSQL");
         adoMySQL.IsTenantEntity.ShouldBeTrue("ADO.MySQL");
 
-        adoSqlite.GetTenantId(testOrder).ShouldBe("test-tenant-123");
+        ADOSqlServer.GetTenantId(testOrder).ShouldBe("test-tenant-123");
         adoSqlServer.GetTenantId(testOrder).ShouldBe("test-tenant-123");
         adoPostgres.GetTenantId(testOrder).ShouldBe("test-tenant-123");
         adoMySQL.GetTenantId(testOrder).ShouldBe("test-tenant-123");
@@ -92,7 +90,7 @@ public sealed class TenancyContractTests
             Amount = 100m
         };
 
-        var dapperSqlite = new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        var DapperSqlServer = new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
         var dapperSqlServer = new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
@@ -102,12 +100,12 @@ public sealed class TenancyContractTests
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
 
         // Verify consistent behavior
-        dapperSqlite.IsTenantEntity.ShouldBeTrue("Dapper.SQLite");
+        DapperSqlServer.IsTenantEntity.ShouldBeTrue("Dapper.SqlServer");
         dapperSqlServer.IsTenantEntity.ShouldBeTrue("Dapper.SqlServer");
         dapperPostgres.IsTenantEntity.ShouldBeTrue("Dapper.PostgreSQL");
         dapperMySQL.IsTenantEntity.ShouldBeTrue("Dapper.MySQL");
 
-        dapperSqlite.GetTenantId(testOrder).ShouldBe("test-tenant-123");
+        DapperSqlServer.GetTenantId(testOrder).ShouldBe("test-tenant-123");
         dapperSqlServer.GetTenantId(testOrder).ShouldBe("test-tenant-123");
         dapperPostgres.GetTenantId(testOrder).ShouldBe("test-tenant-123");
         dapperMySQL.GetTenantId(testOrder).ShouldBe("test-tenant-123");
@@ -124,7 +122,7 @@ public sealed class TenancyContractTests
         var order5 = new ContractTestOrder();
         var order6 = new ContractTestOrder();
 
-        new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
             .SetTenantId(order1, "tenant-1");
 
@@ -136,7 +134,7 @@ public sealed class TenancyContractTests
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
             .SetTenantId(order3, "tenant-3");
 
-        new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
             .SetTenantId(order4, "tenant-4");
 
@@ -148,10 +146,10 @@ public sealed class TenancyContractTests
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
             .SetTenantId(order6, "tenant-6");
 
-        order1.TenantId.ShouldBe("tenant-1", "ADO.SQLite");
+        order1.TenantId.ShouldBe("tenant-1", "ADO.SqlServer");
         order2.TenantId.ShouldBe("tenant-2", "ADO.PostgreSQL");
         order3.TenantId.ShouldBe("tenant-3", "ADO.MySQL");
-        order4.TenantId.ShouldBe("tenant-4", "Dapper.SQLite");
+        order4.TenantId.ShouldBe("tenant-4", "Dapper.SqlServer");
         order5.TenantId.ShouldBe("tenant-5", "Dapper.PostgreSQL");
         order6.TenantId.ShouldBe("tenant-6", "Dapper.MySQL");
     }
@@ -160,9 +158,9 @@ public sealed class TenancyContractTests
     public void Contract_AllProviders_TenantEntityMapping_ExcludeTenantIdFromUpdates()
     {
         // Contract: TenantId MUST always be excluded from updates for security
-        new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
-            .UpdateExcludedProperties.ShouldContain("TenantId", "ADO.SQLite");
+            .UpdateExcludedProperties.ShouldContain("TenantId", "ADO.SqlServer");
 
         new ADOPostgreSQLTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
@@ -172,9 +170,9 @@ public sealed class TenancyContractTests
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
             .UpdateExcludedProperties.ShouldContain("TenantId", "ADO.MySQL");
 
-        new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
-            .UpdateExcludedProperties.ShouldContain("TenantId", "Dapper.SQLite");
+            .UpdateExcludedProperties.ShouldContain("TenantId", "Dapper.SqlServer");
 
         new DapperPostgreSQLTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).HasTenantId(o => o.TenantId).Build().ShouldBeSuccess()
@@ -194,16 +192,16 @@ public sealed class TenancyContractTests
     public void Contract_AllADOProviders_HaveIdenticalOptionDefaults()
     {
         // Contract: All ADO providers must have identical default option values
-        var adoSqlite = new ADOSqliteTenancy.ADOTenancyOptions();
+        var ADOSqlServer = new ADOSqlServerTenancy.ADOTenancyOptions();
         var adoPostgres = new ADOPostgreSQLTenancy.ADOTenancyOptions();
         var adoMySQL = new ADOMySQLTenancy.ADOTenancyOptions();
 
         // All must have same AutoFilterTenantQueries default
-        adoSqlite.AutoFilterTenantQueries.ShouldBe(adoPostgres.AutoFilterTenantQueries);
+        ADOSqlServer.AutoFilterTenantQueries.ShouldBe(adoPostgres.AutoFilterTenantQueries);
         adoPostgres.AutoFilterTenantQueries.ShouldBe(adoMySQL.AutoFilterTenantQueries);
 
         // All must have same TenantColumnName default
-        adoSqlite.TenantColumnName.ShouldBe(adoPostgres.TenantColumnName);
+        ADOSqlServer.TenantColumnName.ShouldBe(adoPostgres.TenantColumnName);
         adoPostgres.TenantColumnName.ShouldBe(adoMySQL.TenantColumnName);
     }
 
@@ -211,16 +209,16 @@ public sealed class TenancyContractTests
     public void Contract_AllDapperProviders_HaveIdenticalOptionDefaults()
     {
         // Contract: All Dapper providers must have identical default option values
-        var dapperSqlite = new DapperSqliteTenancy.DapperTenancyOptions();
+        var DapperSqlServer = new DapperSqlServerTenancy.DapperTenancyOptions();
         var dapperPostgres = new DapperPostgreSQLTenancy.DapperTenancyOptions();
         var dapperMySQL = new DapperMySQLTenancy.DapperTenancyOptions();
 
         // All must have same AutoFilterTenantQueries default
-        dapperSqlite.AutoFilterTenantQueries.ShouldBe(dapperPostgres.AutoFilterTenantQueries);
+        DapperSqlServer.AutoFilterTenantQueries.ShouldBe(dapperPostgres.AutoFilterTenantQueries);
         dapperPostgres.AutoFilterTenantQueries.ShouldBe(dapperMySQL.AutoFilterTenantQueries);
 
         // All must have same TenantColumnName default
-        dapperSqlite.TenantColumnName.ShouldBe(dapperPostgres.TenantColumnName);
+        DapperSqlServer.TenantColumnName.ShouldBe(dapperPostgres.TenantColumnName);
         dapperPostgres.TenantColumnName.ShouldBe(dapperMySQL.TenantColumnName);
     }
 
@@ -228,8 +226,8 @@ public sealed class TenancyContractTests
     public void Contract_ADOAndDapper_HaveEquivalentOptionDefaults()
     {
         // Contract: ADO and Dapper options must have equivalent security defaults
-        var adoOptions = new ADOSqliteTenancy.ADOTenancyOptions();
-        var dapperOptions = new DapperSqliteTenancy.DapperTenancyOptions();
+        var adoOptions = new ADOSqlServerTenancy.ADOTenancyOptions();
+        var dapperOptions = new DapperSqlServerTenancy.DapperTenancyOptions();
 
         adoOptions.AutoFilterTenantQueries.ShouldBe(dapperOptions.AutoFilterTenantQueries, "AutoFilterTenantQueries");
         adoOptions.AutoAssignTenantId.ShouldBe(dapperOptions.AutoAssignTenantId, "AutoAssignTenantId");
@@ -242,17 +240,17 @@ public sealed class TenancyContractTests
     public void Contract_AllProviders_SecurityDefaultsAreEnabled()
     {
         // Contract: All security-related options MUST default to true
-        var adoSqlite = new ADOSqliteTenancy.ADOTenancyOptions();
-        var dapperSqlite = new DapperSqliteTenancy.DapperTenancyOptions();
+        var ADOSqlServer = new ADOSqlServerTenancy.ADOTenancyOptions();
+        var DapperSqlServer = new DapperSqlServerTenancy.DapperTenancyOptions();
 
         // Security defaults
-        adoSqlite.AutoFilterTenantQueries.ShouldBeTrue("AutoFilterTenantQueries must be true by default for security");
-        adoSqlite.ValidateTenantOnModify.ShouldBeTrue("ValidateTenantOnModify must be true by default for security");
-        adoSqlite.ThrowOnMissingTenantContext.ShouldBeTrue("ThrowOnMissingTenantContext must be true to prevent data leaks");
+        ADOSqlServer.AutoFilterTenantQueries.ShouldBeTrue("AutoFilterTenantQueries must be true by default for security");
+        ADOSqlServer.ValidateTenantOnModify.ShouldBeTrue("ValidateTenantOnModify must be true by default for security");
+        ADOSqlServer.ThrowOnMissingTenantContext.ShouldBeTrue("ThrowOnMissingTenantContext must be true to prevent data leaks");
 
-        dapperSqlite.AutoFilterTenantQueries.ShouldBeTrue("AutoFilterTenantQueries must be true by default for security");
-        dapperSqlite.ValidateTenantOnModify.ShouldBeTrue("ValidateTenantOnModify must be true by default for security");
-        dapperSqlite.ThrowOnMissingTenantContext.ShouldBeTrue("ThrowOnMissingTenantContext must be true to prevent data leaks");
+        DapperSqlServer.AutoFilterTenantQueries.ShouldBeTrue("AutoFilterTenantQueries must be true by default for security");
+        DapperSqlServer.ValidateTenantOnModify.ShouldBeTrue("ValidateTenantOnModify must be true by default for security");
+        DapperSqlServer.ThrowOnMissingTenantContext.ShouldBeTrue("ThrowOnMissingTenantContext must be true to prevent data leaks");
     }
 
     #endregion
@@ -263,17 +261,17 @@ public sealed class TenancyContractTests
     public void Contract_AllProviders_NonTenantEntity_HasCorrectFlags()
     {
         // Contract: Entities without HasTenantId must have IsTenantEntity = false
-        new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess()
-            .IsTenantEntity.ShouldBeFalse("ADO.SQLite");
+            .IsTenantEntity.ShouldBeFalse("ADO.SqlServer");
 
         new ADOPostgreSQLTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess()
             .IsTenantEntity.ShouldBeFalse("ADO.PostgreSQL");
 
-        new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess()
-            .IsTenantEntity.ShouldBeFalse("Dapper.SQLite");
+            .IsTenantEntity.ShouldBeFalse("Dapper.SqlServer");
 
         new DapperPostgreSQLTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess()
@@ -286,13 +284,13 @@ public sealed class TenancyContractTests
         // Contract: GetTenantId on non-tenant entity must return null
         var order = new ContractTestOrder { TenantId = "some-tenant" };
 
-        new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess()
-            .GetTenantId(order).ShouldBeNull("ADO.SQLite");
+            .GetTenantId(order).ShouldBeNull("ADO.SqlServer");
 
-        new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess()
-            .GetTenantId(order).ShouldBeNull("Dapper.SQLite");
+            .GetTenantId(order).ShouldBeNull("Dapper.SqlServer");
     }
 
     [Fact]
@@ -301,13 +299,13 @@ public sealed class TenancyContractTests
         // Contract: SetTenantId on non-tenant entity must throw InvalidOperationException
         var order = new ContractTestOrder();
 
-        var adoSqlite = new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        var ADOSqlServer = new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
-        Should.Throw<InvalidOperationException>(() => adoSqlite.SetTenantId(order, "tenant"));
+        Should.Throw<InvalidOperationException>(() => ADOSqlServer.SetTenantId(order, "tenant"));
 
-        var dapperSqlite = new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        var DapperSqlServer = new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders").HasId(o => o.Id).MapProperty(o => o.Amount).Build().ShouldBeSuccess();
-        Should.Throw<InvalidOperationException>(() => dapperSqlite.SetTenantId(order, "tenant"));
+        Should.Throw<InvalidOperationException>(() => DapperSqlServer.SetTenantId(order, "tenant"));
     }
 
     #endregion
@@ -318,13 +316,13 @@ public sealed class TenancyContractTests
     public void Contract_AllProviders_RequireTableName()
     {
         // Contract: Build without ToTable must return an error
-        new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .Build()
             .ShouldBeErrorContaining("Table name");
 
-        new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .HasId(o => o.Id)
             .HasTenantId(o => o.TenantId)
             .Build()
@@ -335,13 +333,13 @@ public sealed class TenancyContractTests
     public void Contract_AllProviders_RequirePrimaryKey()
     {
         // Contract: Build without HasId must return an error
-        new ADOSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new ADOSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders")
             .HasTenantId(o => o.TenantId)
             .Build()
             .ShouldBeErrorContaining("Primary key");
 
-        new DapperSqliteTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
+        new DapperSqlServerTenancy.TenantEntityMappingBuilder<ContractTestOrder, Guid>()
             .ToTable("Orders")
             .HasTenantId(o => o.TenantId)
             .Build()

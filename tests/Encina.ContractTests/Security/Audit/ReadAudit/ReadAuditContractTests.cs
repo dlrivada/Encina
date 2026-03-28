@@ -2,11 +2,9 @@ using System.Reflection;
 using Encina.Security.Audit;
 using ADOMySQLStore = Encina.ADO.MySQL.Auditing.ReadAuditStoreADO;
 using ADOPostgreSQLStore = Encina.ADO.PostgreSQL.Auditing.ReadAuditStoreADO;
-using ADOSqliteStore = Encina.ADO.Sqlite.Auditing.ReadAuditStoreADO;
 using ADOSqlServerStore = Encina.ADO.SqlServer.Auditing.ReadAuditStoreADO;
 using DapperMySQLStore = Encina.Dapper.MySQL.Auditing.ReadAuditStoreDapper;
 using DapperPostgreSQLStore = Encina.Dapper.PostgreSQL.Auditing.ReadAuditStoreDapper;
-using DapperSqliteStore = Encina.Dapper.Sqlite.Auditing.ReadAuditStoreDapper;
 using DapperSqlServerStore = Encina.Dapper.SqlServer.Auditing.ReadAuditStoreDapper;
 using EFCoreStore = Encina.EntityFrameworkCore.Auditing.ReadAuditStoreEF;
 using MongoDBStore = Encina.MongoDB.Auditing.ReadAuditStoreMongoDB;
@@ -29,11 +27,11 @@ public sealed class ReadAuditContractTests
     /// </summary>
     private static readonly Type[] AllProviderTypes =
     [
-        typeof(ADOSqliteStore),
+        typeof(ADOSqlServerStore),
         typeof(ADOSqlServerStore),
         typeof(ADOPostgreSQLStore),
         typeof(ADOMySQLStore),
-        typeof(DapperSqliteStore),
+        typeof(DapperSqlServerStore),
         typeof(DapperSqlServerStore),
         typeof(DapperPostgreSQLStore),
         typeof(DapperMySQLStore),

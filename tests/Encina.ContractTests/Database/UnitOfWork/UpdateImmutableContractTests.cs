@@ -4,11 +4,9 @@ using LanguageExt;
 using Shouldly;
 using ADOMySQLUoW = Encina.ADO.MySQL.UnitOfWork;
 using ADOPostgreSQLUoW = Encina.ADO.PostgreSQL.UnitOfWork;
-using ADOSqliteUoW = Encina.ADO.Sqlite.UnitOfWork;
 using ADOSqlServerUoW = Encina.ADO.SqlServer.UnitOfWork;
 using DapperMySQLUoW = Encina.Dapper.MySQL.UnitOfWork;
 using DapperPostgreSQLUoW = Encina.Dapper.PostgreSQL.UnitOfWork;
-using DapperSqliteUoW = Encina.Dapper.Sqlite.UnitOfWork;
 using DapperSqlServerUoW = Encina.Dapper.SqlServer.UnitOfWork;
 using EfCoreUoW = Encina.EntityFrameworkCore.UnitOfWork;
 using MongoDBUoW = Encina.MongoDB.UnitOfWork;
@@ -172,7 +170,7 @@ public sealed class UpdateImmutableContractTests
         // Contract: All ADO.NET providers must have identical UpdateImmutable signatures
         var adoTypes = new[]
         {
-            typeof(ADOSqliteUoW.UnitOfWorkADO),
+            typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOPostgreSQLUoW.UnitOfWorkADO),
             typeof(ADOMySQLUoW.UnitOfWorkADO)
@@ -188,7 +186,7 @@ public sealed class UpdateImmutableContractTests
         // Contract: All Dapper providers must have identical UpdateImmutable signatures
         var dapperTypes = new[]
         {
-            typeof(DapperSqliteUoW.UnitOfWorkDapper),
+            typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperPostgreSQLUoW.UnitOfWorkDapper),
             typeof(DapperMySQLUoW.UnitOfWorkDapper)
@@ -207,12 +205,12 @@ public sealed class UpdateImmutableContractTests
         return
         [
             // ADO.NET providers (4)
-            typeof(ADOSqliteUoW.UnitOfWorkADO),
+            typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOSqlServerUoW.UnitOfWorkADO),
             typeof(ADOPostgreSQLUoW.UnitOfWorkADO),
             typeof(ADOMySQLUoW.UnitOfWorkADO),
             // Dapper providers (4)
-            typeof(DapperSqliteUoW.UnitOfWorkDapper),
+            typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperSqlServerUoW.UnitOfWorkDapper),
             typeof(DapperPostgreSQLUoW.UnitOfWorkDapper),
             typeof(DapperMySQLUoW.UnitOfWorkDapper),

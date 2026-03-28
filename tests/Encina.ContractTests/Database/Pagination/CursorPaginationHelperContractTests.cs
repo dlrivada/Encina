@@ -4,7 +4,6 @@ using Shouldly;
 
 using ADOMySQLPagination = Encina.ADO.MySQL.Pagination;
 using ADOPostgreSQLPagination = Encina.ADO.PostgreSQL.Pagination;
-using ADOSqlitePagination = Encina.ADO.Sqlite.Pagination;
 using ADOSqlServerPagination = Encina.ADO.SqlServer.Pagination;
 
 namespace Encina.ContractTests.Database.Pagination;
@@ -22,12 +21,12 @@ public sealed class CursorPaginationHelperContractTests
     public void Contract_AllADOProviders_CursorPaginationHelper_ExistsInAllProviders()
     {
         // Contract: CursorPaginationHelper<TEntity> must exist in all 4 ADO.NET providers
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
-        sqliteType.ShouldNotBeNull("SQLite CursorPaginationHelper should exist");
+        SqlServerType.ShouldNotBeNull("SqlServer CursorPaginationHelper should exist");
         sqlServerType.ShouldNotBeNull("SQL Server CursorPaginationHelper should exist");
         postgresType.ShouldNotBeNull("PostgreSQL CursorPaginationHelper should exist");
         mysqlType.ShouldNotBeNull("MySQL CursorPaginationHelper should exist");
@@ -37,27 +36,27 @@ public sealed class CursorPaginationHelperContractTests
     public void Contract_AllADOProviders_CursorPaginationHelper_HaveIdenticalMethods()
     {
         // Contract: All ADO.NET providers must have identical CursorPaginationHelper public methods
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
         // Verify all providers have the same methods
-        VerifyPublicMethodsMatch(sqliteType, sqlServerType, "SQLite vs SQL Server");
-        VerifyPublicMethodsMatch(sqliteType, postgresType, "SQLite vs PostgreSQL");
-        VerifyPublicMethodsMatch(sqliteType, mysqlType, "SQLite vs MySQL");
+        VerifyPublicMethodsMatch(SqlServerType, sqlServerType, "SqlServer vs SQL Server");
+        VerifyPublicMethodsMatch(SqlServerType, postgresType, "SqlServer vs PostgreSQL");
+        VerifyPublicMethodsMatch(SqlServerType, mysqlType, "SqlServer vs MySQL");
     }
 
     [Fact]
     public void Contract_AllADOProviders_CursorPaginationHelper_HaveExecuteAsync()
     {
         // Contract: All providers must have ExecuteAsync method
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
-        VerifyMethodExists(sqliteType, "ExecuteAsync", "SQLite");
+        VerifyMethodExists(SqlServerType, "ExecuteAsync", "SqlServer");
         VerifyMethodExists(sqlServerType, "ExecuteAsync", "SQL Server");
         VerifyMethodExists(postgresType, "ExecuteAsync", "PostgreSQL");
         VerifyMethodExists(mysqlType, "ExecuteAsync", "MySQL");
@@ -67,12 +66,12 @@ public sealed class CursorPaginationHelperContractTests
     public void Contract_AllADOProviders_CursorPaginationHelper_HaveExecuteCompositeAsync()
     {
         // Contract: All providers must have ExecuteCompositeAsync method
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
-        VerifyMethodExists(sqliteType, "ExecuteCompositeAsync", "SQLite");
+        VerifyMethodExists(SqlServerType, "ExecuteCompositeAsync", "SqlServer");
         VerifyMethodExists(sqlServerType, "ExecuteCompositeAsync", "SQL Server");
         VerifyMethodExists(postgresType, "ExecuteCompositeAsync", "PostgreSQL");
         VerifyMethodExists(mysqlType, "ExecuteCompositeAsync", "MySQL");
@@ -82,12 +81,12 @@ public sealed class CursorPaginationHelperContractTests
     public void Contract_AllADOProviders_CursorPaginationHelper_HaveThreeParameterConstructor()
     {
         // Contract: All providers must have constructor with (DbConnection, ICursorEncoder, Func<IDataReader, TEntity>)
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
-        VerifyConstructorParameterCount(sqliteType, 3, "SQLite");
+        VerifyConstructorParameterCount(SqlServerType, 3, "SqlServer");
         VerifyConstructorParameterCount(sqlServerType, 3, "SQL Server");
         VerifyConstructorParameterCount(postgresType, 3, "PostgreSQL");
         VerifyConstructorParameterCount(mysqlType, 3, "MySQL");
@@ -101,12 +100,12 @@ public sealed class CursorPaginationHelperContractTests
     public void Contract_AllADOProviders_ExecuteAsync_ReturnsCursorPaginatedResult()
     {
         // Contract: ExecuteAsync must return Task<CursorPaginatedResult<TEntity>>
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
-        VerifyMethodReturnsTask(sqliteType, "ExecuteAsync", "SQLite");
+        VerifyMethodReturnsTask(SqlServerType, "ExecuteAsync", "SqlServer");
         VerifyMethodReturnsTask(sqlServerType, "ExecuteAsync", "SQL Server");
         VerifyMethodReturnsTask(postgresType, "ExecuteAsync", "PostgreSQL");
         VerifyMethodReturnsTask(mysqlType, "ExecuteAsync", "MySQL");
@@ -116,12 +115,12 @@ public sealed class CursorPaginationHelperContractTests
     public void Contract_AllADOProviders_ExecuteCompositeAsync_ReturnsCursorPaginatedResult()
     {
         // Contract: ExecuteCompositeAsync must return Task<CursorPaginatedResult<TEntity>>
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
-        VerifyMethodReturnsTask(sqliteType, "ExecuteCompositeAsync", "SQLite");
+        VerifyMethodReturnsTask(SqlServerType, "ExecuteCompositeAsync", "SqlServer");
         VerifyMethodReturnsTask(sqlServerType, "ExecuteCompositeAsync", "SQL Server");
         VerifyMethodReturnsTask(postgresType, "ExecuteCompositeAsync", "PostgreSQL");
         VerifyMethodReturnsTask(mysqlType, "ExecuteCompositeAsync", "MySQL");
@@ -135,12 +134,12 @@ public sealed class CursorPaginationHelperContractTests
     public void Contract_AllADOProviders_CursorPaginationHelper_InPaginationNamespace()
     {
         // Contract: All CursorPaginationHelper types must be in .Pagination namespace
-        var sqliteType = typeof(ADOSqlitePagination.CursorPaginationHelper<>);
+        var SqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var sqlServerType = typeof(ADOSqlServerPagination.CursorPaginationHelper<>);
         var postgresType = typeof(ADOPostgreSQLPagination.CursorPaginationHelper<>);
         var mysqlType = typeof(ADOMySQLPagination.CursorPaginationHelper<>);
 
-        sqliteType.Namespace.ShouldEndWith(".Pagination");
+        SqlServerType.Namespace.ShouldEndWith(".Pagination");
         sqlServerType.Namespace.ShouldEndWith(".Pagination");
         postgresType.Namespace.ShouldEndWith(".Pagination");
         mysqlType.Namespace.ShouldEndWith(".Pagination");
