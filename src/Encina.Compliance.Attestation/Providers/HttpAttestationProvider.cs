@@ -100,8 +100,8 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 AttestationDiagnostics.AttestationFailed.Add(1,
                     new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
-                    return AttestationErrors.HttpEndpointError(
-                    _options.AttestEndpointUrl, (int)response.StatusCode, truncatedBody);
+                return AttestationErrors.HttpEndpointError(
+                _options.AttestEndpointUrl, (int)response.StatusCode, truncatedBody);
             }
 
             var responseJson = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -115,7 +115,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 AttestationDiagnostics.AttestationFailed.Add(1,
                     new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, "Missing attestation_id");
-                    return AttestationErrors.ProviderUnavailable(ProviderName, msg);
+                return AttestationErrors.ProviderUnavailable(ProviderName, msg);
             }
 
             if (!responseJson.TryGetProperty("signature", out var sigProp)
@@ -126,7 +126,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 AttestationDiagnostics.AttestationFailed.Add(1,
                     new TagList { { AttestationDiagnostics.TagProviderName, ProviderName } });
                 AttestationDiagnostics.RecordFailure(activity, "Missing signature");
-                    return AttestationErrors.ProviderUnavailable(ProviderName, msg);
+                return AttestationErrors.ProviderUnavailable(ProviderName, msg);
             }
 
             var receipt = new AttestationReceipt
@@ -221,7 +221,7 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
             if (!response.IsSuccessStatusCode)
             {
                 AttestationDiagnostics.RecordFailure(activity, $"HTTP {(int)response.StatusCode}");
-    
+
                 return Right<EncinaError, AttestationVerification>(new AttestationVerification
                 {
                     IsValid = false,
@@ -237,8 +237,8 @@ public sealed class HttpAttestationProvider : IAuditAttestationProvider
                 && contentLength > MaxResponseContentBytes)
             {
                 AttestationDiagnostics.RecordFailure(activity, "Response too large");
-                    return AttestationErrors.HttpResponseTooLarge(
-                    ProviderName, contentLength, MaxResponseContentBytes);
+                return AttestationErrors.HttpResponseTooLarge(
+                ProviderName, contentLength, MaxResponseContentBytes);
             }
 
             var responseJson = await response.Content.ReadFromJsonAsync<JsonElement>(ct);

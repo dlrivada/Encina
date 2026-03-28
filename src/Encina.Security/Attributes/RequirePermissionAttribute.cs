@@ -24,6 +24,7 @@ namespace Encina.Security;
 /// public sealed record GenerateOrderReportQuery(Guid OrderId) : IQuery&lt;ReportDto&gt;;
 /// </code>
 /// </example>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public sealed class RequirePermissionAttribute : SecurityAttribute
 {
     /// <summary>

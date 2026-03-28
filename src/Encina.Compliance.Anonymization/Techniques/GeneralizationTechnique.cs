@@ -34,7 +34,6 @@ namespace Encina.Compliance.Anonymization.Techniques;
 public sealed class GeneralizationTechnique : IAnonymizationTechnique
 {
     private const int DefaultGranularity = 10;
-    private const int DefaultDateGranularity = 1; // Year
     private const int DefaultStringPreserveLength = 3;
 
     /// <inheritdoc/>

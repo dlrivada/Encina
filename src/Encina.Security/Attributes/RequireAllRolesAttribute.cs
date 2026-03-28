@@ -16,6 +16,7 @@ namespace Encina.Security;
 /// public sealed record ViewSensitiveDataQuery(Guid EntityId) : IQuery&lt;SensitiveDataDto&gt;;
 /// </code>
 /// </example>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public sealed class RequireAllRolesAttribute : SecurityAttribute
 {
     /// <summary>

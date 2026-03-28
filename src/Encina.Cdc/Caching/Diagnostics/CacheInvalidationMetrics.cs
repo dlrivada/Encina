@@ -19,7 +19,7 @@ namespace Encina.Cdc.Caching.Diagnostics;
 /// of the change event that triggered invalidation.
 /// </para>
 /// </remarks>
-internal sealed class CacheInvalidationMetrics
+internal static class CacheInvalidationMetrics
 {
     private static readonly Meter Meter = new("Encina.Cdc.CacheInvalidation", "1.0");
 

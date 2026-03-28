@@ -8,42 +8,41 @@ internal static class BagFunctions
 {
     internal static void Register(DefaultFunctionRegistry registry)
     {
-        RegisterBagFunctionsForType(registry, "string", XACMLDataTypes.String,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.String,
             XACMLFunctionIds.StringOneAndOnly, XACMLFunctionIds.StringBagSize,
             XACMLFunctionIds.StringIsIn, XACMLFunctionIds.StringBag);
 
-        RegisterBagFunctionsForType(registry, "boolean", XACMLDataTypes.Boolean,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.Boolean,
             XACMLFunctionIds.BooleanOneAndOnly, XACMLFunctionIds.BooleanBagSize,
             XACMLFunctionIds.BooleanIsIn, XACMLFunctionIds.BooleanBag);
 
-        RegisterBagFunctionsForType(registry, "integer", XACMLDataTypes.Integer,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.Integer,
             XACMLFunctionIds.IntegerOneAndOnly, XACMLFunctionIds.IntegerBagSize,
             XACMLFunctionIds.IntegerIsIn, XACMLFunctionIds.IntegerBag);
 
-        RegisterBagFunctionsForType(registry, "double", XACMLDataTypes.Double,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.Double,
             XACMLFunctionIds.DoubleOneAndOnly, XACMLFunctionIds.DoubleBagSize,
             XACMLFunctionIds.DoubleIsIn, XACMLFunctionIds.DoubleBag);
 
-        RegisterBagFunctionsForType(registry, "date", XACMLDataTypes.Date,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.Date,
             XACMLFunctionIds.DateOneAndOnly, XACMLFunctionIds.DateBagSize,
             XACMLFunctionIds.DateIsIn, XACMLFunctionIds.DateBag);
 
-        RegisterBagFunctionsForType(registry, "dateTime", XACMLDataTypes.DateTime,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.DateTime,
             XACMLFunctionIds.DateTimeOneAndOnly, XACMLFunctionIds.DateTimeBagSize,
             XACMLFunctionIds.DateTimeIsIn, XACMLFunctionIds.DateTimeBag);
 
-        RegisterBagFunctionsForType(registry, "time", XACMLDataTypes.Time,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.Time,
             XACMLFunctionIds.TimeOneAndOnly, XACMLFunctionIds.TimeBagSize,
             XACMLFunctionIds.TimeIsIn, XACMLFunctionIds.TimeBag);
 
-        RegisterBagFunctionsForType(registry, "anyURI", XACMLDataTypes.AnyURI,
+        RegisterBagFunctionsForType(registry, XACMLDataTypes.AnyURI,
             XACMLFunctionIds.AnyURIOneAndOnly, XACMLFunctionIds.AnyURIBagSize,
             XACMLFunctionIds.AnyURIIsIn, XACMLFunctionIds.AnyURIBag);
     }
 
     private static void RegisterBagFunctionsForType(
         DefaultFunctionRegistry registry,
-        string typeName,
         string dataType,
         string oneAndOnlyId,
         string bagSizeId,

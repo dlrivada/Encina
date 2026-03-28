@@ -568,6 +568,7 @@ public static class EntityConfigurationExtensions
         foreach (var entityType in modelBuilder.Model.GetEntityTypes()
             .Where(et => typeof(ISoftDeletable).IsAssignableFrom(et.ClrType)))
         {
+            // S3011: NonPublic reflection is required to call generic private method with runtime type
             var method = typeof(EntityConfigurationExtensions)
                 .GetMethod(nameof(ApplySoftDeleteQueryFilterInternal), BindingFlags.NonPublic | BindingFlags.Static)!
                 .MakeGenericMethod(entityType.ClrType);
@@ -633,6 +634,7 @@ public static class EntityConfigurationExtensions
             .Select(clrType => (clrType, methodName: GetConcurrencyMethodName(clrType)))
             .Where(x => x.methodName is not null))
         {
+            // S3011: NonPublic reflection is required to call generic private method with runtime type
             var method = typeof(EntityConfigurationExtensions)
                 .GetMethod(methodName!, BindingFlags.NonPublic | BindingFlags.Static)!
                 .MakeGenericMethod(clrType);

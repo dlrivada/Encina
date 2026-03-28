@@ -64,7 +64,7 @@ public sealed class ExpressionJsonConverter : JsonConverter<IExpression>
         return discriminator switch
         {
             TypeApply => DeserializeApply(root, options),
-            TypeDesignator => DeserializeAttributeDesignator(root, options),
+            TypeDesignator => DeserializeAttributeDesignator(root),
             TypeValue => DeserializeAttributeValue(root),
             TypeReference => DeserializeVariableReference(root),
             _ => throw new JsonException($"Unknown IExpression type discriminator: '{discriminator}'.")
@@ -82,10 +82,10 @@ public sealed class ExpressionJsonConverter : JsonConverter<IExpression>
                 WriteApply(writer, apply, options);
                 break;
             case AttributeDesignator designator:
-                WriteAttributeDesignator(writer, designator, options);
+                WriteAttributeDesignator(writer, designator);
                 break;
             case AttributeValue attributeValue:
-                WriteAttributeValue(writer, attributeValue, options);
+                WriteAttributeValue(writer, attributeValue);
                 break;
             case VariableReference reference:
                 WriteVariableReference(writer, reference);
@@ -140,7 +140,7 @@ public sealed class ExpressionJsonConverter : JsonConverter<IExpression>
 
     // ── AttributeDesignator ──────────────────────────────────────────
 
-    private static AttributeDesignator DeserializeAttributeDesignator(JsonElement root, JsonSerializerOptions options)
+    private static AttributeDesignator DeserializeAttributeDesignator(JsonElement root)
     {
         var categoryStr = root.GetProperty("category").GetString()
             ?? throw new JsonException("AttributeDesignator.category is required.");
@@ -168,7 +168,7 @@ public sealed class ExpressionJsonConverter : JsonConverter<IExpression>
         };
     }
 
-    private static void WriteAttributeDesignator(Utf8JsonWriter writer, AttributeDesignator designator, JsonSerializerOptions options)
+    private static void WriteAttributeDesignator(Utf8JsonWriter writer, AttributeDesignator designator)
     {
         writer.WriteStartObject();
         writer.WriteString(TypePropertyName, TypeDesignator);
@@ -199,7 +199,7 @@ public sealed class ExpressionJsonConverter : JsonConverter<IExpression>
         };
     }
 
-    private static void WriteAttributeValue(Utf8JsonWriter writer, AttributeValue attributeValue, JsonSerializerOptions options)
+    private static void WriteAttributeValue(Utf8JsonWriter writer, AttributeValue attributeValue)
     {
         writer.WriteStartObject();
         writer.WriteString(TypePropertyName, TypeValue);

@@ -167,7 +167,8 @@ public abstract class TenantDbContext : DbContext
             var parameter = Expression.Parameter(entityType.ClrType, "e");
             var tenantIdProperty = Expression.Property(parameter, nameof(ITenantEntity.TenantId));
 
-            // Use a method call to get the current tenant ID at query execution time
+            // S3011: NonPublic reflection required — EF Core query filters need runtime expression
+            // binding to the protected CurrentTenantId property for per-query tenant isolation
             var currentTenantIdMethod = GetType().GetProperty(
                 nameof(CurrentTenantId),
                 BindingFlags.NonPublic | BindingFlags.Instance)!.GetGetMethod(true)!;

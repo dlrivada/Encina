@@ -78,7 +78,7 @@ internal sealed class CdcProcessor : BackgroundService
         {
             try
             {
-                lastFailedEvent = await ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
+                await ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
                 consecutiveErrors = 0;
                 lastFailedEvent = null;
             }
@@ -203,7 +203,7 @@ internal sealed class CdcProcessor : BackgroundService
 
         var entry = new CdcDeadLetterEntry(
             Id: Guid.NewGuid(),
-            OriginalEvent: failedEvent ?? CreatePlaceholderEvent(connectorId),
+            OriginalEvent: failedEvent ?? CreatePlaceholderEvent(),
             ErrorMessage: exception.Message,
             StackTrace: exception.StackTrace ?? string.Empty,
             RetryCount: _options.MaxRetries,
@@ -219,7 +219,7 @@ internal sealed class CdcProcessor : BackgroundService
             Left: _ => CdcLog.DeadLetterStoreFailed(_logger, exception, connectorId));
     }
 
-    private static ChangeEvent CreatePlaceholderEvent(string connectorId)
+    private static ChangeEvent CreatePlaceholderEvent()
         => new(
             TableName: "unknown",
             Operation: ChangeOperation.Insert,

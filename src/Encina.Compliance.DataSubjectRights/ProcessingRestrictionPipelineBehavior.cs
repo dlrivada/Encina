@@ -260,11 +260,13 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
         }
 
         // Determine the source for diagnostics
-        var source = restrictAttr is not null
-            ? "RestrictProcessingAttribute"
-            : processesPersonalData
-                ? "ProcessesPersonalDataAttribute"
-                : "ProcessingActivityAttribute";
+        string source;
+        if (restrictAttr is not null)
+            source = "RestrictProcessingAttribute";
+        else if (processesPersonalData)
+            source = "ProcessesPersonalDataAttribute";
+        else
+            source = "ProcessingActivityAttribute";
 
         // SubjectIdProperty is only available from [RestrictProcessing]
         var subjectIdProperty = restrictAttr?.SubjectIdProperty;

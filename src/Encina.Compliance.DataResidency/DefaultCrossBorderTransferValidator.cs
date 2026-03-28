@@ -102,7 +102,7 @@ public sealed class DefaultCrossBorderTransferValidator : ICrossBorderTransferVa
 
         // Step 4: Check for appropriate safeguards (Art. 46) — SCCs or BCRs
         // SCCs and BCRs are the most common Art. 46 mechanisms
-        var sccResult = CheckAppropriateSafeguards(source, destination, dataCategory);
+        var sccResult = CheckAppropriateSafeguards(destination);
         if (sccResult is not null)
         {
             return ValueTask.FromResult<Either<EncinaError, TransferValidationResult>>(
@@ -123,9 +123,7 @@ public sealed class DefaultCrossBorderTransferValidator : ICrossBorderTransferVa
     }
 
     private TransferValidationResult? CheckAppropriateSafeguards(
-        Region source,
-        Region destination,
-        string dataCategory)
+        Region destination)
     {
         // In the default implementation, we allow transfers with SCCs if the destination
         // has at least medium data protection level. This is a simplified check — real

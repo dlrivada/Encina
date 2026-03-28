@@ -19,7 +19,7 @@ namespace Encina.Cdc.DeadLetter.Diagnostics;
 /// <c>table_name</c>, and <c>resolution_type</c> where applicable.
 /// </para>
 /// </remarks>
-internal sealed class CdcDeadLetterMetrics
+internal static class CdcDeadLetterMetrics
 {
     private static readonly Meter Meter = new("Encina.Cdc.DeadLetter", "1.0");
 
@@ -35,15 +35,14 @@ internal sealed class CdcDeadLetterMetrics
 
     private static long s_pendingCount;
 
-    /// <summary>
-    /// Gets or sets the observable gauge registration callback.
-    /// The gauge is registered lazily on first use.
-    /// </summary>
-    private static readonly ObservableGauge<long> PendingGauge = Meter.CreateObservableGauge(
-        "cdc.dead_letter.pending",
-        observeValue: () => Interlocked.Read(ref s_pendingCount),
-        unit: "{entry}",
-        description: "Current number of pending CDC dead letter entries.");
+    static CdcDeadLetterMetrics()
+    {
+        Meter.CreateObservableGauge(
+            "cdc.dead_letter.pending",
+            observeValue: () => Interlocked.Read(ref s_pendingCount),
+            unit: "{entry}",
+            description: "Current number of pending CDC dead letter entries.");
+    }
 
     /// <summary>
     /// Records that an event has been added to the dead letter queue.
