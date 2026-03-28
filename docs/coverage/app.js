@@ -239,4 +239,132 @@
     ctx.fillStyle = '#8b949e';
     ctx.fillText('weighted', cx, cy + 12);
   }
+
+  // ── Trend chart (coverage over time) ───────────────────────────────
+  try {
+    const histResp = await fetch('data/history.json');
+    if (histResp.ok) {
+      const history = await histResp.json();
+      if (history.length > 0) {
+        renderTrendChart(history);
+      } else {
+        document.getElementById('trend-info').textContent = 'No history data yet — will populate after the next CI run.';
+      }
+    }
+  } catch { /* history.json not available yet */ }
+
+  function renderTrendChart(history) {
+    const canvas = document.getElementById('trend-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+    const plotW = W - pad.left - pad.right;
+    const plotH = H - pad.top - pad.bottom;
+
+    // Data points
+    const points = history.map(h => ({
+      t: new Date(h.timestamp),
+      v: h.coverage
+    }));
+
+    const minV = Math.max(0, Math.min(...points.map(p => p.v)) - 5);
+    const maxV = Math.min(100, Math.max(...points.map(p => p.v)) + 5);
+    const minT = points[0].t.getTime();
+    const maxT = points[points.length - 1].t.getTime();
+    const rangeT = maxT - minT || 1;
+    const rangeV = maxV - minV || 1;
+
+    function x(t) { return pad.left + ((t.getTime() - minT) / rangeT) * plotW; }
+    function y(v) { return pad.top + plotH - ((v - minV) / rangeV) * plotH; }
+
+    // Background
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid lines
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    for (let v = Math.ceil(minV / 10) * 10; v <= maxV; v += 10) {
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y(v));
+      ctx.lineTo(W - pad.right, y(v));
+      ctx.stroke();
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(v + '%', pad.left - 6, y(v));
+    }
+
+    // Target line at 85%
+    if (minV <= 85 && maxV >= 85) {
+      ctx.strokeStyle = '#9e6a03';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y(85));
+      ctx.lineTo(W - pad.right, y(85));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#9e6a03';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('target 85%', W - pad.right - 55, y(85) - 6);
+    }
+
+    // Line
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const px = x(p.t), py = y(p.v);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // Fill area under line
+    ctx.globalAlpha = 0.1;
+    ctx.fillStyle = '#58a6ff';
+    ctx.lineTo(x(points[points.length - 1].t), pad.top + plotH);
+    ctx.lineTo(x(points[0].t), pad.top + plotH);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Dots
+    for (const p of points) {
+      const px = x(p.t), py = y(p.v);
+      ctx.fillStyle = p.v >= 85 ? '#238636' : p.v >= 68 ? '#9e6a03' : '#da3633';
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // X-axis labels (dates)
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const step = Math.max(1, Math.floor(points.length / 8));
+    for (let i = 0; i < points.length; i += step) {
+      const p = points[i];
+      const label = p.t.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+      ctx.fillText(label, x(p.t), pad.top + plotH + 6);
+    }
+    // Always show last date
+    if (points.length > 1) {
+      const last = points[points.length - 1];
+      ctx.fillText(last.t.toLocaleDateString('en', { month: 'short', day: 'numeric' }), x(last.t), pad.top + plotH + 6);
+    }
+
+    // Info text
+    const latest = points[points.length - 1];
+    const first = points[0];
+    const delta = latest.v - first.v;
+    const arrow = delta > 0 ? '\u2191' : delta < 0 ? '\u2193' : '\u2192';
+    document.getElementById('trend-info').textContent =
+      `${points.length} data points \u2014 ${first.t.toLocaleDateString()} to ${latest.t.toLocaleDateString()} \u2014 ${arrow} ${delta > 0 ? '+' : ''}${delta}% change`;
+  }
 })();
