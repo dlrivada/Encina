@@ -36,10 +36,13 @@ if (overall is null)
     return;
 }
 
-// Build history entry (lightweight — only overall + per-category)
+// Build history entry (lightweight — only overall + per-category + link to full snapshot)
+var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+var snapshotFile = DateTime.UtcNow.ToString("yyyy-MM-ddTHHmmssZ") + ".json";
 var entry = new JsonObject
 {
-    ["timestamp"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+    ["timestamp"] = timestamp,
+    ["file"] = snapshotFile,
     ["coverage"] = (int)(overall["coverage"]?.GetValue<double>() ?? 0),
     ["lines"] = overall["lines"]?.GetValue<int>() ?? 0,
     ["covered"] = overall["covered"]?.GetValue<int>() ?? 0
