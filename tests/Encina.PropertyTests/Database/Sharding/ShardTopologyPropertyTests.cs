@@ -111,6 +111,9 @@ public sealed class ShardTopologyPropertyTests
     [Property(MaxTest = 50)]
     public bool Property_GetShard_IsCaseInsensitive(NonEmptyString id)
     {
+        // ShardInfo rejects whitespace-only IDs (control chars like \n are whitespace)
+        if (string.IsNullOrWhiteSpace(id.Get)) return true;
+
         var topology = new ShardTopology([new ShardInfo(id.Get, "conn-1")]);
 
         return topology.GetShard(id.Get.ToUpperInvariant()).IsRight &&
