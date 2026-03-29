@@ -423,8 +423,6 @@ jobs:
       - test-guard
       - test-ef-providers
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     if: always()
     timeout-minutes: 10
     steps:
@@ -484,34 +482,8 @@ jobs:
           path: artifacts/coverage
           if-no-files-found: ignore
 
-      - name: Copy coverage dashboard to docs
-        if: always() && github.ref == 'refs/heads/main'
-        run: |
-          mkdir -p docs/coverage/data
-          cp -f artifacts/coverage/encina-coverage-summary.json docs/coverage/data/latest.json 2>/dev/null || true
-          cp -f artifacts/coverage/badge.svg docs/coverage/badge.svg 2>/dev/null || true
-          cp -f artifacts/coverage/badge.json docs/coverage/badge.json 2>/dev/null || true
-
-      - name: Archive coverage snapshot and update history
-        if: always() && github.ref == 'refs/heads/main'
-        run: |
-          STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
-          cp -f docs/coverage/data/latest.json "docs/coverage/data/${STAMP}.json" 2>/dev/null || true
-          dotnet run .github/scripts/coverage-history.cs -- --latest docs/coverage/data/latest.json --history docs/coverage/data/history.json || true
-
-      - name: Commit coverage data
-        if: always() && github.ref == 'refs/heads/main'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Pull latest main to avoid losing coverage data from previous CI runs
-          # that may have been pushed while this run was executing
-          git stash || true
-          git pull --rebase origin main || true
-          git stash pop || true
-          git add docs/coverage/data/ docs/coverage/badge.* || true
-          git diff --cached --quiet || git commit -m "docs: update coverage data [skip ci]"
-          git push || true
+      # Coverage data is published to GitHub Pages by the publish-coverage workflow
+      # (triggered by workflow_run after this CI completes)
 
   # Pack and publish - runs after all tests
   pack:

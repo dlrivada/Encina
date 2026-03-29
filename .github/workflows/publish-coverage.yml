@@ -1,0 +1,76 @@
+name: Publish Coverage Data
+
+# Triggered when CI completes — downloads the coverage artifact
+# and deploys it to GitHub Pages alongside the existing site.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  pages: write
+  id-token: write
+  actions: read
+  contents: read
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}coverage/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download coverage artifact from CI
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-report
+          path: coverage-artifact
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Pages site with fresh coverage data
+        run: |
+          # Copy the entire docs/ directory as the Pages site
+          cp -r docs _site
+
+          # Override coverage data with fresh CI artifact
+          mkdir -p _site/coverage/data
+          cp -f coverage-artifact/encina-coverage-summary.json _site/coverage/data/latest.json 2>/dev/null || true
+          cp -f coverage-artifact/badge.svg _site/coverage/badge.svg 2>/dev/null || true
+          cp -f coverage-artifact/badge.json _site/coverage/badge.json 2>/dev/null || true
+
+          # Archive snapshot
+          STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
+          cp -f _site/coverage/data/latest.json "_site/coverage/data/${STAMP}.json" 2>/dev/null || true
+
+          # Update history (reads existing history.json from docs/ and appends)
+          dotnet run .github/scripts/coverage-history.cs -- \
+            --latest _site/coverage/data/latest.json \
+            --history _site/coverage/data/history.json || true
+
+          echo "Coverage data updated. History entries:"
+          cat _site/coverage/data/history.json | head -5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
