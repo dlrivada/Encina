@@ -189,6 +189,19 @@ foreach (var (index, runId, timestamp) in entriesToRecalc)
         }
         entry["categories"] = newCats;
 
+        // Update per-flag overall coverage (for trend chart filtering)
+        var overallPerFlag = newOverall["perFlag"];
+        if (overallPerFlag is JsonObject flagObj)
+        {
+            var perFlag = new JsonObject();
+            foreach (var (flagName, flagNode) in flagObj)
+            {
+                var cov = flagNode?["coverage"]?.GetValue<double>() ?? 0;
+                perFlag[flagName] = Math.Round(cov, 2);
+            }
+            entry["perFlag"] = perFlag;
+        }
+
         Console.WriteLine($"  Updated: {oldCov}% → {newCov}% (covered: {newCovered:N1})");
     }
     catch (Exception ex)

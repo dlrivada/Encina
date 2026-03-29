@@ -66,6 +66,19 @@ if (latestJson["categories"] is JsonArray cats)
 }
 entry["categories"] = categories;
 
+// Add per-flag overall coverage (for trend chart filtering by test type)
+var overallPerFlag = overall["perFlag"];
+if (overallPerFlag is JsonObject flagObj)
+{
+    var perFlag = new JsonObject();
+    foreach (var (flagName, flagNode) in flagObj)
+    {
+        var cov = flagNode?["coverage"]?.GetValue<double>() ?? 0;
+        perFlag[flagName] = Math.Round(cov, 2);
+    }
+    entry["perFlag"] = perFlag;
+}
+
 // Load or create history array
 JsonArray history;
 if (File.Exists(historyPath))

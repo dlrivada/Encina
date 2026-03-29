@@ -460,6 +460,19 @@ int overallTotal = packageResults.Sum(p => p.TotalLines);
 double overallCovered = packageResults.Sum(p => p.CoveredEquivalent);
 double overallPct = overallTotal > 0 ? Math.Round(overallCovered * 100.0 / overallTotal, 2) : 0;
 
+// Aggregate per-flag overall coverage
+var overallPerFlag = new Dictionary<TestType, (int Total, int Covered)>();
+foreach (var pkg in packageResults)
+{
+    foreach (var (flag, (t, c)) in pkg.PerFlag)
+    {
+        if (overallPerFlag.TryGetValue(flag, out var existing))
+            overallPerFlag[flag] = (existing.Total + t, existing.Covered + c);
+        else
+            overallPerFlag[flag] = (t, c);
+    }
+}
+
 // ─── Console summary ─────────────────────────────────────────────────────────
 
 Console.WriteLine($"\n{'═',0}══════════════════════════════════════════════════════════════");
@@ -537,7 +550,13 @@ Console.WriteLine($"\n  Markdown: {Path.Combine(outputDir, "encina-coverage-repo
 var jsonData = new
 {
     timestamp = DateTime.UtcNow.ToString("o"),
-    overall = new { coverage = overallPct, lines = overallTotal, covered = Math.Round(overallCovered, 2) },
+    overall = new {
+        coverage = overallPct, lines = overallTotal, covered = Math.Round(overallCovered, 2),
+        perFlag = overallPerFlag.ToDictionary(
+            kv => kv.Key.ToString().ToLowerInvariant(),
+            kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
+                        coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 })
+    },
     categories = categoryResults.Select(c => new
     {
         name = c.Name,

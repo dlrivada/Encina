@@ -246,29 +246,102 @@
     document.getElementById('files-section').style.display = 'none';
   });
 
-  // ── Sunburst chart (simple canvas) ──────────────────────────────────
-  const canvas = document.getElementById('sunburst');
-  if (canvas && allPackages.length > 0) {
+  // ── Flag colors (consistent across charts) ────────────────────────
+  const FLAG_COLORS = {
+    combined: '#58a6ff',
+    unit: '#8b5cf6',
+    guard: '#f97316',
+    contract: '#06b6d4',
+    property: '#84cc16',
+    integration: '#ec4899'
+  };
+
+  // ── Toggle button logic ────────────────────────────────────────────
+  // Combined = radio (deselects all others). Others = checkboxes (deselect Combined).
+  function setupToggles(containerId, onChangeCallback) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const buttons = container.querySelectorAll('.toggle-btn');
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const flag = btn.dataset.flag;
+        if (flag === 'combined') {
+          // Radio: activate Combined, deactivate all others
+          buttons.forEach(b => b.classList.toggle('active', b.dataset.flag === 'combined'));
+        } else {
+          // Checkbox: toggle this flag, deactivate Combined
+          btn.classList.toggle('active');
+          container.querySelector('[data-flag="combined"]')?.classList.remove('active');
+          // If nothing selected, reactivate Combined
+          const anyActive = [...buttons].some(b => b.dataset.flag !== 'combined' && b.classList.contains('active'));
+          if (!anyActive) {
+            container.querySelector('[data-flag="combined"]')?.classList.add('active');
+          }
+        }
+        const selected = [...buttons].filter(b => b.classList.contains('active')).map(b => b.dataset.flag);
+        onChangeCallback(selected);
+      });
+    });
+
+    return [...buttons].filter(b => b.classList.contains('active')).map(b => b.dataset.flag);
+  }
+
+  // ── Sunburst chart ─────────────────────────────────────────────────
+  function renderSunburst(selectedFlags) {
+    const canvas = document.getElementById('sunburst');
+    if (!canvas || allPackages.length === 0) return;
     const ctx = canvas.getContext('2d');
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
     const outerR = 180;
     const innerR = 70;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const isCombined = selectedFlags.includes('combined');
     const totalLines = allPackages.reduce((s, p) => s + p.lines, 0);
+
+    // Compute coverage for each package based on selected flags
+    function pkgCoverage(pkg) {
+      if (isCombined) return pkg.coverage;
+      if (!pkg.perFlag) return 0;
+      let totalT = 0, totalC = 0;
+      for (const flag of selectedFlags) {
+        const d = pkg.perFlag[flag];
+        if (d && d.total > 0) { totalT += d.total; totalC += d.covered; }
+      }
+      return totalT > 0 ? Math.round(totalC * 100 / totalT * 100) / 100 : 0;
+    }
+
+    // Compute overall for center text
+    let ovTotalT = 0, ovTotalC = 0;
+    if (isCombined) {
+      ovTotalC = ov.covered; ovTotalT = ov.lines;
+    } else {
+      for (const pkg of allPackages) {
+        if (!pkg.perFlag) continue;
+        for (const flag of selectedFlags) {
+          const d = pkg.perFlag[flag];
+          if (d && d.total > 0) { ovTotalT += d.total; ovTotalC += d.covered; }
+        }
+      }
+    }
+    const overallPctForCenter = ovTotalT > 0 ? Math.round(ovTotalC * 100 / ovTotalT * 100) / 100 : 0;
 
     let angle = -Math.PI / 2;
     for (const pkg of allPackages.sort((a, b) => b.lines - a.lines)) {
       const sweep = (pkg.lines / totalLines) * Math.PI * 2;
-      const col = pctColor(pkg.coverage, pkg.target);
+      const cov = pkgCoverage(pkg);
+      const col = pctColor(cov, pkg.target);
       ctx.fillStyle = col === 'green' ? '#238636' : (col === 'yellow' ? '#9e6a03' : '#da3633');
-      ctx.globalAlpha = 0.6 + (pkg.coverage / 100) * 0.4;
+      ctx.globalAlpha = 0.6 + (cov / 100) * 0.4;
       ctx.beginPath();
       ctx.arc(cx, cy, outerR, angle, angle + sweep);
       ctx.arc(cx, cy, innerR, angle + sweep, angle, true);
       ctx.closePath();
       ctx.fill();
 
-      // Label for large segments
       if (sweep > 0.15) {
         const mid = angle + sweep / 2;
         const labelR = (outerR + innerR) / 2;
@@ -282,7 +355,6 @@
         const shortName = pkg.name.replace('Encina.', '').replace('Compliance.', 'C.');
         ctx.fillText(shortName, lx, ly);
       }
-
       angle += sweep;
     }
 
@@ -292,32 +364,42 @@
     ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${ov.coverage}%`, cx, cy - 8);
+    ctx.fillText(`${overallPctForCenter}%`, cx, cy - 8);
     ctx.font = '11px sans-serif';
     ctx.fillStyle = '#8b949e';
-    ctx.fillText('weighted', cx, cy + 12);
+    const label = isCombined ? 'weighted' : selectedFlags.join('+');
+    ctx.fillText(label, cx, cy + 12);
   }
 
+  // Initial sunburst render
+  renderSunburst(['combined']);
+  setupToggles('sunburst-toggles', renderSunburst);
+
   // ── Trend chart (coverage over time) ───────────────────────────────
+  let historyData = null;
+
   try {
     const histResp = await fetch('data/history.json');
     if (histResp.ok) {
-      const history = await histResp.json();
-      if (history.length > 0) {
-        renderTrendChart(history);
+      historyData = await histResp.json();
+      if (historyData.length > 0) {
+        renderTrendChart(historyData, ['combined']);
       } else {
         document.getElementById('trend-info').textContent = 'No history data yet — will populate after the next CI run.';
       }
     }
   } catch { /* history.json not available yet */ }
 
-  function renderTrendChart(history) {
+  setupToggles('trend-toggles', (selected) => {
+    if (historyData && historyData.length > 0) renderTrendChart(historyData, selected);
+  });
+
+  function renderTrendChart(history, selectedFlags) {
     const canvas = document.getElementById('trend-chart');
     if (!canvas) return;
-    // Size canvas to fill container width
     const container = canvas.parentElement;
     const dpr = window.devicePixelRatio || 1;
-    const displayW = container.clientWidth - 40; // subtract card padding
+    const displayW = container.clientWidth - 40;
     const displayH = 250;
     canvas.width = displayW * dpr;
     canvas.height = displayH * dpr;
@@ -330,16 +412,36 @@
     const plotW = W - pad.left - pad.right;
     const plotH = H - pad.top - pad.bottom;
 
-    // Data points
-    const points = history.map(h => ({
-      t: new Date(h.timestamp),
-      v: h.coverage
-    }));
+    const isCombined = selectedFlags.includes('combined');
 
-    const minV = Math.max(0, Math.min(...points.map(p => p.v)) - 5);
-    const maxV = Math.min(100, Math.max(...points.map(p => p.v)) + 5);
-    const minT = points[0].t.getTime();
-    const maxT = points[points.length - 1].t.getTime();
+    // Build series: one per selected flag
+    const series = [];
+    if (isCombined) {
+      series.push({
+        flag: 'combined',
+        color: FLAG_COLORS.combined,
+        points: history.map(h => ({ t: new Date(h.timestamp), v: h.coverage ?? 0 }))
+      });
+    } else {
+      for (const flag of selectedFlags) {
+        series.push({
+          flag,
+          color: FLAG_COLORS[flag] || '#888',
+          points: history.map(h => ({
+            t: new Date(h.timestamp),
+            v: h.perFlag?.[flag] ?? 0
+          }))
+        });
+      }
+    }
+
+    // Compute Y range across all series
+    const allValues = series.flatMap(s => s.points.map(p => p.v));
+    const minV = Math.max(0, Math.min(...allValues) - 5);
+    const maxV = Math.min(100, Math.max(...allValues) + 5);
+    const timestamps = series[0].points.map(p => p.t);
+    const minT = timestamps[0].getTime();
+    const maxT = timestamps[timestamps.length - 1].getTime();
     const rangeT = maxT - minT || 1;
     const rangeV = maxV - minV || 1;
 
@@ -381,58 +483,77 @@
       ctx.fillText('target 85%', W - pad.right - 55, y(85) - 6);
     }
 
-    // Line
-    ctx.strokeStyle = '#58a6ff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    points.forEach((p, i) => {
-      const px = x(p.t), py = y(p.v);
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    });
-    ctx.stroke();
-
-    // Fill area under line
-    ctx.globalAlpha = 0.1;
-    ctx.fillStyle = '#58a6ff';
-    ctx.lineTo(x(points[points.length - 1].t), pad.top + plotH);
-    ctx.lineTo(x(points[0].t), pad.top + plotH);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Dots
-    for (const p of points) {
-      const px = x(p.t), py = y(p.v);
-      ctx.fillStyle = p.v >= 85 ? '#238636' : (p.v >= 68 ? '#9e6a03' : '#da3633');
+    // Draw each series
+    for (const s of series) {
+      // Line
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(px, py, 3, 0, Math.PI * 2);
-      ctx.fill();
+      s.points.forEach((p, i) => {
+        const px = x(p.t), py = y(p.v);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      // Fill area (only for single series)
+      if (series.length === 1) {
+        ctx.globalAlpha = 0.1;
+        ctx.fillStyle = s.color;
+        ctx.lineTo(x(s.points[s.points.length - 1].t), pad.top + plotH);
+        ctx.lineTo(x(s.points[0].t), pad.top + plotH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Dots
+      for (const p of s.points) {
+        const px = x(p.t), py = y(p.v);
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    // X-axis labels (dates)
+    // Legend (when multiple series)
+    if (series.length > 1) {
+      let lx = pad.left + 5;
+      ctx.font = '10px sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+      for (const s of series) {
+        ctx.fillStyle = s.color;
+        ctx.fillRect(lx, 4, 12, 12);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText(s.flag, lx + 16, 5);
+        lx += ctx.measureText(s.flag).width + 30;
+      }
+    }
+
+    // X-axis labels
     ctx.fillStyle = '#8b949e';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    const step = Math.max(1, Math.floor(points.length / 8));
-    for (let i = 0; i < points.length; i += step) {
-      const p = points[i];
-      const label = p.t.toLocaleDateString('en', { month: 'short', day: 'numeric' });
-      ctx.fillText(label, x(p.t), pad.top + plotH + 6);
+    const step = Math.max(1, Math.floor(timestamps.length / 8));
+    for (let i = 0; i < timestamps.length; i += step) {
+      const t = timestamps[i];
+      ctx.fillText(t.toLocaleDateString('en', { month: 'short', day: 'numeric' }), x(t), pad.top + plotH + 6);
     }
-    // Always show last date
-    if (points.length > 1) {
-      const last = points[points.length - 1];
-      ctx.fillText(last.t.toLocaleDateString('en', { month: 'short', day: 'numeric' }), x(last.t), pad.top + plotH + 6);
+    if (timestamps.length > 1) {
+      const last = timestamps[timestamps.length - 1];
+      ctx.fillText(last.toLocaleDateString('en', { month: 'short', day: 'numeric' }), x(last), pad.top + plotH + 6);
     }
 
     // Info text
-    const latest = points[points.length - 1];
-    const first = points[0];
+    const mainSeries = series[0];
+    const latest = mainSeries.points[mainSeries.points.length - 1];
+    const first = mainSeries.points[0];
     const delta = latest.v - first.v;
     const arrow = delta > 0 ? '\u2191' : (delta < 0 ? '\u2193' : '\u2192');
+    const flagLabel = isCombined ? '' : ` (${selectedFlags.join('+')})`;
     document.getElementById('trend-info').textContent =
-      `${points.length} data points \u2014 ${first.t.toLocaleDateString()} to ${latest.t.toLocaleDateString()} \u2014 ${arrow} ${delta > 0 ? '+' : ''}${delta}% change`;
+      `${mainSeries.points.length} data points${flagLabel} \u2014 ${first.t.toLocaleDateString()} to ${latest.t.toLocaleDateString()} \u2014 ${arrow} ${delta > 0 ? '+' : ''}${delta}% change`;
   }
 })();
