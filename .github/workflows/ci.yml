@@ -492,9 +492,12 @@ jobs:
           cp -f artifacts/coverage/badge.svg docs/coverage/badge.svg 2>/dev/null || true
           cp -f artifacts/coverage/badge.json docs/coverage/badge.json 2>/dev/null || true
 
-      - name: Append coverage history
+      - name: Archive coverage snapshot and update history
         if: always() && github.ref == 'refs/heads/main'
-        run: dotnet run .github/scripts/coverage-history.cs -- --latest docs/coverage/data/latest.json --history docs/coverage/data/history.json || true
+        run: |
+          STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
+          cp -f docs/coverage/data/latest.json "docs/coverage/data/${STAMP}.json" 2>/dev/null || true
+          dotnet run .github/scripts/coverage-history.cs -- --latest docs/coverage/data/latest.json --history docs/coverage/data/history.json || true
 
       - name: Commit coverage data
         if: always() && github.ref == 'refs/heads/main'
