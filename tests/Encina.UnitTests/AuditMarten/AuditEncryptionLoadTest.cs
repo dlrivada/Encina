@@ -21,7 +21,7 @@ namespace Encina.UnitTests.AuditMarten;
 [Trait("Provider", "Marten")]
 public sealed class AuditEncryptionLoadTest
 {
-    [Fact]
+    [Fact(Skip = "Load test — throughput baseline depends on hardware, not suitable for CI unit test shards")]
     public async Task ConcurrentEncryption_8Workers_15Seconds_ShouldMeetThroughputBaseline()
     {
         // Configuration
