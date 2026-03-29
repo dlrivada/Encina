@@ -91,6 +91,16 @@
   document.getElementById('overall-lines').textContent =
     `${typeof ov.covered === 'number' ? ov.covered.toLocaleString(undefined, {maximumFractionDigits: 1}) : ov.covered} / ${ov.lines.toLocaleString()} weighted lines covered`;
 
+  // Show link to download raw Cobertura XML artifacts if runId is available
+  if (data.runId) {
+    const rawLink = document.createElement('a');
+    rawLink.href = `https://github.com/dlrivada/Encina/actions/runs/${data.runId}`;
+    rawLink.textContent = 'Download raw coverage data';
+    rawLink.target = '_blank';
+    rawLink.style.cssText = 'display:block;margin-top:0.5em;font-size:0.85em;color:#58a6ff;';
+    document.getElementById('overall-lines').parentElement?.appendChild(rawLink);
+  }
+
   // ── Categories ──────────────────────────────────────────────────────
   const catBody = document.querySelector('#category-table tbody');
   const categoryNames = new Set();

@@ -482,6 +482,15 @@ jobs:
           path: artifacts/coverage
           if-no-files-found: ignore
 
+      - name: Upload raw Cobertura XML data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-raw-${{ github.run_id }}
+          path: artifacts/test-results/**/coverage.cobertura.xml
+          retention-days: 90
+          if-no-files-found: ignore
+
       # Coverage data is published to GitHub Pages by the publish-coverage workflow
       # (triggered by workflow_run after this CI completes)
 
