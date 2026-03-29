@@ -45,8 +45,13 @@ var entry = new JsonObject
     ["file"] = snapshotFile,
     ["coverage"] = (int)(overall["coverage"]?.GetValue<double>() ?? 0),
     ["lines"] = overall["lines"]?.GetValue<int>() ?? 0,
-    ["covered"] = overall["covered"]?.GetValue<int>() ?? 0
+    ["covered"] = Math.Round(overall["covered"]?.GetValue<double>() ?? 0, 2)
 };
+
+// Include runId if present (allows downloading raw Cobertura XML artifacts later)
+var runId = latestJson["runId"];
+if (runId is not null)
+    entry["runId"] = runId.GetValue<long>();
 
 // Add per-category breakdown
 var categories = new JsonObject();
@@ -60,6 +65,19 @@ if (latestJson["categories"] is JsonArray cats)
     }
 }
 entry["categories"] = categories;
+
+// Add per-flag overall coverage (for trend chart filtering by test type)
+var overallPerFlag = overall["perFlag"];
+if (overallPerFlag is JsonObject flagObj)
+{
+    var perFlag = new JsonObject();
+    foreach (var (flagName, flagNode) in flagObj)
+    {
+        var cov = flagNode?["coverage"]?.GetValue<double>() ?? 0;
+        perFlag[flagName] = Math.Round(cov, 2);
+    }
+    entry["perFlag"] = perFlag;
+}
 
 // Load or create history array
 JsonArray history;

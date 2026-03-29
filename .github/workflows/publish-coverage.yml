@@ -54,6 +54,13 @@ jobs:
           cp -f coverage-artifact/badge.svg _site/coverage/badge.svg 2>/dev/null || true
           cp -f coverage-artifact/badge.json _site/coverage/badge.json 2>/dev/null || true
 
+          # Inject runId into the snapshot so history can reference raw artifacts
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          if command -v jq &>/dev/null; then
+            jq --argjson rid "$RUN_ID" '. + {runId: $rid}' \
+              _site/coverage/data/latest.json > _tmp.json && mv _tmp.json _site/coverage/data/latest.json
+          fi
+
           # Archive snapshot
           STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           cp -f _site/coverage/data/latest.json "_site/coverage/data/${STAMP}.json" 2>/dev/null || true
