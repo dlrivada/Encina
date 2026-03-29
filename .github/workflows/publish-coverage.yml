@@ -65,7 +65,12 @@ jobs:
           STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           cp -f _site/coverage/data/latest.json "_site/coverage/data/${STAMP}.json" 2>/dev/null || true
 
-          # Update history (reads existing history.json from docs/ and appends)
+          # Fetch the LIVE history.json from GitHub Pages (not from repo — repo copy is stale)
+          PAGES_URL="https://dlrivada.github.io/Encina/coverage/data/history.json"
+          echo "Fetching live history from: $PAGES_URL"
+          curl -fsSL "$PAGES_URL" -o _site/coverage/data/history.json 2>/dev/null || echo "No live history yet, using repo copy"
+
+          # Update history (appends current snapshot)
           dotnet run .github/scripts/coverage-history.cs -- \
             --latest _site/coverage/data/latest.json \
             --history _site/coverage/data/history.json || true
