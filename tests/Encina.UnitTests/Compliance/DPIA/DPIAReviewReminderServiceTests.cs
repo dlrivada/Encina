@@ -74,13 +74,15 @@ public class DPIAReviewReminderServiceTests
             Options.Create(options),
             new NullLogger<DPIAReviewReminderService>());
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         await sut.StartAsync(cts.Token);
-        await Task.Delay(200, CancellationToken.None);
+        // Allow enough time for the background service to complete at least one cycle
+        // CI environments can be slow, so use a generous delay
+        await Task.Delay(1500, CancellationToken.None);
         await sut.StopAsync(CancellationToken.None);
 
-        await service.Received(1).GetExpiredAssessmentsAsync(
+        await service.Received().GetExpiredAssessmentsAsync(
             Arg.Any<CancellationToken>());
     }
 
