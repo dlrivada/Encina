@@ -16,6 +16,7 @@ public sealed class ServiceCollectionExtensionsTests
     public void AddEncinaAttestation_UseInMemory_RegistersInMemoryProvider()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
 
         services.AddEncinaAttestation(options => options.UseInMemory());
 
@@ -86,8 +87,10 @@ public sealed class ServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
 
-        // Health check registration adds IHealthCheck entries to the service collection
-        services.Any(s => s.ServiceType == typeof(IHealthCheck)).ShouldBeTrue();
+        // Health check registration uses HealthCheckServiceOptions, not direct IHealthCheck
+        var sp = services.BuildServiceProvider();
+        var healthCheckOptions = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>();
+        healthCheckOptions.Value.Registrations.ShouldContain(r => r.Name == "encina-attestation");
     }
 
     [Fact]

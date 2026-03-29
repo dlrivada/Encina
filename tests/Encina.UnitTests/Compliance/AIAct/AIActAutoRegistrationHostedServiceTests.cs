@@ -5,6 +5,7 @@ using Encina.Compliance.AIAct.Attributes;
 using Encina.Compliance.AIAct.Model;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 using static LanguageExt.Prelude;
@@ -22,7 +23,7 @@ public sealed class AIActAutoRegistrationHostedServiceTests
     public AIActAutoRegistrationHostedServiceTests()
     {
         _timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero));
-        _logger = Substitute.For<ILogger<AIActAutoRegistrationHostedService>>();
+        _logger = NullLogger<AIActAutoRegistrationHostedService>.Instance;
     }
 
     [Fact]
