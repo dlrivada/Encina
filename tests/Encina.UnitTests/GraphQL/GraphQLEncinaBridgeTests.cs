@@ -1,6 +1,6 @@
 using Encina.GraphQL;
-using Microsoft.Extensions.Logging.Abstractions;
 using LanguageExt;
+using Microsoft.Extensions.Logging.Abstractions;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.GraphQL;
