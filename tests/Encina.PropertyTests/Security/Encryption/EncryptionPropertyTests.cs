@@ -261,6 +261,10 @@ public sealed class EncryptionPropertyTests
     [Property(MaxTest = 30)]
     public bool InMemoryKeyProvider_AddThenGet_ReturnsSameKey(NonEmptyString keyId)
     {
+        // FsCheck NonEmptyString can generate whitespace-only strings like "\n"
+        // which fail ArgumentException.ThrowIfNullOrWhiteSpace — skip those
+        if (string.IsNullOrWhiteSpace(keyId.Get)) return true; // vacuously true (precondition filter)
+
         var provider = new InMemoryKeyProvider();
         var key = new byte[32];
         RandomNumberGenerator.Fill(key);
