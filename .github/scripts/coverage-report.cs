@@ -363,8 +363,9 @@ foreach (var file in allFiles)
     var (catName, _, target) = GetCategory(packageName);
     if (applicableTests == TestType.None) continue; // Excluded
 
-    // Merge lines from applicable flags
-    var mergedLines = new Dictionary<int, int>();
+    // AND-weighted merge: a line's coverage = (flags covering it) / (total applicable flags)
+    var allLineNumbers = new HashSet<int>();
+    var lineHitsByFlag = new Dictionary<TestType, Dictionary<int, int>>();
     var perFlag = new Dictionary<TestType, (int Total, int Covered)>();
 
     foreach (var (flag, flagData) in coverageByFlag)
@@ -375,23 +376,35 @@ foreach (var file in allFiles)
         int flagTotal = fileLines.Count;
         int flagCovered = fileLines.Values.Count(h => h > 0);
         perFlag[flag] = (flagTotal, flagCovered);
+        lineHitsByFlag[flag] = fileLines;
 
-        foreach (var (lineNum, hits) in fileLines)
-        {
-            if (mergedLines.TryGetValue(lineNum, out var existing))
-                mergedLines[lineNum] = Math.Max(existing, hits);
-            else
-                mergedLines[lineNum] = hits;
-        }
+        foreach (var lineNum in fileLines.Keys)
+            allLineNumbers.Add(lineNum);
     }
 
-    if (mergedLines.Count == 0) continue;
+    if (allLineNumbers.Count == 0) continue;
 
-    int totalLines = mergedLines.Count;
-    int coveredLines = mergedLines.Values.Count(h => h > 0);
-    double pct = totalLines > 0 ? Math.Round(coveredLines * 100.0 / totalLines, 2) : 0;
+    // Count how many test types the manifest requires for this file
+    int applicableFlagCount = CountFlags(applicableTests);
 
-    fileResults.Add(new FileCoverage(file, packageName, catName, totalLines, coveredLines, pct, perFlag));
+    // Calculate fractional coverage per line: covered_flags / total_applicable_flags
+    double totalFractionalCoverage = 0;
+    foreach (var lineNum in allLineNumbers)
+    {
+        int flagsCoveringThisLine = 0;
+        foreach (var (flag, lines) in lineHitsByFlag)
+        {
+            if (lines.TryGetValue(lineNum, out var hits) && hits > 0)
+                flagsCoveringThisLine++;
+        }
+        totalFractionalCoverage += (double)flagsCoveringThisLine / applicableFlagCount;
+    }
+
+    int totalLines = allLineNumbers.Count;
+    double coveredEquivalent = totalFractionalCoverage;
+    double pct = totalLines > 0 ? Math.Round(coveredEquivalent * 100.0 / totalLines, 2) : 0;
+
+    fileResults.Add(new FileCoverage(file, packageName, catName, totalLines, coveredEquivalent, pct, perFlag));
 }
 
 // ─── Aggregate by package ────────────────────────────────────────────────────
@@ -403,8 +416,8 @@ var packageResults = fileResults
         var first = g.First();
         var (catName, applicableTests, target) = GetCategory(first.Package);
         int totalLines = g.Sum(f => f.TotalLines);
-        int coveredLines = g.Sum(f => f.CoveredLines);
-        double pct = totalLines > 0 ? Math.Round(coveredLines * 100.0 / totalLines, 2) : 0;
+        double coveredEquivalent = g.Sum(f => f.CoveredEquivalent);
+        double pct = totalLines > 0 ? Math.Round(coveredEquivalent * 100.0 / totalLines, 2) : 0;
 
         // Aggregate per-flag
         var perFlag = new Dictionary<TestType, (int Total, int Covered)>();
@@ -420,7 +433,7 @@ var packageResults = fileResults
         }
 
         return new PackageCoverage(first.Package, catName, applicableTests, target,
-            totalLines, coveredLines, pct, perFlag, g.OrderBy(f => f.Percentage).ToList());
+            totalLines, coveredEquivalent, pct, perFlag, g.OrderBy(f => f.Percentage).ToList());
     })
     .OrderBy(p => p.Percentage)
     .ToList();
@@ -433,10 +446,10 @@ var categoryResults = packageResults
     {
         var cat = categories.FirstOrDefault(c => c.Name == g.Key);
         int totalLines = g.Sum(p => p.TotalLines);
-        int coveredLines = g.Sum(p => p.CoveredLines);
-        double pct = totalLines > 0 ? Math.Round(coveredLines * 100.0 / totalLines, 2) : 0;
+        double coveredEquivalent = g.Sum(p => p.CoveredEquivalent);
+        double pct = totalLines > 0 ? Math.Round(coveredEquivalent * 100.0 / totalLines, 2) : 0;
         return new CategoryCoverage(g.Key, cat?.ApplicableTests ?? TestType.None, cat?.Target ?? 0,
-            g.Count(), totalLines, coveredLines, pct);
+            g.Count(), totalLines, coveredEquivalent, pct);
     })
     .OrderByDescending(c => c.TotalLines)
     .ToList();
@@ -444,13 +457,13 @@ var categoryResults = packageResults
 // ─── Overall ─────────────────────────────────────────────────────────────────
 
 int overallTotal = packageResults.Sum(p => p.TotalLines);
-int overallCovered = packageResults.Sum(p => p.CoveredLines);
+double overallCovered = packageResults.Sum(p => p.CoveredEquivalent);
 double overallPct = overallTotal > 0 ? Math.Round(overallCovered * 100.0 / overallTotal, 2) : 0;
 
 // ─── Console summary ─────────────────────────────────────────────────────────
 
 Console.WriteLine($"\n{'═',0}══════════════════════════════════════════════════════════════");
-Console.WriteLine($"  ENCINA WEIGHTED COVERAGE: {overallPct}% ({overallCovered:N0} / {overallTotal:N0} lines)");
+Console.WriteLine($"  ENCINA WEIGHTED COVERAGE: {overallPct}% ({overallCovered:N1} / {overallTotal:N0} weighted lines)");
 Console.WriteLine($"{'═',0}══════════════════════════════════════════════════════════════\n");
 
 foreach (var cat in categoryResults)
@@ -472,7 +485,7 @@ md.AppendLine("# Encina Weighted Coverage Report");
 md.AppendLine();
 md.AppendLine($"Generated: {DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
 md.AppendLine();
-md.AppendLine($"## Overall: {overallPct}% ({overallCovered:N0} / {overallTotal:N0} applicable lines)");
+md.AppendLine($"## Overall: {overallPct}% ({overallCovered:N1} / {overallTotal:N0} weighted lines)");
 md.AppendLine();
 md.AppendLine("## By Category");
 md.AppendLine();
@@ -510,7 +523,7 @@ foreach (var pkg in packageResults.OrderBy(p => p.Name))
     foreach (var file in pkg.Files)
     {
         var shortName = file.RelativePath.Replace($"src/{pkg.Name}/", "");
-        md.AppendLine($"| {shortName} | {file.TotalLines} | {file.CoveredLines} | {file.Percentage:F1}% |");
+        md.AppendLine($"| {shortName} | {file.TotalLines} | {file.CoveredEquivalent:F1} | {file.Percentage:F1}% |");
     }
     md.AppendLine();
 }
@@ -524,7 +537,7 @@ Console.WriteLine($"\n  Markdown: {Path.Combine(outputDir, "encina-coverage-repo
 var jsonData = new
 {
     timestamp = DateTime.UtcNow.ToString("o"),
-    overall = new { coverage = overallPct, lines = overallTotal, covered = overallCovered },
+    overall = new { coverage = overallPct, lines = overallTotal, covered = Math.Round(overallCovered, 2) },
     categories = categoryResults.Select(c => new
     {
         name = c.Name,
@@ -533,7 +546,7 @@ var jsonData = new
         target = c.Target,
         packages = c.PackageCount,
         lines = c.TotalLines,
-        covered = c.CoveredLines
+        covered = Math.Round(c.CoveredEquivalent, 2)
     }),
     packages = packageResults.Select(p => new
     {
@@ -542,7 +555,7 @@ var jsonData = new
         coverage = p.Percentage,
         target = p.Target,
         lines = p.TotalLines,
-        covered = p.CoveredLines,
+        covered = Math.Round(p.CoveredEquivalent, 2),
         perFlag = p.PerFlag.ToDictionary(
             kv => kv.Key.ToString().ToLowerInvariant(),
             kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
@@ -610,6 +623,17 @@ static string FormatTestTypes(TestType t)
     return string.Join("+", parts);
 }
 
+static int CountFlags(TestType flags)
+{
+    int count = 0;
+    if (flags.HasFlag(TestType.Unit)) count++;
+    if (flags.HasFlag(TestType.Guard)) count++;
+    if (flags.HasFlag(TestType.Contract)) count++;
+    if (flags.HasFlag(TestType.Property)) count++;
+    if (flags.HasFlag(TestType.Integration)) count++;
+    return count;
+}
+
 static string GenerateBadgeSvg(string label, string message, string color)
 {
     var colorHex = color switch
@@ -650,7 +674,7 @@ static string GenerateBadgeSvg(string label, string message, string color)
     """;
 }
 
-static string GenerateHtmlDashboard(double overallPct, int overallTotal, int overallCovered,
+static string GenerateHtmlDashboard(double overallPct, int overallTotal, double overallCovered,
     List<CategoryCoverage> categories, List<PackageCoverage> packages, List<FileCoverage> files)
 {
     var jOpts = new JsonSerializerOptions
@@ -661,12 +685,12 @@ static string GenerateHtmlDashboard(double overallPct, int overallTotal, int ove
     var packagesJson = JsonSerializer.Serialize(packages.Select(p => new
     {
         name = p.Name, category = p.Category, coverage = p.Percentage, target = p.Target,
-        lines = p.TotalLines, covered = p.CoveredLines,
+        lines = p.TotalLines, covered = Math.Round(p.CoveredEquivalent, 2),
         applicableTests = FormatTestTypes(p.ApplicableTests),
         files = p.Files.Select(f => new
         {
             path = f.RelativePath.Replace($"src/{p.Name}/", ""),
-            lines = f.TotalLines, covered = f.CoveredLines, coverage = f.Percentage
+            lines = f.TotalLines, covered = Math.Round(f.CoveredEquivalent, 2), coverage = f.Percentage
         })
     }), jOpts);
 
@@ -674,7 +698,7 @@ static string GenerateHtmlDashboard(double overallPct, int overallTotal, int ove
     {
         name = c.Name, tests = FormatTestTypes(c.ApplicableTests),
         coverage = c.Percentage, target = c.Target,
-        packages = c.PackageCount, lines = c.TotalLines, covered = c.CoveredLines
+        packages = c.PackageCount, lines = c.TotalLines, covered = Math.Round(c.CoveredEquivalent, 2)
     }), jOpts);
 
     return $$"""
@@ -722,7 +746,7 @@ static string GenerateHtmlDashboard(double overallPct, int overallTotal, int ove
 
     <div class="overall">
       <span class="pct">{{overallPct}}%</span>
-      <div class="detail">{{overallCovered:N0}} / {{overallTotal:N0}} applicable lines covered</div>
+      <div class="detail">{{overallCovered:N1}} / {{overallTotal:N0}} weighted lines covered</div>
     </div>
 
     <div class="grid">
@@ -893,14 +917,14 @@ record CategoryConfig
 }
 
 record FileCoverage(string RelativePath, string Package, string Category, int TotalLines,
-    int CoveredLines, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag);
+    double CoveredEquivalent, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag);
 
 record PackageCoverage(string Name, string Category, TestType ApplicableTests, double Target,
-    int TotalLines, int CoveredLines, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag,
+    int TotalLines, double CoveredEquivalent, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag,
     List<FileCoverage> Files);
 
 record CategoryCoverage(string Name, TestType ApplicableTests, double Target,
-    int PackageCount, int TotalLines, int CoveredLines, double Percentage);
+    int PackageCount, int TotalLines, double CoveredEquivalent, double Percentage);
 
 record ManifestFile
 {

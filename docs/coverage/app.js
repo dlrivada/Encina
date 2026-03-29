@@ -89,7 +89,7 @@
   document.getElementById('overall-pct').className =
     `big-number ${ov.coverage >= 80 ? 'green' : (ov.coverage >= 60 ? 'yellow' : 'red')}`;
   document.getElementById('overall-lines').textContent =
-    `${ov.covered.toLocaleString()} / ${ov.lines.toLocaleString()} applicable lines covered`;
+    `${typeof ov.covered === 'number' ? ov.covered.toLocaleString(undefined, {maximumFractionDigits: 1}) : ov.covered} / ${ov.lines.toLocaleString()} weighted lines covered`;
 
   // ── Categories ──────────────────────────────────────────────────────
   const catBody = document.querySelector('#category-table tbody');
@@ -222,7 +222,7 @@
       tr.innerHTML = `
         <td>${shortName}</td>
         <td class="num">${f.totalLines}</td>
-        <td class="num">${f.coveredLines}</td>
+        <td class="num">${typeof f.covered === 'number' ? f.covered.toFixed(1) : (f.coveredLines ?? 0)}</td>
         <td class="pct">${f.percentage}%</td>
         <td>${barHtml(f.percentage, pkg.target)}</td>`;
       filesBody.appendChild(tr);
