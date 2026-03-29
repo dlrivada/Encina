@@ -1,6 +1,6 @@
 {
   "package": "Encina.ADO.PostgreSQL",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-03-29T13:30:00Z",
   "totalFiles": 66,
   "files": {
     "ABAC/PolicyStoreADO.cs": {
@@ -8,35 +8,35 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Anonymization/TokenMappingStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Auditing/AuditLogStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Auditing/AuditStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Auditing/ReadAuditStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "BulkOperations/BulkOperationsPostgreSQL.cs": {
       "defaultTests": [
@@ -82,43 +82,36 @@
       "reason": "Health check with mockeable service dependencies"
     },
     "IdParameterExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
+      "defaultTests": [],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "Interface — no implementation to test"
     },
     "Inbox/InboxMessage.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
+      "defaultTests": [],
       "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "reason": "Interface — no implementation to test"
     },
     "Inbox/InboxMessageFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
+      "defaultTests": [],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Interface — no implementation to test"
     },
     "Inbox/InboxStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Modules/ModuleAwareConnectionFactory.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "Modules/SchemaValidatingCommand.cs": {
       "defaultTests": [
@@ -164,39 +157,47 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Pagination/CursorPaginationHelper.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "ProcessingActivity/ProcessingActivityRegistryADO.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Store that creates DB connections internally — needs real database",
+      "override": [
+        "integration"
+      ]
     },
     "ReadWriteSeparation/IReadWriteConnectionFactory.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "ReadWriteSeparation/ReadWriteConnectionFactory.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "ReadWriteSeparation/ReadWriteRoutingPipelineBehavior.cs": {
       "defaultTests": [
@@ -228,7 +229,7 @@
         "integration"
       ],
       "defaultRule": "*RepositoryADO.cs",
-      "reason": "ADO.NET repository \u2014 needs real database"
+      "reason": "ADO.NET repository — needs real database"
     },
     "Repository/IEntityMapping.cs": {
       "defaultTests": [],
@@ -264,7 +265,7 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Scheduling/ScheduledMessage.cs": {
       "defaultTests": [
@@ -287,7 +288,7 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -302,7 +303,7 @@
         "integration"
       ],
       "defaultRule": "*RepositoryADO.cs",
-      "reason": "ADO.NET repository \u2014 needs real database"
+      "reason": "ADO.NET repository — needs real database"
     },
     "Sharding/Migrations/AdoHelper.cs": {
       "defaultTests": [
@@ -349,7 +350,7 @@
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL \u2014 needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database"
     },
     "Sharding/ReferenceTables/ReferenceTableStoreFactoryADO.cs": {
       "defaultTests": [
@@ -361,19 +362,23 @@
     },
     "Sharding/ShardedConnectionFactory.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "Sharding/ShardedReadWriteConnectionFactory.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "Sharding/ShardingServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -424,7 +429,7 @@
         "integration"
       ],
       "defaultRule": "*RepositoryADO.cs",
-      "reason": "ADO.NET repository \u2014 needs real database"
+      "reason": "ADO.NET repository — needs real database"
     },
     "Tenancy/ADOTenancyOptions.cs": {
       "defaultTests": [
@@ -436,11 +441,13 @@
     },
     "Tenancy/ITenantConnectionFactory.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "Tenancy/ITenantEntityMapping.cs": {
       "defaultTests": [],
@@ -460,7 +467,7 @@
         "integration"
       ],
       "defaultRule": "*RepositoryADO.cs",
-      "reason": "ADO.NET repository \u2014 needs real database"
+      "reason": "ADO.NET repository — needs real database"
     },
     "Tenancy/TenantAwareSpecificationSqlBuilder.cs": {
       "defaultTests": [
@@ -472,11 +479,13 @@
     },
     "Tenancy/TenantConnectionFactory.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "Tenancy/TenantEntityMappingBuilder.cs": {
       "defaultTests": [
@@ -499,7 +508,7 @@
         "integration"
       ],
       "defaultRule": "*RepositoryADO.cs",
-      "reason": "ADO.NET repository \u2014 needs real database"
+      "reason": "ADO.NET repository — needs real database"
     }
   }
 }

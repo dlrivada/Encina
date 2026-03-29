@@ -280,6 +280,97 @@ public sealed class EncinaTestContextTests
     }
 
     [Fact]
+    public void ClearAll_WithAllOptionsDisabled_ClearsNothing()
+    {
+        // Arrange
+        var outboxStore = new FakeOutboxStore();
+        outboxStore.AddAsync(new FakeOutboxMessage { Id = Guid.NewGuid(), NotificationType = "Test" }).GetAwaiter().GetResult();
+
+        var options = new EncinaTestSupportOptions
+        {
+            ClearOutboxBeforeTest = false,
+            ClearInboxBeforeTest = false,
+            ResetSagasBeforeTest = false,
+            ClearScheduledMessagesBeforeTest = false,
+            ClearDeadLetterBeforeTest = false
+        };
+        var context = new EncinaTestContext(options, outboxStore);
+
+        // Act
+        context.ClearAll();
+
+        // Assert — nothing should be cleared
+        outboxStore.GetMessages().ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public void ClearAll_WithNullStores_DoesNotThrow()
+    {
+        // Arrange — no stores provided, all null
+        var context = new EncinaTestContext(new EncinaTestSupportOptions());
+
+        // Act & Assert — should not throw even though stores are null
+        Should.NotThrow(() => context.ClearAll());
+    }
+
+    [Fact]
+    public void ClearOutbox_WithNullStore_DoesNotThrow()
+    {
+        var context = new EncinaTestContext(new EncinaTestSupportOptions());
+        Should.NotThrow(() => context.ClearOutbox());
+    }
+
+    [Fact]
+    public void ClearInbox_WithNullStore_DoesNotThrow()
+    {
+        var context = new EncinaTestContext(new EncinaTestSupportOptions());
+        Should.NotThrow(() => context.ClearInbox());
+    }
+
+    [Fact]
+    public void ClearSagas_WithNullStore_DoesNotThrow()
+    {
+        var context = new EncinaTestContext(new EncinaTestSupportOptions());
+        Should.NotThrow(() => context.ClearSagas());
+    }
+
+    [Fact]
+    public void ClearScheduledMessages_WithNullStore_DoesNotThrow()
+    {
+        var context = new EncinaTestContext(new EncinaTestSupportOptions());
+        Should.NotThrow(() => context.ClearScheduledMessages());
+    }
+
+    [Fact]
+    public void ClearDeadLetter_WithNullStore_DoesNotThrow()
+    {
+        var context = new EncinaTestContext(new EncinaTestSupportOptions());
+        Should.NotThrow(() => context.ClearDeadLetter());
+    }
+
+    [Fact]
+    public void Constructor_WithAllStores_AllAccessible()
+    {
+        // Arrange
+        var outbox = new FakeOutboxStore();
+        var inbox = new FakeInboxStore();
+        var saga = new FakeSagaStore();
+        var scheduled = new FakeScheduledMessageStore();
+        var deadLetter = new FakeDeadLetterStore();
+
+        // Act
+        var context = new EncinaTestContext(
+            new EncinaTestSupportOptions(), outbox, inbox, saga, scheduled, deadLetter);
+
+        // Assert — all stores accessible without exceptions
+        context.OutboxStore.ShouldBeSameAs(outbox);
+        context.InboxStore.ShouldBeSameAs(inbox);
+        context.SagaStore.ShouldBeSameAs(saga);
+        context.ScheduledMessageStore.ShouldBeSameAs(scheduled);
+        context.DeadLetterStore.ShouldBeSameAs(deadLetter);
+    }
+
+    [Fact]
     public async Task ClearDeadLetter_ClearsOnlyDeadLetter()
     {
         // Arrange

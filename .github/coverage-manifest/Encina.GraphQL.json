@@ -1,78 +1,48 @@
 {
   "package": "Encina.GraphQL",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-03-29T13:00:00Z",
+  "reviewed": true,
   "totalFiles": 10,
   "files": {
     "EncinaGraphQLOptions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "defaultTests": ["unit"],
+      "reason": "Configuration POCO with defaults — only needs defaults verification"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes, no logic"
     },
     "GraphQLMediatorBridge.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Bridges Encina requests to GraphQL — testable with mocked IEncina"
     },
     "IGraphQLMediatorBridge.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Log.cs": {
       "defaultTests": [],
-      "defaultRule": "Log.cs",
       "reason": "Source-generated [LoggerMessage] delegates, no logic"
     },
     "Pagination/Connection.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Record/POCO for Relay Connection type — constructor and property tests"
     },
     "Pagination/ConnectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": ["unit"],
+      "reason": "Pure data transformation (cursor pagination → Relay Connection) — fully testable"
     },
     "Pagination/Edge.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Record/POCO for Relay Edge type"
     },
     "Pagination/RelayPageInfo.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Record/POCO for Relay PageInfo type"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": ["unit", "guard"],
+      "reason": "DI registration with conditional logic — testable with ServiceCollection"
     }
   }
 }

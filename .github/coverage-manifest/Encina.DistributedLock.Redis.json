@@ -1,44 +1,28 @@
 {
   "package": "Encina.DistributedLock.Redis",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-03-29T13:00:00Z",
+  "reviewed": true,
   "totalFiles": 5,
   "files": {
     "GlobalSuppressions.cs": {
       "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes, no logic"
     },
     "Health/RedisDistributedLockHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Health check using IDatabase — mockeable via IConnectionMultiplexer"
     },
     "RedisDistributedLockProvider.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Lock provider using IConnectionMultiplexer.GetDatabase() — fully mockeable. Covers TryAcquire, Acquire, IsLocked, Extend, Release"
     },
     "RedisLockOptions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "defaultTests": ["unit"],
+      "reason": "Configuration POCO — only needs defaults verification, no guard (no constructor params)"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": ["unit", "guard"],
+      "reason": "DI registration with options validation and health check toggle"
     }
   }
 }

@@ -1,47 +1,36 @@
 {
   "package": "Encina.Aspire.Testing",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-03-29T12:00:00Z",
+  "reviewed": true,
   "totalFiles": 5,
   "files": {
     "DistributedApplicationExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": [],
+      "override": ["integration"],
+      "reason": "Extension methods on DistributedApplication (Aspire hosting) — requires real Aspire host, cannot be mocked"
     },
     "DistributedApplicationTestingBuilderExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": [],
+      "override": ["integration"],
+      "reason": "Extension methods on IDistributedApplicationTestingBuilder — requires Aspire test builder, cannot be mocked"
     },
     "EncinaTestContext.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "POCO with constructor validation, property accessors, and Clear methods — fully testable with fakes"
     },
     "EncinaTestSupportOptions.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with default values — only needs unit tests for defaults verification"
     },
     "FailureSimulationExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": [],
+      "override": ["integration"],
+      "reason": "Extension methods on DistributedApplication for failure simulation — requires real Aspire host"
     }
   }
 }

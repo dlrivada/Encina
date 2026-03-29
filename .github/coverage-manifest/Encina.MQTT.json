@@ -1,54 +1,36 @@
 {
   "package": "Encina.MQTT",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-03-29T13:00:00Z",
+  "reviewed": true,
   "totalFiles": 7,
   "files": {
     "EncinaMQTTOptions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "defaultTests": ["unit"],
+      "reason": "Configuration POCO — defaults verification only"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes, no logic"
     },
     "Health/MQTTHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Health check resolving IMqttClient from ServiceProvider — mockeable"
     },
     "IMQTTMessagePublisher.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation"
     },
     "Log.cs": {
       "defaultTests": [],
-      "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage], no logic"
     },
     "MQTTMessagePublisher.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Publisher using IMqttClient (mockeable interface from MQTTnet). Covers PublishAsync, ConnectAsync, topic derivation, QoS mapping, serialization"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": ["unit", "guard"],
+      "reason": "DI registration with options and health check toggle"
     }
   }
 }
