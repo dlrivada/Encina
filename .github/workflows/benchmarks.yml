@@ -2,6 +2,16 @@ name: Benchmarks
 
 on:
   workflow_dispatch:
+    inputs:
+      job_type:
+        description: 'BenchmarkDotNet job type (short for CI, medium for weekly)'
+        required: false
+        default: 'short'
+        type: choice
+        options:
+          - short
+          - medium
+          - default
   schedule:
     # Run weekly on Sundays at 1:00 AM UTC
     - cron: "0 1 * * 0"
@@ -12,7 +22,27 @@ permissions:
 jobs:
   run-benchmarks:
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: Core
+            path: tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj
+          - name: ADO
+            path: tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Encina.ADO.Benchmarks.csproj
+          - name: Dapper
+            path: tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Encina.Dapper.Benchmarks.csproj
+          - name: EFCore
+            path: tests/Encina.BenchmarkTests/Encina.EntityFrameworkCore.Benchmarks/Encina.EntityFrameworkCore.Benchmarks.csproj
+          - name: Caching
+            path: tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/Encina.Caching.Benchmarks.csproj
+          - name: Security
+            path: tests/Encina.BenchmarkTests/Encina.Security.AntiTampering.Benchmarks/Encina.Security.AntiTampering.Benchmarks.csproj
+          - name: IdGeneration
+            path: tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/Encina.IdGeneration.Benchmarks.csproj
+          - name: Polly
+            path: tests/Encina.BenchmarkTests/Encina.Polly.Benchmarks/Encina.Polly.Benchmarks.csproj
     defaults:
       run:
         shell: bash
@@ -29,33 +59,21 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore
-        run: dotnet restore Encina.slnx
+        run: dotnet restore ${{ matrix.project.path }}
 
-      - name: Build
-        run: dotnet build Encina.slnx --configuration Release --no-restore
-
-      - name: Run Benchmark suite
-        id: run-benchmarks
-        run: dotnet run --file scripts/run-benchmarks.cs
-
-      - name: Enforce benchmark thresholds
-        run: dotnet run --file scripts/check-benchmarks.cs -- --directory "${{ steps.run-benchmarks.outputs.benchmark-dir }}"
-
-      - name: Aggregate performance history
-        run: dotnet run --file scripts/aggregate-performance-history.cs
-
-      - name: Publish performance history summary
+      - name: Run ${{ matrix.project.name }} benchmarks
         run: |
-          if [ -f docs/data/benchmark-history.md ]; then
-            {
-              echo '### Benchmark History';
-              cat docs/data/benchmark-history.md;
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          JOB_TYPE="${{ github.event.inputs.job_type || 'short' }}"
+          dotnet run --project ${{ matrix.project.path }} -c Release -- \
+            --artifacts "artifacts/performance/${{ matrix.project.name }}" \
+            --exporters csv html github \
+            --job "$JOB_TYPE" \
+            --filter "*"
 
-      - name: Upload benchmark artifacts
-        if: steps.run-benchmarks.outputs.benchmark-dir != ''
+      - name: Upload benchmark results
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: benchmarks
-          path: ${{ steps.run-benchmarks.outputs.benchmark-dir }}
+          name: benchmarks-${{ matrix.project.name }}
+          path: artifacts/performance/${{ matrix.project.name }}
+          if-no-files-found: ignore
