@@ -504,6 +504,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Pull latest main to avoid losing coverage data from previous CI runs
+          # that may have been pushed while this run was executing
+          git stash || true
+          git pull --rebase origin main || true
+          git stash pop || true
           git add docs/coverage/data/ docs/coverage/badge.* || true
           git diff --cached --quiet || git commit -m "docs: update coverage data [skip ci]"
           git push || true
