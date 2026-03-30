@@ -518,9 +518,14 @@ public sealed class EventMetadataEnrichmentServiceTests
         var session = Substitute.For<IDocumentSession>();
         var options = new EventMetadataOptions
         {
-            CorrelationIdEnabled = false, CausationIdEnabled = false,
-            CaptureUserId = false, CaptureTenantId = false, CaptureTimestamp = false,
-            CaptureCommitSha = false, CaptureSemanticVersion = false, HeadersEnabled = false
+            CorrelationIdEnabled = false,
+            CausationIdEnabled = false,
+            CaptureUserId = false,
+            CaptureTenantId = false,
+            CaptureTimestamp = false,
+            CaptureCommitSha = false,
+            CaptureSemanticVersion = false,
+            HeadersEnabled = false
         };
         var sut = new EventMetadataEnrichmentService(options, [], Microsoft.Extensions.Logging.Abstractions.NullLogger<EventMetadataEnrichmentService>.Instance);
         var context = new TestRequestContext("corr", "user", "tenant", DateTimeOffset.UtcNow, new Dictionary<string, object?>());
