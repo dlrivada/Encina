@@ -5,7 +5,8 @@
   "totalFiles": 5,
   "targets": {
     "guard": 20,
-    "unit": 60
+    "unit": 60,
+    "integration": 30.0
   },
   "files": {
     "GlobalSuppressions.cs": {
@@ -13,19 +14,30 @@
       "reason": "Only [SuppressMessage] attributes, no logic"
     },
     "Health/RedisDistributedLockHealthCheck.cs": {
-      "defaultTests": ["unit", "guard"],
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
       "reason": "Health check using IDatabase — mockeable via IConnectionMultiplexer"
     },
     "RedisDistributedLockProvider.cs": {
-      "defaultTests": ["unit", "guard"],
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
       "reason": "Lock provider using IConnectionMultiplexer.GetDatabase() — fully mockeable. Covers TryAcquire, Acquire, IsLocked, Extend, Release"
     },
     "RedisLockOptions.cs": {
-      "defaultTests": ["unit"],
+      "defaultTests": [
+        "unit"
+      ],
       "reason": "Configuration POCO — only needs defaults verification, no guard (no constructor params)"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": ["unit", "guard"],
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
       "reason": "DI registration with options validation and health check toggle"
     }
   }

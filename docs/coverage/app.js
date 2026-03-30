@@ -62,11 +62,12 @@
 
     if (pct === 0) return `<td class="zero" title="${title}">0%</td>`;
 
-    // Color based on per-flag target
+    // Color based on per-flag target (compare rounded to avoid 37.96% < 38% showing amber)
     if (flagTarget != null) {
-      if (pct >= flagTarget) return `<td class="pct flag-pass" title="${title}">${Math.round(pct)}%</td>`;
-      if (pct >= flagTarget * 0.8) return `<td class="pct flag-warn" title="${title}">${Math.round(pct)}%</td>`;
-      return `<td class="pct flag-fail" title="${title}">${Math.round(pct)}%</td>`;
+      const rounded = Math.round(pct);
+      if (rounded >= flagTarget) return `<td class="pct flag-pass" title="${title}">${rounded}%</td>`;
+      if (rounded >= Math.round(flagTarget * 0.8)) return `<td class="pct flag-warn" title="${title}">${rounded}%</td>`;
+      return `<td class="pct flag-fail" title="${title}">${rounded}%</td>`;
     }
 
     return `<td class="pct" title="${title}">${Math.round(pct)}%</td>`;
@@ -188,9 +189,10 @@
           totalApplicable += flagApplicable;
           totalTargetLines += Math.round(flagApplicable * flagTarget / 100);
           const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
-          const flagGap = pct - flagTarget;
+          const roundedPct = Math.round(pct);
+          const flagGap = roundedPct - flagTarget;
           if (flagGap < worstGapValue) { worstGapValue = flagGap; worstGapFlag = flag; }
-          if (pct < flagTarget) { allFlagsMeetTarget = false; }
+          if (roundedPct < flagTarget) { allFlagsMeetTarget = false; }
         }
         if (totalApplicable > 0) {
           effectiveTarget = Math.round(totalTargetLines * 100 / totalApplicable * 100) / 100;
