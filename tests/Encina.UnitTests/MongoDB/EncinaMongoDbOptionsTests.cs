@@ -47,4 +47,55 @@ public sealed class EncinaMongoDbOptionsTests
         options.UseAuditLogStore.ShouldBeTrue();
         options.CreateIndexes.ShouldBeFalse();
     }
+
+    [Fact]
+    public void ComplianceDefaults_AreCorrect()
+    {
+        var options = new EncinaMongoDbOptions();
+
+        options.UseSecurityAuditStore.ShouldBeFalse();
+        options.UseReadAuditStore.ShouldBeFalse();
+        options.UseAnonymization.ShouldBeFalse();
+        options.UseRetention.ShouldBeFalse();
+        options.UseDataResidency.ShouldBeFalse();
+        options.UseBreachNotification.ShouldBeFalse();
+        options.UseProcessorAgreements.ShouldBeFalse();
+        options.UseABACPolicyStore.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void InfraDefaults_AreCorrect()
+    {
+        var options = new EncinaMongoDbOptions();
+
+        options.UseModuleIsolation.ShouldBeFalse();
+        options.ModuleIsolationOptions.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void ComplianceProperties_CanBeSet()
+    {
+        var options = new EncinaMongoDbOptions
+        {
+            UseSecurityAuditStore = true,
+            UseReadAuditStore = true,
+            UseAnonymization = true,
+            UseRetention = true,
+            UseDataResidency = true,
+            UseBreachNotification = true,
+            UseProcessorAgreements = true,
+            UseABACPolicyStore = true,
+            UseModuleIsolation = true
+        };
+
+        options.UseSecurityAuditStore.ShouldBeTrue();
+        options.UseReadAuditStore.ShouldBeTrue();
+        options.UseAnonymization.ShouldBeTrue();
+        options.UseRetention.ShouldBeTrue();
+        options.UseDataResidency.ShouldBeTrue();
+        options.UseBreachNotification.ShouldBeTrue();
+        options.UseProcessorAgreements.ShouldBeTrue();
+        options.UseABACPolicyStore.ShouldBeTrue();
+        options.UseModuleIsolation.ShouldBeTrue();
+    }
 }
