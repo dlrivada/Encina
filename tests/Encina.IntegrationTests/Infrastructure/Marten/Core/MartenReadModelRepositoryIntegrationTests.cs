@@ -65,7 +65,9 @@ public sealed class MartenReadModelRepositoryIntegrationTests : IAsyncLifetime
 
         var models = Enumerable.Range(1, 3).Select(i => new RmTestDoc
         {
-            Id = Guid.NewGuid(), Name = $"Item-{i}", Value = i * 10
+            Id = Guid.NewGuid(),
+            Name = $"Item-{i}",
+            Value = i * 10
         }).ToList();
 
         await repo.StoreManyAsync(models);

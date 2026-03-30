@@ -1,5 +1,5 @@
-using Encina.Marten.Versioning;
 using System.Reflection;
+using Encina.Marten.Versioning;
 
 namespace Encina.GuardTests.Marten.Versioning;
 
