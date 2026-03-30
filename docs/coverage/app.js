@@ -170,24 +170,31 @@
     for (const pkg of filtered) {
       const catTests = catTestsMap[pkg.category] || '';
 
-      // Compute effective target: average of per-flag targets (same weights as Combined formula)
-      let effectiveTarget = pkg.target; // fallback to category target
+      // Effective target = average of per-flag targets (same weights as Combined)
+      let effectiveTarget = pkg.target;
       let allFlagsMeetTarget = true;
+      let worstGapFlag = '';
+      let worstGapValue = Infinity;
       if (pkg.perFlagTarget) {
         const flagTargets = Object.values(pkg.perFlagTarget);
         if (flagTargets.length > 0) {
           effectiveTarget = Math.round(flagTargets.reduce((a, b) => a + b, 0) / flagTargets.length * 100) / 100;
         }
         for (const [flag, flagTarget] of Object.entries(pkg.perFlagTarget)) {
-          const pct = flagPct(pkg.perFlag, flag);
-          if (pct === null || pct < flagTarget) { allFlagsMeetTarget = false; break; }
+          const pct = flagPct(pkg.perFlag, flag) ?? 0;
+          const flagGap = pct - flagTarget;
+          if (flagGap < worstGapValue) { worstGapValue = flagGap; worstGapFlag = flag; }
+          if (pct < flagTarget) { allFlagsMeetTarget = false; }
         }
       } else {
         allFlagsMeetTarget = pkg.coverage >= pkg.target;
+        worstGapValue = pkg.coverage - pkg.target;
       }
 
-      const gap = pkg.coverage - effectiveTarget;
-      const gapStr = gap >= 0 ? `+${Math.round(gap)}%` : `${Math.round(gap)}%`;
+      // Gap shows worst flag gap — green only when ALL flags meet target
+      const gapStr = allFlagsMeetTarget
+        ? `+${Math.round(pkg.coverage - effectiveTarget)}%`
+        : `${Math.round(worstGapValue)}%`;
       const gapClass = allFlagsMeetTarget ? 'gap-positive' : 'gap-negative';
 
       const tr = document.createElement('tr');
