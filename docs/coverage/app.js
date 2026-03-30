@@ -47,10 +47,11 @@
   // 3-state cell with per-flag target coloring
   // perFlagTarget: { "unit": 85, "guard": 70, ... } or null
   function flagCell(perFlag, flag, catTests, perFlagTarget) {
-    // Applicable if perFlagTarget has this flag OR category has it
-    const applicableByTarget = perFlagTarget != null && perFlagTarget[flag] != null;
-    const applicableByCat = isApplicableFlag(catTests, flag);
-    const applicable = applicableByTarget || applicableByCat;
+    // If manifest has targets, use ONLY manifest to determine applicability.
+    // Fall back to category only if no manifest targets exist.
+    const applicable = perFlagTarget != null
+      ? perFlagTarget[flag] != null
+      : isApplicableFlag(catTests, flag);
     const pct = flagPct(perFlag, flag);
 
     if (!applicable) return '<td class="na" title="Not applicable">-</td>';
@@ -75,9 +76,10 @@
 
   // Target cell for a specific flag — shows target% or '-' if not applicable
   function flagTargetCell(perFlagTarget, flag, catTests) {
-    const applicableByTarget = perFlagTarget != null && perFlagTarget[flag] != null;
-    const applicableByCat = isApplicableFlag(catTests, flag);
-    if (!applicableByTarget && !applicableByCat) return '<td class="na tgt-val">-</td>';
+    const applicable = perFlagTarget != null
+      ? perFlagTarget[flag] != null
+      : isApplicableFlag(catTests, flag);
+    if (!applicable) return '<td class="na tgt-val">-</td>';
     const tgt = perFlagTarget?.[flag];
     if (tgt == null) return '<td class="tgt-val">-</td>';
     return `<td class="tgt-val">${tgt}%</td>`;
