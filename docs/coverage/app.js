@@ -11,9 +11,10 @@
     return 'red';
   }
 
-  function barHtml(pct, target) {
+  function barHtml(pct, target, forceRed = false) {
     let color = 'var(--bar-red)';
-    if (pct >= target) color = 'var(--bar-green)';
+    if (forceRed) { /* keep red */ }
+    else if (pct >= target) color = 'var(--bar-green)';
     else if (pct >= target * 0.8) color = 'var(--bar-yellow)';
     const targetLeft = Math.min(target, 100);
     return `<div class="bar-container">
@@ -213,7 +214,7 @@
         ${flagTargetCell(pkg.perFlagTarget, 'integration', catTests)}
         <td class="pct">${pkg.coverage}%</td>
         <td class="${gapClass}">${gapStr}</td>
-        <td>${barHtml(pkg.coverage, effectiveTarget)}</td>
+        <td>${barHtml(pkg.coverage, effectiveTarget, !allFlagsMeetTarget)}</td>
         <td class="num">${pkg.lines.toLocaleString()}</td>`;
       pkgBody.appendChild(tr);
     }
