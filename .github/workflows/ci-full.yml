@@ -1,15 +1,15 @@
-name: CI
+name: CI Full
 
 on:
+  schedule:
+    - cron: "17 3 * * 1" # Monday 3:17 AM UTC (weekly full suite)
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+    tags: ["v*"] # Full suite for releases
+  workflow_dispatch: # Manual trigger
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-full-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -17,54 +17,8 @@ env:
   DOTNET_SDK_VERSION: "10.0.x"
 
 jobs:
-  # Detect which areas changed to skip unaffected test jobs
-  changes:
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    outputs:
-      src: ${{ steps.filter.outputs.src }}
-      tests-unit: ${{ steps.filter.outputs.tests-unit }}
-      tests-integration: ${{ steps.filter.outputs.tests-integration }}
-      tests-guard: ${{ steps.filter.outputs.tests-guard }}
-      tests-contract: ${{ steps.filter.outputs.tests-contract }}
-      tests-property: ${{ steps.filter.outputs.tests-property }}
-      tests-ef: ${{ steps.filter.outputs.tests-ef }}
-      infra: ${{ steps.filter.outputs.infra }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            src:
-              - 'src/**'
-              - 'Directory.*.props'
-              - '*.slnx'
-            tests-unit:
-              - 'src/**'
-              - 'tests/Encina.UnitTests/**'
-            tests-integration:
-              - 'src/**'
-              - 'tests/Encina.IntegrationTests/**'
-              - 'tests/Encina.TestInfrastructure/**'
-            tests-guard:
-              - 'src/**'
-              - 'tests/Encina.GuardTests/**'
-            tests-contract:
-              - 'src/**'
-              - 'tests/Encina.ContractTests/**'
-            tests-property:
-              - 'src/**'
-              - 'tests/Encina.PropertyTests/**'
-            tests-ef:
-              - 'src/Encina.EntityFrameworkCore/**'
-              - 'tests/Encina.IntegrationTests/**/EntityFrameworkCore/**'
-            infra:
-              - '.github/**'
-
   # Build job - quality checks, build, and artifact creation
   build:
-    needs: [changes]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -83,15 +37,6 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.*.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
-
-      - name: Cache build output
-        uses: actions/cache@v5
-        with:
-          path: |
-            **/obj/Release/**
-          key: ${{ runner.os }}-build-${{ hashFiles('**/*.cs', '**/*.csproj', 'Directory.*.props') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
 
       - name: Restore
         run: dotnet restore Encina.slnx
@@ -116,8 +61,7 @@ jobs:
 
   # Unit tests - split into shards for parallel execution
   test-unit:
-    needs: [changes, build]
-    if: needs.changes.outputs.tests-unit == 'true' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -177,8 +121,7 @@ jobs:
 
   # Integration tests - split by data access provider for parallel execution
   test-integration:
-    needs: [changes, build]
-    if: needs.changes.outputs.tests-integration == 'true' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -245,8 +188,7 @@ jobs:
 
   # Contract tests
   test-contract:
-    needs: [changes, build]
-    if: needs.changes.outputs.tests-contract == 'true' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -284,8 +226,7 @@ jobs:
 
   # Property tests
   test-property:
-    needs: [changes, build]
-    if: needs.changes.outputs.tests-property == 'true' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -323,8 +264,7 @@ jobs:
 
   # Guard tests
   test-guard:
-    needs: [changes, build]
-    if: needs.changes.outputs.tests-guard == 'true' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -366,8 +306,7 @@ jobs:
   # MySQL tests are skipped until Pomelo.EntityFrameworkCore.MySql v10 is released.
   # Note: Oracle was removed from pre-1.0 scope (see ADR-009)
   test-ef-providers:
-    needs: [changes, build]
-    if: needs.changes.outputs.tests-ef == 'true' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
