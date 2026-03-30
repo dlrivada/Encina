@@ -57,6 +57,77 @@ public class SnapshotGuardTests
 
     #endregion
 
+    #region SnapshotAwareAggregateRepository
+
+    [Fact]
+    public void SnapshotAwareRepo_NullSession_Throws()
+        => Should.Throw<ArgumentNullException>(() =>
+            new SnapshotAwareAggregateRepository<TestSnapAgg>(
+                null!, Substitute.For<ISnapshotStore<TestSnapAgg>>(),
+                Substitute.For<IRequestContext>(),
+                NullLogger<SnapshotAwareAggregateRepository<TestSnapAgg>>.Instance,
+                Options.Create(new EncinaMartenOptions())));
+
+    [Fact]
+    public void SnapshotAwareRepo_NullSnapshotStore_Throws()
+        => Should.Throw<ArgumentNullException>(() =>
+            new SnapshotAwareAggregateRepository<TestSnapAgg>(
+                Substitute.For<IDocumentSession>(), null!,
+                Substitute.For<IRequestContext>(),
+                NullLogger<SnapshotAwareAggregateRepository<TestSnapAgg>>.Instance,
+                Options.Create(new EncinaMartenOptions())));
+
+    [Fact]
+    public void SnapshotAwareRepo_NullRequestContext_Throws()
+        => Should.Throw<ArgumentNullException>(() =>
+            new SnapshotAwareAggregateRepository<TestSnapAgg>(
+                Substitute.For<IDocumentSession>(), Substitute.For<ISnapshotStore<TestSnapAgg>>(),
+                null!,
+                NullLogger<SnapshotAwareAggregateRepository<TestSnapAgg>>.Instance,
+                Options.Create(new EncinaMartenOptions())));
+
+    [Fact]
+    public void SnapshotAwareRepo_NullLogger_Throws()
+        => Should.Throw<ArgumentNullException>(() =>
+            new SnapshotAwareAggregateRepository<TestSnapAgg>(
+                Substitute.For<IDocumentSession>(), Substitute.For<ISnapshotStore<TestSnapAgg>>(),
+                Substitute.For<IRequestContext>(),
+                null!, Options.Create(new EncinaMartenOptions())));
+
+    [Fact]
+    public void SnapshotAwareRepo_NullOptions_Throws()
+        => Should.Throw<ArgumentNullException>(() =>
+            new SnapshotAwareAggregateRepository<TestSnapAgg>(
+                Substitute.For<IDocumentSession>(), Substitute.For<ISnapshotStore<TestSnapAgg>>(),
+                Substitute.For<IRequestContext>(),
+                NullLogger<SnapshotAwareAggregateRepository<TestSnapAgg>>.Instance, null!));
+
+    [Fact]
+    public async Task SnapshotAwareRepo_SaveAsync_NullAggregate_Throws()
+    {
+        var repo = new SnapshotAwareAggregateRepository<TestSnapAgg>(
+            Substitute.For<IDocumentSession>(), Substitute.For<ISnapshotStore<TestSnapAgg>>(),
+            Substitute.For<IRequestContext>(),
+            NullLogger<SnapshotAwareAggregateRepository<TestSnapAgg>>.Instance,
+            Options.Create(new EncinaMartenOptions()));
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await repo.SaveAsync(null!));
+    }
+
+    [Fact]
+    public async Task SnapshotAwareRepo_CreateAsync_NullAggregate_Throws()
+    {
+        var repo = new SnapshotAwareAggregateRepository<TestSnapAgg>(
+            Substitute.For<IDocumentSession>(), Substitute.For<ISnapshotStore<TestSnapAgg>>(),
+            Substitute.For<IRequestContext>(),
+            NullLogger<SnapshotAwareAggregateRepository<TestSnapAgg>>.Instance,
+            Options.Create(new EncinaMartenOptions()));
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await repo.CreateAsync(null!));
+    }
+
+    #endregion
+
     public class TestSnapAgg : global::Encina.DomainModeling.AggregateBase, ISnapshotable<TestSnapAgg>
     {
         protected override void Apply(object domainEvent) { }
