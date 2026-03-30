@@ -369,10 +369,11 @@ foreach (var file in allFiles)
     var (catName, _, target) = GetCategory(packageName);
     if (applicableTests == TestType.None) continue; // Excluded
 
-    // AND-weighted merge: a line's coverage = (flags covering it) / (total applicable flags)
-    var allLineNumbers = new HashSet<int>();
-    var lineHitsByFlag = new Dictionary<TestType, Dictionary<int, int>>();
+    // Obligations model: each flag×line is an obligation. Combined = obligations met / total obligations.
+    // A file with 100 lines and 3 applicable flags has 300 obligations.
     var perFlag = new Dictionary<TestType, (int Total, int Covered)>();
+    int totalObligations = 0;
+    int metObligations = 0;
 
     foreach (var (flag, flagData) in coverageByFlag)
     {
@@ -382,33 +383,29 @@ foreach (var file in allFiles)
         int flagTotal = fileLines.Count;
         int flagCovered = fileLines.Values.Count(h => h > 0);
         perFlag[flag] = (flagTotal, flagCovered);
-        lineHitsByFlag[flag] = fileLines;
-
-        foreach (var lineNum in fileLines.Keys)
-            allLineNumbers.Add(lineNum);
+        totalObligations += flagTotal;
+        metObligations += flagCovered;
     }
 
-    if (allLineNumbers.Count == 0) continue;
+    // Also count obligations for applicable flags that have NO coverage data (0 covered of N lines)
+    // These flags are required by manifest but have no XML data at all — they contribute 0 met.
+    // We don't add them here because we don't know how many lines they'd have.
+    // The per-flag columns show "?" for these, and they penalize via the flag target check.
 
-    // Count how many test types the manifest requires for this file
-    int applicableFlagCount = CountFlags(applicableTests);
+    if (totalObligations == 0) continue;
 
-    // Calculate fractional coverage per line: covered_flags / total_applicable_flags
-    double totalFractionalCoverage = 0;
-    foreach (var lineNum in allLineNumbers)
+    // TotalLines = unique source lines (for display), CoveredEquivalent = met obligations
+    var allLineNumbers = new HashSet<int>();
+    foreach (var (flag, flagData) in coverageByFlag)
     {
-        int flagsCoveringThisLine = 0;
-        foreach (var (flag, lines) in lineHitsByFlag)
-        {
-            if (lines.TryGetValue(lineNum, out var hits) && hits > 0)
-                flagsCoveringThisLine++;
-        }
-        totalFractionalCoverage += (double)flagsCoveringThisLine / applicableFlagCount;
+        if (!applicableTests.HasFlag(flag)) continue;
+        if (flagData.TryGetValue(file, out var fileLines))
+            foreach (var lineNum in fileLines.Keys) allLineNumbers.Add(lineNum);
     }
 
     int totalLines = allLineNumbers.Count;
-    double coveredEquivalent = totalFractionalCoverage;
-    double pct = totalLines > 0 ? Math.Round(coveredEquivalent * 100.0 / totalLines, 2) : 0;
+    double coveredEquivalent = metObligations;
+    double pct = totalObligations > 0 ? Math.Round(metObligations * 100.0 / totalObligations, 2) : 0;
 
     fileResults.Add(new FileCoverage(file, packageName, catName, totalLines, coveredEquivalent, pct, perFlag));
 }
@@ -423,7 +420,6 @@ var packageResults = fileResults
         var (catName, applicableTests, target) = GetCategory(first.Package);
         int totalLines = g.Sum(f => f.TotalLines);
         double coveredEquivalent = g.Sum(f => f.CoveredEquivalent);
-        double pct = totalLines > 0 ? Math.Round(coveredEquivalent * 100.0 / totalLines, 2) : 0;
 
         // Aggregate per-flag
         var perFlag = new Dictionary<TestType, (int Total, int Covered)>();
@@ -437,6 +433,11 @@ var packageResults = fileResults
                     perFlag[flag] = (t, c);
             }
         }
+
+        // Combined = total obligations met / total obligations (sum of flag totals)
+        int totalObligations = perFlag.Values.Sum(v => v.Total);
+        int metObligations = perFlag.Values.Sum(v => v.Covered);
+        double pct = totalObligations > 0 ? Math.Round(metObligations * 100.0 / totalObligations, 2) : 0;
 
         // Get per-flag targets: manifest overrides, or fall back to category target for all flags
         Dictionary<string, double>? perFlagTarget = null;
@@ -666,16 +667,7 @@ static string FormatTestTypes(TestType t)
     return string.Join("+", parts);
 }
 
-static int CountFlags(TestType flags)
-{
-    int count = 0;
-    if (flags.HasFlag(TestType.Unit)) count++;
-    if (flags.HasFlag(TestType.Guard)) count++;
-    if (flags.HasFlag(TestType.Contract)) count++;
-    if (flags.HasFlag(TestType.Property)) count++;
-    if (flags.HasFlag(TestType.Integration)) count++;
-    return count;
-}
+// CountFlags removed — obligations model uses per-flag line counts directly
 
 static string GenerateBadgeSvg(string label, string message, string color)
 {

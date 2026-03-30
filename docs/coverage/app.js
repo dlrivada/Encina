@@ -47,10 +47,13 @@
   // 3-state cell with per-flag target coloring
   // perFlagTarget: { "unit": 85, "guard": 70, ... } or null
   function flagCell(perFlag, flag, catTests, perFlagTarget) {
-    const applicable = isApplicableFlag(catTests, flag);
+    // Applicable if perFlagTarget has this flag OR category has it
+    const applicableByTarget = perFlagTarget != null && perFlagTarget[flag] != null;
+    const applicableByCat = isApplicableFlag(catTests, flag);
+    const applicable = applicableByTarget || applicableByCat;
     const pct = flagPct(perFlag, flag);
 
-    if (!applicable) return '<td class="na" title="Not applicable for this category">-</td>';
+    if (!applicable) return '<td class="na" title="Not applicable">-</td>';
     if (pct === null) return '<td class="nodata" title="No coverage data (expected)">?</td>';
 
     const flagTarget = perFlagTarget?.[flag];
@@ -71,8 +74,9 @@
 
   // Target cell for a specific flag — shows target% or '-' if not applicable
   function flagTargetCell(perFlagTarget, flag, catTests) {
-    const applicable = isApplicableFlag(catTests, flag);
-    if (!applicable) return '<td class="na tgt-val">-</td>';
+    const applicableByTarget = perFlagTarget != null && perFlagTarget[flag] != null;
+    const applicableByCat = isApplicableFlag(catTests, flag);
+    if (!applicableByTarget && !applicableByCat) return '<td class="na tgt-val">-</td>';
     const tgt = perFlagTarget?.[flag];
     if (tgt == null) return '<td class="tgt-val">-</td>';
     return `<td class="tgt-val">${tgt}%</td>`;
@@ -171,21 +175,25 @@
     for (const pkg of filtered) {
       const catTests = catTestsMap[pkg.category] || '';
 
-      // Effective target = average of per-flag targets (same weights as Combined)
+      // Effective target = weighted by applicable lines per flag (obligations model)
       let effectiveTarget = pkg.target;
       let allFlagsMeetTarget = true;
       let worstGapFlag = '';
       let worstGapValue = Infinity;
-      if (pkg.perFlagTarget) {
-        const flagTargets = Object.values(pkg.perFlagTarget);
-        if (flagTargets.length > 0) {
-          effectiveTarget = Math.round(flagTargets.reduce((a, b) => a + b, 0) / flagTargets.length * 100) / 100;
-        }
+      if (pkg.perFlagTarget && pkg.perFlag) {
+        let totalApplicable = 0, totalTargetLines = 0;
         for (const [flag, flagTarget] of Object.entries(pkg.perFlagTarget)) {
-          const pct = flagPct(pkg.perFlag, flag) ?? 0;
+          const d = pkg.perFlag?.[flag];
+          const flagApplicable = d?.total ?? 0;
+          totalApplicable += flagApplicable;
+          totalTargetLines += Math.round(flagApplicable * flagTarget / 100);
+          const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
           const flagGap = pct - flagTarget;
           if (flagGap < worstGapValue) { worstGapValue = flagGap; worstGapFlag = flag; }
           if (pct < flagTarget) { allFlagsMeetTarget = false; }
+        }
+        if (totalApplicable > 0) {
+          effectiveTarget = Math.round(totalTargetLines * 100 / totalApplicable * 100) / 100;
         }
       } else {
         allFlagsMeetTarget = pkg.coverage >= pkg.target;
