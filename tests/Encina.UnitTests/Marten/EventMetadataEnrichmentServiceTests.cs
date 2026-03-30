@@ -443,4 +443,92 @@ public sealed class EventMetadataEnrichmentServiceTests
         public IRequestContext WithTenantId(string? tenantId)
             => new TestRequestContext(CorrelationId, UserId, tenantId, Timestamp, _metadata);
     }
+
+    #region Additional Coverage — Negative Paths
+
+    [Fact]
+    public void EnrichSession_WithUserIdEnabled_ButNullUserId_DoesNotSetHeader()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        var options = new EventMetadataOptions { CaptureUserId = true, CorrelationIdEnabled = false, CausationIdEnabled = false, CaptureTenantId = false, CaptureTimestamp = false };
+        var sut = new EventMetadataEnrichmentService(options, [], Microsoft.Extensions.Logging.Abstractions.NullLogger<EventMetadataEnrichmentService>.Instance);
+        var context = new TestRequestContext("", null, null, DateTimeOffset.UtcNow, new Dictionary<string, object?>());
+
+        sut.EnrichSession(session, context, [new object()]);
+
+        session.DidNotReceive().SetHeader("UserId", Arg.Any<object>());
+    }
+
+    [Fact]
+    public void EnrichSession_WithTenantIdEnabled_ButNullTenantId_DoesNotSetHeader()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        var options = new EventMetadataOptions { CaptureTenantId = true, CorrelationIdEnabled = false, CausationIdEnabled = false, CaptureUserId = false, CaptureTimestamp = false };
+        var sut = new EventMetadataEnrichmentService(options, [], Microsoft.Extensions.Logging.Abstractions.NullLogger<EventMetadataEnrichmentService>.Instance);
+        var context = new TestRequestContext("", null, null, DateTimeOffset.UtcNow, new Dictionary<string, object?>());
+
+        sut.EnrichSession(session, context, [new object()]);
+
+        session.DidNotReceive().SetHeader("TenantId", Arg.Any<object>());
+    }
+
+    [Fact]
+    public void EnrichSession_WithCommitShaEnabled_ButNullSha_DoesNotSetHeader()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        var options = new EventMetadataOptions { CaptureCommitSha = true, CommitSha = null, CorrelationIdEnabled = false, CausationIdEnabled = false, CaptureUserId = false, CaptureTenantId = false, CaptureTimestamp = false };
+        var sut = new EventMetadataEnrichmentService(options, [], Microsoft.Extensions.Logging.Abstractions.NullLogger<EventMetadataEnrichmentService>.Instance);
+        var context = new TestRequestContext("", null, null, DateTimeOffset.UtcNow, new Dictionary<string, object?>());
+
+        sut.EnrichSession(session, context, [new object()]);
+
+        session.DidNotReceive().SetHeader("CommitSha", Arg.Any<object>());
+    }
+
+    [Fact]
+    public void EnrichSession_WithSemanticVersionEnabled_ButNullVersion_DoesNotSetHeader()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        var options = new EventMetadataOptions { CaptureSemanticVersion = true, SemanticVersion = null, CorrelationIdEnabled = false, CausationIdEnabled = false, CaptureUserId = false, CaptureTenantId = false, CaptureTimestamp = false };
+        var sut = new EventMetadataEnrichmentService(options, [], Microsoft.Extensions.Logging.Abstractions.NullLogger<EventMetadataEnrichmentService>.Instance);
+        var context = new TestRequestContext("", null, null, DateTimeOffset.UtcNow, new Dictionary<string, object?>());
+
+        sut.EnrichSession(session, context, [new object()]);
+
+        session.DidNotReceive().SetHeader("SemanticVersion", Arg.Any<object>());
+    }
+
+    [Fact]
+    public void EnrichSession_CausationFromMetadata_UsesMetadataValue()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        var options = new EventMetadataOptions { CausationIdEnabled = true, CorrelationIdEnabled = false, CaptureUserId = false, CaptureTenantId = false, CaptureTimestamp = false };
+        var sut = new EventMetadataEnrichmentService(options, [], Microsoft.Extensions.Logging.Abstractions.NullLogger<EventMetadataEnrichmentService>.Instance);
+        var context = new TestRequestContext("corr-1", null, null, DateTimeOffset.UtcNow, new Dictionary<string, object?>())
+            .WithMetadata("CausationId", "explicit-causation");
+
+        sut.EnrichSession(session, context, [new object()]);
+
+        session.Received().CausationId = "explicit-causation";
+    }
+
+    [Fact]
+    public void EnrichSession_AllDisabled_NoHeadersSet()
+    {
+        var session = Substitute.For<IDocumentSession>();
+        var options = new EventMetadataOptions
+        {
+            CorrelationIdEnabled = false, CausationIdEnabled = false,
+            CaptureUserId = false, CaptureTenantId = false, CaptureTimestamp = false,
+            CaptureCommitSha = false, CaptureSemanticVersion = false, HeadersEnabled = false
+        };
+        var sut = new EventMetadataEnrichmentService(options, [], Microsoft.Extensions.Logging.Abstractions.NullLogger<EventMetadataEnrichmentService>.Instance);
+        var context = new TestRequestContext("corr", "user", "tenant", DateTimeOffset.UtcNow, new Dictionary<string, object?>());
+
+        sut.EnrichSession(session, context, [new object()]);
+
+        session.DidNotReceive().SetHeader(Arg.Any<string>(), Arg.Any<object>());
+    }
+
+    #endregion
 }

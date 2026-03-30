@@ -106,6 +106,64 @@ public class MartenAggregateRepositoryTests
         result.IsLeft.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task LoadAsync_WithVersion_NullResult_ReturnsLeft()
+    {
+        var id = Guid.NewGuid();
+        _session.Events.AggregateStreamAsync<TestAggregate>(
+            id, version: 2, timestamp: null, token: Arg.Any<CancellationToken>())
+            .Returns((TestAggregate?)null);
+
+        var sut = CreateSut();
+        var result = await sut.LoadAsync(id, 2);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_WithVersion_Success_ReturnsAggregateAtVersion()
+    {
+        var id = Guid.NewGuid();
+        var aggregate = new TestAggregate { Id = id };
+        _session.Events.AggregateStreamAsync<TestAggregate>(
+            id, version: 5, timestamp: null, token: Arg.Any<CancellationToken>())
+            .Returns(aggregate);
+
+        var sut = CreateSut();
+        var result = await sut.LoadAsync(id, 5);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(a => a.Version.ShouldBe(5));
+    }
+
+    [Fact]
+    public async Task LoadAsync_ById_NullResult_ReturnsLeft()
+    {
+        var id = Guid.NewGuid();
+        _session.Events.AggregateStreamAsync<TestAggregate>(
+            id, version: 0, timestamp: null, token: Arg.Any<CancellationToken>())
+            .Returns((TestAggregate?)null);
+
+        var sut = CreateSut();
+        var result = await sut.LoadAsync(id);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_ById_ExceptionThrown_ReturnsLeft()
+    {
+        var id = Guid.NewGuid();
+        _session.Events.AggregateStreamAsync<TestAggregate>(
+            id, version: 0, timestamp: null, token: Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("Connection lost"));
+
+        var sut = CreateSut();
+        var result = await sut.LoadAsync(id);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
     // SaveAsync tests
 
     [Fact]

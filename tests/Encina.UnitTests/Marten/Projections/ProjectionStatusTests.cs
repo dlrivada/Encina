@@ -74,4 +74,27 @@ public sealed class ProjectionStatusTests
         status.State.ShouldBe(ProjectionState.Faulted);
         status.ErrorMessage.ShouldBe("Database connection failed");
     }
+
+    [Theory]
+    [InlineData(ProjectionState.Stopped)]
+    [InlineData(ProjectionState.Starting)]
+    [InlineData(ProjectionState.Running)]
+    [InlineData(ProjectionState.CatchingUp)]
+    [InlineData(ProjectionState.Rebuilding)]
+    [InlineData(ProjectionState.Paused)]
+    [InlineData(ProjectionState.Faulted)]
+    [InlineData(ProjectionState.Stopping)]
+    public void State_AllValues_CanBeSet(ProjectionState state)
+    {
+        var status = new ProjectionStatus { State = state };
+        status.State.ShouldBe(state);
+    }
+
+    [Fact]
+    public void ProjectionState_HasExpectedValues()
+    {
+        Enum.GetValues<ProjectionState>().Length.ShouldBe(8);
+        ((int)ProjectionState.Stopped).ShouldBe(0);
+        ((int)ProjectionState.Stopping).ShouldBe(7);
+    }
 }
