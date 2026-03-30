@@ -117,6 +117,8 @@ else
 
 // manifest[package][relFilePath] = applicable TestType flags
 var manifest = new Dictionary<string, Dictionary<string, TestType>>(StringComparer.OrdinalIgnoreCase);
+// Per-package per-flag targets from manifest (e.g., { "unit": 85, "guard": 70 })
+var manifestTargets = new Dictionary<string, Dictionary<string, double>>(StringComparer.OrdinalIgnoreCase);
 
 // Try to find manifest directory
 if (!Directory.Exists(manifestDir))
@@ -169,6 +171,10 @@ if (Directory.Exists(manifestDir))
                 pkgFiles[filePath] = testType;
             }
             manifest[mJson.Package] = pkgFiles;
+
+            // Store per-flag targets if present
+            if (mJson.Targets is { Count: > 0 })
+                manifestTargets[mJson.Package] = mJson.Targets;
         }
         catch (Exception ex)
         {
@@ -432,8 +438,25 @@ var packageResults = fileResults
             }
         }
 
+        // Get per-flag targets: manifest overrides, or fall back to category target for all flags
+        Dictionary<string, double>? perFlagTarget = null;
+        if (manifestTargets.TryGetValue(first.Package, out var pkgTargets))
+        {
+            perFlagTarget = pkgTargets;
+        }
+        else
+        {
+            // Fallback: use category target for all applicable flags
+            perFlagTarget = new Dictionary<string, double>();
+            if (applicableTests.HasFlag(TestType.Unit)) perFlagTarget["unit"] = target;
+            if (applicableTests.HasFlag(TestType.Guard)) perFlagTarget["guard"] = target;
+            if (applicableTests.HasFlag(TestType.Contract)) perFlagTarget["contract"] = target;
+            if (applicableTests.HasFlag(TestType.Property)) perFlagTarget["property"] = target;
+            if (applicableTests.HasFlag(TestType.Integration)) perFlagTarget["integration"] = target;
+        }
+
         return new PackageCoverage(first.Package, catName, applicableTests, target,
-            totalLines, coveredEquivalent, pct, perFlag, g.OrderBy(f => f.Percentage).ToList());
+            totalLines, coveredEquivalent, pct, perFlag, perFlagTarget, g.OrderBy(f => f.Percentage).ToList());
     })
     .OrderBy(p => p.Percentage)
     .ToList();
@@ -575,6 +598,7 @@ var jsonData = new
         target = p.Target,
         lines = p.TotalLines,
         covered = Math.Round(p.CoveredEquivalent, 2),
+        perFlagTarget = p.PerFlagTarget,
         perFlag = p.PerFlag.ToDictionary(
             kv => kv.Key.ToString().ToLowerInvariant(),
             kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
@@ -704,7 +728,7 @@ static string GenerateHtmlDashboard(double overallPct, int overallTotal, double 
     var packagesJson = JsonSerializer.Serialize(packages.Select(p => new
     {
         name = p.Name, category = p.Category, coverage = p.Percentage, target = p.Target,
-        lines = p.TotalLines, covered = Math.Round(p.CoveredEquivalent, 2),
+        lines = p.TotalLines, covered = Math.Round(p.CoveredEquivalent, 2), perFlagTarget = p.PerFlagTarget,
         applicableTests = FormatTestTypes(p.ApplicableTests),
         files = p.Files.Select(f => new
         {
@@ -940,7 +964,7 @@ record FileCoverage(string RelativePath, string Package, string Category, int To
 
 record PackageCoverage(string Name, string Category, TestType ApplicableTests, double Target,
     int TotalLines, double CoveredEquivalent, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag,
-    List<FileCoverage> Files);
+    Dictionary<string, double>? PerFlagTarget, List<FileCoverage> Files);
 
 record CategoryCoverage(string Name, TestType ApplicableTests, double Target,
     int PackageCount, int TotalLines, double CoveredEquivalent, double Percentage);
@@ -949,6 +973,8 @@ record ManifestFile
 {
     [JsonPropertyName("package")]
     public string? Package { get; init; }
+    [JsonPropertyName("targets")]
+    public Dictionary<string, double>? Targets { get; init; }
     [JsonPropertyName("files")]
     public Dictionary<string, ManifestFileEntry>? Files { get; init; }
 }

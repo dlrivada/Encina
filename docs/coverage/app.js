@@ -43,15 +43,38 @@
     return short ? catTests.includes(short[0]) : false;
   }
 
-  // 3-state cell: applicable+data, applicable+nodata, not-applicable
-  function flagCell(perFlag, flag, catTests) {
+  // 3-state cell with per-flag target coloring
+  // perFlagTarget: { "unit": 85, "guard": 70, ... } or null
+  function flagCell(perFlag, flag, catTests, perFlagTarget) {
     const applicable = isApplicableFlag(catTests, flag);
     const pct = flagPct(perFlag, flag);
 
     if (!applicable) return '<td class="na" title="Not applicable for this category">-</td>';
     if (pct === null) return '<td class="nodata" title="No coverage data (expected)">?</td>';
-    if (pct === 0) return '<td class="zero" title="Has data but 0% covered">0%</td>';
-    return `<td class="pct">${Math.round(pct)}%</td>`;
+
+    const flagTarget = perFlagTarget?.[flag];
+    const targetStr = flagTarget != null ? ` / ${flagTarget}%` : '';
+    const title = `${Math.round(pct)}%${targetStr}`;
+
+    if (pct === 0) return `<td class="zero" title="${title}">0%</td>`;
+
+    // Color based on per-flag target
+    if (flagTarget != null) {
+      if (pct >= flagTarget) return `<td class="pct flag-pass" title="${title}">${Math.round(pct)}%</td>`;
+      if (pct >= flagTarget * 0.8) return `<td class="pct flag-warn" title="${title}">${Math.round(pct)}%</td>`;
+      return `<td class="pct flag-fail" title="${title}">${Math.round(pct)}%</td>`;
+    }
+
+    return `<td class="pct" title="${title}">${Math.round(pct)}%</td>`;
+  }
+
+  // Target cell for a specific flag — shows target% or '-' if not applicable
+  function flagTargetCell(perFlagTarget, flag, catTests) {
+    const applicable = isApplicableFlag(catTests, flag);
+    if (!applicable) return '<td class="na tgt-val">-</td>';
+    const tgt = perFlagTarget?.[flag];
+    if (tgt == null) return '<td class="tgt-val">-</td>';
+    return `<td class="tgt-val">${tgt}%</td>`;
   }
 
   // For TSV export
@@ -148,19 +171,34 @@
       const catTests = catTestsMap[pkg.category] || '';
       const gap = pkg.coverage - pkg.target;
       const gapStr = gap >= 0 ? `+${Math.round(gap)}%` : `${Math.round(gap)}%`;
-      const gapClass = gap >= 0 ? 'gap-positive' : 'gap-negative';
+
+      // Package is green only when ALL flags meet their individual target
+      let allFlagsMeetTarget = true;
+      if (pkg.perFlagTarget) {
+        for (const [flag, flagTarget] of Object.entries(pkg.perFlagTarget)) {
+          const pct = flagPct(pkg.perFlag, flag);
+          if (pct === null || pct < flagTarget) { allFlagsMeetTarget = false; break; }
+        }
+      } else {
+        allFlagsMeetTarget = gap >= 0;
+      }
+      const gapClass = allFlagsMeetTarget ? 'gap-positive' : 'gap-negative';
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="pkg-name" data-pkg="${pkg.name}">${pkg.name}</td>
         <td>${pkg.category}</td>
-        ${flagCell(pkg.perFlag, 'unit', catTests)}
-        ${flagCell(pkg.perFlag, 'guard', catTests)}
-        ${flagCell(pkg.perFlag, 'contract', catTests)}
-        ${flagCell(pkg.perFlag, 'property', catTests)}
-        ${flagCell(pkg.perFlag, 'integration', catTests)}
+        ${flagCell(pkg.perFlag, 'unit', catTests, pkg.perFlagTarget)}
+        ${flagTargetCell(pkg.perFlagTarget, 'unit', catTests)}
+        ${flagCell(pkg.perFlag, 'guard', catTests, pkg.perFlagTarget)}
+        ${flagTargetCell(pkg.perFlagTarget, 'guard', catTests)}
+        ${flagCell(pkg.perFlag, 'contract', catTests, pkg.perFlagTarget)}
+        ${flagTargetCell(pkg.perFlagTarget, 'contract', catTests)}
+        ${flagCell(pkg.perFlag, 'property', catTests, pkg.perFlagTarget)}
+        ${flagTargetCell(pkg.perFlagTarget, 'property', catTests)}
+        ${flagCell(pkg.perFlag, 'integration', catTests, pkg.perFlagTarget)}
+        ${flagTargetCell(pkg.perFlagTarget, 'integration', catTests)}
         <td class="pct">${pkg.coverage}%</td>
-        <td class="pct">${pkg.target}%</td>
         <td class="${gapClass}">${gapStr}</td>
         <td>${barHtml(pkg.coverage, pkg.target)}</td>
         <td class="num">${pkg.lines.toLocaleString()}</td>`;
@@ -188,20 +226,20 @@
   // ── Copy to Excel (TSV) ────────────────────────────────────────────
   document.getElementById('copy-table').addEventListener('click', async e => {
     const btn = e.target;
-    const headers = ['Package', 'Category', 'Unit', 'Guard', 'Contract', 'Property', 'Integ', 'Combined', 'Target', 'Gap', 'Lines'];
+    const headers = ['Package', 'Category', 'Unit', 'U Tgt', 'Guard', 'G Tgt', 'Contract', 'C Tgt', 'Property', 'P Tgt', 'Integ', 'I Tgt', 'Combined', 'Gap', 'Lines'];
     const rows = [headers.join('\t')];
     for (const pkg of allPackages) {
       const catTests = catTestsMap[pkg.category] || '';
       const gap = pkg.coverage - pkg.target;
+      const ft = pkg.perFlagTarget || {};
       rows.push([
         pkg.name, pkg.category,
-        flagCellText(pkg.perFlag, 'unit', catTests),
-        flagCellText(pkg.perFlag, 'guard', catTests),
-        flagCellText(pkg.perFlag, 'contract', catTests),
-        flagCellText(pkg.perFlag, 'property', catTests),
-        flagCellText(pkg.perFlag, 'integration', catTests),
+        flagCellText(pkg.perFlag, 'unit', catTests), ft.unit != null ? ft.unit + '%' : '-',
+        flagCellText(pkg.perFlag, 'guard', catTests), ft.guard != null ? ft.guard + '%' : '-',
+        flagCellText(pkg.perFlag, 'contract', catTests), ft.contract != null ? ft.contract + '%' : '-',
+        flagCellText(pkg.perFlag, 'property', catTests), ft.property != null ? ft.property + '%' : '-',
+        flagCellText(pkg.perFlag, 'integration', catTests), ft.integration != null ? ft.integration + '%' : '-',
         Math.round(pkg.coverage) + '%',
-        pkg.target + '%',
         (gap >= 0 ? '+' : '') + Math.round(gap) + '%',
         pkg.lines
       ].join('\t'));
