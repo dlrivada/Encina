@@ -600,7 +600,9 @@ var jsonData = new
         lines = p.TotalLines,
         covered = Math.Round(p.CoveredEquivalent, 2),
         perFlagTarget = p.PerFlagTarget,
-        perFlag = p.PerFlag.ToDictionary(
+        perFlag = p.PerFlag
+            .Where(kv => p.PerFlagTarget is null || p.PerFlagTarget.ContainsKey(kv.Key.ToString().ToLowerInvariant()))
+            .ToDictionary(
             kv => kv.Key.ToString().ToLowerInvariant(),
             kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
                         coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 })
