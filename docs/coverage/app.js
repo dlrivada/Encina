@@ -169,19 +169,25 @@
 
     for (const pkg of filtered) {
       const catTests = catTestsMap[pkg.category] || '';
-      const gap = pkg.coverage - pkg.target;
-      const gapStr = gap >= 0 ? `+${Math.round(gap)}%` : `${Math.round(gap)}%`;
 
-      // Package is green only when ALL flags meet their individual target
+      // Compute effective target: average of per-flag targets (same weights as Combined formula)
+      let effectiveTarget = pkg.target; // fallback to category target
       let allFlagsMeetTarget = true;
       if (pkg.perFlagTarget) {
+        const flagTargets = Object.values(pkg.perFlagTarget);
+        if (flagTargets.length > 0) {
+          effectiveTarget = Math.round(flagTargets.reduce((a, b) => a + b, 0) / flagTargets.length * 100) / 100;
+        }
         for (const [flag, flagTarget] of Object.entries(pkg.perFlagTarget)) {
           const pct = flagPct(pkg.perFlag, flag);
           if (pct === null || pct < flagTarget) { allFlagsMeetTarget = false; break; }
         }
       } else {
-        allFlagsMeetTarget = gap >= 0;
+        allFlagsMeetTarget = pkg.coverage >= pkg.target;
       }
+
+      const gap = pkg.coverage - effectiveTarget;
+      const gapStr = gap >= 0 ? `+${Math.round(gap)}%` : `${Math.round(gap)}%`;
       const gapClass = allFlagsMeetTarget ? 'gap-positive' : 'gap-negative';
 
       const tr = document.createElement('tr');
@@ -200,7 +206,7 @@
         ${flagTargetCell(pkg.perFlagTarget, 'integration', catTests)}
         <td class="pct">${pkg.coverage}%</td>
         <td class="${gapClass}">${gapStr}</td>
-        <td>${barHtml(pkg.coverage, pkg.target)}</td>
+        <td>${barHtml(pkg.coverage, effectiveTarget)}</td>
         <td class="num">${pkg.lines.toLocaleString()}</td>`;
       pkgBody.appendChild(tr);
     }
