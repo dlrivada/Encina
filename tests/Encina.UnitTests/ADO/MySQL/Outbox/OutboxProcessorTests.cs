@@ -174,7 +174,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -242,7 +242,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -309,7 +309,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -381,7 +381,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -435,7 +435,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 

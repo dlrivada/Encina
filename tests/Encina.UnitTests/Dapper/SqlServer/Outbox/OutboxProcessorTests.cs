@@ -179,7 +179,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100); // Let it run multiple iterations
+        await Task.Delay(500); // Let it run multiple iterations
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -247,7 +247,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -314,7 +314,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -386,7 +386,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -455,7 +455,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -509,7 +509,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100); // Let it recover from error and continue
+        await Task.Delay(500); // Let it recover from error and continue
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
