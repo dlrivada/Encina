@@ -74,14 +74,20 @@
     return `<td class="pct" title="${title}">${Math.round(pct)}%</td>`;
   }
 
-  // Target cell for a specific flag — shows target% or '-' if not applicable
-  function flagTargetCell(perFlagTarget, flag, catTests) {
+  // Target cell for a specific flag — shows target% or lines depending on mode
+  function flagTargetCell(perFlagTarget, flag, catTests, perFlag) {
     const applicable = perFlagTarget != null
       ? perFlagTarget[flag] != null
       : isApplicableFlag(catTests, flag);
     if (!applicable) return '<td class="na tgt-val">-</td>';
     const tgt = perFlagTarget?.[flag];
     if (tgt == null) return '<td class="tgt-val">-</td>';
+    if (showLines) {
+      const d = perFlag?.[flag];
+      const applicableLines = d?.total ?? 0;
+      const targetLines = Math.round(applicableLines * tgt / 100);
+      return `<td class="tgt-val">${targetLines.toLocaleString()}</td>`;
+    }
     return `<td class="tgt-val">${tgt}%</td>`;
   }
 
@@ -103,7 +109,7 @@
     const d = perFlag?.[flag];
     if (!d) return '<td class="nodata">?</td>';
     if (showLines) {
-      return `<td class="num">${d.covered}/${d.total}</td>`;
+      return `<td class="num">${d.covered.toLocaleString()}</td>`;
     }
     // Delegate to flagCell for % mode with colors
     return null; // signal to use flagCell
@@ -224,11 +230,19 @@
         : `${Math.round(worstGapValue)}%`;
       const gapClass = allFlagsMeetTarget ? 'gap-positive' : 'gap-negative';
 
+      // Lines mode gap: covered - target (in lines)
+      const coveredLines = Math.round(pkg.coverage * pkg.lines / 100);
+      const targetLines = Math.round(effectiveTarget * pkg.lines / 100);
+      const gapLinesVal = coveredLines - targetLines;
+      const gapLines = allFlagsMeetTarget
+        ? `+${gapLinesVal.toLocaleString()}`
+        : `${gapLinesVal.toLocaleString()}`;
+
       // Render flag group: value + target + applicable lines
       function flagGroup(flag) {
         const linesCell = flagCellValue(pkg.perFlag, flag, pkg.perFlagTarget);
         const valueCell = linesCell ?? flagCell(pkg.perFlag, flag, catTests, pkg.perFlagTarget);
-        return `${valueCell}${flagTargetCell(pkg.perFlagTarget, flag, catTests)}${flagLinesCell(pkg.perFlag, flag, pkg.perFlagTarget)}`;
+        return `${valueCell}${flagTargetCell(pkg.perFlagTarget, flag, catTests, pkg.perFlag)}${flagLinesCell(pkg.perFlag, flag, pkg.perFlagTarget)}`;
       }
 
       const tr = document.createElement('tr');
@@ -239,8 +253,8 @@
         ${flagGroup('contract')}
         ${flagGroup('property')}
         ${flagGroup('integration')}
-        <td class="pct">${showLines ? Math.round(pkg.coverage * pkg.lines / 100) + '/' + pkg.lines : pkg.coverage + '%'}</td>
-        <td class="${gapClass}">${gapStr}</td>
+        <td class="pct">${showLines ? Math.round(pkg.coverage * pkg.lines / 100).toLocaleString() : pkg.coverage + '%'}</td>
+        <td class="${gapClass}">${showLines ? gapLines : gapStr}</td>
         <td>${barHtml(pkg.coverage, effectiveTarget, !allFlagsMeetTarget)}</td>
         <td class="num">${pkg.lines.toLocaleString()}</td>`;
       pkgBody.appendChild(tr);
@@ -404,7 +418,8 @@
     // Compute overall for center text
     let ovTotalT = 0, ovTotalC = 0;
     if (isCombined) {
-      ovTotalC = ov.covered; ovTotalT = ov.lines;
+      ovTotalC = ov.met ?? ov.covered ?? 0;
+      ovTotalT = ov.obligations ?? ov.lines ?? 1;
     } else {
       for (const pkg of allPackages) {
         if (!pkg.perFlag) continue;
