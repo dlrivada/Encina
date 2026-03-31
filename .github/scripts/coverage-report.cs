@@ -17,101 +17,16 @@ using System.Xml.Linq;
 
 var outputDir = "artifacts/coverage";
 var inputDir = "artifacts/test-results";
-var weightsFile = ".github/scripts/coverage-weights.json";
 var manifestDir = ".github/coverage-manifest";
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
-    if (args[i] == "--weights" && i + 1 < args.Length) weightsFile = args[++i];
     if (args[i] == "--manifest" && i + 1 < args.Length) manifestDir = args[++i];
 }
 
-// ─── Load package categories from JSON ──────────────────────────────────────
-
-// Try multiple locations for the weights file
-if (!File.Exists(weightsFile))
-{
-    // Try relative to the script file location
-    var scriptDir = Path.GetDirectoryName(AppContext.BaseDirectory) ?? ".";
-    var altPath = Path.Combine(scriptDir, "..", "..", ".github", "scripts", "coverage-weights.json");
-    if (File.Exists(altPath)) weightsFile = altPath;
-
-    // Try relative to git root (walk up from current dir)
-    var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
-    while (dir is not null)
-    {
-        var candidate = Path.Combine(dir.FullName, ".github", "scripts", "coverage-weights.json");
-        if (File.Exists(candidate)) { weightsFile = candidate; break; }
-        dir = dir.Parent;
-    }
-}
-
-CategoryDef[] categories;
-
-if (File.Exists(weightsFile))
-{
-    Console.WriteLine($"Loading weights from: {weightsFile}");
-    var weightsJson = File.ReadAllText(weightsFile);
-    var jsonOpts = new JsonSerializerOptions
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
-    };
-    var config = JsonSerializer.Deserialize<WeightsConfig>(weightsJson, jsonOpts)!;
-    categories = config.Categories.Select(c =>
-    {
-        var testType = TestType.None;
-        foreach (var t in c.ApplicableTests)
-        {
-            testType |= t.ToLowerInvariant() switch
-            {
-                "unit" => TestType.Unit,
-                "guard" => TestType.Guard,
-                "contract" => TestType.Contract,
-                "property" => TestType.Property,
-                "integration" => TestType.Integration,
-                _ => TestType.None
-            };
-        }
-        return new CategoryDef(c.Name, testType, c.Target, c.Patterns);
-    }).ToArray();
-    Console.WriteLine($"Loaded {categories.Length} categories from JSON");
-}
-else
-{
-    Console.WriteLine($"WARNING: Weights file '{weightsFile}' not found. Using built-in defaults.");
-    categories = [
-        new("Full", TestType.All, 85.0, ["Encina", "Encina.Messaging", "Encina.DomainModeling",
-            "Encina.Caching", "Encina.Security", "Encina.Security.*", "Encina.Compliance.*",
-            "Encina.IdGeneration", "Encina.GuardClauses",
-            "Encina.Messaging.Encryption", "Encina.Messaging.Encryption.*"]),
-        new("Logic", TestType.Unit | TestType.Guard | TestType.Property, 80.0,
-            ["Encina.OpenTelemetry", "Encina.Tenancy", "Encina.Tenancy.AspNetCore",
-             "Encina.Polly", "Encina.Extensions.Resilience", "Encina.Hangfire", "Encina.Quartz"]),
-        new("Provider", TestType.Unit | TestType.Guard | TestType.Integration, 50.0,
-            ["Encina.ADO.*", "Encina.Dapper.*", "Encina.EntityFrameworkCore",
-             "Encina.MongoDB", "Encina.Marten", "Encina.Marten.GDPR", "Encina.Audit.Marten"]),
-        new("Transport", TestType.Unit | TestType.Guard, 75.0,
-            ["Encina.Kafka", "Encina.RabbitMQ", "Encina.NATS", "Encina.MQTT",
-             "Encina.Redis.PubSub", "Encina.AmazonSQS", "Encina.AzureServiceBus", "Encina.InMemory"]),
-        new("Cloud", TestType.Unit | TestType.Guard, 60.0,
-            ["Encina.AwsLambda", "Encina.AzureFunctions", "Encina.AspNetCore",
-             "Encina.Aspire.Testing", "Encina.SignalR", "Encina.gRPC", "Encina.GraphQL", "Encina.Refit"]),
-        new("CDC", TestType.Unit | TestType.Guard | TestType.Integration, 60.0,
-            ["Encina.Cdc", "Encina.Cdc.*"]),
-        new("Validation", TestType.Unit | TestType.Guard | TestType.Contract, 80.0,
-            ["Encina.FluentValidation", "Encina.DataAnnotations", "Encina.MiniValidator"]),
-        new("DistributedLock", TestType.Unit | TestType.Guard | TestType.Integration, 70.0,
-            ["Encina.DistributedLock", "Encina.DistributedLock.*"]),
-        new("Excluded", TestType.None, 0.0,
-            ["Encina.Testing", "Encina.Testing.*", "Encina.TestInfrastructure", "Encina.Cli",
-             "Encina.Security.ABAC.Analyzers"]),
-    ];
-}
+// Categories removed — all configuration comes from per-package manifests
 
 // ─── Load per-file manifest ─────────────────────────────────────────────────
 
@@ -204,9 +119,23 @@ TestType GetFileApplicableTests(string packageName, string fileRelPath)
             return fnTests;
     }
 
-    // 2. Fallback to category-level weights
-    var (_, applicableTests, _) = GetCategory(packageName);
-    return applicableTests;
+    // 2. Fallback: if manifest exists for package but file not listed, derive from manifest targets
+    if (manifestTargets.TryGetValue(packageName, out var pkgTargets2))
+    {
+        var fallback = TestType.None;
+        foreach (var key in pkgTargets2.Keys)
+        {
+            fallback |= key.ToLowerInvariant() switch
+            {
+                "unit" => TestType.Unit, "guard" => TestType.Guard, "contract" => TestType.Contract,
+                "property" => TestType.Property, "integration" => TestType.Integration, _ => TestType.None
+            };
+        }
+        return fallback;
+    }
+
+    // 3. Default fallback: unit + guard
+    return TestType.Unit | TestType.Guard;
 }
 
 // ─── Directory → TestType mapping ────────────────────────────────────────────
@@ -223,28 +152,7 @@ TestType ClassifyDirectory(string dirName)
     return TestType.None;
 }
 
-// ─── Package → Category matching ─────────────────────────────────────────────
-
-(string CategoryName, TestType ApplicableTests, double Target) GetCategory(string packageName)
-{
-    foreach (var cat in categories)
-    {
-        foreach (var pattern in cat.Patterns)
-        {
-            if (pattern.EndsWith(".*"))
-            {
-                var prefix = pattern[..^2];
-                if (packageName == prefix || packageName.StartsWith(prefix + ".", StringComparison.Ordinal))
-                    return (cat.Name, cat.ApplicableTests, cat.Target);
-            }
-            else if (packageName == pattern)
-            {
-                return (cat.Name, cat.ApplicableTests, cat.Target);
-            }
-        }
-    }
-    return ("Uncategorized", TestType.Unit | TestType.Guard, 70.0);
-}
+// GetCategory removed — all configuration from manifests
 
 // ─── Cobertura XML parsing ───────────────────────────────────────────────────
 
@@ -363,10 +271,9 @@ foreach (var file in allFiles)
     if (parts.Length < 3 || parts[0] != "src") continue;
     var packageName = parts[1];
 
-    // Get per-file applicable tests from manifest (falls back to category)
+    // Get per-file applicable tests from manifest
     var fileRelPath = string.Join("/", parts[2..]); // path within package
     var applicableTests = GetFileApplicableTests(packageName, fileRelPath);
-    var (catName, _, target) = GetCategory(packageName);
     if (applicableTests == TestType.None) continue; // Excluded
 
     // Obligations model: each flag×line is an obligation. Combined = obligations met / total obligations.
@@ -407,7 +314,7 @@ foreach (var file in allFiles)
     double coveredEquivalent = metObligations;
     double pct = totalObligations > 0 ? Math.Round(metObligations * 100.0 / totalObligations, 2) : 0;
 
-    fileResults.Add(new FileCoverage(file, packageName, catName, totalLines, coveredEquivalent, pct, perFlag));
+    fileResults.Add(new FileCoverage(file, packageName, totalLines, coveredEquivalent, pct, perFlag));
 }
 
 // ─── Aggregate by package ────────────────────────────────────────────────────
@@ -417,7 +324,6 @@ var packageResults = fileResults
     .Select(g =>
     {
         var first = g.First();
-        var (catName, applicableTests, target) = GetCategory(first.Package);
         int totalLines = g.Sum(f => f.TotalLines);
         double coveredEquivalent = g.Sum(f => f.CoveredEquivalent);
 
@@ -439,50 +345,24 @@ var packageResults = fileResults
         int metObligations = perFlag.Values.Sum(v => v.Covered);
         double pct = totalObligations > 0 ? Math.Round(metObligations * 100.0 / totalObligations, 2) : 0;
 
-        // Get per-flag targets: manifest overrides, or fall back to category target for all flags
-        Dictionary<string, double>? perFlagTarget = null;
-        if (manifestTargets.TryGetValue(first.Package, out var pkgTargets))
-        {
-            perFlagTarget = pkgTargets;
-        }
-        else
-        {
-            // Fallback: use category target for all applicable flags
-            perFlagTarget = new Dictionary<string, double>();
-            if (applicableTests.HasFlag(TestType.Unit)) perFlagTarget["unit"] = target;
-            if (applicableTests.HasFlag(TestType.Guard)) perFlagTarget["guard"] = target;
-            if (applicableTests.HasFlag(TestType.Contract)) perFlagTarget["contract"] = target;
-            if (applicableTests.HasFlag(TestType.Property)) perFlagTarget["property"] = target;
-            if (applicableTests.HasFlag(TestType.Integration)) perFlagTarget["integration"] = target;
-        }
+        // Get per-flag targets from manifest
+        Dictionary<string, double>? perFlagTarget = manifestTargets.TryGetValue(first.Package, out var pkgTargets)
+            ? pkgTargets : null;
 
-        return new PackageCoverage(first.Package, catName, applicableTests, target,
-            totalLines, coveredEquivalent, pct, perFlag, perFlagTarget, g.OrderBy(f => f.Percentage).ToList());
+        return new PackageCoverage(first.Package, totalLines, coveredEquivalent, pct,
+            perFlag, perFlagTarget, g.OrderBy(f => f.Percentage).ToList());
     })
     .OrderBy(p => p.Percentage)
     .ToList();
 
-// ─── Aggregate by category ───────────────────────────────────────────────────
+// ─── Overall (obligations model) ────────────────────────────────────────────
 
-var categoryResults = packageResults
-    .GroupBy(p => p.Category)
-    .Select(g =>
-    {
-        var cat = categories.FirstOrDefault(c => c.Name == g.Key);
-        int totalLines = g.Sum(p => p.TotalLines);
-        double coveredEquivalent = g.Sum(p => p.CoveredEquivalent);
-        double pct = totalLines > 0 ? Math.Round(coveredEquivalent * 100.0 / totalLines, 2) : 0;
-        return new CategoryCoverage(g.Key, cat?.ApplicableTests ?? TestType.None, cat?.Target ?? 0,
-            g.Count(), totalLines, coveredEquivalent, pct);
-    })
-    .OrderByDescending(c => c.TotalLines)
-    .ToList();
-
-// ─── Overall ─────────────────────────────────────────────────────────────────
-
+// Overall = sum of all obligations met / sum of all obligations across all packages
+int overallObligations = packageResults.Sum(p => p.PerFlag.Values.Sum(v => v.Total));
+int overallMet = packageResults.Sum(p => p.PerFlag.Values.Sum(v => v.Covered));
+double overallPct = overallObligations > 0 ? Math.Round(overallMet * 100.0 / overallObligations, 2) : 0;
 int overallTotal = packageResults.Sum(p => p.TotalLines);
-double overallCovered = packageResults.Sum(p => p.CoveredEquivalent);
-double overallPct = overallTotal > 0 ? Math.Round(overallCovered * 100.0 / overallTotal, 2) : 0;
+double overallCovered = overallMet;
 
 // Aggregate per-flag overall coverage
 var overallPerFlag = new Dictionary<TestType, (int Total, int Covered)>();
@@ -500,17 +380,10 @@ foreach (var pkg in packageResults)
 // ─── Console summary ─────────────────────────────────────────────────────────
 
 Console.WriteLine($"\n{'═',0}══════════════════════════════════════════════════════════════");
-Console.WriteLine($"  ENCINA WEIGHTED COVERAGE: {overallPct}% ({overallCovered:N1} / {overallTotal:N0} weighted lines)");
+Console.WriteLine($"  ENCINA COVERAGE (obligations model): {overallPct}% ({overallMet:N0} / {overallObligations:N0} obligations)");
 Console.WriteLine($"{'═',0}══════════════════════════════════════════════════════════════\n");
 
-foreach (var cat in categoryResults)
-{
-    var testsStr = FormatTestTypes(cat.ApplicableTests);
-    var status = cat.Percentage >= cat.Target ? "✅" : cat.Percentage >= cat.Target * 0.8 ? "🟡" : "🔴";
-    Console.WriteLine($"  {status} {cat.Name,-20} {cat.Percentage,6:F1}% / {cat.Target,4:F0}%  ({cat.PackageCount} pkgs, {testsStr})");
-}
-
-Console.WriteLine($"\n  Packages: {packageResults.Count} | Files: {fileResults.Count}");
+Console.WriteLine($"  Packages: {packageResults.Count} | Files: {fileResults.Count}");
 
 // ─── Generate outputs ────────────────────────────────────────────────────────
 
@@ -522,29 +395,16 @@ md.AppendLine("# Encina Weighted Coverage Report");
 md.AppendLine();
 md.AppendLine($"Generated: {DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
 md.AppendLine();
-md.AppendLine($"## Overall: {overallPct}% ({overallCovered:N1} / {overallTotal:N0} weighted lines)");
-md.AppendLine();
-md.AppendLine("## By Category");
-md.AppendLine();
-md.AppendLine("| Category | Packages | Tests | Coverage | Target | Status |");
-md.AppendLine("|----------|:--------:|:-----:|:--------:|:------:|:------:|");
-foreach (var cat in categoryResults)
-{
-    var testsStr = FormatTestTypes(cat.ApplicableTests);
-    var status = cat.Percentage >= cat.Target ? "🟢" : cat.Percentage >= cat.Target * 0.8 ? "🟡" : "🔴";
-    md.AppendLine($"| {cat.Name} | {cat.PackageCount} | {testsStr} | {cat.Percentage:F1}% | {cat.Target:F0}% | {status} |");
-}
+md.AppendLine($"## Overall: {overallPct}% ({overallMet:N0} / {overallObligations:N0} obligations met)");
 md.AppendLine();
 md.AppendLine("## By Package");
 md.AppendLine();
-md.AppendLine("| Package | Category | Unit | Guard | Contract | Property | Integ | Combined | Target | Gap |");
-md.AppendLine("|---------|----------|:----:|:-----:|:--------:|:--------:|:-----:|:--------:|:------:|:---:|");
+md.AppendLine("| Package | Unit | Guard | Contract | Property | Integ | Combined | Gap |");
+md.AppendLine("|---------|:----:|:-----:|:--------:|:--------:|:-----:|:--------:|:---:|");
 
 foreach (var pkg in packageResults)
 {
-    var gap = pkg.Percentage - pkg.Target;
-    var gapStr = gap >= 0 ? $"+{gap:F0}%" : $"{gap:F0}%";
-    md.AppendLine($"| {pkg.Name} | {pkg.Category} | {FlagPct(pkg, TestType.Unit)} | {FlagPct(pkg, TestType.Guard)} | {FlagPct(pkg, TestType.Contract)} | {FlagPct(pkg, TestType.Property)} | {FlagPct(pkg, TestType.Integration)} | {pkg.Percentage:F1}% | {pkg.Target:F0}% | {gapStr} |");
+    md.AppendLine($"| {pkg.Name} | {FlagPct(pkg, TestType.Unit)} | {FlagPct(pkg, TestType.Guard)} | {FlagPct(pkg, TestType.Contract)} | {FlagPct(pkg, TestType.Property)} | {FlagPct(pkg, TestType.Integration)} | {pkg.Percentage:F1}% | |");
 }
 
 md.AppendLine();
@@ -575,28 +435,17 @@ var jsonData = new
 {
     timestamp = DateTime.UtcNow.ToString("o"),
     overall = new {
-        coverage = overallPct, lines = overallTotal, covered = Math.Round(overallCovered, 2),
+        coverage = overallPct, obligations = overallObligations, met = overallMet,
+        lines = overallTotal,
         perFlag = overallPerFlag.ToDictionary(
             kv => kv.Key.ToString().ToLowerInvariant(),
             kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
                         coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 })
     },
-    categories = categoryResults.Select(c => new
-    {
-        name = c.Name,
-        tests = FormatTestTypes(c.ApplicableTests),
-        coverage = c.Percentage,
-        target = c.Target,
-        packages = c.PackageCount,
-        lines = c.TotalLines,
-        covered = Math.Round(c.CoveredEquivalent, 2)
-    }),
     packages = packageResults.Select(p => new
     {
         name = p.Name,
-        category = p.Category,
         coverage = p.Percentage,
-        target = p.Target,
         lines = p.TotalLines,
         covered = Math.Round(p.CoveredEquivalent, 2),
         perFlagTarget = p.PerFlagTarget,
@@ -642,7 +491,7 @@ Console.WriteLine($"  SVG:      {Path.Combine(outputDir, "badge.svg")}");
 
 // 5. HTML Dashboard
 var htmlDashboard = GenerateHtmlDashboard(overallPct, overallTotal, overallCovered,
-    categoryResults, packageResults, fileResults);
+    packageResults, fileResults);
 File.WriteAllText(Path.Combine(outputDir, "index.html"), htmlDashboard);
 Console.WriteLine($"  HTML:     {Path.Combine(outputDir, "index.html")}");
 
@@ -652,24 +501,14 @@ Console.WriteLine("\nDone.");
 
 string FlagPct(PackageCoverage pkg, TestType flag)
 {
-    if (!pkg.ApplicableTests.HasFlag(flag)) return "-";
+    var flagName = flag.ToString().ToLowerInvariant();
+    if (pkg.PerFlagTarget is not null && !pkg.PerFlagTarget.ContainsKey(flagName)) return "-";
     if (pkg.PerFlag.TryGetValue(flag, out var data) && data.Total > 0)
         return $"{Math.Round(data.Covered * 100.0 / data.Total, 0)}%";
-    return "0%";
+    return "-";
 }
 
-static string FormatTestTypes(TestType t)
-{
-    var parts = new List<string>();
-    if (t.HasFlag(TestType.Unit)) parts.Add("U");
-    if (t.HasFlag(TestType.Guard)) parts.Add("G");
-    if (t.HasFlag(TestType.Contract)) parts.Add("C");
-    if (t.HasFlag(TestType.Property)) parts.Add("P");
-    if (t.HasFlag(TestType.Integration)) parts.Add("I");
-    return string.Join("+", parts);
-}
-
-// CountFlags removed — obligations model uses per-flag line counts directly
+// FormatTestTypes and CountFlags removed — obligations model, no categories
 
 static string GenerateBadgeSvg(string label, string message, string color)
 {
@@ -712,7 +551,7 @@ static string GenerateBadgeSvg(string label, string message, string color)
 }
 
 static string GenerateHtmlDashboard(double overallPct, int overallTotal, double overallCovered,
-    List<CategoryCoverage> categories, List<PackageCoverage> packages, List<FileCoverage> files)
+    List<PackageCoverage> packages, List<FileCoverage> files)
 {
     var jOpts = new JsonSerializerOptions
     {
@@ -721,21 +560,13 @@ static string GenerateHtmlDashboard(double overallPct, int overallTotal, double 
     };
     var packagesJson = JsonSerializer.Serialize(packages.Select(p => new
     {
-        name = p.Name, category = p.Category, coverage = p.Percentage, target = p.Target,
+        name = p.Name, coverage = p.Percentage,
         lines = p.TotalLines, covered = Math.Round(p.CoveredEquivalent, 2), perFlagTarget = p.PerFlagTarget,
-        applicableTests = FormatTestTypes(p.ApplicableTests),
         files = p.Files.Select(f => new
         {
             path = f.RelativePath.Replace($"src/{p.Name}/", ""),
             lines = f.TotalLines, covered = Math.Round(f.CoveredEquivalent, 2), coverage = f.Percentage
         })
-    }), jOpts);
-
-    var categoriesJson = JsonSerializer.Serialize(categories.Select(c => new
-    {
-        name = c.Name, tests = FormatTestTypes(c.ApplicableTests),
-        coverage = c.Percentage, target = c.Target,
-        packages = c.PackageCount, lines = c.TotalLines, covered = Math.Round(c.CoveredEquivalent, 2)
     }), jOpts);
 
     return $$"""
@@ -819,7 +650,6 @@ static string GenerateHtmlDashboard(double overallPct, int overallTotal, double 
     </div>
 
     <script>
-    const categories = {{categoriesJson}};
     const packages = {{packagesJson}};
     let activeFilter = 'all';
     let sortKey = 'coverage';
@@ -931,37 +761,12 @@ enum TestType
     All = Unit | Guard | Contract | Property | Integration
 }
 
-record CategoryDef(string Name, TestType ApplicableTests, double Target, string[] Patterns);
-
-record WeightsConfig
-{
-    [JsonPropertyName("categories")]
-    public CategoryConfig[] Categories { get; init; } = [];
-}
-
-record CategoryConfig
-{
-    [JsonPropertyName("name")]
-    public string Name { get; init; } = "";
-    [JsonPropertyName("description")]
-    public string Description { get; init; } = "";
-    [JsonPropertyName("applicableTests")]
-    public string[] ApplicableTests { get; init; } = [];
-    [JsonPropertyName("target")]
-    public double Target { get; init; }
-    [JsonPropertyName("patterns")]
-    public string[] Patterns { get; init; } = [];
-}
-
-record FileCoverage(string RelativePath, string Package, string Category, int TotalLines,
+record FileCoverage(string RelativePath, string Package, int TotalLines,
     double CoveredEquivalent, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag);
 
-record PackageCoverage(string Name, string Category, TestType ApplicableTests, double Target,
-    int TotalLines, double CoveredEquivalent, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag,
+record PackageCoverage(string Name, int TotalLines, double CoveredEquivalent, double Percentage,
+    Dictionary<TestType, (int Total, int Covered)> PerFlag,
     Dictionary<string, double>? PerFlagTarget, List<FileCoverage> Files);
-
-record CategoryCoverage(string Name, TestType ApplicableTests, double Target,
-    int PackageCount, int TotalLines, double CoveredEquivalent, double Percentage);
 
 record ManifestFile
 {

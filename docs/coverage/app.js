@@ -85,6 +85,30 @@
     return `<td class="tgt-val">${tgt}%</td>`;
   }
 
+  // Applicable lines cell — shows total lines for this flag or '-' if not applicable
+  function flagLinesCell(perFlag, flag, perFlagTarget) {
+    const applicable = perFlagTarget != null ? perFlagTarget[flag] != null : false;
+    if (!applicable) return '<td class="na tgt-val">-</td>';
+    const d = perFlag?.[flag];
+    if (!d || d.total === 0) return '<td class="tgt-val">0</td>';
+    return `<td class="tgt-val">${d.total.toLocaleString()}</td>`;
+  }
+
+  // Show lines mode: coverage as "covered/total" instead of "%"
+  let showLines = false;
+
+  function flagCellValue(perFlag, flag, perFlagTarget) {
+    const applicable = perFlagTarget != null ? perFlagTarget[flag] != null : false;
+    if (!applicable) return '<td class="na">-</td>';
+    const d = perFlag?.[flag];
+    if (!d) return '<td class="nodata">?</td>';
+    if (showLines) {
+      return `<td class="num">${d.covered}/${d.total}</td>`;
+    }
+    // Delegate to flagCell for % mode with colors
+    return null; // signal to use flagCell
+  }
+
   // For TSV export
   function flagCellText(perFlag, flag, catTests) {
     const applicable = isApplicableFlag(catTests, flag);
@@ -120,7 +144,9 @@
   document.getElementById('overall-pct').className =
     `big-number ${ov.coverage >= 80 ? 'green' : (ov.coverage >= 60 ? 'yellow' : 'red')}`;
   document.getElementById('overall-lines').textContent =
-    `${typeof ov.covered === 'number' ? ov.covered.toLocaleString(undefined, {maximumFractionDigits: 1}) : ov.covered} / ${ov.lines.toLocaleString()} weighted lines covered`;
+    ov.obligations
+      ? `${(ov.met ?? 0).toLocaleString()} / ${ov.obligations.toLocaleString()} obligations met`
+      : `${ov.lines.toLocaleString()} lines`;
 
   // Show link to download raw Cobertura XML artifacts if runId is available
   if (data.runId) {
@@ -132,54 +158,42 @@
     document.getElementById('overall-lines').parentElement?.appendChild(rawLink);
   }
 
-  // ── Categories ──────────────────────────────────────────────────────
-  const catBody = document.querySelector('#category-table tbody');
-  const categoryNames = new Set();
-  const catTestsMap = {}; // category name → "U+G+C+P+I"
-
-  for (const cat of data.categories) {
-    categoryNames.add(cat.name);
-    catTestsMap[cat.name] = cat.tests || '';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${cat.name}</td>
-      <td>${cat.tests}</td>
-      <td class="pct">${cat.coverage}%</td>
-      <td class="pct">${cat.target}%</td>
-      <td>${barHtml(cat.coverage, cat.target)}</td>
-      <td>${statusIcon(cat.coverage, cat.target)}</td>`;
-    catBody.appendChild(tr);
-  }
-
-  // ── Category filter buttons ─────────────────────────────────────────
+  // ── Prefix-based filter buttons (derived from package names) ─────────
   const filtersDiv = document.querySelector('.filters');
-  for (const name of categoryNames) {
+  const allPackages = data.packages || [];
+
+  // Derive group prefixes: Encina.ADO.* → ADO, Encina.Compliance.* → Compliance, etc.
+  const prefixGroups = new Set();
+  for (const pkg of allPackages) {
+    const parts = pkg.name.replace('Encina.', '').split('.');
+    if (parts.length > 0 && parts[0] !== 'Encina') prefixGroups.add(parts[0]);
+  }
+  for (const prefix of [...prefixGroups].sort()) {
     const btn = document.createElement('button');
     btn.className = 'filter-btn';
-    btn.dataset.filter = name;
-    btn.textContent = name;
+    btn.dataset.filter = prefix;
+    btn.textContent = prefix;
     filtersDiv.appendChild(btn);
   }
 
   // ── Packages ────────────────────────────────────────────────────────
   const pkgBody = document.querySelector('#package-table tbody');
-  const allPackages = data.packages || [];
   let activeFilter = 'all';
   let searchTerm = '';
 
   function renderPackages() {
     pkgBody.innerHTML = '';
     const filtered = allPackages.filter(p => {
-      if (activeFilter !== 'all' && p.category !== activeFilter) return false;
+      if (activeFilter !== 'all' && !p.name.replace('Encina.', '').startsWith(activeFilter)) return false;
       if (searchTerm && !p.name.toLowerCase().includes(searchTerm)) return false;
       return true;
     });
 
     for (const pkg of filtered) {
-      const catTests = catTestsMap[pkg.category] || '';
+      const catTests = null;
 
       // Effective target = weighted by applicable lines per flag (obligations model)
-      let effectiveTarget = pkg.target;
+      let effectiveTarget = 0;
       let allFlagsMeetTarget = true;
       let worstGapFlag = '';
       let worstGapValue = Infinity;
@@ -200,8 +214,8 @@
           effectiveTarget = Math.round(totalTargetLines * 100 / totalApplicable * 100) / 100;
         }
       } else {
-        allFlagsMeetTarget = pkg.coverage >= pkg.target;
-        worstGapValue = pkg.coverage - pkg.target;
+        allFlagsMeetTarget = true; // no targets defined
+        worstGapValue = 0;
       }
 
       // Gap shows worst flag gap — green only when ALL flags meet target
@@ -210,21 +224,22 @@
         : `${Math.round(worstGapValue)}%`;
       const gapClass = allFlagsMeetTarget ? 'gap-positive' : 'gap-negative';
 
+      // Render flag group: value + target + applicable lines
+      function flagGroup(flag) {
+        const linesCell = flagCellValue(pkg.perFlag, flag, pkg.perFlagTarget);
+        const valueCell = linesCell ?? flagCell(pkg.perFlag, flag, catTests, pkg.perFlagTarget);
+        return `${valueCell}${flagTargetCell(pkg.perFlagTarget, flag, catTests)}${flagLinesCell(pkg.perFlag, flag, pkg.perFlagTarget)}`;
+      }
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="pkg-name" data-pkg="${pkg.name}">${pkg.name}</td>
-        <td>${pkg.category}</td>
-        ${flagCell(pkg.perFlag, 'unit', catTests, pkg.perFlagTarget)}
-        ${flagTargetCell(pkg.perFlagTarget, 'unit', catTests)}
-        ${flagCell(pkg.perFlag, 'guard', catTests, pkg.perFlagTarget)}
-        ${flagTargetCell(pkg.perFlagTarget, 'guard', catTests)}
-        ${flagCell(pkg.perFlag, 'contract', catTests, pkg.perFlagTarget)}
-        ${flagTargetCell(pkg.perFlagTarget, 'contract', catTests)}
-        ${flagCell(pkg.perFlag, 'property', catTests, pkg.perFlagTarget)}
-        ${flagTargetCell(pkg.perFlagTarget, 'property', catTests)}
-        ${flagCell(pkg.perFlag, 'integration', catTests, pkg.perFlagTarget)}
-        ${flagTargetCell(pkg.perFlagTarget, 'integration', catTests)}
-        <td class="pct">${pkg.coverage}%</td>
+        ${flagGroup('unit')}
+        ${flagGroup('guard')}
+        ${flagGroup('contract')}
+        ${flagGroup('property')}
+        ${flagGroup('integration')}
+        <td class="pct">${showLines ? Math.round(pkg.coverage * pkg.lines / 100) + '/' + pkg.lines : pkg.coverage + '%'}</td>
         <td class="${gapClass}">${gapStr}</td>
         <td>${barHtml(pkg.coverage, effectiveTarget, !allFlagsMeetTarget)}</td>
         <td class="num">${pkg.lines.toLocaleString()}</td>`;
@@ -249,22 +264,30 @@
     renderPackages();
   });
 
+  // ── Toggle %/Lines mode ─────────────────────────────────────────────
+  document.getElementById('toggle-mode').addEventListener('click', e => {
+    showLines = !showLines;
+    e.target.textContent = showLines ? 'Show %' : 'Show Lines';
+    renderPackages();
+  });
+
   // ── Copy to Excel (TSV) ────────────────────────────────────────────
   document.getElementById('copy-table').addEventListener('click', async e => {
     const btn = e.target;
-    const headers = ['Package', 'Category', 'Unit', 'U Tgt', 'Guard', 'G Tgt', 'Contract', 'C Tgt', 'Property', 'P Tgt', 'Integ', 'I Tgt', 'Combined', 'Gap', 'Lines'];
+    const headers = ['Package', 'Unit', 'U Tgt', 'U Lines', 'Guard', 'G Tgt', 'G Lines', 'Contract', 'C Tgt', 'C Lines', 'Property', 'P Tgt', 'P Lines', 'Integ', 'I Tgt', 'I Lines', 'Combined', 'Gap', 'Lines'];
     const rows = [headers.join('\t')];
     for (const pkg of allPackages) {
-      const catTests = catTestsMap[pkg.category] || '';
-      const gap = pkg.coverage - pkg.target;
+      const catTests = null;
+      const gap = pkg.coverage - effectiveTarget;
       const ft = pkg.perFlagTarget || {};
+      const fl = (flag) => pkg.perFlag?.[flag]?.total ?? '-';
       rows.push([
-        pkg.name, pkg.category,
-        flagCellText(pkg.perFlag, 'unit', catTests), ft.unit != null ? ft.unit + '%' : '-',
-        flagCellText(pkg.perFlag, 'guard', catTests), ft.guard != null ? ft.guard + '%' : '-',
-        flagCellText(pkg.perFlag, 'contract', catTests), ft.contract != null ? ft.contract + '%' : '-',
-        flagCellText(pkg.perFlag, 'property', catTests), ft.property != null ? ft.property + '%' : '-',
-        flagCellText(pkg.perFlag, 'integration', catTests), ft.integration != null ? ft.integration + '%' : '-',
+        pkg.name,
+        flagCellText(pkg.perFlag, 'unit', catTests), ft.unit != null ? ft.unit + '%' : '-', fl('unit'),
+        flagCellText(pkg.perFlag, 'guard', catTests), ft.guard != null ? ft.guard + '%' : '-', fl('guard'),
+        flagCellText(pkg.perFlag, 'contract', catTests), ft.contract != null ? ft.contract + '%' : '-', fl('contract'),
+        flagCellText(pkg.perFlag, 'property', catTests), ft.property != null ? ft.property + '%' : '-', fl('property'),
+        flagCellText(pkg.perFlag, 'integration', catTests), ft.integration != null ? ft.integration + '%' : '-', fl('integration'),
         Math.round(pkg.coverage) + '%',
         (gap >= 0 ? '+' : '') + Math.round(gap) + '%',
         pkg.lines
@@ -298,7 +321,7 @@
         <td class="num">${f.totalLines}</td>
         <td class="num">${typeof f.covered === 'number' ? f.covered.toFixed(1) : (f.coveredLines ?? 0)}</td>
         <td class="pct">${f.percentage}%</td>
-        <td>${barHtml(f.percentage, pkg.target)}</td>`;
+        <td>${barHtml(f.percentage, 0)}</td>`;
       filesBody.appendChild(tr);
     }
 
@@ -397,7 +420,7 @@
     for (const pkg of allPackages.sort((a, b) => b.lines - a.lines)) {
       const sweep = (pkg.lines / totalLines) * Math.PI * 2;
       const cov = pkgCoverage(pkg);
-      const col = pctColor(cov, pkg.target);
+      const col = pctColor(cov, 50); // default threshold for sunburst coloring
       ctx.fillStyle = col === 'green' ? '#238636' : (col === 'yellow' ? '#9e6a03' : '#da3633');
       ctx.globalAlpha = 0.6 + (cov / 100) * 0.4;
       ctx.beginPath();

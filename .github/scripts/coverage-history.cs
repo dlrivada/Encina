@@ -36,7 +36,7 @@ if (overall is null)
     return;
 }
 
-// Build history entry (lightweight — only overall + per-category + link to full snapshot)
+// Build history entry (lightweight — overall + per-flag + link to full snapshot)
 var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
 var snapshotFile = DateTime.UtcNow.ToString("yyyy-MM-ddTHHmmssZ") + ".json";
 var entry = new JsonObject
@@ -44,8 +44,8 @@ var entry = new JsonObject
     ["timestamp"] = timestamp,
     ["file"] = snapshotFile,
     ["coverage"] = (int)(overall["coverage"]?.GetValue<double>() ?? 0),
-    ["lines"] = overall["lines"]?.GetValue<int>() ?? 0,
-    ["covered"] = Math.Round(overall["covered"]?.GetValue<double>() ?? 0, 2)
+    ["obligations"] = overall["obligations"]?.GetValue<int>() ?? overall["lines"]?.GetValue<int>() ?? 0,
+    ["met"] = overall["met"]?.GetValue<int>() ?? (int)(overall["covered"]?.GetValue<double>() ?? 0)
 };
 
 // Include runId if present (allows downloading raw Cobertura XML artifacts later)
@@ -53,18 +53,7 @@ var runId = latestJson["runId"];
 if (runId is not null)
     entry["runId"] = runId.GetValue<long>();
 
-// Add per-category breakdown
-var categories = new JsonObject();
-if (latestJson["categories"] is JsonArray cats)
-{
-    foreach (var cat in cats)
-    {
-        var name = cat?["name"]?.GetValue<string>();
-        var cov = cat?["coverage"]?.GetValue<double>() ?? 0;
-        if (name is not null) categories[name] = (int)cov;
-    }
-}
-entry["categories"] = categories;
+// Categories removed — per-flag data provides all necessary breakdown
 
 // Add per-flag overall coverage (for trend chart filtering by test type)
 var overallPerFlag = overall["perFlag"];
