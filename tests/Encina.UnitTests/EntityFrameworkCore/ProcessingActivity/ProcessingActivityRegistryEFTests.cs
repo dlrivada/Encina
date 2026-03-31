@@ -70,26 +70,23 @@ public sealed class ProcessingActivityRegistryEFTests
     [Fact]
     public async Task RegisterActivityAsync_DuplicateRequestType_ReturnsLeft()
     {
-        // Arrange — EF InMemory throws InvalidOperationException (tracking conflict) instead of
-        // DbUpdateException on duplicate Add. Use two separate contexts sharing the same DB name
-        // to avoid the tracking issue.
-        var dbName = $"ProcActivity_{Guid.NewGuid()}";
+        // EF InMemory throws ArgumentException (not DbUpdateException) for duplicate keys,
+        // so we use a mock DbContext that throws DbUpdateException on SaveChangesAsync
+        // to test the production catch path.
+        var mockContext = Substitute.For<DbContext>();
+        var mockSet = Substitute.For<DbSet<ProcessingActivityEntity>>();
+        mockContext.Set<ProcessingActivityEntity>().Returns(mockSet);
+        mockContext.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new DbUpdateException("Duplicate key"));
+
+        var registry = new ProcessingActivityRegistryEF(mockContext);
         var activity = CreateTestActivity();
 
-        await using (var ctx1 = CreateInMemoryContext(dbName))
-        {
-            var reg1 = new ProcessingActivityRegistryEF(ctx1);
-            var first = await reg1.RegisterActivityAsync(activity);
-            first.IsRight.ShouldBeTrue();
-        }
-
-        // Act — second context, same DB, same entity key → DbUpdateException on SaveChanges
-        await using var ctx2 = CreateInMemoryContext(dbName);
-        var registry = new ProcessingActivityRegistryEF(ctx2);
-        var secondResult = await registry.RegisterActivityAsync(activity);
+        // Act
+        var result = await registry.RegisterActivityAsync(activity);
 
         // Assert
-        secondResult.IsLeft.ShouldBeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
