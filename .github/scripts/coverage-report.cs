@@ -119,22 +119,10 @@ TestType GetFileApplicableTests(string packageName, string fileRelPath)
             return fnTests;
     }
 
-    // 2. Fallback: if manifest exists for package but file not listed, derive from manifest targets
-    if (manifestTargets.TryGetValue(packageName, out var pkgTargets2))
-    {
-        var fallback = TestType.None;
-        foreach (var key in pkgTargets2.Keys)
-        {
-            fallback |= key.ToLowerInvariant() switch
-            {
-                "unit" => TestType.Unit, "guard" => TestType.Guard, "contract" => TestType.Contract,
-                "property" => TestType.Property, "integration" => TestType.Integration, _ => TestType.None
-            };
-        }
-        return fallback;
-    }
-
-    // 3. Default fallback: unit + guard
+    // 2. Fallback: files not explicitly listed in manifest get only unit + guard.
+    //    Contract, property, and integration are opt-in per file — they should NOT be
+    //    inherited by unlisted files, as that inflates applicable lines and makes targets
+    //    unreachable (e.g., 950 contract lines when only 2 files are actually contract-testable).
     return TestType.Unit | TestType.Guard;
 }
 
