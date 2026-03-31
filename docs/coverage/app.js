@@ -109,7 +109,18 @@
     const d = perFlag?.[flag];
     if (!d) return '<td class="nodata">?</td>';
     if (showLines) {
-      return `<td class="num">${d.covered.toLocaleString()}</td>`;
+      const flagTarget = perFlagTarget?.[flag];
+      let cls = 'num';
+      if (flagTarget != null && d.total > 0) {
+        const pct = d.coverage ?? (d.covered * 100 / d.total);
+        const rounded = Math.round(pct);
+        if (rounded >= flagTarget) cls = 'num flag-pass';
+        else if (rounded >= Math.round(flagTarget * 0.8)) cls = 'num flag-warn';
+        else cls = 'num flag-fail';
+      } else if (d.covered === 0) {
+        cls = 'zero';
+      }
+      return `<td class="${cls}">${d.covered.toLocaleString()}</td>`;
     }
     // Delegate to flagCell for % mode with colors
     return null; // signal to use flagCell
@@ -253,7 +264,7 @@
         ${flagGroup('contract')}
         ${flagGroup('property')}
         ${flagGroup('integration')}
-        <td class="pct">${showLines ? Math.round(pkg.coverage * pkg.lines / 100).toLocaleString() : pkg.coverage + '%'}</td>
+        <td class="pct ${showLines ? (allFlagsMeetTarget ? 'flag-pass' : 'flag-fail') : ''}">${showLines ? Math.round(pkg.coverage * pkg.lines / 100).toLocaleString() : pkg.coverage + '%'}</td>
         <td class="${gapClass}">${showLines ? gapLines : gapStr}</td>
         <td>${barHtml(pkg.coverage, effectiveTarget, !allFlagsMeetTarget)}</td>
         <td class="num">${pkg.lines.toLocaleString()}</td>`;
