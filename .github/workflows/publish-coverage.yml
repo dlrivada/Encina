@@ -65,15 +65,9 @@ jobs:
           STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           cp -f _site/coverage/data/latest.json "_site/coverage/data/${STAMP}.json" 2>/dev/null || true
 
-          # Use repo history.json as source of truth (it may have been cleaned).
-          # Only fetch from live Pages if repo has no history at all.
-          if [ ! -s _site/coverage/data/history.json ] || [ "$(cat _site/coverage/data/history.json)" = "[]" ]; then
-            PAGES_URL="https://dlrivada.github.io/Encina/coverage/data/history.json"
-            echo "Repo history empty, fetching from live: $PAGES_URL"
-            curl -fsSL "$PAGES_URL" -o _site/coverage/data/history.json 2>/dev/null || echo "No live history either"
-          else
-            echo "Using repo history.json ($(grep -c timestamp _site/coverage/data/history.json) entries)"
-          fi
+          # Repo history.json is the sole source of truth.
+          # If it's empty ([]), we start fresh — never fetch stale data from Pages.
+          echo "Using repo history.json ($(grep -c timestamp _site/coverage/data/history.json || echo 0) entries)"
 
           # Update history (appends current snapshot)
           dotnet run .github/scripts/coverage-history.cs -- \
