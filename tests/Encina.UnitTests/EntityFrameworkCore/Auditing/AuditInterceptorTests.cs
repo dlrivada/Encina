@@ -828,4 +828,77 @@ public class AuditInterceptorOptionsTests
         options.LogAuditChanges.ShouldBeTrue();
         options.LogChangesToStore.ShouldBeTrue();
     }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Enabled_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new AuditInterceptorOptions { Enabled = false };
+
+        // Assert
+        options.Enabled.ShouldBeFalse();
+        // Other defaults remain unchanged
+        options.TrackCreatedAt.ShouldBeTrue();
+        options.TrackCreatedBy.ShouldBeTrue();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void LogAuditChanges_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new AuditInterceptorOptions { LogAuditChanges = true };
+
+        // Assert
+        options.LogAuditChanges.ShouldBeTrue();
+        options.Enabled.ShouldBeTrue(); // Default unchanged
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void LogChangesToStore_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new AuditInterceptorOptions { LogChangesToStore = true };
+
+        // Assert
+        options.LogChangesToStore.ShouldBeTrue();
+        options.Enabled.ShouldBeTrue(); // Default unchanged
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void DisableAllTracking_KeepsEnabledTrue()
+    {
+        // Arrange & Act
+        var options = new AuditInterceptorOptions
+        {
+            TrackCreatedAt = false,
+            TrackCreatedBy = false,
+            TrackModifiedAt = false,
+            TrackModifiedBy = false
+        };
+
+        // Assert - Enabled is still true even when all tracking is disabled
+        options.Enabled.ShouldBeTrue();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Properties_CanBeToggledMultipleTimes()
+    {
+        // Arrange
+        var options = new AuditInterceptorOptions();
+
+        // Act
+        options.Enabled = false;
+        options.Enabled = true;
+        options.LogAuditChanges = true;
+        options.LogAuditChanges = false;
+
+        // Assert
+        options.Enabled.ShouldBeTrue();
+        options.LogAuditChanges.ShouldBeFalse();
+    }
 }

@@ -682,6 +682,88 @@ public class DomainEventDispatcherOptionsTests
         options.ClearEventsAfterDispatch.ShouldBeFalse();
         options.CollectEventsBeforeSave.ShouldBeFalse();
     }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Enabled_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new DomainEventDispatcherOptions { Enabled = false };
+
+        // Assert
+        options.Enabled.ShouldBeFalse();
+        // Other defaults remain unchanged
+        options.StopOnFirstError.ShouldBeFalse();
+        options.RequireINotification.ShouldBeTrue();
+        options.ClearEventsAfterDispatch.ShouldBeTrue();
+        options.CollectEventsBeforeSave.ShouldBeTrue();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void StopOnFirstError_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new DomainEventDispatcherOptions { StopOnFirstError = true };
+
+        // Assert
+        options.StopOnFirstError.ShouldBeTrue();
+        options.Enabled.ShouldBeTrue(); // Default unchanged
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void RequireINotification_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new DomainEventDispatcherOptions { RequireINotification = false };
+
+        // Assert
+        options.RequireINotification.ShouldBeFalse();
+        options.Enabled.ShouldBeTrue(); // Default unchanged
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void ClearEventsAfterDispatch_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new DomainEventDispatcherOptions { ClearEventsAfterDispatch = false };
+
+        // Assert
+        options.ClearEventsAfterDispatch.ShouldBeFalse();
+        options.Enabled.ShouldBeTrue(); // Default unchanged
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void CollectEventsBeforeSave_CanBeSetIndividually()
+    {
+        // Arrange & Act
+        var options = new DomainEventDispatcherOptions { CollectEventsBeforeSave = false };
+
+        // Assert
+        options.CollectEventsBeforeSave.ShouldBeFalse();
+        options.Enabled.ShouldBeTrue(); // Default unchanged
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Properties_CanBeToggledMultipleTimes()
+    {
+        // Arrange
+        var options = new DomainEventDispatcherOptions();
+
+        // Act
+        options.Enabled = false;
+        options.Enabled = true;
+        options.StopOnFirstError = true;
+        options.StopOnFirstError = false;
+
+        // Assert
+        options.Enabled.ShouldBeTrue();
+        options.StopOnFirstError.ShouldBeFalse();
+    }
 }
 
 /// <summary>

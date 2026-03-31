@@ -198,6 +198,32 @@
   let activeFilter = 'all';
   let searchTerm = '';
 
+  // Sort state: { column: string|null, direction: 'asc'|'desc'|null }
+  let sortState = { column: null, direction: null };
+
+  // Extract sortable value from a package for a given column
+  function sortValue(pkg, col) {
+    if (col === 'name') return pkg.name.toLowerCase();
+    if (col === 'lines') return pkg.lines;
+    if (col === 'combined') return pkg.coverage;
+    if (col === 'gap') {
+      // Compute effective gap like renderPackages does
+      if (!pkg.perFlagTarget || !pkg.perFlag) return 0;
+      let worst = Infinity;
+      for (const [flag, ft] of Object.entries(pkg.perFlagTarget)) {
+        const d = pkg.perFlag?.[flag];
+        const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
+        const g = Math.round(pct) - ft;
+        if (g < worst) worst = g;
+      }
+      return worst === Infinity ? 0 : worst;
+    }
+    // Flag columns: unit, guard, contract, property, integration
+    const d = pkg.perFlag?.[col];
+    if (!d) return -1; // no data sorts last
+    return d.total > 0 ? d.coverage : 0;
+  }
+
   function renderPackages() {
     pkgBody.innerHTML = '';
     const filtered = allPackages.filter(p => {
@@ -205,6 +231,17 @@
       if (searchTerm && !p.name.toLowerCase().includes(searchTerm)) return false;
       return true;
     });
+
+    // Apply sort
+    if (sortState.column && sortState.direction) {
+      const col = sortState.column;
+      const dir = sortState.direction === 'asc' ? 1 : -1;
+      filtered.sort((a, b) => {
+        const va = sortValue(a, col), vb = sortValue(b, col);
+        if (typeof va === 'string') return va.localeCompare(vb) * dir;
+        return (va - vb) * dir;
+      });
+    }
 
     for (const pkg of filtered) {
       const catTests = null;
@@ -273,6 +310,33 @@
   }
 
   renderPackages();
+
+  // ── Column sorting ─────────────────────────────────────────────────
+  function updateSortHeaders() {
+    document.querySelectorAll('#package-table th[data-sort]').forEach(th => {
+      th.classList.remove('sort-asc', 'sort-desc');
+      if (th.dataset.sort === sortState.column) {
+        if (sortState.direction === 'asc') th.classList.add('sort-asc');
+        else if (sortState.direction === 'desc') th.classList.add('sort-desc');
+      }
+    });
+  }
+
+  document.querySelector('#package-table thead').addEventListener('click', e => {
+    const th = e.target.closest('th[data-sort]');
+    if (!th) return;
+    const col = th.dataset.sort;
+    if (sortState.column === col) {
+      // Cycle: asc → desc → none
+      if (sortState.direction === 'asc') sortState.direction = 'desc';
+      else if (sortState.direction === 'desc') { sortState.column = null; sortState.direction = null; }
+    } else {
+      sortState.column = col;
+      sortState.direction = 'asc';
+    }
+    updateSortHeaders();
+    renderPackages();
+  });
 
   // ── Filter buttons ──────────────────────────────────────────────────
   filtersDiv.addEventListener('click', e => {
