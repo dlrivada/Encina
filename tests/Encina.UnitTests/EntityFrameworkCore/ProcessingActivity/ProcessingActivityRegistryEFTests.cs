@@ -70,16 +70,22 @@ public sealed class ProcessingActivityRegistryEFTests
     [Fact]
     public async Task RegisterActivityAsync_DuplicateRequestType_ReturnsLeft()
     {
-        // Arrange
-        await using var context = CreateInMemoryContext();
-        var registry = new ProcessingActivityRegistryEF(context);
+        // Arrange — EF InMemory throws InvalidOperationException (tracking conflict) instead of
+        // DbUpdateException on duplicate Add. Use two separate contexts sharing the same DB name
+        // to avoid the tracking issue.
+        var dbName = $"ProcActivity_{Guid.NewGuid()}";
         var activity = CreateTestActivity();
 
-        // Register first
-        var firstResult = await registry.RegisterActivityAsync(activity);
-        firstResult.IsRight.ShouldBeTrue();
+        await using (var ctx1 = CreateInMemoryContext(dbName))
+        {
+            var reg1 = new ProcessingActivityRegistryEF(ctx1);
+            var first = await reg1.RegisterActivityAsync(activity);
+            first.IsRight.ShouldBeTrue();
+        }
 
-        // Act - register same RequestType again
+        // Act — second context, same DB, same entity key → DbUpdateException on SaveChanges
+        await using var ctx2 = CreateInMemoryContext(dbName);
+        var registry = new ProcessingActivityRegistryEF(ctx2);
         var secondResult = await registry.RegisterActivityAsync(activity);
 
         // Assert
@@ -315,10 +321,10 @@ public sealed class ProcessingActivityRegistryEFTests
 
     #region Helpers
 
-    private static ProcessingActivityTestDbContext CreateInMemoryContext()
+    private static ProcessingActivityTestDbContext CreateInMemoryContext(string? dbName = null)
     {
         var options = new DbContextOptionsBuilder<ProcessingActivityTestDbContext>()
-            .UseInMemoryDatabase($"processing-activity-test-{Guid.NewGuid()}")
+            .UseInMemoryDatabase(dbName ?? $"processing-activity-test-{Guid.NewGuid()}")
             .Options;
         return new ProcessingActivityTestDbContext(options);
     }
