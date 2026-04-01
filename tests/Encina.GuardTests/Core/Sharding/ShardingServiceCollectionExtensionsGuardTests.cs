@@ -75,11 +75,11 @@ public sealed class ShardingServiceCollectionExtensionsGuardTests
     /// Verifies that AddEncinaSharding throws when a shard has a whitespace connection string.
     /// </summary>
     [Fact]
-    public void AddEncinaSharding_WhitespaceConnectionString_ThrowsInvalidOperationException()
+    public void AddEncinaSharding_WhitespaceConnectionString_ThrowsArgumentException()
     {
         var services = new ServiceCollection();
 
-        Should.Throw<InvalidOperationException>(() =>
+        Should.Throw<ArgumentException>(() =>
             services.AddEncinaSharding<TestShardEntity>(opts =>
             {
                 opts.UseHashRouting()
