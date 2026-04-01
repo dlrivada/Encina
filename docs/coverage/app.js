@@ -506,11 +506,38 @@
     }
     const overallPctForCenter = ovTotalT > 0 ? Math.round(ovTotalC * 100 / ovTotalT * 100) / 100 : 0;
 
+    // Pre-compute effective target for each package (same logic as table)
+    function pkgEffectiveTarget(pkg) {
+      if (!pkg.perFlagTarget || !pkg.perFlag) return 50; // fallback
+      let totalApplicable = 0, totalTargetLines = 0;
+      for (const [flag, ft] of Object.entries(pkg.perFlagTarget)) {
+        const d = pkg.perFlag?.[flag];
+        const applicable = d?.total ?? 0;
+        totalApplicable += applicable;
+        totalTargetLines += Math.round(applicable * ft / 100);
+      }
+      return totalApplicable > 0 ? totalTargetLines * 100 / totalApplicable : 50;
+    }
+
+    // Check if all flags meet their individual targets
+    function pkgAllFlagsMet(pkg) {
+      if (!pkg.perFlagTarget || !pkg.perFlag) return true;
+      for (const [flag, ft] of Object.entries(pkg.perFlagTarget)) {
+        const d = pkg.perFlag?.[flag];
+        const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
+        if (Math.round(pct) < ft) return false;
+      }
+      return true;
+    }
+
     let angle = -Math.PI / 2;
     for (const pkg of allPackages.sort((a, b) => b.lines - a.lines)) {
       const sweep = (pkg.lines / totalLines) * Math.PI * 2;
       const cov = pkgCoverage(pkg);
-      const col = pctColor(cov, 50); // default threshold for sunburst coloring
+      // Color based on per-flag target compliance (consistent with table)
+      const allMet = pkgAllFlagsMet(pkg);
+      const effectiveT = pkgEffectiveTarget(pkg);
+      const col = allMet ? 'green' : pctColor(cov, effectiveT);
       ctx.fillStyle = col === 'green' ? '#238636' : (col === 'yellow' ? '#9e6a03' : '#da3633');
       ctx.globalAlpha = 0.6 + (cov / 100) * 0.4;
       ctx.beginPath();
