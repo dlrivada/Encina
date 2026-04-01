@@ -521,7 +521,8 @@
 
     // Check if all flags meet their individual targets
     function pkgAllFlagsMet(pkg) {
-      if (!pkg.perFlagTarget || !pkg.perFlag) return true;
+      if (!pkg.perFlagTarget) return false; // no targets = can't be green
+      if (!pkg.perFlag) return false;
       for (const [flag, ft] of Object.entries(pkg.perFlagTarget)) {
         const d = pkg.perFlag?.[flag];
         const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
