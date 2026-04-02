@@ -468,13 +468,10 @@
     const canvas = document.getElementById('sunburst');
     if (!canvas || allPackages.length === 0) return;
 
-    // Size: square that fits within the card's available space
+    // Square canvas based on card width (always a circle, never an ellipse)
     const dpr = window.devicePixelRatio || 1;
     const card = canvas.closest('.top-right') || canvas.parentElement;
-    const cardPad = 40; // 1rem + 1.25rem padding on each side ≈ 40px
-    const maxW = card.clientWidth - cardPad;
-    const maxH = canvas.clientHeight || 400;
-    const displaySize = Math.max(Math.min(maxW, maxH), 200);
+    const displaySize = Math.max(card.clientWidth - 40, 200);
     canvas.width = displaySize * dpr;
     canvas.height = displaySize * dpr;
     canvas.style.width = displaySize + 'px';
@@ -593,6 +590,19 @@
   // Initial sunburst render
   renderSunburst(['combined']);
   setupToggles('sunburst-toggles', renderSunburst);
+
+  // Equalize top grid heights: left column defines the height, right adapts
+  function equalizeTopGrid() {
+    const left = document.querySelector('.top-left');
+    const right = document.querySelector('.top-right');
+    if (!left || !right) return;
+    right.style.height = '';          // reset
+    const leftH = left.offsetHeight;
+    right.style.height = leftH + 'px';
+    renderSunburst(['combined']);      // re-render canvas at new size
+  }
+  equalizeTopGrid();
+  window.addEventListener('resize', equalizeTopGrid);
 
   // ── Trend chart (coverage over time) ───────────────────────────────
   let historyData = null;
