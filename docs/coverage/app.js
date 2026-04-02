@@ -538,8 +538,8 @@
       // Color based on per-flag target compliance (consistent with table)
       const allMet = pkgAllFlagsMet(pkg);
       const effectiveT = pkgEffectiveTarget(pkg);
-      const col = allMet ? 'green' : pctColor(cov, effectiveT);
-      ctx.fillStyle = col === 'green' ? '#238636' : (col === 'yellow' ? '#9e6a03' : '#da3633');
+      // Force red when any flag misses target (same logic as BAR column)
+      ctx.fillStyle = allMet ? '#238636' : '#da3633';
       ctx.globalAlpha = 0.6 + (cov / 100) * 0.4;
       ctx.beginPath();
       ctx.arc(cx, cy, outerR, angle, angle + sweep);
