@@ -467,13 +467,25 @@
   function renderSunburst(selectedFlags) {
     const canvas = document.getElementById('sunburst');
     if (!canvas || allPackages.length === 0) return;
-    const ctx = canvas.getContext('2d');
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const outerR = 180;
-    const innerR = 70;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Size canvas to its container
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement;
+    const size = Math.min(rect.clientWidth, canvas.clientHeight || rect.clientHeight - 80);
+    const displaySize = Math.max(size, 300);
+    canvas.width = displaySize * dpr;
+    canvas.height = displaySize * dpr;
+    canvas.style.width = displaySize + 'px';
+    canvas.style.height = displaySize + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const cx = displaySize / 2;
+    const cy = displaySize / 2;
+    const outerR = displaySize * 0.45;
+    const innerR = displaySize * 0.175;
+
+    ctx.clearRect(0, 0, displaySize, displaySize);
 
     const isCombined = selectedFlags.includes('combined');
     const totalLines = allPackages.reduce((s, p) => s + p.lines, 0);
