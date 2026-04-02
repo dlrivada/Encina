@@ -591,10 +591,20 @@
     ctx.fillText(label, cx, cy + 12);
   }
 
-  // Defer sunburst until grid layout is resolved
   setupToggles('sunburst-toggles', renderSunburst);
-  requestAnimationFrame(() => renderSunburst(['combined']));
-  window.addEventListener('resize', () => requestAnimationFrame(() => renderSunburst(['combined'])));
+
+  // After all content renders, constrain right column to left column height
+  function syncHeightAndRender() {
+    const left = document.querySelector('.top-left');
+    const right = document.querySelector('.top-right');
+    if (left && right) {
+      right.style.maxHeight = left.offsetHeight + 'px';
+    }
+    renderSunburst(['combined']);
+  }
+  // Double rAF ensures trend chart canvas has rendered and left has final height
+  requestAnimationFrame(() => requestAnimationFrame(syncHeightAndRender));
+  window.addEventListener('resize', syncHeightAndRender);
 
   // ── Trend chart (coverage over time) ───────────────────────────────
   let historyData = null;
