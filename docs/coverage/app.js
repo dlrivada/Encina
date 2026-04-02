@@ -629,9 +629,9 @@
     }
   }
 
-  // Double rAF: first paints trend chart, second measures final layout
+  // Run layout once after everything renders. No resize handler — zoom
+  // changes visual scale but pixel measurements become unreliable.
   requestAnimationFrame(() => requestAnimationFrame(layoutTopGrid));
-  window.addEventListener('resize', layoutTopGrid);
 
   // ── Trend chart (coverage over time) ───────────────────────────────
   let historyData = null;
