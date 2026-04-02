@@ -468,14 +468,13 @@
     const canvas = document.getElementById('sunburst');
     if (!canvas || allPackages.length === 0) return;
 
-    // Square canvas: min of card width and available height (circle, not ellipse)
+    // Square canvas sized by available height (card height is set by JS from left column)
     const dpr = window.devicePixelRatio || 1;
     const card = canvas.closest('.top-right') || canvas.parentElement;
     const togglesH = card.querySelector('.chart-toggles')?.offsetHeight ?? 0;
     const h2H = card.querySelector('h2')?.offsetHeight ?? 0;
-    const availH = card.clientHeight - h2H - togglesH - 32;
-    const availW = card.clientWidth - 40;
-    const displaySize = Math.max(Math.min(availW, availH), 200);
+    const padding = 32; // card padding top+bottom
+    const displaySize = Math.max(card.clientHeight - h2H - togglesH - padding, 200);
     canvas.width = displaySize * dpr;
     canvas.height = displaySize * dpr;
     canvas.style.width = displaySize + 'px';
@@ -593,18 +592,30 @@
 
   setupToggles('sunburst-toggles', renderSunburst);
 
-  // After all content renders, constrain right column to left column height
-  function syncHeightAndRender() {
+  // Layout sequence: left heights are natural → right adapts → left width fills remainder
+  function layoutTopGrid() {
     const left = document.querySelector('.top-left');
     const right = document.querySelector('.top-right');
-    if (left && right) {
-      right.style.maxHeight = left.offsetHeight + 'px';
-    }
+    if (!left || !right) return;
+
+    // 1. Read left natural height (Overall + gap + Trend)
+    const leftH = left.offsetHeight;
+
+    // 2. Set right height = left height
+    right.style.height = leftH + 'px';
+
+    // 3. Render sunburst — it will read card height and make a square canvas
     renderSunburst(['combined']);
+
+    // 4. Right width = what the donut needs (canvas is square, based on available height)
+    //    The sunburst already set canvas.style.width, so right auto-sizes to content.
+    //    flex: 0 0 auto means right takes its content width.
+    //    flex: 1 on left fills the rest.
   }
-  // Double rAF ensures trend chart canvas has rendered and left has final height
-  requestAnimationFrame(() => requestAnimationFrame(syncHeightAndRender));
-  window.addEventListener('resize', syncHeightAndRender);
+
+  // Double rAF: first renders trend chart, second measures final left height
+  requestAnimationFrame(() => requestAnimationFrame(layoutTopGrid));
+  window.addEventListener('resize', layoutTopGrid);
 
   // ── Trend chart (coverage over time) ───────────────────────────────
   let historyData = null;
