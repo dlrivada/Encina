@@ -598,32 +598,41 @@
     const container = document.querySelector('.top-grid');
     if (!left || !right || !container) return;
 
-    // Reset to let left take natural size
+    // Reset
     left.style.width = '';
     right.style.height = '';
     right.style.width = '';
 
-    // Step 1: Left heights are natural (CSS handles this). Read total height.
+    // 1. Read left natural height
     const leftH = left.offsetHeight;
 
-    // Step 2: Set right height = left height. Anchor it.
+    // 2. Set right height = left height
     right.style.height = leftH + 'px';
 
-    // Step 3: Render sunburst — canvas is square based on available height.
-    renderSunburst(['combined']);
+    // 3. Pre-calculate donut size (square, based on height minus h2/toggles/padding)
+    const h2H = right.querySelector('h2')?.offsetHeight ?? 0;
+    const togglesH = right.querySelector('.chart-toggles')?.offsetHeight ?? 0;
+    const rStyle = getComputedStyle(right);
+    const padT = parseFloat(rStyle.paddingTop);
+    const padB = parseFloat(rStyle.paddingBottom);
+    const padL = parseFloat(rStyle.paddingLeft);
+    const padR = parseFloat(rStyle.paddingRight);
+    const borderL = parseFloat(rStyle.borderLeftWidth);
+    const borderR = parseFloat(rStyle.borderRightWidth);
+    const donutSize = Math.max(leftH - h2H - togglesH - padT - padB, 200);
 
-    // Step 4: Read actual canvas width and set right width to fit content.
-    const canvas = document.getElementById('sunburst');
-    const rightPad = 40; // card padding left+right
-    const rightW = (canvas ? canvas.offsetWidth : 200) + rightPad;
+    // 4. Set right width = donut (square) + horizontal padding + border
+    const rightW = Math.ceil(donutSize + padL + padR + borderL + borderR);
     right.style.width = rightW + 'px';
 
-    // Step 5: Left width = container width - right width - gap
-    const gap = 16; // 1rem
-    const containerW = container.clientWidth;
-    left.style.width = (containerW - rightW - gap) + 'px';
+    // 5. Left width = container - right - gap
+    const gap = 16;
+    left.style.width = (container.clientWidth - rightW - gap) + 'px';
 
-    // Step 6: Re-render trend chart at new left width
+    // 6. Render sunburst (card is now correctly sized)
+    renderSunburst(['combined']);
+
+    // 7. Re-render trend chart at new left width
     if (typeof renderTrendChart === 'function' && historyData && historyData.length > 0) {
       renderTrendChart(historyData, ['combined']);
     }
