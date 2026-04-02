@@ -598,35 +598,41 @@
     const container = document.querySelector('.top-grid');
     if (!left || !right || !container) return;
 
-    // Reset to let left take natural size
+    // Reset
     left.style.width = '';
     right.style.height = '';
     right.style.width = '';
 
-    // Step 1: Left heights are natural (CSS handles this). Read total height.
+    // 1. Read left natural height
     const leftH = left.offsetHeight;
 
-    // Step 2: Set right height = left height. Anchor it.
+    // 2. Set right height = left height
     right.style.height = leftH + 'px';
 
-    // Step 3: Render sunburst — canvas is square based on available height.
+    // 3. Pre-calculate donut size (square, based on height minus h2/toggles/padding)
+    const h2H = right.querySelector('h2')?.offsetHeight ?? 0;
+    const togglesH = right.querySelector('.chart-toggles')?.offsetHeight ?? 0;
+    const rStyle = getComputedStyle(right);
+    const padT = parseFloat(rStyle.paddingTop);
+    const padB = parseFloat(rStyle.paddingBottom);
+    const padL = parseFloat(rStyle.paddingLeft);
+    const padR = parseFloat(rStyle.paddingRight);
+    const borderL = parseFloat(rStyle.borderLeftWidth);
+    const borderR = parseFloat(rStyle.borderRightWidth);
+    const donutSize = Math.max(leftH - h2H - togglesH - padT - padB, 200);
+
+    // 4. Set right width = donut (square) + horizontal padding + border
+    const rightW = Math.ceil(donutSize + padL + padR + borderL + borderR);
+    right.style.width = rightW + 'px';
+
+    // 5. Left width = container - right - gap
+    const gap = 16;
+    left.style.width = (container.clientWidth - rightW - gap) + 'px';
+
+    // 6. Render sunburst (card is now correctly sized)
     renderSunburst(['combined']);
 
-    // Step 4: Right width = widest child + padding + border
-    const canvas = document.getElementById('sunburst');
-    const canvasW = canvas ? parseInt(canvas.style.width) || canvas.offsetWidth : 200;
-    const style = getComputedStyle(right);
-    const padLR = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-    const borderLR = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
-    const rightW = canvasW + padLR + borderLR;
-    right.style.width = Math.ceil(rightW) + 'px';
-
-    // Step 5: Left width = container width - right width - gap
-    const gap = 16; // 1rem
-    const containerW = container.clientWidth;
-    left.style.width = (containerW - rightW - gap) + 'px';
-
-    // Step 6: Re-render trend chart at new left width
+    // 7. Re-render trend chart at new left width
     if (typeof renderTrendChart === 'function' && historyData && historyData.length > 0) {
       renderTrendChart(historyData, ['combined']);
     }
