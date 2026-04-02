@@ -591,12 +591,10 @@
     ctx.fillText(label, cx, cy + 12);
   }
 
-  // Initial sunburst render
-  renderSunburst(['combined']);
+  // Defer sunburst until grid layout is resolved
   setupToggles('sunburst-toggles', renderSunburst);
-
-  // Re-render sunburst on resize
-  window.addEventListener('resize', () => renderSunburst(['combined']));
+  requestAnimationFrame(() => renderSunburst(['combined']));
+  window.addEventListener('resize', () => requestAnimationFrame(() => renderSunburst(['combined'])));
 
   // ── Trend chart (coverage over time) ───────────────────────────────
   let historyData = null;
