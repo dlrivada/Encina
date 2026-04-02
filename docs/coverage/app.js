@@ -612,10 +612,8 @@
     // Step 3: Render sunburst — canvas is square based on available height.
     renderSunburst(['combined']);
 
-    // Step 4: Read actual canvas width and set right width to fit content.
-    const canvas = document.getElementById('sunburst');
-    const rightPad = 40; // card padding left+right
-    const rightW = (canvas ? canvas.offsetWidth : 200) + rightPad;
+    // Step 4: Right width = its scrollWidth (content + padding, no clipping)
+    const rightW = right.scrollWidth;
     right.style.width = rightW + 'px';
 
     // Step 5: Left width = container width - right width - gap
