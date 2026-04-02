@@ -89,15 +89,15 @@ public class GenExtensionsTests
     [Fact]
     public void OrNullValue_GeneratesSomeNulls()
     {
-        // Arrange
+        // Arrange — high probability (0.5) with 500 samples to avoid flakiness
         var gen = ArbMap.Default.GeneratorFor<int>().OrNullValue(0.5);
 
         // Act
-        var samples = Gen.Sample(gen, 10, 100).ToList();
+        var samples = Gen.Sample(gen, 10, 500).ToList();
 
         // Assert
-        samples.Any(s => s == null).ShouldBeTrue("Should generate at least one null");
-        samples.Any(s => s != null).ShouldBeTrue("Should generate at least one non-null");
+        samples.Any(s => s == null).ShouldBeTrue("Should generate at least one null in 500 samples");
+        samples.Any(s => s != null).ShouldBeTrue("Should generate at least one non-null in 500 samples");
     }
 
     #endregion
