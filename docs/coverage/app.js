@@ -598,26 +598,35 @@
     const container = document.querySelector('.top-grid');
     if (!left || !right || !container) return;
 
-    // Reset
+    // Reset to let left take natural size
     left.style.width = '';
     right.style.height = '';
     right.style.width = '';
 
-    // 1. Left natural height
+    // Step 1: Left heights are natural (CSS handles this). Read total height.
     const leftH = left.offsetHeight;
 
-    // 2. Right = same height, width = height (square-ish card for circular donut)
+    // Step 2: Set right height = left height. Anchor it.
     right.style.height = leftH + 'px';
-    right.style.width = leftH + 'px';
 
-    // 3. Left fills the rest
-    const gap = 16;
-    left.style.width = (container.clientWidth - leftH - gap) + 'px';
+    // Force reflow so card.clientHeight is updated before renderSunburst reads it
+    void right.offsetHeight;
 
-    // 4. Render sunburst inside the now-correctly-sized card
+    // Step 3: Render sunburst — canvas is square based on available height.
     renderSunburst(['combined']);
 
-    // 5. Re-render trend chart at new left width
+    // Step 4: Read actual canvas width and set right width to fit content.
+    const canvas = document.getElementById('sunburst');
+    const rightPad = 40; // card padding left+right
+    const rightW = (canvas ? canvas.offsetWidth : 200) + rightPad;
+    right.style.width = rightW + 'px';
+
+    // Step 5: Left width = container width - right width - gap
+    const gap = 16; // 1rem
+    const containerW = container.clientWidth;
+    left.style.width = (containerW - rightW - gap) + 'px';
+
+    // Step 6: Re-render trend chart at new left width
     if (typeof renderTrendChart === 'function' && historyData && historyData.length > 0) {
       renderTrendChart(historyData, ['combined']);
     }
