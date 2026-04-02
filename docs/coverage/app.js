@@ -468,15 +468,9 @@
     const canvas = document.getElementById('sunburst');
     if (!canvas || allPackages.length === 0) return;
 
-    // Size canvas to fit its card — card height is set by the grid row (matching left column)
+    // Canvas fills the 1fr grid row of its parent card (stretched by outer grid)
     const dpr = window.devicePixelRatio || 1;
-    const card = canvas.parentElement;
-    const togglesH = card.querySelector('.chart-toggles')?.offsetHeight ?? 0;
-    const h2H = card.querySelector('h2')?.offsetHeight ?? 0;
-    const padding = 40; // card padding + margins
-    const availH = card.clientHeight - h2H - togglesH - padding;
-    const availW = card.clientWidth - 40;
-    const displaySize = Math.max(Math.min(availW, availH), 250);
+    const displaySize = Math.max(Math.min(canvas.clientWidth, canvas.clientHeight), 250);
     canvas.width = displaySize * dpr;
     canvas.height = displaySize * dpr;
     canvas.style.width = displaySize + 'px';
