@@ -1,12 +1,12 @@
 using System.Data;
-using Encina.ADO.PostgreSQL;
-using Encina.ADO.PostgreSQL.Repository;
+using Encina.ADO.MySQL;
+using Encina.ADO.MySQL.Repository;
 using Encina.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 
-namespace Encina.GuardTests.ADO.PostgreSQL;
+namespace Encina.GuardTests.ADO.MySQL;
 
 /// <summary>
 /// Guard tests for <see cref="ServiceCollectionExtensions"/> to verify null parameter handling.
@@ -25,8 +25,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaADO(configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
     }
 
     /// <summary>
@@ -41,8 +40,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaADO(configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("configure");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(configure));
     }
 
     /// <summary>
@@ -53,13 +51,12 @@ public class ServiceCollectionExtensionsGuardsTests
     {
         // Arrange
         IServiceCollection services = null!;
-        var connectionString = "Host=localhost;Database=test;";
+        var connectionString = "Server=localhost;Database=test;";
         Action<MessagingConfiguration> configure = _ => { };
 
         // Act & Assert
         var act = () => services.AddEncinaADO(connectionString, configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
     }
 
     /// <summary>
@@ -75,25 +72,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaADO(connectionString, configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("connectionString");
-    }
-
-    /// <summary>
-    /// Verifies that AddEncinaADO with connection string throws ArgumentException when connectionString is empty.
-    /// </summary>
-    [Fact]
-    public void AddEncinaADO_WithConnectionString_EmptyConnectionString_ThrowsArgumentException()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        var connectionString = string.Empty;
-        Action<MessagingConfiguration> configure = _ => { };
-
-        // Act & Assert
-        var act = () => services.AddEncinaADO(connectionString, configure);
-        var ex = Should.Throw<ArgumentException>(act);
-        ex.ParamName.ShouldBe("connectionString");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(connectionString));
     }
 
     /// <summary>
@@ -104,17 +83,16 @@ public class ServiceCollectionExtensionsGuardsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        var connectionString = "Host=localhost;Database=test;";
+        var connectionString = "Server=localhost;Database=test;";
         Action<MessagingConfiguration> configure = null!;
 
         // Act & Assert
         var act = () => services.AddEncinaADO(connectionString, configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("configure");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(configure));
     }
 
     /// <summary>
-    /// Verifies that AddEncinaADO with factory throws ArgumentNullException when services is null.
+    /// Verifies that AddEncinaADO with connection factory throws ArgumentNullException when services is null.
     /// </summary>
     [Fact]
     public void AddEncinaADO_WithFactory_NullServices_ThrowsArgumentNullException()
@@ -126,12 +104,11 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaADO(connectionFactory, configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
     }
 
     /// <summary>
-    /// Verifies that AddEncinaADO with factory throws ArgumentNullException when connectionFactory is null.
+    /// Verifies that AddEncinaADO with connection factory throws ArgumentNullException when connectionFactory is null.
     /// </summary>
     [Fact]
     public void AddEncinaADO_WithFactory_NullConnectionFactory_ThrowsArgumentNullException()
@@ -143,12 +120,11 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaADO(connectionFactory, configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("connectionFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(connectionFactory));
     }
 
     /// <summary>
-    /// Verifies that AddEncinaADO with factory throws ArgumentNullException when configure is null.
+    /// Verifies that AddEncinaADO with connection factory throws ArgumentNullException when configure is null.
     /// </summary>
     [Fact]
     public void AddEncinaADO_WithFactory_NullConfigure_ThrowsArgumentNullException()
@@ -160,8 +136,7 @@ public class ServiceCollectionExtensionsGuardsTests
 
         // Act & Assert
         var act = () => services.AddEncinaADO(connectionFactory, configure);
-        var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("configure");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(configure));
     }
 
     // ----- AddEncinaRepository guards -----
@@ -282,81 +257,65 @@ public class ServiceCollectionExtensionsGuardsTests
         Should.Throw<InvalidOperationException>(act);
     }
 
-    // ----- AddEncinaUnitOfWork guards -----
+    // ----- AddEncinaProcessingActivityADOMySQL guards -----
 
     /// <summary>
-    /// Verifies that AddEncinaUnitOfWork throws ArgumentNullException when services is null.
+    /// Verifies that AddEncinaProcessingActivityADOMySQL throws ArgumentNullException when services is null.
     /// </summary>
     [Fact]
-    public void AddEncinaUnitOfWork_NullServices_ThrowsArgumentNullException()
+    public void AddEncinaProcessingActivityADOMySQL_NullServices_ThrowsArgumentNullException()
     {
         // Arrange
         IServiceCollection services = null!;
+        var connectionString = "Server=localhost;Database=test;";
 
         // Act & Assert
-        var act = () => services.AddEncinaUnitOfWork();
-        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
-    }
-
-    // ----- AddEncinaProcessingActivityADOPostgreSQL guards -----
-
-    /// <summary>
-    /// Verifies that AddEncinaProcessingActivityADOPostgreSQL throws ArgumentNullException when services is null.
-    /// </summary>
-    [Fact]
-    public void AddEncinaProcessingActivityADOPostgreSQL_NullServices_ThrowsArgumentNullException()
-    {
-        // Arrange
-        IServiceCollection services = null!;
-        var connectionString = "Host=localhost;Database=test;";
-
-        // Act & Assert
-        var act = () => services.AddEncinaProcessingActivityADOPostgreSQL(connectionString);
+        var act = () => services.AddEncinaProcessingActivityADOMySQL(connectionString);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
     }
 
     /// <summary>
-    /// Verifies that AddEncinaProcessingActivityADOPostgreSQL throws ArgumentException when connectionString is null.
+    /// Verifies that AddEncinaProcessingActivityADOMySQL throws ArgumentException when connectionString is null.
     /// </summary>
     [Fact]
-    public void AddEncinaProcessingActivityADOPostgreSQL_NullConnectionString_ThrowsArgumentException()
+    public void AddEncinaProcessingActivityADOMySQL_NullConnectionString_ThrowsArgumentException()
     {
         // Arrange
         var services = new ServiceCollection();
         string connectionString = null!;
 
         // Act & Assert
-        var act = () => services.AddEncinaProcessingActivityADOPostgreSQL(connectionString);
+        var act = () => services.AddEncinaProcessingActivityADOMySQL(connectionString);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(connectionString));
     }
 
     /// <summary>
-    /// Verifies that AddEncinaProcessingActivityADOPostgreSQL throws ArgumentException when connectionString is empty.
+    /// Verifies that AddEncinaProcessingActivityADOMySQL throws ArgumentException when connectionString is empty.
     /// </summary>
     [Fact]
-    public void AddEncinaProcessingActivityADOPostgreSQL_EmptyConnectionString_ThrowsArgumentException()
+    public void AddEncinaProcessingActivityADOMySQL_EmptyConnectionString_ThrowsArgumentException()
     {
         // Arrange
         var services = new ServiceCollection();
         var connectionString = "";
 
         // Act & Assert
-        var act = () => services.AddEncinaProcessingActivityADOPostgreSQL(connectionString);
+        var act = () => services.AddEncinaProcessingActivityADOMySQL(connectionString);
         Should.Throw<ArgumentException>(act).ParamName.ShouldBe(nameof(connectionString));
     }
 
     /// <summary>
-    /// Verifies that AddEncinaProcessingActivityADOPostgreSQL throws ArgumentException when connectionString is whitespace.
+    /// Verifies that AddEncinaProcessingActivityADOMySQL throws ArgumentException when connectionString is whitespace.
     /// </summary>
     [Fact]
-    public void AddEncinaProcessingActivityADOPostgreSQL_WhitespaceConnectionString_ThrowsArgumentException()
+    public void AddEncinaProcessingActivityADOMySQL_WhitespaceConnectionString_ThrowsArgumentException()
     {
         // Arrange
         var services = new ServiceCollection();
         var connectionString = "   ";
 
         // Act & Assert
-        var act = () => services.AddEncinaProcessingActivityADOPostgreSQL(connectionString);
+        var act = () => services.AddEncinaProcessingActivityADOMySQL(connectionString);
         Should.Throw<ArgumentException>(act).ParamName.ShouldBe(nameof(connectionString));
     }
 
