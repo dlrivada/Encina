@@ -473,11 +473,8 @@
     const card = canvas.closest('.top-right') || canvas.parentElement;
     const togglesH = card.querySelector('.chart-toggles')?.offsetHeight ?? 0;
     const h2H = card.querySelector('h2')?.offsetHeight ?? 0;
-    const padV = 32; // card padding top+bottom
-    const padH = 42; // card padding left+right (1.25rem * 2 ≈ 40 + 2px border)
-    const availH = card.clientHeight - h2H - togglesH - padV;
-    const availW = card.clientWidth - padH;
-    const displaySize = Math.max(Math.min(availH, availW), 200);
+    const padding = 32; // card padding top+bottom
+    const displaySize = Math.max(card.clientHeight - h2H - togglesH - padding, 200);
     canvas.width = displaySize * dpr;
     canvas.height = displaySize * dpr;
     canvas.style.width = displaySize + 'px';
@@ -615,13 +612,10 @@
     // Step 3: Render sunburst — canvas is square based on available height.
     renderSunburst(['combined']);
 
-    // Step 4: Right width = canvas + card horizontal padding/border
+    // Step 4: Read actual canvas width and set right width to fit content.
     const canvas = document.getElementById('sunburst');
-    const rightPad = 42; // 1.25rem*2 + 2px border = 42
-    const canvasW = canvas ? parseInt(canvas.style.width) || canvas.offsetWidth : 200;
-    const togglesW = right.querySelector('.chart-toggles')?.offsetWidth ?? 0;
-    const contentW = Math.max(canvasW, togglesW);
-    const rightW = contentW + rightPad;
+    const rightPad = 40; // card padding left+right
+    const rightW = (canvas ? canvas.offsetWidth : 200) + rightPad;
     right.style.width = rightW + 'px';
 
     // Step 5: Left width = container width - right width - gap
