@@ -595,8 +595,18 @@
   renderSunburst(['combined']);
   setupToggles('sunburst-toggles', renderSunburst);
 
-  // Re-render sunburst on resize (canvas sizes to card width)
-  window.addEventListener('resize', () => renderSunburst(['combined']));
+  // Sync right column height to left column, then re-render sunburst
+  function syncTopGrid() {
+    const left = document.querySelector('.top-left');
+    const right = document.querySelector('.top-right');
+    if (!left || !right) return;
+    right.style.height = left.offsetHeight + 'px';
+    renderSunburst(['combined']);
+  }
+
+  // Sync after everything renders (trend chart etc.) and on resize
+  requestAnimationFrame(() => requestAnimationFrame(syncTopGrid));
+  window.addEventListener('resize', syncTopGrid);
 
   // ── Trend chart (coverage over time) ───────────────────────────────
   let historyData = null;
