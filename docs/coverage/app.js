@@ -592,28 +592,44 @@
 
   setupToggles('sunburst-toggles', renderSunburst);
 
-  // Layout sequence: left heights are natural → right adapts → left width fills remainder
   function layoutTopGrid() {
     const left = document.querySelector('.top-left');
     const right = document.querySelector('.top-right');
-    if (!left || !right) return;
+    const container = document.querySelector('.top-grid');
+    if (!left || !right || !container) return;
 
-    // 1. Read left natural height (Overall + gap + Trend)
+    // Reset to let left take natural size
+    left.style.width = '';
+    right.style.height = '';
+    right.style.width = '';
+
+    // Step 1: Left heights are natural (CSS handles this). Read total height.
     const leftH = left.offsetHeight;
 
-    // 2. Set right height = left height
+    // Step 2: Set right height = left height. Anchor it.
     right.style.height = leftH + 'px';
 
-    // 3. Render sunburst — it will read card height and make a square canvas
+    // Step 3: Render sunburst — canvas is square based on available height.
     renderSunburst(['combined']);
 
-    // 4. Right width = what the donut needs (canvas is square, based on available height)
-    //    The sunburst already set canvas.style.width, so right auto-sizes to content.
-    //    flex: 0 0 auto means right takes its content width.
-    //    flex: 1 on left fills the rest.
+    // Step 4: Read actual canvas width and set right width to fit content.
+    const canvas = document.getElementById('sunburst');
+    const rightPad = 40; // card padding left+right
+    const rightW = (canvas ? canvas.offsetWidth : 200) + rightPad;
+    right.style.width = rightW + 'px';
+
+    // Step 5: Left width = container width - right width - gap
+    const gap = 16; // 1rem
+    const containerW = container.clientWidth;
+    left.style.width = (containerW - rightW - gap) + 'px';
+
+    // Step 6: Re-render trend chart at new left width
+    if (typeof renderTrendChart === 'function' && historyData && historyData.length > 0) {
+      renderTrendChart(historyData, ['combined']);
+    }
   }
 
-  // Double rAF: first renders trend chart, second measures final left height
+  // Double rAF: first paints trend chart, second measures final layout
   requestAnimationFrame(() => requestAnimationFrame(layoutTopGrid));
   window.addEventListener('resize', layoutTopGrid);
 
