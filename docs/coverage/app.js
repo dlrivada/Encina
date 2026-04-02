@@ -468,10 +468,14 @@
     const canvas = document.getElementById('sunburst');
     if (!canvas || allPackages.length === 0) return;
 
-    // Square canvas based on card width (always a circle, never an ellipse)
+    // Square canvas: min of card width and available height (circle, not ellipse)
     const dpr = window.devicePixelRatio || 1;
     const card = canvas.closest('.top-right') || canvas.parentElement;
-    const displaySize = Math.max(card.clientWidth - 40, 200);
+    const togglesH = card.querySelector('.chart-toggles')?.offsetHeight ?? 0;
+    const h2H = card.querySelector('h2')?.offsetHeight ?? 0;
+    const availH = card.clientHeight - h2H - togglesH - 32;
+    const availW = card.clientWidth - 40;
+    const displaySize = Math.max(Math.min(availW, availH), 200);
     canvas.width = displaySize * dpr;
     canvas.height = displaySize * dpr;
     canvas.style.width = displaySize + 'px';
@@ -591,18 +595,8 @@
   renderSunburst(['combined']);
   setupToggles('sunburst-toggles', renderSunburst);
 
-  // Equalize top grid heights: left column defines the height, right adapts
-  function equalizeTopGrid() {
-    const left = document.querySelector('.top-left');
-    const right = document.querySelector('.top-right');
-    if (!left || !right) return;
-    right.style.height = '';          // reset
-    const leftH = left.offsetHeight;
-    right.style.height = leftH + 'px';
-    renderSunburst(['combined']);      // re-render canvas at new size
-  }
-  equalizeTopGrid();
-  window.addEventListener('resize', equalizeTopGrid);
+  // Re-render sunburst on resize (canvas sizes to card width)
+  window.addEventListener('resize', () => renderSunburst(['combined']));
 
   // ── Trend chart (coverage over time) ───────────────────────────────
   let historyData = null;
