@@ -603,36 +603,21 @@
     right.style.height = '';
     right.style.width = '';
 
-    // 1. Read left natural height
+    // 1. Left natural height
     const leftH = left.offsetHeight;
 
-    // 2. Set right height = left height
+    // 2. Right = same height, width = height (square-ish card for circular donut)
     right.style.height = leftH + 'px';
+    right.style.width = leftH + 'px';
 
-    // 3. Pre-calculate donut size (square, based on height minus h2/toggles/padding)
-    const h2H = right.querySelector('h2')?.offsetHeight ?? 0;
-    const togglesH = right.querySelector('.chart-toggles')?.offsetHeight ?? 0;
-    const rStyle = getComputedStyle(right);
-    const padT = parseFloat(rStyle.paddingTop);
-    const padB = parseFloat(rStyle.paddingBottom);
-    const padL = parseFloat(rStyle.paddingLeft);
-    const padR = parseFloat(rStyle.paddingRight);
-    const borderL = parseFloat(rStyle.borderLeftWidth);
-    const borderR = parseFloat(rStyle.borderRightWidth);
-    const donutSize = Math.max(leftH - h2H - togglesH - padT - padB, 200);
-
-    // 4. Set right width = donut (square) + horizontal padding + border
-    const rightW = Math.ceil(donutSize + padL + padR + borderL + borderR);
-    right.style.width = rightW + 'px';
-
-    // 5. Left width = container - right - gap
+    // 3. Left fills the rest
     const gap = 16;
-    left.style.width = (container.clientWidth - rightW - gap) + 'px';
+    left.style.width = (container.clientWidth - leftH - gap) + 'px';
 
-    // 6. Render sunburst (card is now correctly sized)
+    // 4. Render sunburst inside the now-correctly-sized card
     renderSunburst(['combined']);
 
-    // 7. Re-render trend chart at new left width
+    // 5. Re-render trend chart at new left width
     if (typeof renderTrendChart === 'function' && historyData && historyData.length > 0) {
       renderTrendChart(historyData, ['combined']);
     }
