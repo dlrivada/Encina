@@ -153,6 +153,198 @@ public class CursorPaginationHelperGuardTests
         ex.ParamName.ShouldBe("keyDescending");
     }
 
+    /// <summary>
+    /// Verifies that ExecuteAsync throws ArgumentException when tableName is empty.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_EmptyTableName_ThrowsArgumentException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteAsync<Guid>(
+            tableName: "",
+            keyColumn: "Id",
+            cursor: null,
+            pageSize: 10,
+            isDescending: false);
+        await Should.ThrowAsync<ArgumentException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteAsync throws ArgumentException when keyColumn is empty.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_EmptyKeyColumn_ThrowsArgumentException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteAsync<Guid>(
+            tableName: "TestTable",
+            keyColumn: "",
+            cursor: null,
+            pageSize: 10,
+            isDescending: false);
+        await Should.ThrowAsync<ArgumentException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteAsync throws ArgumentOutOfRangeException when pageSize is zero.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_ZeroPageSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteAsync<Guid>(
+            tableName: "TestTable",
+            keyColumn: "Id",
+            cursor: null,
+            pageSize: 0,
+            isDescending: false);
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteAsync throws ArgumentOutOfRangeException when pageSize is negative.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_NegativePageSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteAsync<Guid>(
+            tableName: "TestTable",
+            keyColumn: "Id",
+            cursor: null,
+            pageSize: -1,
+            isDescending: false);
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteAsync throws ArgumentOutOfRangeException when pageSize exceeds MaxPageSize.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_ExceedsMaxPageSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+        var maxPageSize = CursorPaginationOptions.MaxPageSize;
+
+        // Act & Assert
+        var act = () => helper.ExecuteAsync<Guid>(
+            tableName: "TestTable",
+            keyColumn: "Id",
+            cursor: null,
+            pageSize: maxPageSize + 1,
+            isDescending: false);
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteCompositeAsync throws ArgumentException when tableName is null.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteCompositeAsync_NullTableName_ThrowsArgumentException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteCompositeAsync(
+            tableName: null!,
+            keyColumns: ["Id"],
+            cursor: null,
+            pageSize: 10,
+            keyDescending: [false]);
+        await Should.ThrowAsync<ArgumentException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteCompositeAsync throws ArgumentException when keyColumns is empty.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteCompositeAsync_EmptyKeyColumns_ThrowsArgumentException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteCompositeAsync(
+            tableName: "TestTable",
+            keyColumns: [],
+            cursor: null,
+            pageSize: 10,
+            keyDescending: []);
+        await Should.ThrowAsync<ArgumentException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteCompositeAsync throws ArgumentException when keyColumns and keyDescending lengths mismatch.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteCompositeAsync_MismatchedLengths_ThrowsArgumentException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteCompositeAsync(
+            tableName: "TestTable",
+            keyColumns: ["Id", "Name"],
+            cursor: null,
+            pageSize: 10,
+            keyDescending: [false]); // Only 1 element, should match 2
+        await Should.ThrowAsync<ArgumentException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteCompositeAsync throws ArgumentOutOfRangeException when pageSize is zero.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteCompositeAsync_ZeroPageSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+
+        // Act & Assert
+        var act = () => helper.ExecuteCompositeAsync(
+            tableName: "TestTable",
+            keyColumns: ["Id"],
+            cursor: null,
+            pageSize: 0,
+            keyDescending: [false]);
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+    }
+
+    /// <summary>
+    /// Verifies that ExecuteCompositeAsync throws ArgumentOutOfRangeException when pageSize exceeds MaxPageSize.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteCompositeAsync_ExceedsMaxPageSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var helper = CreateHelper();
+        var maxPageSize = CursorPaginationOptions.MaxPageSize;
+
+        // Act & Assert
+        var act = () => helper.ExecuteCompositeAsync(
+            tableName: "TestTable",
+            keyColumns: ["Id"],
+            cursor: null,
+            pageSize: maxPageSize + 1,
+            keyDescending: [false]);
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(act);
+    }
+
     #region Helper Methods
 
     private static DbConnection CreateMockConnection()
