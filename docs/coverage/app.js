@@ -612,14 +612,11 @@
     // Step 3: Render sunburst — canvas is square based on available height.
     renderSunburst(['combined']);
 
-    // Step 4: Right width = widest child + padding + border
+    // Step 4: Read actual canvas width and set right width to fit content.
     const canvas = document.getElementById('sunburst');
-    const canvasW = canvas ? parseInt(canvas.style.width) || canvas.offsetWidth : 200;
-    const style = getComputedStyle(right);
-    const padLR = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-    const borderLR = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
-    const rightW = canvasW + padLR + borderLR;
-    right.style.width = Math.ceil(rightW) + 'px';
+    const rightPad = 40; // card padding left+right
+    const rightW = (canvas ? canvas.offsetWidth : 200) + rightPad;
+    right.style.width = rightW + 'px';
 
     // Step 5: Left width = container width - right width - gap
     const gap = 16; // 1rem
