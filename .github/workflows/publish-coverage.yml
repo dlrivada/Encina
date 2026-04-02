@@ -3,6 +3,11 @@ name: Publish Coverage Data
 # Triggered when CI completes — downloads the coverage artifact
 # and deploys it to GitHub Pages alongside the existing site.
 on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'CI Full run ID to use (leave empty for latest successful)'
+        required: false
   workflow_run:
     workflows: ["CI Full"]
     types: [completed]
@@ -16,7 +21,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -35,12 +40,24 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Resolve CI Full run ID
+        id: resolve
+        run: |
+          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          if [ -z "$RID" ]; then
+            RID=$(gh run list --workflow "CI Full" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            echo "Auto-resolved latest successful CI Full: $RID"
+          fi
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Download coverage artifact from CI
         uses: actions/download-artifact@v8
         with:
           name: coverage-report
           path: coverage-artifact
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ steps.resolve.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Pages site with fresh coverage data
