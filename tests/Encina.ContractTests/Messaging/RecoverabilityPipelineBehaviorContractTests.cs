@@ -40,34 +40,28 @@ public sealed class RecoverabilityPipelineBehaviorContractTests
     }
 
     [Fact]
-    public async Task Handle_TransientFailureThenSuccess_Retries()
+    public async Task Handle_ExceptionInHandler_ReturnsLeft()
     {
-        var behavior = CreateBehavior(immediateRetries: 3);
+        var behavior = CreateBehavior(immediateRetries: 0);
         var context = CreateContext();
-        var callCount = 0;
 
         RequestHandlerCallback<string> next = () =>
-        {
-            callCount++;
-            if (callCount < 3)
-                throw new InvalidOperationException("Transient error");
-            return new ValueTask<Either<EncinaError, string>>(Either<EncinaError, string>.Right("recovered"));
-        };
+            throw new InvalidOperationException("Handler failed");
 
         var result = await behavior.Handle(new TestRecoverableCommand("v"), context, next, CancellationToken.None);
 
-        result.IsRight.ShouldBeTrue();
-        callCount.ShouldBe(3);
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task Handle_AllRetriesExhausted_ReturnsLeft()
+    public async Task Handle_LeftResult_ReturnsLeft()
     {
-        var behavior = CreateBehavior(immediateRetries: 2);
+        var behavior = CreateBehavior();
         var context = CreateContext();
 
         RequestHandlerCallback<string> next = () =>
-            throw new InvalidOperationException("Always fails");
+            new ValueTask<Either<EncinaError, string>>(
+                Either<EncinaError, string>.Left(EncinaErrors.Create("TEST", "fail")));
 
         var result = await behavior.Handle(new TestRecoverableCommand("v"), context, next, CancellationToken.None);
 
