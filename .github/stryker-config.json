@@ -8,17 +8,29 @@
       "tests/Encina.PropertyTests/Encina.PropertyTests.csproj",
       "tests/Encina.ContractTests/Encina.ContractTests.csproj"
     ],
+    "since": {
+      "enabled": true,
+      "target": "main"
+    },
     "reporters": [
       "progress",
-      "html",
       "json",
       "cleartext"
     ],
-    "concurrency": 4,
+    "concurrency": 8,
     "thresholds": {
       "high": 85,
       "low": 70,
       "break": 60
-    }
+    },
+    "mutate": [
+      "src/Encina/**/*.cs",
+      "!src/Encina/**/Log.cs",
+      "!src/Encina/**/LogMessages.cs",
+      "!src/Encina/**/Diagnostics/*ActivitySource.cs",
+      "!src/Encina/**/Diagnostics/*Metrics.cs",
+      "!src/Encina/**/*Errors.cs",
+      "!src/Encina/**/*Constants.cs"
+    ]
   }
 }

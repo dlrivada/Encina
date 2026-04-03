@@ -12,7 +12,7 @@ permissions:
 jobs:
   run-mutation-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 120
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5
