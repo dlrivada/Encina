@@ -23,7 +23,7 @@ public class ModuleAwareConnectionFactoryGuardTests
         // Act & Assert
         var act = () => new ModuleAwareConnectionFactory(null!, moduleContext, schemaRegistry, options);
         var ex = Should.Throw<ArgumentNullException>(act);
-        ex.ParamName.ShouldBe("innerConnectionFactory");
+        ex.ParamName.ShouldBe("innerFactory");
     }
 
     [Fact]
@@ -101,9 +101,9 @@ public class ModuleAwareConnectionFactoryGuardTests
     }
 
     [Fact]
-    public void CreateConnection_DevelopmentMode_NonDbConnection_ThrowsInvalidOperationException()
+    public void CreateConnection_DevelopmentMode_NonDbConnection_ReturnsUnwrapped()
     {
-        // Arrange
+        // Arrange — when inner connection is not DbConnection, it's returned as-is (no wrapping)
         var innerConnection = Substitute.For<IDbConnection>();
         Func<IDbConnection> factory = () => innerConnection;
         var moduleContext = Substitute.For<IModuleExecutionContext>();
@@ -112,8 +112,10 @@ public class ModuleAwareConnectionFactoryGuardTests
 
         var sut = new ModuleAwareConnectionFactory(factory, moduleContext, schemaRegistry, options);
 
-        // Act & Assert
-        var act = () => sut.CreateConnection();
-        Should.Throw<InvalidOperationException>(act);
+        // Act
+        var connection = sut.CreateConnection();
+
+        // Assert — returned as-is since it's not a DbConnection
+        connection.ShouldBe(innerConnection);
     }
 }
