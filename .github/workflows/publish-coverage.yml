@@ -82,9 +82,23 @@ jobs:
           STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           cp -f _site/coverage/data/latest.json "_site/coverage/data/${STAMP}.json" 2>/dev/null || true
 
-          # Repo history.json is the sole source of truth.
-          # If it's empty ([]), we start fresh — never fetch stale data from Pages.
-          echo "Using repo history.json ($(grep -c timestamp _site/coverage/data/history.json || echo 0) entries)"
+          # History strategy: fetch from live Pages (most complete), fall back to repo.
+          # The repo version may lag behind because auto-push is blocked by branch protection.
+          PAGES_URL="https://dlrivada.github.io/Encina/coverage/data/history.json"
+          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+          REPO_ENTRIES=$(grep -c timestamp _site/coverage/data/history.json 2>/dev/null || echo 0)
+
+          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
+            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp || echo 0)
+            if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
+              echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
+              echo "$PAGES_HISTORY" > _site/coverage/data/history.json
+            else
+              echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
+            fi
+          else
+            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+          fi
 
           # Update history (appends current snapshot)
           dotnet run .github/scripts/coverage-history.cs -- \
@@ -95,6 +109,7 @@ jobs:
           cat _site/coverage/data/history.json | head -5
 
       - name: Persist history.json back to repo
+        continue-on-error: true
         run: |
           cp -f _site/coverage/data/history.json docs/coverage/data/history.json
           git config user.name "github-actions[bot]"
@@ -105,7 +120,7 @@ jobs:
           else
             ENTRIES=$(grep -c timestamp docs/coverage/data/history.json || echo 0)
             git commit -m "chore: update coverage history ($ENTRIES entries)"
-            git push origin main
+            git push origin main || echo "Warning: Could not push history update (branch protection). History will be updated on next manual push."
           fi
 
       - name: Upload Pages artifact
