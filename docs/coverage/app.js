@@ -207,16 +207,20 @@
     if (col === 'lines') return pkg.lines;
     if (col === 'combined') return pkg.coverage;
     if (col === 'gap') {
-      // Compute effective gap like renderPackages does
+      // Sum of negative flag gaps (lines), or positive if all met
       if (!pkg.perFlagTarget || !pkg.perFlag) return 0;
-      let worst = Infinity;
+      let sumNeg = 0, sumPos = 0, hasNeg = false;
       for (const [flag, ft] of Object.entries(pkg.perFlagTarget)) {
         const d = pkg.perFlag?.[flag];
-        const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
-        const g = Math.round(pct) - ft;
-        if (g < worst) worst = g;
+        const covered = d?.covered ?? 0;
+        const applicable = d?.total ?? 0;
+        const targetLines = Math.round(applicable * ft / 100);
+        const gap = covered - targetLines;
+        if (Math.round(d ? (d.total > 0 ? d.coverage : 0) : 0) < ft) {
+          hasNeg = true; sumNeg += gap;
+        } else { sumPos += gap; }
       }
-      return worst === Infinity ? 0 : worst;
+      return hasNeg ? sumNeg : sumPos;
     }
     // Flag columns: unit, guard, contract, property, integration
     const d = pkg.perFlag?.[col];
@@ -249,42 +253,40 @@
       // Effective target = weighted by applicable lines per flag (obligations model)
       let effectiveTarget = 0;
       let allFlagsMeetTarget = true;
-      let worstGapFlag = '';
-      let worstGapValue = Infinity;
+      let sumNegativeGapLines = 0;
+      let sumPositiveGapLines = 0;
+      let hasNegativeGaps = false;
       if (pkg.perFlagTarget && pkg.perFlag) {
         let totalApplicable = 0, totalTargetLines = 0;
         for (const [flag, flagTarget] of Object.entries(pkg.perFlagTarget)) {
           const d = pkg.perFlag?.[flag];
           const flagApplicable = d?.total ?? 0;
+          const flagCovered = d?.covered ?? 0;
+          const flagTargetLines = Math.round(flagApplicable * flagTarget / 100);
           totalApplicable += flagApplicable;
-          totalTargetLines += Math.round(flagApplicable * flagTarget / 100);
+          totalTargetLines += flagTargetLines;
           const pct = d ? (d.total > 0 ? d.coverage : 0) : 0;
           const roundedPct = Math.round(pct);
-          const flagGap = roundedPct - flagTarget;
-          if (flagGap < worstGapValue) { worstGapValue = flagGap; worstGapFlag = flag; }
-          if (roundedPct < flagTarget) { allFlagsMeetTarget = false; }
+          if (roundedPct < flagTarget) {
+            allFlagsMeetTarget = false;
+            hasNegativeGaps = true;
+            sumNegativeGapLines += (flagCovered - flagTargetLines); // negative value
+          } else {
+            sumPositiveGapLines += (flagCovered - flagTargetLines); // positive value
+          }
         }
         if (totalApplicable > 0) {
           effectiveTarget = Math.round(totalTargetLines * 100 / totalApplicable * 100) / 100;
         }
       } else {
-        allFlagsMeetTarget = true; // no targets defined
-        worstGapValue = 0;
+        allFlagsMeetTarget = true;
       }
 
-      // Gap shows worst flag gap — green only when ALL flags meet target
-      const gapStr = allFlagsMeetTarget
-        ? `+${Math.round(pkg.coverage - effectiveTarget)}%`
-        : `${Math.round(worstGapValue)}%`;
+      // Gap = sum of negative flag gaps (lines short), or sum of positive if all met
+      const gapLinesVal = hasNegativeGaps ? sumNegativeGapLines : sumPositiveGapLines;
       const gapClass = allFlagsMeetTarget ? 'gap-positive' : 'gap-negative';
-
-      // Lines mode gap: covered - target (in lines)
-      const coveredLines = Math.round(pkg.coverage * pkg.lines / 100);
-      const targetLines = Math.round(effectiveTarget * pkg.lines / 100);
-      const gapLinesVal = coveredLines - targetLines;
-      const gapLines = allFlagsMeetTarget
-        ? `+${gapLinesVal.toLocaleString()}`
-        : `${gapLinesVal.toLocaleString()}`;
+      const gapStr = (gapLinesVal >= 0 ? '+' : '') + gapLinesVal.toLocaleString();
+      const gapLines = gapStr;
 
       // Render flag group: value + target + applicable lines
       function flagGroup(flag) {
