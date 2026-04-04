@@ -17,7 +17,7 @@ permissions:
   pages: write
   id-token: write
   actions: read
-  contents: read
+  contents: write
 
 jobs:
   publish:
@@ -93,6 +93,20 @@ jobs:
 
           echo "Coverage data updated. History entries:"
           cat _site/coverage/data/history.json | head -5
+
+      - name: Persist history.json back to repo
+        run: |
+          cp -f _site/coverage/data/history.json docs/coverage/data/history.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/coverage/data/history.json
+          if git diff --cached --quiet; then
+            echo "No history changes to commit"
+          else
+            ENTRIES=$(grep -c timestamp docs/coverage/data/history.json || echo 0)
+            git commit -m "chore: update coverage history ($ENTRIES entries)"
+            git push origin main
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
