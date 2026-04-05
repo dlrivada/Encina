@@ -393,14 +393,27 @@ static string ResolveCurrentFingerprint(SortedDictionary<string, string> fingerp
 
 static bool TryMatchProject(SortedDictionary<string, string> fingerprints, string moduleName, out string fingerprint)
 {
-    // Module → project mapping:
-    //   "Refit"                 → "Encina.Refit.Benchmarks"
-    //   "SecurityEncryption"    → "Encina.Security.Encryption.Benchmarks"
-    //   "Core"                  → "Encina.Benchmarks"
-    //   "EFCore"                → "Encina.EntityFrameworkCore.Benchmarks"
-    //   "AuditMarten"           → "Encina.Audit.Marten.Benchmarks"
-    // The match is done by collapsing dots and comparing case-insensitively against
-    // the last-path-segment-minus-suffix of each fingerprint key.
+    // Module → project mapping. The general rule strips the "Encina." prefix and
+    // ".Benchmarks" suffix from the full project name and collapses dots:
+    //   "Encina.Refit.Benchmarks"              → "Refit"
+    //   "Encina.Security.Encryption.Benchmarks" → "SecurityEncryption"
+    //   "Encina.Audit.Marten.Benchmarks"        → "AuditMarten"
+    //
+    // Two project names break that rule and need an explicit mapping:
+    //   "Core"   → "Encina.Benchmarks"                         (no area suffix)
+    //   "EFCore" → "Encina.EntityFrameworkCore.Benchmarks"     (abbreviation)
+    var explicitMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Core"] = "Encina.Benchmarks",
+        ["EFCore"] = "Encina.EntityFrameworkCore.Benchmarks"
+    };
+    if (explicitMap.TryGetValue(moduleName, out var explicitProject)
+        && fingerprints.TryGetValue(explicitProject, out var explicitFp))
+    {
+        fingerprint = explicitFp;
+        return true;
+    }
+
     foreach (var (key, value) in fingerprints)
     {
         // Strip "Encina." prefix and ".Benchmarks" suffix, then collapse dots.
