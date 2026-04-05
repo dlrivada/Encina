@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Audit.Marten.Benchmarks.EncryptedFieldBenchmarks-20260405-233546</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+Intel Xeon Platinum 8370C CPU 2.80GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v4
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>Mean</th><th>Error</th><th>Ratio</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Encrypt_Short_16B</td><td>334.9 &mu;s</td><td>NA</td><td>1.00</td><td>1</td><td>1720 B</td><td>1.00</td>
+</tr><tr><td>Encrypt_Medium_256B</td><td>335.9 &mu;s</td><td>NA</td><td>1.00</td><td>2</td><td>7792 B</td><td>4.53</td>
+</tr><tr><td>Encrypt_Long_4KB</td><td>353.4 &mu;s</td><td>NA</td><td>1.06</td><td>3</td><td>37336 B</td><td>21.71</td>
+</tr><tr><td>Encrypt_VeryLong_64KB</td><td>510.5 &mu;s</td><td>NA</td><td>1.52</td><td>5</td><td>569816 B</td><td>331.29</td>
+</tr><tr><td>Decrypt_Short_16B</td><td>7,130.6 &mu;s</td><td>NA</td><td>21.29</td><td>8</td><td>568 B</td><td>0.33</td>
+</tr><tr><td>Decrypt_Medium_256B</td><td>7,101.5 &mu;s</td><td>NA</td><td>21.21</td><td>7</td><td>1536 B</td><td>0.89</td>
+</tr><tr><td>Decrypt_Long_4KB</td><td>7,005.2 &mu;s</td><td>NA</td><td>20.92</td><td>6</td><td>16896 B</td><td>9.82</td>
+</tr><tr><td>Decrypt_VeryLong_64KB</td><td>7,380.4 &mu;s</td><td>NA</td><td>22.04</td><td>9</td><td>262656 B</td><td>152.71</td>
+</tr><tr><td>DecryptOrPlaceholder_NullKey</td><td>397.1 &mu;s</td><td>NA</td><td>1.19</td><td>4</td><td>-</td><td>0.00</td>
+</tr></tbody></table>
+</body>
+</html>

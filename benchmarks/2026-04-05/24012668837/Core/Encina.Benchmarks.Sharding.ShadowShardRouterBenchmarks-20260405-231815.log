@@ -1,0 +1,771 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 15 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/publish/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1
+// command took 3.8 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/publish/" --output "/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1
+// command took 216.99 sec and exited with 0
+// ***** Done, took 00:03:40 (220.93 sec)   *****
+// Found 15 benchmarks:
+//   ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+//   ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+//   ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+//   ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+//   ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.BareHashRouting(ShardCount: 3)" --job Dry --benchmarkId 0 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 17816302.00 ns, 17.8163 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 17816302.00 ns, 17.8163 ms/op
+// GC:  0 0 0 56 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3947 has exited with code 0.
+
+Mean = 17.816 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.816 ms, Q1 = 17.816 ms, Median = 17.816 ms, Q3 = 17.816 ms, Max = 17.816 ms
+IQR = 0.000 ms, LowerFence = 17.816 ms, UpperFence = 17.816 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 14 (93.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetShardId(ShardCount: 3)" --job Dry --benchmarkId 1 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 17705847.00 ns, 17.7058 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 17705847.00 ns, 17.7058 ms/op
+// GC:  0 0 0 56 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3957 has exited with code 0.
+
+Mean = 17.706 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.706 ms, Q1 = 17.706 ms, Median = 17.706 ms, Q3 = 17.706 ms, Max = 17.706 ms
+IQR = 0.000 ms, LowerFence = 17.706 ms, UpperFence = 17.706 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 13 (86.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedCompareAsync(ShardCount: 3)" --job Dry --benchmarkId 2 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 16375551.00 ns, 16.3756 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 16375551.00 ns, 16.3756 ms/op
+// GC:  0 0 0 320 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3963 has exited with code 0.
+
+Mean = 16.376 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 16.376 ms, Q1 = 16.376 ms, Median = 16.376 ms, Q3 = 16.376 ms, Max = 16.376 ms
+IQR = 0.000 ms, LowerFence = 16.376 ms, UpperFence = 16.376 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 12 (80.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetAllShardIds(ShardCount: 3)" --job Dry --benchmarkId 3 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 662233.00 ns, 662.2330 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 662233.00 ns, 662.2330 us/op
+// GC:  0 0 0 104 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3969 has exited with code 0.
+
+Mean = 662.233 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 662.233 μs, Q1 = 662.233 μs, Median = 662.233 μs, Q3 = 662.233 μs, Max = 662.233 μs
+IQR = 0.000 μs, LowerFence = 662.233 μs, UpperFence = 662.233 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 11 (73.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetShardConnectionString(ShardCount: 3)" --job Dry --benchmarkId 4 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 19015383.00 ns, 19.0154 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 19015383.00 ns, 19.0154 ms/op
+// GC:  0 0 0 64 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3975 has exited with code 0.
+
+Mean = 19.015 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 19.015 ms, Q1 = 19.015 ms, Median = 19.015 ms, Q3 = 19.015 ms, Max = 19.015 ms
+IQR = 0.000 ms, LowerFence = 19.015 ms, UpperFence = 19.015 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 10 (66.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.BareHashRouting(ShardCount: 10)" --job Dry --benchmarkId 5 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 17562059.00 ns, 17.5621 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 17562059.00 ns, 17.5621 ms/op
+// GC:  0 0 0 56 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3981 has exited with code 0.
+
+Mean = 17.562 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.562 ms, Q1 = 17.562 ms, Median = 17.562 ms, Q3 = 17.562 ms, Max = 17.562 ms
+IQR = 0.000 ms, LowerFence = 17.562 ms, UpperFence = 17.562 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 9 (60.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetShardId(ShardCount: 10)" --job Dry --benchmarkId 6 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 17891823.00 ns, 17.8918 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 17891823.00 ns, 17.8918 ms/op
+// GC:  0 0 0 56 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3987 has exited with code 0.
+
+Mean = 17.892 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.892 ms, Q1 = 17.892 ms, Median = 17.892 ms, Q3 = 17.892 ms, Max = 17.892 ms
+IQR = 0.000 ms, LowerFence = 17.892 ms, UpperFence = 17.892 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 8 (53.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedCompareAsync(ShardCount: 10)" --job Dry --benchmarkId 7 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 16630433.00 ns, 16.6304 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 16630433.00 ns, 16.6304 ms/op
+// GC:  0 0 0 320 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3993 has exited with code 0.
+
+Mean = 16.630 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 16.630 ms, Q1 = 16.630 ms, Median = 16.630 ms, Q3 = 16.630 ms, Max = 16.630 ms
+IQR = 0.000 ms, LowerFence = 16.630 ms, UpperFence = 16.630 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 7 (46.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetAllShardIds(ShardCount: 10)" --job Dry --benchmarkId 8 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 632848.00 ns, 632.8480 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 632848.00 ns, 632.8480 us/op
+// GC:  0 0 0 160 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3999 has exited with code 0.
+
+Mean = 632.848 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 632.848 μs, Q1 = 632.848 μs, Median = 632.848 μs, Q3 = 632.848 μs, Max = 632.848 μs
+IQR = 0.000 μs, LowerFence = 632.848 μs, UpperFence = 632.848 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 6 (40.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetShardConnectionString(ShardCount: 10)" --job Dry --benchmarkId 9 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 18462756.00 ns, 18.4628 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 18462756.00 ns, 18.4628 ms/op
+// GC:  0 0 0 64 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4005 has exited with code 0.
+
+Mean = 18.463 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 18.463 ms, Q1 = 18.463 ms, Median = 18.463 ms, Q3 = 18.463 ms, Max = 18.463 ms
+IQR = 0.000 ms, LowerFence = 18.463 ms, UpperFence = 18.463 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 5 (33.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.BareHashRouting(ShardCount: 50)" --job Dry --benchmarkId 10 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 18023809.00 ns, 18.0238 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 18023809.00 ns, 18.0238 ms/op
+// GC:  0 0 0 56 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4011 has exited with code 0.
+
+Mean = 18.024 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 18.024 ms, Q1 = 18.024 ms, Median = 18.024 ms, Q3 = 18.024 ms, Max = 18.024 ms
+IQR = 0.000 ms, LowerFence = 18.024 ms, UpperFence = 18.024 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 4 (26.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetShardId(ShardCount: 50)" --job Dry --benchmarkId 11 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 17769596.00 ns, 17.7696 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 17769596.00 ns, 17.7696 ms/op
+// GC:  0 0 0 56 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4017 has exited with code 0.
+
+Mean = 17.770 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.770 ms, Q1 = 17.770 ms, Median = 17.770 ms, Q3 = 17.770 ms, Max = 17.770 ms
+IQR = 0.000 ms, LowerFence = 17.770 ms, UpperFence = 17.770 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 3 (20.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedCompareAsync(ShardCount: 50)" --job Dry --benchmarkId 12 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 16688464.00 ns, 16.6885 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 16688464.00 ns, 16.6885 ms/op
+// GC:  0 0 0 320 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4023 has exited with code 0.
+
+Mean = 16.688 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 16.688 ms, Q1 = 16.688 ms, Median = 16.688 ms, Q3 = 16.688 ms, Max = 16.688 ms
+IQR = 0.000 ms, LowerFence = 16.688 ms, UpperFence = 16.688 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 2 (13.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetAllShardIds(ShardCount: 50)" --job Dry --benchmarkId 13 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 680096.00 ns, 680.0960 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 680096.00 ns, 680.0960 us/op
+// GC:  0 0 0 480 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4029 has exited with code 0.
+
+Mean = 680.096 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 680.096 μs, Q1 = 680.096 μs, Median = 680.096 μs, Q3 = 680.096 μs, Max = 680.096 μs
+IQR = 0.000 μs, LowerFence = 680.096 μs, UpperFence = 680.096 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 1 (6.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// **************************
+// Benchmark: ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks.DecoratedGetShardConnectionString(ShardCount: 50)" --job Dry --benchmarkId 14 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 18429544.00 ns, 18.4295 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 18429544.00 ns, 18.4295 ms/op
+// GC:  0 0 0 64 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4035 has exited with code 0.
+
+Mean = 18.430 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 18.430 ms, Q1 = 18.430 ms, Median = 18.430 ms, Q3 = 18.430 ms, Max = 18.430 ms
+IQR = 0.000 ms, LowerFence = 18.430 ms, UpperFence = 18.430 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:22 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks-report.csv
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks-report-github.md
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks-report.html
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks-report-full-compressed.json
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ShadowShardRouterBenchmarks-report-default.md
+
+// * Detailed results *
+ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 17.816 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.816 ms, Q1 = 17.816 ms, Median = 17.816 ms, Q3 = 17.816 ms, Max = 17.816 ms
+IQR = 0.000 ms, LowerFence = 17.816 ms, UpperFence = 17.816 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[17.816 ms ; 17.816 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 17.706 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.706 ms, Q1 = 17.706 ms, Median = 17.706 ms, Q3 = 17.706 ms, Max = 17.706 ms
+IQR = 0.000 ms, LowerFence = 17.706 ms, UpperFence = 17.706 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[17.706 ms ; 17.706 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 16.376 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 16.376 ms, Q1 = 16.376 ms, Median = 16.376 ms, Q3 = 16.376 ms, Max = 16.376 ms
+IQR = 0.000 ms, LowerFence = 16.376 ms, UpperFence = 16.376 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[16.376 ms ; 16.376 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 662.233 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 662.233 μs, Q1 = 662.233 μs, Median = 662.233 μs, Q3 = 662.233 μs, Max = 662.233 μs
+IQR = 0.000 μs, LowerFence = 662.233 μs, UpperFence = 662.233 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[662.232 μs ; 662.234 μs) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 19.015 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 19.015 ms, Q1 = 19.015 ms, Median = 19.015 ms, Q3 = 19.015 ms, Max = 19.015 ms
+IQR = 0.000 ms, LowerFence = 19.015 ms, UpperFence = 19.015 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[19.015 ms ; 19.015 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 17.562 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.562 ms, Q1 = 17.562 ms, Median = 17.562 ms, Q3 = 17.562 ms, Max = 17.562 ms
+IQR = 0.000 ms, LowerFence = 17.562 ms, UpperFence = 17.562 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[17.562 ms ; 17.562 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 17.892 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.892 ms, Q1 = 17.892 ms, Median = 17.892 ms, Q3 = 17.892 ms, Max = 17.892 ms
+IQR = 0.000 ms, LowerFence = 17.892 ms, UpperFence = 17.892 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[17.892 ms ; 17.892 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 16.630 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 16.630 ms, Q1 = 16.630 ms, Median = 16.630 ms, Q3 = 16.630 ms, Max = 16.630 ms
+IQR = 0.000 ms, LowerFence = 16.630 ms, UpperFence = 16.630 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[16.630 ms ; 16.630 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 632.848 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 632.848 μs, Q1 = 632.848 μs, Median = 632.848 μs, Q3 = 632.848 μs, Max = 632.848 μs
+IQR = 0.000 μs, LowerFence = 632.848 μs, UpperFence = 632.848 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[632.847 μs ; 632.848 μs) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 18.463 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 18.463 ms, Q1 = 18.463 ms, Median = 18.463 ms, Q3 = 18.463 ms, Max = 18.463 ms
+IQR = 0.000 ms, LowerFence = 18.463 ms, UpperFence = 18.463 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[18.463 ms ; 18.463 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Bare HashRouter': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 18.024 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 18.024 ms, Q1 = 18.024 ms, Median = 18.024 ms, Q3 = 18.024 ms, Max = 18.024 ms
+IQR = 0.000 ms, LowerFence = 18.024 ms, UpperFence = 18.024 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[18.024 ms ; 18.024 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 17.770 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 17.770 ms, Q1 = 17.770 ms, Median = 17.770 ms, Q3 = 17.770 ms, Max = 17.770 ms
+IQR = 0.000 ms, LowerFence = 17.770 ms, UpperFence = 17.770 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[17.770 ms ; 17.770 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 16.688 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 16.688 ms, Q1 = 16.688 ms, Median = 16.688 ms, Q3 = 16.688 ms, Max = 16.688 ms
+IQR = 0.000 ms, LowerFence = 16.688 ms, UpperFence = 16.688 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[16.688 ms ; 16.688 ms) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 680.096 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 680.096 μs, Q1 = 680.096 μs, Median = 680.096 μs, Q3 = 680.096 μs, Max = 680.096 μs
+IQR = 0.000 μs, LowerFence = 680.096 μs, UpperFence = 680.096 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[680.096 μs ; 680.096 μs) | @
+---------------------------------------------------
+
+ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=50]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 18.430 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 18.430 ms, Q1 = 18.430 ms, Median = 18.430 ms, Q3 = 18.430 ms, Max = 18.430 ms
+IQR = 0.000 ms, LowerFence = 18.430 ms, UpperFence = 18.430 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[18.430 ms ; 18.430 ms) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                                   | ShardCount | Mean        | Error | Ratio | Rank | Allocated | Alloc Ratio |
+|----------------------------------------- |----------- |------------:|------:|------:|-----:|----------:|------------:|
+| 'Bare HashRouter'                        | 3          | 17,816.3 μs |    NA |  1.00 |    4 |      56 B |        1.00 |
+| 'Decorated GetShardId (production path)' | 3          | 17,705.8 μs |    NA |  0.99 |    3 |      56 B |        1.00 |
+| 'Decorated CompareAsync'                 | 3          | 16,375.6 μs |    NA |  0.92 |    2 |     320 B |        5.71 |
+| 'Decorated GetAllShardIds'               | 3          |    662.2 μs |    NA |  0.04 |    1 |     104 B |        1.86 |
+| 'Decorated GetShardConnectionString'     | 3          | 19,015.4 μs |    NA |  1.07 |    5 |      64 B |        1.14 |
+|                                          |            |             |       |       |      |           |             |
+| 'Bare HashRouter'                        | 10         | 17,562.1 μs |    NA |  1.00 |    3 |      56 B |        1.00 |
+| 'Decorated GetShardId (production path)' | 10         | 17,891.8 μs |    NA |  1.02 |    4 |      56 B |        1.00 |
+| 'Decorated CompareAsync'                 | 10         | 16,630.4 μs |    NA |  0.95 |    2 |     320 B |        5.71 |
+| 'Decorated GetAllShardIds'               | 10         |    632.8 μs |    NA |  0.04 |    1 |     160 B |        2.86 |
+| 'Decorated GetShardConnectionString'     | 10         | 18,462.8 μs |    NA |  1.05 |    5 |      64 B |        1.14 |
+|                                          |            |             |       |       |      |           |             |
+| 'Bare HashRouter'                        | 50         | 18,023.8 μs |    NA |  1.00 |    4 |      56 B |        1.00 |
+| 'Decorated GetShardId (production path)' | 50         | 17,769.6 μs |    NA |  0.99 |    3 |      56 B |        1.00 |
+| 'Decorated CompareAsync'                 | 50         | 16,688.5 μs |    NA |  0.93 |    2 |     320 B |        5.71 |
+| 'Decorated GetAllShardIds'               | 50         |    680.1 μs |    NA |  0.04 |    1 |     480 B |        8.57 |
+| 'Decorated GetShardConnectionString'     | 50         | 18,429.5 μs |    NA |  1.02 |    5 |      64 B |        1.14 |
+
+// * Warnings *
+MinIterationTime
+  ShadowShardRouterBenchmarks.'Bare HashRouter': Dry                        -> The minimum observed iteration time is 17.816ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry -> The minimum observed iteration time is 17.706ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry                 -> The minimum observed iteration time is 16.376ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry               -> The minimum observed iteration time is 662.233μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry     -> The minimum observed iteration time is 19.015ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Bare HashRouter': Dry                        -> The minimum observed iteration time is 17.562ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry -> The minimum observed iteration time is 17.892ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry                 -> The minimum observed iteration time is 16.63ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry               -> The minimum observed iteration time is 632.848μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry     -> The minimum observed iteration time is 18.463ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Bare HashRouter': Dry                        -> The minimum observed iteration time is 18.024ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetShardId (production path)': Dry -> The minimum observed iteration time is 17.77ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated CompareAsync': Dry                 -> The minimum observed iteration time is 16.688ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetAllShardIds': Dry               -> The minimum observed iteration time is 680.096μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ShadowShardRouterBenchmarks.'Decorated GetShardConnectionString': Dry     -> The minimum observed iteration time is 18.43ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+// * Config Issues *
+
+// * Warnings *
+Configuration
+  Summary -> The exporter CsvExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter HtmlExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter MarkdownExporter-github is already present in configuration. There may be unexpected results.
+
+// * Legends *
+  ShardCount  : Value of the 'ShardCount' parameter
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  Rank        : Relative position of current benchmark mean among all benchmarks (Arabic style)
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 μs        : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:03 (3.85 sec), executed benchmarks: 15
+
+Global total time: 00:03:45 (225.11 sec), executed benchmarks: 15
+// * Artifacts cleanup *
+Artifacts cleanup is finished

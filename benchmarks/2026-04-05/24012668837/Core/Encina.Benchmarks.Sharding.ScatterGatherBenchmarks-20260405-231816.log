@@ -1,0 +1,771 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 15 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/publish/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1
+// command took 3.8 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/publish/" --output "/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1
+// command took 209.36 sec and exited with 0
+// ***** Done, took 00:03:33 (213.3 sec)   *****
+// Found 15 benchmarks:
+//   ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+//   ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+//   ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+//   ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+//   ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+//   ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+//   ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherAllShards(ShardCount: 3)" --job Dry --benchmarkId 0 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 38161745.00 ns, 38.1617 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 38161745.00 ns, 38.1617 ms/op
+// GC:  0 0 0 3648 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3927 has exited with code 0.
+
+Mean = 38.162 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 38.162 ms, Q1 = 38.162 ms, Median = 38.162 ms, Q3 = 38.162 ms, Max = 38.162 ms
+IQR = 0.000 ms, LowerFence = 38.162 ms, UpperFence = 38.162 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 14 (93.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherSubset(ShardCount: 3)" --job Dry --benchmarkId 1 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 37740617.00 ns, 37.7406 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 37740617.00 ns, 37.7406 ms/op
+// GC:  0 0 0 3704 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3935 has exited with code 0.
+
+Mean = 37.741 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.741 ms, Q1 = 37.741 ms, Median = 37.741 ms, Q3 = 37.741 ms, Max = 37.741 ms
+IQR = 0.000 ms, LowerFence = 37.741 ms, UpperFence = 37.741 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 13 (86.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherLargeResults(ShardCount: 3)" --job Dry --benchmarkId 2 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 39045841.00 ns, 39.0458 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 39045841.00 ns, 39.0458 ms/op
+// GC:  0 0 0 28704 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3945 has exited with code 0.
+
+Mean = 39.046 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 39.046 ms, Q1 = 39.046 ms, Median = 39.046 ms, Q3 = 39.046 ms, Max = 39.046 ms
+IQR = 0.000 ms, LowerFence = 39.046 ms, UpperFence = 39.046 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 12 (80.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherSingleShard(ShardCount: 3)" --job Dry --benchmarkId 3 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 37857917.00 ns, 37.8579 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 37857917.00 ns, 37.8579 ms/op
+// GC:  0 0 0 2328 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3952 has exited with code 0.
+
+Mean = 37.858 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.858 ms, Q1 = 37.858 ms, Median = 37.858 ms, Q3 = 37.858 ms, Max = 37.858 ms
+IQR = 0.000 ms, LowerFence = 37.858 ms, UpperFence = 37.858 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 11 (73.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.TopologyGetAllShards(ShardCount: 3)" --job Dry --benchmarkId 4 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 1018788.00 ns, 1.0188 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 1018788.00 ns, 1.0188 ms/op
+// GC:  0 0 0 104 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3959 has exited with code 0.
+
+Mean = 1.019 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 1.019 ms, Q1 = 1.019 ms, Median = 1.019 ms, Q3 = 1.019 ms, Max = 1.019 ms
+IQR = 0.000 ms, LowerFence = 1.019 ms, UpperFence = 1.019 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 10 (66.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherAllShards(ShardCount: 10)" --job Dry --benchmarkId 5 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 36967239.00 ns, 36.9672 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 36967239.00 ns, 36.9672 ms/op
+// GC:  0 0 0 8904 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3965 has exited with code 0.
+
+Mean = 36.967 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.967 ms, Q1 = 36.967 ms, Median = 36.967 ms, Q3 = 36.967 ms, Max = 36.967 ms
+IQR = 0.000 ms, LowerFence = 36.967 ms, UpperFence = 36.967 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 9 (60.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherSubset(ShardCount: 10)" --job Dry --benchmarkId 6 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 36357428.00 ns, 36.3574 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 36357428.00 ns, 36.3574 ms/op
+// GC:  0 0 0 3760 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3972 has exited with code 0.
+
+Mean = 36.357 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.357 ms, Q1 = 36.357 ms, Median = 36.357 ms, Q3 = 36.357 ms, Max = 36.357 ms
+IQR = 0.000 ms, LowerFence = 36.357 ms, UpperFence = 36.357 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 8 (53.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherLargeResults(ShardCount: 10)" --job Dry --benchmarkId 7 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 38367301.00 ns, 38.3673 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 38367301.00 ns, 38.3673 ms/op
+// GC:  0 0 0 99048 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3979 has exited with code 0.
+
+Mean = 38.367 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 38.367 ms, Q1 = 38.367 ms, Median = 38.367 ms, Q3 = 38.367 ms, Max = 38.367 ms
+IQR = 0.000 ms, LowerFence = 38.367 ms, UpperFence = 38.367 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 7 (46.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherSingleShard(ShardCount: 10)" --job Dry --benchmarkId 8 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 36564185.00 ns, 36.5642 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 36564185.00 ns, 36.5642 ms/op
+// GC:  0 0 0 2384 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3986 has exited with code 0.
+
+Mean = 36.564 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.564 ms, Q1 = 36.564 ms, Median = 36.564 ms, Q3 = 36.564 ms, Max = 36.564 ms
+IQR = 0.000 ms, LowerFence = 36.564 ms, UpperFence = 36.564 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 6 (40.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.TopologyGetAllShards(ShardCount: 10)" --job Dry --benchmarkId 9 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 1024989.00 ns, 1.0250 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 1024989.00 ns, 1.0250 ms/op
+// GC:  0 0 0 160 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3993 has exited with code 0.
+
+Mean = 1.025 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 1.025 ms, Q1 = 1.025 ms, Median = 1.025 ms, Q3 = 1.025 ms, Max = 1.025 ms
+IQR = 0.000 ms, LowerFence = 1.025 ms, UpperFence = 1.025 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 5 (33.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherAllShards(ShardCount: 25)" --job Dry --benchmarkId 10 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 37432230.00 ns, 37.4322 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 37432230.00 ns, 37.4322 ms/op
+// GC:  0 0 0 19464 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3999 has exited with code 0.
+
+Mean = 37.432 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.432 ms, Q1 = 37.432 ms, Median = 37.432 ms, Q3 = 37.432 ms, Max = 37.432 ms
+IQR = 0.000 ms, LowerFence = 37.432 ms, UpperFence = 37.432 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 4 (26.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherSubset(ShardCount: 25)" --job Dry --benchmarkId 11 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 36745629.00 ns, 36.7456 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 36745629.00 ns, 36.7456 ms/op
+// GC:  0 0 0 3880 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4006 has exited with code 0.
+
+Mean = 36.746 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.746 ms, Q1 = 36.746 ms, Median = 36.746 ms, Q3 = 36.746 ms, Max = 36.746 ms
+IQR = 0.000 ms, LowerFence = 36.746 ms, UpperFence = 36.746 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 3 (20.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherLargeResults(ShardCount: 25)" --job Dry --benchmarkId 12 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 39577359.00 ns, 39.5774 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 39577359.00 ns, 39.5774 ms/op
+// GC:  0 0 0 242952 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4013 has exited with code 0.
+
+Mean = 39.577 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 39.577 ms, Q1 = 39.577 ms, Median = 39.577 ms, Q3 = 39.577 ms, Max = 39.577 ms
+IQR = 0.000 ms, LowerFence = 39.577 ms, UpperFence = 39.577 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 2 (13.3 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.ScatterGatherSingleShard(ShardCount: 25)" --job Dry --benchmarkId 13 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 37201813.00 ns, 37.2018 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 37201813.00 ns, 37.2018 ms/op
+// GC:  0 0 0 2504 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4020 has exited with code 0.
+
+Mean = 37.202 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.202 ms, Q1 = 37.202 ms, Median = 37.202 ms, Q3 = 37.202 ms, Max = 37.202 ms
+IQR = 0.000 ms, LowerFence = 37.202 ms, UpperFence = 37.202 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 1 (6.7 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// **************************
+// Benchmark: ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 233 234 --benchmarkName "Encina.Benchmarks.Sharding.ScatterGatherBenchmarks.TopologyGetAllShards(ShardCount: 25)" --job Dry --benchmarkId 14 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 997797.00 ns, 997.7970 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 997797.00 ns, 997.7970 us/op
+// GC:  0 0 0 280 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4027 has exited with code 0.
+
+Mean = 997.797 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 997.797 μs, Q1 = 997.797 μs, Median = 997.797 μs, Q3 = 997.797 μs, Max = 997.797 μs
+IQR = 0.000 μs, LowerFence = 997.797 μs, UpperFence = 997.797 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-04-05 23:21 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ScatterGatherBenchmarks-report.csv
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ScatterGatherBenchmarks-report-github.md
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ScatterGatherBenchmarks-report.html
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ScatterGatherBenchmarks-report-full-compressed.json
+  artifacts/performance/Core/results/Encina.Benchmarks.Sharding.ScatterGatherBenchmarks-report-default.md
+
+// * Detailed results *
+ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 38.162 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 38.162 ms, Q1 = 38.162 ms, Median = 38.162 ms, Q3 = 38.162 ms, Max = 38.162 ms
+IQR = 0.000 ms, LowerFence = 38.162 ms, UpperFence = 38.162 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[38.162 ms ; 38.162 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 37.741 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.741 ms, Q1 = 37.741 ms, Median = 37.741 ms, Q3 = 37.741 ms, Max = 37.741 ms
+IQR = 0.000 ms, LowerFence = 37.741 ms, UpperFence = 37.741 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[37.741 ms ; 37.741 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 39.046 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 39.046 ms, Q1 = 39.046 ms, Median = 39.046 ms, Q3 = 39.046 ms, Max = 39.046 ms
+IQR = 0.000 ms, LowerFence = 39.046 ms, UpperFence = 39.046 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[39.046 ms ; 39.046 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 37.858 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.858 ms, Q1 = 37.858 ms, Median = 37.858 ms, Q3 = 37.858 ms, Max = 37.858 ms
+IQR = 0.000 ms, LowerFence = 37.858 ms, UpperFence = 37.858 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[37.858 ms ; 37.858 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=3]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 1.019 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 1.019 ms, Q1 = 1.019 ms, Median = 1.019 ms, Q3 = 1.019 ms, Max = 1.019 ms
+IQR = 0.000 ms, LowerFence = 1.019 ms, UpperFence = 1.019 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[1.019 ms ; 1.019 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 36.967 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.967 ms, Q1 = 36.967 ms, Median = 36.967 ms, Q3 = 36.967 ms, Max = 36.967 ms
+IQR = 0.000 ms, LowerFence = 36.967 ms, UpperFence = 36.967 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[36.967 ms ; 36.967 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 36.357 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.357 ms, Q1 = 36.357 ms, Median = 36.357 ms, Q3 = 36.357 ms, Max = 36.357 ms
+IQR = 0.000 ms, LowerFence = 36.357 ms, UpperFence = 36.357 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[36.357 ms ; 36.357 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 38.367 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 38.367 ms, Q1 = 38.367 ms, Median = 38.367 ms, Q3 = 38.367 ms, Max = 38.367 ms
+IQR = 0.000 ms, LowerFence = 38.367 ms, UpperFence = 38.367 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[38.367 ms ; 38.367 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 36.564 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.564 ms, Q1 = 36.564 ms, Median = 36.564 ms, Q3 = 36.564 ms, Max = 36.564 ms
+IQR = 0.000 ms, LowerFence = 36.564 ms, UpperFence = 36.564 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[36.564 ms ; 36.564 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=10]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 1.025 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 1.025 ms, Q1 = 1.025 ms, Median = 1.025 ms, Q3 = 1.025 ms, Max = 1.025 ms
+IQR = 0.000 ms, LowerFence = 1.025 ms, UpperFence = 1.025 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[1.025 ms ; 1.025 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 37.432 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.432 ms, Q1 = 37.432 ms, Median = 37.432 ms, Q3 = 37.432 ms, Max = 37.432 ms
+IQR = 0.000 ms, LowerFence = 37.432 ms, UpperFence = 37.432 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[37.432 ms ; 37.432 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 36.746 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 36.746 ms, Q1 = 36.746 ms, Median = 36.746 ms, Q3 = 36.746 ms, Max = 36.746 ms
+IQR = 0.000 ms, LowerFence = 36.746 ms, UpperFence = 36.746 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[36.746 ms ; 36.746 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather with large results': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 39.577 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 39.577 ms, Q1 = 39.577 ms, Median = 39.577 ms, Q3 = 39.577 ms, Max = 39.577 ms
+IQR = 0.000 ms, LowerFence = 39.577 ms, UpperFence = 39.577 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[39.577 ms ; 39.577 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Scatter-gather single shard': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 37.202 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 37.202 ms, Q1 = 37.202 ms, Median = 37.202 ms, Q3 = 37.202 ms, Max = 37.202 ms
+IQR = 0.000 ms, LowerFence = 37.202 ms, UpperFence = 37.202 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[37.202 ms ; 37.202 ms) | @
+---------------------------------------------------
+
+ScatterGatherBenchmarks.'Topology lookup all shards': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ShardCount=25]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 997.797 μs, StdErr = 0.000 μs (0.00%), N = 1, StdDev = 0.000 μs
+Min = 997.797 μs, Q1 = 997.797 μs, Median = 997.797 μs, Q3 = 997.797 μs, Max = 997.797 μs
+IQR = 0.000 μs, LowerFence = 997.797 μs, UpperFence = 997.797 μs
+ConfidenceInterval = [NaN μs; NaN μs] (CI 99.9%), Margin = NaN μs (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[997.797 μs ; 997.798 μs) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                                    | ShardCount | Mean        | Error | Ratio | Rank | Allocated | Alloc Ratio |
+|------------------------------------------ |----------- |------------:|------:|------:|-----:|----------:|------------:|
+| 'Scatter-gather all shards (sync result)' | 3          | 38,161.7 μs |    NA |  1.00 |    4 |    3648 B |        1.00 |
+| 'Scatter-gather subset (3 shards)'        | 3          | 37,740.6 μs |    NA |  0.99 |    2 |    3704 B |        1.02 |
+| 'Scatter-gather with large results'       | 3          | 39,045.8 μs |    NA |  1.02 |    5 |   28704 B |        7.87 |
+| 'Scatter-gather single shard'             | 3          | 37,857.9 μs |    NA |  0.99 |    3 |    2328 B |        0.64 |
+| 'Topology lookup all shards'              | 3          |  1,018.8 μs |    NA |  0.03 |    1 |     104 B |        0.03 |
+|                                           |            |             |       |       |      |           |             |
+| 'Scatter-gather all shards (sync result)' | 10         | 36,967.2 μs |    NA |  1.00 |    4 |    8904 B |        1.00 |
+| 'Scatter-gather subset (3 shards)'        | 10         | 36,357.4 μs |    NA |  0.98 |    2 |    3760 B |        0.42 |
+| 'Scatter-gather with large results'       | 10         | 38,367.3 μs |    NA |  1.04 |    5 |   99048 B |       11.12 |
+| 'Scatter-gather single shard'             | 10         | 36,564.2 μs |    NA |  0.99 |    3 |    2384 B |        0.27 |
+| 'Topology lookup all shards'              | 10         |  1,025.0 μs |    NA |  0.03 |    1 |     160 B |        0.02 |
+|                                           |            |             |       |       |      |           |             |
+| 'Scatter-gather all shards (sync result)' | 25         | 37,432.2 μs |    NA |  1.00 |    4 |   19464 B |        1.00 |
+| 'Scatter-gather subset (3 shards)'        | 25         | 36,745.6 μs |    NA |  0.98 |    2 |    3880 B |        0.20 |
+| 'Scatter-gather with large results'       | 25         | 39,577.4 μs |    NA |  1.06 |    5 |  242952 B |       12.48 |
+| 'Scatter-gather single shard'             | 25         | 37,201.8 μs |    NA |  0.99 |    3 |    2504 B |        0.13 |
+| 'Topology lookup all shards'              | 25         |    997.8 μs |    NA |  0.03 |    1 |     280 B |        0.01 |
+
+// * Warnings *
+MinIterationTime
+  ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry -> The minimum observed iteration time is 38.162ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry        -> The minimum observed iteration time is 37.741ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather with large results': Dry       -> The minimum observed iteration time is 39.046ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather single shard': Dry             -> The minimum observed iteration time is 37.858ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Topology lookup all shards': Dry              -> The minimum observed iteration time is 1.019ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry -> The minimum observed iteration time is 36.967ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry        -> The minimum observed iteration time is 36.357ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather with large results': Dry       -> The minimum observed iteration time is 38.367ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather single shard': Dry             -> The minimum observed iteration time is 36.564ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Topology lookup all shards': Dry              -> The minimum observed iteration time is 1.025ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather all shards (sync result)': Dry -> The minimum observed iteration time is 37.432ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather subset (3 shards)': Dry        -> The minimum observed iteration time is 36.746ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather with large results': Dry       -> The minimum observed iteration time is 39.577ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Scatter-gather single shard': Dry             -> The minimum observed iteration time is 37.202ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ScatterGatherBenchmarks.'Topology lookup all shards': Dry              -> The minimum observed iteration time is 997.797μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+// * Config Issues *
+
+// * Warnings *
+Configuration
+  Summary -> The exporter CsvExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter HtmlExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter MarkdownExporter-github is already present in configuration. There may be unexpected results.
+
+// * Legends *
+  ShardCount  : Value of the 'ShardCount' parameter
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  Rank        : Relative position of current benchmark mean among all benchmarks (Arabic style)
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 μs        : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:03 (3.91 sec), executed benchmarks: 15
+
+Global total time: 00:03:37 (217.58 sec), executed benchmarks: 15
+// * Artifacts cleanup *
+Artifacts cleanup is finished

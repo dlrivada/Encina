@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.IdGeneration.Benchmarks.ShardPrefixedIdBenchmarks-20260405-233230</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                  </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>RunStrategy</th><th>UnrollFactor</th><th>WarmupCount</th><th>Mean   </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Generate_UlidFormat</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>1.227 &mu;s</td><td>0.0051 &mu;s</td><td>0.0031 &mu;s</td><td>1.00</td><td>0.0057</td><td>120 B</td><td>1.00</td>
+</tr><tr><td>Generate_UuidV7Format</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>1.202 &mu;s</td><td>0.0182 &mu;s</td><td>0.0121 &mu;s</td><td>0.98</td><td>0.0057</td><td>96 B</td><td>0.80</td>
+</tr><tr><td>Generate_TimestampRandomFormat</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>1.420 &mu;s</td><td>0.0076 &mu;s</td><td>0.0050 &mu;s</td><td>1.16</td><td>0.0076</td><td>151 B</td><td>1.26</td>
+</tr><tr><td>ExtractShardId_Ulid</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>1.254 &mu;s</td><td>0.0055 &mu;s</td><td>0.0036 &mu;s</td><td>1.02</td><td>0.0057</td><td>120 B</td><td>1.00</td>
+</tr><tr><td>Generate_ToString</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>1.398 &mu;s</td><td>0.0071 &mu;s</td><td>0.0047 &mu;s</td><td>1.14</td><td>0.0114</td><td>216 B</td><td>1.80</td>
+</tr><tr><td>Generate_UlidFormat</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>21,668.181 &mu;s</td><td>NA</td><td>0.0000 &mu;s</td><td>1.00</td><td>-</td><td>120 B</td><td>1.00</td>
+</tr><tr><td>Generate_UuidV7Format</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>19,791.260 &mu;s</td><td>NA</td><td>0.0000 &mu;s</td><td>0.91</td><td>-</td><td>96 B</td><td>0.80</td>
+</tr><tr><td>Generate_TimestampRandomFormat</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>21,588.882 &mu;s</td><td>NA</td><td>0.0000 &mu;s</td><td>1.00</td><td>-</td><td>152 B</td><td>1.27</td>
+</tr><tr><td>ExtractShardId_Ulid</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>24,693.728 &mu;s</td><td>NA</td><td>0.0000 &mu;s</td><td>1.14</td><td>-</td><td>120 B</td><td>1.00</td>
+</tr><tr><td>Generate_ToString</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>22,412.672 &mu;s</td><td>NA</td><td>0.0000 &mu;s</td><td>1.03</td><td>-</td><td>216 B</td><td>1.80</td>
+</tr></tbody></table>
+</body>
+</html>
