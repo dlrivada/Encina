@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Audit.Marten.Benchmarks.EncryptedFieldBenchmarks-20260405-194727</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.69GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>Mean</th><th>Error</th><th>Ratio</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Encrypt_Short_16B</td><td>357.4 &mu;s</td><td>NA</td><td>1.00</td><td>2</td><td>1720 B</td><td>1.00</td>
+</tr><tr><td>Encrypt_Medium_256B</td><td>355.3 &mu;s</td><td>NA</td><td>0.99</td><td>1</td><td>7792 B</td><td>4.53</td>
+</tr><tr><td>Encrypt_Long_4KB</td><td>409.0 &mu;s</td><td>NA</td><td>1.14</td><td>4</td><td>37336 B</td><td>21.71</td>
+</tr><tr><td>Encrypt_VeryLong_64KB</td><td>607.1 &mu;s</td><td>NA</td><td>1.70</td><td>5</td><td>569816 B</td><td>331.29</td>
+</tr><tr><td>Decrypt_Short_16B</td><td>8,148.8 &mu;s</td><td>NA</td><td>22.80</td><td>9</td><td>568 B</td><td>0.33</td>
+</tr><tr><td>Decrypt_Medium_256B</td><td>7,680.9 &mu;s</td><td>NA</td><td>21.49</td><td>6</td><td>1536 B</td><td>0.89</td>
+</tr><tr><td>Decrypt_Long_4KB</td><td>7,791.0 &mu;s</td><td>NA</td><td>21.80</td><td>7</td><td>16896 B</td><td>9.82</td>
+</tr><tr><td>Decrypt_VeryLong_64KB</td><td>7,902.4 &mu;s</td><td>NA</td><td>22.11</td><td>8</td><td>262656 B</td><td>152.71</td>
+</tr><tr><td>DecryptOrPlaceholder_NullKey</td><td>404.0 &mu;s</td><td>NA</td><td>1.13</td><td>3</td><td>-</td><td>0.00</td>
+</tr></tbody></table>
+</body>
+</html>

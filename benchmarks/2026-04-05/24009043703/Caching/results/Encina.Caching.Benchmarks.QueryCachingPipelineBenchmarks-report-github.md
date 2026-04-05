@@ -1,0 +1,34 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+
+```
+| Method                              | Job        | IterationCount | LaunchCount | RunStrategy | UnrollFactor | WarmupCount | concurrencyLevel | Mean          | Error      | StdDev     | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|------------------------------------ |----------- |--------------- |------------ |------------ |------------- |------------ |----------------- |--------------:|-----------:|-----------:|------:|--------:|-------:|-------:|----------:|------------:|
+| **Pipeline_CacheMiss**                  | **Job-YFEFPZ** | **10**             | **Default**     | **Default**     | **16**           | **3**           | **?**                |      **9.776 μs** |  **0.5307 μs** |  **0.3158 μs** |  **1.00** |    **0.04** | **0.1068** | **0.0458** |   **1.98 KB** |        **1.00** |
+| Pipeline_CacheHit                   | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           | ?                |      9.505 μs |  0.0381 μs |  0.0252 μs |  0.97 |    0.03 | 0.1526 |      - |   2.55 KB |        1.29 |
+| Pipeline_SequentialDifferentQueries | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           | ?                |    104.305 μs |  2.2667 μs |  1.1855 μs | 10.68 |    0.34 | 1.9531 | 1.3428 |  38.03 KB |       19.24 |
+| Pipeline_SequentialSameQuery        | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           | ?                |     47.683 μs |  0.1852 μs |  0.1102 μs |  4.88 |    0.15 | 0.7324 |      - |  12.19 KB |        6.17 |
+|                                     |            |                |             |             |              |             |                  |               |            |            |       |         |        |        |           |             |
+| Pipeline_CacheMiss                  | Dry        | 1              | 1           | ColdStart   | 1            | 1           | ?                | 43,248.044 μs |         NA |  0.0000 μs |  1.00 |    0.00 |      - |      - |   3.44 KB |        1.00 |
+| Pipeline_CacheHit                   | Dry        | 1              | 1           | ColdStart   | 1            | 1           | ?                | 44,416.606 μs |         NA |  0.0000 μs |  1.03 |    0.00 |      - |      - |   7.33 KB |        2.13 |
+| Pipeline_SequentialDifferentQueries | Dry        | 1              | 1           | ColdStart   | 1            | 1           | ?                | 43,410.768 μs |         NA |  0.0000 μs |  1.00 |    0.00 |      - |      - |  23.76 KB |        6.91 |
+| Pipeline_SequentialSameQuery        | Dry        | 1              | 1           | ColdStart   | 1            | 1           | ?                | 43,319.658 μs |         NA |  0.0000 μs |  1.00 |    0.00 |      - |      - |  16.96 KB |        4.93 |
+|                                     |            |                |             |             |              |             |                  |               |            |            |       |         |        |        |           |             |
+| **Pipeline_ConcurrentAccess**           | **Job-YFEFPZ** | **10**             | **Default**     | **Default**     | **16**           | **3**           | **10**               |     **78.235 μs** |  **4.1675 μs** |  **2.1797 μs** |     **?** |       **?** | **0.9766** | **0.3662** |  **17.62 KB** |           **?** |
+|                                     |            |                |             |             |              |             |                  |               |            |            |       |         |        |        |           |             |
+| Pipeline_ConcurrentAccess           | Dry        | 1              | 1           | ColdStart   | 1            | 1           | 10               | 49,128.371 μs |         NA |  0.0000 μs |     ? |       ? |      - |      - |  22.39 KB |           ? |
+|                                     |            |                |             |             |              |             |                  |               |            |            |       |         |        |        |           |             |
+| **Pipeline_ConcurrentAccess**           | **Job-YFEFPZ** | **10**             | **Default**     | **Default**     | **16**           | **3**           | **50**               |    **402.618 μs** | **20.2865 μs** | **10.6102 μs** |     **?** |       **?** | **4.8828** | **1.4648** |  **87.47 KB** |           **?** |
+|                                     |            |                |             |             |              |             |                  |               |            |            |       |         |        |        |           |             |
+| Pipeline_ConcurrentAccess           | Dry        | 1              | 1           | ColdStart   | 1            | 1           | 50               | 48,905.224 μs |         NA |  0.0000 μs |     ? |       ? |      - |      - |  92.23 KB |           ? |
+|                                     |            |                |             |             |              |             |                  |               |            |            |       |         |        |        |           |             |
+| **Pipeline_ConcurrentAccess**           | **Job-YFEFPZ** | **10**             | **Default**     | **Default**     | **16**           | **3**           | **100**              |    **768.047 μs** | **37.9314 μs** | **19.8389 μs** |     **?** |       **?** | **9.7656** | **2.9297** | **174.78 KB** |           **?** |
+|                                     |            |                |             |             |              |             |                  |               |            |            |       |         |        |        |           |             |
+| Pipeline_ConcurrentAccess           | Dry        | 1              | 1           | ColdStart   | 1            | 1           | 100              | 51,702.858 μs |         NA |  0.0000 μs |     ? |       ? |      - |      - | 189.38 KB |           ? |

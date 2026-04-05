@@ -1,0 +1,34 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+
+```
+| Method                   | Job        | IterationCount | LaunchCount | RunStrategy | UnrollFactor | WarmupCount | Mean             | Error     | StdDev    | Ratio  | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------- |----------- |--------------- |------------ |------------ |------------- |------------ |-----------------:|----------:|----------:|-------:|--------:|-------:|----------:|------------:|
+| Mask_Email               | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |         99.19 ns |  2.520 ns |  1.667 ns |   1.00 |    0.02 | 0.0134 |     224 B |        1.00 |
+| Mask_Phone               | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        416.42 ns |  3.190 ns |  2.110 ns |   4.20 |    0.07 | 0.0310 |     520 B |        2.32 |
+| Mask_CreditCard          | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        488.31 ns |  2.338 ns |  1.392 ns |   4.92 |    0.08 | 0.0324 |     544 B |        2.43 |
+| Mask_SSN                 | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        409.36 ns |  6.282 ns |  4.155 ns |   4.13 |    0.08 | 0.0310 |     520 B |        2.32 |
+| Mask_WithRegexPattern    | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        575.04 ns | 10.426 ns |  6.896 ns |   5.80 |    0.11 | 0.0248 |     416 B |        1.86 |
+| MaskObject_SingleField   | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |      4,391.88 ns | 14.767 ns |  9.768 ns |  44.29 |    0.72 | 0.0992 |    1752 B |        7.82 |
+| MaskObject_MultiField    | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |     10,502.45 ns | 45.095 ns | 23.586 ns | 105.91 |    1.73 | 0.2899 |    5056 B |       22.57 |
+| MaskObject_NoAttributes  | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |      2,566.26 ns | 15.640 ns | 10.345 ns |  25.88 |    0.43 | 0.0572 |    1008 B |        4.50 |
+| MaskForAudit_SingleField | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |      4,380.30 ns | 15.754 ns |  8.239 ns |  44.17 |    0.72 | 0.0992 |    1752 B |        7.82 |
+| MaskForAudit_NonGeneric  | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |      4,211.77 ns | 13.258 ns |  8.769 ns |  42.47 |    0.69 | 0.0992 |    1752 B |        7.82 |
+|                          |            |                |             |             |              |             |                  |           |           |        |         |        |           |             |
+| Mask_Email               | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    388,682.00 ns |        NA |  0.000 ns |   1.00 |    0.00 |      - |     224 B |        1.00 |
+| Mask_Phone               | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    360,039.00 ns |        NA |  0.000 ns |   0.93 |    0.00 |      - |     520 B |        2.32 |
+| Mask_CreditCard          | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    362,895.00 ns |        NA |  0.000 ns |   0.93 |    0.00 |      - |     544 B |        2.43 |
+| Mask_SSN                 | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    372,633.00 ns |        NA |  0.000 ns |   0.96 |    0.00 |      - |     520 B |        2.32 |
+| Mask_WithRegexPattern    | Dry        | 1              | 1           | ColdStart   | 1            | 1           | 13,175,211.00 ns |        NA |  0.000 ns |  33.90 |    0.00 |      - |     416 B |        1.86 |
+| MaskObject_SingleField   | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    295,138.00 ns |        NA |  0.000 ns |   0.76 |    0.00 |      - |    1752 B |        7.82 |
+| MaskObject_MultiField    | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    338,058.00 ns |        NA |  0.000 ns |   0.87 |    0.00 |      - |    5056 B |       22.57 |
+| MaskObject_NoAttributes  | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    288,848.00 ns |        NA |  0.000 ns |   0.74 |    0.00 |      - |    1008 B |        4.50 |
+| MaskForAudit_SingleField | Dry        | 1              | 1           | ColdStart   | 1            | 1           |    897,818.00 ns |        NA |  0.000 ns |   2.31 |    0.00 |      - |    1752 B |        7.82 |
+| MaskForAudit_NonGeneric  | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  1,961,606.00 ns |        NA |  0.000 ns |   5.05 |    0.00 |      - |    1752 B |        7.82 |
