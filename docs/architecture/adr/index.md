@@ -33,3 +33,5 @@ has_children: true
 | [021](021-eventid-uniqueness-enforcement.md) | EventId Uniqueness Enforcement |
 | [022](022-provider-agnostic-attestation.md) | Provider-Agnostic Attestation |
 | [023](023-coverage-strategy-codecov-sonarcloud.md) | Coverage Strategy (Codecov + SonarCloud) |
+| [024](024-remove-sqlite-provider-pre-1.0.md) | Remove SQLite Provider Pre-1.0 |
+| [025](025-performance-measurement-infrastructure.md) | Performance Measurement Infrastructure |
