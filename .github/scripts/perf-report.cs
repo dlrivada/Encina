@@ -74,12 +74,26 @@ else
 // ──────────────────────────────────────────────────────────────────────────
 static void GenerateBenchmarksReport(string inputDir, string outputDir, JsonObject metadata, long runId, string sha, string manifestDir)
 {
-    // Discover BenchmarkDotNet full JSON reports recursively.
-    var reportFiles = Directory.GetFiles(inputDir, "*-report-full.json", SearchOption.AllDirectories)
-        .Where(f => !f.Contains("BenchmarkDotNet.Artifacts" + Path.DirectorySeparatorChar + "results" + Path.DirectorySeparatorChar + "BenchmarkDotNet"))
+    // Discover BenchmarkDotNet full JSON reports recursively. The `--exporters json` CLI
+    // arg in BenchmarkDotNet maps to JsonExporter.FullCompressed which produces files
+    // named *-report-full-compressed.json. We also accept *-report-full.json in case a
+    // future benchmark uses a different exporter variant. Both formats share the same
+    // schema (the "compressed" variant is just unindented).
+    var reportFiles = Directory.GetFiles(inputDir, "*-report-full*.json", SearchOption.AllDirectories)
+        .Where(f => !f.EndsWith("-report-full-compressed-compressed.json", StringComparison.Ordinal))
         .ToList();
 
     Console.WriteLine($"Found {reportFiles.Count} BenchmarkDotNet reports in {inputDir}");
+    if (reportFiles.Count == 0)
+    {
+        Console.WriteLine("Directory tree probed for diagnostics:");
+        try
+        {
+            foreach (var entry in Directory.GetFiles(inputDir, "*.*", SearchOption.AllDirectories).Take(40))
+                Console.WriteLine($"  {entry}");
+        }
+        catch { /* ignore */ }
+    }
 
     var modulesByName = new SortedDictionary<string, BenchmarkModule>(StringComparer.OrdinalIgnoreCase);
 
@@ -496,13 +510,17 @@ static double GetDouble(JsonNode? node, string property)
     if (node is null) return 0;
     var v = node[property];
     if (v is null) return 0;
+    // JsonValue with null underlying value (seen in BenchmarkDotNet when N=0, e.g. benchmarks
+    // that ran in Dry mode but never produced workload measurements).
     try
     {
+        var str = v.ToString();
+        if (string.IsNullOrEmpty(str) || str == "null") return 0;
+        if (double.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) return d;
         return v.GetValue<double>();
     }
     catch
     {
-        if (double.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) return d;
         return 0;
     }
 }
