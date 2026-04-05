@@ -1,7 +1,5 @@
-using Encina.Sharding.Shadow;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using OpenTelemetry.Trace;
 using Shouldly;
 using Xunit;
@@ -17,8 +15,6 @@ public class OpenTelemetryIntegrationTests
         var services = new ServiceCollection();
         services.AddEncina(config => { });
         services.AddSingleton<IRequestHandler<PingQuery, string>, PingHandler>();
-        // Register mock for shadow sharding dependency (required by ShadowReadPipelineBehavior)
-        services.AddSingleton(Substitute.For<IShadowShardRouter>());
         services.AddOpenTelemetry()
             .WithTracing(builder => builder
                 .AddEncinaInstrumentation()
