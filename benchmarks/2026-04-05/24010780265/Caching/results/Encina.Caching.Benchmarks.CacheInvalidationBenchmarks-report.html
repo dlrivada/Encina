@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Benchmarks.CacheInvalidationBenchmarks-20260405-212541</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>RunStrategy</th><th>UnrollFactor</th><th>WarmupCount</th><th>keyCount</th><th>concurrencyLevel</th><th>Mean  </th><th>Error  </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Invalidation_NoMatchingKeys</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>?</td><td>?</td><td>34.95 &mu;s</td><td>0.250 &mu;s</td><td>0.165 &mu;s</td><td>1.00</td><td>0.01</td><td>1.0376</td><td>-</td><td>-</td><td>17.2 KB</td><td>1.00</td>
+</tr><tr><td>Invalidation_WithMatchingKeys</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>?</td><td>?</td><td>57.05 &mu;s</td><td>6.532 &mu;s</td><td>4.321 &mu;s</td><td>1.63</td><td>0.12</td><td>1.1597</td><td>-</td><td>-</td><td>19.3 KB</td><td>1.12</td>
+</tr><tr><td>Invalidation_SequentialCommands</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>?</td><td>?</td><td>380.44 &mu;s</td><td>4.133 &mu;s</td><td>2.459 &mu;s</td><td>10.89</td><td>0.08</td><td>10.2539</td><td>-</td><td>-</td><td>169.05 KB</td><td>9.83</td>
+</tr><tr><td>Invalidation_NoMatchingKeys</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>?</td><td>?</td><td>34,687.65 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>1.00</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>19.36 KB</td><td>1.00</td>
+</tr><tr><td>Invalidation_WithMatchingKeys</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>?</td><td>?</td><td>46,053.30 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>1.33</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>30.88 KB</td><td>1.59</td>
+</tr><tr><td>Invalidation_SequentialCommands</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>?</td><td>?</td><td>36,198.94 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>1.04</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>173.8 KB</td><td>8.98</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>5</td><td>?</td><td>4,741.99 &mu;s</td><td>2,226.566 &mu;s</td><td>1,472.736 &mu;s</td><td>?</td><td>?</td><td>16.6016</td><td>15.6250</td><td>15.6250</td><td>646.92 KB</td><td>?</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>5</td><td>?</td><td>44,500.10 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>24.88 KB</td><td>?</td>
+</tr><tr><td>Invalidation_ConcurrentCommands</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>?</td><td>10</td><td>397.28 &mu;s</td><td>2.040 &mu;s</td><td>1.349 &mu;s</td><td>?</td><td>?</td><td>10.2539</td><td>-</td><td>-</td><td>171.15 KB</td><td>?</td>
+</tr><tr><td>Invalidation_ConcurrentCommands</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>?</td><td>10</td><td>40,277.60 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>174.34 KB</td><td>?</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>10</td><td>?</td><td>4,920.07 &mu;s</td><td>2,206.984 &mu;s</td><td>1,459.783 &mu;s</td><td>?</td><td>?</td><td>15.6250</td><td>15.6250</td><td>15.6250</td><td>654.88 KB</td><td>?</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>10</td><td>?</td><td>44,917.57 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>29.04 KB</td><td>?</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>25</td><td>?</td><td>16,750.22 &mu;s</td><td>10,486.805 &mu;s</td><td>6,936.372 &mu;s</td><td>?</td><td>?</td><td>17.5781</td><td>15.6250</td><td>15.6250</td><td>1608.85 KB</td><td>?</td>
+</tr><tr><td>Invalidation_MultipleKeys</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>25</td><td>?</td><td>44,355.85 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>45.29 KB</td><td>?</td>
+</tr><tr><td>Invalidation_ConcurrentCommands</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>?</td><td>50</td><td>1,956.09 &mu;s</td><td>11.728 &mu;s</td><td>6.979 &mu;s</td><td>?</td><td>?</td><td>50.7813</td><td>1.9531</td><td>-</td><td>855.2 KB</td><td>?</td>
+</tr><tr><td>Invalidation_ConcurrentCommands</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>?</td><td>50</td><td>42,101.65 &mu;s</td><td>NA</td><td>0.000 &mu;s</td><td>?</td><td>?</td><td>-</td><td>-</td><td>-</td><td>855.81 KB</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>
