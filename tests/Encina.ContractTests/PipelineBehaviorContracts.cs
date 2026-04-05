@@ -27,14 +27,16 @@ public sealed class PipelineBehaviorContracts
     [Fact]
     public void AssemblyScannerDiscoversAllPipelineBehaviors()
     {
+        // Shadow sharding behaviors (ShadowRead/WritePipelineBehavior) are intentionally
+        // excluded from auto-scanning. They require IShadowShardRouter + ShadowShardingOptions
+        // which are only registered when shadow sharding is explicitly enabled via
+        // ShardingOptions.UseShadowSharding (AddShadowSharding).
         var expected = new System.Collections.Generic.HashSet<Type>
         {
             typeof(CommandActivityPipelineBehavior<,>),
             typeof(CommandMetricsPipelineBehavior<,>),
             typeof(QueryActivityPipelineBehavior<,>),
-            typeof(QueryMetricsPipelineBehavior<,>),
-            typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowReadPipelineBehavior<,>),
-            typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowWritePipelineBehavior<,>)
+            typeof(QueryMetricsPipelineBehavior<,>)
         };
 
         var result = EncinaAssemblyScanner.GetRegistrations(TargetAssembly);
