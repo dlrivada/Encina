@@ -1,6 +1,6 @@
 # Performance Measurement Infrastructure — Implementation Plan
 
-> **Status**: 🟢 Phase 1 MVP implemented — awaiting first end-to-end CI run
+> **Status**: 🟢 Phase 2 implemented — awaiting validation run
 > **ADR**: [025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md)
 > **Methodology**: [`performance-measurement-methodology.md`](../testing/performance-measurement-methodology.md)
 > **Date**: 2026-04-05
@@ -16,6 +16,13 @@
 | 2026-04-05 | Phase 1.5: `publish-benchmarks.yml` created with `workflow_run` trigger, automatic `perf-raw` orphan branch bootstrap, Pages deploy |
 | 2026-04-05 | Phase 1.2: Minimal dashboards created at `docs/benchmarks/dashboard/` and `docs/load-tests/dashboard/` with placeholder data |
 | 2026-04-05 | Phase 1.3: `perf-raw` branch creation deferred to first publish run (auto-bootstrap in `publish-benchmarks.yml`) |
+| 2026-04-05 | Phase 1 validated end-to-end: run 24008176459 produced 17 modules, 825 methods, 140 stable. Dashboard live, perf-raw branch populated, history.json committed |
+| 2026-04-05 | Phase 2.1: `perf-fingerprint.cs` created — project-graph SHA-256 per benchmark project (transitive csproj closure + Directory.Packages.props). Deterministic, dependency-free |
+| 2026-04-05 | Phase 2.1: `perf-diff-fingerprints.cs` created — compares current fingerprints to previous snapshot, emits dynamic matrix + skipped list |
+| 2026-04-05 | Phase 2.1: `perf-report.cs` extended with `--fingerprints-file` (attaches fingerprint to each module) and `--carry-forward-from` (copies unchanged modules from previous snapshot with `carriedForward: true`) |
+| 2026-04-05 | Phase 2.2: `benchmarks.yml` restructured with `determine-matrix` → `run-benchmarks` → `aggregate`. Dynamic matrix. Schedule and `force_full=true` bypass cache. Aggregate runs even when no projects execute |
+| 2026-04-05 | Phase 2.3: `on: pull_request` trigger added with path filter for `src/**/*.cs`, `tests/Encina.BenchmarkTests/**`, `Directory.Packages.props`, workflow YAML, and perf-*.cs scripts |
+| 2026-04-05 | `publish-benchmarks.yml` updated to commit `fingerprints.json` alongside `latest.json` to Pages, closing the Phase 2 loop |
 
 ## Goal
 
