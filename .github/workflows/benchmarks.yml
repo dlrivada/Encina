@@ -210,17 +210,20 @@ jobs:
 
       - name: Flatten artifacts
         run: |
-          # Each artifact downloads as artifacts/performance/benchmarks-<Name>/<Name>/...
-          # We want artifacts/performance/<Name>/...
+          # upload-artifact was given `path: artifacts/performance/<Name>` so the
+          # archived contents are everything under that path (BenchmarkDotNet.Artifacts/...).
+          # download-artifact v8 with merge-multiple:false places each artifact into
+          # its own subdir artifacts/performance/benchmarks-<Name>/, and the zip extracts
+          # directly there (no extra <Name>/ nesting). We simply rename the prefix away.
           shopt -s nullglob
           for dir in artifacts/performance/benchmarks-*; do
             name="${dir#artifacts/performance/benchmarks-}"
-            if [ -d "$dir/$name" ]; then
-              mv "$dir/$name" "artifacts/performance/$name"
-            fi
-            rm -rf "$dir"
+            mv "$dir" "artifacts/performance/$name"
           done
+          echo "Flattened contents:"
           ls -la artifacts/performance/
+          echo "Sample project contents:"
+          find artifacts/performance -maxdepth 4 -type d | head -30
 
       - name: Generate performance report
         run: |
