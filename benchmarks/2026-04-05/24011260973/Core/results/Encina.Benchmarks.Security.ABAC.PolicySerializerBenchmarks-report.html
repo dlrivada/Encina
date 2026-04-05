@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Security.ABAC.PolicySerializerBenchmarks-20260405-220634</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                             </th><th>Mean </th><th>Error</th><th>Ratio</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Serialize PolicySet (Small: 1 policy, 2 rules)&#39;</td><td>614.9 &mu;s</td><td>NA</td><td>1.00</td><td>2</td><td>2064 B</td><td>1.00</td>
+</tr><tr><td>&#39;Serialize PolicySet (Medium: 3 policies, 15 rules)&#39;</td><td>680.9 &mu;s</td><td>NA</td><td>1.11</td><td>3</td><td>22464 B</td><td>10.88</td>
+</tr><tr><td>&#39;Serialize PolicySet (Large: 10 policies, 100 rules)&#39;</td><td>1,792.3 &mu;s</td><td>NA</td><td>2.91</td><td>5</td><td>402480 B</td><td>195.00</td>
+</tr><tr><td>&#39;Serialize Policy (Small: 2 rules, no target)&#39;</td><td>570.8 &mu;s</td><td>NA</td><td>0.93</td><td>1</td><td>1000 B</td><td>0.48</td>
+</tr><tr><td>&#39;Serialize Policy (Large: 10 rules, target + conditions)&#39;</td><td>740.6 &mu;s</td><td>NA</td><td>1.20</td><td>4</td><td>37008 B</td><td>17.93</td>
+</tr><tr><td>&#39;Deserialize PolicySet (Small)&#39;</td><td>35,019.5 &mu;s</td><td>NA</td><td>56.95</td><td>7</td><td>2872 B</td><td>1.39</td>
+</tr><tr><td>&#39;Deserialize PolicySet (Medium)&#39;</td><td>40,421.7 &mu;s</td><td>NA</td><td>65.73</td><td>9</td><td>35952 B</td><td>17.42</td>
+</tr><tr><td>&#39;Deserialize PolicySet (Large)&#39;</td><td>54,953.4 &mu;s</td><td>NA</td><td>89.37</td><td>11</td><td>711008 B</td><td>344.48</td>
+</tr><tr><td>&#39;Deserialize Policy (Small)&#39;</td><td>33,710.2 &mu;s</td><td>NA</td><td>54.82</td><td>6</td><td>1424 B</td><td>0.69</td>
+</tr><tr><td>&#39;Deserialize Policy (Large)&#39;</td><td>50,556.1 &mu;s</td><td>NA</td><td>82.21</td><td>10</td><td>65816 B</td><td>31.89</td>
+</tr><tr><td>&#39;Round-Trip PolicySet (Small)&#39;</td><td>36,043.3 &mu;s</td><td>NA</td><td>58.61</td><td>8</td><td>4936 B</td><td>2.39</td>
+</tr><tr><td>&#39;Round-Trip PolicySet (Large)&#39;</td><td>57,032.3 &mu;s</td><td>NA</td><td>92.75</td><td>12</td><td>1113016 B</td><td>539.25</td>
+</tr></tbody></table>
+</body>
+</html>

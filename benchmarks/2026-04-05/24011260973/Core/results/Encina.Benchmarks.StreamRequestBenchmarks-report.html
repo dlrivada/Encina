@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.StreamRequestBenchmarks-20260405-220007</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                           </th><th>Mean</th><th>Error</th><th>Ratio</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Stream_SmallDataset_10Items</td><td>65.88 ms</td><td>NA</td><td>1.00</td><td>17248 B</td><td>1.00</td>
+</tr><tr><td>Stream_MediumDataset_100Items</td><td>66.15 ms</td><td>NA</td><td>1.00</td><td>35840 B</td><td>2.08</td>
+</tr><tr><td>Stream_LargeDataset_1000Items</td><td>66.88 ms</td><td>NA</td><td>1.02</td><td>219744 B</td><td>12.74</td>
+</tr><tr><td>Stream_WithPipelineBehaviors</td><td>78.73 ms</td><td>NA</td><td>1.19</td><td>37552 B</td><td>2.18</td>
+</tr><tr><td>Stream_MaterializeToList_100Items</td><td>67.51 ms</td><td>NA</td><td>1.02</td><td>45064 B</td><td>2.61</td>
+</tr><tr><td>Stream_CountOnly_NoMaterialization</td><td>66.01 ms</td><td>NA</td><td>1.00</td><td>35320 B</td><td>2.05</td>
+</tr><tr><td>Stream_WithCancellation_EarlyExit</td><td>69.11 ms</td><td>NA</td><td>1.05</td><td>52688 B</td><td>3.05</td>
+</tr><tr><td>Stream_DirectHandlerInvocation_NoEncina</td><td>14.18 ms</td><td>NA</td><td>0.22</td><td>400 B</td><td>0.02</td>
+</tr></tbody></table>
+</body>
+</html>
