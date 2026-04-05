@@ -1,0 +1,212 @@
+name: Publish Benchmarks Data
+
+# Triggered when the Benchmarks workflow completes successfully.
+# Downloads the consolidated perf-report artifact and the raw data artifact,
+# archives raw data to the `perf-raw` orphan branch, updates history.json,
+# and deploys the dashboard to GitHub Pages (coexists with publish-coverage).
+#
+# See ADR-025 + performance-measurement-methodology.md.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Benchmarks run ID to use (leave empty for latest successful)'
+        required: false
+  workflow_run:
+    workflows: ["Benchmarks"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  pages: write
+  id-token: write
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-benchmarks
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}benchmarks/dashboard/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve Benchmarks run ID
+        id: resolve
+        run: |
+          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          if [ -z "$RID" ]; then
+            RID=$(gh run list --workflow "Benchmarks" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            echo "Auto-resolved latest successful Benchmarks run: $RID"
+          fi
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download perf-report artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: perf-report-benchmarks
+          path: perf-report-artifact
+          run-id: ${{ steps.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download raw benchmark data
+        uses: actions/download-artifact@v8
+        with:
+          name: perf-raw-benchmarks-${{ steps.resolve.outputs.run_id }}
+          path: raw-data
+          run-id: ${{ steps.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Update docs/benchmarks/data
+        run: |
+          mkdir -p docs/benchmarks/data
+          cp -f perf-report-artifact/latest.json docs/benchmarks/data/latest.json
+          cp -f perf-report-artifact/docref-index.json docs/benchmarks/data/docref-index.json 2>/dev/null || true
+          # Copy any archived snapshot file (timestamped)
+          find perf-report-artifact -maxdepth 1 -name "*.json" ! -name "latest.json" ! -name "docref-index.json" -exec cp -f {} docs/benchmarks/data/ \;
+          ls -la docs/benchmarks/data/
+
+      - name: Update benchmarks history
+        run: |
+          dotnet run .github/scripts/perf-history.cs -- \
+            --kind benchmarks \
+            --latest docs/benchmarks/data/latest.json \
+            --history docs/benchmarks/data/history.json
+
+      - name: Archive raw data to perf-raw branch
+        if: hashFiles('raw-data/**') != ''
+        continue-on-error: true
+        run: |
+          set -e
+          RUN_ID="${{ steps.resolve.outputs.run_id }}"
+          DATE=$(date -u +"%Y-%m-%d")
+          TARGET_DIR="benchmarks/${DATE}/${RUN_ID}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch or create perf-raw branch
+          if git fetch origin perf-raw 2>/dev/null; then
+            git worktree add .perf-raw origin/perf-raw
+          else
+            echo "perf-raw branch does not exist yet. Creating orphan branch."
+            git worktree add --orphan -b perf-raw .perf-raw
+            cd .perf-raw
+            git rm -rf . 2>/dev/null || true
+            cat > README.md << 'EOF'
+          # perf-raw — Raw performance measurement archive
+
+          This orphan branch stores uncompressed raw output from BenchmarkDotNet
+          and NBomber runs, one directory per CI workflow run. It exists to
+          enable unlimited historical recalculation of performance metrics
+          when the measurement methodology evolves, bypassing the 90-day
+          retention of GitHub Actions artifacts.
+
+          See ADR-025 (Performance Measurement Infrastructure) and
+          `docs/testing/performance-measurement-methodology.md` for the full
+          rationale.
+
+          ## Layout
+
+          ```
+          benchmarks/
+            <YYYY-MM-DD>/
+              <runId>/
+                metadata.json
+                <Module>/BenchmarkDotNet.Artifacts/results/*.json
+          load-tests/
+            <YYYY-MM-DD>/
+              <runId>/
+                metadata.json
+                nbomber-<stamp>/
+                metrics-<stamp>.csv
+          ```
+
+          ## Policy
+
+          - Never rewritten; append-only.
+          - Unbounded growth accepted per ADR-025 §2 (zero-cost storage on
+            public repositories).
+          - Compression, pruning, or migration to a different store can be
+            introduced later without breaking `perf-recalculate.cs`, which
+            iterates whatever directories happen to exist.
+          EOF
+            git add README.md
+            git commit -m "chore(perf-raw): initialize orphan branch"
+            cd ..
+          fi
+
+          mkdir -p ".perf-raw/${TARGET_DIR}"
+          cp -r raw-data/* ".perf-raw/${TARGET_DIR}/" 2>/dev/null || true
+
+          # Write metadata
+          cat > ".perf-raw/${TARGET_DIR}/metadata.json" << EOF
+          {
+            "runId": ${RUN_ID},
+            "sha": "${{ github.sha }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "workflow": "Benchmarks",
+            "kind": "benchmarks"
+          }
+          EOF
+
+          cd .perf-raw
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing new to archive."
+          else
+            git commit -m "perf-raw: archive benchmarks run ${RUN_ID}"
+            git push origin HEAD:perf-raw || echo "Warning: push to perf-raw failed; will retry on next run."
+          fi
+          cd ..
+          git worktree remove --force .perf-raw
+
+      - name: Persist latest.json + history.json + docref-index.json to main
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/benchmarks/data/
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            ENTRIES=$(grep -c timestamp docs/benchmarks/data/history.json 2>/dev/null || echo 0)
+            git commit -m "chore: update benchmarks data ($ENTRIES history entries)"
+            git push origin main || echo "Warning: push failed (branch protection). Data will be updated on next manual push."
+          fi
+
+      - name: Build Pages site
+        run: |
+          rm -rf _site
+          cp -r docs _site
+          ls -la _site/benchmarks/dashboard/ 2>/dev/null || echo "dashboard dir missing — first run"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
