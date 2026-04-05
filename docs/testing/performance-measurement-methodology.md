@@ -277,6 +277,7 @@ When you add a new section, a new metric, or a new rule, include a rationale. Th
 - [ADR-025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md)
 - [Performance Infrastructure Plan](../plans/performance-infrastructure-plan.md)
 - [ADR-023 — Coverage Strategy](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md) (architectural parent)
+- [`coverage-measurement-methodology.md`](coverage-measurement-methodology.md) (sibling methodology — same architectural pattern)
 - Coverage dashboard: <https://dlrivada.github.io/Encina/coverage/>
 - Benchmarks dashboard (target): <https://dlrivada.github.io/Encina/benchmarks/>
 - Load-tests dashboard (target): <https://dlrivada.github.io/Encina/load-tests/>
