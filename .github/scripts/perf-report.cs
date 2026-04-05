@@ -33,6 +33,8 @@ var outputDir = "";
 var runId = 0L;
 var sha = Environment.GetEnvironmentVariable("GITHUB_SHA") ?? "";
 var manifestDir = "";
+var fingerprintsFile = "";         // Phase 2: current run's fingerprints
+var carryForwardFrom = "";         // Phase 2: previous snapshot to carry forward unchanged modules
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -42,6 +44,8 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--run-id" && i + 1 < args.Length) _ = long.TryParse(args[++i], out runId);
     if (args[i] == "--sha" && i + 1 < args.Length) sha = args[++i];
     if (args[i] == "--manifest-dir" && i + 1 < args.Length) manifestDir = args[++i];
+    if (args[i] == "--fingerprints-file" && i + 1 < args.Length) fingerprintsFile = args[++i];
+    if (args[i] == "--carry-forward-from" && i + 1 < args.Length) carryForwardFrom = args[++i];
 }
 
 if (string.IsNullOrEmpty(inputDir)) inputDir = kind == "benchmarks" ? "artifacts/performance" : "artifacts/load-metrics";
@@ -50,7 +54,15 @@ if (string.IsNullOrEmpty(manifestDir)) manifestDir = ".github/perf-manifest";
 
 if (!Directory.Exists(inputDir))
 {
-    Console.WriteLine($"Input directory '{inputDir}' not found. Emitting empty snapshot.");
+    Console.WriteLine($"Input directory '{inputDir}' not found — no fresh benchmark data to process.");
+    // Still emit a (possibly carried-forward) snapshot if we have a previous one.
+    if (kind == "benchmarks" && !string.IsNullOrEmpty(carryForwardFrom) && File.Exists(carryForwardFrom))
+    {
+        Directory.CreateDirectory(outputDir);
+        var metadata0 = BuildMetadata(runId, sha);
+        GenerateBenchmarksReport(inputDir, outputDir, metadata0, runId, sha, manifestDir, fingerprintsFile, carryForwardFrom, noInput: true);
+        return;
+    }
     WriteEmptySnapshot(kind, outputDir, runId, sha);
     return;
 }
@@ -60,7 +72,7 @@ Directory.CreateDirectory(outputDir);
 var metadata = BuildMetadata(runId, sha);
 
 if (kind == "benchmarks")
-    GenerateBenchmarksReport(inputDir, outputDir, metadata, runId, sha, manifestDir);
+    GenerateBenchmarksReport(inputDir, outputDir, metadata, runId, sha, manifestDir, fingerprintsFile, carryForwardFrom, noInput: false);
 else if (kind == "load-tests")
     GenerateLoadTestsReport(inputDir, outputDir, metadata, runId, sha);
 else
@@ -72,16 +84,30 @@ else
 // ──────────────────────────────────────────────────────────────────────────
 // BENCHMARKS
 // ──────────────────────────────────────────────────────────────────────────
-static void GenerateBenchmarksReport(string inputDir, string outputDir, JsonObject metadata, long runId, string sha, string manifestDir)
+static void GenerateBenchmarksReport(
+    string inputDir,
+    string outputDir,
+    JsonObject metadata,
+    long runId,
+    string sha,
+    string manifestDir,
+    string fingerprintsFile,
+    string carryForwardFrom,
+    bool noInput)
 {
+    // Load current fingerprints (Phase 2) — keyed by project name (e.g. "Encina.Caching.Benchmarks")
+    var fingerprints = LoadFingerprints(fingerprintsFile);
+
     // Discover BenchmarkDotNet full JSON reports recursively. The `--exporters json` CLI
     // arg in BenchmarkDotNet maps to JsonExporter.FullCompressed which produces files
     // named *-report-full-compressed.json. We also accept *-report-full.json in case a
     // future benchmark uses a different exporter variant. Both formats share the same
     // schema (the "compressed" variant is just unindented).
-    var reportFiles = Directory.GetFiles(inputDir, "*-report-full*.json", SearchOption.AllDirectories)
-        .Where(f => !f.EndsWith("-report-full-compressed-compressed.json", StringComparison.Ordinal))
-        .ToList();
+    var reportFiles = noInput
+        ? new List<string>()
+        : Directory.GetFiles(inputDir, "*-report-full*.json", SearchOption.AllDirectories)
+            .Where(f => !f.EndsWith("-report-full-compressed-compressed.json", StringComparison.Ordinal))
+            .ToList();
 
     Console.WriteLine($"Found {reportFiles.Count} BenchmarkDotNet reports in {inputDir}");
     if (reportFiles.Count == 0)
@@ -133,7 +159,76 @@ static void GenerateBenchmarksReport(string inputDir, string outputDir, JsonObje
         }
     }
 
-    // Compute overall stats
+    // Attach current fingerprints to freshly-measured modules.
+    foreach (var m in modulesByName.Values)
+    {
+        if (fingerprints.TryGetValue(m.Name, out var fp)) m.Fingerprint = fp;
+        else if (TryMatchProject(fingerprints, m.Name, out var altFp)) m.Fingerprint = altFp;
+    }
+
+    // Phase 2: carry forward unchanged modules from the previous snapshot.
+    // A module is carried forward iff:
+    //   - it exists in the previous snapshot
+    //   - its name is NOT in modulesByName (we did not measure it this run)
+    //   - the previous fingerprint matches the current fingerprint (proves source unchanged)
+    // Otherwise it is either a genuine regression/new module, or a fingerprint mismatch
+    // which should never happen if the workflow is correct — if it does, we fall back
+    // to leaving the module out (the dashboard will show a gap that triggers investigation).
+    var carriedForward = new List<JsonObject>();
+    int carriedMethodsStable = 0, carriedMethodsUnstable = 0;
+    if (!string.IsNullOrEmpty(carryForwardFrom) && File.Exists(carryForwardFrom))
+    {
+        try
+        {
+            var prevSnapshot = JsonNode.Parse(File.ReadAllText(carryForwardFrom));
+            var prevModules = prevSnapshot?["modules"] as JsonArray;
+            if (prevModules is not null)
+            {
+                foreach (var pm in prevModules)
+                {
+                    if (pm is not JsonObject pmObj) continue;
+                    var name = pmObj["name"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    if (modulesByName.ContainsKey(name)) continue; // freshly measured — skip
+
+                    // Require a current fingerprint to carry forward. If we don't know the
+                    // current fingerprint for this project (e.g. project was deleted), skip.
+                    var currentFp = ResolveCurrentFingerprint(fingerprints, name);
+                    if (string.IsNullOrEmpty(currentFp)) continue;
+
+                    var prevFp = pmObj["fingerprint"]?.GetValue<string>() ?? "";
+                    if (prevFp != currentFp)
+                    {
+                        Console.WriteLine($"  [carry-forward] {name}: fingerprint mismatch — skipping (prev={Truncate(prevFp, 8)}, cur={Truncate(currentFp, 8)})");
+                        continue;
+                    }
+
+                    var carried = (JsonObject)pmObj.DeepClone();
+                    carried["fingerprint"] = currentFp;
+                    carried["carriedForward"] = true;
+                    carriedForward.Add(carried);
+
+                    var bms = carried["benchmarks"] as JsonArray;
+                    if (bms is not null)
+                    {
+                        foreach (var b in bms)
+                        {
+                            if (b?["stable"]?.GetValue<bool>() == true) carriedMethodsStable++;
+                            else carriedMethodsUnstable++;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to load previous snapshot for carry-forward: {ex.Message}");
+        }
+    }
+
+    Console.WriteLine($"  Fresh modules: {modulesByName.Count}, carried forward: {carriedForward.Count}");
+
+    // Compute overall stats over fresh + carried modules
     int totalMethods = 0, stable = 0, unstable = 0;
     double sumMeanNs = 0, sumAllocatedBytes = 0;
     int countMean = 0, countAlloc = 0;
@@ -148,10 +243,28 @@ static void GenerateBenchmarksReport(string inputDir, string outputDir, JsonObje
             if (b.AllocatedBytes > 0) { sumAllocatedBytes += b.AllocatedBytes; countAlloc++; }
         }
     }
+    // Include carried-forward contributions
+    foreach (var cm in carriedForward)
+    {
+        var bms = cm["benchmarks"] as JsonArray;
+        if (bms is null) continue;
+        foreach (var b in bms)
+        {
+            totalMethods++;
+            var bMean = b?["meanNs"]?.GetValue<double>() ?? 0;
+            var bAlloc = b?["allocatedBytes"]?.GetValue<double>() ?? 0;
+            if (bMean > 0) { sumMeanNs += bMean; countMean++; }
+            if (bAlloc > 0) { sumAllocatedBytes += bAlloc; countAlloc++; }
+        }
+    }
+    stable += carriedMethodsStable;
+    unstable += carriedMethodsUnstable;
 
     var overall = new JsonObject
     {
-        ["totalModules"] = modulesByName.Count,
+        ["totalModules"] = modulesByName.Count + carriedForward.Count,
+        ["freshModules"] = modulesByName.Count,
+        ["carriedForwardModules"] = carriedForward.Count,
         ["totalMethods"] = totalMethods,
         ["stableMethods"] = stable,
         ["unstableMethods"] = unstable,
@@ -163,6 +276,8 @@ static void GenerateBenchmarksReport(string inputDir, string outputDir, JsonObje
     var modulesArray = new JsonArray();
     foreach (var m in modulesByName.Values)
         modulesArray.Add(m.ToJson());
+    foreach (var cm in carriedForward)
+        modulesArray.Add(cm);
 
     var snapshot = new JsonObject
     {
@@ -184,6 +299,8 @@ static void GenerateBenchmarksReport(string inputDir, string outputDir, JsonObje
     File.Copy(latestPath, archivePath, overwrite: true);
 
     // Build docref-index.json (reverse: DocRef → { dashboard anchor, latest value, stability })
+    // Covers both freshly-measured and carried-forward benchmarks so the index remains
+    // complete across incremental runs.
     var docrefIndex = new JsonObject();
     foreach (var m in modulesByName.Values)
     {
@@ -200,18 +317,112 @@ static void GenerateBenchmarksReport(string inputDir, string outputDir, JsonObje
                     ["stdDevNs"] = b.StdDevNs,
                     ["allocatedBytes"] = b.AllocatedBytes,
                     ["stable"] = b.Stable,
+                    ["carriedForward"] = false,
                     ["anchor"] = $"#{m.Name}/{b.Method}"
                 };
             }
         }
     }
+    foreach (var cm in carriedForward)
+    {
+        var modName = cm["name"]?.GetValue<string>() ?? "";
+        var bms = cm["benchmarks"] as JsonArray;
+        if (bms is null) continue;
+        foreach (var b in bms)
+        {
+            if (b is not JsonObject bo) continue;
+            var docRef = bo["docRef"]?.GetValue<string?>();
+            if (string.IsNullOrEmpty(docRef)) continue;
+            var entry = (JsonObject)bo.DeepClone();
+            entry["module"] = modName;
+            entry["carriedForward"] = true;
+            entry["anchor"] = $"#{modName}/{bo["method"]?.GetValue<string>() ?? ""}";
+            docrefIndex[docRef!] = entry;
+        }
+    }
     File.WriteAllText(Path.Combine(outputDir, "docref-index.json"),
         docrefIndex.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
 
+    // Persist the full current fingerprint file alongside the snapshot so downstream
+    // consumers (publish-benchmarks.yml, dashboard) can access it without another step.
+    if (fingerprints.Count > 0)
+    {
+        var fpJson = new JsonObject();
+        foreach (var (key, value) in fingerprints) fpJson[key] = value;
+        File.WriteAllText(Path.Combine(outputDir, "fingerprints.json"),
+            fpJson.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     Console.WriteLine($"Benchmarks snapshot written: {latestPath}");
-    Console.WriteLine($"  Modules: {modulesByName.Count}, Methods: {totalMethods} (stable: {stable}, unstable: {unstable})");
+    Console.WriteLine($"  Fresh: {modulesByName.Count}, Carried: {carriedForward.Count}, Total methods: {totalMethods} (stable: {stable}, unstable: {unstable})");
     _ = manifestDir; // manifest validation is deferred to perf-manifest-check.cs
 }
+
+// Phase 2 helper: load a fingerprints.json file into a case-insensitive dictionary.
+static SortedDictionary<string, string> LoadFingerprints(string path)
+{
+    var result = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    if (string.IsNullOrEmpty(path) || !File.Exists(path)) return result;
+    try
+    {
+        var json = JsonNode.Parse(File.ReadAllText(path));
+        if (json is JsonObject obj)
+        {
+            foreach (var (key, value) in obj)
+            {
+                if (value is JsonValue v) result[key] = v.GetValue<string>();
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Failed to load fingerprints from '{path}': {ex.Message}");
+    }
+    return result;
+}
+
+// Resolve a module name (e.g. "Refit") to a fingerprint entry keyed by project name
+// (e.g. "Encina.Refit.Benchmarks"). The matrix in benchmarks.yml uses short names as
+// module identifiers, while the fingerprint file uses full project names.
+static string ResolveCurrentFingerprint(SortedDictionary<string, string> fingerprints, string moduleName)
+{
+    if (fingerprints.TryGetValue(moduleName, out var direct)) return direct;
+    TryMatchProject(fingerprints, moduleName, out var matched);
+    return matched;
+}
+
+static bool TryMatchProject(SortedDictionary<string, string> fingerprints, string moduleName, out string fingerprint)
+{
+    // Module → project mapping:
+    //   "Refit"                 → "Encina.Refit.Benchmarks"
+    //   "SecurityEncryption"    → "Encina.Security.Encryption.Benchmarks"
+    //   "Core"                  → "Encina.Benchmarks"
+    //   "EFCore"                → "Encina.EntityFrameworkCore.Benchmarks"
+    //   "AuditMarten"           → "Encina.Audit.Marten.Benchmarks"
+    // The match is done by collapsing dots and comparing case-insensitively against
+    // the last-path-segment-minus-suffix of each fingerprint key.
+    foreach (var (key, value) in fingerprints)
+    {
+        // Strip "Encina." prefix and ".Benchmarks" suffix, then collapse dots.
+        var normalized = key;
+        if (normalized.StartsWith("Encina.", StringComparison.Ordinal))
+            normalized = normalized["Encina.".Length..];
+        if (normalized.EndsWith(".Benchmarks", StringComparison.Ordinal))
+            normalized = normalized[..^".Benchmarks".Length];
+        normalized = normalized.Replace(".", "");
+
+        if (string.Equals(normalized, moduleName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, moduleName.Replace(".", ""), StringComparison.OrdinalIgnoreCase))
+        {
+            fingerprint = value;
+            return true;
+        }
+    }
+    fingerprint = "";
+    return false;
+}
+
+static string Truncate(string s, int n) => string.IsNullOrEmpty(s) ? "" : (s.Length <= n ? s : s[..n]);
 
 static BenchmarkEntry? ParseBenchmarkEntry(JsonNode node)
 {
@@ -531,13 +742,18 @@ static double GetDouble(JsonNode? node, string property)
 sealed class BenchmarkModule
 {
     public string Name { get; set; } = "";
+    public string Fingerprint { get; set; } = "";
     public List<BenchmarkEntry> Benchmarks { get; } = new();
 
     public JsonObject ToJson()
     {
         var arr = new JsonArray();
         foreach (var b in Benchmarks) arr.Add(b.ToJson());
-        return new JsonObject { ["name"] = Name, ["benchmarks"] = arr };
+        var obj = new JsonObject { ["name"] = Name };
+        if (!string.IsNullOrEmpty(Fingerprint)) obj["fingerprint"] = Fingerprint;
+        obj["carriedForward"] = false;
+        obj["benchmarks"] = arr;
+        return obj;
     }
 }
 

@@ -83,8 +83,14 @@ jobs:
           mkdir -p docs/benchmarks/data
           cp -f perf-report-artifact/latest.json docs/benchmarks/data/latest.json
           cp -f perf-report-artifact/docref-index.json docs/benchmarks/data/docref-index.json 2>/dev/null || true
-          # Copy any archived snapshot file (timestamped)
-          find perf-report-artifact -maxdepth 1 -name "*.json" ! -name "latest.json" ! -name "docref-index.json" -exec cp -f {} docs/benchmarks/data/ \;
+          # Phase 2 — persist current fingerprints so the next run can diff against them.
+          cp -f perf-report-artifact/fingerprints.json docs/benchmarks/data/fingerprints.json 2>/dev/null || true
+          # Copy any archived timestamped snapshot file
+          find perf-report-artifact -maxdepth 1 -name "*.json" \
+            ! -name "latest.json" \
+            ! -name "docref-index.json" \
+            ! -name "fingerprints.json" \
+            -exec cp -f {} docs/benchmarks/data/ \;
           ls -la docs/benchmarks/data/
 
       - name: Update benchmarks history
