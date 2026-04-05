@@ -318,14 +318,19 @@ jobs:
 
       - name: Generate performance report with carry-forward
         run: |
+          # upload-artifact with multi-path strips the longest common prefix
+          # ('artifacts/' here), so the extracted layout is perf-output/... and
+          # perf-previous/..., not artifacts/perf-output/... etc.
+          ls -la incremental-state/ || true
+          find incremental-state -type f
           dotnet run .github/scripts/perf-report.cs -- \
             --kind benchmarks \
             --input artifacts/performance \
             --output artifacts/perf-output \
             --run-id ${{ github.run_id }} \
             --sha ${{ github.sha }} \
-            --fingerprints-file incremental-state/artifacts/perf-output/fingerprints.json \
-            --carry-forward-from incremental-state/artifacts/perf-previous/latest.json
+            --fingerprints-file incremental-state/perf-output/fingerprints.json \
+            --carry-forward-from incremental-state/perf-previous/latest.json
 
       - name: Upload consolidated perf-report artifact
         uses: actions/upload-artifact@v7
