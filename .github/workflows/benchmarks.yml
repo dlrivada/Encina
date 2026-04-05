@@ -255,8 +255,15 @@ jobs:
         run: |
           JOB_TYPE="${{ github.event.inputs.job_type || 'short' }}"
           FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
+          # Use an ABSOLUTE path for --artifacts. BenchmarkDotNet spawns child
+          # processes to host each benchmark, and a relative path would resolve
+          # in the child's CWD (typically a generated temp project dir), not the
+          # repo root where upload-artifact looks. See issue #923 for the history
+          # of projects affected by this (AspNetCore in particular).
+          ARTIFACTS_DIR="${{ github.workspace }}/artifacts/performance/${{ matrix.project.name }}"
+          mkdir -p "$ARTIFACTS_DIR"
           dotnet run --project ${{ matrix.project.path }} -c Release --no-restore -- \
-            --artifacts "artifacts/performance/${{ matrix.project.name }}" \
+            --artifacts "$ARTIFACTS_DIR" \
             --exporters json csv html github \
             --job "$JOB_TYPE" \
             --filter "$FILTER"
