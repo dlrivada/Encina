@@ -1,6 +1,6 @@
 # Performance Measurement Infrastructure — Implementation Plan
 
-> **Status**: 🟢 Phase 2 implemented — awaiting validation run
+> **Status**: 🟢 Phase 3.1 implemented — awaiting validation run (Phase 2 validated)
 > **ADR**: [025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md)
 > **Methodology**: [`performance-measurement-methodology.md`](../testing/performance-measurement-methodology.md)
 > **Date**: 2026-04-05
@@ -23,6 +23,9 @@
 | 2026-04-05 | Phase 2.2: `benchmarks.yml` restructured with `determine-matrix` → `run-benchmarks` → `aggregate`. Dynamic matrix. Schedule and `force_full=true` bypass cache. Aggregate runs even when no projects execute |
 | 2026-04-05 | Phase 2.3: `on: pull_request` trigger added with path filter for `src/**/*.cs`, `tests/Encina.BenchmarkTests/**`, `Directory.Packages.props`, workflow YAML, and perf-*.cs scripts |
 | 2026-04-05 | `publish-benchmarks.yml` updated to commit `fingerprints.json` alongside `latest.json` to Pages, closing the Phase 2 loop |
+| 2026-04-05 | Phase 2 validated end-to-end: run 24011643747 produced `freshModules: 0 / carriedForwardModules: 17` — true no-op no-change run. Fingerprints persistent, carry-forward flag visible in dashboard, coverage dashboard preserved via cross-domain Pages overlay fix |
+| 2026-04-05 | Issue #923 opened and fixed: BenchmarkDotNet spawns child processes with different CWD, so `--artifacts` relative path broke AspNetCore upload (silently failing since run 24007640847). Fix: pass `${{ github.workspace }}/artifacts/performance/<name>` as absolute path |
+| 2026-04-06 | Phase 3.1 implemented: `perf-class-matrix.cs` fans out each project into one matrix entry per `[Benchmark]` class (20 projects → ~75 entries) using the committed `.github/perf-manifest/*.json` files. `run-benchmarks` now dispatches class-level jobs (matrix capped to 30 concurrent by `max-parallel`), upload-artifact names include the class, `aggregate` downloads with `merge-multiple: true` to reassemble full per-project trees. Wall-clock for full runs expected to drop from ~25 min (bounded by slowest project, typically Core at 15+ min) to ~5-8 min (bounded by slowest single class) |
 
 ## Goal
 

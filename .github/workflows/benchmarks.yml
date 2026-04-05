@@ -77,6 +77,7 @@ jobs:
     outputs:
       matrix: ${{ steps.emit.outputs.matrix }}
       matrix_count: ${{ steps.emit.outputs.count }}
+      project_count: ${{ steps.emit.outputs.project_count }}
       skipped_projects: ${{ steps.emit.outputs.skipped }}
       force_full: ${{ steps.emit.outputs.force_full }}
     steps:
@@ -158,23 +159,41 @@ jobs:
 
           if [ "$FORCE" = "true" ]; then
             echo "Full run (schedule or force_full) — all 20 projects will execute."
-            MATRIX=$(cat /tmp/full-matrix.json)
+            cp /tmp/full-matrix.json /tmp/changed.json
             SKIPPED="[]"
           else
-            # Compare fingerprints and filter matrix
+            # Compare fingerprints and filter to changed projects
             dotnet run .github/scripts/perf-diff-fingerprints.cs -- \
               --current artifacts/perf-output/fingerprints.json \
               --previous artifacts/perf-previous/latest.json \
               --full-matrix /tmp/full-matrix.json \
               --changed-out /tmp/changed.json \
               --skipped-out /tmp/skipped.json
-            MATRIX=$(cat /tmp/changed.json)
             SKIPPED=$(cat /tmp/skipped.json)
           fi
 
-          COUNT=$(echo "$MATRIX" | jq 'length')
-          echo "Matrix: $COUNT project(s) will run"
+          PROJECT_COUNT=$(jq 'length' /tmp/changed.json)
+          echo ""
+          echo "Projects to run: $PROJECT_COUNT"
           echo "Skipped (carry forward): $(echo "$SKIPPED" | jq -r 'join(", ")' || echo '')"
+          echo ""
+
+          # Phase 3.1 — Fan out each project into one matrix entry per benchmark class.
+          # This parallelises execution at class level: the slowest project no longer
+          # dictates the overall wall-clock of the run.
+          if [ "$PROJECT_COUNT" -gt 0 ]; then
+            dotnet run .github/scripts/perf-class-matrix.cs -- \
+              --projects /tmp/changed.json \
+              --manifest-dir .github/perf-manifest \
+              --output /tmp/class-matrix.json
+            MATRIX=$(cat /tmp/class-matrix.json)
+          else
+            MATRIX="[]"
+          fi
+
+          COUNT=$(echo "$MATRIX" | jq 'length')
+          echo ""
+          echo "Matrix after class-level fan-out: $COUNT job(s) will run"
 
           # Emit outputs — wrap matrix in the {project: [...]} shape the consumer expects
           {
@@ -183,6 +202,7 @@ jobs:
             echo "EOF_MATRIX"
           } >> "$GITHUB_OUTPUT"
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "project_count=$PROJECT_COUNT" >> "$GITHUB_OUTPUT"
           {
             echo "skipped<<EOF_SKIPPED"
             echo "$SKIPPED"
@@ -200,16 +220,20 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Run benchmarks — matrix is dynamically provided by determine-matrix
+  # Run benchmarks — matrix is dynamically provided by determine-matrix.
+  # Phase 3.1: each matrix entry is ONE benchmark class (not a whole project),
+  # so parallelism is bounded by the slowest individual class, not the slowest
+  # project. A project with 32 classes now dispatches 32 parallel jobs.
   # ─────────────────────────────────────────────────────────────────────────
   run-benchmarks:
-    name: ${{ matrix.project.name }} (${{ matrix.project.os }})
+    name: ${{ matrix.project.name }} · ${{ matrix.project.class }}
     needs: determine-matrix
     if: needs.determine-matrix.outputs.matrix_count != '0'
     runs-on: ${{ matrix.project.os }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: 30   # Cap concurrency so we don't exhaust the free-tier runner pool
       matrix: ${{ fromJson(needs.determine-matrix.outputs.matrix) }}
     defaults:
       run:
@@ -248,32 +272,46 @@ jobs:
         if: steps.filter.outputs.skip != 'true'
         run: dotnet restore ${{ matrix.project.path }}
 
-      - name: Run ${{ matrix.project.name }} benchmarks
+      - name: Run ${{ matrix.project.name }}.${{ matrix.project.class }}
         if: steps.filter.outputs.skip != 'true'
         env:
           PERF_JOB_TYPE: ${{ github.event.inputs.job_type || 'short' }}
         run: |
           JOB_TYPE="${{ github.event.inputs.job_type || 'short' }}"
-          FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
-          # Use an ABSOLUTE path for --artifacts. BenchmarkDotNet spawns child
-          # processes to host each benchmark, and a relative path would resolve
-          # in the child's CWD (typically a generated temp project dir), not the
-          # repo root where upload-artifact looks. See issue #923 for the history
-          # of projects affected by this (AspNetCore in particular).
+          # The class-level filter comes from the matrix; the workflow_dispatch
+          # benchmark_filter input narrows further within the class (e.g. a single
+          # method). If the dispatch filter is the default '*', the class filter is
+          # authoritative.
+          DISPATCH_FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
+          CLASS_FILTER='${{ matrix.project.filter }}'
+          if [ "$DISPATCH_FILTER" = "*" ] || [ -z "$DISPATCH_FILTER" ]; then
+            FINAL_FILTER="$CLASS_FILTER"
+          else
+            # Intersection: limit to methods matching dispatch filter within the class.
+            FINAL_FILTER="${CLASS_FILTER%\*}.${DISPATCH_FILTER#\*}"
+          fi
+          echo "Using --filter: $FINAL_FILTER"
+
+          # Absolute path for --artifacts (see issue #923). All class jobs of a
+          # project write into the SAME subdir; upload-artifact is named uniquely
+          # per class so concurrent jobs do not collide.
           ARTIFACTS_DIR="${{ github.workspace }}/artifacts/performance/${{ matrix.project.name }}"
           mkdir -p "$ARTIFACTS_DIR"
           dotnet run --project ${{ matrix.project.path }} -c Release --no-restore -- \
             --artifacts "$ARTIFACTS_DIR" \
             --exporters json csv html github \
             --job "$JOB_TYPE" \
-            --filter "$FILTER"
+            --filter "$FINAL_FILTER"
 
       - name: Upload benchmark results
         if: always() && steps.filter.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: benchmarks-${{ matrix.project.name }}
-          path: artifacts/performance/${{ matrix.project.name }}
+          # Artifact name is unique per (project, class) pair so concurrent jobs
+          # do not collide. The aggregate job downloads with merge-multiple: true
+          # to reassemble the full per-project result tree.
+          name: benchmarks-${{ matrix.project.name }}-${{ matrix.project.class }}
+          path: artifacts/performance
           if-no-files-found: warn
           retention-days: 90
 
@@ -309,19 +347,29 @@ jobs:
         with:
           pattern: benchmarks-*
           path: artifacts/performance
-          merge-multiple: false
+          # merge-multiple:true extracts all class-level artifacts into the same
+          # directory. Each artifact was uploaded from `artifacts/performance` as
+          # its path, so its internal root is `<ProjectName>/results/<file>.json`.
+          # Merging them reconstructs the full per-project tree:
+          #   artifacts/performance/Caching/results/*.json  (all 7 classes merged)
+          #   artifacts/performance/Core/results/*.json     (all 32 classes merged)
+          merge-multiple: true
         continue-on-error: true
 
-      - name: Flatten artifacts
+      - name: Summarise downloaded artifacts
         run: |
-          shopt -s nullglob
-          mkdir -p artifacts/performance
-          for dir in artifacts/performance/benchmarks-*; do
-            name="${dir#artifacts/performance/benchmarks-}"
-            mv "$dir" "artifacts/performance/$name"
-          done
-          echo "Flattened contents:"
-          ls -la artifacts/performance/ 2>/dev/null || echo "(empty — all projects carried forward)"
+          if [ -d artifacts/performance ]; then
+            echo "Artifacts downloaded:"
+            find artifacts/performance -maxdepth 2 -type d | sort | head -50
+            echo ""
+            echo "Report files per project:"
+            for d in artifacts/performance/*/; do
+              count=$(find "$d" -name '*-report-full*.json' 2>/dev/null | wc -l)
+              echo "  $(basename "$d"): $count report file(s)"
+            done
+          else
+            echo "(no artifacts — all projects carried forward)"
+          fi
 
       - name: Generate performance report with carry-forward
         run: |
