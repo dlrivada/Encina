@@ -63,7 +63,7 @@ foreach (var entry in projects)
     var projectKey = eo["project"]?.GetValue<string>() ?? "";
     var manifestPath = Path.Combine(manifestDir, $"{projectKey}.json");
 
-    var classes = new List<string>();
+    var classInfos = new List<(string SimpleName, string FullName)>();
     if (File.Exists(manifestPath))
     {
         try
@@ -73,8 +73,10 @@ foreach (var entry in projects)
             {
                 foreach (var c in classesArray)
                 {
-                    var className = c?["name"]?.GetValue<string>();
-                    if (!string.IsNullOrEmpty(className)) classes.Add(className!);
+                    var simpleName = c?["name"]?.GetValue<string>() ?? "";
+                    var fullName = c?["fullName"]?.GetValue<string>() ?? simpleName;
+                    if (!string.IsNullOrEmpty(simpleName))
+                        classInfos.Add((simpleName, fullName));
                 }
             }
         }
@@ -84,7 +86,7 @@ foreach (var entry in projects)
         }
     }
 
-    if (classes.Count == 0)
+    if (classInfos.Count == 0)
     {
         // Scaffolded/empty project — emit one fallback entry so the job still runs.
         var fallback = (JsonObject)eo.DeepClone();
@@ -95,14 +97,23 @@ foreach (var entry in projects)
     }
     else
     {
-        foreach (var cls in classes)
+        foreach (var (simpleName, fullName) in classInfos)
         {
             var newEntry = (JsonObject)eo.DeepClone();
-            newEntry["class"] = cls;
-            newEntry["filter"] = $"*{cls}*";
+            // Use the short simple name for the matrix job display name.
+            newEntry["class"] = simpleName;
+            // Use the fully-qualified name for BDN --filter so classes with
+            // the same simple name in different namespaces don't collide.
+            // BDN filter matches against FullName (Namespace.Class.Method).
+            newEntry["filter"] = $"*{fullName}.*";
+            // Sanitize artifact suffix to avoid upload-artifact naming collisions
+            // when two classes share the same simple name (e.g. ScatterGatherBenchmarks
+            // in root namespace and in Sharding namespace).
+            var artifactSuffix = fullName.Replace(".", "-");
+            newEntry["artifactSuffix"] = artifactSuffix;
             result.Add(newEntry);
         }
-        Console.WriteLine($"  {matrixName,-25} {classes.Count,3} classes");
+        Console.WriteLine($"  {matrixName,-25} {classInfos.Count,3} classes");
     }
 }
 

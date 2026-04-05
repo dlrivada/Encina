@@ -73,6 +73,8 @@ foreach (var projDir in projectDirs)
         .Where(f => !Path.GetFileName(f).Equals("Program.cs", StringComparison.OrdinalIgnoreCase))
         .Where(f => !Path.GetFileName(f).Equals("GlobalSuppressions.cs", StringComparison.OrdinalIgnoreCase));
 
+    var nsRegex = new Regex(@"^\s*namespace\s+([\w.]+)\s*[;{]", RegexOptions.Multiline);
+
     foreach (var file in csFiles)
     {
         try
@@ -83,6 +85,10 @@ foreach (var projDir in projectDirs)
             var classMatch = classDeclRegex.Match(content);
             if (!classMatch.Success) continue;
             var className = classMatch.Groups[1].Value;
+
+            // Extract namespace for FQN-based filters (Phase 3.1 class-level fan-out).
+            var nsMatch = nsRegex.Match(content);
+            var ns = nsMatch.Success ? nsMatch.Groups[1].Value : "";
 
             var hasMemoryDiagnoser = content.Contains("[MemoryDiagnoser]", StringComparison.Ordinal);
 
@@ -123,6 +129,8 @@ foreach (var projDir in projectDirs)
                 benchmarkClasses.Add(new BenchmarkClassInfo
                 {
                     Name = className,
+                    Namespace = ns,
+                    FullName = string.IsNullOrEmpty(ns) ? className : $"{ns}.{className}",
                     File = relativePath,
                     HasMemoryDiagnoser = hasMemoryDiagnoser,
                     Methods = methods
@@ -182,6 +190,8 @@ foreach (var projDir in projectDirs)
         classesArray.Add(new JsonObject
         {
             ["name"] = c.Name,
+            ["namespace"] = c.Namespace,
+            ["fullName"] = c.FullName,
             ["file"] = c.File,
             ["hasMemoryDiagnoser"] = c.HasMemoryDiagnoser,
             ["methods"] = methodsArray
@@ -198,6 +208,8 @@ Console.WriteLine($"Manifests written to {outputDir}");
 sealed class BenchmarkClassInfo
 {
     public string Name { get; set; } = "";
+    public string Namespace { get; set; } = "";
+    public string FullName { get; set; } = "";
     public string File { get; set; } = "";
     public bool HasMemoryDiagnoser { get; set; }
     public List<BenchmarkMethodInfo> Methods { get; set; } = new();
