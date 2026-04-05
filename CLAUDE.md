@@ -7,6 +7,7 @@
 | Plan | File | Status |
 |------|------|--------|
 | Test Consolidation | `docs/plans/test-consolidation-plan.md` | 🟡 In Progress |
+| Performance Measurement Infrastructure | `docs/plans/performance-infrastructure-plan.md` | 🟡 Not Started (ADR-025) |
 
 ## Project Philosophy
 
