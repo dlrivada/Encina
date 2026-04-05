@@ -1,4 +1,6 @@
+using System.Reflection;
 using BenchmarkDotNet.Running;
-using Encina.Refit.Benchmarks;
 
-BenchmarkRunner.Run<RestApiRequestHandlerBenchmarks>();
+// Use BenchmarkSwitcher to honor --filter, --list, --job and other CLI args.
+// See CLAUDE.md "BenchmarkDotNet Guidelines" and ADR-025.
+BenchmarkSwitcher.FromAssembly(Assembly.GetExecutingAssembly()).Run(args);

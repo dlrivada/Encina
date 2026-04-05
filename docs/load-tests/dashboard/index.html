@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Encina Load Tests Dashboard</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <h1>Encina Load Tests Dashboard</h1>
+    <p id="timestamp" class="subtitle">Loading...</p>
+    <p class="subtitle">
+      See
+      <a href="../../architecture/adr/025-performance-measurement-infrastructure.html">ADR-025</a>
+      and
+      <a href="../../testing/performance-measurement-methodology.html">methodology</a>
+      for the formulas behind this data.
+    </p>
+  </header>
+
+  <section id="overall" class="card overall-card">
+    <div id="overall-count" class="big-number">--</div>
+    <div id="overall-subtitle" class="subtitle">-- scenarios (-- pass, -- fail)</div>
+    <div id="overall-metrics" class="subtitle"></div>
+  </section>
+
+  <section class="card">
+    <div class="section-header">
+      <h2>Scenarios by Area</h2>
+      <div class="header-actions">
+        <button id="copy-table" class="copy-btn" title="Copy table as TSV for Excel">Copy to Excel</button>
+      </div>
+    </div>
+    <div class="filters" id="area-filters">
+      <button class="filter-btn active" data-filter="all">all</button>
+    </div>
+    <input type="text" id="scn-search" placeholder="Search scenarios..." class="search-input">
+    <table id="scenario-table">
+      <thead>
+        <tr>
+          <th data-sort="area">Area</th>
+          <th data-sort="name">Scenario</th>
+          <th class="num" data-sort="rps">Throughput (ops/s)</th>
+          <th class="num" data-sort="mean">Mean (ms)</th>
+          <th class="num" data-sort="p50">P50 (ms)</th>
+          <th class="num" data-sort="p95">P95 (ms)</th>
+          <th class="num" data-sort="p99">P99 (ms)</th>
+          <th class="num" data-sort="errorRate">Error Rate</th>
+          <th class="num" data-sort="n">Requests</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p>
+      Encina Load Tests System &mdash; Data from
+      <a id="run-link" href="#">CI run</a>
+      &mdash;
+      Raw data archived in the
+      <a href="https://github.com/dlrivada/Encina/tree/perf-raw"><code>perf-raw</code></a>
+      branch.
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

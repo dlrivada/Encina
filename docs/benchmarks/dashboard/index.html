@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Encina Benchmarks Dashboard</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <h1>Encina Benchmarks Dashboard</h1>
+    <p id="timestamp" class="subtitle">Loading...</p>
+    <p class="subtitle">
+      See
+      <a href="../../architecture/adr/025-performance-measurement-infrastructure.html">ADR-025</a>
+      and
+      <a href="../../testing/performance-measurement-methodology.html">methodology</a>
+      for the formulas behind this data.
+    </p>
+  </header>
+
+  <div class="top-grid">
+    <div class="top-left">
+      <section id="overall" class="card overall-card">
+        <div id="overall-count" class="big-number">--</div>
+        <div id="overall-subtitle" class="subtitle">-- modules, -- methods (-- stable, -- unstable)</div>
+        <div id="overall-metrics" class="subtitle"></div>
+      </section>
+      <section class="card trend-card">
+        <h2>Aggregate Latency Over Time (ns)</h2>
+        <canvas id="trend-chart"></canvas>
+        <p id="trend-info" class="subtitle">
+          Values are the mean of per-benchmark Means across all stable methods.
+          Shaded band shows the stable-method count trend.
+        </p>
+      </section>
+    </div>
+    <section class="card top-right">
+      <h2>Stability Distribution</h2>
+      <canvas id="stability-chart"></canvas>
+      <p class="subtitle">
+        Stable = Coefficient of Variation (StdDev/Mean) ≤ 10% and N ≥ 10.
+        Only stable methods are eligible for DocRef citation in documentation.
+      </p>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="section-header">
+      <h2>Benchmarks by Module</h2>
+      <div class="header-actions">
+        <button id="show-unstable" class="copy-btn" title="Toggle display of unstable benchmarks">Hide Unstable</button>
+        <button id="copy-table" class="copy-btn" title="Copy table as TSV for Excel">Copy to Excel</button>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--bar-green);color:#fff">Stable</span> CoV ≤ 10%, N ≥ 10</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--yellow);color:#000">Unstable</span> Noise exceeds threshold</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:transparent;color:#6cb4c4;font-style:italic">DocRef</span> Cited in documentation</div>
+    </div>
+    <div class="filters" id="module-filters">
+      <button class="filter-btn active" data-filter="all">all</button>
+    </div>
+    <input type="text" id="bench-search" placeholder="Search benchmarks..." class="search-input">
+    <table id="benchmark-table">
+      <thead>
+        <tr>
+          <th data-sort="module">Module</th>
+          <th data-sort="class">Class</th>
+          <th data-sort="method">Method</th>
+          <th data-sort="params">Params</th>
+          <th class="num" data-sort="mean">Mean (ns)</th>
+          <th class="num" data-sort="median">Median (ns)</th>
+          <th class="num" data-sort="stddev">StdDev (ns)</th>
+          <th class="num" data-sort="cov">CoV</th>
+          <th class="num" data-sort="ci99">CI99 (ns)</th>
+          <th class="num" data-sort="allocated">Allocated (B)</th>
+          <th class="num" data-sort="n">N</th>
+          <th data-sort="stable">Status</th>
+          <th data-sort="docref">DocRef</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p>
+      Encina Benchmarks System &mdash; Data from
+      <a id="run-link" href="#">CI run</a>
+      &mdash;
+      Raw data archived in the
+      <a href="https://github.com/dlrivada/Encina/tree/perf-raw"><code>perf-raw</code></a>
+      branch.
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

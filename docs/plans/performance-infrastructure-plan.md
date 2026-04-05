@@ -1,9 +1,21 @@
 # Performance Measurement Infrastructure — Implementation Plan
 
-> **Status**: 🟡 Not Started
+> **Status**: 🟢 Phase 1 MVP implemented — awaiting first end-to-end CI run
 > **ADR**: [025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md)
 > **Methodology**: [`performance-measurement-methodology.md`](../testing/performance-measurement-methodology.md)
 > **Date**: 2026-04-05
+
+## Implementation log
+
+| Date | Milestone |
+|---|---|
+| 2026-04-05 | Phase 0.3: 3 `Program.cs` files migrated to `BenchmarkSwitcher` (AzureFunctions, Polly, Refit) |
+| 2026-04-05 | Phase 1.1: `perf-report.cs`, `perf-history.cs`, `perf-recalculate.cs`, `generate-perf-manifest.cs` created and smoke-tested locally |
+| 2026-04-05 | Phase 0.4: 20 per-project manifests generated under `.github/perf-manifest/` (210+ benchmark methods catalogued) |
+| 2026-04-05 | Phase 1.6: `benchmarks.yml` extended to all 20 projects, migrated to `ubuntu-latest`, NuGet cache, `DOTNET_TieredCompilation=0`, JSON exporter enabled, `aggregate` job added |
+| 2026-04-05 | Phase 1.5: `publish-benchmarks.yml` created with `workflow_run` trigger, automatic `perf-raw` orphan branch bootstrap, Pages deploy |
+| 2026-04-05 | Phase 1.2: Minimal dashboards created at `docs/benchmarks/dashboard/` and `docs/load-tests/dashboard/` with placeholder data |
+| 2026-04-05 | Phase 1.3: `perf-raw` branch creation deferred to first publish run (auto-bootstrap in `publish-benchmarks.yml`) |
 
 ## Goal
 
