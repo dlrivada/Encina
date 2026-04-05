@@ -310,7 +310,7 @@ jobs:
           # Artifact name is unique per (project, class) pair so concurrent jobs
           # do not collide. The aggregate job downloads with merge-multiple: true
           # to reassemble the full per-project result tree.
-          name: benchmarks-${{ matrix.project.name }}-${{ matrix.project.class }}
+          name: benchmarks-${{ matrix.project.name }}-${{ matrix.project.artifactSuffix || matrix.project.class }}
           path: artifacts/performance
           if-no-files-found: warn
           retention-days: 90
