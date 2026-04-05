@@ -104,6 +104,14 @@ internal static class EncinaAssemblyScanner
             return;
         }
 
+        // Skip shadow sharding pipeline behaviors - they require IShadowShardRouter
+        // and ShadowShardingOptions, which are only registered when shadow sharding is
+        // explicitly enabled via ShadingOptions.UseShadowSharding (AddShadowSharding).
+        if (type.FullName?.StartsWith("Encina.Sharding.Shadow.Behaviors.", StringComparison.Ordinal) is true)
+        {
+            return;
+        }
+
         AddWithOpenGenericFallback(result.Pipelines, implementedInterface, type, typeof(IPipelineBehavior<,>));
     }
 
