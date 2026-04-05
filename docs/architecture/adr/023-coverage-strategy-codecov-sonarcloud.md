@@ -48,6 +48,21 @@ Create a custom Quality Gate that keeps all static analysis conditions but remov
 
 The CI workflow already runs all 5 test types with Coverlet. Codecov upload steps are added to each test job, tagged with the appropriate flag. The SonarCloud workflow is simplified to build + static analysis only, reducing its runtime from ~45 min to ~15-20 min.
 
+### 5. The obligations model — a particular formula
+
+Neither Codecov nor SonarCloud offers the exact measurement Encina needs. Both compute coverage as "covered lines / total lines", which loses information when a file should be exercised from multiple angles (unit + guard + integration) but is only hit by one. Encina therefore computes coverage using an **obligations model**:
+
+- For each source file, the manifest declares which test types apply to it
+- Each (flag, line) pair becomes one **obligation**
+- A line covered by a test of that flag marks the corresponding obligation as met
+- File, package, and overall coverage are all computed as `met obligations / total obligations × 100`
+
+Exclusions (interfaces, generated code, metadata files) produce **zero obligations** and therefore do not affect the percentage in either direction. Files are classified automatically by `generate-coverage-manifest.cs` using glob, regex, and path rules; per-file overrides preserve manual corrections across regenerations.
+
+The obligations model produces a lower but more informative number than naive line coverage. A file reached by unit tests alone when the manifest declares it also needs integration tests is visibly under-covered even if unit tests reach 100% of its lines. This is a deliberate choice: measurement should reward depth of testing, not just breadth.
+
+Full details, formulas, flag semantics, exclusion patterns, dashboard coloring thresholds, and the recalculation mechanism are documented in [`docs/testing/coverage-measurement-methodology.md`](../../testing/coverage-measurement-methodology.md), which is versioned alongside the scripts that implement the model and is the canonical reference for both users and contributors.
+
 ## Module Categories and Targets
 
 | Component | Target | Rationale |
@@ -98,7 +113,12 @@ The CI workflow already runs all 5 test types with Coverlet. Codecov upload step
 
 ## Related
 
+- Methodology (canonical): [`docs/testing/coverage-measurement-methodology.md`](../../testing/coverage-measurement-methodology.md)
+- Sibling ADR: [ADR-025 — Performance Measurement Infrastructure](025-performance-measurement-infrastructure.md)
+- Sibling methodology: [`docs/testing/performance-measurement-methodology.md`](../../testing/performance-measurement-methodology.md)
 - Issue: [#911](https://github.com/dlrivada/Encina/issues/911)
 - EPIC: [#76](https://github.com/dlrivada/Encina/issues/76)
 - Codecov Components: https://docs.codecov.com/docs/components
 - Codecov Flags: https://docs.codecov.com/docs/flags
+- Scripts: `.github/scripts/coverage-report.cs`, `coverage-history.cs`, `coverage-recalculate.cs`, `generate-coverage-manifest.cs`
+- Dashboard: <https://dlrivada.github.io/Encina/coverage/>
