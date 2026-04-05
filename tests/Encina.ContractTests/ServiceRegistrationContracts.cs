@@ -6,14 +6,15 @@ namespace Encina.ContractTests;
 
 public sealed class ServiceRegistrationContracts
 {
+    // Shadow sharding behaviors are intentionally excluded from auto-scanning.
+    // They require IShadowShardRouter + ShadowShardingOptions which are only registered
+    // when shadow sharding is explicitly enabled via AddShadowSharding.
     private static readonly Type[] PipelineBehaviors =
     {
         typeof(CommandActivityPipelineBehavior<,>),
         typeof(CommandMetricsPipelineBehavior<,>),
         typeof(QueryActivityPipelineBehavior<,>),
-        typeof(QueryMetricsPipelineBehavior<,>),
-        typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowReadPipelineBehavior<,>),
-        typeof(global::Encina.Sharding.Shadow.Behaviors.ShadowWritePipelineBehavior<,>)
+        typeof(QueryMetricsPipelineBehavior<,>)
     };
 
     [Fact]
