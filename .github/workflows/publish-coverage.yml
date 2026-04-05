@@ -65,6 +65,25 @@ jobs:
           # Copy the entire docs/ directory as the Pages site
           cp -r docs _site
 
+          # Multiple publish-* workflows share a single gh-pages deployment target.
+          # Overlay the live Pages copies of the sibling domains (benchmarks, load-tests)
+          # so their data survives this deploy untouched. Our own coverage subtree is
+          # then overridden below with the fresh CI artifact, which is authoritative.
+          for domain in benchmarks load-tests; do
+            echo "Fetching live $domain data from Pages (to preserve across deploy)..."
+            mkdir -p "_site/$domain/data"
+            for file in latest.json history.json docref-index.json fingerprints.json; do
+              url="https://dlrivada.github.io/Encina/$domain/data/$file"
+              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
+                echo "  ✓ $file"
+              else
+                rm -f "_site/$domain/data/$file.new"
+                echo "  - $file (not on Pages yet)"
+              fi
+            done
+          done
+
           # Override coverage data with fresh CI artifact
           mkdir -p _site/coverage/data
           cp -f coverage-artifact/encina-coverage-summary.json _site/coverage/data/latest.json 2>/dev/null || true
