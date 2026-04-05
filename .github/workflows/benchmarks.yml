@@ -23,6 +23,23 @@ on:
         required: false
         default: '*'
         type: string
+      force_full:
+        description: 'Force full run ignoring fingerprint cache (Phase 2)'
+        required: false
+        default: false
+        type: boolean
+  # Phase 2.3 — Path filter triggers: on PR, only dispatch when files that
+  # could affect benchmark results change. The determine-matrix job further
+  # narrows execution to the benchmark projects whose source fingerprints
+  # actually differ from the last recorded run.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**/*.cs'
+      - 'tests/Encina.BenchmarkTests/**'
+      - 'Directory.Packages.props'
+      - '.github/workflows/benchmarks.yml'
+      - '.github/scripts/perf-*.cs'
   schedule:
     # Weekly full run: Sundays 01:07 UTC (off-peak, avoids :00/:30 congestion)
     - cron: "7 1 * * 0"
@@ -44,92 +61,159 @@ env:
   DOTNET_TieredCompilation: '0'
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Phase 2: Incremental filtering
+  #
+  # Compute fingerprints for all 20 benchmark projects, compare against the
+  # previous run's fingerprints published on GitHub Pages, and emit a matrix
+  # containing only the projects whose source closure changed. The aggregate
+  # job downstream will carry forward the unchanged modules from the previous
+  # snapshot so the dashboard always shows the complete picture.
+  # ─────────────────────────────────────────────────────────────────────────
+  determine-matrix:
+    name: Determine matrix (incremental)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.emit.outputs.matrix }}
+      matrix_count: ${{ steps.emit.outputs.count }}
+      skipped_projects: ${{ steps.emit.outputs.skipped }}
+      force_full: ${{ steps.emit.outputs.force_full }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Compute current fingerprints
+        run: |
+          mkdir -p artifacts/perf-output
+          dotnet run .github/scripts/perf-fingerprint.cs -- \
+            --projects-dir tests/Encina.BenchmarkTests \
+            --repo-root . \
+            --output artifacts/perf-output/fingerprints.json
+          cat artifacts/perf-output/fingerprints.json
+
+      - name: Fetch previous fingerprints from Pages
+        id: prev
+        run: |
+          mkdir -p artifacts/perf-previous
+          # Pull from the live Pages URL (always the freshest — publish-benchmarks.yml
+          # writes it there on every successful run). Fall back to the repo copy if Pages
+          # is unreachable.
+          if curl -fsSL -o artifacts/perf-previous/latest.json \
+              "https://dlrivada.github.io/Encina/benchmarks/data/latest.json"; then
+            echo "Fetched previous snapshot from Pages."
+          elif [ -f docs/benchmarks/data/latest.json ]; then
+            cp docs/benchmarks/data/latest.json artifacts/perf-previous/latest.json
+            echo "Using repo copy of latest.json."
+          else
+            echo "No previous snapshot found — will run all projects."
+            echo "{}" > artifacts/perf-previous/latest.json
+          fi
+          ls -la artifacts/perf-previous/
+
+      - name: Build matrix from fingerprint diff
+        id: emit
+        env:
+          FORCE_FULL: ${{ github.event.inputs.force_full || 'false' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # The full project catalog. Kept in one place here so adding a new benchmark
+          # project is a single edit. Schedule runs always ignore the fingerprint cache
+          # (full refresh), as do workflow_dispatch runs with force_full=true.
+          cat > /tmp/full-matrix.json << 'EOF'
+          [
+            { "name": "Core",                 "path": "tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj",                               "project": "Encina.Benchmarks",                       "os": "ubuntu-latest" },
+            { "name": "AspNetCore",           "path": "tests/Encina.BenchmarkTests/Encina.AspNetCore.Benchmarks/Encina.AspNetCore.Benchmarks.csproj",         "project": "Encina.AspNetCore.Benchmarks",            "os": "ubuntu-latest" },
+            { "name": "ADO",                  "path": "tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Encina.ADO.Benchmarks.csproj",                       "project": "Encina.ADO.Benchmarks",                   "os": "ubuntu-latest" },
+            { "name": "Dapper",               "path": "tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Encina.Dapper.Benchmarks.csproj",                 "project": "Encina.Dapper.Benchmarks",                "os": "ubuntu-latest" },
+            { "name": "EFCore",               "path": "tests/Encina.BenchmarkTests/Encina.EntityFrameworkCore.Benchmarks/Encina.EntityFrameworkCore.Benchmarks.csproj", "project": "Encina.EntityFrameworkCore.Benchmarks", "os": "ubuntu-latest" },
+            { "name": "Caching",              "path": "tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/Encina.Caching.Benchmarks.csproj",               "project": "Encina.Caching.Benchmarks",               "os": "ubuntu-latest" },
+            { "name": "DistributedLock",      "path": "tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/Encina.DistributedLock.Benchmarks.csproj", "project": "Encina.DistributedLock.Benchmarks",     "os": "ubuntu-latest" },
+            { "name": "Polly",                "path": "tests/Encina.BenchmarkTests/Encina.Polly.Benchmarks/Encina.Polly.Benchmarks.csproj",                   "project": "Encina.Polly.Benchmarks",                 "os": "ubuntu-latest" },
+            { "name": "ExtensionsResilience", "path": "tests/Encina.BenchmarkTests/Encina.Extensions.Resilience.Benchmarks/Encina.Extensions.Resilience.Benchmarks.csproj", "project": "Encina.Extensions.Resilience.Benchmarks", "os": "ubuntu-latest" },
+            { "name": "SecurityAntiTampering","path": "tests/Encina.BenchmarkTests/Encina.Security.AntiTampering.Benchmarks/Encina.Security.AntiTampering.Benchmarks.csproj", "project": "Encina.Security.AntiTampering.Benchmarks", "os": "ubuntu-latest" },
+            { "name": "SecurityEncryption",   "path": "tests/Encina.BenchmarkTests/Encina.Security.Encryption.Benchmarks/Encina.Security.Encryption.Benchmarks.csproj",       "project": "Encina.Security.Encryption.Benchmarks",    "os": "ubuntu-latest" },
+            { "name": "SecurityPII",          "path": "tests/Encina.BenchmarkTests/Encina.Security.PII.Benchmarks/Encina.Security.PII.Benchmarks.csproj",                     "project": "Encina.Security.PII.Benchmarks",           "os": "ubuntu-latest" },
+            { "name": "SecuritySanitization", "path": "tests/Encina.BenchmarkTests/Encina.Security.Sanitization.Benchmarks/Encina.Security.Sanitization.Benchmarks.csproj",   "project": "Encina.Security.Sanitization.Benchmarks",  "os": "ubuntu-latest" },
+            { "name": "IdGeneration",         "path": "tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/Encina.IdGeneration.Benchmarks.csproj",                     "project": "Encina.IdGeneration.Benchmarks",           "os": "ubuntu-latest" },
+            { "name": "AuditMarten",          "path": "tests/Encina.BenchmarkTests/Encina.Audit.Marten.Benchmarks/Encina.Audit.Marten.Benchmarks.csproj",                     "project": "Encina.Audit.Marten.Benchmarks",           "os": "ubuntu-latest" },
+            { "name": "MartenGDPR",           "path": "tests/Encina.BenchmarkTests/Encina.Marten.GDPR.Benchmarks/Encina.Marten.GDPR.Benchmarks.csproj",                       "project": "Encina.Marten.GDPR.Benchmarks",            "os": "ubuntu-latest" },
+            { "name": "MessagingEncryption",  "path": "tests/Encina.BenchmarkTests/Encina.Messaging.Encryption.Benchmarks/Encina.Messaging.Encryption.Benchmarks.csproj",     "project": "Encina.Messaging.Encryption.Benchmarks",   "os": "ubuntu-latest" },
+            { "name": "Refit",                "path": "tests/Encina.BenchmarkTests/Encina.Refit.Benchmarks/Encina.Refit.Benchmarks.csproj",                                   "project": "Encina.Refit.Benchmarks",                  "os": "ubuntu-latest" },
+            { "name": "AwsLambda",            "path": "tests/Encina.BenchmarkTests/Encina.AwsLambda.Benchmarks/Encina.AwsLambda.Benchmarks.csproj",                           "project": "Encina.AwsLambda.Benchmarks",              "os": "ubuntu-latest" },
+            { "name": "AzureFunctions",       "path": "tests/Encina.BenchmarkTests/Encina.AzureFunctions.Benchmarks/Encina.AzureFunctions.Benchmarks.csproj",                 "project": "Encina.AzureFunctions.Benchmarks",         "os": "ubuntu-latest" }
+          ]
+          EOF
+
+          # Decide whether this is a forced-full run
+          FORCE=false
+          if [ "$EVENT_NAME" = "schedule" ]; then FORCE=true; fi
+          if [ "$FORCE_FULL" = "true" ]; then FORCE=true; fi
+          echo "force_full=$FORCE" >> "$GITHUB_OUTPUT"
+
+          if [ "$FORCE" = "true" ]; then
+            echo "Full run (schedule or force_full) — all 20 projects will execute."
+            MATRIX=$(cat /tmp/full-matrix.json)
+            SKIPPED="[]"
+          else
+            # Compare fingerprints and filter matrix
+            dotnet run .github/scripts/perf-diff-fingerprints.cs -- \
+              --current artifacts/perf-output/fingerprints.json \
+              --previous artifacts/perf-previous/latest.json \
+              --full-matrix /tmp/full-matrix.json \
+              --changed-out /tmp/changed.json \
+              --skipped-out /tmp/skipped.json
+            MATRIX=$(cat /tmp/changed.json)
+            SKIPPED=$(cat /tmp/skipped.json)
+          fi
+
+          COUNT=$(echo "$MATRIX" | jq 'length')
+          echo "Matrix: $COUNT project(s) will run"
+          echo "Skipped (carry forward): $(echo "$SKIPPED" | jq -r 'join(", ")' || echo '')"
+
+          # Emit outputs — wrap matrix in the {project: [...]} shape the consumer expects
+          {
+            echo "matrix<<EOF_MATRIX"
+            echo "{\"project\": $MATRIX}"
+            echo "EOF_MATRIX"
+          } >> "$GITHUB_OUTPUT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          {
+            echo "skipped<<EOF_SKIPPED"
+            echo "$SKIPPED"
+            echo "EOF_SKIPPED"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload current fingerprints + previous snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-incremental-state
+          path: |
+            artifacts/perf-output/fingerprints.json
+            artifacts/perf-previous/latest.json
+          if-no-files-found: error
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Run benchmarks — matrix is dynamically provided by determine-matrix
+  # ─────────────────────────────────────────────────────────────────────────
   run-benchmarks:
     name: ${{ matrix.project.name }} (${{ matrix.project.os }})
+    needs: determine-matrix
+    if: needs.determine-matrix.outputs.matrix_count != '0'
     runs-on: ${{ matrix.project.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      matrix:
-        project:
-          # Core + infrastructure benchmarks (Linux — faster, more available runners)
-          - name: Core
-            path: tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: AspNetCore
-            path: tests/Encina.BenchmarkTests/Encina.AspNetCore.Benchmarks/Encina.AspNetCore.Benchmarks.csproj
-            os: ubuntu-latest
-
-          # Data providers
-          - name: ADO
-            path: tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Encina.ADO.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: Dapper
-            path: tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Encina.Dapper.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: EFCore
-            path: tests/Encina.BenchmarkTests/Encina.EntityFrameworkCore.Benchmarks/Encina.EntityFrameworkCore.Benchmarks.csproj
-            os: ubuntu-latest
-
-          # Caching, locking, resilience
-          - name: Caching
-            path: tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/Encina.Caching.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: DistributedLock
-            path: tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/Encina.DistributedLock.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: Polly
-            path: tests/Encina.BenchmarkTests/Encina.Polly.Benchmarks/Encina.Polly.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: ExtensionsResilience
-            path: tests/Encina.BenchmarkTests/Encina.Extensions.Resilience.Benchmarks/Encina.Extensions.Resilience.Benchmarks.csproj
-            os: ubuntu-latest
-
-          # Security & cryptography
-          - name: SecurityAntiTampering
-            path: tests/Encina.BenchmarkTests/Encina.Security.AntiTampering.Benchmarks/Encina.Security.AntiTampering.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: SecurityEncryption
-            path: tests/Encina.BenchmarkTests/Encina.Security.Encryption.Benchmarks/Encina.Security.Encryption.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: SecurityPII
-            path: tests/Encina.BenchmarkTests/Encina.Security.PII.Benchmarks/Encina.Security.PII.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: SecuritySanitization
-            path: tests/Encina.BenchmarkTests/Encina.Security.Sanitization.Benchmarks/Encina.Security.Sanitization.Benchmarks.csproj
-            os: ubuntu-latest
-
-          # Identity
-          - name: IdGeneration
-            path: tests/Encina.BenchmarkTests/Encina.IdGeneration.Benchmarks/Encina.IdGeneration.Benchmarks.csproj
-            os: ubuntu-latest
-
-          # Audit, messaging, compliance
-          - name: AuditMarten
-            path: tests/Encina.BenchmarkTests/Encina.Audit.Marten.Benchmarks/Encina.Audit.Marten.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: MartenGDPR
-            path: tests/Encina.BenchmarkTests/Encina.Marten.GDPR.Benchmarks/Encina.Marten.GDPR.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: MessagingEncryption
-            path: tests/Encina.BenchmarkTests/Encina.Messaging.Encryption.Benchmarks/Encina.Messaging.Encryption.Benchmarks.csproj
-            os: ubuntu-latest
-
-          # HTTP & serverless
-          - name: Refit
-            path: tests/Encina.BenchmarkTests/Encina.Refit.Benchmarks/Encina.Refit.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: AwsLambda
-            path: tests/Encina.BenchmarkTests/Encina.AwsLambda.Benchmarks/Encina.AwsLambda.Benchmarks.csproj
-            os: ubuntu-latest
-          - name: AzureFunctions
-            path: tests/Encina.BenchmarkTests/Encina.AzureFunctions.Benchmarks/Encina.AzureFunctions.Benchmarks.csproj
-            os: ubuntu-latest
-
+      matrix: ${{ fromJson(needs.determine-matrix.outputs.matrix) }}
     defaults:
       run:
         shell: bash
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -186,10 +270,15 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Aggregate — merges fresh measurements with carried-forward modules from
+  # the previous snapshot, producing a complete latest.json
+  # ─────────────────────────────────────────────────────────────────────────
   aggregate:
     name: Aggregate all benchmark results
-    needs: run-benchmarks
-    if: always() && !cancelled()
+    needs: [determine-matrix, run-benchmarks]
+    # Run even when run-benchmarks was skipped (all projects carried forward).
+    if: always() && !cancelled() && needs.determine-matrix.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -201,38 +290,42 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Download all benchmark artifacts
+      - name: Download incremental state (fingerprints + previous snapshot)
+        uses: actions/download-artifact@v8
+        with:
+          name: perf-incremental-state
+          path: incremental-state
+
+      - name: Download benchmark artifacts (if any)
+        if: needs.determine-matrix.outputs.matrix_count != '0'
         uses: actions/download-artifact@v8
         with:
           pattern: benchmarks-*
           path: artifacts/performance
           merge-multiple: false
+        continue-on-error: true
 
       - name: Flatten artifacts
         run: |
-          # upload-artifact was given `path: artifacts/performance/<Name>` so the
-          # archived contents are everything under that path (BenchmarkDotNet.Artifacts/...).
-          # download-artifact v8 with merge-multiple:false places each artifact into
-          # its own subdir artifacts/performance/benchmarks-<Name>/, and the zip extracts
-          # directly there (no extra <Name>/ nesting). We simply rename the prefix away.
           shopt -s nullglob
+          mkdir -p artifacts/performance
           for dir in artifacts/performance/benchmarks-*; do
             name="${dir#artifacts/performance/benchmarks-}"
             mv "$dir" "artifacts/performance/$name"
           done
           echo "Flattened contents:"
-          ls -la artifacts/performance/
-          echo "Sample project contents:"
-          find artifacts/performance -maxdepth 4 -type d | head -30
+          ls -la artifacts/performance/ 2>/dev/null || echo "(empty — all projects carried forward)"
 
-      - name: Generate performance report
+      - name: Generate performance report with carry-forward
         run: |
           dotnet run .github/scripts/perf-report.cs -- \
             --kind benchmarks \
             --input artifacts/performance \
             --output artifacts/perf-output \
             --run-id ${{ github.run_id }} \
-            --sha ${{ github.sha }}
+            --sha ${{ github.sha }} \
+            --fingerprints-file incremental-state/artifacts/perf-output/fingerprints.json \
+            --carry-forward-from incremental-state/artifacts/perf-previous/latest.json
 
       - name: Upload consolidated perf-report artifact
         uses: actions/upload-artifact@v7
@@ -243,6 +336,7 @@ jobs:
           retention-days: 90
 
       - name: Upload raw artifacts for perf-raw archival
+        if: needs.determine-matrix.outputs.matrix_count != '0'
         uses: actions/upload-artifact@v7
         with:
           name: perf-raw-benchmarks-${{ github.run_id }}
