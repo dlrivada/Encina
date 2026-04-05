@@ -202,11 +202,54 @@ jobs:
             git push origin main || echo "Warning: push failed (branch protection). Data will be updated on next manual push."
           fi
 
-      - name: Build Pages site
+      - name: Build Pages site with cross-domain live data preservation
         run: |
+          # Multiple publish-* workflows share a single gh-pages deployment target.
+          # If this workflow copies docs/ as-is, it will ship whatever is currently in
+          # docs/coverage/data/ (potentially stale, because publish-coverage.yml updates
+          # that subtree on Pages but does NOT commit latest.json back to main). The
+          # deploy would then overwrite the live coverage data with the stale repo copy.
+          #
+          # Fix: overlay the live Pages copies of the sibling domains (coverage, load-tests)
+          # on top of our _site so their data survives this deploy untouched. Our own
+          # docs/benchmarks subtree has already been refreshed in the earlier step and
+          # is authoritative for this run.
           rm -rf _site
           cp -r docs _site
-          ls -la _site/benchmarks/dashboard/ 2>/dev/null || echo "dashboard dir missing — first run"
+
+          for domain in coverage load-tests; do
+            echo "Fetching live $domain data from Pages..."
+            mkdir -p "_site/$domain/data"
+            for file in latest.json history.json docref-index.json fingerprints.json; do
+              url="https://dlrivada.github.io/Encina/$domain/data/$file"
+              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
+                echo "  ✓ $file"
+              else
+                rm -f "_site/$domain/data/$file.new"
+                echo "  - $file (not on Pages yet)"
+              fi
+            done
+            # Badges (coverage only currently, but harmless to try)
+            for badge in badge.svg badge.json; do
+              url="https://dlrivada.github.io/Encina/$domain/$badge"
+              if curl -fsSL -o "_site/$domain/$badge.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/$badge.new" "_site/$domain/$badge"
+              else
+                rm -f "_site/$domain/$badge.new"
+              fi
+            done
+          done
+
+          echo ""
+          echo "Benchmarks dashboard contents:"
+          ls -la _site/benchmarks/dashboard/ 2>/dev/null || echo "(dashboard dir missing — first run)"
+          echo ""
+          echo "Benchmarks data contents:"
+          ls -la _site/benchmarks/data/ 2>/dev/null
+          echo ""
+          echo "Coverage data preserved from Pages:"
+          ls -la _site/coverage/data/ 2>/dev/null | head -20
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
