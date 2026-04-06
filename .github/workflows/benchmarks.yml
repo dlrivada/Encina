@@ -401,6 +401,45 @@ jobs:
             --fingerprints-file incremental-state/perf-output/fingerprints.json \
             --carry-forward-from incremental-state/perf-previous/latest.json
 
+      - name: Post PR comment with benchmark summary
+        if: github.event_name == 'pull_request' && needs.determine-matrix.outputs.matrix_count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const latest = JSON.parse(fs.readFileSync('artifacts/perf-output/latest.json', 'utf8'));
+            const o = latest.overall || {};
+            const fresh = o.freshModules || 0;
+            const carried = o.carriedForwardModules || 0;
+            const total = o.totalMethods || 0;
+            const stable = o.stableMethods || 0;
+            const regressions = o.regressionCount || 0;
+
+            const formatNs = (v) => {
+              if (!v || v <= 0) return '—';
+              if (v < 1000) return v.toFixed(2) + ' ns';
+              if (v < 1e6) return (v / 1000).toFixed(2) + ' μs';
+              return (v / 1e6).toFixed(2) + ' ms';
+            };
+
+            let body = `## Benchmark Results\n\n`;
+            body += `| Metric | Value |\n|---|---|\n`;
+            body += `| Fresh modules | ${fresh} |\n`;
+            body += `| Carried forward | ${carried} |\n`;
+            body += `| Total methods | ${total} (${stable} stable) |\n`;
+            body += `| Mean latency | ${formatNs(o.meanLatencyNs)} |\n`;
+            body += `| Mean allocated | ${((o.meanAllocatedBytes || 0) / 1024).toFixed(2)} KB |\n`;
+            body += `| Regressions | ${regressions === 0 ? '✅ None' : `⚠️ ${regressions}`} |\n`;
+            body += `\n[Full dashboard](https://dlrivada.github.io/Encina/benchmarks/dashboard/) · `;
+            body += `[Run #${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
       - name: Upload consolidated perf-report artifact
         uses: actions/upload-artifact@v7
         with:

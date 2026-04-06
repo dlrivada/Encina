@@ -100,6 +100,19 @@ jobs:
             --latest docs/benchmarks/data/latest.json \
             --history docs/benchmarks/data/history.json
 
+      - name: Generate regression badge
+        run: |
+          dotnet run .github/scripts/perf-badge.cs -- \
+            --input docs/benchmarks/data/latest.json \
+            --output docs/benchmarks/badge.json
+
+      - name: Auto-generate documentation tables from DocRef index
+        continue-on-error: true
+        run: |
+          dotnet run .github/scripts/perf-docs-render.cs -- \
+            --docref-index docs/benchmarks/data/docref-index.json \
+            --docs-root docs
+
       - name: Archive raw data to perf-raw branch
         if: hashFiles('raw-data/**') != ''
         continue-on-error: true

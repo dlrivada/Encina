@@ -7,7 +7,7 @@
 | Plan | File | Status |
 |------|------|--------|
 | Test Consolidation | `docs/plans/test-consolidation-plan.md` | 🟡 In Progress |
-| Performance Measurement Infrastructure | `docs/plans/performance-infrastructure-plan.md` | 🟢 Phase 3 complete (ADR-025) |
+| Performance Measurement Infrastructure | `docs/plans/performance-infrastructure-plan.md` | 🟢 Phase 4 implemented (ADR-025) |
 
 ## Project Philosophy
 
