@@ -1,0 +1,129 @@
+name: Benchmark ChatOps
+
+# Responds to /benchmark slash commands in PR comments.
+# Usage:
+#   /benchmark                     — run all changed projects (short mode)
+#   /benchmark Caching             — run only Caching benchmarks
+#   /benchmark Core MediatorBench  — run specific class in Core project
+#   /benchmark --dry               — dry mode (fast validation only)
+#
+# See ADR-025 Phase 4.5.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+  issues: write
+
+jobs:
+  parse:
+    name: Parse /benchmark command
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/benchmark')
+    runs-on: ubuntu-latest
+    outputs:
+      project_filter: ${{ steps.parse.outputs.project_filter }}
+      benchmark_filter: ${{ steps.parse.outputs.benchmark_filter }}
+      job_type: ${{ steps.parse.outputs.job_type }}
+      pr_number: ${{ steps.parse.outputs.pr_number }}
+      head_sha: ${{ steps.parse.outputs.head_sha }}
+      head_ref: ${{ steps.parse.outputs.head_ref }}
+    steps:
+      - name: React to command
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+
+      - name: Parse arguments
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment.body.trim();
+            const parts = body.split(/\s+/).slice(1); // remove '/benchmark'
+
+            let projectFilter = '';
+            let benchmarkFilter = '*';
+            let jobType = 'short';
+
+            for (let i = 0; i < parts.length; i++) {
+              const p = parts[i];
+              if (p === '--dry') { jobType = 'dry'; continue; }
+              if (p === '--short') { jobType = 'short'; continue; }
+              if (p === '--medium') { jobType = 'medium'; continue; }
+              if (p.startsWith('--')) continue; // ignore unknown flags
+
+              // First positional arg = project filter, second = benchmark filter
+              if (!projectFilter) projectFilter = p;
+              else benchmarkFilter = `*${p}*`;
+            }
+
+            core.setOutput('project_filter', projectFilter);
+            core.setOutput('benchmark_filter', benchmarkFilter);
+            core.setOutput('job_type', jobType);
+            core.setOutput('pr_number', context.issue.number);
+
+            // Get PR head SHA and ref
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            core.setOutput('head_sha', pr.data.head.sha);
+            core.setOutput('head_ref', pr.data.head.ref);
+
+            console.log(`Parsed: project=${projectFilter || '(all)'}, filter=${benchmarkFilter}, job=${jobType}`);
+
+  dispatch:
+    name: Dispatch benchmark run
+    needs: parse
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger benchmarks workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'benchmarks.yml',
+              ref: '${{ needs.parse.outputs.head_ref }}',
+              inputs: {
+                job_type: '${{ needs.parse.outputs.job_type }}',
+                project_filter: '${{ needs.parse.outputs.project_filter }}',
+                benchmark_filter: '${{ needs.parse.outputs.benchmark_filter }}',
+                force_full: 'false'
+              }
+            });
+
+      - name: Post acknowledgement
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const project = '${{ needs.parse.outputs.project_filter }}' || 'all projects';
+            const filter = '${{ needs.parse.outputs.benchmark_filter }}';
+            const jobType = '${{ needs.parse.outputs.job_type }}';
+            const ref = '${{ needs.parse.outputs.head_ref }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.parse.outputs.pr_number }},
+              body: `🚀 **Benchmark run dispatched**\n\n` +
+                `| Setting | Value |\n|---|---|\n` +
+                `| Branch | \`${ref}\` |\n` +
+                `| Project | ${project} |\n` +
+                `| Filter | \`${filter}\` |\n` +
+                `| Job type | \`${jobType}\` |\n\n` +
+                `Results will appear in the [Actions tab](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/benchmarks.yml) ` +
+                `and as a PR comment when the aggregate job completes.\n\n` +
+                `[Performance Dashboard](https://dlrivada.github.io/Encina/performance/)`
+            });
