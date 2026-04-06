@@ -33,6 +33,7 @@ public class CircuitBreakerBenchmarks
         _EncinaWithoutCircuitBreaker = servicesWithoutCB.BuildServiceProvider().GetRequiredService<IEncina>();
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/circuit-breaker-baseline")]
     [Benchmark(Baseline = true)]
     public async Task NoCircuitBreakerAttribute_Baseline()
     {
@@ -40,6 +41,7 @@ public class CircuitBreakerBenchmarks
         _ = await _EncinaWithoutCircuitBreaker.Send(request);
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/circuit-breaker-closed")]
     [Benchmark]
     public async Task WithCircuitBreakerAttribute_ClosedState()
     {

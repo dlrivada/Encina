@@ -94,6 +94,7 @@ public class EncinaBenchmarks
         _provider = services.BuildServiceProvider();
     }
 
+    [BenchmarkCategory("DocRef:bench:mediator/send-command")]
     [Benchmark]
     public async Task<int> Send_Command_WithInstrumentation()
     {
@@ -106,6 +107,7 @@ public class EncinaBenchmarks
             Right: value => value);
     }
 
+    [BenchmarkCategory("DocRef:bench:mediator/publish-notification")]
     [Benchmark]
     public async Task<int> Publish_Notification_WithMultipleHandlers()
     {

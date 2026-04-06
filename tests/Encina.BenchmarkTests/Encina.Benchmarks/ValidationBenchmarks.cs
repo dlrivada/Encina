@@ -62,6 +62,7 @@ public class ValidationBenchmarks
         _guardsProvider = guardsServices.BuildServiceProvider();
     }
 
+    [BenchmarkCategory("DocRef:bench:validation/fluent-validation")]
     [Benchmark(Baseline = true, Description = "FluentValidation (Valid)")]
     public async Task<Guid> FluentValidation_ValidCommand()
     {
@@ -74,6 +75,7 @@ public class ValidationBenchmarks
             Right: id => id);
     }
 
+    [BenchmarkCategory("DocRef:bench:validation/data-annotations")]
     [Benchmark(Description = "DataAnnotations (Valid)")]
     public async Task<Guid> DataAnnotations_ValidCommand()
     {
@@ -86,6 +88,7 @@ public class ValidationBenchmarks
             Right: id => id);
     }
 
+    [BenchmarkCategory("DocRef:bench:validation/mini-validator")]
     [Benchmark(Description = "MiniValidator (Valid)")]
     public async Task<Guid> MiniValidator_ValidCommand()
     {
@@ -98,6 +101,7 @@ public class ValidationBenchmarks
             Right: id => id);
     }
 
+    [BenchmarkCategory("DocRef:bench:validation/guard-clauses")]
     [Benchmark(Description = "GuardClauses (Valid)")]
     public async Task<Guid> GuardClauses_ValidCommand()
     {

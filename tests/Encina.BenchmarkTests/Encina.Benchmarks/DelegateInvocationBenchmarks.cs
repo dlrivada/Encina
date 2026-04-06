@@ -39,6 +39,7 @@ public class DelegateInvocationBenchmarks
     /// <summary>
     /// Baseline: Direct method call (fastest possible)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:delegates/direct-call")]
     [Benchmark(Baseline = true)]
     public async Task<Unit> DirectCall()
     {
@@ -51,6 +52,7 @@ public class DelegateInvocationBenchmarks
     /// <summary>
     /// Expression tree compiled delegate (what Encina uses after cache warmup)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:delegates/compiled-delegate")]
     [Benchmark]
     public async Task<Unit> CompiledDelegate()
     {
@@ -63,6 +65,7 @@ public class DelegateInvocationBenchmarks
     /// <summary>
     /// Reflection with MethodInfo.Invoke (slow baseline)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:delegates/methodinfo-invoke")]
     [Benchmark]
     public async Task<Unit> MethodInfoInvoke()
     {
@@ -76,6 +79,7 @@ public class DelegateInvocationBenchmarks
     /// <summary>
     /// Generic type construction + reflection (worst case)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:delegates/generic-type-construction")]
     [Benchmark]
     public async Task<Unit> GenericTypeConstruction()
     {
@@ -94,6 +98,7 @@ public class DelegateInvocationBenchmarks
     /// <summary>
     /// Simulates the first call cost: expression compilation
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:delegates/expression-compilation")]
     [Benchmark]
     public Func<SampleHandler, SampleNotification, CancellationToken, Task<Either<EncinaError, Unit>>> ExpressionCompilation()
     {

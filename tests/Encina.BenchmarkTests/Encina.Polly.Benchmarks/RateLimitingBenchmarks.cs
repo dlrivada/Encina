@@ -46,18 +46,21 @@ public class RateLimitingBenchmarks
         _rateLimiter.Reset("adaptive-key");
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/rate-limiting-simple")]
     [Benchmark(Baseline = true)]
     public async Task<RateLimitResult> AcquireAsync_SimpleRateLimiting()
     {
         return await _rateLimiter.AcquireAsync("benchmark-key", _highLimitAttribute, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/rate-limiting-adaptive")]
     [Benchmark]
     public async Task<RateLimitResult> AcquireAsync_WithAdaptiveThrottling()
     {
         return await _rateLimiter.AcquireAsync("adaptive-key", _adaptiveAttribute, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/rate-limiting-record-success")]
     [Benchmark]
     public void RecordSuccess()
     {
@@ -117,6 +120,7 @@ public class RateLimitingMultiKeyBenchmarks
         _keys = Enumerable.Range(0, KeyCount).Select(i => $"key-{i}").ToArray();
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/rate-limiting-multi-key-100")]
     [Benchmark]
     public async Task AcquireAcrossMultipleKeys()
     {

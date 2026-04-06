@@ -122,6 +122,7 @@ public class AuditEventEncryptorBenchmarks
     /// Best case: minimal entry with no PII fields (only structural data).
     /// No encryption needed — only temporal key lookup.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:audit-marten/encryptor-minimal-nopii")]
     [Benchmark(Baseline = true)]
     public async Task<object?> EncryptAuditEntry_Minimal_NoPii()
     {
@@ -135,6 +136,7 @@ public class AuditEventEncryptorBenchmarks
     /// Worst case: full entry with all PII fields populated.
     /// Encrypts 6 fields (UserId, IpAddress, UserAgent, RequestPayload, ResponsePayload, Metadata).
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:audit-marten/encryptor-full-allpii")]
     [Benchmark]
     public async Task<object?> EncryptAuditEntry_Full_AllPii()
     {

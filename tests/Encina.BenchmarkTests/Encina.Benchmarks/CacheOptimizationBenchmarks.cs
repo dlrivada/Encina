@@ -55,6 +55,7 @@ public class CacheOptimizationBenchmarks
     /// <summary>
     /// Baseline: Direct ConcurrentDictionary.GetOrAdd (always allocates delegate)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:cache/get-or-add-direct")]
     [Benchmark(Baseline = true)]
     public object Cache_GetOrAdd_Direct()
     {
@@ -78,6 +79,7 @@ public class CacheOptimizationBenchmarks
     /// <summary>
     /// Send command through full pipeline (tests handler cache optimization)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:cache/command-hit")]
     [Benchmark]
     public async Task<int> Send_Command_CacheHit()
     {
@@ -90,6 +92,7 @@ public class CacheOptimizationBenchmarks
     /// <summary>
     /// Send query through full pipeline (tests handler cache optimization)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:cache/query-hit")]
     [Benchmark]
     public async Task<string> Send_Query_CacheHit()
     {
@@ -102,6 +105,7 @@ public class CacheOptimizationBenchmarks
     /// <summary>
     /// Publish notification (tests notification invoker cache optimization)
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:cache/notification-hit")]
     [Benchmark]
     public async Task Publish_Notification_CacheHit()
     {

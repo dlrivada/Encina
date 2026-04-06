@@ -49,6 +49,7 @@ public class AesGcmFieldEncryptorBenchmarks
         _preEncryptedValue = result.Match(Right: v => v, Left: _ => default);
     }
 
+    [BenchmarkCategory("DocRef:bench:security/encrypt-string-short")]
     [Benchmark(Baseline = true)]
     public async Task<EncryptedValue> EncryptString_Short()
     {
@@ -63,6 +64,7 @@ public class AesGcmFieldEncryptorBenchmarks
         return result.Match(Right: v => v, Left: _ => default);
     }
 
+    [BenchmarkCategory("DocRef:bench:security/encrypt-string-long")]
     [Benchmark]
     public async Task<EncryptedValue> EncryptString_Long()
     {
@@ -70,6 +72,7 @@ public class AesGcmFieldEncryptorBenchmarks
         return result.Match(Right: v => v, Left: _ => default);
     }
 
+    [BenchmarkCategory("DocRef:bench:security/decrypt-string-short")]
     [Benchmark]
     public async Task<string> DecryptString_Short()
     {

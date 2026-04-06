@@ -56,6 +56,7 @@ public class EncryptedFieldBenchmarks
 
     // ── Encryption benchmarks ────────────────────────────────────────────
 
+    [BenchmarkCategory("DocRef:bench:audit-marten/encrypt-short-16b")]
     [Benchmark(Baseline = true)]
     public EncryptedField Encrypt_Short_16B()
         => EncryptedField.Encrypt(_shortText, _key, KeyId);
@@ -64,6 +65,7 @@ public class EncryptedFieldBenchmarks
     public EncryptedField Encrypt_Medium_256B()
         => EncryptedField.Encrypt(_mediumText, _key, KeyId);
 
+    [BenchmarkCategory("DocRef:bench:audit-marten/encrypt-long-4kb")]
     [Benchmark]
     public EncryptedField Encrypt_Long_4KB()
         => EncryptedField.Encrypt(_longText, _key, KeyId);
@@ -74,6 +76,7 @@ public class EncryptedFieldBenchmarks
 
     // ── Decryption benchmarks ────────────────────────────────────────────
 
+    [BenchmarkCategory("DocRef:bench:audit-marten/decrypt-short-16b")]
     [Benchmark]
     public string? Decrypt_Short_16B()
         => _encryptedShort.Decrypt(_key);
@@ -86,6 +89,7 @@ public class EncryptedFieldBenchmarks
     public string? Decrypt_Long_4KB()
         => _encryptedLong.Decrypt(_key);
 
+    [BenchmarkCategory("DocRef:bench:audit-marten/decrypt-verylong-64kb")]
     [Benchmark]
     public string? Decrypt_VeryLong_64KB()
         => _encryptedVeryLong.Decrypt(_key);

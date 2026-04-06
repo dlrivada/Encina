@@ -64,6 +64,7 @@ public class ConcurrentReplicaSelectionBenchmarks
     /// Benchmarks concurrent RoundRobin selection.
     /// Uses Interlocked.Increment which should scale well with thread count.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/concurrent-roundrobin")]
     [Benchmark(Baseline = true, Description = "Concurrent RoundRobin")]
     public void Concurrent_RoundRobin()
     {
@@ -75,6 +76,7 @@ public class ConcurrentReplicaSelectionBenchmarks
     /// Benchmarks concurrent Random selection.
     /// Random.Shared is thread-safe and should scale well.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/concurrent-random")]
     [Benchmark(Description = "Concurrent Random")]
     public void Concurrent_Random()
     {
@@ -86,6 +88,7 @@ public class ConcurrentReplicaSelectionBenchmarks
     /// Benchmarks concurrent LeastConnections selection.
     /// Uses lock and ConcurrentDictionary, may show contention under high parallelism.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/concurrent-leastconn")]
     [Benchmark(Description = "Concurrent LeastConnections")]
     public void Concurrent_LeastConnections()
     {
