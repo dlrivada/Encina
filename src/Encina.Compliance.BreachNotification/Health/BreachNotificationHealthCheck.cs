@@ -55,6 +55,9 @@ public sealed class BreachNotificationHealthCheck : IHealthCheck
         IServiceProvider serviceProvider,
         ILogger<BreachNotificationHealthCheck> logger)
     {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
