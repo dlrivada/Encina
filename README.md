@@ -19,8 +19,8 @@
 [![Coverage Dashboard](https://img.shields.io/badge/coverage-dashboard-blue)](https://dlrivada.github.io/Encina/coverage/)
 
 <!-- Performance (Benchmarks + Load Tests - see ADR-025) -->
-[![Benchmarks](https://dlrivada.github.io/Encina/benchmarks/badge.svg)](https://dlrivada.github.io/Encina/benchmarks/dashboard/)
-[![Load Tests Dashboard](https://img.shields.io/badge/load--tests-dashboard-blue)](https://dlrivada.github.io/Encina/load-tests/dashboard/)
+[![Benchmarks](https://dlrivada.github.io/Encina/benchmarks/badge.svg)](https://dlrivada.github.io/Encina/performance/)
+[![Performance Dashboard](https://img.shields.io/badge/performance-dashboard-blue)](https://dlrivada.github.io/Encina/performance/)
 
 <!-- Code Quality (SonarCloud - static analysis) -->
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=dlrivada_Encina&metric=bugs)](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina)

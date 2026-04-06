@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Encina Performance Dashboard</title>
+  <link rel="stylesheet" href="app.css">
+  <style>
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid var(--border, #333); }
+    .tab-btn { padding: 0.6rem 1.4rem; border: none; background: transparent; color: var(--text-muted, #888);
+               cursor: pointer; font-size: 0.95rem; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: var(--text, #e6e6e6); border-bottom-color: #3fb950; font-weight: 600; }
+    .tab-btn:hover:not(.active) { color: var(--text, #e6e6e6); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .nav-links { display: flex; gap: 1rem; font-size: 0.85rem; }
+    .nav-links a { color: #6cb4c4; text-decoration: none; }
+    .nav-links a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Encina Performance Dashboard</h1>
+    <p id="timestamp" class="subtitle">Loading...</p>
+    <div class="nav-links">
+      <a href="../architecture/adr/025-performance-measurement-infrastructure.html">ADR-025</a>
+      <a href="../testing/performance-measurement-methodology.html">Methodology</a>
+      <a href="../coverage/">Coverage Dashboard</a>
+      <a href="https://github.com/dlrivada/Encina/tree/perf-raw">Raw Data</a>
+    </div>
+  </header>
+
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="benchmarks">Benchmarks</button>
+    <button class="tab-btn" data-tab="load-tests">Load Tests</button>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- BENCHMARKS TAB                                                     -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div id="tab-benchmarks" class="tab-panel active">
+    <div class="top-grid">
+      <div class="top-left">
+        <section class="card overall-card">
+          <div id="bench-count" class="big-number">--</div>
+          <div id="bench-subtitle" class="subtitle">-- modules, -- methods (-- stable, -- unstable)</div>
+          <div id="bench-metrics" class="subtitle"></div>
+        </section>
+        <section class="card trend-card">
+          <h2>Aggregate Latency Over Time (ns)</h2>
+          <canvas id="bench-trend-chart"></canvas>
+          <p id="bench-trend-info" class="subtitle"></p>
+        </section>
+      </div>
+      <section class="card top-right">
+        <h2>Stability Distribution</h2>
+        <canvas id="bench-stability-chart"></canvas>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Benchmarks by Module</h2>
+        <div class="header-actions">
+          <button id="bench-show-unstable" class="copy-btn">Hide Unstable</button>
+          <button id="bench-copy-table" class="copy-btn">Copy to Excel</button>
+        </div>
+      </div>
+      <div class="filters" id="bench-module-filters">
+        <button class="filter-btn active" data-filter="all">all</button>
+      </div>
+      <input type="text" id="bench-search" placeholder="Search benchmarks..." class="search-input">
+      <table id="bench-table">
+        <thead>
+          <tr>
+            <th data-sort="module">Module</th>
+            <th data-sort="class">Class</th>
+            <th data-sort="method">Method</th>
+            <th class="num" data-sort="mean">Mean (ns)</th>
+            <th class="num" data-sort="median">Median (ns)</th>
+            <th class="num" data-sort="stddev">StdDev (ns)</th>
+            <th class="num" data-sort="cov">CoV</th>
+            <th class="num" data-sort="allocated">Allocated (B)</th>
+            <th class="num" data-sort="n">N</th>
+            <th data-sort="stable">Status</th>
+            <th data-sort="docref">DocRef</th>
+            <th>Cited in</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- LOAD TESTS TAB                                                     -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div id="tab-load-tests" class="tab-panel">
+    <section class="card overall-card">
+      <div id="load-count" class="big-number">--</div>
+      <div id="load-subtitle" class="subtitle">-- scenarios (-- pass, -- fail)</div>
+      <div id="load-metrics" class="subtitle"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Scenarios by Area</h2>
+        <div class="header-actions">
+          <button id="load-copy-table" class="copy-btn">Copy to Excel</button>
+        </div>
+      </div>
+      <div class="filters" id="load-area-filters">
+        <button class="filter-btn active" data-filter="all">all</button>
+      </div>
+      <input type="text" id="load-search" placeholder="Search scenarios..." class="search-input">
+      <table id="load-table">
+        <thead>
+          <tr>
+            <th data-sort="area">Area</th>
+            <th data-sort="name">Scenario</th>
+            <th class="num" data-sort="rps">Throughput (ops/s)</th>
+            <th class="num" data-sort="mean">Mean (ms)</th>
+            <th class="num" data-sort="p50">P50 (ms)</th>
+            <th class="num" data-sort="p95">P95 (ms)</th>
+            <th class="num" data-sort="p99">P99 (ms)</th>
+            <th class="num" data-sort="errorRate">Error Rate</th>
+            <th class="num" data-sort="n">Requests</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <footer>
+    <p>
+      Encina Performance System &mdash;
+      <a id="bench-run-link" href="#">Benchmarks run</a> &middot;
+      <a id="load-run-link" href="#">Load tests run</a> &middot;
+      Raw data in <a href="https://github.com/dlrivada/Encina/tree/perf-raw"><code>perf-raw</code></a>
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
