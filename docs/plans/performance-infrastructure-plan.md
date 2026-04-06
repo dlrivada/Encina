@@ -1,6 +1,6 @@
 # Performance Measurement Infrastructure — Implementation Plan
 
-> **Status**: 🟢 Phase 3 complete (Phase 2 validated, Phase 3.1 class fan-out validated)
+> **Status**: 🟢 Phase 4 implemented (Phases 1-3 validated, Phase 4 core complete)
 > **ADR**: [025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md)
 > **Methodology**: [`performance-measurement-methodology.md`](../testing/performance-measurement-methodology.md)
 > **Date**: 2026-04-05
@@ -30,6 +30,10 @@
 | 2026-04-06 | Phase 3.1 validated: run 24012668837 completed 77/77 success, 23 min wall-clock, 18 modules, 741 methods, all fingerprints persisted, AspNetCore now visible (absolute --artifacts fix), publish triggered correctly |
 | 2026-04-06 | Phase 3.2: Build output cache added per project (keyed by `bench-build-<project>-<sha>`). Multiple class-level jobs of the same project share the compiled bin/obj via GitHub Actions cache, saving ~30-60s of build time per cache hit |
 | 2026-04-06 | Phase 3.3: Per-module stability summary (stableMethods, unstableMethods, meanCov) emitted by `perf-report.cs` and consumed by the dashboard. Module filter buttons now show stability counts and mean CoV. Top-level `varianceReport` array added with per-method CoV data sorted by instability for calibration purposes. `[BenchmarkCategory("Unstable")]` annotation deferred until first `short`/`medium` run provides real N>10 data for threshold calibration |
+| 2026-04-06 | Phase 4.1: `perf-docs-render.cs` created — scans `docs/**/*.md` for `<!-- docref-table: pattern -->` and `<!-- docref: id:field -->` markers, regenerates tables/values from `docref-index.json`. Supports glob patterns for multi-benchmark tables and single-value inline substitution. Hooked into `publish-benchmarks.yml` (runs after badge generation, before Pages deploy). Warning rows for missing DocRefs. Dry-run mode. Ready for use once benchmarks carry `[BenchmarkCategory("DocRef:...")]` annotations |
+| 2026-04-06 | Phase 4.2: `perf-badge.cs` created — shields.io-compatible JSON badge + standalone SVG from `latest.json`. Green if 0 regressions, yellow ≤3, red >3. Badge committed to `docs/benchmarks/badge.{json,svg}` by `publish-benchmarks.yml`. PR comment step added to `benchmarks.yml` `aggregate` job — posts summary table (fresh/carried modules, total/stable methods, mean latency, regressions) to the PR when triggered by `pull_request` |
+| 2026-04-06 | Phase 4.3 (unified dashboard) + 4.5 (ChatOps) deferred — significant HTML restructuring and peter-evans/slash-command-dispatch setup; lower priority than the doc-generation infrastructure which is the main Phase 4 deliverable |
+| 2026-04-06 | Phase 4.6: load-tests symmetry verified: `perf-report.cs --kind load-tests` + `perf-history.cs --kind load-tests` already supported. `publish-load-tests.yml` deferred to when `load-tests.yml` is restructured with aggregate job pattern matching benchmarks |
 
 ## Goal
 
