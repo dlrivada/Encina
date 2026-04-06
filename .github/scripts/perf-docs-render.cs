@@ -116,6 +116,63 @@ foreach (var file in mdFiles)
     }
 }
 
+// Phase 4.1 — Build cited-by.json: reverse index of DocRef → citing documents.
+// This is consumed by the dashboard to show a "Cited in" column.
+var citedBy = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+var tablePatternRegex = new Regex(@"<!-- docref-table:\s*(?<pattern>[^\s]+)\s*-->", RegexOptions.Compiled);
+var inlineIdRegex = new Regex(@"<!-- docref:\s*(?<id>(?:bench|load):[a-zA-Z0-9\-/]+):", RegexOptions.Compiled);
+var proseRefRegex = new Regex(@"(?:bench|load):[a-z][a-z0-9\-]*/[a-z][a-z0-9\-]*(?:[a-z0-9\-])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+foreach (var file in mdFiles)
+{
+    var relPath = Path.GetRelativePath(docsRoot, file).Replace('\\', '/');
+    var lines = File.ReadAllLines(file);
+    for (int lineNum = 0; lineNum < lines.Length; lineNum++)
+    {
+        var line = lines[lineNum];
+
+        // Table markers — expand glob against known DocRefs
+        foreach (Match m in tablePatternRegex.Matches(line))
+        {
+            var pattern = m.Groups["pattern"].Value;
+            var glob = GlobToRegex(pattern);
+            foreach (var (id, _) in indexJson)
+            {
+                if (glob.IsMatch(id))
+                    AddCitation(citedBy, id, $"{relPath}:{lineNum + 1}");
+            }
+        }
+
+        // Inline markers
+        foreach (Match m in inlineIdRegex.Matches(line))
+            AddCitation(citedBy, m.Groups["id"].Value, $"{relPath}:{lineNum + 1}");
+
+        // Prose references (outside markers)
+        if (!line.Contains("docref-table:") && !line.Contains("docref:"))
+        {
+            foreach (Match m in proseRefRegex.Matches(line))
+                AddCitation(citedBy, m.Value, $"{relPath}:{lineNum + 1}");
+        }
+    }
+}
+
+// Emit cited-by.json next to the docref-index
+var citedByDir = Path.GetDirectoryName(docrefIndexPath);
+if (!string.IsNullOrEmpty(citedByDir))
+{
+    var citedByJson = new JsonObject();
+    foreach (var (docRef, locations) in citedBy.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+    {
+        var arr = new JsonArray();
+        foreach (var loc in locations.Distinct().OrderBy(l => l, StringComparer.Ordinal))
+            arr.Add(JsonValue.Create(loc));
+        citedByJson[docRef] = arr;
+    }
+    var citedByPath = Path.Combine(citedByDir, "cited-by.json");
+    File.WriteAllText(citedByPath, citedByJson.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine($"Cited-by index: {citedBy.Count} DocRef(s) with citations → {citedByPath}");
+}
+
 Console.WriteLine();
 Console.WriteLine($"Summary: {filesModified} file(s) modified, {tablesGenerated} table(s), {inlinesGenerated} inline(s), {warnings} warning(s)");
 if (warnings > 0)
@@ -228,4 +285,14 @@ static string FormatBytes(double v)
     if (v < 1024) return $"{v:F0} B";
     if (v < 1024 * 1024) return $"{v / 1024:F2} KB";
     return $"{v / (1024 * 1024):F2} MB";
+}
+
+static void AddCitation(Dictionary<string, List<string>> citedBy, string docRef, string location)
+{
+    if (!citedBy.TryGetValue(docRef, out var locs))
+    {
+        locs = new List<string>();
+        citedBy[docRef] = locs;
+    }
+    locs.Add(location);
 }

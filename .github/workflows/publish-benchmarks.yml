@@ -201,7 +201,7 @@ jobs:
           cd ..
           git worktree remove --force .perf-raw
 
-      - name: Persist latest.json + history.json + docref-index.json to main
+      - name: Persist latest.json + history.json + docref-index.json + cited-by.json to main
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
@@ -233,7 +233,7 @@ jobs:
           for domain in coverage load-tests; do
             echo "Fetching live $domain data from Pages..."
             mkdir -p "_site/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json; do
+            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json; do
               url="https://dlrivada.github.io/Encina/$domain/data/$file"
               if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
                 mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
