@@ -8,10 +8,50 @@ using NSubstitute;
 namespace Encina.GuardTests.Compliance.DataSubjectRights;
 
 /// <summary>
-/// Guard tests for <see cref="DSRAutoRegistrationHostedService"/> verifying hosted service lifecycle.
+/// Guard tests for <see cref="DSRAutoRegistrationHostedService"/> verifying null parameter handling and hosted service lifecycle.
 /// </summary>
 public class DSRAutoRegistrationHostedServiceGuardTests
 {
+    #region Constructor Guards
+
+    [Fact]
+    public void Constructor_NullDescriptor_ThrowsArgumentNullException()
+    {
+        var options = Options.Create(new DataSubjectRightsOptions());
+
+        var act = () => new DSRAutoRegistrationHostedService(
+            null!, options, NullLogger<DSRAutoRegistrationHostedService>.Instance);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("descriptor");
+    }
+
+    [Fact]
+    public void Constructor_NullOptions_ThrowsArgumentNullException()
+    {
+        var descriptor = new DSRAutoRegistrationDescriptor([]);
+
+        var act = () => new DSRAutoRegistrationHostedService(
+            descriptor, null!, NullLogger<DSRAutoRegistrationHostedService>.Instance);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void Constructor_NullLogger_ThrowsArgumentNullException()
+    {
+        var descriptor = new DSRAutoRegistrationDescriptor([]);
+        var options = Options.Create(new DataSubjectRightsOptions());
+
+        var act = () => new DSRAutoRegistrationHostedService(
+            descriptor, options, null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
+    }
+
+    #endregion
+
+    #region Lifecycle Tests
+
     [Fact]
     public async Task StartAsync_EmptyAssemblies_CompletesWithoutError()
     {
@@ -59,4 +99,6 @@ public class DSRAutoRegistrationHostedServiceGuardTests
         // Act & Assert
         await sut.StopAsync(CancellationToken.None);
     }
+
+    #endregion
 }
