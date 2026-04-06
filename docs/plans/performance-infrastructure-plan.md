@@ -1,6 +1,6 @@
 # Performance Measurement Infrastructure — Implementation Plan
 
-> **Status**: 🟢 Phase 3.1 implemented — awaiting validation run (Phase 2 validated)
+> **Status**: 🟢 Phase 3 complete (Phase 2 validated, Phase 3.1 class fan-out validated)
 > **ADR**: [025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md)
 > **Methodology**: [`performance-measurement-methodology.md`](../testing/performance-measurement-methodology.md)
 > **Date**: 2026-04-05
@@ -26,6 +26,10 @@
 | 2026-04-05 | Phase 2 validated end-to-end: run 24011643747 produced `freshModules: 0 / carriedForwardModules: 17` — true no-op no-change run. Fingerprints persistent, carry-forward flag visible in dashboard, coverage dashboard preserved via cross-domain Pages overlay fix |
 | 2026-04-05 | Issue #923 opened and fixed: BenchmarkDotNet spawns child processes with different CWD, so `--artifacts` relative path broke AspNetCore upload (silently failing since run 24007640847). Fix: pass `${{ github.workspace }}/artifacts/performance/<name>` as absolute path |
 | 2026-04-06 | Phase 3.1 implemented: `perf-class-matrix.cs` fans out each project into one matrix entry per `[Benchmark]` class (20 projects → ~75 entries) using the committed `.github/perf-manifest/*.json` files. `run-benchmarks` now dispatches class-level jobs (matrix capped to 30 concurrent by `max-parallel`), upload-artifact names include the class, `aggregate` downloads with `merge-multiple: true` to reassemble full per-project trees. Wall-clock for full runs expected to drop from ~25 min (bounded by slowest project, typically Core at 15+ min) to ~5-8 min (bounded by slowest single class) |
+| 2026-04-06 | Phase 3.1 FQN fix: `generate-perf-manifest.cs` now captures namespace per class, `perf-class-matrix.cs` uses FQN-based BDN filter (`*Namespace.Class.*`) and unique artifact suffix (dots→dashes). Resolves ScatterGatherBenchmarks collision where two classes with the same simple name in different namespaces clashed on filter and artifact name. All 20 manifests regenerated with namespace/fullName fields |
+| 2026-04-06 | Phase 3.1 validated: run 24012668837 completed 77/77 success, 23 min wall-clock, 18 modules, 741 methods, all fingerprints persisted, AspNetCore now visible (absolute --artifacts fix), publish triggered correctly |
+| 2026-04-06 | Phase 3.2: Build output cache added per project (keyed by `bench-build-<project>-<sha>`). Multiple class-level jobs of the same project share the compiled bin/obj via GitHub Actions cache, saving ~30-60s of build time per cache hit |
+| 2026-04-06 | Phase 3.3: Per-module stability summary (stableMethods, unstableMethods, meanCov) emitted by `perf-report.cs` and consumed by the dashboard. Module filter buttons now show stability counts and mean CoV. Top-level `varianceReport` array added with per-method CoV data sorted by instability for calibration purposes. `[BenchmarkCategory("Unstable")]` annotation deferred until first `short`/`medium` run provides real N>10 data for threshold calibration |
 
 ## Goal
 
