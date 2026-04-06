@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ShardReplicaSelectionBenchmarks-20260406-132824</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                  </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>RoundRobin.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>5.790 ns</td><td>0.1799 ns</td><td>0.1595 ns</td><td>5.740 ns</td><td>1.00</td><td>0.04</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>Random.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>13.433 ns</td><td>0.0215 ns</td><td>0.0180 ns</td><td>13.433 ns</td><td>2.32</td><td>0.06</td><td>2</td><td>-</td><td>NA</td>
+</tr><tr><td>LeastLatency.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>103.098 ns</td><td>0.2211 ns</td><td>0.2069 ns</td><td>103.008 ns</td><td>17.82</td><td>0.47</td><td>4</td><td>-</td><td>NA</td>
+</tr><tr><td>LeastConnections.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>100.776 ns</td><td>0.3314 ns</td><td>0.3100 ns</td><td>100.631 ns</td><td>17.42</td><td>0.46</td><td>4</td><td>-</td><td>NA</td>
+</tr><tr><td>WeightedRandom.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>64.898 ns</td><td>0.0493 ns</td><td>0.0412 ns</td><td>64.910 ns</td><td>11.22</td><td>0.29</td><td>3</td><td>-</td><td>NA</td>
+</tr><tr><td>RoundRobin.SelectReplica</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.985 ns</td><td>0.0503 ns</td><td>0.0722 ns</td><td>5.956 ns</td><td>1.00</td><td>0.02</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>Random.SelectReplica</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>13.975 ns</td><td>0.0100 ns</td><td>0.0140 ns</td><td>13.968 ns</td><td>2.34</td><td>0.03</td><td>2</td><td>-</td><td>NA</td>
+</tr><tr><td>LeastLatency.SelectReplica</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>104.148 ns</td><td>0.7262 ns</td><td>1.0181 ns</td><td>105.015 ns</td><td>17.41</td><td>0.26</td><td>5</td><td>-</td><td>NA</td>
+</tr><tr><td>LeastConnections.SelectReplica</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>98.372 ns</td><td>0.0440 ns</td><td>0.0616 ns</td><td>98.368 ns</td><td>16.44</td><td>0.19</td><td>4</td><td>-</td><td>NA</td>
+</tr><tr><td>WeightedRandom.SelectReplica</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>67.347 ns</td><td>0.0687 ns</td><td>0.0963 ns</td><td>67.320 ns</td><td>11.25</td><td>0.13</td><td>3</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

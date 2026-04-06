@@ -1,0 +1,26 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+
+```
+| Method                       | Job        | IterationCount | LaunchCount | WarmupCount | Mean        | Error     | StdDev    | Median      | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|----------------------------- |----------- |--------------- |------------ |------------ |------------:|----------:|----------:|------------:|------:|--------:|-------:|----------:|------------:|
+| ToApiGatewayResponse_Success | DefaultJob | Default        | Default     | Default     |   779.72 ns |  4.788 ns |  4.479 ns |   778.18 ns |  1.00 |    0.01 | 0.0296 |     496 B |        1.00 |
+| ToApiGatewayResponse_Error   | DefaultJob | Default        | Default     | Default     | 1,447.29 ns |  8.018 ns |  7.500 ns | 1,445.79 ns |  1.86 |    0.01 | 0.0725 |    1232 B |        2.48 |
+| ToCreatedResponse_Success    | DefaultJob | Default        | Default     | Default     |   864.61 ns |  2.206 ns |  2.063 ns |   864.23 ns |  1.11 |    0.01 | 0.0286 |     480 B |        0.97 |
+| ToNoContentResponse_Success  | DefaultJob | Default        | Default     | Default     |    14.00 ns |  0.126 ns |  0.112 ns |    14.02 ns |  0.02 |    0.00 | 0.0029 |      48 B |        0.10 |
+| ToHttpApiResponse_Success    | DefaultJob | Default        | Default     | Default     |   781.92 ns |  3.607 ns |  3.374 ns |   783.09 ns |  1.00 |    0.01 | 0.0296 |     496 B |        1.00 |
+| ToHttpApiResponse_Error      | DefaultJob | Default        | Default     | Default     | 1,431.05 ns |  4.878 ns |  4.563 ns | 1,430.89 ns |  1.84 |    0.01 | 0.0725 |    1232 B |        2.48 |
+|                              |            |                |             |             |             |           |           |             |       |         |        |           |             |
+| ToApiGatewayResponse_Success | MediumRun  | 15             | 2           | 10          |   807.17 ns |  5.215 ns |  7.806 ns |   804.41 ns |  1.00 |    0.01 | 0.0296 |     496 B |        1.00 |
+| ToApiGatewayResponse_Error   | MediumRun  | 15             | 2           | 10          | 1,480.63 ns |  6.659 ns |  9.967 ns | 1,476.74 ns |  1.83 |    0.02 | 0.0725 |    1232 B |        2.48 |
+| ToCreatedResponse_Success    | MediumRun  | 15             | 2           | 10          |   873.60 ns |  9.855 ns | 14.446 ns |   883.37 ns |  1.08 |    0.02 | 0.0286 |     480 B |        0.97 |
+| ToNoContentResponse_Success  | MediumRun  | 15             | 2           | 10          |    14.63 ns |  0.189 ns |  0.284 ns |    14.67 ns |  0.02 |    0.00 | 0.0029 |      48 B |        0.10 |
+| ToHttpApiResponse_Success    | MediumRun  | 15             | 2           | 10          |   796.12 ns |  1.806 ns |  2.532 ns |   796.36 ns |  0.99 |    0.01 | 0.0296 |     496 B |        1.00 |
+| ToHttpApiResponse_Error      | MediumRun  | 15             | 2           | 10          | 1,535.74 ns | 13.912 ns | 19.953 ns | 1,539.73 ns |  1.90 |    0.03 | 0.0725 |    1232 B |        2.48 |

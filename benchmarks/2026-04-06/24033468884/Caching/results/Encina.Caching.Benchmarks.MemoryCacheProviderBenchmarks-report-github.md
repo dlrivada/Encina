@@ -1,0 +1,32 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+
+```
+| Method                        | Job        | IterationCount | LaunchCount | WarmupCount | Mean        | Error        | StdDev     | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|------------------------------ |----------- |--------------- |------------ |------------ |------------:|-------------:|-----------:|------:|--------:|-------:|-------:|----------:|------------:|
+| GetAsync_CacheHit             | Job-YFEFPZ | 10             | Default     | 3           |    83.09 ns |     1.442 ns |   0.954 ns |  1.00 |    0.02 | 0.0086 |      - |     144 B |        1.00 |
+| GetAsync_CacheMiss            | Job-YFEFPZ | 10             | Default     | 3           |    53.77 ns |     0.080 ns |   0.047 ns |  0.65 |    0.01 |      - |      - |         - |        0.00 |
+| SetAsync                      | Job-YFEFPZ | 10             | Default     | 3           | 3,631.58 ns |   608.707 ns | 362.232 ns | 43.71 |    4.16 | 0.0420 | 0.0381 |     712 B |        4.94 |
+| ExistsAsync_True              | Job-YFEFPZ | 10             | Default     | 3           |    61.05 ns |     0.715 ns |   0.425 ns |  0.73 |    0.01 |      - |      - |         - |        0.00 |
+| ExistsAsync_False             | Job-YFEFPZ | 10             | Default     | 3           |    52.99 ns |     0.057 ns |   0.038 ns |  0.64 |    0.01 |      - |      - |         - |        0.00 |
+| GetOrSetAsync_CacheHit        | Job-YFEFPZ | 10             | Default     | 3           |   121.81 ns |     0.244 ns |   0.145 ns |  1.47 |    0.02 | 0.0167 |      - |     280 B |        1.94 |
+| GetOrSetAsync_CacheMiss       | Job-YFEFPZ | 10             | Default     | 3           | 4,806.88 ns |   467.790 ns | 278.374 ns | 57.86 |    3.24 | 0.0610 | 0.0572 |    1080 B |        7.50 |
+| RemoveAsync                   | Job-YFEFPZ | 10             | Default     | 3           | 2,709.26 ns |    23.074 ns |  15.262 ns | 32.61 |    0.40 | 0.0458 |      - |     784 B |        5.44 |
+| SetWithSlidingExpirationAsync | Job-YFEFPZ | 10             | Default     | 3           | 3,858.27 ns | 1,122.855 ns | 668.193 ns | 46.44 |    7.64 | 0.0420 | 0.0381 |     720 B |        5.00 |
+|                               |            |                |             |             |             |              |            |       |         |        |        |           |             |
+| GetAsync_CacheHit             | MediumRun  | 15             | 2           | 10          |    80.96 ns |     0.385 ns |   0.564 ns |  1.00 |    0.01 | 0.0086 |      - |     144 B |        1.00 |
+| GetAsync_CacheMiss            | MediumRun  | 15             | 2           | 10          |    53.39 ns |     0.041 ns |   0.057 ns |  0.66 |    0.00 |      - |      - |         - |        0.00 |
+| SetAsync                      | MediumRun  | 15             | 2           | 10          | 3,716.01 ns |   226.134 ns | 324.315 ns | 45.90 |    3.95 | 0.0381 | 0.0305 |     712 B |        4.94 |
+| ExistsAsync_True              | MediumRun  | 15             | 2           | 10          |    60.33 ns |     0.061 ns |   0.091 ns |  0.75 |    0.01 |      - |      - |         - |        0.00 |
+| ExistsAsync_False             | MediumRun  | 15             | 2           | 10          |    52.38 ns |     0.051 ns |   0.075 ns |  0.65 |    0.00 |      - |      - |         - |        0.00 |
+| GetOrSetAsync_CacheHit        | MediumRun  | 15             | 2           | 10          |   124.22 ns |     0.352 ns |   0.516 ns |  1.53 |    0.01 | 0.0167 |      - |     280 B |        1.94 |
+| GetOrSetAsync_CacheMiss       | MediumRun  | 15             | 2           | 10          | 5,314.92 ns |   266.541 ns | 382.265 ns | 65.65 |    4.66 | 0.0610 | 0.0572 |    1080 B |        7.50 |
+| RemoveAsync                   | MediumRun  | 15             | 2           | 10          | 2,715.48 ns |    11.055 ns |  16.204 ns | 33.54 |    0.30 | 0.0458 |      - |     784 B |        5.44 |
+| SetWithSlidingExpirationAsync | MediumRun  | 15             | 2           | 10          | 3,886.38 ns |   430.107 ns | 630.445 ns | 48.01 |    7.66 | 0.0381 | 0.0305 |     720 B |        5.00 |

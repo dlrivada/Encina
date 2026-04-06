@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.PII.Benchmarks.MaskingStrategyBenchmarks-20260406-135235</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method       </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Email_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>100.89 ns</td><td>1.210 ns</td><td>0.800 ns</td><td>100.90 ns</td><td>1.00</td><td>0.01</td><td>0.0134</td><td>224 B</td><td>1.00</td>
+</tr><tr><td>Phone_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>428.48 ns</td><td>1.492 ns</td><td>0.987 ns</td><td>428.52 ns</td><td>4.25</td><td>0.03</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>CreditCard_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>499.91 ns</td><td>4.221 ns</td><td>2.792 ns</td><td>499.01 ns</td><td>4.96</td><td>0.05</td><td>0.0324</td><td>544 B</td><td>2.43</td>
+</tr><tr><td>SSN_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>409.67 ns</td><td>2.526 ns</td><td>1.503 ns</td><td>409.38 ns</td><td>4.06</td><td>0.03</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>Name_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>183.33 ns</td><td>0.968 ns</td><td>0.640 ns</td><td>183.22 ns</td><td>1.82</td><td>0.02</td><td>0.0167</td><td>280 B</td><td>1.25</td>
+</tr><tr><td>Address_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>124.61 ns</td><td>0.810 ns</td><td>0.482 ns</td><td>124.72 ns</td><td>1.24</td><td>0.01</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>DateOfBirth_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>224.18 ns</td><td>1.920 ns</td><td>1.270 ns</td><td>223.91 ns</td><td>2.22</td><td>0.02</td><td>0.0229</td><td>384 B</td><td>1.71</td>
+</tr><tr><td>IPAddress_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>185.83 ns</td><td>1.115 ns</td><td>0.738 ns</td><td>185.64 ns</td><td>1.84</td><td>0.02</td><td>0.0157</td><td>264 B</td><td>1.18</td>
+</tr><tr><td>Custom_FullMasking</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>57.47 ns</td><td>0.546 ns</td><td>0.361 ns</td><td>57.51 ns</td><td>0.57</td><td>0.01</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>72.13 ns</td><td>0.824 ns</td><td>0.545 ns</td><td>72.27 ns</td><td>0.72</td><td>0.01</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Long</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>110.09 ns</td><td>0.911 ns</td><td>0.603 ns</td><td>109.89 ns</td><td>1.09</td><td>0.01</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>RegexPattern</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>611.98 ns</td><td>1.348 ns</td><td>0.802 ns</td><td>611.87 ns</td><td>6.07</td><td>0.05</td><td>0.0248</td><td>416 B</td><td>1.86</td>
+</tr><tr><td>Email_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>100.11 ns</td><td>1.037 ns</td><td>1.520 ns</td><td>100.32 ns</td><td>1.00</td><td>0.02</td><td>0.0134</td><td>224 B</td><td>1.00</td>
+</tr><tr><td>Phone_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>424.82 ns</td><td>3.311 ns</td><td>4.853 ns</td><td>425.65 ns</td><td>4.24</td><td>0.08</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>CreditCard_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>504.37 ns</td><td>1.421 ns</td><td>2.038 ns</td><td>503.86 ns</td><td>5.04</td><td>0.08</td><td>0.0324</td><td>544 B</td><td>2.43</td>
+</tr><tr><td>SSN_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>419.01 ns</td><td>1.048 ns</td><td>1.537 ns</td><td>419.01 ns</td><td>4.19</td><td>0.06</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>Name_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>190.09 ns</td><td>1.299 ns</td><td>1.905 ns</td><td>189.74 ns</td><td>1.90</td><td>0.03</td><td>0.0167</td><td>280 B</td><td>1.25</td>
+</tr><tr><td>Address_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>125.56 ns</td><td>0.810 ns</td><td>1.162 ns</td><td>125.60 ns</td><td>1.25</td><td>0.02</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>DateOfBirth_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>230.94 ns</td><td>0.682 ns</td><td>1.000 ns</td><td>231.02 ns</td><td>2.31</td><td>0.04</td><td>0.0229</td><td>384 B</td><td>1.71</td>
+</tr><tr><td>IPAddress_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>183.93 ns</td><td>0.930 ns</td><td>1.392 ns</td><td>184.03 ns</td><td>1.84</td><td>0.03</td><td>0.0157</td><td>264 B</td><td>1.18</td>
+</tr><tr><td>Custom_FullMasking</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>73.97 ns</td><td>10.881 ns</td><td>15.949 ns</td><td>88.84 ns</td><td>0.74</td><td>0.16</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>73.82 ns</td><td>0.262 ns</td><td>0.384 ns</td><td>73.81 ns</td><td>0.74</td><td>0.01</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Long</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>108.50 ns</td><td>0.626 ns</td><td>0.917 ns</td><td>108.26 ns</td><td>1.08</td><td>0.02</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>RegexPattern</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>594.47 ns</td><td>1.695 ns</td><td>2.485 ns</td><td>594.08 ns</td><td>5.94</td><td>0.09</td><td>0.0248</td><td>416 B</td><td>1.86</td>
+</tr></tbody></table>
+</body>
+</html>

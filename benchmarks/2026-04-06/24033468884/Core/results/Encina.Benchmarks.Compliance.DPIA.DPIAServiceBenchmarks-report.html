@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.DPIA.DPIAServiceBenchmarks-20260406-132841</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                        </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Create assessment (fast path)&#39;</td><td>1,510.9 ns</td><td>15.79 ns</td><td>23.63 ns</td><td>1.00</td><td>0.02</td><td>6</td><td>0.0248</td><td>0.0229</td><td>464 B</td><td>1.00</td>
+</tr><tr><td>&#39;Evaluate assessment (risk engine)&#39;</td><td>1,382.7 ns</td><td>17.66 ns</td><td>26.43 ns</td><td>0.92</td><td>0.02</td><td>5</td><td>0.0248</td><td>0.0229</td><td>464 B</td><td>1.00</td>
+</tr><tr><td>&#39;RequiresDPIA check (pipeline hot-path)&#39;</td><td>943.6 ns</td><td>9.78 ns</td><td>14.34 ns</td><td>0.62</td><td>0.01</td><td>1</td><td>0.0191</td><td>0.0172</td><td>352 B</td><td>0.76</td>
+</tr><tr><td>&#39;Request DPO consultation&#39;</td><td>1,356.6 ns</td><td>12.05 ns</td><td>18.04 ns</td><td>0.90</td><td>0.02</td><td>5</td><td>0.0248</td><td>0.0229</td><td>464 B</td><td>1.00</td>
+</tr><tr><td>&#39;Approve assessment&#39;</td><td>2,480.6 ns</td><td>35.84 ns</td><td>52.53 ns</td><td>1.64</td><td>0.04</td><td>7</td><td>0.0534</td><td>0.0267</td><td>1008 B</td><td>2.17</td>
+</tr><tr><td>&#39;Reject assessment&#39;</td><td>1,312.9 ns</td><td>15.89 ns</td><td>23.78 ns</td><td>0.87</td><td>0.02</td><td>5</td><td>0.0210</td><td>0.0191</td><td>400 B</td><td>0.86</td>
+</tr><tr><td>&#39;Request revision&#39;</td><td>1,270.0 ns</td><td>11.12 ns</td><td>16.64 ns</td><td>0.84</td><td>0.02</td><td>5</td><td>0.0210</td><td>0.0191</td><td>400 B</td><td>0.86</td>
+</tr><tr><td>&#39;Expire assessment&#39;</td><td>1,119.8 ns</td><td>12.20 ns</td><td>18.26 ns</td><td>0.74</td><td>0.02</td><td>3</td><td>0.0210</td><td>0.0191</td><td>384 B</td><td>0.83</td>
+</tr><tr><td>&#39;Get assessment by ID (cached)&#39;</td><td>1,171.5 ns</td><td>12.66 ns</td><td>18.95 ns</td><td>0.78</td><td>0.02</td><td>4</td><td>0.0248</td><td>0.0229</td><td>456 B</td><td>0.98</td>
+</tr><tr><td>&#39;Get assessment by request type (pipeline hot-path)&#39;</td><td>1,005.3 ns</td><td>11.59 ns</td><td>17.35 ns</td><td>0.67</td><td>0.02</td><td>2</td><td>0.0229</td><td>0.0210</td><td>424 B</td><td>0.91</td>
+</tr><tr><td>&#39;Get expired assessments&#39;</td><td>931.7 ns</td><td>14.55 ns</td><td>21.77 ns</td><td>0.62</td><td>0.02</td><td>1</td><td>0.0229</td><td>0.0219</td><td>400 B</td><td>0.86</td>
+</tr><tr><td>&#39;Get all assessments&#39;</td><td>941.5 ns</td><td>10.34 ns</td><td>15.47 ns</td><td>0.62</td><td>0.01</td><td>1</td><td>0.0229</td><td>0.0219</td><td>400 B</td><td>0.86</td>
+</tr></tbody></table>
+</body>
+</html>
