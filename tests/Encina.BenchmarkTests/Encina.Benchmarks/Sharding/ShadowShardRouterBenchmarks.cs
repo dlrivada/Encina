@@ -22,7 +22,7 @@ public class ShadowShardRouterBenchmarks
     private string[] _testKeys = null!;
     private int _keyIndex;
 
-    [Params(3, 10, 50)]
+    [Params(3, 50)]
     public int ShardCount { get; set; }
 
     [GlobalSetup]

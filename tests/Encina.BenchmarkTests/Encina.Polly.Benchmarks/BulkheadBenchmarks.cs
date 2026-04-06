@@ -107,7 +107,7 @@ public class BulkheadMultiKeyBenchmarks : IDisposable
     private BulkheadAttribute _attribute = null!;
     private string[] _keys = null!;
 
-    [Params(1, 10, 100)]
+    [Params(1, 100)]
     public int KeyCount { get; set; }
 
     [GlobalSetup]
@@ -158,7 +158,7 @@ public class BulkheadConcurrencyBenchmarks : IDisposable
     private BulkheadManager _bulkheadManager = null!;
     private BulkheadAttribute _attribute = null!;
 
-    [Params(10, 50, 100)]
+    [Params(10, 100)]
     public int ConcurrentRequests { get; set; }
 
     [GlobalSetup]

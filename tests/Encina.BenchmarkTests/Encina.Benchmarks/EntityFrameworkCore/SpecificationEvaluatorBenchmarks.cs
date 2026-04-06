@@ -50,7 +50,7 @@ public class SpecificationEvaluatorBenchmarks
     /// <summary>
     /// Number of criteria to combine for complex predicate benchmarks.
     /// </summary>
-    [Params(2, 5, 10)]
+    [Params(2, 10)]
     public int CriteriaCount { get; set; }
 
     [GlobalSetup]
