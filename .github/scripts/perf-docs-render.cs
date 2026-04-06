@@ -210,6 +210,11 @@ static string GenerateTable(string pattern, JsonObject index, ref int warnings)
 
     var sb = new StringBuilder();
     sb.AppendLine();
+
+    // Phase 4.1 — Deep-link anchors: each row gets an HTML anchor tag so docs
+    // can jump to a specific benchmark via #docref-<sanitized-id>. GitHub/Jekyll
+    // renders raw HTML in Markdown, so <a id="..."></a> works as a target.
+    // The dashboard links to these anchors via the "anchor" field in docref-index.json.
     sb.AppendLine("| DocRef | Method | Median | StdDev | CI99 | Allocated | Stable |");
     sb.AppendLine("|--------|--------|--------|--------|------|-----------|--------|");
 
@@ -218,15 +223,15 @@ static string GenerateTable(string pattern, JsonObject index, ref int warnings)
         var method = entry["method"]?.GetValue<string>() ?? id;
         var median = FormatNs(GetD(entry, "medianNs"));
         var stddev = FormatNs(GetD(entry, "stdDevNs"));
-        var mean = GetD(entry, "meanNs");
         var ci99L = GetD(entry, "ci99LowerNs");
         var ci99U = GetD(entry, "ci99UpperNs");
         var ci99 = ci99L > 0 && ci99U > 0 ? $"{FormatNs(ci99L)} – {FormatNs(ci99U)}" : "—";
         var alloc = FormatBytes(GetD(entry, "allocatedBytes"));
         var stable = entry["stable"]?.GetValue<bool>() == true ? "✅" : "⚠️";
         var carried = entry["carriedForward"]?.GetValue<bool>() == true ? " *(cf)*" : "";
+        var anchorId = SanitizeAnchorId(id);
 
-        sb.AppendLine($"| `{id}` | {method}{carried} | {median} | {stddev} | {ci99} | {alloc} | {stable} |");
+        sb.AppendLine($"| <a id=\"{anchorId}\"></a>`{id}` | {method}{carried} | {median} | {stddev} | {ci99} | {alloc} | {stable} |");
     }
 
     sb.AppendLine();
@@ -285,6 +290,16 @@ static string FormatBytes(double v)
     if (v < 1024) return $"{v:F0} B";
     if (v < 1024 * 1024) return $"{v / 1024:F2} KB";
     return $"{v / (1024 * 1024):F2} MB";
+}
+
+/// <summary>
+/// Converts a DocRef ID like "bench:mediator/send-command" into a valid
+/// HTML anchor ID like "docref-bench-mediator-send-command". GitHub
+/// renders raw HTML in Markdown, so <a id="..."></a> works as a link target.
+/// </summary>
+static string SanitizeAnchorId(string docRef)
+{
+    return "docref-" + docRef.Replace(':', '-').Replace('/', '-');
 }
 
 static void AddCitation(Dictionary<string, List<string>> citedBy, string docRef, string location)
