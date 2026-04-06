@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.CacheOptimizationBenchmarks-20260406-084831</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                  </th><th>Mean   </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Cache_GetOrAdd_Direct</td><td>44.2210 ns</td><td>3.2852 ns</td><td>0.1801 ns</td><td>1.000</td><td>0.00</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Cache_TryGetValue_ThenGetOrAdd</td><td>43.4817 ns</td><td>7.6299 ns</td><td>0.4182 ns</td><td>0.983</td><td>0.01</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Send_Command_CacheHit</td><td>3,627.5854 ns</td><td>751.0341 ns</td><td>41.1667 ns</td><td>82.034</td><td>0.86</td><td>0.1335</td><td>2272 B</td><td>NA</td>
+</tr><tr><td>Send_Query_CacheHit</td><td>3,734.0140 ns</td><td>510.0391 ns</td><td>27.9570 ns</td><td>84.441</td><td>0.62</td><td>0.1335</td><td>2248 B</td><td>NA</td>
+</tr><tr><td>Publish_Notification_CacheHit</td><td>1,925.8249 ns</td><td>193.8137 ns</td><td>10.6236 ns</td><td>43.550</td><td>0.26</td><td>0.0801</td><td>1384 B</td><td>NA</td>
+</tr><tr><td>TypeCheck_Cached</td><td>12.1359 ns</td><td>0.1514 ns</td><td>0.0083 ns</td><td>0.274</td><td>0.00</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>TypeCheck_Direct</td><td>0.2737 ns</td><td>0.0485 ns</td><td>0.0027 ns</td><td>0.006</td><td>0.00</td><td>-</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

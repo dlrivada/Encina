@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.SpecificationScatterGatherBenchmarks-20260406-085626</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                         </th><th>ShardCount</th><th>ItemsPerShard</th><th>Mean  </th><th>Error  </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;MergeAndOrder with ascending ordering&#39;</td><td>3</td><td>10</td><td>115,551.4 ns</td><td>3,524.87 ns</td><td>193.21 ns</td><td>1.000</td><td>0.00</td><td>2</td><td>0.3662</td><td>0.2441</td><td>6535 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder without ordering&#39;</td><td>3</td><td>10</td><td>333.6 ns</td><td>14.16 ns</td><td>0.78 ns</td><td>0.003</td><td>0.00</td><td>1</td><td>0.0224</td><td>-</td><td>376 B</td><td>0.06</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;</td><td>3</td><td>10</td><td>119,306.1 ns</td><td>9,123.83 ns</td><td>500.11 ns</td><td>1.032</td><td>0.00</td><td>2</td><td>0.3662</td><td>0.2441</td><td>6847 B</td><td>1.05</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate large page (page 2, size 100)&#39;</td><td>3</td><td>10</td><td>117,172.9 ns</td><td>8,426.40 ns</td><td>461.88 ns</td><td>1.014</td><td>0.00</td><td>2</td><td>0.3662</td><td>0.2441</td><td>6535 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder with descending ordering&#39;</td><td>3</td><td>10</td><td>116,776.8 ns</td><td>5,727.05 ns</td><td>313.92 ns</td><td>1.011</td><td>0.00</td><td>2</td><td>0.3662</td><td>0.2441</td><td>6535 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder with ascending ordering&#39;</td><td>3</td><td>100</td><td>155,079.5 ns</td><td>12,735.59 ns</td><td>698.08 ns</td><td>1.000</td><td>0.01</td><td>2</td><td>1.2207</td><td>0.9766</td><td>22734 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder without ordering&#39;</td><td>3</td><td>100</td><td>478.6 ns</td><td>180.27 ns</td><td>9.88 ns</td><td>0.003</td><td>0.00</td><td>1</td><td>0.1507</td><td>0.0010</td><td>2536 B</td><td>0.11</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;</td><td>3</td><td>100</td><td>155,187.7 ns</td><td>22,595.82 ns</td><td>1,238.55 ns</td><td>1.001</td><td>0.01</td><td>2</td><td>1.2207</td><td>0.9766</td><td>23045 B</td><td>1.01</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate large page (page 2, size 100)&#39;</td><td>3</td><td>100</td><td>157,947.7 ns</td><td>33,137.39 ns</td><td>1,816.37 ns</td><td>1.019</td><td>0.01</td><td>2</td><td>1.2207</td><td>0.9766</td><td>23685 B</td><td>1.04</td>
+</tr><tr><td>&#39;MergeAndOrder with descending ordering&#39;</td><td>3</td><td>100</td><td>168,435.4 ns</td><td>7,694.73 ns</td><td>421.77 ns</td><td>1.086</td><td>0.00</td><td>2</td><td>1.2207</td><td>0.9766</td><td>22734 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder with ascending ordering&#39;</td><td>10</td><td>10</td><td>123,111.1 ns</td><td>6,101.67 ns</td><td>334.45 ns</td><td>1.000</td><td>0.00</td><td>2</td><td>0.4883</td><td>0.2441</td><td>10730 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder without ordering&#39;</td><td>10</td><td>10</td><td>695.8 ns</td><td>13.76 ns</td><td>0.75 ns</td><td>0.006</td><td>0.00</td><td>1</td><td>0.0553</td><td>-</td><td>936 B</td><td>0.09</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;</td><td>10</td><td>10</td><td>127,289.6 ns</td><td>11,252.04 ns</td><td>616.76 ns</td><td>1.034</td><td>0.00</td><td>2</td><td>0.4883</td><td>0.2441</td><td>11042 B</td><td>1.03</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate large page (page 2, size 100)&#39;</td><td>10</td><td>10</td><td>125,337.0 ns</td><td>3,416.30 ns</td><td>187.26 ns</td><td>1.018</td><td>0.00</td><td>2</td><td>0.4883</td><td>0.2441</td><td>10730 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder with descending ordering&#39;</td><td>10</td><td>10</td><td>127,970.2 ns</td><td>5,116.64 ns</td><td>280.46 ns</td><td>1.039</td><td>0.00</td><td>2</td><td>0.4883</td><td>0.2441</td><td>10730 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder with ascending ordering&#39;</td><td>10</td><td>100</td><td>269,141.8 ns</td><td>7,224.14 ns</td><td>395.98 ns</td><td>1.000</td><td>0.00</td><td>2</td><td>3.4180</td><td>2.9297</td><td>64733 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder without ordering&#39;</td><td>10</td><td>100</td><td>1,231.4 ns</td><td>376.23 ns</td><td>20.62 ns</td><td>0.005</td><td>0.00</td><td>1</td><td>0.4845</td><td>0.0134</td><td>8136 B</td><td>0.13</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;</td><td>10</td><td>100</td><td>272,891.5 ns</td><td>87,940.68 ns</td><td>4,820.33 ns</td><td>1.014</td><td>0.02</td><td>2</td><td>3.4180</td><td>2.9297</td><td>65045 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate large page (page 2, size 100)&#39;</td><td>10</td><td>100</td><td>272,458.5 ns</td><td>35,105.11 ns</td><td>1,924.23 ns</td><td>1.012</td><td>0.01</td><td>2</td><td>3.9063</td><td>3.4180</td><td>65688 B</td><td>1.01</td>
+</tr><tr><td>&#39;MergeAndOrder with descending ordering&#39;</td><td>10</td><td>100</td><td>368,080.1 ns</td><td>12,777.00 ns</td><td>700.35 ns</td><td>1.368</td><td>0.00</td><td>3</td><td>3.4180</td><td>2.9297</td><td>64733 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder with ascending ordering&#39;</td><td>25</td><td>10</td><td>145,081.8 ns</td><td>25,527.63 ns</td><td>1,399.26 ns</td><td>1.000</td><td>0.01</td><td>2</td><td>0.9766</td><td>0.7324</td><td>19732 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder without ordering&#39;</td><td>25</td><td>10</td><td>1,423.3 ns</td><td>41.98 ns</td><td>2.30 ns</td><td>0.010</td><td>0.00</td><td>1</td><td>0.1259</td><td>-</td><td>2136 B</td><td>0.11</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;</td><td>25</td><td>10</td><td>147,767.1 ns</td><td>10,456.75 ns</td><td>573.17 ns</td><td>1.019</td><td>0.01</td><td>2</td><td>0.9766</td><td>0.7324</td><td>20044 B</td><td>1.02</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate large page (page 2, size 100)&#39;</td><td>25</td><td>10</td><td>147,189.8 ns</td><td>15,932.13 ns</td><td>873.29 ns</td><td>1.015</td><td>0.01</td><td>2</td><td>1.2207</td><td>0.9766</td><td>20688 B</td><td>1.05</td>
+</tr><tr><td>&#39;MergeAndOrder with descending ordering&#39;</td><td>25</td><td>10</td><td>160,519.5 ns</td><td>21,251.82 ns</td><td>1,164.88 ns</td><td>1.106</td><td>0.01</td><td>2</td><td>0.9766</td><td>0.7324</td><td>19732 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder with ascending ordering&#39;</td><td>25</td><td>100</td><td>595,117.4 ns</td><td>21,494.69 ns</td><td>1,178.20 ns</td><td>1.000</td><td>0.00</td><td>2</td><td>8.7891</td><td>3.9063</td><td>154727 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeAndOrder without ordering&#39;</td><td>25</td><td>100</td><td>2,713.5 ns</td><td>961.39 ns</td><td>52.70 ns</td><td>0.005</td><td>0.00</td><td>1</td><td>1.2016</td><td>0.0763</td><td>20136 B</td><td>0.13</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate overfetch (page 1, size 20)&#39;</td><td>25</td><td>100</td><td>598,491.7 ns</td><td>58,615.68 ns</td><td>3,212.92 ns</td><td>1.006</td><td>0.00</td><td>2</td><td>8.7891</td><td>3.9063</td><td>155039 B</td><td>1.00</td>
+</tr><tr><td>&#39;MergeOrderAndPaginate large page (page 2, size 100)&#39;</td><td>25</td><td>100</td><td>600,480.1 ns</td><td>44,967.23 ns</td><td>2,464.81 ns</td><td>1.009</td><td>0.00</td><td>2</td><td>8.7891</td><td>3.9063</td><td>155679 B</td><td>1.01</td>
+</tr><tr><td>&#39;MergeAndOrder with descending ordering&#39;</td><td>25</td><td>100</td><td>891,863.3 ns</td><td>142,740.72 ns</td><td>7,824.10 ns</td><td>1.499</td><td>0.01</td><td>3</td><td>8.7891</td><td>3.9063</td><td>154727 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
