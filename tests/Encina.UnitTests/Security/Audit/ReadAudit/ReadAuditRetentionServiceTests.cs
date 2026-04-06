@@ -117,7 +117,7 @@ public class ReadAuditRetentionServiceTests
 
         // Act
         await service.StartAsync(cts.Token);
-        await Task.Delay(50); // Allow background task to reach Task.Delay
+        await WaitForTimerRegistrationAsync(fakeTime);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
         await Task.Delay(200); // Allow purge to complete
         await cts.CancelAsync();
@@ -151,7 +151,7 @@ public class ReadAuditRetentionServiceTests
 
         // Act - should not throw despite error
         await service.StartAsync(cts.Token);
-        await Task.Delay(50); // Allow background task to reach Task.Delay
+        await WaitForTimerRegistrationAsync(fakeTime);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
         await Task.Delay(200);
         await cts.CancelAsync();
@@ -184,7 +184,7 @@ public class ReadAuditRetentionServiceTests
 
         // Act - should not throw
         await service.StartAsync(cts.Token);
-        await Task.Delay(50); // Allow background task to reach Task.Delay
+        await WaitForTimerRegistrationAsync(fakeTime);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
         await Task.Delay(200);
         await cts.CancelAsync();
@@ -206,6 +206,19 @@ public class ReadAuditRetentionServiceTests
     #endregion
 
     #region Helpers
+
+    /// <summary>
+    /// Waits until the background service registers its timer with the FakeTimeProvider.
+    /// This replaces flaky Task.Delay(50) calls that caused race conditions on slow CI runners.
+    /// </summary>
+    private static async Task WaitForTimerRegistrationAsync(FakeTimeProvider fakeTime, int timeoutMs = 5000)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (fakeTime.ActiveTimerCount == 0 && sw.ElapsedMilliseconds < timeoutMs)
+        {
+            await Task.Delay(10);
+        }
+    }
 
     private static IOptions<ReadAuditOptions> CreateOptions(
         bool enableAutoPurge = false,
