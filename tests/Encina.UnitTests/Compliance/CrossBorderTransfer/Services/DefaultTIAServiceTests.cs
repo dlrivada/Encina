@@ -221,9 +221,13 @@ public class DefaultTIAServiceTests
         var tiaId = Guid.NewGuid();
         var cached = new TIAReadModel
         {
-            Id = tiaId, SourceCountryCode = "DE", DestinationCountryCode = "US",
-            DataCategory = "data", Status = TIAStatus.Completed,
-            RequiredSupplementaryMeasures = [], CreatedAtUtc = DateTimeOffset.UtcNow,
+            Id = tiaId,
+            SourceCountryCode = "DE",
+            DestinationCountryCode = "US",
+            DataCategory = "data",
+            Status = TIAStatus.Completed,
+            RequiredSupplementaryMeasures = [],
+            CreatedAtUtc = DateTimeOffset.UtcNow,
             LastModifiedAtUtc = DateTimeOffset.UtcNow
         };
         _cache.GetAsync<TIAReadModel>($"cbt:tia:{tiaId}", Arg.Any<CancellationToken>())
@@ -287,9 +291,13 @@ public class DefaultTIAServiceTests
     {
         var cached = new TIAReadModel
         {
-            Id = Guid.NewGuid(), SourceCountryCode = "DE", DestinationCountryCode = "US",
-            DataCategory = "data", Status = TIAStatus.Completed,
-            RequiredSupplementaryMeasures = [], CreatedAtUtc = DateTimeOffset.UtcNow,
+            Id = Guid.NewGuid(),
+            SourceCountryCode = "DE",
+            DestinationCountryCode = "US",
+            DataCategory = "data",
+            Status = TIAStatus.Completed,
+            RequiredSupplementaryMeasures = [],
+            CreatedAtUtc = DateTimeOffset.UtcNow,
             LastModifiedAtUtc = DateTimeOffset.UtcNow
         };
         _cache.GetAsync<TIAReadModel>("cbt:tia:route:DE:US:data", Arg.Any<CancellationToken>())

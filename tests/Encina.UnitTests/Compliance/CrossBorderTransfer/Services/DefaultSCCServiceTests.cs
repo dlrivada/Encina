@@ -166,8 +166,12 @@ public class DefaultSCCServiceTests
         var agreementId = Guid.NewGuid();
         var cached = new SCCAgreementReadModel
         {
-            Id = agreementId, ProcessorId = "proc-1", Module = SCCModule.ControllerToProcessor,
-            Version = "v2021", ExecutedAtUtc = Now, IsRevoked = false,
+            Id = agreementId,
+            ProcessorId = "proc-1",
+            Module = SCCModule.ControllerToProcessor,
+            Version = "v2021",
+            ExecutedAtUtc = Now,
+            IsRevoked = false,
             SupplementaryMeasures = []
         };
         _cache.GetAsync<SCCAgreementReadModel>($"cbt:scc:{agreementId}", Arg.Any<CancellationToken>())
