@@ -38,6 +38,10 @@ internal sealed class DSRAutoRegistrationHostedService : IHostedService
         IOptions<DataSubjectRightsOptions> options,
         ILogger<DSRAutoRegistrationHostedService> logger)
     {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _descriptor = descriptor;
         _options = options.Value;
         _logger = logger;

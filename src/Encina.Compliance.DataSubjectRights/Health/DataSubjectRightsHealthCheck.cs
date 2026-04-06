@@ -53,6 +53,9 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
     /// <param name="logger">The logger instance.</param>
     public DataSubjectRightsHealthCheck(IServiceProvider serviceProvider, ILogger<DataSubjectRightsHealthCheck> logger)
     {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _serviceProvider = serviceProvider;
         _logger = logger;
     }

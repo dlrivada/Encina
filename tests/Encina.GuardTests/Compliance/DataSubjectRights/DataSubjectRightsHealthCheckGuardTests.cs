@@ -21,4 +21,24 @@ public class DataSubjectRightsHealthCheckGuardTests
 
         Should.NotThrow(act);
     }
+
+    [Fact]
+    public void Constructor_NullServiceProvider_ThrowsArgumentNullException()
+    {
+        var logger = NullLoggerFactory.Instance.CreateLogger<DataSubjectRightsHealthCheck>();
+
+        var act = () => new DataSubjectRightsHealthCheck(null!, logger);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("serviceProvider");
+    }
+
+    [Fact]
+    public void Constructor_NullLogger_ThrowsArgumentNullException()
+    {
+        var serviceProvider = Substitute.For<IServiceProvider>();
+
+        var act = () => new DataSubjectRightsHealthCheck(serviceProvider, null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
+    }
 }
