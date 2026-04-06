@@ -39,4 +39,32 @@ public class ServiceCollectionExtensionsGuardTests
         result.ShouldNotBeNull();
         result.ShouldBeSameAs(services);
     }
+
+    [Fact]
+    public void AddEncinaDataSubjectRights_WithConfigure_RegistersServices()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaDataSubjectRights(options =>
+        {
+            options.RestrictionEnforcementMode = DSREnforcementMode.Block;
+            options.AddHealthCheck = true;
+        });
+
+        services.Count.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public void AddEncinaDataSubjectRights_WithAutoRegistration_RegistersHostedService()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaDataSubjectRights(options =>
+        {
+            options.AutoRegisterFromAttributes = true;
+            options.AssembliesToScan.Add(typeof(ServiceCollectionExtensionsGuardTests).Assembly);
+        });
+
+        services.Count.ShouldBeGreaterThan(0);
+    }
 }
