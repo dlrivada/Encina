@@ -14,6 +14,11 @@ namespace Encina.NBomber.Scenarios.Caching;
 /// </summary>
 public sealed class RedisCacheScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:caching/redis";
+
     private readonly CacheScenarioContext _context;
     private readonly ICacheProvider _cacheProvider;
     private readonly RedisCacheProviderFactory? _redisFactory;

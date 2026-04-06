@@ -30,6 +30,11 @@ namespace Encina.LoadTests.Compliance.GDPR;
 /// </remarks>
 internal static class GDPRComplianceLoadTests
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:compliance/gdpr";
+
     private const int ConcurrentWorkers = 50;
     private const int OperationsPerWorker = 10_000;
 

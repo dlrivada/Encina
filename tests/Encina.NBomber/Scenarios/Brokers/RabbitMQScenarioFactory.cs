@@ -13,6 +13,11 @@ namespace Encina.NBomber.Scenarios.Brokers;
 /// </summary>
 public sealed class RabbitMQScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:brokers/rabbitmq";
+
     private readonly BrokerScenarioContext _context;
     private RabbitMQProviderFactory? _rabbitFactory;
     private IChannel? _publishChannel;

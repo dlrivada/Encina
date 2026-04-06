@@ -14,6 +14,11 @@ namespace Encina.NBomber.Scenarios.Brokers;
 /// </summary>
 public sealed class NATSScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:brokers/nats";
+
     private readonly BrokerScenarioContext _context;
     private NATSProviderFactory? _natsFactory;
     private readonly ConcurrentDictionary<string, long> _metrics = new();

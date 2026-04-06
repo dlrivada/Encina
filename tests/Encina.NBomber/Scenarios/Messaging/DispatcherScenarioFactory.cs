@@ -13,6 +13,11 @@ namespace Encina.NBomber.Scenarios.Messaging;
 /// </summary>
 public sealed class DispatcherScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:messaging/dispatcher";
+
     private readonly MessagingScenarioContext _context;
     private readonly ConcurrentDictionary<string, long> _handlerExecutionCounts = new();
     private ServiceProvider? _parallelServiceProvider;

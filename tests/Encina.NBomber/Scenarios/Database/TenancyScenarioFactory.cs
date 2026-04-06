@@ -12,6 +12,11 @@ namespace Encina.NBomber.Scenarios.Database;
 /// </summary>
 public sealed class TenancyScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:database/tenancy";
+
     private const int DefaultTenantCount = 100;
     private readonly DatabaseScenarioContext _context;
     private readonly int _tenantCount;
