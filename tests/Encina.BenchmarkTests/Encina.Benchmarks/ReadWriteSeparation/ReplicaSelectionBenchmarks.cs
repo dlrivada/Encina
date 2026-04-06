@@ -52,6 +52,7 @@ public class ReplicaSelectionBenchmarks
     /// Benchmarks RoundRobin replica selection using Interlocked.Increment.
     /// This is the baseline as it's the simplest and fastest strategy.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/roundrobin-select")]
     [Benchmark(Baseline = true, Description = "RoundRobin.SelectReplica")]
     public string RoundRobin_SelectReplica() => _roundRobin.SelectReplica();
 
@@ -59,6 +60,7 @@ public class ReplicaSelectionBenchmarks
     /// Benchmarks Random replica selection using Random.Shared.
     /// Thread-safe but slightly more overhead than RoundRobin.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/random-select")]
     [Benchmark(Description = "Random.SelectReplica")]
     public string Random_SelectReplica() => _random.SelectReplica();
 
@@ -66,6 +68,7 @@ public class ReplicaSelectionBenchmarks
     /// Benchmarks LeastConnections replica selection.
     /// Uses lock and iterates through replicas to find minimum.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/least-connections-select")]
     [Benchmark(Description = "LeastConnections.SelectReplica")]
     public string LeastConnections_SelectReplica() => _leastConnections.SelectReplica();
 

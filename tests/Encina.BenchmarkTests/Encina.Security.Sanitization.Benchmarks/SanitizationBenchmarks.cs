@@ -106,12 +106,15 @@ public class OutputEncoderBenchmarks
         _cssSpecialChars = "expression(alert('xss')); color: red";
     }
 
+    [BenchmarkCategory("DocRef:bench:security/html-safe")]
     [Benchmark(Baseline = true)]
     public string EncodeForHtml_SafeText() => _encoder.EncodeForHtml(_safeText);
 
+    [BenchmarkCategory("DocRef:bench:security/html-special-chars")]
     [Benchmark]
     public string EncodeForHtml_SpecialChars() => _encoder.EncodeForHtml(_htmlSpecialChars);
 
+    [BenchmarkCategory("DocRef:bench:security/javascript-safe")]
     [Benchmark]
     public string EncodeForJavaScript_SafeText() => _encoder.EncodeForJavaScript(_safeText);
 
@@ -121,9 +124,11 @@ public class OutputEncoderBenchmarks
     [Benchmark]
     public string EncodeForUrl_SafeText() => _encoder.EncodeForUrl(_safeText);
 
+    [BenchmarkCategory("DocRef:bench:security/url-special-chars")]
     [Benchmark]
     public string EncodeForUrl_SpecialChars() => _encoder.EncodeForUrl(_urlSpecialChars);
 
+    [BenchmarkCategory("DocRef:bench:security/css-safe")]
     [Benchmark]
     public string EncodeForCss_SafeText() => _encoder.EncodeForCss(_safeText);
 

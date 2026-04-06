@@ -63,6 +63,7 @@ public class InboxStoreEFBenchmarks
     /// <summary>
     /// Baseline benchmark: Retrieve a message by ID (idempotency check).
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:inbox-efcore/get-message-hit")]
     [Benchmark(Baseline = true, Description = "GetMessageAsync")]
     public async Task GetMessage()
     {
@@ -83,6 +84,7 @@ public class InboxStoreEFBenchmarks
     /// <summary>
     /// Benchmark: Add a new message to the inbox.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:inbox-efcore/add-single")]
     [Benchmark(Description = "AddAsync")]
     public async Task AddMessage()
     {

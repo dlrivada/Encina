@@ -33,6 +33,7 @@ public class DatabaseRoutingBenchmarks
     /// <summary>
     /// Benchmarks reading the CurrentIntent static property (AsyncLocal read).
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/routing-read-asynclocal")]
     [Benchmark(Description = "Read CurrentIntent (AsyncLocal)")]
     public DatabaseIntent? Read_CurrentIntent() => DatabaseRoutingContext.CurrentIntent;
 
@@ -63,6 +64,7 @@ public class DatabaseRoutingBenchmarks
     /// <summary>
     /// Benchmarks ForRead scope creation and disposal.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/routing-scope-for-read")]
     [Benchmark(Description = "DatabaseRoutingScope.ForRead()")]
     public void Scope_ForRead()
     {
@@ -99,6 +101,7 @@ public class DatabaseRoutingBenchmarks
     /// <summary>
     /// Benchmarks nested scopes to measure restore overhead.
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:read-write/routing-nested-scopes")]
     [Benchmark(Description = "Nested scopes (Read → ForceWrite)")]
     public void Scope_Nested()
     {

@@ -50,14 +50,17 @@ public class PIIMaskerBenchmarks
         _masker.MaskObject(_plainEntity);
     }
 
+    [BenchmarkCategory("DocRef:bench:security/email-partial")]
     [Benchmark(Baseline = true)]
     public string Mask_Email()
         => _masker.Mask("user@example.com", PIIType.Email);
 
+    [BenchmarkCategory("DocRef:bench:security/phone-partial")]
     [Benchmark]
     public string Mask_Phone()
         => _masker.Mask("555-123-4567", PIIType.Phone);
 
+    [BenchmarkCategory("DocRef:bench:security/creditcard-partial")]
     [Benchmark]
     public string Mask_CreditCard()
         => _masker.Mask("4111-1111-1111-1111", PIIType.CreditCard);
@@ -70,10 +73,12 @@ public class PIIMaskerBenchmarks
     public string Mask_WithRegexPattern()
         => _masker.Mask("My ID is AB-12345", @"\b[A-Z]{2}-\d{5}\b");
 
+    [BenchmarkCategory("DocRef:bench:security/mask-single-field")]
     [Benchmark]
     public SingleFieldEntity MaskObject_SingleField()
         => _masker.MaskObject(_singleField);
 
+    [BenchmarkCategory("DocRef:bench:security/mask-multi-field")]
     [Benchmark]
     public MultiFieldEntity MaskObject_MultiField()
         => _masker.MaskObject(_multiField);

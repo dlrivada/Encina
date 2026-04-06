@@ -87,6 +87,7 @@ public class HMACSignerBenchmarks
 
     #region SignAsync Benchmarks
 
+    [BenchmarkCategory("DocRef:bench:security/sign-sha256-small")]
     [Benchmark(Baseline = true)]
     public async Task<string> Sign_SHA256_SmallPayload()
     {
@@ -101,6 +102,7 @@ public class HMACSignerBenchmarks
         return result.Match(Right: s => s, Left: _ => string.Empty);
     }
 
+    [BenchmarkCategory("DocRef:bench:security/sign-sha256-large")]
     [Benchmark]
     public async Task<string> Sign_SHA256_LargePayload()
     {
@@ -126,6 +128,7 @@ public class HMACSignerBenchmarks
 
     #region VerifyAsync Benchmarks
 
+    [BenchmarkCategory("DocRef:bench:security/verify-sha256-small")]
     [Benchmark]
     public async Task<bool> Verify_SHA256_SmallPayload()
     {
@@ -137,6 +140,7 @@ public class HMACSignerBenchmarks
 
     #region Sign+Verify Roundtrip
 
+    [BenchmarkCategory("DocRef:bench:security/sign-verify-roundtrip")]
     [Benchmark]
     public async Task<bool> SignAndVerify_Roundtrip()
     {

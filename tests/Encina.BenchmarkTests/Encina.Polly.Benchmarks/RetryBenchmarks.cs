@@ -33,6 +33,7 @@ public class RetryBenchmarks
         _EncinaWithoutRetry = servicesWithoutRetry.BuildServiceProvider().GetRequiredService<IEncina>();
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/retry-baseline")]
     [Benchmark(Baseline = true)]
     public async Task NoRetryAttribute_Baseline()
     {
@@ -40,6 +41,7 @@ public class RetryBenchmarks
         _ = await _EncinaWithoutRetry.Send(request);
     }
 
+    [BenchmarkCategory("DocRef:bench:polly/retry-with-attribute")]
     [Benchmark]
     public async Task WithRetryAttribute_NoActualRetries()
     {

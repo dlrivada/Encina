@@ -56,6 +56,7 @@ public class TemporalKeyProviderBenchmarks
     /// <summary>
     /// Hot path: retrieve existing key for current period (most common operation).
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:audit-marten/key-lookup-get-existing")]
     [Benchmark(Baseline = true)]
     public async Task<TemporalKeyInfo?> GetExistingKey()
     {
@@ -82,6 +83,7 @@ public class TemporalKeyProviderBenchmarks
     /// <summary>
     /// Cold path: create a new key for a new period (happens once per period).
     /// </summary>
+    [BenchmarkCategory("DocRef:bench:audit-marten/key-lookup-create-new")]
     [Benchmark]
     public async Task<TemporalKeyInfo?> CreateNewKey()
     {
