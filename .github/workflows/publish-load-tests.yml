@@ -1,0 +1,226 @@
+name: Publish Load Tests Data
+
+# Triggered when the Load Tests workflow completes successfully.
+# Downloads all load-test artifacts (console harness + NBomber scenarios),
+# runs perf-report.cs --kind load-tests to produce a unified snapshot,
+# archives raw data to perf-raw, and deploys the dashboard to Pages.
+#
+# Mirrors publish-benchmarks.yml; see ADR-025 for the architectural pattern.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Load Tests run ID to use (leave empty for latest successful)'
+        required: false
+  workflow_run:
+    workflows: ["Load Tests"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  pages: write
+  id-token: write
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-load-tests
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}load-tests/dashboard/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve Load Tests run ID
+        id: resolve
+        run: |
+          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          if [ -z "$RID" ]; then
+            RID=$(gh run list --workflow "Load Tests" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            echo "Auto-resolved latest successful Load Tests run: $RID"
+          fi
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all load-test artifacts
+        run: |
+          RUN_ID="${{ steps.resolve.outputs.run_id }}"
+          mkdir -p artifacts/load-tests-raw
+
+          echo "Downloading artifacts from run $RUN_ID..."
+
+          # Download all artifacts matching load-test patterns
+          # The load-tests workflow uploads:
+          #   load-metrics                         (console harness)
+          #   database-load-metrics-<provider>     (NBomber database)
+          #   messaging-load-metrics               (NBomber messaging)
+          #   caching-load-metrics-<provider>      (NBomber caching)
+          #   locking-load-metrics-<provider>      (NBomber locking)
+          #   broker-load-metrics-<provider>       (NBomber brokers)
+          gh run download "$RUN_ID" \
+            --pattern "*load-metrics*" \
+            --dir artifacts/load-tests-raw \
+            --repo dlrivada/Encina || echo "Warning: some artifacts may not be available"
+
+          # Also try the consolidated load-metrics artifact
+          gh run download "$RUN_ID" \
+            --name "load-metrics" \
+            --dir artifacts/load-tests-raw/harness \
+            --repo dlrivada/Encina 2>/dev/null || echo "Note: no harness artifact found"
+
+          echo ""
+          echo "Downloaded artifacts:"
+          find artifacts/load-tests-raw -type f | head -50
+          echo ""
+          echo "NBomber summaries found:"
+          find artifacts/load-tests-raw -name "nbomber-summary.json" -o -name "*.json" -path "*/nbomber/*" | head -20
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate load-test report
+        run: |
+          dotnet run .github/scripts/perf-report.cs -- \
+            --kind load-tests \
+            --input artifacts/load-tests-raw \
+            --output artifacts/perf-output \
+            --run-id ${{ steps.resolve.outputs.run_id }} \
+            --sha ${{ github.sha }}
+
+      - name: Update docs/load-tests/data
+        run: |
+          mkdir -p docs/load-tests/data
+          cp -f artifacts/perf-output/latest.json docs/load-tests/data/latest.json
+          cp -f artifacts/perf-output/docref-index.json docs/load-tests/data/docref-index.json 2>/dev/null || true
+          # Copy archived timestamped snapshots
+          find artifacts/perf-output -maxdepth 1 -name "*.json" \
+            ! -name "latest.json" \
+            ! -name "docref-index.json" \
+            -exec cp -f {} docs/load-tests/data/ \;
+          ls -la docs/load-tests/data/
+
+      - name: Update load-tests history
+        run: |
+          dotnet run .github/scripts/perf-history.cs -- \
+            --kind load-tests \
+            --latest docs/load-tests/data/latest.json \
+            --history docs/load-tests/data/history.json
+
+      - name: Archive raw data to perf-raw branch
+        continue-on-error: true
+        run: |
+          set -e
+          RUN_ID="${{ steps.resolve.outputs.run_id }}"
+          DATE=$(date -u +"%Y-%m-%d")
+          TARGET_DIR="load-tests/${DATE}/${RUN_ID}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git fetch origin perf-raw 2>/dev/null; then
+            git worktree add .perf-raw origin/perf-raw
+          else
+            echo "perf-raw branch does not exist yet — skipping archival."
+            exit 0
+          fi
+
+          mkdir -p ".perf-raw/${TARGET_DIR}"
+          cp -r artifacts/load-tests-raw/* ".perf-raw/${TARGET_DIR}/" 2>/dev/null || true
+
+          cat > ".perf-raw/${TARGET_DIR}/metadata.json" << EOF
+          {
+            "runId": ${RUN_ID},
+            "sha": "${{ github.sha }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "workflow": "Load Tests",
+            "kind": "load-tests"
+          }
+          EOF
+
+          cd .perf-raw
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing new to archive."
+          else
+            git commit -m "perf-raw: archive load-tests run ${RUN_ID}"
+            git push origin HEAD:perf-raw || echo "Warning: push to perf-raw failed."
+          fi
+          cd ..
+          git worktree remove --force .perf-raw
+
+      - name: Persist data to main
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/load-tests/data/
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            ENTRIES=$(grep -c timestamp docs/load-tests/data/history.json 2>/dev/null || echo 0)
+            git commit -m "chore: update load-tests data ($ENTRIES history entries)"
+            git push origin main || echo "Warning: push failed (branch protection)."
+          fi
+
+      - name: Build Pages site with cross-domain live data preservation
+        run: |
+          rm -rf _site
+          cp -r docs _site
+
+          # Preserve sibling domain data from live Pages (same pattern as publish-benchmarks.yml)
+          for domain in coverage benchmarks; do
+            echo "Fetching live $domain data from Pages..."
+            mkdir -p "_site/$domain/data"
+            for file in latest.json history.json docref-index.json fingerprints.json; do
+              url="https://dlrivada.github.io/Encina/$domain/data/$file"
+              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
+                echo "  ✓ $file"
+              else
+                rm -f "_site/$domain/data/$file.new"
+                echo "  - $file (not on Pages yet)"
+              fi
+            done
+            for badge in badge.svg badge.json; do
+              url="https://dlrivada.github.io/Encina/$domain/$badge"
+              if curl -fsSL -o "_site/$domain/$badge.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/$badge.new" "_site/$domain/$badge"
+              else
+                rm -f "_site/$domain/$badge.new"
+              fi
+            done
+          done
+
+          echo ""
+          echo "Load-tests dashboard:"
+          ls -la _site/load-tests/dashboard/ 2>/dev/null || echo "(not yet)"
+          echo ""
+          echo "Load-tests data:"
+          ls -la _site/load-tests/data/ 2>/dev/null
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
