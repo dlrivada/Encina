@@ -268,6 +268,20 @@ jobs:
           restore-keys: |
             ${{ matrix.project.os }}-nuget-
 
+      - name: Cache build output
+        if: steps.filter.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          # Phase 3.2 — cache the compiled benchmark project so that multiple
+          # class-level jobs of the same project on the same commit reuse the
+          # build. First job of a project builds from scratch and saves; later
+          # jobs (typically queued in the max-parallel pool) get a cache hit
+          # and skip the dotnet build entirely (~30-60s saved per hit).
+          path: |
+            tests/Encina.BenchmarkTests/${{ matrix.project.project }}/bin
+            tests/Encina.BenchmarkTests/${{ matrix.project.project }}/obj
+          key: bench-build-${{ matrix.project.project }}-${{ github.sha }}
+
       - name: Restore
         if: steps.filter.outputs.skip != 'true'
         run: dotnet restore ${{ matrix.project.path }}

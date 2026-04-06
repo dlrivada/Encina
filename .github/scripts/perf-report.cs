@@ -279,6 +279,28 @@ static void GenerateBenchmarksReport(
     foreach (var cm in carriedForward)
         modulesArray.Add(cm);
 
+    // Phase 3.3 — variance report: per-class CoV for dashboard stability analysis.
+    // This is a flat array of { module, class, cov, stable, n } entries,
+    // sorted by CoV descending (most unstable first). The dashboard uses this
+    // to render a "most unstable classes" table and to calibrate thresholds.
+    var varianceReport = new JsonArray();
+    foreach (var m in modulesByName.Values)
+    {
+        foreach (var b in m.Benchmarks)
+        {
+            varianceReport.Add(new JsonObject
+            {
+                ["module"] = m.Name,
+                ["class"] = b.Class,
+                ["method"] = b.Method,
+                ["cov"] = Math.Round(b.Cov, 4),
+                ["stable"] = b.Stable,
+                ["n"] = b.N,
+                ["meanNs"] = Math.Round(b.MeanNs, 1)
+            });
+        }
+    }
+
     var snapshot = new JsonObject
     {
         ["kind"] = "benchmarks",
@@ -287,7 +309,8 @@ static void GenerateBenchmarksReport(
         ["sha"] = string.IsNullOrEmpty(sha) ? null : JsonValue.Create(sha),
         ["metadata"] = metadata,
         ["overall"] = overall,
-        ["modules"] = modulesArray
+        ["modules"] = modulesArray,
+        ["varianceReport"] = varianceReport
     };
 
     var latestPath = Path.Combine(outputDir, "latest.json");
@@ -762,9 +785,22 @@ sealed class BenchmarkModule
     {
         var arr = new JsonArray();
         foreach (var b in Benchmarks) arr.Add(b.ToJson());
+
+        // Phase 3.3 — per-module stability summary for the dashboard.
+        int stableCount = 0, unstableCount = 0;
+        double covSum = 0; int covCount = 0;
+        foreach (var b in Benchmarks)
+        {
+            if (b.Stable) stableCount++; else unstableCount++;
+            if (b.Cov is > 0 and < double.PositiveInfinity) { covSum += b.Cov; covCount++; }
+        }
+
         var obj = new JsonObject { ["name"] = Name };
         if (!string.IsNullOrEmpty(Fingerprint)) obj["fingerprint"] = Fingerprint;
         obj["carriedForward"] = false;
+        obj["stableMethods"] = stableCount;
+        obj["unstableMethods"] = unstableCount;
+        obj["meanCov"] = covCount > 0 ? Math.Round(covSum / covCount, 4) : 0;
         obj["benchmarks"] = arr;
         return obj;
     }

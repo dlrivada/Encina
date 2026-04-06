@@ -182,7 +182,13 @@
       const btn = document.createElement('button');
       btn.className = 'filter-btn';
       btn.dataset.filter = m.name;
-      btn.textContent = m.name;
+      // Phase 3.3 — show stability indicator + mean CoV in module filter button
+      const stable = m.stableMethods || 0;
+      const total = stable + (m.unstableMethods || 0);
+      const cov = m.meanCov != null ? ` (CoV ${(m.meanCov * 100).toFixed(1)}%)` : '';
+      const carried = m.carriedForward ? ' [cf]' : '';
+      btn.textContent = `${m.name} ${stable}/${total}${cov}${carried}`;
+      btn.title = `${m.name}: ${stable} stable / ${total} total methods, mean CoV = ${((m.meanCov || 0) * 100).toFixed(2)}%${m.carriedForward ? ' (carried forward from previous run)' : ''}`;
       container.appendChild(btn);
     });
   }
