@@ -74,7 +74,7 @@ var metadata = BuildMetadata(runId, sha);
 if (kind == "benchmarks")
     GenerateBenchmarksReport(inputDir, outputDir, metadata, runId, sha, manifestDir, fingerprintsFile, carryForwardFrom, noInput: false);
 else if (kind == "load-tests")
-    GenerateLoadTestsReport(inputDir, outputDir, metadata, runId, sha);
+    GenerateLoadTestsReport(inputDir, outputDir, metadata, runId, sha, carryForwardFrom);
 else
 {
     Console.Error.WriteLine($"Unknown --kind '{kind}'. Expected 'benchmarks' or 'load-tests'.");
@@ -558,10 +558,12 @@ static string InferModuleNameFromPath(string file, string inputDir)
 // ──────────────────────────────────────────────────────────────────────────
 // LOAD TESTS
 // ──────────────────────────────────────────────────────────────────────────
-static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObject metadata, long runId, string sha)
+static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObject metadata, long runId, string sha, string carryForwardFrom = "")
 {
     // NBomber emits `nbomber-summary.json` per run under nbomber-<timestamp>/ directories.
-    var summaryFiles = Directory.GetFiles(inputDir, "nbomber-summary.json", SearchOption.AllDirectories).ToList();
+    var summaryFiles = Directory.Exists(inputDir)
+        ? Directory.GetFiles(inputDir, "nbomber-summary.json", SearchOption.AllDirectories).ToList()
+        : new List<string>();
 
     // Additionally, console harness writes metrics-<stamp>.csv
     var metricsFiles = Directory.GetFiles(inputDir, "metrics-*.csv", SearchOption.AllDirectories).ToList();
@@ -627,23 +629,76 @@ static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObjec
         countErr++;
     }
 
+    // overall is computed AFTER carry-forward below, so it includes carried modules.
+    var modulesArray = new JsonArray();
+    foreach (var (area, list) in modulesByArea)
+    {
+        var scArray = new JsonArray();
+        foreach (var sc in list) scArray.Add(sc.ToJson());
+        modulesArray.Add(new JsonObject { ["name"] = area, ["carriedForward"] = false, ["scenarios"] = scArray });
+    }
+
+    // Phase 2.2: Carry forward modules from previous snapshot that are NOT present
+    // in this run. This handles partial workflow_dispatch runs where only some
+    // categories are enabled (e.g., only database tests, not caching/messaging).
+    int carriedForwardCount = 0;
+    if (!string.IsNullOrEmpty(carryForwardFrom) && File.Exists(carryForwardFrom))
+    {
+        try
+        {
+            var prevSnapshot = JsonNode.Parse(File.ReadAllText(carryForwardFrom));
+            var prevModules = prevSnapshot?["modules"] as JsonArray;
+            if (prevModules is not null)
+            {
+                foreach (var pm in prevModules)
+                {
+                    if (pm is not JsonObject pmObj) continue;
+                    var name = pmObj["name"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    if (modulesByArea.ContainsKey(name)) continue; // freshly measured
+
+                    var carried = (JsonObject)pmObj.DeepClone();
+                    carried["carriedForward"] = true;
+                    modulesArray.Add(carried);
+                    carriedForwardCount++;
+
+                    // Include carried-forward scenarios in overall stats
+                    var carriedScenarios = carried["scenarios"] as JsonArray;
+                    if (carriedScenarios is not null)
+                    {
+                        foreach (var cs in carriedScenarios)
+                        {
+                            totalScenarios++;
+                            var csErr = cs?["errorRate"]?.GetValue<double>() ?? 0;
+                            if (csErr < 0.01) passing++; else failing++;
+                            var csRps = cs?["rps"]?.GetValue<double>() ?? 0;
+                            var csP95 = cs?["p95Ms"]?.GetValue<double>() ?? 0;
+                            if (csRps > 0) { sumRps += csRps; countRps++; }
+                            if (csP95 > 0) { sumP95 += csP95; countP95++; }
+                            sumErr += csErr; countErr++;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to load previous snapshot for carry-forward: {ex.Message}");
+        }
+    }
+
+    // Recompute overall with carried-forward contributions
     var overall = new JsonObject
     {
         ["totalScenarios"] = totalScenarios,
+        ["freshScenarios"] = scenarios.Count,
+        ["carriedForwardModules"] = carriedForwardCount,
         ["passingScenarios"] = passing,
         ["failingScenarios"] = failing,
         ["meanThroughputOps"] = countRps > 0 ? Math.Round(sumRps / countRps, 2) : 0,
         ["meanP95Ms"] = countP95 > 0 ? Math.Round(sumP95 / countP95, 3) : 0,
         ["meanErrorRate"] = countErr > 0 ? Math.Round(sumErr / countErr, 5) : 0
     };
-
-    var modulesArray = new JsonArray();
-    foreach (var (area, list) in modulesByArea)
-    {
-        var scArray = new JsonArray();
-        foreach (var sc in list) scArray.Add(sc.ToJson());
-        modulesArray.Add(new JsonObject { ["name"] = area, ["scenarios"] = scArray });
-    }
 
     var snapshot = new JsonObject
     {
@@ -667,7 +722,8 @@ static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObjec
         new JsonObject().ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
 
     Console.WriteLine($"Load-tests snapshot written: {latestPath}");
-    Console.WriteLine($"  Scenarios: {totalScenarios} (pass: {passing}, fail: {failing})");
+    Console.WriteLine($"  Fresh: {scenarios.Count} scenarios, Carried forward: {carriedForwardCount} module(s)");
+    Console.WriteLine($"  Total: {totalScenarios} (pass: {passing}, fail: {failing})");
 }
 
 static LoadScenario? ParseLoadScenario(JsonNode node)
