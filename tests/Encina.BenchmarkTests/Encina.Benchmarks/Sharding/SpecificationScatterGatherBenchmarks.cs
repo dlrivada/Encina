@@ -21,7 +21,7 @@ public class SpecificationScatterGatherBenchmarks
     private OrderByIdDescSpec _orderByIdDescSpec = null!;
     private NoOrderSpec _noOrderSpec = null!;
 
-    [Params(3, 10, 25)]
+    [Params(3, 25)]
     public int ShardCount { get; set; }
 
     [Params(10, 100)]

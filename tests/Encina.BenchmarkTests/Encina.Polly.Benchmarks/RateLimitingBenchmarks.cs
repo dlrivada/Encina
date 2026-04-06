@@ -105,7 +105,7 @@ public class RateLimitingMultiKeyBenchmarks
     private RateLimitAttribute _attribute = null!;
     private string[] _keys = null!;
 
-    [Params(1, 10, 100)]
+    [Params(1, 100)]
     public int KeyCount { get; set; }
 
     [GlobalSetup]

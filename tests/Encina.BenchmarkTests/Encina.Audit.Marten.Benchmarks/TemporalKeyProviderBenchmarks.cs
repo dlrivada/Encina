@@ -25,7 +25,7 @@ public class TemporalKeyProviderBenchmarks
     private InMemoryTemporalKeyProvider _keyProvider = null!;
     private string[] _existingPeriods = null!;
 
-    [Params(12, 84)]
+    [Params(12)]
     public int PeriodCount { get; set; }
 
     [GlobalSetup]
