@@ -51,6 +51,9 @@ public sealed class DataResidencyHealthCheck : IHealthCheck
     /// <param name="logger">The logger instance.</param>
     public DataResidencyHealthCheck(IServiceProvider serviceProvider, ILogger<DataResidencyHealthCheck> logger)
     {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _serviceProvider = serviceProvider;
         _logger = logger;
     }

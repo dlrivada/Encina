@@ -44,6 +44,11 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
         ILogger<DataResidencyAutoRegistrationHostedService> logger,
         DataResidencyFluentPolicyDescriptor? fluentDescriptor = null)
     {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _descriptor = descriptor;
         _fluentDescriptor = fluentDescriptor;
         _options = options.Value;

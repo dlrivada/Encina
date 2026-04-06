@@ -27,6 +27,10 @@ internal sealed class DataResidencyFluentPolicyHostedService : IHostedService
         IServiceScopeFactory scopeFactory,
         ILogger<DataResidencyFluentPolicyHostedService> logger)
     {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _descriptor = descriptor;
         _scopeFactory = scopeFactory;
         _logger = logger;
