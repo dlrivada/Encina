@@ -34,6 +34,11 @@ namespace Encina.LoadTests.Security.Audit;
 public static class AuditPipelineLoadTests
 {
     /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:audit/security";
+
+    /// <summary>
     /// Runs all audit pipeline load test scenarios sequentially.
     /// </summary>
     public static async Task RunAllAsync(int workerCount = 8, TimeSpan? duration = null, int payloadSizeBytes = 1024)

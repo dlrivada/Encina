@@ -12,6 +12,11 @@ namespace Encina.NBomber.Scenarios.Database;
 /// </summary>
 public sealed class UnitOfWorkScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:database/uow";
+
     private readonly DatabaseScenarioContext _context;
 
     /// <summary>

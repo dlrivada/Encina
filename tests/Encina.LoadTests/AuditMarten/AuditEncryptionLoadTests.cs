@@ -36,6 +36,11 @@ namespace Encina.LoadTests.AuditMarten;
 public static class AuditEncryptionLoadTests
 {
     /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:audit/marten";
+
+    /// <summary>
     /// Runs the concurrent audit encryption load test with the specified parameters.
     /// </summary>
     /// <param name="workerCount">Number of concurrent workers simulating parallel command execution.</param>

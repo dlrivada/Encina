@@ -12,6 +12,11 @@ namespace Encina.NBomber.Scenarios.IdGeneration;
 /// </summary>
 public sealed class IdGenerationScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:idgen/all";
+
     private readonly IdGenerationScenarioContext _context;
     private readonly int _rate;
     private readonly TimeSpan _duration;

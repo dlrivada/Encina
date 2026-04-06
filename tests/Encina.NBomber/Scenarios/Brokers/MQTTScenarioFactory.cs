@@ -13,6 +13,11 @@ namespace Encina.NBomber.Scenarios.Brokers;
 /// </summary>
 public sealed class MQTTScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:brokers/mqtt";
+
     private readonly BrokerScenarioContext _context;
     private MQTTProviderFactory? _mqttFactory;
     private IMqttClient? _publishClient;

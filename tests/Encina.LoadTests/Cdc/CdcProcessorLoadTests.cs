@@ -42,6 +42,11 @@ namespace Encina.LoadTests.Cdc;
 public static class CdcProcessorLoadTests
 {
     /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:cdc";
+
+    /// <summary>
     /// Runs all CDC processor load test scenarios sequentially.
     /// </summary>
     public static async Task RunAllAsync(int workerCount = 8, TimeSpan? duration = null)

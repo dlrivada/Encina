@@ -18,6 +18,11 @@ namespace Encina.NBomber.Scenarios.Database;
 /// </remarks>
 public sealed class ReadWriteSeparationScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:database/readwrite";
+
     private readonly DatabaseScenarioContext _context;
     private readonly ConcurrentDictionary<string, long> _replicaDistribution = new();
 

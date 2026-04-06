@@ -13,6 +13,11 @@ namespace Encina.NBomber.Scenarios.Brokers;
 /// </summary>
 public sealed class KafkaScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:brokers/kafka";
+
     private readonly BrokerScenarioContext _context;
     private KafkaProviderFactory? _kafkaFactory;
     private IProducer<string, byte[]>? _producer;

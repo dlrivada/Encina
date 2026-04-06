@@ -13,6 +13,11 @@ namespace Encina.NBomber.Scenarios.Locking;
 /// </summary>
 public sealed class SqlServerLockScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:locking/sqlserver";
+
     private readonly LockScenarioContext _context;
     private IDistributedLockProvider? _lockProvider;
     private SqlServerLockProviderFactory? _sqlServerFactory;

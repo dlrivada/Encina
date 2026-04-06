@@ -10,6 +10,11 @@ namespace Encina.NBomber.Scenarios.Messaging;
 /// </summary>
 public sealed class InMemoryBusScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:messaging/inmemorybus";
+
     private readonly MessagingScenarioContext _context;
     private readonly ConcurrentDictionary<int, List<IDisposable>> _subscriptions = new();
     private readonly ConcurrentDictionary<int, long> _handlerExecutionCounts = new();

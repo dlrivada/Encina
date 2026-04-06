@@ -11,6 +11,11 @@ namespace Encina.NBomber.Scenarios.Caching;
 /// </summary>
 public sealed class MemoryCacheScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:caching/memory";
+
     private readonly CacheScenarioContext _context;
     private readonly ICacheProvider _cacheProvider;
     private readonly ConcurrentDictionary<string, long> _hitCounts = new();

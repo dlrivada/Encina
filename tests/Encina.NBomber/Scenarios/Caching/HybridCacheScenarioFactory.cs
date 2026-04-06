@@ -12,6 +12,11 @@ namespace Encina.NBomber.Scenarios.Caching;
 /// </summary>
 public sealed class HybridCacheScenarioFactory
 {
+    /// <summary>
+    /// DocRef identifier for load-test documentation traceability (see ADR-025).
+    /// </summary>
+    public const string DocRef = "load:caching/hybrid";
+
     private readonly CacheScenarioContext _context;
     private readonly ICacheProvider _cacheProvider;
     private readonly HybridCacheProviderFactory? _hybridFactory;
