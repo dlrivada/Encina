@@ -53,6 +53,9 @@ public sealed class CrossBorderTransferHealthCheck : IHealthCheck
     /// <param name="logger">The logger instance.</param>
     public CrossBorderTransferHealthCheck(IServiceProvider serviceProvider, ILogger<CrossBorderTransferHealthCheck> logger)
     {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
