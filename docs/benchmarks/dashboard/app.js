@@ -10,11 +10,13 @@
   const DATA_URL = '../data/latest.json';
   const HISTORY_URL = '../data/history.json';
   const DOCREF_URL = '../data/docref-index.json';
+  const CITED_BY_URL = '../data/cited-by.json';
 
   let state = {
     latest: null,
     history: [],
     docrefIndex: {},
+    citedBy: {},
     moduleFilter: 'all',
     searchTerm: '',
     showUnstable: true,
@@ -24,10 +26,11 @@
 
   async function boot() {
     try {
-      const [latest, history, docref] = await Promise.all([
+      const [latest, history, docref, citedBy] = await Promise.all([
         fetch(DATA_URL).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(HISTORY_URL).then(r => r.ok ? r.json() : []).catch(() => []),
-        fetch(DOCREF_URL).then(r => r.ok ? r.json() : {}).catch(() => ({}))
+        fetch(DOCREF_URL).then(r => r.ok ? r.json() : {}).catch(() => ({})),
+        fetch(CITED_BY_URL).then(r => r.ok ? r.json() : {}).catch(() => ({}))
       ]);
 
       if (!latest) {
@@ -38,6 +41,7 @@
       state.latest = latest;
       state.history = Array.isArray(history) ? history : [];
       state.docrefIndex = docref || {};
+      state.citedBy = citedBy || {};
 
       renderHeader();
       renderOverall();
@@ -246,6 +250,15 @@
     const docRefCell = r.docRef
       ? `<code class="docref">${escape(r.docRef)}</code>`
       : '<span class="muted">—</span>';
+    // Phase 4.1 — "Cited in" column: show which docs reference this DocRef
+    const citations = r.docRef ? (state.citedBy[r.docRef] || []) : [];
+    const citedInCell = citations.length > 0
+      ? citations.map(loc => {
+          const [file] = loc.split(':');
+          const shortName = file.split('/').pop().replace('.md', '');
+          return `<a href="../../${file}" title="${escape(loc)}">${escape(shortName)}</a>`;
+        }).join(', ')
+      : '<span class="muted">—</span>';
     return `<tr class="${r.stable ? '' : 'row-unstable'}">
       <td>${escape(r.module)}</td>
       <td>${escape(r.class)}</td>
@@ -260,6 +273,7 @@
       <td class="num">${r.n}</td>
       <td>${stableCell}</td>
       <td>${docRefCell}</td>
+      <td>${citedInCell}</td>
     </tr>`;
   }
 
@@ -295,10 +309,11 @@
 
     document.getElementById('copy-table').addEventListener('click', () => {
       const rows = flatten(state.latest.modules || []);
-      const header = ['Module', 'Class', 'Method', 'Params', 'Mean (ns)', 'Median (ns)', 'StdDev (ns)', 'CoV', 'Allocated (B)', 'N', 'Stable', 'DocRef'];
+      const header = ['Module', 'Class', 'Method', 'Params', 'Mean (ns)', 'Median (ns)', 'StdDev (ns)', 'CoV', 'Allocated (B)', 'N', 'Stable', 'DocRef', 'Cited in'];
       const lines = [header.join('\t')];
       for (const r of rows) {
-        lines.push([r.module, r.class, r.method, r.params, r.mean, r.median, r.stddev, (r.cov * 100).toFixed(2) + '%', r.allocated, r.n, r.stable, r.docRef].join('\t'));
+        const citations = r.docRef ? (state.citedBy[r.docRef] || []).map(l => l.split(':')[0]).join('; ') : '';
+        lines.push([r.module, r.class, r.method, r.params, r.mean, r.median, r.stddev, (r.cov * 100).toFixed(2) + '%', r.allocated, r.n, r.stable, r.docRef, citations].join('\t'));
       }
       navigator.clipboard.writeText(lines.join('\n')).then(() => {
         const btn = document.getElementById('copy-table');
