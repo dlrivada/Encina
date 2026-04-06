@@ -1,12 +1,250 @@
 {
-  "Benchmarks": {
-    "Send_Command_WithInstrumentation": {
-      "MaxMeanMicroseconds": 4.0,
-      "MaxAllocatedKb": 6.0
+  "$schema": "Hierarchical benchmark thresholds — mirrors the nbomber-*-thresholds.json pattern. See ADR-025 and performance-measurement-methodology.md.",
+  "description": "Performance thresholds for BenchmarkDotNet microbenchmarks. Values marked TBD will be calibrated from the first weekly 'short' run with real N>10 data.",
+
+  "global": {
+    "maxMeanNs": null,
+    "maxAllocatedBytes": null,
+    "maxCov": 0.10,
+    "minN": 10,
+    "description": "Global defaults. maxCov=10% is the stability threshold from the methodology doc. Benchmarks exceeding it are flagged Unstable."
+  },
+
+  "categoryThresholds": {
+    "mediator": {
+      "description": "Core mediator pipeline — hot path, single-digit microseconds expected",
+      "methods": {
+        "Send_Command_WithInstrumentation": {
+          "docRef": "bench:mediator/send-command",
+          "maxMeanNs": 4000,
+          "maxAllocatedBytes": 6144,
+          "description": "Single handler dispatch with DI resolution + OTel span"
+        },
+        "Publish_Notification_WithMultipleHandlers": {
+          "docRef": "bench:mediator/publish-notification",
+          "maxMeanNs": 3500,
+          "maxAllocatedBytes": 4096,
+          "description": "Fan-out to multiple notification handlers"
+        }
+      }
     },
-    "Publish_Notification_WithMultipleHandlers": {
-      "MaxMeanMicroseconds": 3.5,
-      "MaxAllocatedKb": 4.0
+
+    "delegates": {
+      "description": "Delegate invocation strategies — nanosecond-level overhead comparison",
+      "methods": {
+        "DirectCall": {
+          "docRef": "bench:delegates/direct-call",
+          "maxMeanNs": 50,
+          "maxAllocatedBytes": 0,
+          "description": "Baseline: direct method call"
+        },
+        "CompiledDelegate": {
+          "docRef": "bench:delegates/compiled-delegate",
+          "maxMeanNs": 50,
+          "maxAllocatedBytes": 0,
+          "description": "Compiled expression tree delegate — must be within 2x of DirectCall"
+        },
+        "ExpressionCompilation": {
+          "docRef": "bench:delegates/expression-compilation",
+          "maxMeanNs": 100000,
+          "maxAllocatedBytes": 20480,
+          "description": "One-time compilation cost — acceptable up to 100us"
+        }
+      }
+    },
+
+    "cache": {
+      "description": "Handler/query cache lookup — nanosecond-level for TryGetValue",
+      "methods": {
+        "Cache_GetOrAdd_Direct": {
+          "docRef": "bench:cache/get-or-add-direct",
+          "maxMeanNs": 20,
+          "maxAllocatedBytes": 0,
+          "description": "ConcurrentDictionary TryGetValue hot path"
+        },
+        "Send_Command_CacheHit": {
+          "docRef": "bench:cache/command-hit",
+          "maxMeanNs": 2000,
+          "maxAllocatedBytes": 4096,
+          "description": "Full Send with cached handler resolution"
+        }
+      }
+    },
+
+    "validation": {
+      "description": "Validation provider comparison — equivalent latency expected across providers",
+      "methods": {
+        "FluentValidation_ValidCommand": {
+          "docRef": "bench:validation/fluent-validation",
+          "maxMeanNs": 3000,
+          "maxAllocatedBytes": 4096,
+          "description": "FluentValidation — should be within 20% of other providers"
+        },
+        "DataAnnotations_ValidCommand": {
+          "docRef": "bench:validation/data-annotations",
+          "maxMeanNs": 3000,
+          "maxAllocatedBytes": 4096
+        },
+        "MiniValidator_ValidCommand": {
+          "docRef": "bench:validation/mini-validator",
+          "maxMeanNs": 3000,
+          "maxAllocatedBytes": 4096
+        }
+      }
+    },
+
+    "read-write": {
+      "description": "Replica selection algorithms — nanosecond-level overhead",
+      "methods": {
+        "RoundRobin_SelectReplica": {
+          "docRef": "bench:read-write/roundrobin-select",
+          "maxMeanNs": 20,
+          "maxAllocatedBytes": 0,
+          "description": "Interlocked.Increment — should be less than 20ns"
+        },
+        "Random_SelectReplica": {
+          "docRef": "bench:read-write/random-select",
+          "maxMeanNs": 10,
+          "maxAllocatedBytes": 0
+        },
+        "LeastConnections_SelectReplica": {
+          "docRef": "bench:read-write/least-connections-select",
+          "maxMeanNs": 200,
+          "maxAllocatedBytes": 0,
+          "description": "Lock + ConcurrentDictionary — higher but still sub-microsecond"
+        }
+      }
+    },
+
+    "polly": {
+      "description": "Resilience policy overhead — should be negligible vs no-policy baseline",
+      "methods": {
+        "NoRetryAttribute_Baseline": {
+          "docRef": "bench:polly/retry-baseline",
+          "maxMeanNs": 500,
+          "maxAllocatedBytes": 2048,
+          "description": "Baseline without any Polly attribute"
+        },
+        "WithRetryAttribute_NoActualRetries": {
+          "docRef": "bench:polly/retry-with-attribute",
+          "maxMeanNs": 600,
+          "maxAllocatedBytes": 2048,
+          "description": "Must be within 20% of baseline (retry path not triggered)"
+        },
+        "AcquireAsync_SimpleRateLimiting": {
+          "docRef": "bench:polly/rate-limiting-simple",
+          "maxMeanNs": 5000,
+          "maxAllocatedBytes": 2048
+        }
+      }
+    },
+
+    "audit-marten": {
+      "description": "Temporal encryption for audit events — AES-256-GCM performance",
+      "methods": {
+        "Encrypt_Short_16B": {
+          "docRef": "bench:audit-marten/encrypt-short-16b",
+          "maxMeanNs": 2000,
+          "maxAllocatedBytes": 4096,
+          "description": "Short payload encryption — baseline for overhead measurement"
+        },
+        "GetExistingKey": {
+          "docRef": "bench:audit-marten/key-lookup-get-existing",
+          "maxMeanNs": 200,
+          "maxAllocatedBytes": 0,
+          "description": "In-memory key lookup — must be sub-microsecond"
+        },
+        "EncryptAuditEntry_Full_AllPii": {
+          "docRef": "bench:audit-marten/encryptor-full-allpii",
+          "maxMeanNs": 20000,
+          "maxAllocatedBytes": 16384,
+          "description": "Full entry with 6 PII fields — encryption less than 1% of DB IO cost"
+        }
+      }
+    },
+
+    "security-encryption": {
+      "description": "AES-256-GCM field encryption — sub-microsecond for short strings",
+      "methods": {
+        "EncryptString_Short": {
+          "docRef": "bench:security/encrypt-string-short",
+          "maxMeanNs": 3000,
+          "maxAllocatedBytes": 2048
+        },
+        "DecryptString_Short": {
+          "docRef": "bench:security/decrypt-string-short",
+          "maxMeanNs": 2000,
+          "maxAllocatedBytes": 2048
+        }
+      }
+    },
+
+    "security-antitampering": {
+      "description": "HMAC signing/verification — sub-microsecond for small payloads",
+      "methods": {
+        "Sign_SHA256_SmallPayload": {
+          "docRef": "bench:security/sign-sha256-small",
+          "maxMeanNs": 2000,
+          "maxAllocatedBytes": 2048
+        },
+        "SignAndVerify_Roundtrip": {
+          "docRef": "bench:security/sign-verify-roundtrip",
+          "maxMeanNs": 3000,
+          "maxAllocatedBytes": 4096
+        }
+      }
+    },
+
+    "security-sanitization": {
+      "description": "Output encoding — nanosecond-level for safe text, sub-microsecond for special chars",
+      "methods": {
+        "EncodeForHtml_SafeText": {
+          "docRef": "bench:security/html-safe",
+          "maxMeanNs": 20,
+          "maxAllocatedBytes": 0,
+          "description": "Safe text passthrough — near-zero overhead"
+        },
+        "EncodeForHtml_SpecialChars": {
+          "docRef": "bench:security/html-special-chars",
+          "maxMeanNs": 300,
+          "maxAllocatedBytes": 512
+        }
+      }
+    },
+
+    "security-pii": {
+      "description": "PII masking — sub-microsecond per field, about 2us for multi-field objects",
+      "methods": {
+        "Mask_Email": {
+          "docRef": "bench:security/email-partial",
+          "maxMeanNs": 100,
+          "maxAllocatedBytes": 256
+        },
+        "MaskObject_MultiField": {
+          "docRef": "bench:security/mask-multi-field",
+          "maxMeanNs": 5000,
+          "maxAllocatedBytes": 4096,
+          "description": "4-field object masking — the documented 2.1us headline"
+        }
+      }
+    },
+
+    "inbox-efcore": {
+      "description": "EF Core inbox store — higher latency due to DbContext overhead",
+      "methods": {
+        "AddMessage": {
+          "docRef": "bench:inbox-efcore/add-single",
+          "maxMeanNs": 300000,
+          "maxAllocatedBytes": 32768,
+          "description": "Single message add via EF Core — includes change tracking"
+        }
+      }
     }
+  },
+
+  "_notes": {
+    "TBD_calibration": "Values are initial estimates based on dry-mode data and existing documentation. After the first weekly short run produces N>10 data, run: dotnet run .github/scripts/check-benchmarks.cs to validate these thresholds and adjust where needed.",
+    "threshold_policy": "Thresholds represent the MAXIMUM acceptable value. A benchmark exceeding its threshold is a regression. Thresholds should be about 2x the typical measured value to allow for cloud-runner variance.",
+    "methodology_reference": "See docs/testing/performance-measurement-methodology.md for CoV, CI99, and regression detection formulas."
   }
 }
