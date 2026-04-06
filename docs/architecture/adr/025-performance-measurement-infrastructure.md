@@ -117,7 +117,7 @@ This is one of the "particular formulas" Encina adopts because off-the-shelf too
 
 ### 4. Traceability via DocRef identifiers
 
-Every benchmark method and load-test scenario that is cited in documentation carries a hierarchical identifier of the form `bench:<area>/<name>` or `load:<area>/<name>`. Example: `bench:mediator/send-command`, `load:caching/redis-throughput`. The identifier is expressed as a `[BenchmarkCategory("DocRef:<id>")]` attribute on the method (for BenchmarkDotNet) or as a scenario constant (for NBomber).
+Every benchmark method and load-test scenario that is cited in documentation carries a hierarchical identifier of the form `bench:<area>/<name>` or `load:<area>/<name>`. Example: `bench:mediator/send-command`, `load:caching/redis`. The identifier is expressed as a `[BenchmarkCategory("DocRef:<id>")]` attribute on the method (for BenchmarkDotNet) or as a scenario constant (for NBomber).
 
 Documentation cites a measurement by its identifier. `perf-report.cs` emits a `docref-index.json` that maps each DocRef to the current value, standard deviation, and dashboard deep-link. The Markdown-generation step (`perf-docs-render.cs`) reads this index and regenerates citation fragments in place, keeping documentation automatically synchronized with the latest data.
 

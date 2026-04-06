@@ -186,12 +186,12 @@ Examples:
 
 - `bench:mediator/send-command` — Mediator.Send measured in Encina.Benchmarks
 - `bench:mediator/publish-notification`
-- `bench:caching/memory-get-hit`
-- `bench:stores/outbox-add-single`
-- `bench:security/encrypt-aes-short`
-- `load:caching/redis-throughput`
-- `load:messaging/inmemory-burst`
-- `load:database/efcore-postgresql-uow`
+- `bench:cache/command-hit`
+- `bench:mediator/send-command`
+- `bench:security/encrypt-string-short`
+- `load:caching/redis`
+- `load:messaging/inmemorybus`
+- `load:database/uow`
 
 The identifier is attached to benchmarks via `[BenchmarkCategory("DocRef:bench:mediator/send-command")]` and to NBomber scenarios via a constant on the scenario class. The `perf-report.cs` generator reads these annotations and builds a reverse index mapping every DocRef to its current value, uncertainty, dashboard URL, and list of citing documents.
 
