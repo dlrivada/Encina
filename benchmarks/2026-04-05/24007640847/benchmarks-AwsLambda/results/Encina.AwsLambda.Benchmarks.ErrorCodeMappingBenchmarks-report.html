@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.AwsLambda.Benchmarks.ErrorCodeMappingBenchmarks-20260405-182701</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>RunStrategy</th><th>UnrollFactor</th><th>WarmupCount</th><th>Mean   </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>MapValidationError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>11.16 ns</td><td>0.020 ns</td><td>0.017 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationUnauthenticated</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>16.30 ns</td><td>0.064 ns</td><td>0.057 ns</td><td>1.46</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>18.40 ns</td><td>0.013 ns</td><td>0.012 ns</td><td>1.65</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>12.44 ns</td><td>0.018 ns</td><td>0.016 ns</td><td>1.11</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>13.73 ns</td><td>0.020 ns</td><td>0.018 ns</td><td>1.23</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>14.97 ns</td><td>0.013 ns</td><td>0.012 ns</td><td>1.34</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>61.61 ns</td><td>0.145 ns</td><td>0.121 ns</td><td>5.52</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16</td><td>Default</td><td>70.65 ns</td><td>0.067 ns</td><td>0.059 ns</td><td>6.33</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>884,426.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationUnauthenticated</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>911,697.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.03</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>889,245.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>889,887.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>880,860.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>887,321.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>993,319.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.12</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>937,515.00 ns</td><td>NA</td><td>0.000 ns</td><td>1.06</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

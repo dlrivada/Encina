@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Messaging.Encryption.Benchmarks.PayloadFormatterBenchmarks-20260405-182623</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method</th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>RunStrategy</th><th>UnrollFactor</th><th>WarmupCount</th><th>Mean       </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Format</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>388.6432 ns</td><td>4.1617 ns</td><td>2.4766 ns</td><td>1.000</td><td>0.01</td><td>0.1016</td><td>1704 B</td><td>1.00</td>
+</tr><tr><td>TryParse</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>1,207.9838 ns</td><td>9.6054 ns</td><td>6.3534 ns</td><td>3.108</td><td>0.02</td><td>0.1106</td><td>1872 B</td><td>1.10</td>
+</tr><tr><td>IsEncrypted</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>0.5242 ns</td><td>0.0212 ns</td><td>0.0140 ns</td><td>0.001</td><td>0.00</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>Roundtrip</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>1,636.6077 ns</td><td>14.2246 ns</td><td>7.4397 ns</td><td>4.211</td><td>0.03</td><td>0.2136</td><td>3576 B</td><td>2.10</td>
+</tr><tr><td>Format</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>297,327.0000 ns</td><td>NA</td><td>0.0000 ns</td><td>1.00</td><td>0.00</td><td>-</td><td>1704 B</td><td>1.00</td>
+</tr><tr><td>TryParse</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>1,194,979.0000 ns</td><td>NA</td><td>0.0000 ns</td><td>4.02</td><td>0.00</td><td>-</td><td>1872 B</td><td>1.10</td>
+</tr><tr><td>IsEncrypted</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>359,864.0000 ns</td><td>NA</td><td>0.0000 ns</td><td>1.21</td><td>0.00</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>Roundtrip</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>1,157,449.0000 ns</td><td>NA</td><td>0.0000 ns</td><td>3.89</td><td>0.00</td><td>-</td><td>3576 B</td><td>2.10</td>
+</tr></tbody></table>
+</body>
+</html>
