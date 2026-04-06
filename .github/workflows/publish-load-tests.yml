@@ -96,14 +96,33 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate load-test report
+      - name: Fetch previous snapshot for carry-forward
+        run: |
+          # When a load-test run only exercises SOME categories (e.g., workflow_dispatch
+          # with only database tests enabled), the missing categories would disappear
+          # from the dashboard. Carry-forward copies them from the previous snapshot
+          # so the dashboard always shows the complete picture.
+          mkdir -p artifacts/perf-previous
+          if curl -fsSL -o artifacts/perf-previous/latest.json \
+              "https://dlrivada.github.io/Encina/load-tests/data/latest.json" 2>/dev/null; then
+            echo "Fetched previous snapshot from Pages."
+          elif [ -f docs/load-tests/data/latest.json ]; then
+            cp docs/load-tests/data/latest.json artifacts/perf-previous/latest.json
+            echo "Using repo copy of latest.json."
+          else
+            echo "No previous snapshot — first run."
+            echo "{}" > artifacts/perf-previous/latest.json
+          fi
+
+      - name: Generate load-test report with carry-forward
         run: |
           dotnet run .github/scripts/perf-report.cs -- \
             --kind load-tests \
             --input artifacts/load-tests-raw \
             --output artifacts/perf-output \
             --run-id ${{ steps.resolve.outputs.run_id }} \
-            --sha ${{ github.sha }}
+            --sha ${{ github.sha }} \
+            --carry-forward-from artifacts/perf-previous/latest.json
 
       - name: Update docs/load-tests/data
         run: |
