@@ -230,7 +230,9 @@ jobs:
     needs: determine-matrix
     if: needs.determine-matrix.outputs.matrix_count != '0'
     runs-on: ${{ matrix.project.os }}
-    timeout-minutes: 30
+    # 30 min suffices for dry/short; medium needs up to 60 min for classes with
+    # many [Params] combinations (e.g., SpecificationEvaluatorBenchmarks × CriteriaCount).
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 30   # Cap concurrency so we don't exhaust the free-tier runner pool

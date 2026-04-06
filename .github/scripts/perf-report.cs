@@ -519,9 +519,10 @@ static BenchmarkEntry? ParseBenchmarkEntry(JsonNode node)
         entry.Gen2 = (int)GetDouble(memory, "Gen2Collections");
     }
 
-    // Stability (CoV = StdDev/Mean)
-    entry.Cov = mean > 0 ? stdDev / mean : double.PositiveInfinity;
-    entry.Stable = entry.Cov <= StabilityCoVThreshold && n >= 3;
+    // Stability (CoV = StdDev/Mean). Use 0 for degenerate cases (mean=0) instead
+    // of Infinity, which crashes JSON serialization.
+    entry.Cov = mean > 0 ? stdDev / mean : 0;
+    entry.Stable = mean > 0 && entry.Cov <= StabilityCoVThreshold && n >= 3;
 
     // 99% confidence interval (approximation using z=2.576 when N is not tiny;
     // for strictly correct values use Student's t distribution per N. The
@@ -895,21 +896,25 @@ sealed class BenchmarkEntry
         ["fullName"] = FullName,
         ["parameters"] = Parameters,
         ["docRef"] = DocRef,
-        ["meanNs"] = Math.Round(MeanNs, 3),
-        ["medianNs"] = Math.Round(MedianNs, 3),
-        ["stdDevNs"] = Math.Round(StdDevNs, 3),
-        ["minNs"] = Math.Round(MinNs, 3),
-        ["maxNs"] = Math.Round(MaxNs, 3),
-        ["ci99LowerNs"] = Math.Round(CI99LowerNs, 3),
-        ["ci99UpperNs"] = Math.Round(CI99UpperNs, 3),
+        ["meanNs"] = Safe(MeanNs, 3),
+        ["medianNs"] = Safe(MedianNs, 3),
+        ["stdDevNs"] = Safe(StdDevNs, 3),
+        ["minNs"] = Safe(MinNs, 3),
+        ["maxNs"] = Safe(MaxNs, 3),
+        ["ci99LowerNs"] = Safe(CI99LowerNs, 3),
+        ["ci99UpperNs"] = Safe(CI99UpperNs, 3),
         ["n"] = N,
-        ["allocatedBytes"] = Math.Round(AllocatedBytes, 3),
+        ["allocatedBytes"] = Safe(AllocatedBytes, 3),
         ["gen0"] = Gen0,
         ["gen1"] = Gen1,
         ["gen2"] = Gen2,
-        ["cov"] = Math.Round(Cov, 4),
+        ["cov"] = Safe(Cov, 4),
         ["stable"] = Stable
     };
+
+    /// <summary>Round and sanitize: NaN/Infinity → 0 (JSON does not support named floats).</summary>
+    private static double Safe(double v, int digits) =>
+        double.IsNaN(v) || double.IsInfinity(v) ? 0 : Math.Round(v, digits);
 }
 
 sealed class LoadScenario
