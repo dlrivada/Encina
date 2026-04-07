@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20260407-083759</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean   </th><th>Error   </th><th>StdDev </th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>4.187 &mu;s</td><td>0.9219 &mu;s</td><td>0.0505 &mu;s</td><td>0.001</td><td>0.00</td><td>1</td><td>0.2975</td><td>4.92 KB</td><td>0.50</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>14.730 &mu;s</td><td>33.5884 &mu;s</td><td>1.8411 &mu;s</td><td>0.002</td><td>0.00</td><td>2</td><td>0.6409</td><td>10.61 KB</td><td>1.08</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>6,299.891 &mu;s</td><td>9,343.5718 &mu;s</td><td>512.1527 &mu;s</td><td>1.005</td><td>0.10</td><td>3</td><td>-</td><td>9.83 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>10,782.052 &mu;s</td><td>6,337.9292 &mu;s</td><td>347.4033 &mu;s</td><td>1.719</td><td>0.13</td><td>4</td><td>-</td><td>97.79 KB</td><td>9.94</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>44,901.568 &mu;s</td><td>28,856.2236 &mu;s</td><td>1,581.7070 &mu;s</td><td>7.160</td><td>0.57</td><td>5</td><td>-</td><td>47.71 KB</td><td>4.85</td>
+</tr></tbody></table>
+</body>
+</html>
