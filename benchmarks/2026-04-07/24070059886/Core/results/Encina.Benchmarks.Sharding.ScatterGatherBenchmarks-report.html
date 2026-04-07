@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ScatterGatherBenchmarks-20260407-074904</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>ShardCount</th><th>Mean</th><th>Error</th><th>Ratio</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Scatter-gather all shards (sync result)&#39;</td><td>3</td><td>40.163 ms</td><td>NA</td><td>1.00</td><td>5</td><td>3648 B</td><td>1.00</td>
+</tr><tr><td>&#39;Scatter-gather subset (3 shards)&#39;</td><td>3</td><td>39.263 ms</td><td>NA</td><td>0.98</td><td>3</td><td>3704 B</td><td>1.02</td>
+</tr><tr><td>&#39;Scatter-gather with large results&#39;</td><td>3</td><td>40.124 ms</td><td>NA</td><td>1.00</td><td>4</td><td>28704 B</td><td>7.87</td>
+</tr><tr><td>&#39;Scatter-gather single shard&#39;</td><td>3</td><td>38.884 ms</td><td>NA</td><td>0.97</td><td>2</td><td>2328 B</td><td>0.64</td>
+</tr><tr><td>&#39;Topology lookup all shards&#39;</td><td>3</td><td>1.126 ms</td><td>NA</td><td>0.03</td><td>1</td><td>104 B</td><td>0.03</td>
+</tr><tr><td>&#39;Scatter-gather all shards (sync result)&#39;</td><td>25</td><td>39.103 ms</td><td>NA</td><td>1.00</td><td>3</td><td>19464 B</td><td>1.00</td>
+</tr><tr><td>&#39;Scatter-gather subset (3 shards)&#39;</td><td>25</td><td>39.000 ms</td><td>NA</td><td>1.00</td><td>2</td><td>16216 B</td><td>0.83</td>
+</tr><tr><td>&#39;Scatter-gather with large results&#39;</td><td>25</td><td>41.877 ms</td><td>NA</td><td>1.07</td><td>5</td><td>242952 B</td><td>12.48</td>
+</tr><tr><td>&#39;Scatter-gather single shard&#39;</td><td>25</td><td>40.148 ms</td><td>NA</td><td>1.03</td><td>4</td><td>2504 B</td><td>0.13</td>
+</tr><tr><td>&#39;Topology lookup all shards&#39;</td><td>25</td><td>1.131 ms</td><td>NA</td><td>0.03</td><td>1</td><td>280 B</td><td>0.01</td>
+</tr></tbody></table>
+</body>
+</html>

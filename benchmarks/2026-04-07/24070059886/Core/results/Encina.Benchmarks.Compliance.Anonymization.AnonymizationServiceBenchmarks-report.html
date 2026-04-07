@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.Anonymization.AnonymizationServiceBenchmarks-20260407-074321</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Mean</th><th>Error</th><th>Ratio</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Tokenize: UUID format&#39;</td><td>53.99 ms</td><td>NA</td><td>1.00</td><td>7</td><td>3808 B</td><td>1.00</td>
+</tr><tr><td>&#39;Tokenize: prefixed format&#39;</td><td>53.48 ms</td><td>NA</td><td>0.99</td><td>6</td><td>3896 B</td><td>1.02</td>
+</tr><tr><td>&#39;Pseudonymize: AES-256-GCM&#39;</td><td>16.59 ms</td><td>NA</td><td>0.31</td><td>2</td><td>856 B</td><td>0.22</td>
+</tr><tr><td>&#39;Pseudonymize: HMAC-SHA256&#39;</td><td>15.35 ms</td><td>NA</td><td>0.28</td><td>1</td><td>384 B</td><td>0.10</td>
+</tr><tr><td>&#39;Pseudonymize + Depseudonymize roundtrip&#39;</td><td>21.06 ms</td><td>NA</td><td>0.39</td><td>4</td><td>1312 B</td><td>0.34</td>
+</tr><tr><td>&#39;Anonymize: data masking (2 fields)&#39;</td><td>18.60 ms</td><td>NA</td><td>0.34</td><td>3</td><td>11760 B</td><td>3.09</td>
+</tr><tr><td>&#39;Risk assessment: 100-record dataset&#39;</td><td>26.81 ms</td><td>NA</td><td>0.50</td><td>5</td><td>291296 B</td><td>76.50</td>
+</tr></tbody></table>
+</body>
+</html>

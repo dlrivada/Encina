@@ -1,0 +1,38 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+
+```
+| Method              | Job        | IterationCount | LaunchCount | RunStrategy | UnrollFactor | WarmupCount | Mean             | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|-------------------- |----------- |--------------- |------------ |------------ |------------- |------------ |-----------------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
+| Email_Partial       | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |         93.01 ns | 0.322 ns | 0.213 ns |  1.00 |    0.00 | 0.0134 |     224 B |        1.00 |
+| Phone_Partial       | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        400.42 ns | 1.073 ns | 0.639 ns |  4.30 |    0.01 | 0.0310 |     520 B |        2.32 |
+| CreditCard_Partial  | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        470.28 ns | 0.683 ns | 0.406 ns |  5.06 |    0.01 | 0.0324 |     544 B |        2.43 |
+| SSN_Partial         | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        387.39 ns | 4.125 ns | 2.728 ns |  4.16 |    0.03 | 0.0310 |     520 B |        2.32 |
+| Name_Partial        | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        173.87 ns | 0.710 ns | 0.470 ns |  1.87 |    0.01 | 0.0167 |     280 B |        1.25 |
+| Address_Partial     | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        115.42 ns | 0.712 ns | 0.471 ns |  1.24 |    0.01 | 0.0196 |     328 B |        1.46 |
+| DateOfBirth_Partial | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        210.16 ns | 0.469 ns | 0.310 ns |  2.26 |    0.01 | 0.0229 |     384 B |        1.71 |
+| IPAddress_Partial   | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        173.94 ns | 0.606 ns | 0.401 ns |  1.87 |    0.01 | 0.0157 |     264 B |        1.18 |
+| Custom_FullMasking  | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |         51.74 ns | 0.273 ns | 0.163 ns |  0.56 |    0.00 | 0.0076 |     128 B |        0.57 |
+| Email_Short         | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |         67.51 ns | 0.154 ns | 0.080 ns |  0.73 |    0.00 | 0.0076 |     128 B |        0.57 |
+| Email_Long          | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        100.10 ns | 0.666 ns | 0.441 ns |  1.08 |    0.01 | 0.0196 |     328 B |        1.46 |
+| RegexPattern        | Job-YFEFPZ | 10             | Default     | Default     | 16           | 3           |        607.34 ns | 1.829 ns | 0.957 ns |  6.53 |    0.02 | 0.0248 |     416 B |        1.86 |
+|                     |            |                |             |             |              |             |                  |          |          |       |         |        |           |             |
+| Email_Partial       | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  3,707,327.00 ns |       NA | 0.000 ns |  1.00 |    0.00 |      - |     224 B |        1.00 |
+| Phone_Partial       | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  4,706,794.00 ns |       NA | 0.000 ns |  1.27 |    0.00 |      - |     520 B |        2.32 |
+| CreditCard_Partial  | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  4,744,114.00 ns |       NA | 0.000 ns |  1.28 |    0.00 |      - |     544 B |        2.43 |
+| SSN_Partial         | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  4,698,359.00 ns |       NA | 0.000 ns |  1.27 |    0.00 |      - |     520 B |        2.32 |
+| Name_Partial        | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  4,046,320.00 ns |       NA | 0.000 ns |  1.09 |    0.00 |      - |     280 B |        1.25 |
+| Address_Partial     | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  3,216,816.00 ns |       NA | 0.000 ns |  0.87 |    0.00 |      - |     328 B |        1.46 |
+| DateOfBirth_Partial | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  5,203,786.00 ns |       NA | 0.000 ns |  1.40 |    0.00 |      - |     384 B |        1.71 |
+| IPAddress_Partial   | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  4,359,550.00 ns |       NA | 0.000 ns |  1.18 |    0.00 |      - |     264 B |        1.18 |
+| Custom_FullMasking  | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  3,533,558.00 ns |       NA | 0.000 ns |  0.95 |    0.00 |      - |     128 B |        0.57 |
+| Email_Short         | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  3,693,627.00 ns |       NA | 0.000 ns |  1.00 |    0.00 |      - |     128 B |        0.57 |
+| Email_Long          | Dry        | 1              | 1           | ColdStart   | 1            | 1           |  3,649,515.00 ns |       NA | 0.000 ns |  0.98 |    0.00 |      - |     328 B |        1.46 |
+| RegexPattern        | Dry        | 1              | 1           | ColdStart   | 1            | 1           | 14,892,247.00 ns |       NA | 0.000 ns |  4.02 |    0.00 |      - |     416 B |        1.86 |
