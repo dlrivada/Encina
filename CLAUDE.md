@@ -594,7 +594,7 @@ Maintain high-quality test coverage that balances thoroughness with development 
 
 2. **CI Full** runs each test project separately (`Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`) and collects Cobertura XML coverage per flag.
 
-3. **Coverage report** (`coverage-report.cs`): For each source file, counts executable lines covered by each applicable flag. A file with 100 lines and 3 applicable flags has 300 obligations. Combined coverage = obligations met / total obligations.
+3. **Coverage report** (`coverage-report.cs`): For each source file, counts coverable lines **per flag independently**. The number of coverable lines differs per flag because each test type exercises different code paths — POCO properties, infrastructure glue, business rules, and guard clauses have different coverability per test type. For a file with flags U+G+C, the obligations are A+B+C where A, B, C are the coverable lines for each flag (NOT the same value repeated). Example: a file might have 200 unit-coverable lines, 150 guard-coverable lines, and 80 contract-coverable lines = 430 total obligations.
 
 4. **Dashboard** (`dlrivada.github.io/Encina/coverage/`): Shows per-package per-flag coverage. A package is "green" only when ALL applicable flags reach their targets.
 
