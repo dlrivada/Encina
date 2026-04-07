@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Polly.Benchmarks.CircuitBreakerBenchmarks-20260407-090307</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-NTRUNJ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry        : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                           </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>RunStrategy</th><th>UnrollFactor</th><th>WarmupCount</th><th>Mean     </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>NoCircuitBreakerAttribute_Baseline</td><td>Job-NTRUNJ</td><td>5</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>786.3 ns</td><td>34.67 ns</td><td>5.36 ns</td><td>1.00</td><td>0.0534</td><td>904 B</td><td>1.00</td>
+</tr><tr><td>WithCircuitBreakerAttribute_ClosedState</td><td>Job-NTRUNJ</td><td>5</td><td>Default</td><td>Default</td><td>16</td><td>3</td><td>767.4 ns</td><td>13.73 ns</td><td>3.56 ns</td><td>0.98</td><td>0.0534</td><td>896 B</td><td>0.99</td>
+</tr><tr><td>NoCircuitBreakerAttribute_Baseline</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>52,250,823.0 ns</td><td>NA</td><td>0.00 ns</td><td>1.00</td><td>-</td><td>1656 B</td><td>1.00</td>
+</tr><tr><td>WithCircuitBreakerAttribute_ClosedState</td><td>Dry</td><td>1</td><td>1</td><td>ColdStart</td><td>1</td><td>1</td><td>43,145,341.0 ns</td><td>NA</td><td>0.00 ns</td><td>0.83</td><td>-</td><td>1640 B</td><td>0.99</td>
+</tr></tbody></table>
+</body>
+</html>

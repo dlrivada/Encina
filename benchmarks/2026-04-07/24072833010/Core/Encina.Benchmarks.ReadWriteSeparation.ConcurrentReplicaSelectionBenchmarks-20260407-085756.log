@@ -1,0 +1,821 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 16 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/publish/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1
+// command took 3.81 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/publish/" --output "/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1
+// command took 216.35 sec and exited with 0
+// ***** Done, took 00:03:40 (220.3 sec)   *****
+// Found 16 benchmarks:
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+//   ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections_WithLease(ThreadCount: 1)" --job Dry --benchmarkId 0 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 9388747.00 ns, 9.3887 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 9388747.00 ns, 9.3887 ms/op
+// GC:  0 0 0 33504 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3972 has exited with code 0.
+
+Mean = 9.389 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.389 ms, Q1 = 9.389 ms, Median = 9.389 ms, Q3 = 9.389 ms, Max = 9.389 ms
+IQR = 0.000 ms, LowerFence = 9.389 ms, UpperFence = 9.389 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 15 (93.8 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections_WithLease(ThreadCount: 4)" --job Dry --benchmarkId 1 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 11454772.00 ns, 11.4548 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 11454772.00 ns, 11.4548 ms/op
+// GC:  0 0 0 34096 1
+// Threading:  3 2 1
+
+// AfterAll
+// Benchmark Process 3980 has exited with code 0.
+
+Mean = 11.455 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.455 ms, Q1 = 11.455 ms, Median = 11.455 ms, Q3 = 11.455 ms, Max = 11.455 ms
+IQR = 0.000 ms, LowerFence = 11.455 ms, UpperFence = 11.455 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 14 (87.5 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections_WithLease(ThreadCount: 8)" --job Dry --benchmarkId 2 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 11343505.00 ns, 11.3435 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 11343505.00 ns, 11.3435 ms/op
+// GC:  0 0 0 34768 1
+// Threading:  5 3 1
+
+// AfterAll
+// Benchmark Process 3992 has exited with code 0.
+
+Mean = 11.344 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.344 ms, Q1 = 11.344 ms, Median = 11.344 ms, Q3 = 11.344 ms, Max = 11.344 ms
+IQR = 0.000 ms, LowerFence = 11.344 ms, UpperFence = 11.344 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 13 (81.2 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections_WithLease(ThreadCount: 16)" --job Dry --benchmarkId 3 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 11544628.00 ns, 11.5446 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 11544628.00 ns, 11.5446 ms/op
+// GC:  0 0 0 35208 1
+// Threading:  5 3 1
+
+// AfterAll
+// Benchmark Process 4004 has exited with code 0.
+
+Mean = 11.545 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.545 ms, Q1 = 11.545 ms, Median = 11.545 ms, Q3 = 11.545 ms, Max = 11.545 ms
+IQR = 0.000 ms, LowerFence = 11.545 ms, UpperFence = 11.545 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 12 (75.0 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections(ThreadCount: 1)" --job Dry --benchmarkId 4 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 8903266.00 ns, 8.9033 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 8903266.00 ns, 8.9033 ms/op
+// GC:  0 0 0 33504 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4015 has exited with code 0.
+
+Mean = 8.903 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 8.903 ms, Q1 = 8.903 ms, Median = 8.903 ms, Q3 = 8.903 ms, Max = 8.903 ms
+IQR = 0.000 ms, LowerFence = 8.903 ms, UpperFence = 8.903 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 11 (68.8 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections(ThreadCount: 4)" --job Dry --benchmarkId 5 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 10995409.00 ns, 10.9954 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 10995409.00 ns, 10.9954 ms/op
+// GC:  0 0 0 34096 1
+// Threading:  3 10 1
+
+// AfterAll
+// Benchmark Process 4021 has exited with code 0.
+
+Mean = 10.995 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.995 ms, Q1 = 10.995 ms, Median = 10.995 ms, Q3 = 10.995 ms, Max = 10.995 ms
+IQR = 0.000 ms, LowerFence = 10.995 ms, UpperFence = 10.995 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 10 (62.5 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections(ThreadCount: 8)" --job Dry --benchmarkId 6 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 10798363.00 ns, 10.7984 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 10798363.00 ns, 10.7984 ms/op
+// GC:  0 0 0 34680 1
+// Threading:  5 13 1
+
+// AfterAll
+// Benchmark Process 4032 has exited with code 0.
+
+Mean = 10.798 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.798 ms, Q1 = 10.798 ms, Median = 10.798 ms, Q3 = 10.798 ms, Max = 10.798 ms
+IQR = 0.000 ms, LowerFence = 10.798 ms, UpperFence = 10.798 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 9 (56.2 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_LeastConnections(ThreadCount: 16)" --job Dry --benchmarkId 7 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 10791300.00 ns, 10.7913 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 10791300.00 ns, 10.7913 ms/op
+// GC:  0 0 0 35184 1
+// Threading:  5 9 1
+
+// AfterAll
+// Benchmark Process 4043 has exited with code 0.
+
+Mean = 10.791 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.791 ms, Q1 = 10.791 ms, Median = 10.791 ms, Q3 = 10.791 ms, Max = 10.791 ms
+IQR = 0.000 ms, LowerFence = 10.791 ms, UpperFence = 10.791 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 8 (50.0 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_Random(ThreadCount: 1)" --job Dry --benchmarkId 8 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 7540787.00 ns, 7.5408 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 7540787.00 ns, 7.5408 ms/op
+// GC:  0 0 0 1504 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4054 has exited with code 0.
+
+Mean = 7.541 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 7.541 ms, Q1 = 7.541 ms, Median = 7.541 ms, Q3 = 7.541 ms, Max = 7.541 ms
+IQR = 0.000 ms, LowerFence = 7.541 ms, UpperFence = 7.541 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 7 (43.8 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_Random(ThreadCount: 4)" --job Dry --benchmarkId 9 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 9086927.00 ns, 9.0869 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 9086927.00 ns, 9.0869 ms/op
+// GC:  0 0 0 1936 1
+// Threading:  2 0 1
+
+// AfterAll
+// Benchmark Process 4060 has exited with code 0.
+
+Mean = 9.087 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.087 ms, Q1 = 9.087 ms, Median = 9.087 ms, Q3 = 9.087 ms, Max = 9.087 ms
+IQR = 0.000 ms, LowerFence = 9.087 ms, UpperFence = 9.087 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 6 (37.5 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_Random(ThreadCount: 8)" --job Dry --benchmarkId 10 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 9121852.00 ns, 9.1219 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 9121852.00 ns, 9.1219 ms/op
+// GC:  0 0 0 2160 1
+// Threading:  2 0 1
+
+// AfterAll
+// Benchmark Process 4071 has exited with code 0.
+
+Mean = 9.122 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.122 ms, Q1 = 9.122 ms, Median = 9.122 ms, Q3 = 9.122 ms, Max = 9.122 ms
+IQR = 0.000 ms, LowerFence = 9.122 ms, UpperFence = 9.122 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 5 (31.2 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_Random(ThreadCount: 16)" --job Dry --benchmarkId 11 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 9648830.00 ns, 9.6488 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 9648830.00 ns, 9.6488 ms/op
+// GC:  0 0 0 2504 1
+// Threading:  1 0 1
+
+// AfterAll
+// Benchmark Process 4082 has exited with code 0.
+
+Mean = 9.649 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.649 ms, Q1 = 9.649 ms, Median = 9.649 ms, Q3 = 9.649 ms, Max = 9.649 ms
+IQR = 0.000 ms, LowerFence = 9.649 ms, UpperFence = 9.649 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 4 (25.0 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_RoundRobin(ThreadCount: 1)" --job Dry --benchmarkId 12 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 7537842.00 ns, 7.5378 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 7537842.00 ns, 7.5378 ms/op
+// GC:  0 0 0 1504 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 4093 has exited with code 0.
+
+Mean = 7.538 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 7.538 ms, Q1 = 7.538 ms, Median = 7.538 ms, Q3 = 7.538 ms, Max = 7.538 ms
+IQR = 0.000 ms, LowerFence = 7.538 ms, UpperFence = 7.538 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 3 (18.8 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_RoundRobin(ThreadCount: 4)" --job Dry --benchmarkId 13 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 9145456.00 ns, 9.1455 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 9145456.00 ns, 9.1455 ms/op
+// GC:  0 0 0 1776 1
+// Threading:  1 0 1
+
+// AfterAll
+// Benchmark Process 4099 has exited with code 0.
+
+Mean = 9.145 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.145 ms, Q1 = 9.145 ms, Median = 9.145 ms, Q3 = 9.145 ms, Max = 9.145 ms
+IQR = 0.000 ms, LowerFence = 9.145 ms, UpperFence = 9.145 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 2 (12.5 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_RoundRobin(ThreadCount: 8)" --job Dry --benchmarkId 14 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 9389960.00 ns, 9.3900 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 9389960.00 ns, 9.3900 ms/op
+// GC:  0 0 0 2000 1
+// Threading:  1 0 1
+
+// AfterAll
+// Benchmark Process 4110 has exited with code 0.
+
+Mean = 9.390 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.390 ms, Q1 = 9.390 ms, Median = 9.390 ms, Q3 = 9.390 ms, Max = 9.390 ms
+IQR = 0.000 ms, LowerFence = 9.390 ms, UpperFence = 9.390 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 1 (6.2 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// **************************
+// Benchmark: ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-Dry-1.dll --anonymousPipes 234 235 --benchmarkName "Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks.Concurrent_RoundRobin(ThreadCount: 16)" --job Dry --benchmarkId 15 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-Dry-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 9350325.00 ns, 9.3503 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 9350325.00 ns, 9.3503 ms/op
+// GC:  0 0 0 2504 1
+// Threading:  1 0 1
+
+// AfterAll
+// Benchmark Process 4121 has exited with code 0.
+
+Mean = 9.350 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.350 ms, Q1 = 9.350 ms, Median = 9.350 ms, Q3 = 9.350 ms, Max = 9.350 ms
+IQR = 0.000 ms, LowerFence = 9.350 ms, UpperFence = 9.350 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-04-07 9:01 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks-report.csv
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks-report-github.md
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks-report.html
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks-report-full-compressed.json
+
+// * Detailed results *
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 9.389 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.389 ms, Q1 = 9.389 ms, Median = 9.389 ms, Q3 = 9.389 ms, Max = 9.389 ms
+IQR = 0.000 ms, LowerFence = 9.389 ms, UpperFence = 9.389 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[9.389 ms ; 9.389 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 8.903 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 8.903 ms, Q1 = 8.903 ms, Median = 8.903 ms, Q3 = 8.903 ms, Max = 8.903 ms
+IQR = 0.000 ms, LowerFence = 8.903 ms, UpperFence = 8.903 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[8.903 ms ; 8.903 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 7.541 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 7.541 ms, Q1 = 7.541 ms, Median = 7.541 ms, Q3 = 7.541 ms, Max = 7.541 ms
+IQR = 0.000 ms, LowerFence = 7.541 ms, UpperFence = 7.541 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[7.541 ms ; 7.541 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=1]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 7.538 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 7.538 ms, Q1 = 7.538 ms, Median = 7.538 ms, Q3 = 7.538 ms, Max = 7.538 ms
+IQR = 0.000 ms, LowerFence = 7.538 ms, UpperFence = 7.538 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[7.538 ms ; 7.538 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 11.455 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.455 ms, Q1 = 11.455 ms, Median = 11.455 ms, Q3 = 11.455 ms, Max = 11.455 ms
+IQR = 0.000 ms, LowerFence = 11.455 ms, UpperFence = 11.455 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[11.455 ms ; 11.455 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 10.995 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.995 ms, Q1 = 10.995 ms, Median = 10.995 ms, Q3 = 10.995 ms, Max = 10.995 ms
+IQR = 0.000 ms, LowerFence = 10.995 ms, UpperFence = 10.995 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[10.995 ms ; 10.995 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 9.087 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.087 ms, Q1 = 9.087 ms, Median = 9.087 ms, Q3 = 9.087 ms, Max = 9.087 ms
+IQR = 0.000 ms, LowerFence = 9.087 ms, UpperFence = 9.087 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[9.087 ms ; 9.087 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=4]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 9.145 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.145 ms, Q1 = 9.145 ms, Median = 9.145 ms, Q3 = 9.145 ms, Max = 9.145 ms
+IQR = 0.000 ms, LowerFence = 9.145 ms, UpperFence = 9.145 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[9.145 ms ; 9.145 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 11.344 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.344 ms, Q1 = 11.344 ms, Median = 11.344 ms, Q3 = 11.344 ms, Max = 11.344 ms
+IQR = 0.000 ms, LowerFence = 11.344 ms, UpperFence = 11.344 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[11.344 ms ; 11.344 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 10.798 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.798 ms, Q1 = 10.798 ms, Median = 10.798 ms, Q3 = 10.798 ms, Max = 10.798 ms
+IQR = 0.000 ms, LowerFence = 10.798 ms, UpperFence = 10.798 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[10.798 ms ; 10.798 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 9.122 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.122 ms, Q1 = 9.122 ms, Median = 9.122 ms, Q3 = 9.122 ms, Max = 9.122 ms
+IQR = 0.000 ms, LowerFence = 9.122 ms, UpperFence = 9.122 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[9.122 ms ; 9.122 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=8]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 9.390 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.390 ms, Q1 = 9.390 ms, Median = 9.390 ms, Q3 = 9.390 ms, Max = 9.390 ms
+IQR = 0.000 ms, LowerFence = 9.390 ms, UpperFence = 9.390 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[9.390 ms ; 9.390 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 11.545 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 11.545 ms, Q1 = 11.545 ms, Median = 11.545 ms, Q3 = 11.545 ms, Max = 11.545 ms
+IQR = 0.000 ms, LowerFence = 11.545 ms, UpperFence = 11.545 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[11.545 ms ; 11.545 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 10.791 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 10.791 ms, Q1 = 10.791 ms, Median = 10.791 ms, Q3 = 10.791 ms, Max = 10.791 ms
+IQR = 0.000 ms, LowerFence = 10.791 ms, UpperFence = 10.791 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[10.791 ms ; 10.791 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 9.649 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.649 ms, Q1 = 9.649 ms, Median = 9.649 ms, Q3 = 9.649 ms, Max = 9.649 ms
+IQR = 0.000 ms, LowerFence = 9.649 ms, UpperFence = 9.649 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[9.649 ms ; 9.649 ms) | @
+---------------------------------------------------
+
+ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry(IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [ThreadCount=16]
+Runtime = .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 9.350 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 9.350 ms, Q1 = 9.350 ms, Median = 9.350 ms, Q3 = 9.350 ms, Max = 9.350 ms
+IQR = 0.000 ms, LowerFence = 9.350 ms, UpperFence = 9.350 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[9.350 ms ; 9.350 ms) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+
+| Method                                | ThreadCount | Mean      | Error | Ratio | Completed Work Items | Lock Contentions | Allocated | Alloc Ratio |
+|-------------------------------------- |------------ |----------:|------:|------:|---------------------:|-----------------:|----------:|------------:|
+| 'Concurrent LeastConnections (lease)' | 1           |  9.389 ms |    NA |  1.25 |                    - |                - |  32.72 KB |       22.28 |
+| 'Concurrent LeastConnections'         | 1           |  8.903 ms |    NA |  1.18 |                    - |                - |  32.72 KB |       22.28 |
+| 'Concurrent Random'                   | 1           |  7.541 ms |    NA |  1.00 |                    - |                - |   1.47 KB |        1.00 |
+| 'Concurrent RoundRobin'               | 1           |  7.538 ms |    NA |  1.00 |                    - |                - |   1.47 KB |        1.00 |
+|                                       |             |           |       |       |                      |                  |           |             |
+| 'Concurrent LeastConnections (lease)' | 4           | 11.455 ms |    NA |  1.25 |               3.0000 |           2.0000 |   33.3 KB |       19.20 |
+| 'Concurrent LeastConnections'         | 4           | 10.995 ms |    NA |  1.20 |               3.0000 |          10.0000 |   33.3 KB |       19.20 |
+| 'Concurrent Random'                   | 4           |  9.087 ms |    NA |  0.99 |               2.0000 |                - |   1.89 KB |        1.09 |
+| 'Concurrent RoundRobin'               | 4           |  9.145 ms |    NA |  1.00 |               1.0000 |                - |   1.73 KB |        1.00 |
+|                                       |             |           |       |       |                      |                  |           |             |
+| 'Concurrent LeastConnections (lease)' | 8           | 11.344 ms |    NA |  1.21 |               5.0000 |           3.0000 |  33.95 KB |       17.38 |
+| 'Concurrent LeastConnections'         | 8           | 10.798 ms |    NA |  1.15 |               5.0000 |          13.0000 |  33.87 KB |       17.34 |
+| 'Concurrent Random'                   | 8           |  9.122 ms |    NA |  0.97 |               2.0000 |                - |   2.11 KB |        1.08 |
+| 'Concurrent RoundRobin'               | 8           |  9.390 ms |    NA |  1.00 |               1.0000 |                - |   1.95 KB |        1.00 |
+|                                       |             |           |       |       |                      |                  |           |             |
+| 'Concurrent LeastConnections (lease)' | 16          | 11.545 ms |    NA |  1.23 |               5.0000 |           3.0000 |  34.38 KB |       14.06 |
+| 'Concurrent LeastConnections'         | 16          | 10.791 ms |    NA |  1.15 |               5.0000 |           9.0000 |  34.36 KB |       14.05 |
+| 'Concurrent Random'                   | 16          |  9.649 ms |    NA |  1.03 |               1.0000 |                - |   2.45 KB |        1.00 |
+| 'Concurrent RoundRobin'               | 16          |  9.350 ms |    NA |  1.00 |               1.0000 |                - |   2.45 KB |        1.00 |
+
+// * Warnings *
+MinIterationTime
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry -> The minimum observed iteration time is 9.389ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry         -> The minimum observed iteration time is 8.903ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry                   -> The minimum observed iteration time is 7.541ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry               -> The minimum observed iteration time is 7.538ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry -> The minimum observed iteration time is 11.455ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry         -> The minimum observed iteration time is 10.995ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry                   -> The minimum observed iteration time is 9.087ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry               -> The minimum observed iteration time is 9.145ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry -> The minimum observed iteration time is 11.344ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry         -> The minimum observed iteration time is 10.798ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry                   -> The minimum observed iteration time is 9.122ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry               -> The minimum observed iteration time is 9.39ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections (lease)': Dry -> The minimum observed iteration time is 11.545ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent LeastConnections': Dry         -> The minimum observed iteration time is 10.791ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent Random': Dry                   -> The minimum observed iteration time is 9.649ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  ConcurrentReplicaSelectionBenchmarks.'Concurrent RoundRobin': Dry               -> The minimum observed iteration time is 9.35ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+// * Config Issues *
+
+// * Warnings *
+Configuration
+  Summary -> The exporter CsvExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter HtmlExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter MarkdownExporter-github is already present in configuration. There may be unexpected results.
+
+// * Legends *
+  ThreadCount          : Value of the 'ThreadCount' parameter
+  Mean                 : Arithmetic mean of all measurements
+  Error                : Half of 99.9% confidence interval
+  Ratio                : Mean of the ratio distribution ([Current]/[Baseline])
+  Completed Work Items : The number of work items that have been processed in ThreadPool (per single operation)
+  Lock Contentions     : The number of times there was contention upon trying to take a Monitor's lock (per single operation)
+  Allocated            : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio          : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 ms                 : 1 Millisecond (0.001 sec)
+
+// * Diagnostic Output - ThreadingDiagnoser *
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:03 (3.62 sec), executed benchmarks: 16
+
+Global total time: 00:03:44 (224.25 sec), executed benchmarks: 16
+// * Artifacts cleanup *
+Artifacts cleanup is finished

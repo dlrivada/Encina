@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks-20260407-085608</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host] : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Dry    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=Dry  IterationCount=1  LaunchCount=1  
+RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                          </th><th>Mean</th><th>Error</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>&#39;Nested scopes (Read → ForceWrite)&#39;</td><td>1,705.4 &mu;s</td><td>NA</td><td>840 B</td>
+</tr><tr><td>&#39;Read CurrentIntent (AsyncLocal)&#39;</td><td>574.2 &mu;s</td><td>NA</td><td>-</td>
+</tr><tr><td>DatabaseRoutingScope.ForRead()</td><td>1,056.8 &mu;s</td><td>NA</td><td>392 B</td>
+</tr><tr><td>&#39;Read EffectiveIntent (null-coalesce)&#39;</td><td>590.1 &mu;s</td><td>NA</td><td>-</td>
+</tr><tr><td>&#39;Read HasIntent&#39;</td><td>579.3 &mu;s</td><td>NA</td><td>-</td>
+</tr><tr><td>&#39;Read IsReadIntent&#39;</td><td>578.7 &mu;s</td><td>NA</td><td>-</td>
+</tr><tr><td>&#39;Read IsWriteIntent&#39;</td><td>593.6 &mu;s</td><td>NA</td><td>-</td>
+</tr><tr><td>DatabaseRoutingScope.ForWrite()</td><td>1,104.4 &mu;s</td><td>NA</td><td>392 B</td>
+</tr><tr><td>DatabaseRoutingScope.ForForceWrite()</td><td>1,101.9 &mu;s</td><td>NA</td><td>392 B</td>
+</tr><tr><td>DatabaseRoutingContext.Clear()</td><td>252.2 &mu;s</td><td>NA</td><td>96 B</td>
+</tr></tbody></table>
+</body>
+</html>
