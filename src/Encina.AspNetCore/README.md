@@ -777,6 +777,13 @@ This package does NOT include ORM-specific features. For data access integration
 - **Encina.Dapper** - Lightweight data access with minimal overhead
 - **Encina.Data** - Pure ADO.NET for maximum performance
 
+## Performance
+
+<!-- docref-table: bench:aspnetcore/* -->
+<!-- /docref-table -->
+
+*Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
+
 ## Additional Resources
 
 - [Encina Core Documentation](../../README.md)

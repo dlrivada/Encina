@@ -19,6 +19,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2)
 
 Measures the per-field encryption/decryption cost. Typical audit entries have 5-6 PII fields.
 
+<!-- docref-table: bench:audit-marten/* -->
 | Method | Mean | Allocated | Notes |
 |--------|-----:|----------:|-------|
 | **Encrypt_Short_16B** (baseline) | 899 ns | 1,504 B | UserId, IpAddress |
@@ -30,6 +31,7 @@ Measures the per-field encryption/decryption cost. Typical audit entries have 5-
 | Decrypt_Long_4KB | 2,853 ns | 16,648 B | |
 | Decrypt_VeryLong_64KB | 54,210 ns | 262,459 B | |
 | DecryptOrPlaceholder_NullKey | **0.37 ns** | 0 B | Shredded path (zero cost) |
+<!-- /docref-table -->
 
 **Key findings**:
 - Short field (UserId/IpAddress): **~900 ns** per encrypt/decrypt
@@ -41,6 +43,7 @@ Measures the per-field encryption/decryption cost. Typical audit entries have 5-
 
 Measures the per-entry key management cost (called once per `RecordAsync`).
 
+<!-- docref-table: bench:audit-marten/* -->
 | Method | PeriodCount | Mean | Allocated |
 |--------|:-----------:|-----:|----------:|
 | **GetExistingKey** (baseline) | 12 | 60 ns | 288 B |
@@ -53,6 +56,7 @@ Measures the per-entry key management cost (called once per `RecordAsync`).
 | CreateNewKey | 84 | 1,782 ns | 784 B |
 | IsKeyDestroyed | 84 | 37 ns | 112 B |
 | GetActiveKeysCount | 84 | 4,631 ns | 15,144 B |
+<!-- /docref-table -->
 
 **Key findings**:
 - Hot path (`GetExistingKey`): **~60 ns** — negligible
@@ -63,11 +67,13 @@ Measures the per-entry key management cost (called once per `RecordAsync`).
 
 Measures the complete flow: key lookup + encrypt N PII fields + produce encrypted event.
 
+<!-- docref-table: bench:audit-marten/* -->
 | Method | Mean | Allocated | Notes |
 |--------|-----:|----------:|-------|
 | **EncryptAuditEntry_Minimal_NoPii** (baseline) | 190 ns | 672 B | No PII fields — only key lookup overhead |
 | EncryptAuditEntry_Full_AllPii | 8,555 ns | 41,440 B | 6 PII fields + 2KB payload |
 | EncryptReadAuditEntry | 3,032 ns | 5,400 B | 3 PII fields |
+<!-- /docref-table -->
 
 **Key findings**:
 - **Minimal entry (no PII)**: ~190 ns overhead — practically zero
