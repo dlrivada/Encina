@@ -291,9 +291,9 @@ jobs:
       - name: Run ${{ matrix.project.name }}.${{ matrix.project.class }}
         if: steps.filter.outputs.skip != 'true'
         env:
-          PERF_JOB_TYPE: ${{ github.event.inputs.job_type || 'short' }}
+          PERF_JOB_TYPE: ${{ github.event.inputs.job_type || (github.event_name == 'schedule' && 'medium') || 'short' }}
         run: |
-          JOB_TYPE="${{ github.event.inputs.job_type || 'short' }}"
+          JOB_TYPE="${{ github.event.inputs.job_type || (github.event_name == 'schedule' && 'medium') || 'short' }}"
           # The class-level filter comes from the matrix; the workflow_dispatch
           # benchmark_filter input narrows further within the class (e.g. a single
           # method). If the dispatch filter is the default '*', the class filter is
