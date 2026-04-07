@@ -270,6 +270,13 @@ When `PublishEvents = true` (default), the following events are published:
 | `SubjectKeyRotatedEvent` | After successful key rotation |
 | `PiiEncryptionFailedEvent` | When PII encryption fails during serialization |
 
+## Performance
+
+<!-- docref-table: bench:gdpr/* -->
+<!-- /docref-table -->
+
+*Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
+
 ## Related Packages
 
 | Package | Description |

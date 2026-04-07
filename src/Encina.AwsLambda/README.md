@@ -281,6 +281,13 @@ public class Function
 }
 ```
 
+## Performance
+
+<!-- docref-table: bench:aws/* -->
+<!-- /docref-table -->
+
+*Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
+
 ## Related Packages
 
 - **Encina** - Core library with Railway Oriented Programming

@@ -1260,6 +1260,13 @@ Generated scripts include:
 
 For comprehensive documentation, see [Module Isolation Guide](../../docs/features/module-isolation.md).
 
+## Performance
+
+<!-- docref-table: bench:inbox-efcore/* -->
+<!-- /docref-table -->
+
+*Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
+
 ## Related Packages
 
 - **Encina**: Core Encina implementation with Railway Oriented Programming

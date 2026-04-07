@@ -24,6 +24,7 @@ Every encrypted property in a request passes through this path.
 
 ### AesGcmFieldEncryptor
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | StdDev | Allocated | Notes |
 |--------|-----:|-------:|----------:|-------|
 | **EncryptString_Short** (baseline, 16B) | 1,171 ns | 58 ns | ~456 B | Email, UserId |
@@ -33,18 +34,22 @@ Every encrypted property in a request passes through this path.
 | EncryptDecryptRoundtrip | 1,744 ns | 156 ns | ~712 B | Full cycle |
 | EncryptBytes_Short | 1,037 ns | 67 ns | ~424 B | |
 | EncryptBytes_Medium | 1,191 ns | 158 ns | ~1,132 B | |
+<!-- /docref-table -->
 
 ### EncryptionOrchestrator (End-to-End Pipeline)
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | StdDev | Allocated | Notes |
 |--------|-----:|-------:|----------:|-------|
 | **Encrypt_SingleProperty** (baseline) | 2.08 us | 0.12 us | ~1.8 KB | Single [Encrypt] field |
 | Encrypt_ThreeProperties | 5.78 us | 1.31 us | ~5.2 KB | 3x [Encrypt] fields |
 | EncryptDecrypt_Roundtrip | 4.37 us | 0.30 us | ~3.4 KB | Encrypt + Decrypt |
 | NoEncryptedProperties_Passthrough | 0.47 us | 0.02 us | ~0.2 KB | Passthrough (no [Encrypt]) |
+<!-- /docref-table -->
 
 ### PropertyCache (Reflection Overhead)
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | Allocated | Notes |
 |--------|-----:|----------:|-------|
 | GetProperties_ColdCache | 294 us | 15.3 KB | First call per type |
@@ -52,6 +57,7 @@ Every encrypted property in a request passes through this path.
 | GetProperties_MultipleTypes | 582 us | 31.0 KB | 3 different types |
 | SetValue_CompiledSetter | 284 us | 15.3 KB | Compiled delegate |
 | GetValue_CompiledGetter | 307 us | 15.3 KB | Compiled delegate |
+<!-- /docref-table -->
 
 **Key Insight**: Encryption adds ~1-2 us per field. For a typical entity with 3 encrypted fields, the total overhead is ~6 us — negligible compared to database I/O (~1-50 ms).
 
@@ -63,6 +69,7 @@ Measures HMAC signing and verification performance. Every signed request compute
 
 ### HMACSigner
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | StdDev | Allocated | Notes |
 |--------|-----:|-------:|----------:|-------|
 | **Sign_SHA256_SmallPayload** (baseline, 64B) | 957 ns | 155 ns | 1.64 KB | |
@@ -72,6 +79,7 @@ Measures HMAC signing and verification performance. Every signed request compute
 | Sign_SHA512_SmallPayload | 1,591 ns | 115 ns | 1.76 KB | |
 | **Verify_SHA256_SmallPayload** | 919 ns | 63 ns | 1.69 KB | |
 | SignAndVerify_Roundtrip | 1,534 ns | 24 ns | 3.26 KB | |
+<!-- /docref-table -->
 
 **Key Insight**: HMAC-SHA256 sign+verify roundtrip is ~1.5 us for typical payloads. Constant memory allocation (~1.6 KB) regardless of payload size. SHA384/512 add ~50% overhead but may be required for compliance (FIPS 140-2).
 
@@ -83,6 +91,7 @@ Measures output encoding performance for different contexts. Every user input pa
 
 ### DefaultOutputEncoder
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | StdDev | Allocated | Notes |
 |--------|-----:|-------:|----------:|-------|
 | **EncodeForHtml_SafeText** (baseline) | 3.5 ns | 0.5 ns | 0 B | No-op for safe text |
@@ -93,6 +102,7 @@ Measures output encoding performance for different contexts. Every user input pa
 | EncodeForUrl_SpecialChars | 57 ns | 1.5 ns | 128 B | Percent-encoding |
 | EncodeForCss_SafeText | 163 ns | 6.3 ns | 1,256 B | OWASP \HHHHHH |
 | EncodeForCss_SpecialChars | 186 ns | 12.5 ns | 1,192 B | 6-digit hex |
+<!-- /docref-table -->
 
 **Key Insight**: HTML/JS encoding for safe text is essentially free (~3 ns, 0 B allocated). CSS encoding is the most expensive (~163-186 ns, ~1.2 KB) due to OWASP Rule #4 hex encoding. All operations are sub-microsecond.
 
@@ -104,6 +114,7 @@ Measures per-strategy masking performance. Every PII-decorated property in a req
 
 ### MaskingStrategy (per-field)
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | StdDev | Allocated | Notes |
 |--------|-----:|-------:|----------:|-------|
 | **Email_Partial** (baseline) | 33 ns | 0.6 ns | 224 B | `j***@example.com` |
@@ -118,9 +129,11 @@ Measures per-strategy masking performance. Every PII-decorated property in a req
 | Email_Short (6 chars) | 20 ns | 0.2 ns | 128 B | Edge case |
 | Email_Long (55 chars) | 37 ns | 0.2 ns | 328 B | Edge case |
 | RegexPattern | 272 ns | 37.9 ns | 416 B | Custom regex |
+<!-- /docref-table -->
 
 ### PIIMasker (end-to-end pipeline)
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | StdDev | Allocated | Notes |
 |--------|-----:|-------:|----------:|-------|
 | **MaskObject_SingleField** (1 [PII]) | 809 ns | 74.5 ns | 1,696 B | JSON roundtrip + 1 strategy |
@@ -128,9 +141,11 @@ Measures per-strategy masking performance. Every PII-decorated property in a req
 | MaskObject_NoAttributes | 405 ns | 7.0 ns | 952 B | JSON roundtrip only (passthrough) |
 | MaskForAudit_SingleField | 813 ns | 95.7 ns | 1,696 B | Same as MaskObject |
 | MaskForAudit_NonGeneric | 726 ns | 11.7 ns | 1,696 B | Object overload |
+<!-- /docref-table -->
 
 ### Serialization Overhead
 
+<!-- docref-table: bench:security/* -->
 | Method | Mean | StdDev | Allocated | Notes |
 |--------|-----:|-------:|----------:|-------|
 | Serialize_Small (1 PII field) | 142 ns | 14.5 ns | 112 B | JSON serialize only |
@@ -139,6 +154,7 @@ Measures per-strategy masking performance. Every PII-decorated property in a req
 | MaskObject_Small (full pipeline) | 731 ns | 6.1 ns | 1,696 B | Serialize + mask + deserialize |
 | MaskObject_Medium | 2,489 ns | 15.0 ns | 6,352 B | |
 | MaskObject_Large | 4,973 ns | 30.6 ns | 18,160 B | |
+<!-- /docref-table -->
 
 **Key Insight**: All 9 masking strategies execute in under 275 ns per field. Email masking is the fastest at ~33 ns. The JSON serialization roundtrip dominates end-to-end cost: ~405 ns baseline + ~400 ns per PII field. For a typical entity with 4 PII fields, total masking cost is ~2.1 us
 

@@ -453,6 +453,13 @@ services.AddEncinaDurableFunctions(options =>
 });
 ```
 
+## Performance
+
+<!-- docref-table: bench:azure/* -->
+<!-- /docref-table -->
+
+*Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
+
 ## Best Practices
 
 1. **Always use the middleware** for consistent context propagation

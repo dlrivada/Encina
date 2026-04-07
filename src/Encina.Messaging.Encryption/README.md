@@ -100,6 +100,13 @@ services.AddEncinaMessageEncryptionDataProtection(options =>
 });
 ```
 
+## Performance
+
+<!-- docref-table: bench:messaging/* -->
+<!-- /docref-table -->
+
+*Auto-generated from benchmark data. See [methodology](../../docs/testing/performance-measurement-methodology.md).*
+
 ## Documentation
 
 - [Message Encryption Guide](../../docs/features/message-encryption.md) — architecture, compliance, and examples
