@@ -76,6 +76,7 @@ public class CryptoShredderSerializerBenchmarks
         return _cryptoSerializer.ToJson(_nonPiiEvent);
     }
 
+    [BenchmarkCategory("DocRef:bench:gdpr/crypto-serialize-pii")]
     [Benchmark]
     public string CryptoSerializer_PiiEvent()
     {

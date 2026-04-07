@@ -77,6 +77,7 @@ public class StandardResilienceBenchmarks
         return await _EncinaWithRetry.Send(_request);
     }
 
+    [BenchmarkCategory("DocRef:bench:resilience/standard-sequential")]
     [Benchmark]
     public async Task<BenchmarkResponse> StandardResilience_MultipleSequentialRequests()
     {
@@ -92,6 +93,7 @@ public class StandardResilienceBenchmarks
         return response!;
     }
 
+    [BenchmarkCategory("DocRef:bench:resilience/standard-concurrent")]
     [Benchmark]
     public async Task<BenchmarkResponse[]> StandardResilience_ConcurrentRequests()
     {

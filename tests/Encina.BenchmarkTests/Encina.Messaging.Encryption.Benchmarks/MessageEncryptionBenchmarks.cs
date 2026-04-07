@@ -51,6 +51,7 @@ public class EncryptDecryptBenchmarks
         _encryptedLarge = Encrypt(_largePayload);
     }
 
+    [BenchmarkCategory("DocRef:bench:messaging/encrypt-short")]
     [Benchmark(Baseline = true)]
     public EncryptedPayload Encrypt_Short() => Encrypt(_shortPayload);
 
@@ -60,6 +61,7 @@ public class EncryptDecryptBenchmarks
     [Benchmark]
     public EncryptedPayload Encrypt_Large() => Encrypt(_largePayload);
 
+    [BenchmarkCategory("DocRef:bench:messaging/decrypt-short")]
     [Benchmark]
     public ImmutableArray<byte> Decrypt_Short() => Decrypt(_encryptedShort);
 
@@ -69,6 +71,7 @@ public class EncryptDecryptBenchmarks
     [Benchmark]
     public ImmutableArray<byte> Decrypt_Large() => Decrypt(_encryptedLarge);
 
+    [BenchmarkCategory("DocRef:bench:messaging/roundtrip-short")]
     [Benchmark]
     public ImmutableArray<byte> Roundtrip_Short()
     {

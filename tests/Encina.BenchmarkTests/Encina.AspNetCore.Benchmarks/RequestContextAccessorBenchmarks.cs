@@ -42,6 +42,7 @@ public class RequestContextAccessorBenchmarks
         return _accessor.RequestContext;
     }
 
+    [BenchmarkCategory("DocRef:bench:aspnetcore/context-async")]
     [Benchmark]
     public async Task<IRequestContext?> SetGetAcrossAwait()
     {
@@ -56,6 +57,7 @@ public class RequestContextAccessorBenchmarks
         _accessor.RequestContext = null;
     }
 
+    [BenchmarkCategory("DocRef:bench:aspnetcore/context-create")]
     [Benchmark]
     public IRequestContextAccessor CreateNewAccessor()
     {

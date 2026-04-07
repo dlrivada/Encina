@@ -47,6 +47,7 @@ public class ErrorCodeMappingBenchmarks
         "service.unavailable"
     ];
 
+    [BenchmarkCategory("DocRef:bench:azure/error-mapping")]
     [Benchmark(Baseline = true)]
     public HttpStatusCode MapValidationError()
     {
@@ -65,6 +66,7 @@ public class ErrorCodeMappingBenchmarks
         return MapErrorCodeToStatusCode(_authorizationCodes[1]);
     }
 
+    [BenchmarkCategory("DocRef:bench:azure/error-not-found")]
     [Benchmark]
     public HttpStatusCode MapNotFoundError()
     {
