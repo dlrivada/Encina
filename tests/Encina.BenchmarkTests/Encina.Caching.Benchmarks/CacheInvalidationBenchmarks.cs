@@ -13,6 +13,7 @@ namespace Encina.Caching.Benchmarks;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, iterationCount: 10)]
+[BenchmarkCategory("Unstable")]
 public class CacheInvalidationBenchmarks : IDisposable
 {
     private CacheInvalidationPipelineBehavior<InvalidatingCommand, InvalidationResult> _behavior = null!;

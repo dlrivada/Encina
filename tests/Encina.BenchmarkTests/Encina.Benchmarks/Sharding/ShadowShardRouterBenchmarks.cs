@@ -15,6 +15,7 @@ namespace Encina.Benchmarks.Sharding;
 [MemoryDiagnoser]
 [RankColumn]
 [MarkdownExporter]
+[BenchmarkCategory("Unstable")]
 public class ShadowShardRouterBenchmarks
 {
     private HashShardRouter _bareRouter = null!;
