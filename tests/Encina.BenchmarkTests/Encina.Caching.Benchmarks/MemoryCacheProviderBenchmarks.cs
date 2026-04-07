@@ -12,6 +12,7 @@ namespace Encina.Caching.Benchmarks;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, iterationCount: 10)]
+[BenchmarkCategory("Unstable")]
 public class MemoryCacheProviderBenchmarks : IDisposable
 {
     private MemoryCacheProvider _provider = null!;

@@ -1,3 +1,4 @@
+using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -10,6 +11,7 @@ namespace Encina.Security.PII.Benchmarks;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, iterationCount: 10)]
+[BenchmarkCategory("Unstable")]
 public class MaskingStrategyBenchmarks
 {
     private PIIMasker _masker = null!;

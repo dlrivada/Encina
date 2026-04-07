@@ -14,6 +14,7 @@ namespace Encina.Refit.Benchmarks;
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [RankColumn]
+[BenchmarkCategory("Unstable")]
 public class RestApiRequestHandlerBenchmarks
 {
     private IServiceProvider _serviceProvider = null!;

@@ -19,6 +19,7 @@ namespace Encina.Benchmarks.ReadWriteSeparation;
 /// </remarks>
 [MemoryDiagnoser]
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "BenchmarkDotNet requires instance methods for benchmarks")]
+[BenchmarkCategory("Unstable")]
 public class DatabaseRoutingBenchmarks
 {
     /// <summary>
