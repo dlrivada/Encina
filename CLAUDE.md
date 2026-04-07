@@ -584,6 +584,39 @@ Maintain high-quality test coverage that balances thoroughness with development 
 - **Method Coverage**: ≥90% (target for overall codebase)
 - **Mutation Score**: ≥80% (Stryker mutation testing)
 
+#### Per-Flag Coverage System (Obligations Model) — CRITICAL
+
+> **CRITICAL**: The coverage system uses a **per-flag obligations model**. Each test type (unit, guard, contract, property, integration) is a separate "flag". Coverage is measured **independently per flag** — a line covered by unit tests does NOT count toward the guard or contract target. Each flag must independently reach its own target percentage.
+
+**How it works:**
+
+1. **Manifest** (`.github/coverage-manifest/{Package}.json`): Defines which test types apply to each source file and the target percentage per flag (e.g., `"unit": 70, "guard": 20, "contract": 15, "property": 15`).
+
+2. **CI Full** runs each test project separately (`Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`) and collects Cobertura XML coverage per flag.
+
+3. **Coverage report** (`coverage-report.cs`): For each source file, counts executable lines covered by each applicable flag. A file with 100 lines and 3 applicable flags has 300 obligations. Combined coverage = obligations met / total obligations.
+
+4. **Dashboard** (`dlrivada.github.io/Encina/coverage/`): Shows per-package per-flag coverage. A package is "green" only when ALL applicable flags reach their targets.
+
+**CRITICAL RULE — Tests must execute real package code:**
+
+| Approach | Coverage Impact | Example |
+|----------|----------------|---------|
+| ✅ **Instantiate and call** | Covers lines | `new DefaultBreachDetector([]).DetectAsync(event)` |
+| ✅ **Create domain objects** | Covers factory lines | `BreachRecord.Create("nature", ...)` |
+| ✅ **Call validators** | Covers validation lines | `validator.Validate(null, options)` |
+| ❌ **Reflection only** | Covers ZERO lines | `typeof(IBreachDetector).GetMethod("DetectAsync")` |
+| ❌ **Only assert on types** | Covers ZERO lines | `typeof(T).IsInterface.ShouldBeTrue()` |
+
+Reflection-based tests (e.g., `typeof(ISomeInterface).GetMethod(...)`) do NOT execute any code in the target assembly — they only load metadata. The Cobertura coverage tool reports 0 lines covered for the target package. **Contract and property tests MUST instantiate real implementations** from the package to generate coverage.
+
+**Workflow discipline:**
+
+- Check the manifest to know which test types are required and their target percentages
+- Do NOT push/merge until ALL required test types for the package reach their targets
+- CI Full takes ~40 min — avoid triggering it prematurely with incomplete work
+- Use `dotnet test` locally to verify tests pass before pushing
+
 #### Test Types - Apply Where Appropriate
 
 Choose test types based on risk and value. Not every piece of code needs all test types:
