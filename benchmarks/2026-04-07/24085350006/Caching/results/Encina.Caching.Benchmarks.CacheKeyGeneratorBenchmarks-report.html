@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Benchmarks.CacheKeyGeneratorBenchmarks-20260407-141243</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>GenerateKey_WithTemplate</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>2,425.6 ns</td><td>18.65 ns</td><td>12.33 ns</td><td>0.73</td><td>0.00</td><td>0.0801</td><td>1360 B</td><td>1.36</td>
+</tr><tr><td>GeneratePattern</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>122.1 ns</td><td>3.39 ns</td><td>2.24 ns</td><td>0.04</td><td>0.00</td><td>0.0153</td><td>256 B</td><td>0.26</td>
+</tr><tr><td>GeneratePattern_WithTemplate</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>288.0 ns</td><td>7.76 ns</td><td>4.62 ns</td><td>0.09</td><td>0.00</td><td>0.0534</td><td>896 B</td><td>0.90</td>
+</tr><tr><td>GenerateKey_ComplexQuery</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4,109.0 ns</td><td>14.00 ns</td><td>9.26 ns</td><td>1.23</td><td>0.00</td><td>0.0916</td><td>1648 B</td><td>1.65</td>
+</tr><tr><td>GenerateKey_SimpleQuery</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3,336.6 ns</td><td>5.49 ns</td><td>3.63 ns</td><td>1.00</td><td>0.00</td><td>0.0572</td><td>1000 B</td><td>1.00</td>
+</tr><tr><td>GenerateKey_WithTemplate</td><td>ShortRun</td><td>3</td><td>1</td><td>2,439.6 ns</td><td>192.63 ns</td><td>10.56 ns</td><td>0.72</td><td>0.00</td><td>0.0801</td><td>1360 B</td><td>1.36</td>
+</tr><tr><td>GeneratePattern</td><td>ShortRun</td><td>3</td><td>1</td><td>124.4 ns</td><td>28.80 ns</td><td>1.58 ns</td><td>0.04</td><td>0.00</td><td>0.0153</td><td>256 B</td><td>0.26</td>
+</tr><tr><td>GeneratePattern_WithTemplate</td><td>ShortRun</td><td>3</td><td>1</td><td>291.0 ns</td><td>27.09 ns</td><td>1.48 ns</td><td>0.09</td><td>0.00</td><td>0.0534</td><td>896 B</td><td>0.90</td>
+</tr><tr><td>GenerateKey_ComplexQuery</td><td>ShortRun</td><td>3</td><td>1</td><td>4,333.9 ns</td><td>1,627.19 ns</td><td>89.19 ns</td><td>1.28</td><td>0.02</td><td>0.0916</td><td>1648 B</td><td>1.65</td>
+</tr><tr><td>GenerateKey_SimpleQuery</td><td>ShortRun</td><td>3</td><td>1</td><td>3,373.7 ns</td><td>27.64 ns</td><td>1.51 ns</td><td>1.00</td><td>0.00</td><td>0.0572</td><td>1000 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>

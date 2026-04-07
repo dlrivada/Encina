@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Audit.Marten.Benchmarks.TemporalKeyProviderBenchmarks-20260407-142031</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method          </th><th>PeriodCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>GetOrCreateExistingKey</td><td>12</td><td>157.2 ns</td><td>22.91 ns</td><td>1.26 ns</td><td>1.14</td><td>0.01</td><td>2</td><td>0.0196</td><td>-</td><td>328 B</td><td>0.93</td>
+</tr><tr><td>IsKeyDestroyed</td><td>12</td><td>112.1 ns</td><td>15.62 ns</td><td>0.86 ns</td><td>0.81</td><td>0.01</td><td>1</td><td>0.0067</td><td>-</td><td>112 B</td><td>0.32</td>
+</tr><tr><td>GetActiveKeysCount</td><td>12</td><td>2,786.9 ns</td><td>617.08 ns</td><td>33.82 ns</td><td>20.24</td><td>0.25</td><td>3</td><td>0.1450</td><td>-</td><td>2464 B</td><td>7.00</td>
+</tr><tr><td>CreateNewKey</td><td>12</td><td>3,886.7 ns</td><td>831.10 ns</td><td>45.56 ns</td><td>28.23</td><td>0.34</td><td>4</td><td>0.0458</td><td>0.0381</td><td>848 B</td><td>2.41</td>
+</tr><tr><td>GetExistingKey</td><td>12</td><td>137.7 ns</td><td>19.58 ns</td><td>1.07 ns</td><td>1.00</td><td>0.01</td><td>2</td><td>0.0210</td><td>-</td><td>352 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>

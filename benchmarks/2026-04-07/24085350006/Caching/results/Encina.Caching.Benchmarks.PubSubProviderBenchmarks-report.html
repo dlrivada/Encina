@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Benchmarks.PubSubProviderBenchmarks-20260407-141347</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.67GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                 </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>subscriberCount</th><th>messageCount</th><th>Mean     </th><th>Error  </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>PublishAsync_NoSubscriber</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>?</td><td>912.9 ns</td><td>2.85 ns</td><td>1.88 ns</td><td>3.23</td><td>0.03</td><td>0.0095</td><td>-</td><td>168 B</td><td>1.31</td>
+</tr><tr><td>SubscribeAndUnsubscribe</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>?</td><td>1,949.3 ns</td><td>22.27 ns</td><td>14.73 ns</td><td>6.90</td><td>0.08</td><td>0.0458</td><td>0.0420</td><td>776 B</td><td>6.06</td>
+</tr><tr><td>PublishAsync_SingleSubscriber</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>?</td><td>282.5 ns</td><td>3.81 ns</td><td>2.52 ns</td><td>1.00</td><td>0.01</td><td>0.0076</td><td>-</td><td>128 B</td><td>1.00</td>
+</tr><tr><td>PublishAsync_NoSubscriber</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>?</td><td>898.6 ns</td><td>31.94 ns</td><td>1.75 ns</td><td>3.12</td><td>0.02</td><td>0.0095</td><td>-</td><td>168 B</td><td>1.31</td>
+</tr><tr><td>SubscribeAndUnsubscribe</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>?</td><td>1,944.3 ns</td><td>196.29 ns</td><td>10.76 ns</td><td>6.74</td><td>0.06</td><td>0.0458</td><td>0.0420</td><td>776 B</td><td>6.06</td>
+</tr><tr><td>PublishAsync_SingleSubscriber</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>?</td><td>288.4 ns</td><td>46.13 ns</td><td>2.53 ns</td><td>1.00</td><td>0.01</td><td>0.0076</td><td>-</td><td>128 B</td><td>1.00</td>
+</tr><tr><td>MultipleSubscribers</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>5</td><td>?</td><td>10,260,877.7 ns</td><td>12,033.61 ns</td><td>7,161.01 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1856 B</td><td>?</td>
+</tr><tr><td>MultipleSubscribers</td><td>ShortRun</td><td>3</td><td>1</td><td>5</td><td>?</td><td>10,257,775.3 ns</td><td>54,979.05 ns</td><td>3,013.59 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>1856 B</td><td>?</td>
+</tr><tr><td>PublishBurst</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>10</td><td>3,551.2 ns</td><td>29.44 ns</td><td>19.47 ns</td><td>?</td><td>?</td><td>0.1106</td><td>-</td><td>1856 B</td><td>?</td>
+</tr><tr><td>PublishBurst</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>10</td><td>3,580.0 ns</td><td>250.44 ns</td><td>13.73 ns</td><td>?</td><td>?</td><td>0.1106</td><td>-</td><td>1856 B</td><td>?</td>
+</tr><tr><td>MultipleSubscribers</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>10</td><td>?</td><td>10,277,272.7 ns</td><td>19,469.08 ns</td><td>11,585.74 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>2456 B</td><td>?</td>
+</tr><tr><td>MultipleSubscribers</td><td>ShortRun</td><td>3</td><td>1</td><td>10</td><td>?</td><td>10,255,023.7 ns</td><td>375,836.08 ns</td><td>20,600.84 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>2456 B</td><td>?</td>
+</tr><tr><td>MultipleSubscribers</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>20</td><td>?</td><td>10,280,483.9 ns</td><td>25,176.44 ns</td><td>16,652.66 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>3656 B</td><td>?</td>
+</tr><tr><td>MultipleSubscribers</td><td>ShortRun</td><td>3</td><td>1</td><td>20</td><td>?</td><td>10,315,080.8 ns</td><td>96,000.57 ns</td><td>5,262.12 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>3656 B</td><td>?</td>
+</tr><tr><td>PublishBurst</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>50</td><td>17,844.1 ns</td><td>82.83 ns</td><td>54.78 ns</td><td>?</td><td>?</td><td>0.5493</td><td>-</td><td>9216 B</td><td>?</td>
+</tr><tr><td>PublishBurst</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>50</td><td>17,454.1 ns</td><td>1,114.14 ns</td><td>61.07 ns</td><td>?</td><td>?</td><td>0.5493</td><td>-</td><td>9216 B</td><td>?</td>
+</tr><tr><td>PublishBurst</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>?</td><td>100</td><td>34,919.6 ns</td><td>98.34 ns</td><td>58.52 ns</td><td>?</td><td>?</td><td>1.0986</td><td>-</td><td>18416 B</td><td>?</td>
+</tr><tr><td>PublishBurst</td><td>ShortRun</td><td>3</td><td>1</td><td>?</td><td>100</td><td>34,672.7 ns</td><td>3,685.83 ns</td><td>202.03 ns</td><td>?</td><td>?</td><td>1.0986</td><td>-</td><td>18416 B</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>
