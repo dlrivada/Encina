@@ -503,3 +503,10 @@ Yes. `DefaultSanitizer` is registered as a singleton and is stateless. Property 
 
 **Q: Does it affect performance?**
 Negligible. Property caches eliminate reflection overhead after the first call. Requests without sanitization attributes bypass all checks. HTML sanitization (Ganss.Xss) is the most expensive operation but is only invoked for properties marked with `[SanitizeHtml]`.
+
+## Performance
+
+<!-- docref-table: bench:security/html-* -->
+<!-- /docref-table -->
+
+*See [security benchmark results](../benchmarks/security-benchmark-results.md) for detailed analysis.*

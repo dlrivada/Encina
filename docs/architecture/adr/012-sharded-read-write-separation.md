@@ -97,6 +97,7 @@ The non-generic `IShardedReadWriteConnectionFactory` returns `IDbConnection`; th
 
 ### Five Replica Selection Strategies
 
+<!-- docref-table: bench:read-write/*-select -->
 | Strategy | Algorithm | Thread Safety | Overhead | Best For |
 |----------|-----------|---------------|----------|----------|
 | **RoundRobin** | `Interlocked.Increment` modulo replica count | Lock-free | ~5ns | Even distribution, default |
@@ -104,6 +105,7 @@ The non-generic `IShardedReadWriteConnectionFactory` returns `IDbConnection`; th
 | **LeastLatency** | EMA (alpha=0.3) over `ConcurrentDictionary` | Thread-safe reads | ~50ns | Performance-sensitive reads |
 | **LeastConnections** | `Interlocked` counters per replica | Lock-free counters | ~30ns | Variable query durations |
 | **WeightedRandom** | Cumulative weight array + binary search | Read-only weights | ~20ns | Heterogeneous replica capacity |
+<!-- /docref-table -->
 
 **Strategy resolution order**:
 

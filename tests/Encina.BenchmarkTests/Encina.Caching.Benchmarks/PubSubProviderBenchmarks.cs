@@ -36,6 +36,7 @@ public class PubSubProviderBenchmarks
         await _provider.UnsubscribeAsync(_subscribedChannel, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/pubsub-single")]
     [Benchmark(Baseline = true)]
     public async Task PublishAsync_SingleSubscriber()
     {

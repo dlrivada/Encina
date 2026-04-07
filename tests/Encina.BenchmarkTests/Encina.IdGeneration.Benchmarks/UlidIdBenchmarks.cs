@@ -18,6 +18,7 @@ public class UlidIdBenchmarks
         _generator = new UlidIdGenerator();
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/ulid")]
     [Benchmark(Baseline = true)]
     public UlidId Generate()
     {

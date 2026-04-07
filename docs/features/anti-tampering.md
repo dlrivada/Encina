@@ -494,3 +494,10 @@ Each request must have a unique nonce. If you retry a failed request, generate a
 **Clock skew between client and server**
 
 Increase `TimestampToleranceMinutes` or ensure NTP synchronization between client and server machines. The default 5-minute tolerance handles most network delays.
+
+## Performance
+
+<!-- docref-table: bench:security/sign-* -->
+<!-- /docref-table -->
+
+*See [security benchmark results](../benchmarks/security-benchmark-results.md) for detailed analysis.*

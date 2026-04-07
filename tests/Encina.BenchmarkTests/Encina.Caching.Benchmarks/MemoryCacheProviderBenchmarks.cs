@@ -60,18 +60,21 @@ public class MemoryCacheProviderBenchmarks : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/memory-get-hit")]
     [Benchmark(Baseline = true)]
     public async Task<TestData?> GetAsync_CacheHit()
     {
         return await _provider.GetAsync<TestData>(_existingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/memory-get-miss")]
     [Benchmark]
     public async Task<TestData?> GetAsync_CacheMiss()
     {
         return await _provider.GetAsync<TestData>(_missingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/memory-set")]
     [Benchmark]
     public async Task SetAsync()
     {

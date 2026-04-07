@@ -126,6 +126,7 @@ public class CacheInvalidationBenchmarks : IDisposable
         }
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/invalidation-concurrent")]
     [Benchmark]
     [Arguments(10)]
     [Arguments(50)]

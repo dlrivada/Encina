@@ -560,3 +560,10 @@ mockKeyProvider.GetKeyAsync("test-key", Arg.Any<CancellationToken>())
 **Cause**: Encrypting an empty string produces a valid encrypted value with zero-length ciphertext. Decryption rejects empty ciphertext as invalid.
 
 **Solution**: Ensure all `[Encrypt]`-decorated properties have non-empty values, or set `FailOnError = false` to skip empty values gracefully.
+
+## Performance
+
+<!-- docref-table: bench:security/encrypt-* -->
+<!-- /docref-table -->
+
+*See [security benchmark results](../benchmarks/security-benchmark-results.md) for detailed analysis.*
