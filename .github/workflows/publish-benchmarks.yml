@@ -101,10 +101,11 @@ jobs:
           # on every successful deploy. Fetch it and use whichever is larger.
           PAGES_URL="https://dlrivada.github.io/Encina/benchmarks/data/history.json"
           PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
-          REPO_ENTRIES=$(grep -c timestamp docs/benchmarks/data/history.json 2>/dev/null || echo 0)
+          # grep -c returns exit code 1 when count=0, so capture separately
+          REPO_ENTRIES=$(grep -c timestamp docs/benchmarks/data/history.json 2>/dev/null) || REPO_ENTRIES=0
 
           if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp || echo 0)
+            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
               echo "$PAGES_HISTORY" > docs/benchmarks/data/history.json
