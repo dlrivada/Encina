@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.IdGeneration.Benchmarks.IdGenerationComparisonBenchmarks-20260407-100759</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+Intel Xeon Platinum 8370C CPU 2.80GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method      </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Snowflake</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>241.7 ns</td><td>0.10 ns</td><td>0.07 ns</td><td>241.7 ns</td><td>1.00</td><td>0.00</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Ulid</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>959.8 ns</td><td>6.89 ns</td><td>4.10 ns</td><td>958.6 ns</td><td>3.97</td><td>0.02</td><td>3</td><td>-</td><td>40 B</td><td>NA</td>
+</tr><tr><td>UuidV7</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>963.6 ns</td><td>1.54 ns</td><td>1.02 ns</td><td>963.5 ns</td><td>3.99</td><td>0.00</td><td>3</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>ShardPrefixed</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>1,158.9 ns</td><td>3.29 ns</td><td>1.72 ns</td><td>1,159.0 ns</td><td>4.80</td><td>0.01</td><td>4</td><td>0.0076</td><td>216 B</td><td>NA</td>
+</tr><tr><td>DotNet_GuidNewGuid</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>395.9 ns</td><td>0.37 ns</td><td>0.22 ns</td><td>396.0 ns</td><td>1.64</td><td>0.00</td><td>2</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Snowflake</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>241.6 ns</td><td>0.05 ns</td><td>0.07 ns</td><td>241.7 ns</td><td>1.00</td><td>0.00</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Ulid</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>954.5 ns</td><td>11.60 ns</td><td>17.00 ns</td><td>968.5 ns</td><td>3.95</td><td>0.07</td><td>3</td><td>-</td><td>40 B</td><td>NA</td>
+</tr><tr><td>UuidV7</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>964.4 ns</td><td>0.98 ns</td><td>1.34 ns</td><td>964.2 ns</td><td>3.99</td><td>0.01</td><td>3</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>ShardPrefixed</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>1,190.6 ns</td><td>22.28 ns</td><td>32.66 ns</td><td>1,163.3 ns</td><td>4.93</td><td>0.13</td><td>4</td><td>0.0076</td><td>216 B</td><td>NA</td>
+</tr><tr><td>DotNet_GuidNewGuid</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>397.3 ns</td><td>1.33 ns</td><td>1.86 ns</td><td>398.5 ns</td><td>1.64</td><td>0.01</td><td>2</td><td>-</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

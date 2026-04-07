@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.Sanitization.Benchmarks.SanitizerBenchmarks-20260407-100645</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                     </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean   </th><th>Error</th><th>StdDev</th><th>Median </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SanitizeHtml_CleanInput</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>12,725.45 ns</td><td>96.784 ns</td><td>50.620 ns</td><td>12,741.02 ns</td><td>1.000</td><td>0.01</td><td>0.7324</td><td>0.0153</td><td>12416 B</td><td>1.000</td>
+</tr><tr><td>SanitizeHtml_MaliciousInput</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>18,746.71 ns</td><td>132.438 ns</td><td>87.600 ns</td><td>18,717.27 ns</td><td>1.473</td><td>0.01</td><td>0.7629</td><td>-</td><td>13080 B</td><td>1.053</td>
+</tr><tr><td>SanitizeHtml_ComplexDocument</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>136,987.17 ns</td><td>383.874 ns</td><td>228.437 ns</td><td>136,928.38 ns</td><td>10.765</td><td>0.04</td><td>3.9063</td><td>0.2441</td><td>66724 B</td><td>5.374</td>
+</tr><tr><td>SanitizeForSql_SimpleInput</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>248.60 ns</td><td>0.764 ns</td><td>0.455 ns</td><td>248.38 ns</td><td>0.020</td><td>0.00</td><td>0.0029</td><td>-</td><td>48 B</td><td>0.004</td>
+</tr><tr><td>SanitizeForSql_InjectionAttempt</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>335.23 ns</td><td>1.640 ns</td><td>0.976 ns</td><td>334.82 ns</td><td>0.026</td><td>0.00</td><td>0.0119</td><td>-</td><td>200 B</td><td>0.016</td>
+</tr><tr><td>SanitizeForShell_SimpleInput</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>28.13 ns</td><td>0.209 ns</td><td>0.138 ns</td><td>28.10 ns</td><td>0.002</td><td>0.00</td><td>0.0029</td><td>-</td><td>48 B</td><td>0.004</td>
+</tr><tr><td>SanitizeForShell_InjectionAttempt</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>28.16 ns</td><td>0.318 ns</td><td>0.210 ns</td><td>28.14 ns</td><td>0.002</td><td>0.00</td><td>0.0029</td><td>-</td><td>48 B</td><td>0.004</td>
+</tr><tr><td>SanitizeForJson_SimpleInput</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>470.28 ns</td><td>0.929 ns</td><td>0.553 ns</td><td>470.48 ns</td><td>0.037</td><td>0.00</td><td>0.0124</td><td>-</td><td>208 B</td><td>0.017</td>
+</tr><tr><td>SanitizeForXml_SimpleInput</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>268.46 ns</td><td>3.072 ns</td><td>2.032 ns</td><td>268.40 ns</td><td>0.021</td><td>0.00</td><td>0.0386</td><td>-</td><td>648 B</td><td>0.052</td>
+</tr><tr><td>SanitizeHtml_CleanInput</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>12,689.09 ns</td><td>99.923 ns</td><td>140.078 ns</td><td>12,764.24 ns</td><td>1.000</td><td>0.02</td><td>0.7324</td><td>0.0153</td><td>12416 B</td><td>1.000</td>
+</tr><tr><td>SanitizeHtml_MaliciousInput</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>19,215.08 ns</td><td>204.778 ns</td><td>300.161 ns</td><td>19,394.93 ns</td><td>1.514</td><td>0.03</td><td>0.7629</td><td>-</td><td>13080 B</td><td>1.053</td>
+</tr><tr><td>SanitizeHtml_ComplexDocument</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>138,145.04 ns</td><td>705.575 ns</td><td>1,011.914 ns</td><td>137,851.62 ns</td><td>10.888</td><td>0.14</td><td>3.9063</td><td>0.2441</td><td>66724 B</td><td>5.374</td>
+</tr><tr><td>SanitizeForSql_SimpleInput</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>263.69 ns</td><td>1.099 ns</td><td>1.576 ns</td><td>263.82 ns</td><td>0.021</td><td>0.00</td><td>0.0029</td><td>-</td><td>48 B</td><td>0.004</td>
+</tr><tr><td>SanitizeForSql_InjectionAttempt</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>342.02 ns</td><td>0.608 ns</td><td>0.891 ns</td><td>341.95 ns</td><td>0.027</td><td>0.00</td><td>0.0119</td><td>-</td><td>200 B</td><td>0.016</td>
+</tr><tr><td>SanitizeForShell_SimpleInput</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>28.23 ns</td><td>0.141 ns</td><td>0.211 ns</td><td>28.23 ns</td><td>0.002</td><td>0.00</td><td>0.0029</td><td>-</td><td>48 B</td><td>0.004</td>
+</tr><tr><td>SanitizeForShell_InjectionAttempt</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>28.08 ns</td><td>0.114 ns</td><td>0.164 ns</td><td>28.10 ns</td><td>0.002</td><td>0.00</td><td>0.0029</td><td>-</td><td>48 B</td><td>0.004</td>
+</tr><tr><td>SanitizeForJson_SimpleInput</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>472.81 ns</td><td>5.124 ns</td><td>7.349 ns</td><td>473.00 ns</td><td>0.037</td><td>0.00</td><td>0.0124</td><td>-</td><td>208 B</td><td>0.017</td>
+</tr><tr><td>SanitizeForXml_SimpleInput</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>271.01 ns</td><td>3.188 ns</td><td>4.772 ns</td><td>269.70 ns</td><td>0.021</td><td>0.00</td><td>0.0386</td><td>-</td><td>648 B</td><td>0.052</td>
+</tr></tbody></table>
+</body>
+</html>

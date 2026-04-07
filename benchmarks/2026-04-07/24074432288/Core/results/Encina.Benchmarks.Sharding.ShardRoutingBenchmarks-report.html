@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ShardRoutingBenchmarks-20260407-094757</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+Intel Xeon Platinum 8370C CPU 2.80GHz (Max: 2.79GHz), 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v4
+  MediumRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=MediumRun  InvocationCount=1  IterationCount=15  
+LaunchCount=2  UnrollFactor=1  WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                    </th><th>ShardCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Hash routing&#39;</td><td>3</td><td>3.064 &mu;s</td><td>0.2210 &mu;s</td><td>0.3169 &mu;s</td><td>1.01</td><td>0.16</td><td>3</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>3</td><td>1.867 &mu;s</td><td>0.1021 &mu;s</td><td>0.1465 &mu;s</td><td>0.62</td><td>0.09</td><td>1</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>3</td><td>2.583 &mu;s</td><td>0.0954 &mu;s</td><td>0.1337 &mu;s</td><td>0.85</td><td>0.11</td><td>2</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>3</td><td>3.388 &mu;s</td><td>0.4455 &mu;s</td><td>0.6245 &mu;s</td><td>1.12</td><td>0.24</td><td>3</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>3</td><td>5.474 &mu;s</td><td>0.2510 &mu;s</td><td>0.3519 &mu;s</td><td>1.81</td><td>0.24</td><td>4</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>3</td><td>2.944 &mu;s</td><td>0.1624 &mu;s</td><td>0.2328 &mu;s</td><td>0.97</td><td>0.14</td><td>3</td><td>104 B</td><td>1.86</td>
+</tr><tr><td>GetShardConnectionString</td><td>3</td><td>3.316 &mu;s</td><td>0.2971 &mu;s</td><td>0.4260 &mu;s</td><td>1.09</td><td>0.19</td><td>3</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>3</td><td>5.070 &mu;s</td><td>0.2860 &mu;s</td><td>0.3915 &mu;s</td><td>1.67</td><td>0.23</td><td>4</td><td>152 B</td><td>2.71</td>
+</tr><tr><td>&#39;Hash routing&#39;</td><td>50</td><td>3.771 &mu;s</td><td>0.1763 &mu;s</td><td>0.2584 &mu;s</td><td>1.00</td><td>0.09</td><td>3</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>50</td><td>2.372 &mu;s</td><td>0.0640 &mu;s</td><td>0.0919 &mu;s</td><td>0.63</td><td>0.05</td><td>1</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>50</td><td>2.950 &mu;s</td><td>0.1356 &mu;s</td><td>0.1945 &mu;s</td><td>0.79</td><td>0.07</td><td>2</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>50</td><td>4.247 &mu;s</td><td>0.3662 &mu;s</td><td>0.5253 &mu;s</td><td>1.13</td><td>0.16</td><td>3</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>50</td><td>8.291 &mu;s</td><td>0.3021 &mu;s</td><td>0.4235 &mu;s</td><td>2.21</td><td>0.18</td><td>5</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>50</td><td>4.177 &mu;s</td><td>0.3832 &mu;s</td><td>0.5616 &mu;s</td><td>1.11</td><td>0.16</td><td>3</td><td>480 B</td><td>8.57</td>
+</tr><tr><td>GetShardConnectionString</td><td>50</td><td>4.440 &mu;s</td><td>0.4803 &mu;s</td><td>0.6733 &mu;s</td><td>1.18</td><td>0.19</td><td>3</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>50</td><td>5.982 &mu;s</td><td>0.1878 &mu;s</td><td>0.2693 &mu;s</td><td>1.59</td><td>0.12</td><td>4</td><td>152 B</td><td>2.71</td>
+</tr></tbody></table>
+</body>
+</html>
