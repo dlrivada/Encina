@@ -136,6 +136,23 @@ jobs:
             -exec cp -f {} docs/load-tests/data/ \;
           ls -la docs/load-tests/data/
 
+      - name: Fetch live history from Pages (most complete)
+        run: |
+          PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/history.json"
+          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+          REPO_ENTRIES=$(grep -c timestamp docs/load-tests/data/history.json 2>/dev/null || echo 0)
+          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
+            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp || echo 0)
+            if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
+              echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
+              echo "$PAGES_HISTORY" > docs/load-tests/data/history.json
+            else
+              echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
+            fi
+          else
+            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+          fi
+
       - name: Update load-tests history
         run: |
           dotnet run .github/scripts/perf-history.cs -- \
