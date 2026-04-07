@@ -47,6 +47,7 @@ public class ErrorCodeMappingBenchmarks
         "service.unavailable"
     ];
 
+    [BenchmarkCategory("DocRef:bench:aws/error-mapping")]
     [Benchmark(Baseline = true)]
     public HttpStatusCode MapValidationError()
     {

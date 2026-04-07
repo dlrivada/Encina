@@ -39,6 +39,7 @@ public class SubjectKeyProviderBenchmarks
         _keyProvider.Clear();
     }
 
+    [BenchmarkCategory("DocRef:bench:gdpr/subject-key-get")]
     [Benchmark(Baseline = true)]
     public async Task<byte[]?> GetExistingKey()
     {
@@ -69,6 +70,7 @@ public class SubjectKeyProviderBenchmarks
         return key;
     }
 
+    [BenchmarkCategory("DocRef:bench:gdpr/subject-key-forgotten")]
     [Benchmark]
     public async Task<bool> CheckIsForgotten()
     {

@@ -22,12 +22,14 @@ public class ApiGatewayResponseBenchmarks
         _unitResult = Either<EncinaError, Unit>.Right(Unit.Default);
     }
 
+    [BenchmarkCategory("DocRef:bench:aws/api-gateway-success")]
     [Benchmark(Baseline = true)]
     public object ToApiGatewayResponse_Success()
     {
         return _successResult.ToApiGatewayResponse();
     }
 
+    [BenchmarkCategory("DocRef:bench:aws/api-gateway-error")]
     [Benchmark]
     public object ToApiGatewayResponse_Error()
     {
