@@ -97,6 +97,7 @@ public class QueryCachingPipelineBenchmarks : IDisposable
         return await _behavior.Handle(_query, _context, _handler, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/pipeline-concurrent")]
     [Benchmark]
     [Arguments(10)]
     [Arguments(50)]
@@ -125,6 +126,7 @@ public class QueryCachingPipelineBenchmarks : IDisposable
         }
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/pipeline-sequential")]
     [Benchmark]
     public async Task Pipeline_SequentialSameQuery()
     {

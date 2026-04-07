@@ -62,18 +62,21 @@ public class HybridCacheProviderBenchmarks : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/hybrid-get-hit")]
     [Benchmark(Baseline = true)]
     public async Task<TestData?> GetAsync_CacheHit()
     {
         return await _provider.GetAsync<TestData>(_existingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/hybrid-get-miss")]
     [Benchmark]
     public async Task<TestData?> GetAsync_CacheMiss()
     {
         return await _provider.GetAsync<TestData>(_missingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/hybrid-set")]
     [Benchmark]
     public async Task SetAsync()
     {

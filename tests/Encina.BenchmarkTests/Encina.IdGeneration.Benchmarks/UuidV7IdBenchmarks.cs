@@ -18,6 +18,7 @@ public class UuidV7IdBenchmarks
         _generator = new UuidV7IdGenerator();
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/uuidv7")]
     [Benchmark(Baseline = true)]
     public UuidV7Id Generate()
     {

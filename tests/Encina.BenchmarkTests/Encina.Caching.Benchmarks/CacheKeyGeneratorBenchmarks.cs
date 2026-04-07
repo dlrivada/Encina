@@ -33,12 +33,14 @@ public class CacheKeyGeneratorBenchmarks
         _templatedQuery = new TemplatedQuery(Guid.NewGuid());
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/key-simple")]
     [Benchmark(Baseline = true)]
     public string GenerateKey_SimpleQuery()
     {
         return _keyGenerator.GenerateKey<SimpleQuery, string>(_simpleQuery, _context);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching/key-complex")]
     [Benchmark]
     public string GenerateKey_ComplexQuery()
     {

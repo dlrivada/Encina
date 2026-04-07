@@ -54,6 +54,7 @@ public class IdGenerationComparisonBenchmarks
         return result.Match(id => id.ToString(), _ => string.Empty);
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/guid-baseline")]
     [Benchmark]
     public Guid DotNet_GuidNewGuid()
     {

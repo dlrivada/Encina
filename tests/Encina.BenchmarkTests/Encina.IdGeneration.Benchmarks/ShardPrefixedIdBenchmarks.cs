@@ -28,6 +28,7 @@ public class ShardPrefixedIdBenchmarks
             new ShardPrefixedOptions { Format = ShardPrefixedFormat.TimestampRandom });
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/shard-prefixed")]
     [Benchmark(Baseline = true)]
     public ShardPrefixedId Generate_UlidFormat()
     {
@@ -35,6 +36,7 @@ public class ShardPrefixedIdBenchmarks
         return result.Match(id => id, _ => default);
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/shard-prefixed-with-shard")]
     [Benchmark]
     public ShardPrefixedId Generate_UuidV7Format()
     {
@@ -49,6 +51,7 @@ public class ShardPrefixedIdBenchmarks
         return result.Match(id => id, _ => default);
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/ulid-extract")]
     [Benchmark]
     public string ExtractShardId_Ulid()
     {

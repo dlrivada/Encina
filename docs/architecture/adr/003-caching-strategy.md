@@ -247,12 +247,14 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
 
 **Micro-Benchmarks - Delegate Invocation Overhead (Measured):**
 
+<!-- docref-table: bench:delegates/* -->
 | Approach | Mean Time | Ratio | Allocated | Notes |
 |----------|-----------|-------|-----------|-------|
 | Direct method call | 13.07 ns | 1.00x | 112 B | Baseline - fastest possible |
 | Cached compiled delegate | 13.99 ns | 1.07x | 112 B | What Encina uses |
 | MethodInfo.Invoke | 32.17 ns | 2.46x | 176 B | Reflection without caching |
 | Expression compilation (first call) | 33.1 μs | 2,533x | 5.3 KB | One-time cost per handler type |
+<!-- /docref-table -->
 
 **Key Insights:**
 

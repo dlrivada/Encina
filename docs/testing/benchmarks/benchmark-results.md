@@ -320,6 +320,7 @@ Measures the impact of caching strategies in the mediator pipeline.
 
 ### Results
 
+<!-- docref-table: bench:cache/* -->
 | Method | Mean | Error | StdDev | Ratio | Gen0 | Allocated |
 |--------|------|-------|--------|-------|------|-----------|
 | Cache_GetOrAdd_Direct | 3.41 ns | 0.068 ns | 0.063 ns | 1.00 | - | 0 B |
@@ -329,6 +330,7 @@ Measures the impact of caching strategies in the mediator pipeline.
 | Publish_Notification_CacheHit | 461 ns | 4.06 ns | 3.60 ns | 135x | 0.0734 | 1,384 B |
 | TypeCheck_Cached | 2.10 ns | 0.028 ns | 0.026 ns | 0.62 | - | 0 B |
 | TypeCheck_Direct | 0.38 ns | 0.019 ns | 0.015 ns | 0.11 | - | 0 B |
+<!-- /docref-table -->
 
 ### Analysis
 
@@ -397,12 +399,14 @@ The Read/Write Separation pattern enables distributing read queries across multi
 
 #### Results
 
+<!-- docref-table: bench:read-write/*-select -->
 | Method | Mean | Error | StdDev | Ratio | Rank | Allocated |
 |--------|------|-------|--------|-------|------|-----------|
 | RoundRobin.SelectReplica | 5.75 ns | 0.05 ns | 0.05 ns | 1.00 | 2 | - |
 | Random.SelectReplica | 0.90 ns | 0.02 ns | 0.02 ns | 0.16 | 1 | - |
 | LeastConnections.SelectReplica | 63.45 ns | 0.52 ns | 0.48 ns | 11.03 | 3 | 32 B |
 | LeastConnections.AcquireReplica (lease) | 79.00 ns | 0.95 ns | 0.89 ns | 13.74 | 4 | 32 B |
+<!-- /docref-table -->
 
 #### Analysis
 
@@ -417,6 +421,7 @@ Benchmarks measuring thread contention under multi-threaded scenarios (1, 4, 8, 
 
 #### Results
 
+<!-- docref-table: bench:read-write/concurrent-* -->
 | Method | ThreadCount | Mean | Ratio | Lock Contentions | Allocated |
 |--------|-------------|------|-------|------------------|-----------|
 | Concurrent RoundRobin | 1 | 7.05 μs | 1.00 | - | 1.47 KB |
@@ -438,6 +443,7 @@ Benchmarks measuring thread contention under multi-threaded scenarios (1, 4, 8, 
 | Concurrent Random | 16 | 11.50 μs | 0.33 | 0.0003 | 4.76 KB |
 | Concurrent LeastConnections | 16 | 195.00 μs | 5.65 | 13.84 | 35.96 KB |
 | Concurrent LeastConnections (lease) | 16 | 276.22 μs | 8.00 | 9.64 | 35.94 KB |
+<!-- /docref-table -->
 
 #### Analysis
 
@@ -459,6 +465,7 @@ Benchmarks for AsyncLocal-based routing context operations.
 
 #### Results
 
+<!-- docref-table: bench:read-write/routing-* -->
 | Method | Mean | Error | StdDev | Allocated |
 |--------|------|-------|--------|-----------|
 | Read CurrentIntent (AsyncLocal) | 200.0 ns | 0.00 ns | 0.00 ns | - |
@@ -471,6 +478,7 @@ Benchmarks for AsyncLocal-based routing context operations.
 | DatabaseRoutingScope.ForForceWrite() | 1,405.9 ns | 43.97 ns | 118.88 ns | 392 B |
 | DatabaseRoutingContext.Clear() | 617.5 ns | 22.57 ns | 59.05 ns | 96 B |
 | Nested scopes (Read → ForceWrite) | 2,015.0 ns | 187.65 ns | 553.30 ns | 840 B |
+<!-- /docref-table -->
 
 #### Analysis
 

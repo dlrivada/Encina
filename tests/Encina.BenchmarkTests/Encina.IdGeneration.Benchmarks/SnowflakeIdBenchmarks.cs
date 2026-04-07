@@ -19,6 +19,7 @@ public class SnowflakeIdBenchmarks
         _generator = new SnowflakeIdGenerator(new SnowflakeOptions());
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/snowflake")]
     [Benchmark(Baseline = true)]
     public SnowflakeId Generate()
     {
@@ -33,6 +34,7 @@ public class SnowflakeIdBenchmarks
         return result.Match(id => id, _ => default);
     }
 
+    [BenchmarkCategory("DocRef:bench:idgen/snowflake-extract")]
     [Benchmark]
     public string ExtractShardId()
     {

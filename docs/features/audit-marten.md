@@ -88,6 +88,7 @@ Encrypts everything. After crypto-shredding, nothing is queryable. Use only when
 
 ## Performance
 
+<!-- docref-table: bench:audit-marten/* -->
 | Operation | Latency | Notes |
 |-----------|---------|-------|
 | Encrypt 1 PII field (16B) | ~900 ns | AES-NI hardware accelerated |
@@ -97,6 +98,7 @@ Encrypts everything. After crypto-shredding, nothing is queryable. Use only when
 | **Load test throughput** | **508K entries/sec** | 8 workers, 2KB payload |
 | **P50 latency** | **8.7 us** | |
 | **P99 latency** | **0.24 ms** | |
+<!-- /docref-table -->
 
 The encryption overhead represents **< 1%** of total audit recording cost (PostgreSQL I/O dominates at 1-5 ms).
 

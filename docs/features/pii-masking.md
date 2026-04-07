@@ -425,3 +425,13 @@ Assert.Contains("@example.com", result);
 - Ensure `PIIOptions.MaskInLogs = true`
 - Use `PIILoggerExtensions` methods (`LogInformationMasked`, etc.) — standard `ILogger` methods don't mask
 - If the log level is disabled, masking is skipped for performance
+
+## Performance
+
+<!-- docref-table: bench:security/*-partial -->
+<!-- /docref-table -->
+
+<!-- docref-table: bench:security/mask-* -->
+<!-- /docref-table -->
+
+*See [security benchmark results](../benchmarks/security-benchmark-results.md) for detailed analysis.*

@@ -22,6 +22,7 @@ public class InMemoryLockBenchmarks
         _resourceCounter = 0;
     }
 
+    [BenchmarkCategory("DocRef:bench:lock/try-acquire")]
     [Benchmark(Baseline = true)]
     public async Task<IAsyncDisposable?> TryAcquireAsync_SingleLock()
     {
@@ -41,6 +42,7 @@ public class InMemoryLockBenchmarks
         return lockHandle;
     }
 
+    [BenchmarkCategory("DocRef:bench:lock/is-locked-miss")]
     [Benchmark]
     public async Task<bool> IsLockedAsync_UnlockedResource()
     {
@@ -48,6 +50,7 @@ public class InMemoryLockBenchmarks
         return await _provider.IsLockedAsync(resource, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:lock/is-locked-hit")]
     [Benchmark]
     public async Task<bool> IsLockedAsync_LockedResource()
     {
@@ -63,6 +66,7 @@ public class InMemoryLockBenchmarks
         return await _provider.IsLockedAsync(resource, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:lock/acquire-release")]
     [Benchmark]
     public async Task AcquireAndRelease_100Iterations()
     {
@@ -80,6 +84,7 @@ public class InMemoryLockBenchmarks
         }
     }
 
+    [BenchmarkCategory("DocRef:bench:lock/parallel-acquire")]
     [Benchmark]
     public async Task ParallelAcquire_10DifferentResources()
     {
