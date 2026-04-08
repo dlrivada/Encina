@@ -313,6 +313,24 @@
 
   renderPackages();
 
+  // ── Untracked packages warning ────────────────────────────────────
+  if (data.untrackedPackages?.length > 0) {
+    const section = document.getElementById('package-table').parentElement;
+    const warning = document.createElement('div');
+    warning.className = 'untracked-warning';
+    warning.style.cssText = 'margin:1.5rem 0;padding:1rem 1.5rem;border:1px solid #f0ad4e;border-radius:8px;background:rgba(240,173,78,0.08)';
+    const list = data.untrackedPackages.map(p => `<li><code>${p}</code></li>`).join('');
+    warning.innerHTML = `
+      <h3 style="margin:0 0 0.5rem;color:#f0ad4e">⚠ Packages Without Coverage Manifest (${data.untrackedPackages.length})</h3>
+      <p style="margin:0 0 0.5rem;opacity:0.85">These packages exist in <code>src/</code> but have no manifest in
+      <code>.github/coverage-manifest/</code>. Their coverage is not tracked.</p>
+      <ul style="margin:0.5rem 0;padding-left:1.5rem">${list}</ul>
+      <p style="margin:0.5rem 0 0;opacity:0.7;font-size:0.85em">To fix: generate a manifest with
+      <code>dotnet run .github/scripts/generate-coverage-manifest.cs</code></p>
+    `;
+    section.appendChild(warning);
+  }
+
   // ── Column sorting ─────────────────────────────────────────────────
   function updateSortHeaders() {
     document.querySelectorAll('#package-table th[data-sort]').forEach(th => {

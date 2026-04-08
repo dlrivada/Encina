@@ -103,6 +103,30 @@ else
     Console.WriteLine($"WARNING: Manifest directory '{manifestDir}' not found. Using category-level weights only.");
 }
 
+// ─── Detect packages in src/ without a coverage manifest ────────────────────
+var srcDir = Path.Combine(Directory.GetCurrentDirectory(), "src");
+var untrackedPackages = new List<string>();
+if (Directory.Exists(srcDir))
+{
+    var srcPackages = Directory.GetDirectories(srcDir)
+        .Select(d => Path.GetFileName(d))
+        .Where(name => name.StartsWith("Encina.", StringComparison.Ordinal))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    var manifestedPackages = manifest.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    untrackedPackages = srcPackages.Except(manifestedPackages, StringComparer.OrdinalIgnoreCase)
+        .OrderBy(x => x).ToList();
+
+    if (untrackedPackages.Count > 0)
+    {
+        Console.WriteLine($"\n  ⚠ WARNING: {untrackedPackages.Count} package(s) in src/ have no coverage manifest:");
+        foreach (var pkg in untrackedPackages)
+            Console.WriteLine($"    - {pkg}");
+        Console.WriteLine("  Run: dotnet run .github/scripts/generate-coverage-manifest.cs\n");
+    }
+}
+
 // ─── Per-file test type lookup ──────────────────────────────────────────────
 
 TestType GetFileApplicableTests(string packageName, string fileRelPath)
@@ -443,7 +467,8 @@ var jsonData = new
             kv => kv.Key.ToString().ToLowerInvariant(),
             kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
                         coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 })
-    })
+    }),
+    untrackedPackages = untrackedPackages.Count > 0 ? untrackedPackages : null
 };
 
 var jsonOptions = new JsonSerializerOptions
