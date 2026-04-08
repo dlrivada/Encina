@@ -33,6 +33,7 @@
   <nav class="tab-bar">
     <button class="tab-btn active" data-tab="benchmarks">Benchmarks</button>
     <button class="tab-btn" data-tab="load-tests">Load Tests</button>
+    <button class="tab-btn" data-tab="coverage">Package Coverage</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -125,6 +126,52 @@
             <th class="num" data-sort="p99">P99 (ms)</th>
             <th class="num" data-sort="errorRate">Error Rate</th>
             <th class="num" data-sort="n">Requests</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- PACKAGE COVERAGE TAB                                               -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div id="tab-coverage" class="tab-panel">
+    <div class="top-grid">
+      <div class="top-left">
+        <section class="card overall-card">
+          <div id="cov-pct" class="big-number">--%</div>
+          <div id="cov-subtitle" class="subtitle">-- covered + -- partial / -- measurable packages</div>
+        </section>
+      </div>
+      <section class="card top-right">
+        <h2>Coverage Distribution</h2>
+        <canvas id="cov-chart"></canvas>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Packages</h2>
+        <div class="header-actions">
+          <button id="cov-copy-table" class="copy-btn">Copy to Excel</button>
+        </div>
+      </div>
+      <div class="filters" id="cov-status-filters">
+        <button class="filter-btn active" data-filter="all">all</button>
+        <button class="filter-btn" data-filter="Covered">covered</button>
+        <button class="filter-btn" data-filter="Partial">partial</button>
+        <button class="filter-btn" data-filter="Uncovered">uncovered</button>
+      </div>
+      <input type="text" id="cov-search" placeholder="Search packages..." class="search-input">
+      <table id="cov-table">
+        <thead>
+          <tr>
+            <th data-sort="name">Package</th>
+            <th data-sort="status">Status</th>
+            <th class="num" data-sort="bdnMethods">BDN Methods</th>
+            <th class="num" data-sort="docRefs">DocRefs</th>
+            <th class="num" data-sort="loadScenarios">Load Scenarios</th>
           </tr>
         </thead>
         <tbody></tbody>

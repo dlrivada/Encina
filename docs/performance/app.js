@@ -9,10 +9,12 @@
   const BENCH_HIST   = '../benchmarks/data/history.json';
   const BENCH_CITED  = '../benchmarks/data/cited-by.json';
   const LOAD_DATA    = '../load-tests/data/latest.json';
+  const COV_DATA     = '../benchmarks/data/benchmark-coverage.json';
 
   let state = {
     bench: null, benchHistory: [], citedBy: {},
     load: null,
+    coverage: null,
     // Bench table state
     bModuleFilter: 'all', bSearch: '', bShowUnstable: true, bSortField: 'module', bSortDir: 'asc',
     // Load table state
@@ -20,20 +22,23 @@
   };
 
   async function boot() {
-    const [bench, benchHist, citedBy, load] = await Promise.all([
+    const [bench, benchHist, citedBy, load, cov] = await Promise.all([
       fetch(BENCH_DATA).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch(BENCH_HIST).then(r => r.ok ? r.json() : []).catch(() => []),
       fetch(BENCH_CITED).then(r => r.ok ? r.json() : {}).catch(() => ({})),
-      fetch(LOAD_DATA).then(r => r.ok ? r.json() : null).catch(() => null)
+      fetch(LOAD_DATA).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(COV_DATA).then(r => r.ok ? r.json() : null).catch(() => null)
     ]);
     state.bench = bench;
     state.benchHistory = Array.isArray(benchHist) ? benchHist : [];
     state.citedBy = citedBy || {};
     state.load = load;
+    state.coverage = cov;
 
     renderTimestamp();
     renderBenchmarks();
     renderLoadTests();
+    renderCoverage();
     wireTabs();
   }
 
@@ -299,6 +304,101 @@
         if (state.lSortField === f) state.lSortDir = state.lSortDir === 'asc' ? 'desc' : 'asc';
         else { state.lSortField = f; state.lSortDir = 'asc'; }
         renderLoadTable();
+      });
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PACKAGE COVERAGE
+  // ═══════════════════════════════════════════════════════════════════════
+  function renderCoverage() {
+    if (!state.coverage) { const el = document.getElementById('cov-subtitle'); if (el) el.textContent = 'No coverage data yet.'; return; }
+    const c = state.coverage;
+    const pct = c.coveragePercent ?? 0;
+    const el = document.getElementById('cov-pct'); if (el) el.textContent = `${pct}%`;
+    const sub = document.getElementById('cov-subtitle');
+    if (sub) sub.textContent = `${c.covered ?? 0} covered + ${c.partial ?? 0} partial / ${c.measurable ?? 0} measurable packages (${c.uncovered ?? 0} uncovered, ${c.notApplicable ?? 0} N/A)`;
+
+    // Pie chart
+    const canvas = document.getElementById('cov-chart');
+    if (canvas && c.measurable > 0) {
+      canvas.width = canvas.offsetWidth * devicePixelRatio;
+      canvas.height = canvas.offsetHeight * devicePixelRatio;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+      const w = canvas.offsetWidth, h = canvas.offsetHeight;
+      const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 10;
+      const total = (c.covered || 0) + (c.partial || 0) + (c.uncovered || 0);
+      const slices = [
+        { v: c.covered || 0, color: '#3fb950', label: 'Covered' },
+        { v: c.partial || 0, color: '#d29922', label: 'Partial' },
+        { v: c.uncovered || 0, color: '#f85149', label: 'Uncovered' }
+      ];
+      let angle = -Math.PI / 2;
+      for (const s of slices) {
+        const a = (s.v / total) * Math.PI * 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, angle, angle + a); ctx.closePath();
+        ctx.fillStyle = s.color; ctx.fill();
+        angle += a;
+      }
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`${pct}%`, cx, cy);
+    }
+
+    // Table
+    renderCoverageTable();
+    wireCoverageInteractions();
+  }
+
+  function renderCoverageTable() {
+    const tbody = document.querySelector('#cov-table tbody');
+    if (!tbody || !state.coverage?.packages) return;
+    const statusFilter = document.querySelector('#cov-status-filters .filter-btn.active')?.dataset.filter || 'all';
+    const search = (document.getElementById('cov-search')?.value || '').toLowerCase();
+
+    let rows = (state.coverage.packages || []).filter(p => {
+      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (p.status === 'N/A' && statusFilter === 'all') return false; // hide N/A by default
+      if (search && !p.name.toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    rows.sort((a, b) => {
+      const order = { 'Uncovered': 0, 'Partial': 1, 'Covered': 2, 'N/A': 3 };
+      return (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.name.localeCompare(b.name);
+    });
+
+    tbody.innerHTML = rows.map(p => {
+      const statusCls = p.status === 'Covered' ? 'status-pass' : p.status === 'Partial' ? 'status-warn' : p.status === 'Uncovered' ? 'status-fail' : 'muted';
+      const icon = p.status === 'Covered' ? '✅' : p.status === 'Partial' ? '🟡' : p.status === 'Uncovered' ? '❌' : '⚪';
+      return `<tr>
+        <td>${esc(p.name)}</td>
+        <td><span class="${statusCls}">${icon} ${p.status}</span></td>
+        <td class="num">${p.bdnMethods || 0}</td>
+        <td class="num">${p.docRefs || 0}</td>
+        <td class="num">${p.loadScenarios || 0}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function wireCoverageInteractions() {
+    document.getElementById('cov-search')?.addEventListener('input', () => renderCoverageTable());
+    document.getElementById('cov-status-filters')?.addEventListener('click', e => {
+      if (e.target.matches('.filter-btn')) {
+        document.querySelectorAll('#cov-status-filters .filter-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        renderCoverageTable();
+      }
+    });
+    document.getElementById('cov-copy-table')?.addEventListener('click', () => {
+      const h = ['Package', 'Status', 'BDN Methods', 'DocRefs', 'Load Scenarios'];
+      const lines = [h.join('\t')];
+      for (const p of (state.coverage?.packages || [])) {
+        if (p.status === 'N/A') continue;
+        lines.push([p.name, p.status, p.bdnMethods || 0, p.docRefs || 0, p.loadScenarios || 0].join('\t'));
+      }
+      navigator.clipboard.writeText(lines.join('\n')).then(() => {
+        const b = document.getElementById('cov-copy-table'); const o = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = o, 1500);
       });
     });
   }
