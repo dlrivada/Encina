@@ -5,10 +5,8 @@ using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Health;
 using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
-
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-
 using LanguageExt;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Encina.GuardTests.Compliance.ProcessorAgreements;
 

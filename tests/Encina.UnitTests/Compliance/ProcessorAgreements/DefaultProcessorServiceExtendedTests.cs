@@ -275,13 +275,19 @@ public sealed class DefaultProcessorServiceExtendedTests
 
         var child = new ProcessorReadModel
         {
-            Id = childId, Name = "Sub1", Country = "US",
-            ParentProcessorId = rootId, Depth = 1
+            Id = childId,
+            Name = "Sub1",
+            Country = "US",
+            ParentProcessorId = rootId,
+            Depth = 1
         };
         var grandchild = new ProcessorReadModel
         {
-            Id = grandchildId, Name = "Sub2", Country = "FR",
-            ParentProcessorId = childId, Depth = 2
+            Id = grandchildId,
+            Name = "Sub2",
+            Country = "FR",
+            ParentProcessorId = childId,
+            Depth = 2
         };
 
         var empty = new List<ProcessorReadModel>() as IReadOnlyList<ProcessorReadModel>;
