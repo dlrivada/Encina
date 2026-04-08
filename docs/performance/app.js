@@ -35,11 +35,12 @@
     state.load = load;
     state.coverage = cov;
 
+    // Wire tabs FIRST so navigation works even if data loading fails
+    wireTabs();
     renderTimestamp();
     renderBenchmarks();
     renderLoadTests();
     renderCoverage();
-    wireTabs();
   }
 
   // ═══════════════════════════════════════════════════════════════════════
