@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Polly.Benchmarks.RateLimitingBenchmarks-20260407-191119</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-MJLQTR : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                       </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>RecordFailure</td><td>Job-MJLQTR</td><td>5</td><td>Default</td><td>3</td><td>508.0 ns</td><td>167.93 ns</td><td>25.99 ns</td><td>0.14</td><td>0.02</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetState</td><td>Job-MJLQTR</td><td>5</td><td>Default</td><td>3</td><td>507.5 ns</td><td>110.36 ns</td><td>17.08 ns</td><td>0.14</td><td>0.02</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRecordSuccess_Combined</td><td>Job-MJLQTR</td><td>5</td><td>Default</td><td>3</td><td>3,721.5 ns</td><td>336.21 ns</td><td>52.03 ns</td><td>1.01</td><td>0.16</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAndRecordFailure_Combined</td><td>Job-MJLQTR</td><td>5</td><td>Default</td><td>3</td><td>3,687.5 ns</td><td>353.56 ns</td><td>54.71 ns</td><td>1.00</td><td>0.16</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAsync_WithAdaptiveThrottling</td><td>Job-MJLQTR</td><td>5</td><td>Default</td><td>3</td><td>3,731.4 ns</td><td>424.29 ns</td><td>110.19 ns</td><td>1.01</td><td>0.16</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordSuccess</td><td>Job-MJLQTR</td><td>5</td><td>Default</td><td>3</td><td>529.5 ns</td><td>311.16 ns</td><td>80.81 ns</td><td>0.14</td><td>0.03</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAsync_SimpleRateLimiting</td><td>Job-MJLQTR</td><td>5</td><td>Default</td><td>3</td><td>3,788.6 ns</td><td>2,567.79 ns</td><td>666.85 ns</td><td>1.02</td><td>0.23</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordFailure</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>493.4 ns</td><td>42.73 ns</td><td>63.96 ns</td><td>0.14</td><td>0.02</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetState</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>500.5 ns</td><td>29.70 ns</td><td>42.59 ns</td><td>0.15</td><td>0.01</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAndRecordSuccess_Combined</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,695.1 ns</td><td>102.28 ns</td><td>146.69 ns</td><td>1.08</td><td>0.05</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAndRecordFailure_Combined</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,784.5 ns</td><td>59.19 ns</td><td>82.97 ns</td><td>1.11</td><td>0.04</td><td>336 B</td><td>0.76</td>
+</tr><tr><td>AcquireAsync_WithAdaptiveThrottling</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,441.3 ns</td><td>161.06 ns</td><td>215.01 ns</td><td>1.01</td><td>0.07</td><td>440 B</td><td>1.00</td>
+</tr><tr><td>RecordSuccess</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>467.9 ns</td><td>20.31 ns</td><td>27.80 ns</td><td>0.14</td><td>0.01</td><td>-</td><td>0.00</td>
+</tr><tr><td>AcquireAsync_SimpleRateLimiting</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,418.1 ns</td><td>58.10 ns</td><td>81.44 ns</td><td>1.00</td><td>0.03</td><td>440 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
