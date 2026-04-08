@@ -52,6 +52,9 @@ public sealed class AnonymizationHealthCheck : IHealthCheck
     /// <param name="logger">The logger instance.</param>
     public AnonymizationHealthCheck(IServiceProvider serviceProvider, ILogger<AnonymizationHealthCheck> logger)
     {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _serviceProvider = serviceProvider;
         _logger = logger;
     }

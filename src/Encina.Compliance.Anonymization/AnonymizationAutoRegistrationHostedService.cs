@@ -35,6 +35,10 @@ internal sealed class AnonymizationAutoRegistrationHostedService : IHostedServic
         IOptions<AnonymizationOptions> options,
         ILogger<AnonymizationAutoRegistrationHostedService> logger)
     {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _descriptor = descriptor;
         _options = options.Value;
         _logger = logger;
