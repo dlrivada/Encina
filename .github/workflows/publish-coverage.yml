@@ -72,7 +72,7 @@ jobs:
           for domain in benchmarks load-tests; do
             echo "Fetching live $domain data from Pages (to preserve across deploy)..."
             mkdir -p "_site/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json; do
+            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
               url="https://dlrivada.github.io/Encina/$domain/data/$file"
               if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
                 mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
