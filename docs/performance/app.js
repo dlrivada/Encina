@@ -53,6 +53,10 @@
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        // Re-render charts/tables when switching tabs — canvas dimensions
+        // are 0 when the panel is display:none at initial load.
+        if (btn.dataset.tab === 'coverage') renderCoverage();
+        if (btn.dataset.tab === 'benchmarks') { renderBenchTrend(); renderBenchStability(); }
       });
     });
   }
