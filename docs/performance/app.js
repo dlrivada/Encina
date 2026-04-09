@@ -135,12 +135,14 @@
     const o = state.bench.overall || {};
     const s = o.stableMethods || 0, u = o.unstableMethods || 0, t = s + u;
     if (!t) return;
-    canvas.width = canvas.offsetWidth * devicePixelRatio;
-    canvas.height = canvas.offsetHeight * devicePixelRatio;
+    const sw = canvas.offsetWidth, sh = canvas.offsetHeight;
+    if (sw < 20 || sh < 20) return; // skip if hidden tab (0 dimensions)
+    canvas.width = sw * devicePixelRatio;
+    canvas.height = sh * devicePixelRatio;
     const ctx = canvas.getContext('2d');
     ctx.scale(devicePixelRatio, devicePixelRatio);
-    const w = canvas.offsetWidth, h = canvas.offsetHeight;
-    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 10;
+    const w = sw, h = sh;
+    const cx = w / 2, cy = h / 2, r = Math.max(1, Math.min(w, h) / 2 - 10);
     const sa = (s / t) * Math.PI * 2;
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + sa); ctx.closePath(); ctx.fillStyle = '#3fb950'; ctx.fill();
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, -Math.PI / 2 + sa, -Math.PI / 2 + Math.PI * 2); ctx.closePath(); ctx.fillStyle = '#d29922'; ctx.fill();
@@ -324,15 +326,17 @@
     const sub = document.getElementById('cov-subtitle');
     if (sub) sub.textContent = `${c.covered ?? 0} covered + ${c.partial ?? 0} partial / ${c.measurable ?? 0} measurable packages (${c.uncovered ?? 0} uncovered, ${c.notApplicable ?? 0} N/A)`;
 
-    // Pie chart
+    // Pie chart — skip if canvas has 0 dimensions (hidden tab) to avoid
+    // negative radius crash that blocks table rendering below.
     const canvas = document.getElementById('cov-chart');
-    if (canvas && c.measurable > 0) {
-      canvas.width = canvas.offsetWidth * devicePixelRatio;
-      canvas.height = canvas.offsetHeight * devicePixelRatio;
+    const cw = canvas?.offsetWidth || 0, ch = canvas?.offsetHeight || 0;
+    if (canvas && c.measurable > 0 && cw > 20 && ch > 20) {
+      canvas.width = cw * devicePixelRatio;
+      canvas.height = ch * devicePixelRatio;
       const ctx = canvas.getContext('2d');
       ctx.scale(devicePixelRatio, devicePixelRatio);
-      const w = canvas.offsetWidth, h = canvas.offsetHeight;
-      const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 10;
+      const w = cw, h = ch;
+      const cx = w / 2, cy = h / 2, r = Math.max(1, Math.min(w, h) / 2 - 10);
       const total = (c.covered || 0) + (c.partial || 0) + (c.uncovered || 0);
       const slices = [
         { v: c.covered || 0, color: '#3fb950', label: 'Covered' },
