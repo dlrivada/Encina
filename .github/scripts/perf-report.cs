@@ -715,16 +715,36 @@ static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObjec
             int iOkMin = Array.IndexOf(headers, "ok_min");
             int iOkMax = Array.IndexOf(headers, "ok_max");
 
-            if (iScenario < 0) continue; // can't identify scenarios
+            int iTestName = Array.IndexOf(headers, "test_name");
+            if (iScenario < 0 && iTestName < 0) continue;
+
+            // Infer the provider/category from the artifact directory path.
+            // e.g. ".../broker-load-metrics-kafka/..." → "kafka"
+            //      ".../database-load-metrics-efcore-sqlserver/..." → "efcore-sqlserver"
+            //      ".../load-metrics/..." → "harness"
+            var provider = InferProviderFromPath(file, inputDir);
 
             for (int row = 1; row < lines.Length; row++)
             {
                 var cols = lines[row].Split(',');
-                if (cols.Length <= iScenario) continue;
+                if (cols.Length < 3) continue;
+
+                // Build a meaningful scenario name:
+                // test_name (e.g. "db-uow") + provider (e.g. "efcore-sqlserver")
+                // → "db-uow (efcore-sqlserver)"
+                var testName = iTestName >= 0 && iTestName < cols.Length ? cols[iTestName] : "";
+                var rawScenario = iScenario >= 0 && iScenario < cols.Length ? cols[iScenario] : "";
+                var scenarioName = !string.IsNullOrEmpty(testName) && testName != rawScenario
+                    ? (string.IsNullOrEmpty(provider) || provider == "harness"
+                        ? testName
+                        : $"{testName} ({provider})")
+                    : (!string.IsNullOrEmpty(provider) && provider != "harness"
+                        ? $"{rawScenario} ({provider})"
+                        : rawScenario);
 
                 var sc = new LoadScenario
                 {
-                    Name = cols[iScenario],
+                    Name = scenarioName,
                     RequestCount = ParseLong(cols, iRequestCount),
                     Rps = ParseDbl(cols, iOkRps),
                     MeanMs = ParseDbl(cols, iOkMean),
@@ -869,6 +889,32 @@ static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObjec
     Console.WriteLine($"Load-tests snapshot written: {latestPath}");
     Console.WriteLine($"  Fresh: {scenarios.Count} scenarios, Carried forward: {carriedForwardCount} module(s)");
     Console.WriteLine($"  Total: {totalScenarios} (pass: {passing}, fail: {failing})");
+}
+
+/// <summary>
+/// Infer the provider/category from the artifact directory path.
+/// e.g. "broker-load-metrics-kafka" → "kafka"
+///      "database-load-metrics-efcore-sqlserver" → "efcore-sqlserver"
+///      "caching-load-metrics-redis" → "redis"
+///      "load-metrics" → "harness"
+/// </summary>
+static string InferProviderFromPath(string filePath, string inputDir)
+{
+    var rel = Path.GetRelativePath(inputDir, filePath).Replace('\\', '/');
+    var firstSegment = rel.Split('/').FirstOrDefault() ?? "";
+
+    // Strip the category prefix to get the provider
+    var prefixes = new[] { "database-load-metrics-", "caching-load-metrics-",
+                           "locking-load-metrics-", "broker-load-metrics-",
+                           "messaging-load-metrics" };
+    foreach (var prefix in prefixes)
+    {
+        if (firstSegment.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return firstSegment[prefix.Length..].TrimEnd('-');
+    }
+
+    if (firstSegment == "load-metrics") return "harness";
+    return firstSegment;
 }
 
 static string ExtractArea(string scenarioName)
