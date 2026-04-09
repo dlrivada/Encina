@@ -31,10 +31,9 @@ on:
       database_provider:
         description: 'Database provider to test (or "all")'
         required: false
-        default: 'efcore-sqlite'
+        default: 'efcore-sqlserver'
         type: choice
         options:
-          - efcore-sqlite
           - efcore-sqlserver
           - efcore-postgresql
           - efcore-mysql
@@ -163,7 +162,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        provider: ${{ github.event.inputs.database_provider == 'all' && fromJSON('["efcore-sqlite", "efcore-sqlserver", "efcore-postgresql", "efcore-mysql"]') || fromJSON(format('["{0}"]', github.event.inputs.database_provider || 'efcore-sqlite')) }}
+        provider: ${{ github.event.inputs.database_provider == 'all' && fromJSON('["efcore-sqlserver", "efcore-postgresql", "efcore-mysql"]') || fromJSON(format('["{0}"]', github.event.inputs.database_provider || 'efcore-sqlserver')) }}
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
