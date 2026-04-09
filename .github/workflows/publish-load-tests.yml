@@ -128,13 +128,6 @@ jobs:
             --run-id ${{ steps.resolve.outputs.run_id }} \
             --sha ${{ github.sha }} \
             --carry-forward-from artifacts/perf-previous/latest.json
-        env:
-          # The carry-forward-from file is fetched from live Pages. If the previous
-          # snapshot used a different naming scheme (e.g., raw "send_flow" names before
-          # the test_name+provider fix), stale modules get carried forward and duplicated.
-          # After a clean publish, future carry-forwards will use the new naming and
-          # work correctly. To force a clean publish without carry-forward, temporarily
-          # remove the --carry-forward-from argument above.
 
       - name: Update docs/load-tests/data
         run: |
