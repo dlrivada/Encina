@@ -474,6 +474,13 @@ static bool TryMatchProject(SortedDictionary<string, string> fingerprints, strin
 
 static string Truncate(string s, int n) => string.IsNullOrEmpty(s) ? "" : (s.Length <= n ? s : s[..n]);
 
+static double ParseDbl(string[] cols, int idx) =>
+    idx >= 0 && idx < cols.Length && double.TryParse(cols[idx], System.Globalization.NumberStyles.Any,
+        System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
+
+static long ParseLong(string[] cols, int idx) =>
+    idx >= 0 && idx < cols.Length && long.TryParse(cols[idx], out var v) ? v : 0;
+
 /// <summary>
 /// Auto-generates DocRef IDs for benchmark methods that don't have an explicit
 /// annotation in the manifest. Uses the pattern bench:<module>/<method> with
@@ -668,45 +675,75 @@ static string InferModuleNameFromPath(string file, string inputDir)
 // ──────────────────────────────────────────────────────────────────────────
 static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObject metadata, long runId, string sha, string carryForwardFrom = "")
 {
-    // NBomber emits `nbomber-summary.json` per run under nbomber-<timestamp>/ directories.
-    var summaryFiles = Directory.Exists(inputDir)
-        ? Directory.GetFiles(inputDir, "nbomber-summary.json", SearchOption.AllDirectories).ToList()
+    // NBomber produces nbomber-report.csv with one row per scenario:
+    // test_suite,test_name,scenario,duration,step_name,request_count,ok,failed,ok_rps,
+    //   ok_min,ok_mean,ok_max,ok_50_percent,ok_75_percent,ok_95_percent,ok_99_percent,ok_std_dev,...
+    // The nbomber-summary.json in this project is a CUSTOM simplified format from
+    // summarize-nbomber-run.cs, NOT the standard NBomber JSON schema. We parse the CSV
+    // which has the complete per-scenario data.
+    var csvFiles = Directory.Exists(inputDir)
+        ? Directory.GetFiles(inputDir, "nbomber-report.csv", SearchOption.AllDirectories).ToList()
         : new List<string>();
 
     // Additionally, console harness writes metrics-<stamp>.csv
-    var metricsFiles = Directory.GetFiles(inputDir, "metrics-*.csv", SearchOption.AllDirectories).ToList();
+    var metricsFiles = Directory.Exists(inputDir)
+        ? Directory.GetFiles(inputDir, "metrics-*.csv", SearchOption.AllDirectories).ToList()
+        : new List<string>();
 
-    Console.WriteLine($"Found {summaryFiles.Count} NBomber summaries and {metricsFiles.Count} metrics CSVs in {inputDir}");
+    Console.WriteLine($"Found {csvFiles.Count} NBomber report CSVs and {metricsFiles.Count} harness metrics CSVs in {inputDir}");
 
     var scenarios = new List<LoadScenario>();
 
-    foreach (var file in summaryFiles)
+    foreach (var file in csvFiles)
     {
         try
         {
-            var json = JsonNode.Parse(File.ReadAllText(file));
-            if (json is null) continue;
+            var lines = File.ReadAllLines(file);
+            if (lines.Length < 2) continue; // header + at least 1 data row
+            // Parse CSV header to find column indices
+            var headers = lines[0].Split(',');
+            int iScenario = Array.IndexOf(headers, "scenario");
+            int iRequestCount = Array.IndexOf(headers, "request_count");
+            int iOk = Array.IndexOf(headers, "ok");
+            int iFailed = Array.IndexOf(headers, "failed");
+            int iOkRps = Array.IndexOf(headers, "ok_rps");
+            int iOkMean = Array.IndexOf(headers, "ok_mean");
+            int iOk50 = Array.IndexOf(headers, "ok_50_percent");
+            int iOk95 = Array.IndexOf(headers, "ok_95_percent");
+            int iOk99 = Array.IndexOf(headers, "ok_99_percent");
+            int iOkStdDev = Array.IndexOf(headers, "ok_std_dev");
+            int iOkMin = Array.IndexOf(headers, "ok_min");
+            int iOkMax = Array.IndexOf(headers, "ok_max");
 
-            // NBomber summary schema:
-            // { "final_stats": { "scenario_stats": [{ "scenario_name": "...",
-            //     "ok": { "latency": { "mean_ms": ..., "p50": ..., "p95": ..., "p99": ..., "stddev_ms": ..., "min_ms": ..., "max_ms": ... },
-            //             "request": { "count": ..., "rps": ... },
-            //             "data_transfer": {...} },
-            //     "fail": { "request": { "count": ... } }
-            // }] } }
-            var stats = json["final_stats"]?["scenario_stats"] as JsonArray;
-            if (stats is null) continue;
+            if (iScenario < 0) continue; // can't identify scenarios
 
-            foreach (var s in stats)
+            for (int row = 1; row < lines.Length; row++)
             {
-                if (s is null) continue;
-                var scenario = ParseLoadScenario(s);
-                if (scenario is not null) scenarios.Add(scenario);
+                var cols = lines[row].Split(',');
+                if (cols.Length <= iScenario) continue;
+
+                var sc = new LoadScenario
+                {
+                    Name = cols[iScenario],
+                    RequestCount = ParseLong(cols, iRequestCount),
+                    Rps = ParseDbl(cols, iOkRps),
+                    MeanMs = ParseDbl(cols, iOkMean),
+                    P50Ms = ParseDbl(cols, iOk50),
+                    P95Ms = ParseDbl(cols, iOk95),
+                    P99Ms = ParseDbl(cols, iOk99),
+                    StdDevMs = ParseDbl(cols, iOkStdDev),
+                    MinMs = ParseDbl(cols, iOkMin),
+                    MaxMs = ParseDbl(cols, iOkMax),
+                    FailCount = ParseLong(cols, iFailed)
+                };
+                var totalOps = sc.RequestCount + sc.FailCount;
+                sc.ErrorRate = totalOps > 0 ? (double)sc.FailCount / totalOps : 0;
+                scenarios.Add(sc);
             }
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to parse NBomber summary '{file}': {ex.Message}");
+            Console.Error.WriteLine($"Failed to parse NBomber CSV '{file}': {ex.Message}");
         }
     }
 
@@ -832,36 +869,6 @@ static void GenerateLoadTestsReport(string inputDir, string outputDir, JsonObjec
     Console.WriteLine($"Load-tests snapshot written: {latestPath}");
     Console.WriteLine($"  Fresh: {scenarios.Count} scenarios, Carried forward: {carriedForwardCount} module(s)");
     Console.WriteLine($"  Total: {totalScenarios} (pass: {passing}, fail: {failing})");
-}
-
-static LoadScenario? ParseLoadScenario(JsonNode node)
-{
-    var name = node["scenario_name"]?.GetValue<string>();
-    if (string.IsNullOrEmpty(name)) return null;
-
-    var ok = node["ok"];
-    var fail = node["fail"];
-    var latency = ok?["latency"];
-    var request = ok?["request"];
-
-    var sc = new LoadScenario
-    {
-        Name = name,
-        RequestCount = (long)GetDouble(request, "count"),
-        Rps = GetDouble(request, "rps"),
-        MeanMs = GetDouble(latency, "mean_ms"),
-        P50Ms = GetDouble(latency, "p50"),
-        P95Ms = GetDouble(latency, "p95"),
-        P99Ms = GetDouble(latency, "p99"),
-        StdDevMs = GetDouble(latency, "stddev_ms"),
-        MinMs = GetDouble(latency, "min_ms"),
-        MaxMs = GetDouble(latency, "max_ms"),
-        FailCount = (long)GetDouble(fail?["request"], "count")
-    };
-
-    var totalOps = sc.RequestCount + sc.FailCount;
-    sc.ErrorRate = totalOps > 0 ? (double)sc.FailCount / totalOps : 0;
-    return sc;
 }
 
 static string ExtractArea(string scenarioName)
