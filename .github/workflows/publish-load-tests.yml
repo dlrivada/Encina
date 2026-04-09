@@ -105,12 +105,14 @@ jobs:
           PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/latest.json"
           PAGES_DATA=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
 
-          # Use Pages if it has data AND the data uses the current naming scheme
-          # (contains provider identifiers like "efcore-" or "kafka"). Skip if it
-          # only has old-style "send_flow" names to avoid duplicating stale data.
-          if [ -n "$PAGES_DATA" ] && echo "$PAGES_DATA" | grep -q "efcore-\|kafka\|rabbitmq\|hybrid"; then
+          # Use Pages if it has data and NO stale "send_flow" scenario names.
+          # The send_flow name was a bug from the initial parser that used NBomber's
+          # internal scenario name instead of test_name+provider. Once Pages has
+          # exclusively new-style names, this check can be simplified to just
+          # "is Pages available?".
+          if [ -n "$PAGES_DATA" ] && ! echo "$PAGES_DATA" | grep -q '"name": "send_flow"'; then
             echo "$PAGES_DATA" > artifacts/perf-previous/latest.json
-            echo "Fetched previous snapshot from Pages (current naming scheme)."
+            echo "Fetched previous snapshot from Pages (clean naming)."
           elif [ -f docs/load-tests/data/latest.json ]; then
             cp docs/load-tests/data/latest.json artifacts/perf-previous/latest.json
             echo "Using repo copy (Pages has stale or no data)."
