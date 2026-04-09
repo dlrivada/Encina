@@ -98,19 +98,24 @@ jobs:
 
       - name: Fetch previous snapshot for carry-forward
         run: |
-          # When a load-test run only exercises SOME categories (e.g., workflow_dispatch
-          # with only database tests enabled), the missing categories would disappear
-          # from the dashboard. Carry-forward copies them from the previous snapshot
-          # so the dashboard always shows the complete picture.
+          # Carry-forward copies modules from the previous snapshot that are NOT
+          # present in the current run, keeping the dashboard complete when only
+          # some categories run. Fetch from Pages (most current), fall back to repo.
           mkdir -p artifacts/perf-previous
-          if curl -fsSL -o artifacts/perf-previous/latest.json \
-              "https://dlrivada.github.io/Encina/load-tests/data/latest.json" 2>/dev/null; then
-            echo "Fetched previous snapshot from Pages."
+          PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/latest.json"
+          PAGES_DATA=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+
+          # Use Pages if it has data AND the data uses the current naming scheme
+          # (contains provider identifiers like "efcore-" or "kafka"). Skip if it
+          # only has old-style "send_flow" names to avoid duplicating stale data.
+          if [ -n "$PAGES_DATA" ] && echo "$PAGES_DATA" | grep -q "efcore-\|kafka\|rabbitmq\|hybrid"; then
+            echo "$PAGES_DATA" > artifacts/perf-previous/latest.json
+            echo "Fetched previous snapshot from Pages (current naming scheme)."
           elif [ -f docs/load-tests/data/latest.json ]; then
             cp docs/load-tests/data/latest.json artifacts/perf-previous/latest.json
-            echo "Using repo copy of latest.json."
+            echo "Using repo copy (Pages has stale or no data)."
           else
-            echo "No previous snapshot — first run."
+            echo "No previous snapshot — first clean run."
             echo "{}" > artifacts/perf-previous/latest.json
           fi
 
@@ -123,6 +128,13 @@ jobs:
             --run-id ${{ steps.resolve.outputs.run_id }} \
             --sha ${{ github.sha }} \
             --carry-forward-from artifacts/perf-previous/latest.json
+        env:
+          # The carry-forward-from file is fetched from live Pages. If the previous
+          # snapshot used a different naming scheme (e.g., raw "send_flow" names before
+          # the test_name+provider fix), stale modules get carried forward and duplicated.
+          # After a clean publish, future carry-forwards will use the new naming and
+          # work correctly. To force a clean publish without carry-forward, temporarily
+          # remove the --carry-forward-from argument above.
 
       - name: Update docs/load-tests/data
         run: |
