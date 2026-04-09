@@ -1,0 +1,28 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+
+```
+| Method                                | Job        | IterationCount | LaunchCount | WarmupCount | Mean        | Error     | StdDev    | Median      | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|-------------------------------------- |----------- |--------------- |------------ |------------ |------------:|----------:|----------:|------------:|------:|--------:|-------:|-------:|----------:|------------:|
+| &#39;Key generation (simple query)&#39;       | Job-YFEFPZ | 10             | Default     | 3           | 12,292.2 ns | 121.10 ns |  80.10 ns | 12,291.3 ns |  1.00 |    0.01 | 0.4425 | 0.1526 |    8600 B |        1.00 |
+| &#39;Key generation (complex JOIN query)&#39; | Job-YFEFPZ | 10             | Default     | 3           | 20,574.2 ns | 186.25 ns | 123.19 ns | 20,580.5 ns |  1.67 |    0.01 | 0.8545 | 0.2747 |   16360 B |        1.90 |
+| &#39;Key generation with tenant&#39;          | Job-YFEFPZ | 10             | Default     | 3           | 25,106.7 ns | 185.53 ns | 122.71 ns | 25,139.1 ns |  2.04 |    0.02 | 0.9155 | 0.2441 |   16497 B |        1.92 |
+| &#39;Cache hit (memory)&#39;                  | Job-YFEFPZ | 10             | Default     | 3           | 12,742.2 ns |  86.91 ns |  51.72 ns | 12,758.7 ns |  1.04 |    0.01 | 0.4578 | 0.1526 |    8744 B |        1.02 |
+| &#39;Cache miss (memory)&#39;                 | Job-YFEFPZ | 10             | Default     | 3           |    825.9 ns |   2.07 ns |   1.37 ns |    825.7 ns |  0.07 |    0.00 | 0.0067 |      - |     120 B |        0.01 |
+| &#39;CachedDataReader read (5 rows)&#39;      | Job-YFEFPZ | 10             | Default     | 3           |  7,822.5 ns |  26.65 ns |  15.86 ns |  7,829.0 ns |  0.64 |    0.00 | 0.1526 |      - |    2712 B |        0.32 |
+| &#39;CachedDataReader read (1000 rows)&#39;   | Job-YFEFPZ | 10             | Default     | 3           | 34,096.8 ns | 100.06 ns |  66.18 ns | 34,106.1 ns |  2.77 |    0.02 | 0.4883 |      - |    8592 B |        1.00 |
+|                                       |            |                |             |             |             |           |           |             |       |         |        |        |           |             |
+| &#39;Key generation (simple query)&#39;       | MediumRun  | 15             | 2           | 10          | 12,277.9 ns |  82.19 ns | 115.21 ns | 12,238.5 ns |  1.00 |    0.01 | 0.4425 | 0.1526 |    7576 B |        1.00 |
+| &#39;Key generation (complex JOIN query)&#39; | MediumRun  | 15             | 2           | 10          | 20,360.5 ns | 124.96 ns | 183.17 ns | 20,325.4 ns |  1.66 |    0.02 | 0.8545 | 0.2747 |   14568 B |        1.92 |
+| &#39;Key generation with tenant&#39;          | MediumRun  | 15             | 2           | 10          | 25,565.4 ns | 616.03 ns | 883.50 ns | 26,097.8 ns |  2.08 |    0.07 | 0.9155 | 0.2441 |   15473 B |        2.04 |
+| &#39;Cache hit (memory)&#39;                  | MediumRun  | 15             | 2           | 10          | 12,805.7 ns | 135.52 ns | 185.50 ns | 12,843.0 ns |  1.04 |    0.02 | 0.4578 | 0.1526 |    7720 B |        1.02 |
+| &#39;Cache miss (memory)&#39;                 | MediumRun  | 15             | 2           | 10          |    828.8 ns |   1.18 ns |   1.69 ns |    828.7 ns |  0.07 |    0.00 | 0.0067 |      - |     120 B |        0.02 |
+| &#39;CachedDataReader read (5 rows)&#39;      | MediumRun  | 15             | 2           | 10          |  7,981.9 ns |  15.21 ns |  22.30 ns |  7,982.3 ns |  0.65 |    0.01 | 0.1526 |      - |    2712 B |        0.36 |
+| &#39;CachedDataReader read (1000 rows)&#39;   | MediumRun  | 15             | 2           | 10          | 33,578.8 ns |  84.90 ns | 124.45 ns | 33,605.6 ns |  2.74 |    0.03 | 0.4883 |      - |    8592 B |        1.13 |
