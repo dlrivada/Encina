@@ -146,14 +146,16 @@
     const total = stable + unstable;
     if (total === 0) return;
 
-    canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-    canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+    const sw = canvas.offsetWidth, sh = canvas.offsetHeight;
+    if (sw < 20 || sh < 20) return; // skip if canvas has 0 dimensions
+    canvas.width = sw * window.devicePixelRatio;
+    canvas.height = sh * window.devicePixelRatio;
     const ctx = canvas.getContext('2d');
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
-    const w = canvas.offsetWidth;
-    const h = canvas.offsetHeight;
-    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 10;
+    const w = sw;
+    const h = sh;
+    const cx = w / 2, cy = h / 2, r = Math.max(1, Math.min(w, h) / 2 - 10);
 
     const stableAngle = (stable / total) * Math.PI * 2;
 
