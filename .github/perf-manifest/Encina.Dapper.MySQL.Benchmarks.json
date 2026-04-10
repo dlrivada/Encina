@@ -1,0 +1,84 @@
+{
+  "project": "Encina.Dapper.MySQL.Benchmarks",
+  "generated": "2026-04-10T16:47:37.4140109Z",
+  "totalClasses": 4,
+  "totalMethods": 6,
+  "targets": {
+    "$comment": "Baselines captured 2026-04-10 on i9-13900KS (Windows) via --job short against mysql:9.1. Targets apply ~3x headroom on mean (to absorb ubuntu-latest runner slowdown) and ~1.5x on allocated bytes. Revisit after first CI run.",
+    "OpenAndExecuteScalar.mean_ns_max": 2700000,
+    "OpenAndExecuteScalar.allocated_bytes_max": 2600,
+    "AddAsync_Single.mean_ns_max": 27000000,
+    "AddAsync_Single.allocated_bytes_max": 9900,
+    "GetPendingMessagesAsync_Batch100.mean_ns_max": 2300000,
+    "GetPendingMessagesAsync_Batch100.allocated_bytes_max": 78300,
+    "GetByIdAsync.mean_ns_max": 1700000,
+    "GetByIdAsync.allocated_bytes_max": 10000,
+    "AddAsync.mean_ns_max": 30000000,
+    "AddAsync.allocated_bytes_max": 13900,
+    "BulkInsert_100Rows.mean_ns_max": 5000000,
+    "BulkInsert_100Rows.allocated_bytes_max": 93400
+  },
+  "stabilityOverrides": {},
+  "classes": [
+    {
+      "name": "BulkOperationsBenchmarks",
+      "namespace": "Encina.Dapper.MySQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.Dapper.MySQL.Benchmarks.Benchmarks.BulkOperationsBenchmarks",
+      "file": "Benchmarks/BulkOperationsBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "BulkInsert_100Rows",
+          "docRef": "bench:dapper-mysql/bulk-insert-100"
+        }
+      ]
+    },
+    {
+      "name": "ConnectionBenchmarks",
+      "namespace": "Encina.Dapper.MySQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.Dapper.MySQL.Benchmarks.Benchmarks.ConnectionBenchmarks",
+      "file": "Benchmarks/ConnectionBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "OpenAndExecuteScalar",
+          "docRef": "bench:dapper-mysql/connection-open"
+        }
+      ]
+    },
+    {
+      "name": "FunctionalRepositoryBenchmarks",
+      "namespace": "Encina.Dapper.MySQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.Dapper.MySQL.Benchmarks.Benchmarks.FunctionalRepositoryBenchmarks",
+      "file": "Benchmarks/FunctionalRepositoryBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "AddAsync",
+          "docRef": "bench:dapper-mysql/repo-add"
+        },
+        {
+          "name": "GetByIdAsync",
+          "docRef": "bench:dapper-mysql/repo-get-by-id"
+        }
+      ]
+    },
+    {
+      "name": "OutboxStoreBenchmarks",
+      "namespace": "Encina.Dapper.MySQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.Dapper.MySQL.Benchmarks.Benchmarks.OutboxStoreBenchmarks",
+      "file": "Benchmarks/OutboxStoreBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "AddAsync_Single",
+          "docRef": "bench:dapper-mysql/outbox-insert"
+        },
+        {
+          "name": "GetPendingMessagesAsync_Batch100",
+          "docRef": "bench:dapper-mysql/outbox-query-pending"
+        }
+      ]
+    }
+  ]
+}
