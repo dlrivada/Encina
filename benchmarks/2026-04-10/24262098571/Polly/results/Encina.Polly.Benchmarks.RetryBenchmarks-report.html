@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Polly.Benchmarks.RetryBenchmarks-20260410-212709</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-NTRUNJ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                      </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>NoRetryAttribute_Baseline</td><td>Job-NTRUNJ</td><td>5</td><td>Default</td><td>794.1 ns</td><td>20.97 ns</td><td>5.45 ns</td><td>1.00</td><td>0.0525</td><td>880 B</td><td>1.00</td>
+</tr><tr><td>WithRetryAttribute_NoActualRetries</td><td>Job-NTRUNJ</td><td>5</td><td>Default</td><td>819.8 ns</td><td>11.83 ns</td><td>3.07 ns</td><td>1.03</td><td>0.0525</td><td>880 B</td><td>1.00</td>
+</tr><tr><td>NoRetryAttribute_Baseline</td><td>ShortRun</td><td>3</td><td>1</td><td>839.5 ns</td><td>131.94 ns</td><td>7.23 ns</td><td>1.00</td><td>0.0525</td><td>880 B</td><td>1.00</td>
+</tr><tr><td>WithRetryAttribute_NoActualRetries</td><td>ShortRun</td><td>3</td><td>1</td><td>796.3 ns</td><td>86.03 ns</td><td>4.72 ns</td><td>0.95</td><td>0.0525</td><td>880 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
