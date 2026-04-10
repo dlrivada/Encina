@@ -4,61 +4,63 @@ using Encina.Audit.Marten.Events;
 using Encina.Audit.Marten.Projections;
 using Encina.Security.Audit;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.UnitTests.AuditMarten;
 
 /// <summary>
 /// Unit tests for <see cref="AuditEntryProjection"/> event-to-read-model projection logic.
 /// </summary>
+/// <remarks>
+/// These tests exercise the internal mapping helpers (<c>MapToReadModel</c>) directly. The
+/// full <c>Create(IDocumentOperations, ...)</c> path cannot be exercised from unit tests
+/// because it requires a real Marten document store to run the projection daemon — that
+/// coverage belongs to the integration test suite.
+/// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Provider", "Marten")]
 public sealed class AuditEntryProjectionTests
 {
-    private static ServiceProvider BuildServices(InMemoryTemporalKeyProvider keyProvider, MartenAuditOptions? options = null)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<ITemporalKeyProvider>(keyProvider);
-        services.Configure<MartenAuditOptions>(o =>
-        {
-            var cfg = options ?? new MartenAuditOptions();
-            o.TemporalGranularity = cfg.TemporalGranularity;
-            o.EncryptionScope = cfg.EncryptionScope;
-            o.RetentionPeriod = cfg.RetentionPeriod;
-            o.ShreddedPlaceholder = cfg.ShreddedPlaceholder;
-            o.EnableAutoPurge = cfg.EnableAutoPurge;
-            o.PurgeIntervalHours = cfg.PurgeIntervalHours;
-        });
-        services.AddLogging();
-        return services.BuildServiceProvider();
-    }
-
-    private static InMemoryTemporalKeyProvider CreateKeyProvider(FakeTimeProvider? time = null) =>
-        new(time ?? new FakeTimeProvider(new DateTimeOffset(2026, 3, 15, 12, 0, 0, TimeSpan.Zero)),
-            NullLogger<InMemoryTemporalKeyProvider>.Instance);
+    private static AuditEntryProjection CreateProjection(string placeholder = "[SHREDDED]") =>
+        new(placeholder, NullLogger<AuditEntryProjection>.Instance);
 
     [Fact]
-    public void Constructor_SetsName()
+    public void Constructor_Parameterless_SetsNameAndDefaults()
     {
         var projection = new AuditEntryProjection();
         projection.Name.ShouldBe("AuditEntryProjection");
     }
 
     [Fact]
-    public async Task Create_WithValidKey_DecryptsPiiFields()
+    public void Constructor_WithPlaceholderAndLogger_SetsName()
+    {
+        var projection = CreateProjection("<HIDDEN>");
+        projection.Name.ShouldBe("AuditEntryProjection");
+    }
+
+    [Fact]
+    public void Constructor_NullPlaceholder_ThrowsArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new AuditEntryProjection(null!, NullLogger<AuditEntryProjection>.Instance));
+    }
+
+    [Fact]
+    public void Constructor_NullLogger_ThrowsArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new AuditEntryProjection("[SHREDDED]", null!));
+    }
+
+    [Fact]
+    public void MapToReadModel_WithValidKey_DecryptsPiiFields()
     {
         // Arrange
-        var keyProvider = CreateKeyProvider();
-        var keyResult = await keyProvider.GetOrCreateKeyAsync("2026-03");
-        byte[] keyMaterial = null!;
-        string keyId = null!;
-        keyResult.IfRight(k => { keyMaterial = k.KeyMaterial; keyId = k.KeyId; });
+        var keyMaterial = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(keyMaterial);
+        var keyId = "temporal:2026-03:v1";
 
-        var services = BuildServices(keyProvider);
-        var projection = new AuditEntryProjection();
-
+        var projection = CreateProjection();
         var evt = new AuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
@@ -83,7 +85,7 @@ public sealed class AuditEntryProjectionTests
         };
 
         // Act
-        var readModel = await projection.Create(evt, services);
+        var readModel = projection.MapToReadModel(evt, keyMaterial, isShredded: false);
 
         // Assert
         readModel.ShouldNotBeNull();
@@ -105,19 +107,14 @@ public sealed class AuditEntryProjectionTests
     }
 
     [Fact]
-    public async Task Create_WithMissingKey_ReturnsShreddedModel()
+    public void MapToReadModel_WithShreddedKey_ReturnsShreddedPlaceholder()
     {
         // Arrange
-        var keyProvider = CreateKeyProvider();
-        // DO NOT create key for "2099-12" - it will be shredded
-        var services = BuildServices(keyProvider);
-        var projection = new AuditEntryProjection();
-
-        // Encrypt using a different key that won't be found
         var dummyKey = new byte[32];
         System.Security.Cryptography.RandomNumberGenerator.Fill(dummyKey);
         var encrypted = EncryptedField.Encrypt("secret", dummyKey, "temporal:2099-12:v1");
 
+        var projection = CreateProjection();
         var evt = new AuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
@@ -141,8 +138,8 @@ public sealed class AuditEntryProjectionTests
             TemporalKeyPeriod = "2099-12"
         };
 
-        // Act
-        var readModel = await projection.Create(evt, services);
+        // Act: pass null key material and isShredded=true as the Create method would
+        var readModel = projection.MapToReadModel(evt, keyMaterial: null, isShredded: true);
 
         // Assert
         readModel.IsShredded.ShouldBeTrue();
@@ -152,14 +149,13 @@ public sealed class AuditEntryProjectionTests
     }
 
     [Fact]
-    public async Task Create_WithNullEncryptedFields_ReturnsModelWithNulls()
+    public void MapToReadModel_WithNullEncryptedFields_ReturnsModelWithNulls()
     {
         // Arrange
-        var keyProvider = CreateKeyProvider();
-        await keyProvider.GetOrCreateKeyAsync("2026-03");
-        var services = BuildServices(keyProvider);
-        var projection = new AuditEntryProjection();
+        var keyMaterial = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(keyMaterial);
 
+        var projection = CreateProjection();
         var evt = new AuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
@@ -184,7 +180,7 @@ public sealed class AuditEntryProjectionTests
         };
 
         // Act
-        var readModel = await projection.Create(evt, services);
+        var readModel = projection.MapToReadModel(evt, keyMaterial, isShredded: false);
 
         // Assert
         readModel.UserId.ShouldBeNull();
@@ -197,18 +193,14 @@ public sealed class AuditEntryProjectionTests
     }
 
     [Fact]
-    public async Task Create_UsesCustomShreddedPlaceholder()
+    public void MapToReadModel_UsesCustomShreddedPlaceholder()
     {
         // Arrange
-        var keyProvider = CreateKeyProvider();
-        var options = new MartenAuditOptions { ShreddedPlaceholder = "<REDACTED>" };
-        var services = BuildServices(keyProvider, options);
-        var projection = new AuditEntryProjection();
-
         var dummyKey = new byte[32];
         System.Security.Cryptography.RandomNumberGenerator.Fill(dummyKey);
         var encrypted = EncryptedField.Encrypt("secret", dummyKey, "temporal:1999-01:v1");
 
+        var projection = CreateProjection("<REDACTED>");
         var evt = new AuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
@@ -224,7 +216,7 @@ public sealed class AuditEntryProjectionTests
         };
 
         // Act
-        var readModel = await projection.Create(evt, services);
+        var readModel = projection.MapToReadModel(evt, keyMaterial: null, isShredded: true);
 
         // Assert
         readModel.UserId.ShouldBe("<REDACTED>");

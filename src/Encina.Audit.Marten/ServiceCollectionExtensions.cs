@@ -94,6 +94,9 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available
         services.TryAddSingleton(TimeProvider.System);
 
+        // Ensure ILoggerFactory is available for projection logger injection
+        services.AddLogging();
+
         // Instantiate options to inspect flags for conditional registrations
         var optionsInstance = new MartenAuditOptions();
         configure?.Invoke(optionsInstance);
