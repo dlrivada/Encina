@@ -66,32 +66,36 @@ public sealed class ConfigureMartenAuditProjectionsTests
     }
 
     [Fact]
-    public void Configure_ValidOptions_RegistersAuditProjections()
+    public void Configure_ValidOptions_PassesMartenProjectionValidation()
     {
         // Arrange
         var sut = CreateSut();
         var storeOptions = new StoreOptions();
 
-        // Act — this is the call that previously threw InvalidProjectionException
+        // Act + Assert: this is the exact call that previously threw InvalidProjectionException
         // at Marten's projection validation layer because Create() took IServiceProvider.
-        // With the fix it must complete without throwing.
-        sut.Configure(storeOptions);
-
-        // Assert: the configurator should run to completion. Marten does not expose a simple
-        // public count of registered projections prior to store initialization, so we rely on
-        // absence-of-exception plus the downstream integration test suite to verify the
-        // projection graph itself.
+        // The regression signal for #949 is simply that StoreOptions.Projections.Add(...) —
+        // invoked from inside Configure — runs to completion for BOTH audit projections.
+        //
+        // Marten does not expose a public, stable way to enumerate registered projections/mappings
+        // on a bare StoreOptions instance (the real state materializes at DocumentStore.For()
+        // time), so the projection graph itself is exercised end-to-end by the integration test
+        // suite tracked in #951. For unit-level regression locking, not-throwing is the precise
+        // inverse of the bug.
+        Should.NotThrow(() => sut.Configure(storeOptions));
     }
 
     [Fact]
-    public void Configure_UsesCustomShreddedPlaceholder()
+    public void Configure_CustomShreddedPlaceholder_PassesMartenProjectionValidation()
     {
         // Arrange
         var options = new MartenAuditOptions { ShreddedPlaceholder = "<REDACTED>" };
         var sut = CreateSut(options);
         var storeOptions = new StoreOptions();
 
-        // Act — must not throw even when a non-default placeholder is configured.
-        sut.Configure(storeOptions);
+        // Act + Assert: a non-default placeholder must not change the JasperFx validation result.
+        // This guards against future refactors that might accidentally couple the placeholder to
+        // a validator-rejected parameter type on the projection Create methods.
+        Should.NotThrow(() => sut.Configure(storeOptions));
     }
 }

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 using Encina.Audit.Marten;
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Events;
@@ -25,10 +27,37 @@ public sealed class AuditEntryProjectionTests
         new(placeholder, NullLogger<AuditEntryProjection>.Instance);
 
     [Fact]
-    public void Constructor_Parameterless_SetsNameAndDefaults()
+    public void Constructor_Parameterless_SetsNameAndUsesDefaultShreddedPlaceholder()
     {
+        // Arrange: parameterless ctor should fall back to MartenAuditOptions.DefaultShreddedPlaceholder
         var projection = new AuditEntryProjection();
+
+        var evt = new AuditEntryRecordedEvent
+        {
+            Id = Guid.NewGuid(),
+            CorrelationId = "c",
+            Action = "a",
+            EntityType = "E",
+            Outcome = 0,
+            TimestampUtc = DateTime.UtcNow,
+            StartedAtUtc = DateTimeOffset.UtcNow,
+            CompletedAtUtc = DateTimeOffset.UtcNow,
+            // Field encrypted with a random throw-away key; key material is not supplied
+            // to MapToReadModel so the shredded branch must fire.
+            EncryptedUserId = EncryptedField.Encrypt(
+                "secret",
+                RandomNumberGenerator.GetBytes(32),
+                "temporal:2026-03:v1"),
+            TemporalKeyPeriod = "2026-03"
+        };
+
+        // Act
+        var readModel = projection.MapToReadModel(evt, keyMaterial: null, isShredded: true);
+
+        // Assert: the default placeholder propagates from the parameterless constructor
         projection.Name.ShouldBe("AuditEntryProjection");
+        readModel.UserId.ShouldBe(MartenAuditOptions.DefaultShreddedPlaceholder);
+        readModel.IsShredded.ShouldBeTrue();
     }
 
     [Fact]

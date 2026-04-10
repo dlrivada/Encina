@@ -118,37 +118,41 @@ public sealed class AuditEntryProjection : EventProjection
 
     /// <summary>
     /// Loads the active temporal key material for a given period via Marten's
-    /// <see cref="IQuerySession"/>, honoring the destroyed marker for crypto-shredded periods.
+    /// <see cref="IQuerySession"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Optimized to a single database round-trip: the latest active key is fetched directly
+    /// via <c>OrderByDescending(Version).FirstOrDefaultAsync</c>, pushing the ordering and
+    /// limit down to PostgreSQL instead of materializing all versions into memory. This keeps
+    /// the hot path of the async projection daemon as cheap as possible (one query per event).
+    /// </para>
+    /// <para>
+    /// For projection purposes, a missing active key is equivalent to crypto-shredding:
+    /// the PII fields become unrecoverable either way, so the projection substitutes the
+    /// configured placeholder. The <see cref="TemporalKeyDestroyedMarker"/> document is
+    /// therefore <b>not</b> consulted here — it only exists to serve the
+    /// <c>MartenTemporalKeyProvider</c> public API, which needs to distinguish
+    /// destroyed-vs-never-existed for its callers.
+    /// </para>
+    /// <para>
     /// This is exposed as <c>internal</c> so unit tests can verify the key-lookup contract
     /// against an in-memory Marten session or a stub without invoking the full projection pipeline.
+    /// </para>
     /// </remarks>
     internal static async Task<(byte[]? KeyMaterial, bool IsShredded)> LoadTemporalKeyAsync(
         IQuerySession session,
         string period,
         CancellationToken cancellationToken)
     {
-        var destroyedDoc = await session.LoadAsync<TemporalKeyDestroyedMarker>(
-            TemporalPeriodHelper.FormatDestroyedMarkerId(period),
-            cancellationToken).ConfigureAwait(false);
-
-        if (destroyedDoc is not null)
-        {
-            return (null, true);
-        }
-
-        var activeKeys = await session.Query<TemporalKeyDocument>()
+        var activeKey = await session.Query<TemporalKeyDocument>()
             .Where(d => d.Period == period && d.Status == TemporalKeyStatus.Active)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+            .OrderByDescending(d => d.Version)
+            .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
-        if (activeKeys.Count == 0)
-        {
-            return (null, true);
-        }
-
-        var activeKey = activeKeys.OrderByDescending(k => k.Version).First();
-        return (activeKey.KeyMaterial, false);
+        return activeKey is not null
+            ? (activeKey.KeyMaterial, false)
+            : (null, true);
     }
 
     /// <summary>
