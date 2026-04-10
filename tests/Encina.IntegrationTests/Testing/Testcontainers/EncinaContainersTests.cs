@@ -1,9 +1,10 @@
 using Encina.Testing.Testcontainers;
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
 /// Unit tests for <see cref="EncinaContainers"/> factory class.
 /// </summary>
+[Trait("Category", "Integration")]
 public class EncinaContainersTests
 {
     [Fact]

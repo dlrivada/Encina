@@ -1,16 +1,21 @@
 using Encina.Testing.Testcontainers;
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
-/// Unit tests for <see cref="MongoDbContainerFixture"/>.
+/// Unit tests for <see cref="SqlServerContainerFixture"/>.
 /// </summary>
-public class MongoDbContainerFixtureTests
+/// <remarks>
+/// These tests verify the fixture behavior without starting actual containers.
+/// Integration tests that start real containers are in a separate project.
+/// </remarks>
+[Trait("Category", "Integration")]
+public class SqlServerContainerFixtureTests
 {
     [Fact]
     public void Container_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new MongoDbContainerFixture();
+        var fixture = new SqlServerContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.Container)
@@ -21,7 +26,7 @@ public class MongoDbContainerFixtureTests
     public void ConnectionString_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new MongoDbContainerFixture();
+        var fixture = new SqlServerContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.ConnectionString)
@@ -32,7 +37,7 @@ public class MongoDbContainerFixtureTests
     public void IsRunning_BeforeInitialize_ShouldBeFalse()
     {
         // Arrange
-        var fixture = new MongoDbContainerFixture();
+        var fixture = new SqlServerContainerFixture();
 
         // Act & Assert
         fixture.IsRunning.ShouldBeFalse();

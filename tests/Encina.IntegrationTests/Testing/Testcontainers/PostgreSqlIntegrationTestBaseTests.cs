@@ -1,9 +1,10 @@
 using Encina.Testing.Testcontainers;
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
 /// Unit tests for <see cref="PostgreSqlIntegrationTestBase"/>.
 /// </summary>
+[Trait("Category", "Integration")]
 public class PostgreSqlIntegrationTestBaseTests
 {
     [Fact]

@@ -1,20 +1,17 @@
 using Encina.Testing.Testcontainers;
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
-/// Unit tests for <see cref="SqlServerContainerFixture"/>.
+/// Unit tests for <see cref="RedisContainerFixture"/>.
 /// </summary>
-/// <remarks>
-/// These tests verify the fixture behavior without starting actual containers.
-/// Integration tests that start real containers are in a separate project.
-/// </remarks>
-public class SqlServerContainerFixtureTests
+[Trait("Category", "Integration")]
+public class RedisContainerFixtureTests
 {
     [Fact]
     public void Container_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new SqlServerContainerFixture();
+        var fixture = new RedisContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.Container)
@@ -25,7 +22,7 @@ public class SqlServerContainerFixtureTests
     public void ConnectionString_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new SqlServerContainerFixture();
+        var fixture = new RedisContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.ConnectionString)
@@ -36,7 +33,7 @@ public class SqlServerContainerFixtureTests
     public void IsRunning_BeforeInitialize_ShouldBeFalse()
     {
         // Arrange
-        var fixture = new SqlServerContainerFixture();
+        var fixture = new RedisContainerFixture();
 
         // Act & Assert
         fixture.IsRunning.ShouldBeFalse();

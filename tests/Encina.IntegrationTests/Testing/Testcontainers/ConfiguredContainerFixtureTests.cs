@@ -2,11 +2,12 @@ using DotNet.Testcontainers.Containers;
 using Encina.Testing.Testcontainers;
 using Testcontainers.PostgreSql;
 
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
 /// Unit tests for <see cref="ConfiguredContainerFixture{TContainer}"/>.
 /// </summary>
+[Trait("Category", "Integration")]
 public class ConfiguredContainerFixtureTests
 {
     [Fact]

@@ -1,16 +1,17 @@
 using Encina.Testing.Testcontainers;
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
-/// Unit tests for <see cref="PostgreSqlContainerFixture"/>.
+/// Unit tests for <see cref="MySqlContainerFixture"/>.
 /// </summary>
-public class PostgreSqlContainerFixtureTests
+[Trait("Category", "Integration")]
+public class MySqlContainerFixtureTests
 {
     [Fact]
     public void Container_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new PostgreSqlContainerFixture();
+        var fixture = new MySqlContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.Container)
@@ -21,7 +22,7 @@ public class PostgreSqlContainerFixtureTests
     public void ConnectionString_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new PostgreSqlContainerFixture();
+        var fixture = new MySqlContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.ConnectionString)
@@ -32,7 +33,7 @@ public class PostgreSqlContainerFixtureTests
     public void IsRunning_BeforeInitialize_ShouldBeFalse()
     {
         // Arrange
-        var fixture = new PostgreSqlContainerFixture();
+        var fixture = new MySqlContainerFixture();
 
         // Act & Assert
         fixture.IsRunning.ShouldBeFalse();

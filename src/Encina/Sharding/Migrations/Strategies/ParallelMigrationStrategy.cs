@@ -23,7 +23,7 @@ internal sealed class ParallelMigrationStrategy : IMigrationStrategy
         using var failureCts = options.StopOnFirstFailure
             ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
             : null;
-        var effectiveToken = failureCts?.Token ?? cancellationToken;
+        CancellationToken effectiveToken = failureCts is null ? cancellationToken : failureCts.Token;
 
         var maxParallelism = options.MaxParallelism <= 0
             ? shards.Count

@@ -196,7 +196,7 @@ public static class EventIdRanges
             .Select(f =>
             {
                 var range = ((int Min, int Max))f.GetValue(null)!;
-                return (f.Name, range.Min, range.Max);
+                return (Name: f.Name, Min: range.Min, Max: range.Max);
             })
             .OrderBy(r => r.Min)
             .ToList()

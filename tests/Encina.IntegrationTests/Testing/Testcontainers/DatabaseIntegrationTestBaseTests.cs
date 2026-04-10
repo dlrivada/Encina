@@ -2,11 +2,12 @@ using Encina.Testing.Respawn;
 using Encina.Testing.Testcontainers;
 using Testcontainers.PostgreSql;
 
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
 /// Unit tests for <see cref="DatabaseIntegrationTestBase{TFixture}"/>.
 /// </summary>
+[Trait("Category", "Integration")]
 public class DatabaseIntegrationTestBaseTests
 {
     [Fact]

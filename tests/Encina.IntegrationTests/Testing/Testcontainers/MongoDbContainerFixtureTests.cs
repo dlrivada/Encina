@@ -1,16 +1,17 @@
 using Encina.Testing.Testcontainers;
-namespace Encina.UnitTests.Testing.Testcontainers;
+namespace Encina.IntegrationTests.Testing.Testcontainers;
 
 /// <summary>
-/// Unit tests for <see cref="RedisContainerFixture"/>.
+/// Unit tests for <see cref="MongoDbContainerFixture"/>.
 /// </summary>
-public class RedisContainerFixtureTests
+[Trait("Category", "Integration")]
+public class MongoDbContainerFixtureTests
 {
     [Fact]
     public void Container_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new RedisContainerFixture();
+        var fixture = new MongoDbContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.Container)
@@ -21,7 +22,7 @@ public class RedisContainerFixtureTests
     public void ConnectionString_BeforeInitialize_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var fixture = new RedisContainerFixture();
+        var fixture = new MongoDbContainerFixture();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => _ = fixture.ConnectionString)
@@ -32,7 +33,7 @@ public class RedisContainerFixtureTests
     public void IsRunning_BeforeInitialize_ShouldBeFalse()
     {
         // Arrange
-        var fixture = new RedisContainerFixture();
+        var fixture = new MongoDbContainerFixture();
 
         // Act & Assert
         fixture.IsRunning.ShouldBeFalse();
