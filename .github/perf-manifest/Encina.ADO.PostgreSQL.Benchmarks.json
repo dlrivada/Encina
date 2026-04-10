@@ -1,0 +1,84 @@
+{
+  "project": "Encina.ADO.PostgreSQL.Benchmarks",
+  "generated": "2026-04-10T16:47:37.3772993Z",
+  "totalClasses": 4,
+  "totalMethods": 6,
+  "targets": {
+    "$comment": "Baselines captured 2026-04-10 on i9-13900KS (Windows) via --job short against postgres:17-alpine. Targets apply ~3x headroom on mean (to absorb ubuntu-latest runner slowdown) and ~1.5x on allocated bytes. Revisit after first CI run.",
+    "OpenAndClose.mean_ns_max": 1000000,
+    "OpenAndClose.allocated_bytes_max": 1000,
+    "AddAsync_Single.mean_ns_max": 1200000,
+    "AddAsync_Single.allocated_bytes_max": 8100,
+    "GetPendingMessagesAsync_Batch100.mean_ns_max": 1900000,
+    "GetPendingMessagesAsync_Batch100.allocated_bytes_max": 62000,
+    "GetByIdAsync.mean_ns_max": 1300000,
+    "GetByIdAsync.allocated_bytes_max": 16500,
+    "AddAsync.mean_ns_max": 1400000,
+    "AddAsync.allocated_bytes_max": 23600,
+    "BulkInsert_100Rows.mean_ns_max": 2500000,
+    "BulkInsert_100Rows.allocated_bytes_max": 17300
+  },
+  "stabilityOverrides": {},
+  "classes": [
+    {
+      "name": "BulkOperationsBenchmarks",
+      "namespace": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks.BulkOperationsBenchmarks",
+      "file": "Benchmarks/BulkOperationsBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "BulkInsert_100Rows",
+          "docRef": "bench:ado-postgresql/bulk-insert-100"
+        }
+      ]
+    },
+    {
+      "name": "ConnectionBenchmarks",
+      "namespace": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks.ConnectionBenchmarks",
+      "file": "Benchmarks/ConnectionBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "OpenAndClose",
+          "docRef": "bench:ado-postgresql/connection-open"
+        }
+      ]
+    },
+    {
+      "name": "FunctionalRepositoryBenchmarks",
+      "namespace": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks.FunctionalRepositoryBenchmarks",
+      "file": "Benchmarks/FunctionalRepositoryBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "AddAsync",
+          "docRef": "bench:ado-postgresql/repo-add"
+        },
+        {
+          "name": "GetByIdAsync",
+          "docRef": "bench:ado-postgresql/repo-get-by-id"
+        }
+      ]
+    },
+    {
+      "name": "OutboxStoreBenchmarks",
+      "namespace": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks",
+      "fullName": "Encina.ADO.PostgreSQL.Benchmarks.Benchmarks.OutboxStoreBenchmarks",
+      "file": "Benchmarks/OutboxStoreBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        {
+          "name": "AddAsync_Single",
+          "docRef": "bench:ado-postgresql/outbox-insert"
+        },
+        {
+          "name": "GetPendingMessagesAsync_Batch100",
+          "docRef": "bench:ado-postgresql/outbox-query-pending"
+        }
+      ]
+    }
+  ]
+}

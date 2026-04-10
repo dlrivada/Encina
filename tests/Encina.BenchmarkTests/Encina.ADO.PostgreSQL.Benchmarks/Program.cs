@@ -1,14 +1,15 @@
 using BenchmarkDotNet.Running;
 
-namespace Encina.ADO.Benchmarks;
+namespace Encina.ADO.PostgreSQL.Benchmarks;
 
 /// <summary>
-/// Entry point for ADO.NET provider benchmarks.
+/// Entry point for Encina.ADO.PostgreSQL provider benchmarks.
 /// </summary>
-public class Program
+public static class Program
 {
     /// <summary>
-    /// Main entry point for running benchmarks.
+    /// Dispatches BenchmarkDotNet with command-line arguments so filters, jobs,
+    /// and exporters can be selected at runtime.
     /// </summary>
     /// <param name="args">Command line arguments passed to BenchmarkDotNet.</param>
     public static void Main(string[] args)
