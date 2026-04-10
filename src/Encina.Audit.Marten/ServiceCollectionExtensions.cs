@@ -94,7 +94,13 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available
         services.TryAddSingleton(TimeProvider.System);
 
-        // Ensure ILoggerFactory is available for projection logger injection
+        // Ensure ILoggerFactory is available for ConfigureMartenAuditProjections to build
+        // typed loggers. AddLogging() is idempotent and pay-for-what-you-use: all of its
+        // internal registrations use TryAdd, so a host that has already configured logging
+        // providers (Console, Serilog, etc.) keeps winning. Using a bare NullLoggerFactory
+        // TryAddSingleton here would introduce a registration-order footgun — if this
+        // extension runs before the host's own AddLogging() call, NullLoggerFactory would
+        // claim the ILoggerFactory slot and silently swallow the host's configured logs.
         services.AddLogging();
 
         // Instantiate options to inspect flags for conditional registrations

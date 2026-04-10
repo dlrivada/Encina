@@ -64,12 +64,17 @@ public sealed class AuditEntryProjection : EventProjection
     /// The placeholder substituted for PII fields when the temporal key has been destroyed.
     /// </param>
     /// <param name="logger">Logger used for projection diagnostics.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="shreddedPlaceholder"/> is <c>null</c>, empty, or whitespace.
+    /// An empty or whitespace placeholder would project PII fields as blank strings instead
+    /// of masking them, which defeats the purpose of crypto-shredding.
+    /// </exception>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="shreddedPlaceholder"/> or <paramref name="logger"/> is <c>null</c>.
+    /// Thrown when <paramref name="logger"/> is <c>null</c>.
     /// </exception>
     public AuditEntryProjection(string shreddedPlaceholder, ILogger<AuditEntryProjection> logger)
     {
-        ArgumentNullException.ThrowIfNull(shreddedPlaceholder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shreddedPlaceholder);
         ArgumentNullException.ThrowIfNull(logger);
 
         Name = "AuditEntryProjection";
@@ -122,37 +127,70 @@ public sealed class AuditEntryProjection : EventProjection
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Optimized to a single database round-trip: the latest active key is fetched directly
-    /// via <c>OrderByDescending(Version).FirstOrDefaultAsync</c>, pushing the ordering and
-    /// limit down to PostgreSQL instead of materializing all versions into memory. This keeps
-    /// the hot path of the async projection daemon as cheap as possible (one query per event).
+    /// Lookup strategy, ordered for the common case:
     /// </para>
+    /// <list type="number">
+    /// <item>
+    /// Fetch the latest active key in a single query via
+    /// <c>OrderByDescending(Version).FirstOrDefaultAsync</c>, pushing ordering and limit down
+    /// to PostgreSQL. Common case: one query per event, no in-memory sorting.
+    /// </item>
+    /// <item>
+    /// If no active key is found, check for an explicit
+    /// <see cref="TemporalKeyDestroyedMarker"/>. If present, the period was crypto-shredded
+    /// and the projection substitutes the placeholder (<c>IsShredded = true</c>).
+    /// </item>
+    /// <item>
+    /// If neither an active key nor a destroyed marker exists, the lookup throws
+    /// <see cref="KeyNotFoundException"/>. This is <b>deliberately retryable</b>: the absence
+    /// of both documents can be caused by replication lag, a transient read-your-writes delay,
+    /// or a pending write on the primary. Persisting <c>IsShredded = true</c> in that scenario
+    /// would advance the async projection daemon's high-water mark and permanently corrupt
+    /// the read model. Throwing causes Marten to retry the projection on the next pass.
+    /// </item>
+    /// </list>
     /// <para>
-    /// For projection purposes, a missing active key is equivalent to crypto-shredding:
-    /// the PII fields become unrecoverable either way, so the projection substitutes the
-    /// configured placeholder. The <see cref="TemporalKeyDestroyedMarker"/> document is
-    /// therefore <b>not</b> consulted here — it only exists to serve the
-    /// <c>MartenTemporalKeyProvider</c> public API, which needs to distinguish
-    /// destroyed-vs-never-existed for its callers.
-    /// </para>
-    /// <para>
-    /// This is exposed as <c>internal</c> so unit tests can verify the key-lookup contract
-    /// against an in-memory Marten session or a stub without invoking the full projection pipeline.
+    /// This is exposed as <c>internal</c> so unit tests can verify the lookup contract against
+    /// an in-memory Marten session or a stub without invoking the full projection pipeline.
     /// </para>
     /// </remarks>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when neither an active key nor a destroyed marker exists for the given period,
+    /// indicating transient inconsistency. The Marten async projection daemon will retry.
+    /// </exception>
     internal static async Task<(byte[]? KeyMaterial, bool IsShredded)> LoadTemporalKeyAsync(
         IQuerySession session,
         string period,
         CancellationToken cancellationToken)
     {
+        // Common case: fetch the latest active key in a single query.
         var activeKey = await session.Query<TemporalKeyDocument>()
             .Where(d => d.Period == period && d.Status == TemporalKeyStatus.Active)
             .OrderByDescending(d => d.Version)
             .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
-        return activeKey is not null
-            ? (activeKey.KeyMaterial, false)
-            : (null, true);
+        if (activeKey is not null)
+        {
+            return (activeKey.KeyMaterial, false);
+        }
+
+        // Rare case: no active key. Check for an explicit destruction marker to distinguish
+        // crypto-shredded periods (permanent) from transient inconsistency (retryable).
+        var destroyedDoc = await session.LoadAsync<TemporalKeyDestroyedMarker>(
+            TemporalPeriodHelper.FormatDestroyedMarkerId(period),
+            cancellationToken).ConfigureAwait(false);
+
+        if (destroyedDoc is not null)
+        {
+            return (null, true);
+        }
+
+        // Neither active key nor destroyed marker — transient. Throw so the async daemon retries
+        // instead of advancing the high-water mark over an incorrectly-shredded read model.
+        throw new KeyNotFoundException(
+            $"Temporal key for period '{period}' not found: no active key and no destroyed marker. " +
+            "This indicates transient inconsistency (replication lag, pending write, or similar). " +
+            "The Marten async projection daemon will retry on the next pass.");
     }
 
     /// <summary>

@@ -54,12 +54,17 @@ public sealed class ReadAuditEntryProjection : EventProjection
     /// The placeholder substituted for PII fields when the temporal key has been destroyed.
     /// </param>
     /// <param name="logger">Logger used for projection diagnostics.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="shreddedPlaceholder"/> is <c>null</c>, empty, or whitespace.
+    /// An empty or whitespace placeholder would project PII fields as blank strings instead
+    /// of masking them, which defeats the purpose of crypto-shredding.
+    /// </exception>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="shreddedPlaceholder"/> or <paramref name="logger"/> is <c>null</c>.
+    /// Thrown when <paramref name="logger"/> is <c>null</c>.
     /// </exception>
     public ReadAuditEntryProjection(string shreddedPlaceholder, ILogger<ReadAuditEntryProjection> logger)
     {
-        ArgumentNullException.ThrowIfNull(shreddedPlaceholder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shreddedPlaceholder);
         ArgumentNullException.ThrowIfNull(logger);
 
         Name = "ReadAuditEntryProjection";
