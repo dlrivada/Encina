@@ -95,14 +95,6 @@ public sealed class ReadAuditEntryProjection : EventProjection
         var (keyMaterial, isShredded) = await AuditEntryProjection.LoadTemporalKeyAsync(
             operations, @event.TemporalKeyPeriod, cancellationToken).ConfigureAwait(false);
 
-        if (isShredded)
-        {
-            _logger.LogDebug(
-                "Temporal key for period {Period} not found — marking read audit entry {EntryId} as shredded",
-                @event.TemporalKeyPeriod,
-                @event.Id);
-        }
-
         return MapToReadModel(@event, keyMaterial, isShredded);
     }
 
@@ -120,6 +112,14 @@ public sealed class ReadAuditEntryProjection : EventProjection
         byte[]? keyMaterial,
         bool isShredded)
     {
+        if (isShredded)
+        {
+            _logger.LogDebug(
+                "Temporal key for period {Period} not found — marking read audit entry {EntryId} as shredded",
+                @event.TemporalKeyPeriod,
+                @event.Id);
+        }
+
         var placeholder = _shreddedPlaceholder;
 
         return new ReadAuditEntryReadModel

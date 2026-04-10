@@ -110,14 +110,6 @@ public sealed class AuditEntryProjection : EventProjection
         var (keyMaterial, isShredded) = await LoadTemporalKeyAsync(
             operations, @event.TemporalKeyPeriod, cancellationToken).ConfigureAwait(false);
 
-        if (isShredded)
-        {
-            _logger.LogDebug(
-                "Temporal key for period {Period} not found — marking audit entry {EntryId} as shredded",
-                @event.TemporalKeyPeriod,
-                @event.Id);
-        }
-
         return MapToReadModel(@event, keyMaterial, isShredded);
     }
 
@@ -126,6 +118,13 @@ public sealed class AuditEntryProjection : EventProjection
     /// <see cref="IQuerySession"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// This is a thin I/O wrapper: it issues the two Marten queries (active key, destroyed
+    /// marker) and delegates the actual decision to <see cref="ClassifyTemporalKeyLookup"/>,
+    /// which is pure and fully unit-tested. The Marten LINQ pipeline
+    /// (<c>IMartenQueryable.FirstOrDefaultAsync</c>) cannot be reliably faked at the unit-test
+    /// level, so this wrapper itself is exercised end-to-end by integration tests (see #951).
+    /// </para>
     /// <para>
     /// Lookup strategy, ordered for the common case:
     /// </para>
@@ -149,10 +148,6 @@ public sealed class AuditEntryProjection : EventProjection
     /// the read model. Throwing causes Marten to retry the projection on the next pass.
     /// </item>
     /// </list>
-    /// <para>
-    /// This is exposed as <c>internal</c> so unit tests can verify the lookup contract against
-    /// an in-memory Marten session or a stub without invoking the full projection pipeline.
-    /// </para>
     /// </remarks>
     /// <exception cref="KeyNotFoundException">
     /// Thrown when neither an active key nor a destroyed marker exists for the given period,
@@ -169,24 +164,62 @@ public sealed class AuditEntryProjection : EventProjection
             .OrderByDescending(d => d.Version)
             .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
+        // Only fetch the destroyed marker if the active-key lookup came up empty,
+        // keeping the hot path to a single indexed query.
+        TemporalKeyDestroyedMarker? destroyedDoc = null;
+        if (activeKey is null)
+        {
+            destroyedDoc = await session.LoadAsync<TemporalKeyDestroyedMarker>(
+                TemporalPeriodHelper.FormatDestroyedMarkerId(period),
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return ClassifyTemporalKeyLookup(activeKey, destroyedDoc, period);
+    }
+
+    /// <summary>
+    /// Pure classification logic that maps an (activeKey, destroyedMarker) lookup result
+    /// into the tuple consumed by <see cref="MapToReadModel"/>.
+    /// </summary>
+    /// <param name="activeKey">
+    /// The latest active temporal key for the period, or <c>null</c> if none exists.
+    /// </param>
+    /// <param name="destroyedMarker">
+    /// The destruction marker for the period, or <c>null</c> if the period has not been
+    /// crypto-shredded. Only consulted when <paramref name="activeKey"/> is <c>null</c>.
+    /// </param>
+    /// <param name="period">The temporal period identifier (used in the error message).</param>
+    /// <returns>
+    /// A tuple where:
+    /// <list type="bullet">
+    /// <item><c>(keyMaterial, false)</c> — an active key was found</item>
+    /// <item><c>(null, true)</c> — no active key, destroyed marker present (crypto-shredded)</item>
+    /// </list>
+    /// </returns>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when both <paramref name="activeKey"/> and <paramref name="destroyedMarker"/>
+    /// are <c>null</c>. This indicates transient inconsistency — see
+    /// <see cref="LoadTemporalKeyAsync"/> for the full rationale.
+    /// </exception>
+    /// <remarks>
+    /// This function is extracted and exposed as <c>internal</c> so the three decision paths
+    /// can be unit-tested exhaustively without needing to mock Marten's LINQ pipeline.
+    /// </remarks>
+    internal static (byte[]? KeyMaterial, bool IsShredded) ClassifyTemporalKeyLookup(
+        TemporalKeyDocument? activeKey,
+        TemporalKeyDestroyedMarker? destroyedMarker,
+        string period)
+    {
         if (activeKey is not null)
         {
             return (activeKey.KeyMaterial, false);
         }
 
-        // Rare case: no active key. Check for an explicit destruction marker to distinguish
-        // crypto-shredded periods (permanent) from transient inconsistency (retryable).
-        var destroyedDoc = await session.LoadAsync<TemporalKeyDestroyedMarker>(
-            TemporalPeriodHelper.FormatDestroyedMarkerId(period),
-            cancellationToken).ConfigureAwait(false);
-
-        if (destroyedDoc is not null)
+        if (destroyedMarker is not null)
         {
             return (null, true);
         }
 
-        // Neither active key nor destroyed marker — transient. Throw so the async daemon retries
-        // instead of advancing the high-water mark over an incorrectly-shredded read model.
         throw new KeyNotFoundException(
             $"Temporal key for period '{period}' not found: no active key and no destroyed marker. " +
             "This indicates transient inconsistency (replication lag, pending write, or similar). " +
@@ -207,6 +240,14 @@ public sealed class AuditEntryProjection : EventProjection
         byte[]? keyMaterial,
         bool isShredded)
     {
+        if (isShredded)
+        {
+            _logger.LogDebug(
+                "Temporal key for period {Period} not found — marking audit entry {EntryId} as shredded",
+                @event.TemporalKeyPeriod,
+                @event.Id);
+        }
+
         var placeholder = _shreddedPlaceholder;
 
         return new AuditEntryReadModel

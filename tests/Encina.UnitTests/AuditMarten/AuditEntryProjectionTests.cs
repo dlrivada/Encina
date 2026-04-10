@@ -222,6 +222,103 @@ public sealed class AuditEntryProjectionTests
     }
 
     [Fact]
+    public void ClassifyTemporalKeyLookup_WithActiveKey_ReturnsKeyMaterialAndNotShredded()
+    {
+        // Arrange
+        var keyMaterial = RandomNumberGenerator.GetBytes(32);
+        var activeKey = new TemporalKeyDocument
+        {
+            Id = "temporal:2026-03:v2",
+            Period = "2026-03",
+            KeyMaterial = keyMaterial,
+            Version = 2,
+            Status = TemporalKeyStatus.Active,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        // Act
+        var (resultKey, isShredded) = AuditEntryProjection.ClassifyTemporalKeyLookup(
+            activeKey, destroyedMarker: null, "2026-03");
+
+        // Assert
+        resultKey.ShouldBeSameAs(keyMaterial);
+        isShredded.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ClassifyTemporalKeyLookup_WithNoActiveKeyButDestroyedMarker_ReturnsShredded()
+    {
+        // Arrange: simulates a period that was explicitly crypto-shredded via DestroyKeysBeforeAsync.
+        var destroyedMarker = new TemporalKeyDestroyedMarker
+        {
+            Id = "temporal-destroyed:2020-01",
+            Period = "2020-01",
+            DestroyedAtUtc = DateTimeOffset.UtcNow,
+            KeyVersionsDestroyed = 3
+        };
+
+        // Act
+        var (resultKey, isShredded) = AuditEntryProjection.ClassifyTemporalKeyLookup(
+            activeKey: null, destroyedMarker, "2020-01");
+
+        // Assert
+        resultKey.ShouldBeNull();
+        isShredded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ClassifyTemporalKeyLookup_WithNeitherActiveKeyNorDestroyedMarker_ThrowsKeyNotFound()
+    {
+        // Arrange: simulates transient inconsistency — no active key written yet AND no
+        // destroyed marker. This MUST throw so the Marten async daemon retries on the next
+        // pass instead of persisting a read model with IsShredded=true (which would advance
+        // the high-water mark and permanently corrupt the read model).
+        // Act + Assert
+        var ex = Should.Throw<KeyNotFoundException>(() =>
+            AuditEntryProjection.ClassifyTemporalKeyLookup(
+                activeKey: null, destroyedMarker: null, "2026-03"));
+
+        ex.Message.ShouldContain("2026-03");
+        ex.Message.ShouldContain("transient inconsistency");
+        ex.Message.ShouldContain("retry");
+    }
+
+    [Fact]
+    public void ClassifyTemporalKeyLookup_ActiveKey_TakesPrecedenceOverDestroyedMarker()
+    {
+        // Arrange: defensive — if both exist (e.g., a new key was issued after a prior
+        // shredding cycle for a future period), the active key wins. The current projection
+        // logic only fetches the destroyed marker when the active-key lookup came up empty,
+        // so this path is not reachable from LoadTemporalKeyAsync, but ClassifyTemporalKeyLookup
+        // is still defensively correct when called with both arguments non-null.
+        var keyMaterial = RandomNumberGenerator.GetBytes(32);
+        var activeKey = new TemporalKeyDocument
+        {
+            Id = "temporal:2026-03:v1",
+            Period = "2026-03",
+            KeyMaterial = keyMaterial,
+            Version = 1,
+            Status = TemporalKeyStatus.Active,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        var destroyedMarker = new TemporalKeyDestroyedMarker
+        {
+            Id = "temporal-destroyed:2026-03",
+            Period = "2026-03",
+            DestroyedAtUtc = DateTimeOffset.UtcNow,
+            KeyVersionsDestroyed = 1
+        };
+
+        // Act
+        var (resultKey, isShredded) = AuditEntryProjection.ClassifyTemporalKeyLookup(
+            activeKey, destroyedMarker, "2026-03");
+
+        // Assert
+        resultKey.ShouldBeSameAs(keyMaterial);
+        isShredded.ShouldBeFalse();
+    }
+
+    [Fact]
     public void MapToReadModel_UsesCustomShreddedPlaceholder()
     {
         // Arrange
