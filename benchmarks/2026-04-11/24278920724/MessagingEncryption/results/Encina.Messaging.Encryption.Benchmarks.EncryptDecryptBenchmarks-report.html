@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Messaging.Encryption.Benchmarks.EncryptDecryptBenchmarks-20260411-095527</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method   </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Encrypt_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>5.393 &mu;s</td><td>0.1502 &mu;s</td><td>0.0994 &mu;s</td><td>1.10</td><td>0.02</td><td>0.2136</td><td>-</td><td>3688 B</td><td>5.01</td>
+</tr><tr><td>Encrypt_Large</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>32.839 &mu;s</td><td>1.4643 &mu;s</td><td>0.8714 &mu;s</td><td>6.70</td><td>0.17</td><td>11.7188</td><td>-</td><td>197227 B</td><td>267.97</td>
+</tr><tr><td>Decrypt_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3.672 &mu;s</td><td>0.0325 &mu;s</td><td>0.0194 &mu;s</td><td>0.75</td><td>0.00</td><td>0.1411</td><td>-</td><td>2416 B</td><td>3.28</td>
+</tr><tr><td>Decrypt_Large</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>26.710 &mu;s</td><td>0.3795 &mu;s</td><td>0.2510 &mu;s</td><td>5.45</td><td>0.05</td><td>7.8430</td><td>0.9766</td><td>131442 B</td><td>178.59</td>
+</tr><tr><td>Decrypt_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3.276 &mu;s</td><td>0.0050 &mu;s</td><td>0.0030 &mu;s</td><td>0.67</td><td>0.00</td><td>0.0267</td><td>-</td><td>448 B</td><td>0.61</td>
+</tr><tr><td>Encrypt_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>4.901 &mu;s</td><td>0.0189 &mu;s</td><td>0.0125 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0381</td><td>-</td><td>736 B</td><td>1.00</td>
+</tr><tr><td>Roundtrip_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>8.282 &mu;s</td><td>0.0109 &mu;s</td><td>0.0065 &mu;s</td><td>1.69</td><td>0.00</td><td>0.0610</td><td>-</td><td>1184 B</td><td>1.61</td>
+</tr><tr><td>Encrypt_Medium</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.523 &mu;s</td><td>0.1172 &mu;s</td><td>0.1681 &mu;s</td><td>1.14</td><td>0.03</td><td>0.2136</td><td>-</td><td>3688 B</td><td>5.01</td>
+</tr><tr><td>Encrypt_Large</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>33.537 &mu;s</td><td>0.4261 &mu;s</td><td>0.6245 &mu;s</td><td>6.90</td><td>0.13</td><td>11.7188</td><td>-</td><td>197227 B</td><td>267.97</td>
+</tr><tr><td>Decrypt_Medium</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3.752 &mu;s</td><td>0.0318 &mu;s</td><td>0.0456 &mu;s</td><td>0.77</td><td>0.01</td><td>0.1373</td><td>-</td><td>2416 B</td><td>3.28</td>
+</tr><tr><td>Decrypt_Large</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>29.125 &mu;s</td><td>0.5276 &mu;s</td><td>0.7896 &mu;s</td><td>5.99</td><td>0.16</td><td>7.8430</td><td>0.9766</td><td>131442 B</td><td>178.59</td>
+</tr><tr><td>Decrypt_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3.416 &mu;s</td><td>0.0566 &mu;s</td><td>0.0775 &mu;s</td><td>0.70</td><td>0.02</td><td>0.0267</td><td>-</td><td>448 B</td><td>0.61</td>
+</tr><tr><td>Encrypt_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4.860 &mu;s</td><td>0.0070 &mu;s</td><td>0.0098 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0381</td><td>-</td><td>736 B</td><td>1.00</td>
+</tr><tr><td>Roundtrip_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>8.311 &mu;s</td><td>0.0172 &mu;s</td><td>0.0236 &mu;s</td><td>1.71</td><td>0.01</td><td>0.0610</td><td>-</td><td>1184 B</td><td>1.61</td>
+</tr></tbody></table>
+</body>
+</html>
