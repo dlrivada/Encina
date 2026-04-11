@@ -65,10 +65,18 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p artifacts/mutation/test-baseline
+          # Stryker auto-discovers every test project that references the mutated
+          # project (src/Encina/Encina.csproj), not just the ones listed under
+          # stryker-config.json:test-projects. Run all of them here so we know
+          # which one owns the 76 failures Stryker reports.
           for proj in \
             tests/Encina.UnitTests/Encina.UnitTests.csproj \
             tests/Encina.PropertyTests/Encina.PropertyTests.csproj \
-            tests/Encina.ContractTests/Encina.ContractTests.csproj; do
+            tests/Encina.ContractTests/Encina.ContractTests.csproj \
+            tests/Encina.GuardTests/Encina.GuardTests.csproj \
+            tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj \
+            tests/Encina.LoadTests/Encina.LoadTests.csproj \
+            tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj; do
             name=$(basename "$proj" .csproj)
             echo "::group::$name"
             dotnet test "$proj" \

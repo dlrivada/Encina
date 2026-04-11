@@ -25,7 +25,8 @@ try
         "--output",
         outputPath,
         "--verbosity",
-        "info"
+        "info",
+        "--log-to-file"
     };
 
     if (passThrough.Count > 0)
