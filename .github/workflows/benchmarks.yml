@@ -399,6 +399,15 @@ jobs:
           fi
 
       - name: Generate performance report with carry-forward
+        env:
+          # The class-level matrix jobs set PERF_JOB_TYPE locally, but each GitHub Actions
+          # job has its own env scope and the aggregate job never received it. Without
+          # this, perf-report.cs's BuildMetadata() falls back to its default ("short")
+          # and writes metadata.jobType = "short" into latest.json — which then causes
+          # publish-benchmarks.yml to early-exit the publish via the jobType-gate even
+          # for genuine medium/default runs. Propagate the same expression used by the
+          # per-class jobs so the metadata matches reality.
+          PERF_JOB_TYPE: ${{ github.event.inputs.job_type || (github.event_name == 'schedule' && 'medium') || 'short' }}
         run: |
           # upload-artifact with multi-path strips the longest common prefix
           # ('artifacts/' here), so the extracted layout is perf-output/... and

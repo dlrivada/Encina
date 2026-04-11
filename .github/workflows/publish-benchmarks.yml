@@ -78,11 +78,16 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      # Gate: a `--job short` run uses IterationCount=3 and forces every benchmark
-      # into the "unstable" bucket (perf-report.cs enforces n >= 10 for stability).
-      # Publishing its latest.json would overwrite the dashboard with a ~18% stable
-      # snapshot even though the underlying code is fine, so we early-exit here.
-      # The run's artifacts remain available on the Benchmarks workflow page for
+      # Gate: only `medium`/`default` jobs are allowed to update the dashboard.
+      # `short` and `dry` use IterationCount=3 and force every benchmark into the
+      # "unstable" bucket (perf-report.cs enforces n >= 10 for stability, or a
+      # stricter 3 % CoV for n in 3..9). Publishing their latest.json would overwrite
+      # the dashboard with a ~18 % stable snapshot even though the underlying code
+      # is fine, so we early-exit here. `unknown` is treated the same way — it
+      # almost always means a workflow misconfiguration (PERF_JOB_TYPE env var not
+      # propagated) and publishing silently would hide the bug.
+      #
+      # Raw artifacts remain available on the Benchmarks workflow page for
       # developer inspection; only the Pages-published dashboard is gated.
       - name: Detect source job type
         id: jobtype
@@ -90,13 +95,21 @@ jobs:
           JOB_TYPE=$(jq -r '.metadata.jobType // "unknown"' perf-report-artifact/latest.json)
           echo "job_type=$JOB_TYPE" >> "$GITHUB_OUTPUT"
           echo "Source run jobType: $JOB_TYPE"
-          if [ "$JOB_TYPE" = "short" ]; then
-            echo ""
-            echo "::notice title=Skipping publish::Source run used --job short (IterationCount=3); every benchmark would be reported as unstable. The run's artifacts remain available on the Benchmarks workflow page for inspection. Re-run with job_type=medium (or wait for the weekly schedule) to update the public dashboard."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          case "$JOB_TYPE" in
+            medium|default)
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              ;;
+            unknown)
+              echo ""
+              echo "::warning title=Skipping publish::Source run metadata.jobType is 'unknown'. This usually means the PERF_JOB_TYPE env var was not propagated to the aggregate job in benchmarks.yml. Fix the workflow, re-run, and the publish will proceed automatically."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo ""
+              echo "::notice title=Skipping publish::Source run used --job $JOB_TYPE (IterationCount < 10); every benchmark would be reported as unstable. The run's artifacts remain available on the Benchmarks workflow page for inspection. Re-run with job_type=medium (or wait for the weekly schedule) to update the public dashboard."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
       - name: Update docs/benchmarks/data
         if: steps.jobtype.outputs.skip != 'true'

@@ -1047,7 +1047,14 @@ static JsonObject BuildMetadata(long runId, string sha)
         ["sha"] = sha,
         ["workflow"] = Environment.GetEnvironmentVariable("GITHUB_WORKFLOW") ?? "",
         ["eventType"] = Environment.GetEnvironmentVariable("GITHUB_EVENT_NAME") ?? "",
-        ["jobType"] = Environment.GetEnvironmentVariable("PERF_JOB_TYPE") ?? "short"
+        // Default is "unknown" (not "short") so a misconfigured job that forgets to
+        // propagate PERF_JOB_TYPE fails the publish gate LOUDLY instead of silently
+        // being treated as a short run and skipped. The publish-benchmarks.yml gate
+        // treats anything other than "medium"/"default" as non-publishable, so
+        // "unknown" will still skip — but the jobType value in latest.json will show
+        // "unknown", which is diagnosable. Before, a misconfigured medium run looked
+        // indistinguishable from a real short run.
+        ["jobType"] = Environment.GetEnvironmentVariable("PERF_JOB_TYPE") ?? "unknown"
     };
 }
 
