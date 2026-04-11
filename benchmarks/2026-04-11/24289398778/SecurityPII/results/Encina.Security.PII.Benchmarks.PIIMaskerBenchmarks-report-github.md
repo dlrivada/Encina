@@ -1,0 +1,34 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+
+
+```
+| Method                   | Job        | IterationCount | LaunchCount | WarmupCount | Mean         | Error     | StdDev    | Ratio  | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------- |----------- |--------------- |------------ |------------ |-------------:|----------:|----------:|-------:|--------:|-------:|----------:|------------:|
+| Mask_SSN                 | Job-YFEFPZ | 10             | Default     | 3           |    405.73 ns |  8.011 ns |  5.299 ns |   4.17 |    0.06 | 0.0310 |     520 B |        2.32 |
+| Mask_WithRegexPattern    | Job-YFEFPZ | 10             | Default     | 3           |    594.14 ns |  5.610 ns |  3.711 ns |   6.11 |    0.06 | 0.0248 |     416 B |        1.86 |
+| MaskObject_NoAttributes  | Job-YFEFPZ | 10             | Default     | 3           |  2,772.82 ns | 10.372 ns |  6.172 ns |  28.53 |    0.21 | 0.0572 |    1008 B |        4.50 |
+| MaskForAudit_SingleField | Job-YFEFPZ | 10             | Default     | 3           |  4,460.51 ns | 46.758 ns | 30.928 ns |  45.89 |    0.45 | 0.0992 |    1752 B |        7.82 |
+| MaskForAudit_NonGeneric  | Job-YFEFPZ | 10             | Default     | 3           |  4,429.96 ns | 21.368 ns | 12.716 ns |  45.57 |    0.35 | 0.0992 |    1752 B |        7.82 |
+| Mask_CreditCard          | Job-YFEFPZ | 10             | Default     | 3           |    488.58 ns |  2.142 ns |  1.275 ns |   5.03 |    0.04 | 0.0324 |     544 B |        2.43 |
+| Mask_Email               | Job-YFEFPZ | 10             | Default     | 3           |     97.21 ns |  1.239 ns |  0.737 ns |   1.00 |    0.01 | 0.0134 |     224 B |        1.00 |
+| MaskObject_MultiField    | Job-YFEFPZ | 10             | Default     | 3           | 10,733.65 ns | 55.790 ns | 36.901 ns | 110.43 |    0.87 | 0.2899 |    5056 B |       22.57 |
+| MaskObject_SingleField   | Job-YFEFPZ | 10             | Default     | 3           |  4,579.69 ns | 16.433 ns |  9.779 ns |  47.11 |    0.35 | 0.0992 |    1752 B |        7.82 |
+| Mask_Phone               | Job-YFEFPZ | 10             | Default     | 3           |    406.58 ns |  6.257 ns |  4.138 ns |   4.18 |    0.05 | 0.0310 |     520 B |        2.32 |
+|                          |            |                |             |             |              |           |           |        |         |        |           |             |
+| Mask_SSN                 | MediumRun  | 15             | 2           | 10          |    413.42 ns |  5.594 ns |  8.023 ns |   4.14 |    0.11 | 0.0310 |     520 B |        2.32 |
+| Mask_WithRegexPattern    | MediumRun  | 15             | 2           | 10          |    587.04 ns |  3.328 ns |  4.666 ns |   5.88 |    0.12 | 0.0248 |     416 B |        1.86 |
+| MaskObject_NoAttributes  | MediumRun  | 15             | 2           | 10          |  2,714.86 ns | 16.450 ns | 23.593 ns |  27.18 |    0.58 | 0.0572 |    1008 B |        4.50 |
+| MaskForAudit_SingleField | MediumRun  | 15             | 2           | 10          |  4,606.89 ns |  9.588 ns | 14.054 ns |  46.12 |    0.92 | 0.0992 |    1752 B |        7.82 |
+| MaskForAudit_NonGeneric  | MediumRun  | 15             | 2           | 10          |  4,494.19 ns | 36.108 ns | 52.927 ns |  44.99 |    1.03 | 0.0992 |    1752 B |        7.82 |
+| Mask_CreditCard          | MediumRun  | 15             | 2           | 10          |    489.70 ns |  2.477 ns |  3.708 ns |   4.90 |    0.10 | 0.0324 |     544 B |        2.43 |
+| Mask_Email               | MediumRun  | 15             | 2           | 10          |     99.92 ns |  1.371 ns |  2.010 ns |   1.00 |    0.03 | 0.0134 |     224 B |        1.00 |
+| MaskObject_MultiField    | MediumRun  | 15             | 2           | 10          | 10,668.09 ns | 22.623 ns | 32.446 ns | 106.81 |    2.13 | 0.2899 |    5056 B |       22.57 |
+| MaskObject_SingleField   | MediumRun  | 15             | 2           | 10          |  4,598.44 ns | 51.722 ns | 74.178 ns |  46.04 |    1.16 | 0.0992 |    1752 B |        7.82 |
+| Mask_Phone               | MediumRun  | 15             | 2           | 10          |    416.90 ns |  2.994 ns |  4.388 ns |   4.17 |    0.09 | 0.0310 |     520 B |        2.32 |
