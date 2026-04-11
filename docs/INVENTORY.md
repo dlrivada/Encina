@@ -863,7 +863,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - Outbox integration para reliability
 - Dependency validation on startup
 - Extiende el Module System existente
-- Inspirado en [Spring Modulith 2.0](https://junkangworld.com/blog/5-game-changing-spring-modulith-20-features-for-2025)
+- Inspirado en [Spring Modulith](https://spring.io/projects/spring-modulith)
 - Labels: `area-modular-monolith`, `area-messaging`, `area-microservices`
 
 #### Labels Nuevas Creadas (12)
@@ -915,7 +915,7 @@ Esta nueva categoría agrupa patrones avanzados de Domain-Driven Design, workflo
 - [Temporal](https://temporal.io/) - Durable workflow engine
 - [Microsoft.FeatureManagement](https://github.com/microsoft/FeatureManagement-Dotnet) - Feature flags
 - [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/) - AI agent orchestration
-- [Spring Modulith 2.0](https://junkangworld.com/blog/5-game-changing-spring-modulith-20-features-for-2025) - Integration events
+- [Spring Modulith](https://spring.io/projects/spring-modulith) - Integration events
 - [Anti-Corruption Layer - Azure](https://learn.microsoft.com/en-us/azure/architecture/patterns/anti-corruption-layer) - ACL pattern
 
 ---
