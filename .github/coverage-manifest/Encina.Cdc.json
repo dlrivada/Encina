@@ -1,55 +1,49 @@
 {
   "package": "Encina.Cdc",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-11T00:00:00Z",
   "totalFiles": 51,
   "targets": {
     "guard": 15,
-    "integration": 10,
     "property": 10,
     "unit": 50
   },
   "files": {
     "Abstractions/CdcPosition.cs": {
       "defaultTests": [
-        "unit",
-        "guard",
-        "property"
+        "unit"
       ],
-      "defaultRule": "*CdcPosition.cs",
-      "reason": "Position serialization with round-trip invariant"
+      "defaultRule": "*.cs",
+      "reason": "Abstract base with only abstract methods — no coverable lines for guard/property, contract is verified via concrete subclasses"
     },
     "Abstractions/ICdcConnector.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/ICdcDispatcher.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/ICdcPositionStore.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/IChangeEventHandler.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/IShardedCdcConnector.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/IShardedCdcPositionStore.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Caching/CacheInvalidationSubscriberHealthCheck.cs": {
       "defaultTests": [
@@ -57,31 +51,30 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with constructor null guards and mockeable service dependencies"
     },
     "Caching/CacheInvalidationSubscriberService.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Service.cs",
+      "reason": "Hosted service with constructor null guards and mockeable pub/sub dependency"
     },
     "Caching/CdcCacheInvalidationLog.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Log.cs",
+      "reason": "LoggerMessage source-generated file — no guards, no invariants"
     },
     "Caching/CdcTableNameResolver.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Resolver.cs",
+      "reason": "Pure function with invariants: mapping precedence, schema stripping, case-insensitive matching"
     },
     "Caching/Diagnostics/CacheInvalidationActivitySource.cs": {
       "defaultTests": [
@@ -103,99 +96,94 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "reason": "Handler with constructor null guards and mockeable dependencies"
     },
     "Caching/QueryCacheInvalidationOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "property"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with default-value invariants and filter/mapping semantics"
     },
     "CdcConfiguration.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
+      "reason": "Fluent builder with argument guards on public methods"
     },
     "CdcLog.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Log.cs",
+      "reason": "LoggerMessage source-generated file — no guards, no invariants"
     },
     "CdcOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "property"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults, ranges, and invariants (batch size, retries, intervals, filter behavior)"
     },
     "ChangeContext.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "ChangeEvent.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Event.cs",
-      "reason": "Domain event"
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "ChangeMetadata.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "ChangeOperation.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Enum — no executable code, guard/property not applicable"
     },
     "DeadLetter/CdcDeadLetterEntry.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Entry.cs",
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "DeadLetter/CdcDeadLetterHealthCheckOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with default values, no invariants beyond defaults"
     },
     "DeadLetter/CdcDeadLetterResolution.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Enum — no executable code, guard/property not applicable"
     },
     "DeadLetter/CdcDeadLetterStatus.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Enum — no executable code, guard/property not applicable"
     },
     "DeadLetter/Diagnostics/CdcDeadLetterMetrics.cs": {
       "defaultTests": [
@@ -207,29 +195,30 @@
     "DeadLetter/ICdcDeadLetterStore.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "DeadLetter/InMemoryCdcDeadLetterStore.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "In-memory store with add/get/resolve round-trip invariants, status-transition invariants, and null/argument guards"
     },
     "Errors/CdcErrorCodes.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*ErrorCodes.cs",
-      "reason": "Error code constants"
+      "reason": "Error code constants — no guards, no invariants"
     },
     "Errors/CdcErrors.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods — covered by unit tests that verify message shape and codes"
     },
     "Health/CdcDeadLetterHealthCheck.cs": {
       "defaultTests": [
@@ -237,7 +226,7 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with constructor null guards and mockeable service dependencies"
     },
     "Health/CdcHealthCheck.cs": {
       "defaultTests": [
@@ -245,7 +234,7 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with constructor null guards and mockeable service dependencies"
     },
     "Health/ShardedCdcHealthCheck.cs": {
       "defaultTests": [
@@ -253,43 +242,44 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with constructor null guards and mockeable service dependencies"
     },
     "Messaging/CdcChangeNotification.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Notification.cs",
+      "reason": "Notification with FromChangeEvent placeholder substitution invariants (tableName/operation/shardId) and argument guards"
     },
     "Messaging/CdcMessagingBridge.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Bridge.cs",
+      "reason": "Bridge service with constructor null guards and mockeable messaging dependencies"
     },
     "Messaging/CdcMessagingLog.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Log.cs",
+      "reason": "LoggerMessage source-generated file — no guards, no invariants"
     },
     "Messaging/CdcMessagingOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "property"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Options with ShouldPublish filter invariants: exclude precedence, include intersection, case-insensitive matching"
     },
     "Messaging/ICdcEventInterceptor.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Messaging/OutboxCdcHandler.cs": {
       "defaultTests": [
@@ -297,39 +287,41 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "reason": "Handler with constructor null guards and mockeable dependencies"
     },
     "Processing/CdcDispatcher.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Dispatcher.cs",
+      "reason": "Dispatcher with constructor null guards and mockeable dependencies"
     },
     "Processing/CdcProcessor.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Processor.cs",
+      "reason": "Background processor with constructor null guards and mockeable dependencies"
     },
     "Processing/InMemoryCdcPositionStore.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "In-memory store with save-then-get round-trip, case-insensitive connector ID, and delete-then-get invariants"
     },
     "Processing/InMemoryShardedCdcPositionStore.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "In-memory sharded store with composite key (shard, connector) round-trip and case-insensitive matching invariants"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -337,15 +329,14 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with null guards on services parameter and conditional registration"
     },
     "ShardedChangeEvent.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Event.cs",
-      "reason": "Domain event"
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "Sharding/CdcDrivenRefreshHandler.cs": {
       "defaultTests": [
@@ -353,37 +344,37 @@
         "guard"
       ],
       "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "reason": "Handler with constructor null guards and mockeable dependencies"
     },
     "Sharding/ShardedCaptureOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with default values"
     },
     "Sharding/ShardedCdcConnector.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*CdcConnector.cs",
-      "reason": "CDC connector needs real database with replication"
+      "defaultRule": "*Connector.cs",
+      "reason": "Pure in-memory aggregator over child ICdcConnector instances — tested with fake connectors. Integration tests not applicable (see tests/Encina.IntegrationTests/Cdc/Sharding/ShardedCdcIntegrationTests.md)"
     },
     "Sharding/ShardedCdcProcessor.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Processor.cs",
+      "reason": "Background processor with constructor null guards and mockeable dependencies"
     },
     "Sharding/ShardedProcessingMode.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Enum — no executable code, guard/property not applicable"
     }
   }
 }
