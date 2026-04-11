@@ -78,7 +78,28 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      # Gate: a `--job short` run uses IterationCount=3 and forces every benchmark
+      # into the "unstable" bucket (perf-report.cs enforces n >= 10 for stability).
+      # Publishing its latest.json would overwrite the dashboard with a ~18% stable
+      # snapshot even though the underlying code is fine, so we early-exit here.
+      # The run's artifacts remain available on the Benchmarks workflow page for
+      # developer inspection; only the Pages-published dashboard is gated.
+      - name: Detect source job type
+        id: jobtype
+        run: |
+          JOB_TYPE=$(jq -r '.metadata.jobType // "unknown"' perf-report-artifact/latest.json)
+          echo "job_type=$JOB_TYPE" >> "$GITHUB_OUTPUT"
+          echo "Source run jobType: $JOB_TYPE"
+          if [ "$JOB_TYPE" = "short" ]; then
+            echo ""
+            echo "::notice title=Skipping publish::Source run used --job short (IterationCount=3); every benchmark would be reported as unstable. The run's artifacts remain available on the Benchmarks workflow page for inspection. Re-run with job_type=medium (or wait for the weekly schedule) to update the public dashboard."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Update docs/benchmarks/data
+        if: steps.jobtype.outputs.skip != 'true'
         run: |
           mkdir -p docs/benchmarks/data
           cp -f perf-report-artifact/latest.json docs/benchmarks/data/latest.json
@@ -94,6 +115,7 @@ jobs:
           ls -la docs/benchmarks/data/
 
       - name: Fetch live history from Pages (most complete)
+        if: steps.jobtype.outputs.skip != 'true'
         run: |
           # The repo copy of history.json may be empty or stale because
           # git push to main is blocked by branch protection. The live
@@ -117,6 +139,7 @@ jobs:
           fi
 
       - name: Update benchmarks history
+        if: steps.jobtype.outputs.skip != 'true'
         run: |
           dotnet run .github/scripts/perf-history.cs -- \
             --kind benchmarks \
@@ -124,12 +147,14 @@ jobs:
             --history docs/benchmarks/data/history.json
 
       - name: Generate regression badge
+        if: steps.jobtype.outputs.skip != 'true'
         run: |
           dotnet run .github/scripts/perf-badge.cs -- \
             --input docs/benchmarks/data/latest.json \
             --output docs/benchmarks/badge.json
 
       - name: Auto-generate documentation tables from DocRef index
+        if: steps.jobtype.outputs.skip != 'true'
         continue-on-error: true
         run: |
           dotnet run .github/scripts/perf-docs-render.cs -- \
@@ -137,6 +162,7 @@ jobs:
             --docs-root docs
 
       - name: Generate dynamic benchmark coverage scan
+        if: steps.jobtype.outputs.skip != 'true'
         continue-on-error: true
         run: |
           dotnet run .github/scripts/perf-coverage-scan.cs -- \
@@ -146,6 +172,10 @@ jobs:
             --loadtests-root tests/Encina.LoadTests \
             --output docs/benchmarks/data/benchmark-coverage.json
 
+      # Raw data is archived regardless of jobType so short runs can be
+      # re-processed later via perf-recalculate.cs against the archived
+      # BenchmarkDotNet artifacts (the raw files carry enough statistics for
+      # a higher-quality re-run report). The archive is append-only.
       - name: Archive raw data to perf-raw branch
         if: hashFiles('raw-data/**') != ''
         continue-on-error: true
@@ -235,6 +265,7 @@ jobs:
           git worktree remove --force .perf-raw
 
       - name: Persist latest.json + history.json + docref-index.json + cited-by.json to main
+        if: steps.jobtype.outputs.skip != 'true'
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
@@ -249,6 +280,7 @@ jobs:
           fi
 
       - name: Build Pages site with cross-domain live data preservation
+        if: steps.jobtype.outputs.skip != 'true'
         run: |
           # Multiple publish-* workflows share a single gh-pages deployment target.
           # If this workflow copies docs/ as-is, it will ship whatever is currently in
@@ -298,10 +330,12 @@ jobs:
           ls -la _site/coverage/data/ 2>/dev/null | head -20
 
       - name: Upload Pages artifact
+        if: steps.jobtype.outputs.skip != 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
 
       - name: Deploy to GitHub Pages
+        if: steps.jobtype.outputs.skip != 'true'
         id: deployment
         uses: actions/deploy-pages@v5

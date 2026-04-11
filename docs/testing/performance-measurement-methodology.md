@@ -123,6 +123,28 @@ Where `t(0.005, N-1)` is the critical *t* value for a two-tailed 99% interval wi
 
 This is computed from BenchmarkDotNet's `N` (number of iterations per workload, which is determined by `[SimpleJob]` or inferred from target time) and the reported `StdDev`. When `N` is below 10 the CI is considered unreliable and the method is treated as Unstable irrespective of CoV.
 
+### Which `job_type` publishes to the dashboard
+
+The `Benchmarks` workflow exposes a `job_type` input with four values that map to BDN run strategies of increasing cost:
+
+| `job_type` | BDN iterations (`N`) | Stable results possible? | Publishes to dashboard? |
+|---|:---:|:---:|:---:|
+| `dry` | 1 | No | No |
+| `short` | 3 | No | **No** |
+| `medium` | 15 | Yes | Yes |
+| `default` | ~20–35 (auto) | Yes | Yes |
+
+Because the stability rule forces `N < 10` into the Unstable bucket regardless of CoV, running the workflow with `job_type=short` produces ~100 % Unstable results by design. **Publishing those to the dashboard would overwrite the last good snapshot with a fake regression.** To prevent that, `publish-benchmarks.yml` reads `metadata.jobType` from `latest.json` and early-exits the publish job when the value is `short` or `dry`.
+
+Practical consequences:
+
+- A manual dispatch with `job_type=short` still runs (fast feedback, < 15 min for the full matrix), still archives raw BDN outputs to the `perf-raw` branch, and still uploads artifacts to the workflow run page — but **does not touch `docs/benchmarks/data/latest.json`, `history.json`, or the Pages dashboard**.
+- A manual dispatch with `job_type=medium` or `default` (the workflow_dispatch default is now `medium`) publishes normally.
+- Scheduled Sunday runs use `medium` and publish normally.
+- Pull requests use `short` (fast validation) and are filtered out of `publish-benchmarks.yml` anyway (which only triggers on `branches: [main]`).
+
+If you run a `short` dispatch and later decide the measurements were valuable after all, re-run the same commit with `job_type=medium` — the fingerprint diff ensures only changed modules actually execute, so the recovery is cheap.
+
 ### Regression detection
 
 A regression is declared when **all** of the following hold:

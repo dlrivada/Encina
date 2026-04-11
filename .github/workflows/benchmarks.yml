@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       job_type:
-        description: 'BenchmarkDotNet job type (dry for PR validation, short for CI, medium/default for heavy runs)'
+        description: 'BenchmarkDotNet job type. IMPORTANT: short/dry runs are NOT published to the performance dashboard (IterationCount<10 marks every benchmark as unstable). Pick medium/default to refresh the public dashboard.'
         required: false
-        default: 'short'
+        default: 'medium'
         type: choice
         options:
           - dry
