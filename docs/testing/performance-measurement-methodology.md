@@ -104,12 +104,46 @@ Metadata is never discarded. `perf-recalculate.cs` can filter history by any of 
 
 ### Coefficient of variation (CoV)
 
-For every benchmark method, the system computes `CoV = StdDev / Mean`. This is a unitless measure of relative noise. It is used to classify methods into two categories:
+For every benchmark method, the system computes `CoV = StdDev / Mean`. This is a unitless measure of relative noise. It drives a two-tier stability rule that accounts for BenchmarkDotNet's habit of auto-shortening very fast benchmarks to N < 10 iterations:
 
-- **Stable**: `CoV ≤ 0.10` (10%). Suitable for citation in documentation. Trend regressions on stable methods are treated as signal.
-- **Unstable**: `CoV > 0.10`. Still executed, still displayed on the dashboard, but **excluded from `DocRef` citations in documentation** and not considered for regression alerts. The dashboard marks these with an amber indicator and a tooltip explaining why.
+- **N < 3**: always **Unstable**. A single-digit sample carries no statistical weight.
+- **3 ≤ N < 10**: **Stable** iff `CoV ≤ 0.03` (3%). The stricter bar compensates for the smaller sample size — a benchmark with N=9 and CoV=0.5% is actually more trustworthy than one with N=30 and CoV=8%, and the old flat `N < 10 → unstable` rule rejected dozens of genuinely tight sub-microsecond benchmarks (`IdGeneration.Ulid`, `MessagingEncryption.Decrypt_Short`, `DistributedLock.AcquireAndRelease`, etc.) as false positives.
+- **N ≥ 10**: **Stable** iff `CoV ≤ 0.10` (10%).
 
-The 10% threshold is a starting point. After one month of data the team reviews the distribution of CoV values across all benchmarks and adjusts if warranted. Any adjustment triggers a full `perf-recalculate.cs` run so history remains internally consistent.
+Stable methods are suitable for citation in documentation; trend regressions on stable methods are treated as signal. Unstable methods are still executed, still displayed on the dashboard, but excluded from `DocRef` citations and not considered for regression alerts. The dashboard marks these with an amber indicator and a tooltip explaining why.
+
+The 3% and 10% thresholds are starting points. After one month of data the team reviews the distribution of CoV values across all benchmarks and adjusts if warranted. Any adjustment triggers a full `perf-recalculate.cs` run so history remains internally consistent.
+
+### Stability overrides (expected-unstable)
+
+Some benchmarks measure operations whose variance is a **property of what they measure** rather than a flaw in the benchmark design:
+
+- **Lock / semaphore contention**: `Polly.BulkheadBenchmarks.GetMetrics` repeatedly reads a `SemaphoreSlim` counter under concurrent updates — the CoV is inherently high and no amount of extra iterations will settle it.
+- **Multi-key concurrent writes**: `Caching.CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=25)` races on a shared `ConcurrentDictionary`; each run sees different collision patterns.
+- **Sub-nanosecond jitter**: `Encina.Benchmarks.CacheOptimizationBenchmarks.TypeCheck_Direct` measures a single `is` pattern at < 1 ns, where normal CPU jitter dominates the measurement.
+- **Async-scheduler variance**: `Refit.RestApiRequestHandlerBenchmarks.*` go through the task scheduler, which on a shared runner has real variance unrelated to Refit itself.
+
+Marking these methods as Unstable would pollute the headline stability percentage and mask real regressions in other benchmarks. Instead, per-project `.github/perf-manifest/<Project>.Benchmarks.json` files expose a `stabilityOverrides` map that lists known-noisy entries and the reason:
+
+```json
+"stabilityOverrides": {
+  "$comment": "Keys match 'ClassName.Method' or 'ClassName.Method(Params)'.",
+  "CacheOptimizationBenchmarks.TypeCheck_Direct": "Sub-nanosecond type check dominated by CPU jitter; CoV ~93% even at N=26.",
+  "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=25)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-41% at N=30."
+}
+```
+
+`perf-report.cs` reads these at report time and marks matching benchmarks with `expectedUnstable: true` and `expectedUnstableReason: "..."`. The headline overall counts on the dashboard track three buckets — `stableMethods`, `unstableMethods`, `expectedUnstableMethods` — and the stability ratio is computed as `stable / (stable + unstable)`, ignoring expected-unstable so the percentage reflects benchmarks whose stability is actually a signal.
+
+**When to add an override**:
+- The CoV is driven by contention / scheduling / sub-ns jitter, not by the code path under test.
+- You have at least one run with N ≥ 15 to confirm the noise does not collapse with more samples.
+- You can explain in one sentence why the variance is inherent.
+
+**When NOT to add an override**:
+- The CoV is borderline (3–8%) and the benchmark is a single-threaded CPU operation — it probably just needs more iterations via a class-level `[SimpleJob(iterationCount: 15)]`. This is the "Palanca 2" lever: tune at the source, not at the manifest.
+- The benchmark is genuinely broken (warm-up missing, stateful between iterations). Fix the benchmark.
+- You want to silence an unexpected regression. Overrides are not a way to hide failing benchmarks.
 
 ### Confidence intervals
 

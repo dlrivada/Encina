@@ -6,7 +6,12 @@
   "targets": {
     "$comment": "Populate with per-method target values once Phase 1 produces baseline data. Example: { \u0022SendCommand.mean_ns_max\u0022: 2000, \u0022SendCommand.allocated_bytes_max\u0022: 4096 }"
   },
-  "stabilityOverrides": {},
+  "stabilityOverrides": {
+    "$comment": "Keys are matched as 'ClassName.Method' or 'ClassName.Method(Params)'. The Refit benchmarks call a mocked HTTP handler that has inherent task-scheduler variance; the numbers are meaningful for order-of-magnitude comparisons but not stable for regression detection.",
+    "RestApiRequestHandlerBenchmarks.EncinaRefitCall_Batch10": "10-call batch over a mocked Refit handler; CoV 18% at N=30 is inherent to the async-task-scheduler jitter, not code drift.",
+    "RestApiRequestHandlerBenchmarks.DirectRefitCall_Baseline": "Single mocked Refit call; CoV 17% at N=30 is inherent to the async-task-scheduler jitter.",
+    "RestApiRequestHandlerBenchmarks.DirectRefitCall_Sequential5": "5 sequential mocked Refit calls; CoV 12% at N=28 is inherent."
+  },
   "classes": [
     {
       "name": "RestApiRequestHandlerBenchmarks",

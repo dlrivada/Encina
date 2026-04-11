@@ -6,7 +6,12 @@
   "targets": {
     "$comment": "Populate with per-method target values once Phase 1 produces baseline data. Example: { \u0022SendCommand.mean_ns_max\u0022: 2000, \u0022SendCommand.allocated_bytes_max\u0022: 4096 }"
   },
-  "stabilityOverrides": {},
+  "stabilityOverrides": {
+    "$comment": "Keys are matched as 'ClassName.Method' or 'ClassName.Method(Params)'. Matching entries are excluded from the stable/unstable headline ratio and from regression detection. They remain visible on the dashboard with an ExpectedUnstable flag. Only use for benchmarks whose variance is a property of what they measure (lock contention, cache thrashing, multi-threaded races) rather than a flaw in the benchmark design.",
+    "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=5)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-32% even at N=30 is inherent to the operation.",
+    "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=10)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 31-44% even at N=30.",
+    "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=25)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-41% even at N=30."
+  },
   "classes": [
     {
       "name": "CacheInvalidationBenchmarks",

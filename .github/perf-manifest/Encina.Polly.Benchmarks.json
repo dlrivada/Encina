@@ -6,7 +6,14 @@
   "targets": {
     "$comment": "Populate with per-method target values once Phase 1 produces baseline data. Example: { \u0022SendCommand.mean_ns_max\u0022: 2000, \u0022SendCommand.allocated_bytes_max\u0022: 4096 }"
   },
-  "stabilityOverrides": {},
+  "stabilityOverrides": {
+    "$comment": "Keys are matched as 'ClassName.Method' or 'ClassName.Method(Params)'. Matching entries are excluded from the stable/unstable headline ratio and from regression detection.",
+    "BulkheadBenchmarks.GetMetrics": "Semaphore-backed metrics read under benchmark lock contention; CoV 19-29% even at N=29 is inherent to SemaphoreSlim contention.",
+    "BulkheadBenchmarks.AcquireMultiple_ThenReleaseAll": "Acquire + release cycles across a SemaphoreSlim; CoV 12% at N=29 is inherent to the lock release wake-up path.",
+    "RateLimitingBenchmarks.RecordSuccess": "Token-bucket rate limiter under burst updates; CoV 15% at N=5 / ~12% at N=30 is inherent to the Interlocked-based counters.",
+    "RateLimitingBenchmarks.RecordFailure": "Token-bucket rate limiter under burst updates; CoV 13% at N=30 is inherent.",
+    "RateLimitingBenchmarks.AcquireAsync_SimpleRateLimiting": "Async rate limiter acquire path; CoV ~18% is inherent to the PeriodicTimer-backed refill."
+  },
   "classes": [
     {
       "name": "BulkheadBenchmarks",

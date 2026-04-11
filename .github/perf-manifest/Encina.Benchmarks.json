@@ -6,7 +6,28 @@
   "targets": {
     "$comment": "Populate with per-method target values once Phase 1 produces baseline data. Example: { \u0022SendCommand.mean_ns_max\u0022: 2000, \u0022SendCommand.allocated_bytes_max\u0022: 4096 }"
   },
-  "stabilityOverrides": {},
+  "stabilityOverrides": {
+    "$comment": "Keys are matched as 'ClassName.Method' or 'ClassName.Method(Params)'. Matching entries are excluded from the stable/unstable headline ratio and from regression detection. Only use for benchmarks whose variance is inherent to what they measure.",
+    "CacheOptimizationBenchmarks.TypeCheck_Direct": "Sub-nanosecond type check dominated by CPU jitter; CoV ~93% even at N=26. To stabilize, would need OperationsPerInvoke amortization over 1000+ ops per iteration.",
+    "ConcurrentReplicaSelectionBenchmarks.Concurrent_RoundRobin(ThreadCount=4)": "Concurrent replica selection under 4-thread contention; CoV 11-13% is inherent to thread scheduling.",
+    "ConcurrentReplicaSelectionBenchmarks.Concurrent_Random(ThreadCount=8)": "Concurrent replica selection under 8-thread contention; CoV ~12% is inherent to thread scheduling.",
+    "DatabaseRoutingBenchmarks.Read_CurrentIntent": "Async routing primitive with sub-microsecond total cost; CoV 17% at N=30 is context-switch jitter.",
+    "DatabaseRoutingBenchmarks.Read_EffectiveIntent": "Async routing primitive with sub-microsecond total cost; CoV 12% at N=27 is context-switch jitter.",
+    "DatabaseRoutingBenchmarks.Read_IsReadIntent": "Async routing primitive with sub-microsecond total cost; CoV 13% at N=28 is context-switch jitter.",
+    "DatabaseRoutingBenchmarks.Read_IsWriteIntent": "Async routing primitive with sub-microsecond total cost; CoV 16% at N=29 is context-switch jitter.",
+    "ShadowShardRouterBenchmarks.DecoratedGetShardId(ShardCount=3)": "Shadow-shard routing decorator under concurrent access; CoV ~10% is inherent.",
+    "ShadowShardRouterBenchmarks.DecoratedCompareAsync(ShardCount=3)": "Shadow-shard routing decorator under concurrent access; CoV ~10% is inherent.",
+    "ShadowShardRouterBenchmarks.DecoratedGetShardConnectionString(ShardCount=3)": "Shadow-shard routing decorator under concurrent access; CoV ~15% is inherent.",
+    "ShardRoutingBenchmarks.RangeRouting(ShardCount=3)": "Range-based shard routing with tiny dispatch cost; CoV ~10% is jitter, not code drift.",
+    "ShardRoutingBenchmarks.DirectoryRouting(ShardCount=3)": "Directory-based shard routing with tiny dispatch cost; CoV ~10% is jitter, not code drift.",
+    "ShardRoutingBenchmarks.GeoRouting(ShardCount=3)": "Geo-based shard routing with tiny dispatch cost; CoV ~10% is jitter, not code drift.",
+    "ShardRoutingBenchmarks.GetAllShardIds(ShardCount=3)": "Shard enumeration benchmark; CoV ~17% at N=27.",
+    "ShardRoutingBenchmarks.DirectoryAddAndLookup(ShardCount=3)": "Mixed directory write+lookup; CoV ~11% at N=27.",
+    "ShardRoutingBenchmarks.HashRouting(ShardCount=50)": "Hash-based shard routing at 50 shards; CoV ~12% at N=27.",
+    "ShardRoutingBenchmarks.RangeRouting(ShardCount=50)": "Range-based shard routing at 50 shards; CoV ~11% at N=29.",
+    "ShardRoutingBenchmarks.DirectoryRouting(ShardCount=50)": "Directory-based shard routing at 50 shards; CoV ~13% at N=27.",
+    "ShardRoutingBenchmarks.GeoRouting(ShardCount=50)": "Geo-based shard routing at 50 shards; CoV ~11% at N=26."
+  },
   "classes": [
     {
       "name": "AnonymizationPipelineBenchmarks",

@@ -25,7 +25,9 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-const double StabilityCoVThreshold = 0.10; // CoV <= 10% == stable
+const double StabilityCoVThreshold = 0.10;       // N >= 10  → CoV must be <= 10%
+const double LowNStrictCoVThreshold = 0.03;     // 3 <= N < 10 → CoV must be <= 3% (stricter bar to compensate)
+const int MinimumIterations = 3;                // N < 3 → always unstable (BDN dry runs)
 
 var kind = "benchmarks";
 var inputDir = "";
@@ -170,6 +172,13 @@ static void GenerateBenchmarksReport(
     // in JSON output, so we read DocRefs from the committed manifests instead.
     InjectDocRefsFromManifests(modulesByName, manifestDir);
 
+    // Palanca 3 — Apply stabilityOverrides from perf-manifest files. Benchmarks
+    // listed here are known to have high CoV by design (e.g. lock-contention
+    // benchmarks, sub-nanosecond jitter) and should be excluded from the
+    // headline stable/unstable ratio. They remain visible on the dashboard but
+    // carry an "expectedUnstable" flag and a reason string.
+    ApplyStabilityOverridesFromManifests(modulesByName, manifestDir);
+
     // Auto-generate DocRefs for methods that don't have an explicit annotation.
     // This ensures every method in the dashboard shows a DocRef instead of "—".
     // Auto-generated DocRefs use the pattern: bench:<module>/<method> (lowercase, _ → -).
@@ -185,7 +194,7 @@ static void GenerateBenchmarksReport(
     // which should never happen if the workflow is correct — if it does, we fall back
     // to leaving the module out (the dashboard will show a gap that triggers investigation).
     var carriedForward = new List<JsonObject>();
-    int carriedMethodsStable = 0, carriedMethodsUnstable = 0;
+    int carriedMethodsStable = 0, carriedMethodsUnstable = 0, carriedMethodsExpectedUnstable = 0;
     if (!string.IsNullOrEmpty(carryForwardFrom) && File.Exists(carryForwardFrom))
     {
         try
@@ -223,7 +232,10 @@ static void GenerateBenchmarksReport(
                     {
                         foreach (var b in bms)
                         {
-                            if (b?["stable"]?.GetValue<bool>() == true) carriedMethodsStable++;
+                            var isExpectedUnstable = b?["expectedUnstable"]?.GetValue<bool>() == true;
+                            var isStable = b?["stable"]?.GetValue<bool>() == true;
+                            if (isExpectedUnstable) carriedMethodsExpectedUnstable++;
+                            else if (isStable) carriedMethodsStable++;
                             else carriedMethodsUnstable++;
                         }
                     }
@@ -238,8 +250,11 @@ static void GenerateBenchmarksReport(
 
     Console.WriteLine($"  Fresh modules: {modulesByName.Count}, carried forward: {carriedForward.Count}");
 
-    // Compute overall stats over fresh + carried modules
-    int totalMethods = 0, stable = 0, unstable = 0;
+    // Compute overall stats over fresh + carried modules.
+    // Palanca 3: methods marked ExpectedUnstable via the manifest stabilityOverrides
+    // are counted in totalMethods but excluded from the stable/unstable headline so the
+    // dashboard percentage reflects only benchmarks whose stability is actually a signal.
+    int totalMethods = 0, stable = 0, unstable = 0, expectedUnstable = 0;
     double sumMeanNs = 0, sumAllocatedBytes = 0;
     int countMean = 0, countAlloc = 0;
 
@@ -248,7 +263,9 @@ static void GenerateBenchmarksReport(
         foreach (var b in m.Benchmarks)
         {
             totalMethods++;
-            if (b.Stable) stable++; else unstable++;
+            if (b.ExpectedUnstable) expectedUnstable++;
+            else if (b.Stable) stable++;
+            else unstable++;
             if (b.MeanNs > 0) { sumMeanNs += b.MeanNs; countMean++; }
             if (b.AllocatedBytes > 0) { sumAllocatedBytes += b.AllocatedBytes; countAlloc++; }
         }
@@ -269,6 +286,7 @@ static void GenerateBenchmarksReport(
     }
     stable += carriedMethodsStable;
     unstable += carriedMethodsUnstable;
+    expectedUnstable += carriedMethodsExpectedUnstable;
 
     var overall = new JsonObject
     {
@@ -278,6 +296,7 @@ static void GenerateBenchmarksReport(
         ["totalMethods"] = totalMethods,
         ["stableMethods"] = stable,
         ["unstableMethods"] = unstable,
+        ["expectedUnstableMethods"] = expectedUnstable,
         ["regressionCount"] = 0, // populated in Phase 3 when diffing against previous snapshot
         ["meanLatencyNs"] = countMean > 0 ? Math.Round(sumMeanNs / countMean, 3) : 0,
         ["meanAllocatedBytes"] = countAlloc > 0 ? Math.Round(sumAllocatedBytes / countAlloc, 3) : 0
@@ -570,6 +589,76 @@ static void InjectDocRefsFromManifests(
     Console.WriteLine($"  DocRefs injected from manifests: {injected} (lookup has {docRefLookup.Count} entries)");
 }
 
+/// <summary>
+/// Apply stabilityOverrides from perf-manifest files to benchmark entries.
+/// The manifest format is:
+///   "stabilityOverrides": {
+///     "ClassName.MethodName": "reason string (why this is expected-unstable)",
+///     "ClassName.MethodName(param=value)": "reason string"
+///   }
+/// Entries matching a key are marked ExpectedUnstable and carry the reason
+/// into latest.json. Matching is exact on "Class.Method" and additionally on
+/// "Class.Method(Parameters)" for parameterized benchmarks.
+/// Palanca 3 — see docs/testing/performance-measurement-methodology.md.
+/// </summary>
+static void ApplyStabilityOverridesFromManifests(
+    SortedDictionary<string, BenchmarkModule> modulesByName,
+    string manifestDir)
+{
+    if (string.IsNullOrEmpty(manifestDir) || !Directory.Exists(manifestDir)) return;
+
+    // Build a lookup: "ClassName.MethodName[(params)]" → reason
+    var overrideLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var file in Directory.GetFiles(manifestDir, "*.json"))
+    {
+        try
+        {
+            var json = JsonNode.Parse(File.ReadAllText(file));
+            var overrides = json?["stabilityOverrides"] as JsonObject;
+            if (overrides is null) continue;
+
+            foreach (var kv in overrides)
+            {
+                if (kv.Key.StartsWith('$')) continue; // skip $comment etc
+                var reason = kv.Value?.GetValue<string>() ?? "expected-unstable";
+                overrideLookup[kv.Key] = reason;
+            }
+        }
+        catch { /* skip malformed */ }
+    }
+
+    if (overrideLookup.Count == 0) return;
+
+    int applied = 0;
+    foreach (var module in modulesByName.Values)
+    {
+        foreach (var b in module.Benchmarks)
+        {
+            // Try most specific first: Class.Method(Parameters), then Class.Method.
+            var keyWithParams = string.IsNullOrEmpty(b.Parameters)
+                ? null
+                : $"{b.Class}.{b.Method}({b.Parameters})";
+            var keyPlain = $"{b.Class}.{b.Method}";
+
+            if (keyWithParams is not null && overrideLookup.TryGetValue(keyWithParams, out var reasonP))
+            {
+                b.ExpectedUnstable = true;
+                b.ExpectedUnstableReason = reasonP;
+                applied++;
+            }
+            else if (overrideLookup.TryGetValue(keyPlain, out var reason))
+            {
+                b.ExpectedUnstable = true;
+                b.ExpectedUnstableReason = reason;
+                applied++;
+            }
+        }
+    }
+
+    Console.WriteLine($"  Stability overrides applied: {applied} (lookup has {overrideLookup.Count} entries)");
+}
+
 static BenchmarkEntry? ParseBenchmarkEntry(JsonNode node)
 {
     // BenchmarkDotNet full JSON schema:
@@ -628,17 +717,28 @@ static BenchmarkEntry? ParseBenchmarkEntry(JsonNode node)
     // Stability (CoV = StdDev/Mean). Use 0 for degenerate cases (mean=0) instead
     // of Infinity, which crashes JSON serialization.
     entry.Cov = mean > 0 ? stdDev / mean : 0;
-    entry.Stable = mean > 0 && entry.Cov <= StabilityCoVThreshold && n >= 3;
+
+    // Two-tier stability rule (Palanca 1):
+    //   N <  3          → always Unstable (BDN dry/minimal runs carry no statistical weight).
+    //   3 <= N < 10     → Stable only if CoV is very tight (<= 3%). Fast benchmarks where BDN
+    //                     auto-shortens to N=4-9 can still be trusted when the observed variance
+    //                     is genuinely tiny; the stricter threshold compensates for the low N.
+    //   N >= 10         → Standard rule: CoV <= 10%.
+    //
+    // Rationale: see docs/testing/performance-measurement-methodology.md ("Stability rule").
+    // The old rule was a flat `n < 10 → unstable` which rejected hundreds of sub-microsecond
+    // benchmarks with CoV < 1% as false positives, capping the dashboard around 82 % stable.
+    entry.Stable = mean > 0
+        && n >= MinimumIterations
+        && entry.Cov <= (n < 10 ? LowNStrictCoVThreshold : StabilityCoVThreshold);
 
     // 99% confidence interval (approximation using z=2.576 when N is not tiny;
     // for strictly correct values use Student's t distribution per N. The
-    // methodology doc describes the tradeoff. We use z here for simplicity and
-    // mark methods with N < 10 as unstable regardless, matching the doc.)
+    // methodology doc describes the tradeoff.)
     var se = n > 0 ? stdDev / Math.Sqrt(n) : 0;
     var tCrit = 2.576; // normal approximation
     entry.CI99LowerNs = mean - tCrit * se;
     entry.CI99UpperNs = mean + tCrit * se;
-    if (n < 10) entry.Stable = false;
 
     // DocRef extraction: BDN does NOT emit [BenchmarkCategory] in JSON output,
     // so we cannot read it from the Categories field. Instead, DocRef is injected
@@ -1004,11 +1104,15 @@ sealed class BenchmarkModule
         foreach (var b in Benchmarks) arr.Add(b.ToJson());
 
         // Phase 3.3 — per-module stability summary for the dashboard.
-        int stableCount = 0, unstableCount = 0;
+        // ExpectedUnstable methods are counted separately so the module tile shows
+        // its true stability ratio without being dragged down by known-noisy benchmarks.
+        int stableCount = 0, unstableCount = 0, expectedUnstableCount = 0;
         double covSum = 0; int covCount = 0;
         foreach (var b in Benchmarks)
         {
-            if (b.Stable) stableCount++; else unstableCount++;
+            if (b.ExpectedUnstable) expectedUnstableCount++;
+            else if (b.Stable) stableCount++;
+            else unstableCount++;
             if (b.Cov is > 0 and < double.PositiveInfinity) { covSum += b.Cov; covCount++; }
         }
 
@@ -1017,6 +1121,7 @@ sealed class BenchmarkModule
         obj["carriedForward"] = false;
         obj["stableMethods"] = stableCount;
         obj["unstableMethods"] = unstableCount;
+        obj["expectedUnstableMethods"] = expectedUnstableCount;
         obj["meanCov"] = covCount > 0 ? Math.Round(covSum / covCount, 4) : 0;
         obj["benchmarks"] = arr;
         return obj;
@@ -1045,6 +1150,13 @@ sealed class BenchmarkEntry
     public double Cov { get; set; }
     public bool Stable { get; set; }
 
+    // Palanca 3: methods explicitly listed in the manifest's stabilityOverrides
+    // map. Expected-unstable benchmarks are left in the dashboard (so the numbers
+    // are visible) but excluded from the stable/unstable headline ratio and from
+    // regression detection. The reason string is surfaced in the dashboard tooltip.
+    public bool ExpectedUnstable { get; set; }
+    public string? ExpectedUnstableReason { get; set; }
+
     public JsonObject ToJson() => new()
     {
         ["class"] = Class,
@@ -1065,7 +1177,9 @@ sealed class BenchmarkEntry
         ["gen1"] = Gen1,
         ["gen2"] = Gen2,
         ["cov"] = Safe(Cov, 4),
-        ["stable"] = Stable
+        ["stable"] = Stable,
+        ["expectedUnstable"] = ExpectedUnstable,
+        ["expectedUnstableReason"] = ExpectedUnstableReason
     };
 
     /// <summary>Round and sanitize: NaN/Infinity → 0 (JSON does not support named floats).</summary>
