@@ -1,34 +1,24 @@
-using Encina.Audit.Marten;
-using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Events;
 using Encina.Audit.Marten.Projections;
-using Encina.Security.Audit;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Encina.GuardTests.AuditMarten;
 
 /// <summary>
 /// Guard tests for <see cref="AuditEntryProjection"/> and <see cref="ReadAuditEntryProjection"/>.
-/// Ensures the projection types can be constructed and invoked with a real service provider.
+/// Validates constructor and method null-argument guards.
 /// </summary>
+/// <remarks>
+/// The <c>Create(IDocumentOperations, ...)</c> path cannot be exercised from guard tests because
+/// Marten's <c>IDocumentOperations</c> cannot be faked with a simple stub — the LINQ query
+/// pipeline requires a real Marten document session. End-to-end coverage is provided by the
+/// integration test suite, which boots a real PostgreSQL-backed Marten store.
+/// </remarks>
 public class AuditEntryProjectionGuardTests
 {
-    private static ServiceProvider BuildServiceProvider()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<ITemporalKeyProvider>(new InMemoryTemporalKeyProvider(
-            new FakeTimeProvider(new DateTimeOffset(2026, 3, 15, 12, 0, 0, TimeSpan.Zero)),
-            NullLogger<InMemoryTemporalKeyProvider>.Instance));
-        services.Configure<MartenAuditOptions>(_ => { });
-        services.AddLogging();
-        return services.BuildServiceProvider();
-    }
-
     [Fact]
-    public void AuditEntryProjection_Constructor_DoesNotThrow()
+    public void AuditEntryProjection_Constructor_Parameterless_DoesNotThrow()
     {
         var projection = new AuditEntryProjection();
         projection.ShouldNotBeNull();
@@ -36,23 +26,31 @@ public class AuditEntryProjectionGuardTests
     }
 
     [Fact]
-    public void ReadAuditEntryProjection_Constructor_DoesNotThrow()
+    public void AuditEntryProjection_Constructor_NullPlaceholder_Throws()
     {
-        var projection = new ReadAuditEntryProjection();
-        projection.ShouldNotBeNull();
-        projection.Name.ShouldBe("ReadAuditEntryProjection");
+        Should.Throw<ArgumentNullException>(() =>
+            new AuditEntryProjection(null!, NullLogger<AuditEntryProjection>.Instance));
     }
 
     [Fact]
-    public async Task AuditEntryProjection_Create_MissingKey_ReturnsShredded()
+    public void AuditEntryProjection_Constructor_NullLogger_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new AuditEntryProjection("[SHREDDED]", null!));
+    }
+
+    [Fact]
+    public async Task AuditEntryProjection_Create_NullEvent_Throws()
     {
         var projection = new AuditEntryProjection();
-        var services = BuildServiceProvider();
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await projection.Create(null!, operations: null!, CancellationToken.None));
+    }
 
-        var dummyKey = new byte[32];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(dummyKey);
-        var encrypted = EncryptedField.Encrypt("data", dummyKey, "temporal:9999-12:v1");
-
+    [Fact]
+    public async Task AuditEntryProjection_Create_NullOperations_Throws()
+    {
+        var projection = new AuditEntryProjection();
         var evt = new AuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
@@ -63,41 +61,59 @@ public class AuditEntryProjectionGuardTests
             TimestampUtc = DateTime.UtcNow,
             StartedAtUtc = DateTimeOffset.UtcNow,
             CompletedAtUtc = DateTimeOffset.UtcNow,
-            EncryptedUserId = encrypted,
-            TemporalKeyPeriod = "9999-12"
+            TemporalKeyPeriod = "2026-03"
         };
 
-        var result = await projection.Create(evt, services);
-
-        result.IsShredded.ShouldBeTrue();
-        result.UserId.ShouldBe("[SHREDDED]");
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await projection.Create(evt, operations: null!, CancellationToken.None));
     }
 
     [Fact]
-    public async Task ReadAuditEntryProjection_Create_MissingKey_ReturnsShredded()
+    public void ReadAuditEntryProjection_Constructor_Parameterless_DoesNotThrow()
     {
         var projection = new ReadAuditEntryProjection();
-        var services = BuildServiceProvider();
+        projection.ShouldNotBeNull();
+        projection.Name.ShouldBe("ReadAuditEntryProjection");
+    }
 
-        var dummyKey = new byte[32];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(dummyKey);
-        var encrypted = EncryptedField.Encrypt("data", dummyKey, "temporal:9999-12:v1");
+    [Fact]
+    public void ReadAuditEntryProjection_Constructor_NullPlaceholder_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new ReadAuditEntryProjection(null!, NullLogger<ReadAuditEntryProjection>.Instance));
+    }
 
+    [Fact]
+    public void ReadAuditEntryProjection_Constructor_NullLogger_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new ReadAuditEntryProjection("[SHREDDED]", null!));
+    }
+
+    [Fact]
+    public async Task ReadAuditEntryProjection_Create_NullEvent_Throws()
+    {
+        var projection = new ReadAuditEntryProjection();
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await projection.Create(null!, operations: null!, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReadAuditEntryProjection_Create_NullOperations_Throws()
+    {
+        var projection = new ReadAuditEntryProjection();
         var evt = new ReadAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             EntityType = "E",
             EntityId = null,
             AccessedAtUtc = DateTimeOffset.UtcNow,
-            AccessMethod = (int)ReadAccessMethod.Repository,
+            AccessMethod = 0,
             EntityCount = 0,
-            EncryptedUserId = encrypted,
-            TemporalKeyPeriod = "9999-12"
+            TemporalKeyPeriod = "2026-03"
         };
 
-        var result = await projection.Create(evt, services);
-
-        result.IsShredded.ShouldBeTrue();
-        result.UserId.ShouldBe("[SHREDDED]");
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await projection.Create(evt, operations: null!, CancellationToken.None));
     }
 }

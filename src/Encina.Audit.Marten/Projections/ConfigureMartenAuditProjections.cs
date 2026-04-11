@@ -1,5 +1,6 @@
 using Marten;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Audit.Marten.Projections;
@@ -28,17 +29,54 @@ namespace Encina.Audit.Marten.Projections;
 /// <item>Eventual consistency (typically milliseconds to low seconds)</item>
 /// </list>
 /// </para>
+/// <para>
+/// Projection instances are constructed here (not by Marten) so that configured options
+/// (<see cref="MartenAuditOptions.ShreddedPlaceholder"/>) and loggers can be injected via
+/// their constructors. This avoids Marten's projection validator rejecting
+/// <see cref="IServiceProvider"/> parameters on <c>Create</c> methods.
+/// </para>
 /// </remarks>
 internal sealed class ConfigureMartenAuditProjections : IConfigureOptions<StoreOptions>
 {
+    private readonly IOptions<MartenAuditOptions> _auditOptions;
+    private readonly ILoggerFactory _loggerFactory;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConfigureMartenAuditProjections"/> class.
+    /// </summary>
+    /// <param name="auditOptions">Configured Marten audit options.</param>
+    /// <param name="loggerFactory">Logger factory for creating projection loggers.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="auditOptions"/> or <paramref name="loggerFactory"/> is <c>null</c>.
+    /// </exception>
+    public ConfigureMartenAuditProjections(
+        IOptions<MartenAuditOptions> auditOptions,
+        ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(auditOptions);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+
+        _auditOptions = auditOptions;
+        _loggerFactory = loggerFactory;
+    }
+
     /// <inheritdoc />
     public void Configure(StoreOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        // Register async projections processed by Marten's AsyncProjectionDaemon
-        options.Projections.Add(new AuditEntryProjection(), JasperFx.Events.Projections.ProjectionLifecycle.Async);
-        options.Projections.Add(new ReadAuditEntryProjection(), JasperFx.Events.Projections.ProjectionLifecycle.Async);
+        var placeholder = _auditOptions.Value.ShreddedPlaceholder;
+
+        // Register async projections processed by Marten's AsyncProjectionDaemon.
+        // Projections are constructed with explicit dependencies so Marten's validator
+        // only sees parameters it supports (IDocumentOperations, CancellationToken, event types).
+        options.Projections.Add(
+            new AuditEntryProjection(placeholder, _loggerFactory.CreateLogger<AuditEntryProjection>()),
+            JasperFx.Events.Projections.ProjectionLifecycle.Async);
+
+        options.Projections.Add(
+            new ReadAuditEntryProjection(placeholder, _loggerFactory.CreateLogger<ReadAuditEntryProjection>()),
+            JasperFx.Events.Projections.ProjectionLifecycle.Async);
 
         // Configure indexes for AuditEntryReadModel
         options.Schema.For<AuditEntryReadModel>()
