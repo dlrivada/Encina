@@ -3,8 +3,7 @@
 
 # Accept these status codes as valid
 # 502 included because GitHub occasionally returns it for valid issue URLs
-# 504 included because Codecov badge endpoint occasionally times out under load
-accept = [200, 206, 301, 302, 307, 308, 502, 504]
+accept = [200, 206, 301, 302, 307, 308, 502]
 
 # Timeout per request
 timeout = 20
@@ -56,6 +55,9 @@ exclude = [
     "masstransit\\.io",
     # Future domain - not yet registered
     "encina\\.dev",
+    # Codecov badge endpoint is chronically flaky (503/504 under load) —
+    # badge target (app.codecov.io/gh/dlrivada/Encina) is still checked
+    "codecov\\.io/gh/.*/graph/badge\\.svg",
 ]
 
 # Exclude link fragments (anchors) from checking
