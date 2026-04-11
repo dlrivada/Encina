@@ -7,7 +7,12 @@ namespace Encina.Polly.Benchmarks;
 /// Measures overhead of rate limiting and state management.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(warmupCount: 3, iterationCount: 5)]
+// Palanca 2: iterationCount raised from 5 to 15 and warmupCount from 3 to 5 so
+// GetState (CoV 3.37 % at N=4) clears the two-tier stability rule. The other
+// rate-limiting methods (RecordSuccess / RecordFailure / AcquireAsync_*) stay
+// unstable because of real token-bucket contention — they are listed in
+// stabilityOverrides.
+[SimpleJob(warmupCount: 5, iterationCount: 15)]
 public class RateLimitingBenchmarks
 {
     private AdaptiveRateLimiter _rateLimiter = null!;

@@ -11,7 +11,10 @@ namespace Encina.Caching.Benchmarks;
 /// Benchmarks for HybridCacheProvider operations.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(warmupCount: 3, iterationCount: 10)]
+// Palanca 2: iterationCount raised from 10 to 20 and warmupCount from 3 to 5 so
+// GetOrSetAsync_WithTags / RemoveByTagAsync (CoV 4-6 % at N=8-9) clear the
+// two-tier stability rule (3 % at N<10, 10 % at N>=10).
+[SimpleJob(warmupCount: 5, iterationCount: 20)]
 public class HybridCacheProviderBenchmarks : IDisposable
 {
     private HybridCacheProvider _provider = null!;

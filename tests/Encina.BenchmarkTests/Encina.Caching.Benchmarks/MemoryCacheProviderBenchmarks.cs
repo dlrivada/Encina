@@ -11,7 +11,12 @@ namespace Encina.Caching.Benchmarks;
 /// Benchmarks for MemoryCacheProvider operations.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(warmupCount: 3, iterationCount: 10)]
+// Palanca 2: iterationCount raised from 10 to 20 and warmupCount from 3 to 5 so
+// SetAsync / GetOrSetAsync_CacheMiss (CoV ~7 % at N=9) clear the two-tier
+// stability rule. SetWithSlidingExpirationAsync stays unstable because the timer-
+// backed sliding window introduces real noise (~17 % at N=28) — it is listed in
+// stabilityOverrides instead.
+[SimpleJob(warmupCount: 5, iterationCount: 20)]
 [BenchmarkCategory("Unstable")]
 public class MemoryCacheProviderBenchmarks : IDisposable
 {

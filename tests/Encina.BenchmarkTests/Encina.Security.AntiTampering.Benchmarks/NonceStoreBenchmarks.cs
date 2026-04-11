@@ -7,7 +7,10 @@ namespace Encina.Security.AntiTampering.Benchmarks;
 /// Measures throughput and memory allocation for nonce add, lookup, and cleanup operations.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(warmupCount: 3, iterationCount: 10)]
+// Palanca 2: iterationCount raised from 10 to 20 and warmupCount from 3 to 5 so
+// Add (CoV 8.36 % at N=8, borderline on the two-tier stability rule) settles
+// into the stable bucket with a larger sample.
+[SimpleJob(warmupCount: 5, iterationCount: 20)]
 public class NonceStoreBenchmarks : IDisposable
 {
     private InMemoryNonceStore _store = null!;

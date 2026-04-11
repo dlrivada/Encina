@@ -7,7 +7,11 @@ namespace Encina.Polly.Benchmarks;
 /// Measures overhead of bulkhead acquire/release operations.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(warmupCount: 3, iterationCount: 5)]
+// Palanca 2: iterationCount raised from 5 to 15 and warmupCount from 3 to 5 so
+// TryAcquireAsync_SmallLimit (CoV 3.8 % at N=4) clears the two-tier stability
+// rule. GetMetrics and AcquireMultiple_ThenReleaseAll stay unstable because of
+// real SemaphoreSlim contention — they are listed in stabilityOverrides.
+[SimpleJob(warmupCount: 5, iterationCount: 15)]
 public class BulkheadBenchmarks : IDisposable
 {
     private BulkheadManager _bulkheadManager = null!;
