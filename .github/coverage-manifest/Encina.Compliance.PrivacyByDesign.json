@@ -1,6 +1,6 @@
 {
   "package": "Encina.Compliance.PrivacyByDesign",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-11T00:00:00Z",
   "totalFiles": 35,
   "targets": {
     "contract": 15,
@@ -10,61 +10,47 @@
   },
   "files": {
     "Abstractions/IDataMinimizationAnalyzer.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface — no implementation to test, contract verified through DefaultDataMinimizationAnalyzer"
     },
     "Abstractions/IPrivacyByDesignValidator.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "property"
-      ],
-      "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface — no implementation to test, contract verified through DefaultPrivacyByDesignValidator"
     },
     "Abstractions/IPurposeRegistry.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface — no implementation to test, contract verified through InMemoryPurposeRegistry"
     },
     "Attributes/EnforceDataMinimizationAttribute.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Attribute.cs",
+      "reason": "Attribute marker class — no guard clauses, no invariants beyond property assignment"
     },
     "Attributes/NotStrictlyNecessaryAttribute.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Attribute.cs",
+      "reason": "Attribute marker class — no guard clauses, no invariants beyond property assignment"
     },
     "Attributes/PrivacyDefaultAttribute.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Attribute.cs",
+      "reason": "Attribute marker class — no guard clauses, no invariants beyond property assignment"
     },
     "Attributes/PurposeLimitationAttribute.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Attribute.cs",
+      "reason": "Attribute marker class — no guard clauses, no invariants beyond property assignment"
     },
     "DataMinimizationPipelineBehavior.cs": {
       "defaultTests": [
@@ -73,45 +59,45 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline behavior with constructor null guards, mockeable next delegate, and pipeline contract"
     },
     "DefaultDataMinimizationAnalyzer.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "contract"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Analyzer.cs",
+      "reason": "Concrete IDataMinimizationAnalyzer implementation with constructor null guards and contract obligations"
     },
     "DefaultPrivacyByDesignValidator.cs": {
       "defaultTests": [
         "unit",
         "guard",
+        "contract",
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Concrete IPrivacyByDesignValidator implementation with constructor null guards, contract obligations, and validation invariants"
     },
     "Diagnostics/PrivacyByDesignDiagnostics.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Diagnostics.cs",
+      "reason": "Activity/meter wrapper — verify creation and tags via unit tests, no guard clauses"
     },
     "Diagnostics/PrivacyByDesignLogMessages.cs": {
       "defaultTests": [],
       "defaultRule": "*LogMessages.cs",
-      "reason": "Source-generated [LoggerMessage] delegates"
+      "reason": "Source-generated [LoggerMessage] delegates — no guards, no invariants"
     },
     "FieldMetadataCache.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Cache.cs",
+      "reason": "Static metadata cache (ConcurrentDictionary GetOrAdd) — covered by unit tests, no guard clauses"
     },
     "Health/PrivacyByDesignHealthCheck.cs": {
       "defaultTests": [
@@ -119,138 +105,133 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with constructor null guards and mockeable service dependencies"
     },
     "InMemoryPurposeRegistry.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "contract",
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Registry.cs",
+      "reason": "Concrete IPurposeRegistry implementation with constructor null guards, contract obligations, and register/get round-trip invariants"
     },
     "Model/DefaultPrivacyFieldInfo.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*FieldInfo.cs",
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "Model/MinimizationReport.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Report.cs",
+      "reason": "Report record with MinimizationScore range invariants (0.0-1.0) and necessary/unnecessary field aggregation"
     },
     "Model/MinimizationSeverity.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Enum — no executable code, guard/property not applicable"
     },
     "Model/PrivacyByDesignEnforcementMode.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Mode.cs",
+      "reason": "Enum — no executable code, guard/property not applicable"
     },
     "Model/PrivacyFieldInfo.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*FieldInfo.cs",
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "Model/PrivacyLevel.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Enum — no executable code, guard/property not applicable"
     },
     "Model/PrivacyValidationResult.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "property"
       ],
       "defaultRule": "*Result.cs",
-      "reason": "Result type"
+      "reason": "Aggregate result record with IsCompliant invariant (Violations.Count == 0) and violation aggregation"
     },
     "Model/PrivacyViolation.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Violation.cs",
+      "reason": "Positional record — invariants verified through PrivacyValidationResult property tests"
     },
     "Model/PrivacyViolationType.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Enum — no executable code, guard/property not applicable"
     },
     "Model/PurposeDefinition.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Definition.cs",
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "Model/PurposeValidationResult.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "property"
       ],
       "defaultRule": "*Result.cs",
-      "reason": "Result type"
+      "reason": "Validation result record with IsValid invariant and purpose mismatch reporting"
     },
     "Model/UnnecessaryFieldInfo.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*FieldInfo.cs",
+      "reason": "Positional record — no guard clauses to test, invariants trivially hold by construction"
     },
     "Notifications/DataMinimizationViolationDetected.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Notification.cs",
+      "reason": "Notification record — no guard clauses to test, invariants trivially hold by construction"
     },
     "Notifications/PrivacyDefaultOverridden.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Notification.cs",
+      "reason": "Notification record — no guard clauses to test, invariants trivially hold by construction"
     },
     "PrivacyByDesignErrors.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods — covered by unit tests"
     },
     "PrivacyByDesignOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO — defaults verification"
+      "reason": "Configuration POCO — defaults verification via unit tests, no guard clauses"
     },
     "PrivacyByDesignOptionsValidator.cs": {
       "defaultTests": [
@@ -259,7 +240,7 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Validation logic with null-options guard and threshold/enum invariants"
     },
     "PurposeBuilder.cs": {
       "defaultTests": [
@@ -267,7 +248,7 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with argument guards on public methods"
     },
     "PurposeRegistrationHostedService.cs": {
       "defaultTests": [
@@ -275,7 +256,7 @@
         "guard"
       ],
       "defaultRule": "*HostedService.cs",
-      "reason": "Hosted service — StartAsync/StopAsync testable with mocks"
+      "reason": "Hosted service with constructor null guards and mockeable dependencies"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -283,7 +264,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with null guards on services parameter"
     }
   }
 }
