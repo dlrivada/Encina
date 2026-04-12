@@ -7,6 +7,10 @@ on:
         description: "Only mutate files changed since main (faster PR-style runs)"
         type: boolean
         default: false
+      full_mode:
+        description: "Mutate ALL files (very slow — hours). Default: only recent changes."
+        type: boolean
+        default: false
   schedule:
     # Run weekly on Fridays at 3:00 AM UTC
     - cron: "0 3 * * 5"
@@ -99,10 +103,22 @@ jobs:
         id: stryker
         run: |
           mkdir -p artifacts/mutation
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.diff_mode }}" = "true" ]; then
+          # Three modes:
+          # 1. diff_mode: only files changed vs main (PR-style)
+          # 2. full_mode: mutate everything (very slow)
+          # 3. default (schedule + dispatch): only recent changes (~20 commits)
+          #
+          # coverage-analysis is "off" due to xUnit v3 incompatibility
+          # (stryker-mutator/stryker-net#3117). --since keeps scope manageable.
+          if [ "${{ inputs.diff_mode }}" = "true" ]; then
+            echo "Mode: diff (vs main)"
             dotnet run --file .github/scripts/run-stryker.cs -- --since:main
-          else
+          elif [ "${{ inputs.full_mode }}" = "true" ]; then
+            echo "Mode: full (all files, no --since)"
             dotnet run --file .github/scripts/run-stryker.cs
+          else
+            echo "Mode: recent changes (HEAD~20)"
+            dotnet run --file .github/scripts/run-stryker.cs -- --since:HEAD~20
           fi
 
       - name: Upload Stryker logs
