@@ -143,36 +143,40 @@ public sealed class ScheduledMessageProcessor : BackgroundService
         var orchestrator = scope.ServiceProvider.GetRequiredService<SchedulerOrchestrator>();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IScheduledMessageDispatcher>();
 
-        // Do NOT use 'using var' — CompleteProcessingCycle/Failed already dispose the activity.
         var activity = SchedulingActivitySource.StartProcessingCycle(_options.BatchSize);
+        try
+        {
+            var result = await orchestrator.ProcessDueMessagesAsync(
+                (msg, type, req, ct) => dispatcher.DispatchAsync(type, req, ct),
+                cancellationToken).ConfigureAwait(false);
 
-        var result = await orchestrator.ProcessDueMessagesAsync(
-            (msg, type, req, ct) => dispatcher.DispatchAsync(type, req, ct),
-            cancellationToken).ConfigureAwait(false);
+            var elapsed = _timeProvider.GetElapsedTime(cycleStart);
+            _metrics.RecordCycleDuration(elapsed);
 
-        var elapsed = _timeProvider.GetElapsedTime(cycleStart);
-        _metrics.RecordCycleDuration(elapsed);
-
-        result.Match(
-            Right: count =>
-            {
-                if (count > 0)
+            result.Match(
+                Right: count =>
                 {
-                    SchedulingProcessorLog.BatchCompleted(_logger, count);
-                    _metrics.RecordBatch(successCount: count, failureCount: 0);
-                }
+                    if (count > 0)
+                    {
+                        SchedulingProcessorLog.BatchCompleted(_logger, count);
+                        _metrics.RecordBatch(successCount: count, failureCount: 0);
+                    }
 
-                SchedulingActivitySource.CompleteProcessingCycle(activity, count);
-            },
-            Left: error =>
-            {
-                var errorCode = error.GetCode().IfNone("unknown");
-                SchedulingProcessorLog.BatchFailed(_logger, errorCode, error.Message);
-                // Do NOT record batch metrics here — Left means the store retrieval
-                // itself failed, not that individual messages failed dispatch.
-                // Per-message failures are tracked inside the orchestrator loop.
-
-                SchedulingActivitySource.Failed(activity, errorCode, error.Message);
-            });
+                    SchedulingActivitySource.CompleteProcessingCycle(activity, count);
+                },
+                Left: error =>
+                {
+                    var errorCode = error.GetCode().IfNone("unknown");
+                    SchedulingProcessorLog.BatchFailed(_logger, errorCode, error.Message);
+                    SchedulingActivitySource.Failed(activity, errorCode, error.Message);
+                });
+        }
+        catch
+        {
+            // Ensure the activity is disposed even if an exception escapes
+            // (e.g., OperationCanceledException from the orchestrator).
+            activity?.Dispose();
+            throw;
+        }
     }
 }
