@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.PII.Benchmarks.PIIMaskerBenchmarks-20260412-094000</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method            </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Mask_SSN</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>403.37 ns</td><td>10.967 ns</td><td>7.254 ns</td><td>4.37</td><td>0.11</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>Mask_WithRegexPattern</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>587.85 ns</td><td>2.655 ns</td><td>1.580 ns</td><td>6.37</td><td>0.13</td><td>0.0248</td><td>416 B</td><td>1.86</td>
+</tr><tr><td>MaskObject_NoAttributes</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>2,465.74 ns</td><td>26.173 ns</td><td>17.312 ns</td><td>26.73</td><td>0.55</td><td>0.0572</td><td>1008 B</td><td>4.50</td>
+</tr><tr><td>MaskForAudit_SingleField</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3,905.85 ns</td><td>20.171 ns</td><td>13.342 ns</td><td>42.34</td><td>0.84</td><td>0.0992</td><td>1752 B</td><td>7.82</td>
+</tr><tr><td>MaskForAudit_NonGeneric</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3,901.15 ns</td><td>21.814 ns</td><td>14.429 ns</td><td>42.29</td><td>0.84</td><td>0.0992</td><td>1752 B</td><td>7.82</td>
+</tr><tr><td>Mask_CreditCard</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>502.58 ns</td><td>11.691 ns</td><td>7.733 ns</td><td>5.45</td><td>0.13</td><td>0.0324</td><td>544 B</td><td>2.43</td>
+</tr><tr><td>Mask_Email</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>92.28 ns</td><td>2.868 ns</td><td>1.897 ns</td><td>1.00</td><td>0.03</td><td>0.0134</td><td>224 B</td><td>1.00</td>
+</tr><tr><td>MaskObject_MultiField</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>9,426.00 ns</td><td>44.513 ns</td><td>29.443 ns</td><td>102.18</td><td>2.02</td><td>0.2899</td><td>5056 B</td><td>22.57</td>
+</tr><tr><td>MaskObject_SingleField</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>4,010.13 ns</td><td>20.113 ns</td><td>11.969 ns</td><td>43.47</td><td>0.86</td><td>0.0992</td><td>1752 B</td><td>7.82</td>
+</tr><tr><td>Mask_Phone</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>406.10 ns</td><td>1.865 ns</td><td>0.975 ns</td><td>4.40</td><td>0.09</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>Mask_SSN</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>407.75 ns</td><td>2.412 ns</td><td>3.536 ns</td><td>3.84</td><td>0.47</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>Mask_WithRegexPattern</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>554.34 ns</td><td>2.798 ns</td><td>4.188 ns</td><td>5.22</td><td>0.63</td><td>0.0248</td><td>416 B</td><td>1.86</td>
+</tr><tr><td>MaskObject_NoAttributes</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>2,475.93 ns</td><td>19.106 ns</td><td>27.402 ns</td><td>23.31</td><td>2.83</td><td>0.0572</td><td>1008 B</td><td>4.50</td>
+</tr><tr><td>MaskForAudit_SingleField</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,995.56 ns</td><td>26.079 ns</td><td>38.226 ns</td><td>37.61</td><td>4.57</td><td>0.0992</td><td>1752 B</td><td>7.82</td>
+</tr><tr><td>MaskForAudit_NonGeneric</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,939.50 ns</td><td>16.415 ns</td><td>23.011 ns</td><td>37.08</td><td>4.49</td><td>0.0992</td><td>1752 B</td><td>7.82</td>
+</tr><tr><td>Mask_CreditCard</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>489.21 ns</td><td>1.832 ns</td><td>2.628 ns</td><td>4.61</td><td>0.56</td><td>0.0324</td><td>544 B</td><td>2.43</td>
+</tr><tr><td>Mask_Email</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>107.81 ns</td><td>8.844 ns</td><td>13.238 ns</td><td>1.01</td><td>0.17</td><td>0.0134</td><td>224 B</td><td>1.00</td>
+</tr><tr><td>MaskObject_MultiField</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>9,447.49 ns</td><td>26.161 ns</td><td>36.675 ns</td><td>88.93</td><td>10.77</td><td>0.2899</td><td>5056 B</td><td>22.57</td>
+</tr><tr><td>MaskObject_SingleField</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4,035.39 ns</td><td>11.203 ns</td><td>15.704 ns</td><td>37.99</td><td>4.60</td><td>0.0992</td><td>1752 B</td><td>7.82</td>
+</tr><tr><td>Mask_Phone</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>409.95 ns</td><td>3.703 ns</td><td>5.543 ns</td><td>3.86</td><td>0.47</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr></tbody></table>
+</body>
+</html>

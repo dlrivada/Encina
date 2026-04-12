@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.DelegateInvocationBenchmarks-20260412-084512</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>CompiledDelegate</td><td>35.43 ns</td><td>0.074 ns</td><td>0.108 ns</td><td>1.27</td><td>0.01</td><td>0.0067</td><td>-</td><td>112 B</td><td>1.00</td>
+</tr><tr><td>DirectCall</td><td>27.98 ns</td><td>0.072 ns</td><td>0.105 ns</td><td>1.00</td><td>0.01</td><td>0.0067</td><td>-</td><td>112 B</td><td>1.00</td>
+</tr><tr><td>ExpressionCompilation</td><td>64,341.02 ns</td><td>235.967 ns</td><td>345.877 ns</td><td>2,299.75</td><td>14.81</td><td>0.2441</td><td>0.1221</td><td>5283 B</td><td>47.17</td>
+</tr><tr><td>GenericTypeConstruction</td><td>128.23 ns</td><td>0.550 ns</td><td>0.824 ns</td><td>4.58</td><td>0.03</td><td>0.0105</td><td>-</td><td>176 B</td><td>1.57</td>
+</tr><tr><td>MethodInfoInvoke</td><td>83.09 ns</td><td>0.323 ns</td><td>0.483 ns</td><td>2.97</td><td>0.02</td><td>0.0105</td><td>-</td><td>176 B</td><td>1.57</td>
+</tr></tbody></table>
+</body>
+</html>

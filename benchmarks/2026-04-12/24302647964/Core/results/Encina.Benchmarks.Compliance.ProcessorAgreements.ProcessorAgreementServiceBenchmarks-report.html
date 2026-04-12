@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.ProcessorAgreements.ProcessorAgreementServiceBenchmarks-20260412-084457</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                              </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;HasValidDPA (pipeline hot-path)&#39;</td><td>1,192.0 ns</td><td>12.45 ns</td><td>18.24 ns</td><td>1.00</td><td>0.02</td><td>4</td><td>0.0210</td><td>0.0191</td><td>384 B</td><td>1.00</td>
+</tr><tr><td>&#39;ValidateDPA (detailed compliance check)&#39;</td><td>1,194.2 ns</td><td>14.81 ns</td><td>21.72 ns</td><td>1.00</td><td>0.02</td><td>4</td><td>0.0248</td><td>0.0229</td><td>456 B</td><td>1.19</td>
+</tr><tr><td>&#39;ExecuteDPA (new agreement)&#39;</td><td>5,150.2 ns</td><td>37.48 ns</td><td>51.30 ns</td><td>4.32</td><td>0.08</td><td>8</td><td>0.0992</td><td>0.0458</td><td>1776 B</td><td>4.62</td>
+</tr><tr><td>&#39;AmendDPA (update terms)&#39;</td><td>3,209.5 ns</td><td>65.99 ns</td><td>98.77 ns</td><td>2.69</td><td>0.09</td><td>7</td><td>0.0648</td><td>0.0305</td><td>1168 B</td><td>3.04</td>
+</tr><tr><td>&#39;AuditDPA (record audit)&#39;</td><td>1,228.1 ns</td><td>14.00 ns</td><td>20.96 ns</td><td>1.03</td><td>0.02</td><td>4</td><td>0.0210</td><td>0.0191</td><td>400 B</td><td>1.04</td>
+</tr><tr><td>&#39;RenewDPA (extend expiration)&#39;</td><td>1,298.3 ns</td><td>11.94 ns</td><td>17.50 ns</td><td>1.09</td><td>0.02</td><td>5</td><td>0.0229</td><td>0.0210</td><td>424 B</td><td>1.10</td>
+</tr><tr><td>&#39;TerminateDPA (end agreement)&#39;</td><td>1,106.4 ns</td><td>17.23 ns</td><td>25.26 ns</td><td>0.93</td><td>0.03</td><td>3</td><td>0.0210</td><td>0.0191</td><td>392 B</td><td>1.02</td>
+</tr><tr><td>&#39;GetDPA by ID (cached read)&#39;</td><td>1,067.2 ns</td><td>21.99 ns</td><td>32.23 ns</td><td>0.90</td><td>0.03</td><td>3</td><td>0.0248</td><td>0.0229</td><td>456 B</td><td>1.19</td>
+</tr><tr><td>&#39;GetActiveDPA by processor ID&#39;</td><td>1,008.8 ns</td><td>12.03 ns</td><td>17.26 ns</td><td>0.85</td><td>0.02</td><td>2</td><td>0.0248</td><td>0.0229</td><td>456 B</td><td>1.19</td>
+</tr><tr><td>&#39;GetExpiringDPAs (filtered scan)&#39;</td><td>862.8 ns</td><td>19.39 ns</td><td>28.43 ns</td><td>0.72</td><td>0.03</td><td>1</td><td>0.0229</td><td>0.0219</td><td>400 B</td><td>1.04</td>
+</tr><tr><td>&#39;RegisterProcessor (new processor)&#39;</td><td>2,059.6 ns</td><td>24.84 ns</td><td>36.41 ns</td><td>1.73</td><td>0.04</td><td>6</td><td>0.0305</td><td>0.0267</td><td>632 B</td><td>1.65</td>
+</tr><tr><td>&#39;GetProcessor by ID (cached read)&#39;</td><td>1,012.7 ns</td><td>11.92 ns</td><td>17.48 ns</td><td>0.85</td><td>0.02</td><td>2</td><td>0.0248</td><td>0.0229</td><td>456 B</td><td>1.19</td>
+</tr><tr><td>&#39;GetFullSubProcessorChain (BFS traversal)&#39;</td><td>984.4 ns</td><td>13.31 ns</td><td>19.51 ns</td><td>0.83</td><td>0.02</td><td>2</td><td>0.0248</td><td>0.0229</td><td>456 B</td><td>1.19</td>
+</tr></tbody></table>
+</body>
+</html>
