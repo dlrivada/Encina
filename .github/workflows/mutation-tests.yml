@@ -110,6 +110,7 @@ jobs:
           #
           # coverage-analysis is "off" due to xUnit v3 incompatibility
           # (stryker-mutator/stryker-net#3117). --since keeps scope manageable.
+          # Stryker needs a real SHA — HEAD~N notation is not supported.
           if [ "${{ inputs.diff_mode }}" = "true" ]; then
             echo "Mode: diff (vs main)"
             dotnet run --file .github/scripts/run-stryker.cs -- --since:main
@@ -117,8 +118,9 @@ jobs:
             echo "Mode: full (all files, no --since)"
             dotnet run --file .github/scripts/run-stryker.cs
           else
-            echo "Mode: recent changes (HEAD~20)"
-            dotnet run --file .github/scripts/run-stryker.cs -- --since:HEAD~20
+            SINCE_SHA=$(git rev-parse HEAD~20 2>/dev/null || git rev-list --max-parents=0 HEAD)
+            echo "Mode: recent changes (since $SINCE_SHA)"
+            dotnet run --file .github/scripts/run-stryker.cs -- "--since:$SINCE_SHA"
           fi
 
       - name: Upload Stryker logs
