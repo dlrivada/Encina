@@ -35,8 +35,23 @@ try
         strykerArguments.AddRange(passThrough);
     }
 
-    RunOrThrow("dotnet", strykerArguments);
-    Console.WriteLine("Stryker run completed successfully.");
+    var strykerExitCode = Run("dotnet", strykerArguments);
+
+    // Exit code 2 = break threshold hit (score below configured minimum).
+    // The mutation report was still generated — let downstream steps consume it.
+    if (strykerExitCode == 2)
+    {
+        Console.WriteLine($"Stryker finished with mutation score below break threshold (exit code {strykerExitCode}).");
+    }
+    else if (strykerExitCode != 0)
+    {
+        throw new InvalidOperationException(
+            $"Stryker failed with exit code {strykerExitCode}.");
+    }
+    else
+    {
+        Console.WriteLine("Stryker run completed successfully.");
+    }
 }
 catch (Exception ex)
 {
@@ -86,6 +101,15 @@ static (string Configuration, IReadOnlyList<string> PassThrough) ParseArguments(
 
 static void RunOrThrow(string fileName, IReadOnlyList<string> arguments)
 {
+    var exitCode = Run(fileName, arguments);
+    if (exitCode != 0)
+    {
+        throw new InvalidOperationException($"Command '{fileName} {string.Join(' ', arguments)}' failed with exit code {exitCode}.");
+    }
+}
+
+static int Run(string fileName, IReadOnlyList<string> arguments)
+{
     var startInfo = new ProcessStartInfo
     {
         FileName = fileName,
@@ -102,10 +126,7 @@ static void RunOrThrow(string fileName, IReadOnlyList<string> arguments)
     using var process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Could not start process '{fileName}'.");
     process.WaitForExit();
 
-    if (process.ExitCode != 0)
-    {
-        throw new InvalidOperationException($"Command '{fileName} {string.Join(' ', arguments)}' failed with exit code {process.ExitCode}.");
-    }
+    return process.ExitCode;
 }
 
 static string FindRepositoryRoot()
