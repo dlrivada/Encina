@@ -335,7 +335,11 @@ public sealed class SchedulerOrchestrator
                 }
                 else
                 {
-                    await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+                    var markResult = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+                    if (markResult.IsLeft)
+                    {
+                        Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].Message);
+                    }
                 }
 
                 processedCount++;
@@ -378,7 +382,9 @@ public sealed class SchedulerOrchestrator
     {
         if (_cronParser == null || string.IsNullOrEmpty(message.CronExpression))
         {
-            await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            var result = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            if (result.IsLeft)
+                Log.StoreMarkAsFailedError(_logger, message.Id, result.LeftToArray()[0].Message);
             return;
         }
 
@@ -387,14 +393,20 @@ public sealed class SchedulerOrchestrator
         await nextExecutionResult.MatchAsync(
             RightAsync: async nextExecution =>
             {
-                await _store.RescheduleRecurringMessageAsync(message.Id, nextExecution, cancellationToken).ConfigureAwait(false);
-                Log.RecurringMessageRescheduled(_logger, message.Id, nextExecution);
+                var rescheduleResult = await _store.RescheduleRecurringMessageAsync(message.Id, nextExecution, cancellationToken).ConfigureAwait(false);
+                if (rescheduleResult.IsLeft)
+                    Log.StoreMarkAsFailedError(_logger, message.Id, rescheduleResult.LeftToArray()[0].Message);
+                else
+                    Log.RecurringMessageRescheduled(_logger, message.Id, nextExecution);
                 return Unit.Default;
             },
             LeftAsync: async _ =>
             {
-                await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
-                Log.RecurringMessageEnded(_logger, message.Id);
+                var markResult = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+                if (markResult.IsLeft)
+                    Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].Message);
+                else
+                    Log.RecurringMessageEnded(_logger, message.Id);
                 return Unit.Default;
             }).ConfigureAwait(false);
     }

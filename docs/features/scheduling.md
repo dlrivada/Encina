@@ -20,18 +20,22 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 ## Scheduling Messages
 
 ```csharp
-// Delayed execution (absolute time)
-var messageId = await orchestrator.ScheduleAsync(
+// Delayed execution (absolute time) — returns Either<EncinaError, Guid>
+var result = await orchestrator.ScheduleAsync(
     new SendReminderCommand(orderId),
     executeAt: DateTime.UtcNow.AddHours(24));
 
+var messageId = result.Match(
+    Right: id => id,
+    Left: error => throw new InvalidOperationException(error.Message));
+
 // Delayed execution (relative delay)
-var messageId = await orchestrator.ScheduleAsync(
+var cancelResult = await orchestrator.ScheduleAsync(
     new CancelOrderCommand(orderId),
     delay: TimeSpan.FromMinutes(30));
 
 // Recurring (cron expression — requires ICronParser registration)
-var messageId = await orchestrator.ScheduleRecurringAsync(
+var recurringResult = await orchestrator.ScheduleRecurringAsync(
     new GenerateDailyReportCommand(),
     cronExpression: "0 8 * * *"); // Daily at 8 AM
 ```
