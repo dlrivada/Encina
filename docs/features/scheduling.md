@@ -20,14 +20,16 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 ## Scheduling Messages
 
 ```csharp
-// Delayed execution (absolute time) — returns Either<EncinaError, Guid>
+// All scheduling methods return Either<EncinaError, Guid> (Railway Oriented Programming)
+
+// Delayed execution (absolute time)
 var result = await orchestrator.ScheduleAsync(
     new SendReminderCommand(orderId),
     executeAt: DateTime.UtcNow.AddHours(24));
 
-var messageId = result.Match(
-    Right: id => id,
-    Left: error => throw new InvalidOperationException(error.Message));
+result.Match(
+    Right: messageId => logger.LogInformation("Scheduled: {Id}", messageId),
+    Left: error => logger.LogError("Scheduling failed: {Code}", error.Message));
 
 // Delayed execution (relative delay)
 var cancelResult = await orchestrator.ScheduleAsync(
@@ -63,7 +65,7 @@ config.SchedulingOptions.EnableProcessor = false;
 
 The default `ExponentialBackoffRetryPolicy` uses the formula:
 
-```
+```text
 delay = BaseRetryDelay * 2^retryCount
 ```
 
