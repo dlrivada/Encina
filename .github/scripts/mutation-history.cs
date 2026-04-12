@@ -48,12 +48,13 @@ if (root.TryGetProperty("thresholds", out var th) && th.ValueKind == JsonValueKi
     if (th.TryGetProperty("low", out var l) && l.TryGetDouble(out var lv)) thresholdLow = lv;
 }
 
-// ── Aggregate per-module, per-file, per-mutator ───────────────────────
-// File keys are absolute: /home/runner/.../src/Encina/Module/File.cs
-// We extract the relative path after "src/Encina/" and group by first segment.
-const string srcMarker = "src/Encina/";
+// ── Aggregate per-package, per-file, per-mutator ──────────────────────
+// File keys are absolute: /home/runner/.../src/Encina.Foo/Bar/Baz.cs
+// We extract the package name (project folder under src/) and the relative
+// file path within it. This matches the coverage dashboard's per-package view.
+const string srcPrefix = "src/";
 
-var moduleCounts = new Dictionary<string, ModuleCounts>(StringComparer.OrdinalIgnoreCase);
+var packageCounts = new Dictionary<string, PackageCounts>(StringComparer.OrdinalIgnoreCase);
 var mutatorCounts = new Dictionary<string, MutatorCounts>(StringComparer.OrdinalIgnoreCase);
 var overallCounts = new MutationCounts();
 
@@ -61,20 +62,34 @@ foreach (var fileEntry in files.EnumerateObject())
 {
     var fullPath = fileEntry.Name.Replace('\\', '/');
 
-    // Extract relative path after src/Encina/
-    var markerIdx = fullPath.IndexOf(srcMarker, StringComparison.OrdinalIgnoreCase);
-    var relativePath = markerIdx >= 0
-        ? fullPath[(markerIdx + srcMarker.Length)..]
-        : Path.GetFileName(fullPath);
-
-    // Module = first path segment
-    var slashIdx = relativePath.IndexOf('/');
-    var moduleName = slashIdx > 0 ? relativePath[..slashIdx] : "(root)";
-
-    if (!moduleCounts.TryGetValue(moduleName, out var mc))
+    // Find "src/" marker and extract project folder + relative file
+    var srcIdx = fullPath.IndexOf(srcPrefix, StringComparison.OrdinalIgnoreCase);
+    string packageName, relativePath;
+    if (srcIdx >= 0)
     {
-        mc = new ModuleCounts(moduleName);
-        moduleCounts[moduleName] = mc;
+        var afterSrc = fullPath[(srcIdx + srcPrefix.Length)..];
+        var slashIdx = afterSrc.IndexOf('/');
+        if (slashIdx > 0)
+        {
+            packageName = afterSrc[..slashIdx];         // e.g. "Encina", "Encina.Messaging"
+            relativePath = afterSrc[(slashIdx + 1)..];  // e.g. "Sharding/Migrations/Strategies/Foo.cs"
+        }
+        else
+        {
+            packageName = "(root)";
+            relativePath = afterSrc;
+        }
+    }
+    else
+    {
+        packageName = "(unknown)";
+        relativePath = Path.GetFileName(fullPath);
+    }
+
+    if (!packageCounts.TryGetValue(packageName, out var pc))
+    {
+        pc = new PackageCounts(packageName);
+        packageCounts[packageName] = pc;
     }
 
     var fileCounts = new MutationCounts();
@@ -87,7 +102,7 @@ foreach (var fileEntry in files.EnumerateObject())
             var mutatorName = mutant.TryGetProperty("mutatorName", out var mn) ? mn.GetString() ?? "Unknown" : "Unknown";
 
             overallCounts.Register(status);
-            mc.Counts.Register(status);
+            pc.Counts.Register(status);
             fileCounts.Register(status);
 
             if (!mutatorCounts.TryGetValue(mutatorName, out var mtc))
@@ -101,42 +116,48 @@ foreach (var fileEntry in files.EnumerateObject())
 
     if (fileCounts.TotalConsidered > 0 || fileCounts.CompileErrors > 0)
     {
-        mc.Files.Add(new FileEntry(relativePath, fileCounts));
+        pc.Files.Add(new FileEntry(relativePath, fileCounts));
     }
 }
 
-// ── Gap analysis: find modules with 0 mutants ────────────────────────
-var allModules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-if (Directory.Exists(srcRoot))
+// ── Gap analysis: find all packages (src/*) with 0 mutants ───────────
+// Enumerate every project folder under src/ — these are the NuGet packages
+// that the coverage dashboard also tracks.
+var allPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+var srcParent = Path.GetDirectoryName(srcRoot) ?? "src";
+if (Directory.Exists(srcParent))
 {
-    foreach (var dir in Directory.GetDirectories(srcRoot))
+    foreach (var dir in Directory.GetDirectories(srcParent))
     {
         var name = Path.GetFileName(dir);
-        if (name is "bin" or "obj") continue;
-        allModules.Add(name);
+        // Skip non-project folders
+        if (name is "bin" or "obj" or ".backup") continue;
+        // Only include folders that contain a .csproj (real packages)
+        if (Directory.GetFiles(dir, "*.csproj").Length > 0)
+            allPackages.Add(name);
     }
 }
-// Ensure modules from report are included
-foreach (var m in moduleCounts.Keys) allModules.Add(m);
+// Ensure packages from report are included (even if src/ doesn't exist locally)
+foreach (var p in packageCounts.Keys) allPackages.Add(p);
 
 // ── Build latest.json ─────────────────────────────────────────────────
 var overallScore = overallCounts.TotalConsidered > 0
     ? Math.Round(100.0 * overallCounts.Detected / overallCounts.TotalConsidered, 2)
     : 0.0;
 
-var modulesArray = new JsonArray();
-foreach (var moduleName in allModules.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+var packagesArray = new JsonArray();
+foreach (var pkgName in allPackages.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
 {
-    var mc = moduleCounts.GetValueOrDefault(moduleName);
-    var counts = mc?.Counts ?? new MutationCounts();
-    var moduleScore = counts.TotalConsidered > 0
+    var pc = packageCounts.GetValueOrDefault(pkgName);
+    var counts = pc?.Counts ?? new MutationCounts();
+    var pkgScore = counts.TotalConsidered > 0
         ? Math.Round(100.0 * counts.Detected / counts.TotalConsidered, 2)
         : (double?)null;
 
     var filesArray = new JsonArray();
-    if (mc is not null)
+    if (pc is not null)
     {
-        foreach (var f in mc.Files.OrderBy(f => f.Path))
+        foreach (var f in pc.Files.OrderBy(f => f.Path))
         {
             var fScore = f.Counts.TotalConsidered > 0
                 ? Math.Round(100.0 * f.Counts.Detected / f.Counts.TotalConsidered, 2)
@@ -154,10 +175,10 @@ foreach (var moduleName in allModules.OrderBy(n => n, StringComparer.OrdinalIgno
         }
     }
 
-    var moduleObj = new JsonObject
+    var pkgObj = new JsonObject
     {
-        ["name"] = moduleName,
-        ["score"] = moduleScore.HasValue ? JsonValue.Create(moduleScore.Value) : null,
+        ["name"] = pkgName,
+        ["score"] = pkgScore.HasValue ? JsonValue.Create(pkgScore.Value) : null,
         ["total"] = counts.TotalConsidered,
         ["detected"] = counts.Detected,
         ["killed"] = counts.Killed,
@@ -168,7 +189,7 @@ foreach (var moduleName in allModules.OrderBy(n => n, StringComparer.OrdinalIgno
         ["ignored"] = counts.Ignored,
         ["files"] = filesArray
     };
-    modulesArray.Add(moduleObj);
+    packagesArray.Add(pkgObj);
 }
 
 var mutatorsArray = new JsonArray();
@@ -183,11 +204,11 @@ foreach (var mtc in mutatorCounts.Values.OrderByDescending(m => m.SurvivalRate).
     });
 }
 
-var modulesInScope = moduleCounts.Count(m => m.Value.Counts.TotalConsidered > 0);
-var filesInScope = moduleCounts.Values.Sum(m => m.Files.Count);
-var filesTotal = allModules.Sum(moduleName =>
+var packagesInScope = packageCounts.Count(p => p.Value.Counts.TotalConsidered > 0);
+var filesInScope = packageCounts.Values.Sum(p => p.Files.Count);
+var filesTotal = allPackages.Sum(pkgName =>
 {
-    var dir = Path.Combine(srcRoot, moduleName);
+    var dir = Path.Combine(srcParent, pkgName);
     return Directory.Exists(dir) ? Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories).Length : 0;
 });
 
@@ -215,12 +236,12 @@ var latest = new JsonObject
         ["compileErrors"] = overallCounts.CompileErrors,
         ["ignored"] = overallCounts.Ignored
     },
-    ["modules"] = modulesArray,
+    ["packages"] = packagesArray,
     ["mutators"] = mutatorsArray,
     ["gaps"] = new JsonObject
     {
-        ["modulesInScope"] = modulesInScope,
-        ["modulesTotal"] = allModules.Count,
+        ["packagesInScope"] = packagesInScope,
+        ["packagesTotal"] = allPackages.Count,
         ["filesInScope"] = filesInScope,
         ["filesTotal"] = filesTotal,
         ["coveragePercent"] = filesTotal > 0 ? Math.Round(100.0 * filesInScope / filesTotal, 1) : 0
@@ -248,11 +269,11 @@ else
     history = [];
 }
 
-var perModule = new JsonObject();
-foreach (var (name, mc) in moduleCounts.Where(m => m.Value.Counts.TotalConsidered > 0))
+var perPackage = new JsonObject();
+foreach (var (name, pc) in packageCounts.Where(p => p.Value.Counts.TotalConsidered > 0))
 {
-    var ms = Math.Round(100.0 * mc.Counts.Detected / mc.Counts.TotalConsidered, 2);
-    perModule[name] = ms;
+    var ps = Math.Round(100.0 * pc.Counts.Detected / pc.Counts.TotalConsidered, 2);
+    perPackage[name] = ps;
 }
 
 var histEntry = new JsonObject
@@ -264,7 +285,7 @@ var histEntry = new JsonObject
     ["killed"] = overallCounts.Killed,
     ["survived"] = overallCounts.Survived,
     ["scope"] = scope,
-    ["perModule"] = perModule
+    ["perPackage"] = perPackage
 };
 if (runId > 0) histEntry["runId"] = runId;
 
@@ -309,7 +330,7 @@ sealed class MutationCounts
     }
 }
 
-sealed class ModuleCounts(string name)
+sealed class PackageCounts(string name)
 {
     public string Name { get; } = name;
     public MutationCounts Counts { get; } = new();

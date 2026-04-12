@@ -65,7 +65,7 @@
 
   const th = data.thresholds || { high: 85, low: 70 };
   const ov = data.overall || {};
-  const modules = data.modules || [];
+  const packages =data.packages || [];
   const mutators = data.mutators || [];
   const gaps = data.gaps || {};
 
@@ -84,13 +84,13 @@
 
   // ── Gap analysis ────────────────────────────────────────────────────
   document.getElementById('gap-summary').textContent =
-    `${gaps.modulesInScope ?? 0} of ${gaps.modulesTotal ?? 0} modules in mutation scope (${gaps.coveragePercent ?? 0}% of files)`;
+    `${gaps.packagesInScope ?? 0} of ${gaps.packagesTotal ?? 0} packages in mutation scope (${gaps.coveragePercent ?? 0}% of files)`;
 
-  const gapPct = gaps.modulesTotal > 0 ? (gaps.modulesInScope / gaps.modulesTotal) * 100 : 0;
+  const gapPct = gaps.packagesTotal > 0 ? (gaps.packagesInScope / gaps.packagesTotal) * 100 : 0;
   document.getElementById('gap-bar').innerHTML =
     `<div class="gap-bar-in" style="width:${gapPct}%"></div><div class="gap-bar-out" style="width:${100 - gapPct}%"></div>`;
 
-  const outOfScope = modules.filter(m => m.score == null || m.total === 0).map(m => m.name);
+  const outOfScope = packages.filter(m => m.score == null || m.total === 0).map(m => m.name);
   if (outOfScope.length > 0) {
     document.getElementById('gap-list').textContent = 'Out of scope: ' + outOfScope.join(', ');
   }
@@ -99,12 +99,12 @@
   renderDonut(ov);
 
   // ── Trend chart ─────────────────────────────────────────────────────
-  const inScopeModules = modules.filter(m => m.score != null && m.total > 0).map(m => m.name);
-  setupTrendToggles(inScopeModules);
+  const inScopePackages = packages.filter(m => m.score != null && m.total > 0).map(m => m.name);
+  setupTrendToggles(inScopePackages);
   renderTrend('overall');
 
   // ── Module table ────────────────────────────────────────────────────
-  renderModuleTable(modules, th);
+  renderPackageTable(packages, th);
 
   // ── Mutator chart ───────────────────────────────────────────────────
   renderMutatorChart(mutators);
@@ -143,7 +143,7 @@
   function applyFilters() {
     const search = document.getElementById('search').value.toLowerCase();
     const activeFilter = filterDiv.querySelector('.filter-btn.active')?.dataset.filter || '';
-    const rows = document.querySelectorAll('#module-tbody tr');
+    const rows = document.querySelectorAll('#pkg-tbody tr');
     rows.forEach(row => {
       const name = row.dataset.name?.toLowerCase() || '';
       const inScope = row.dataset.inScope === 'true';
@@ -155,13 +155,13 @@
   }
 
   // ── Sort ────────────────────────────────────────────────────────────
-  document.querySelectorAll('#module-table th[data-sort]').forEach(th => {
-    th.addEventListener('click', () => sortTable('module-table', 'module-tbody', th, modules));
+  document.querySelectorAll('#pkg-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => sortTable('pkg-table', 'pkg-tbody', th, modules));
   });
 
   // ── Copy TSV ────────────────────────────────────────────────────────
   document.getElementById('copy-tsv').addEventListener('click', () => {
-    const rows = Array.from(document.querySelectorAll('#module-tbody tr'))
+    const rows = Array.from(document.querySelectorAll('#pkg-tbody tr'))
       .filter(r => r.style.display !== 'none');
     const header = 'Module\tScore\tKilled\tSurvived\tNoCoverage\tTotal';
     const lines = rows.map(r => {
@@ -185,20 +185,20 @@
   //  RENDERING FUNCTIONS
   // ==================================================================
 
-  function renderModuleTable(mods, thresholds) {
-    const tbody = document.getElementById('module-tbody');
+  function renderPackageTable(mods, thresholds) {
+    const tbody = document.getElementById('pkg-tbody');
     tbody.innerHTML = '';
     for (const m of mods) {
       const inScope = m.score != null && m.total > 0;
       const s = m.score ?? 0;
-      const dimClass = inScope ? '' : ' module-dimmed';
+      const dimClass = inScope ? '' : ' pkg-dimmed';
       const tr = document.createElement('tr');
       tr.dataset.name = m.name;
       tr.dataset.inScope = inScope;
       tr.className = dimClass;
 
       tr.innerHTML = `
-        <td class="module-name${dimClass}">${m.name}</td>
+        <td class="pkg-name${dimClass}">${m.name}</td>
         <td class="pct${dimClass}">${inScope ? fmtPct(s) : '-'}</td>
         <td class="num${dimClass}">${inScope ? fmt(m.killed) : '-'}</td>
         <td class="num${dimClass}">${inScope ? fmt(m.survived) : '-'}</td>
@@ -209,7 +209,7 @@
       tbody.appendChild(tr);
 
       // Click to expand files
-      tr.querySelector('.module-name').addEventListener('click', () => {
+      tr.querySelector('.pkg-name').addEventListener('click', () => {
         if (!inScope) return;
         showFiles(m, thresholds);
       });
@@ -345,14 +345,14 @@
     div.innerHTML = '';
     const overallBtn = document.createElement('button');
     overallBtn.className = 'toggle-btn active';
-    overallBtn.dataset.module = 'overall';
+    overallBtn.dataset.pkg = 'overall';
     overallBtn.textContent = 'Overall';
     div.appendChild(overallBtn);
 
     for (const name of moduleNames) {
       const btn = document.createElement('button');
       btn.className = 'toggle-btn';
-      btn.dataset.module = name;
+      btn.dataset.pkg = name;
       btn.textContent = name;
       div.appendChild(btn);
     }
@@ -362,11 +362,11 @@
       if (!btn) return;
       div.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      renderTrend(btn.dataset.module);
+      renderTrend(btn.dataset.pkg);
     });
   }
 
-  function renderTrend(moduleKey) {
+  function renderTrend(pkgKey) {
     if (!history || history.length === 0) {
       document.getElementById('trend-info').textContent = 'No historical data yet';
       return;
@@ -390,8 +390,8 @@
     // Extract data points
     const points = history.map(h => {
       let val;
-      if (moduleKey === 'overall') val = h.score ?? 0;
-      else val = h.perModule?.[moduleKey] ?? null;
+      if (pkgKey === 'overall') val = h.score ?? 0;
+      else val = h.perPackage?.[pkgKey] ?? null;
       return { ts: new Date(h.timestamp), val, scope: h.scope || '' };
     }).filter(p => p.val !== null);
 
@@ -399,7 +399,7 @@
       ctx.fillStyle = COL.muted;
       ctx.textAlign = 'center';
       ctx.font = '13px sans-serif';
-      ctx.fillText('No data for ' + moduleKey, W / 2, H / 2);
+      ctx.fillText('No data for ' + pkgKey, W / 2, H / 2);
       return;
     }
 
