@@ -69,7 +69,7 @@ jobs:
           # Overlay the live Pages copies of the sibling domains (benchmarks, load-tests)
           # so their data survives this deploy untouched. Our own coverage subtree is
           # then overridden below with the fresh CI artifact, which is authoritative.
-          for domain in benchmarks load-tests; do
+          for domain in benchmarks load-tests mutations; do
             echo "Fetching live $domain data from Pages (to preserve across deploy)..."
             mkdir -p "_site/$domain/data"
             for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do

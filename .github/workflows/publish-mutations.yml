@@ -1,0 +1,159 @@
+name: Publish Mutations Data
+
+# Triggered when Mutation Tests completes — downloads the report artifact
+# and deploys it to GitHub Pages alongside the existing site.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Mutation Tests run ID (leave empty for latest successful)'
+        required: false
+  workflow_run:
+    workflows: ["Mutation Tests"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  pages: write
+  id-token: write
+  actions: read
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}mutations/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve Mutation Tests run ID
+        id: resolve
+        run: |
+          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          if [ -z "$RID" ]; then
+            RID=$(gh run list --workflow "Mutation Tests" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            echo "Auto-resolved latest successful Mutation Tests: $RID"
+          fi
+          echo "run_id=$RID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download mutation report artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: mutation-report
+          path: mutation-artifact
+          run-id: ${{ steps.resolve.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Pages site with fresh mutation data
+        run: |
+          # Copy the entire docs/ directory as the Pages site
+          cp -r docs _site
+
+          # Preserve sibling domains from live Pages
+          for domain in coverage benchmarks load-tests; do
+            echo "Fetching live $domain data from Pages (to preserve across deploy)..."
+            mkdir -p "_site/$domain/data"
+            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
+              url="https://dlrivada.github.io/Encina/$domain/data/$file"
+              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
+                echo "  + $file"
+              else
+                rm -f "_site/$domain/data/$file.new"
+              fi
+            done
+          done
+
+          # Read Stryker scope from config
+          SCOPE=$(grep -oP '"mutate"\s*:\s*\[\s*"([^"]+)"' .github/stryker-config.json | head -1 | sed 's/.*"\([^"]*\)"/\1/' || echo "")
+          echo "Stryker scope: $SCOPE"
+
+          # Run mutation-history.cs to convert report -> latest.json + update history
+          # Fetch live history first (most complete)
+          PAGES_URL="https://dlrivada.github.io/Encina/mutations/data/history.json"
+          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+          REPO_ENTRIES=$(grep -c timestamp _site/mutations/data/history.json 2>/dev/null || echo 0)
+
+          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
+            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp || echo 0)
+            if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
+              echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
+              echo "$PAGES_HISTORY" > _site/mutations/data/history.json
+            else
+              echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
+            fi
+          else
+            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+          fi
+
+          # Find the mutation report JSON
+          REPORT=""
+          if [ -f "mutation-artifact/mutation-report.json" ]; then
+            REPORT="mutation-artifact/mutation-report.json"
+          else
+            REPORT=$(find mutation-artifact -name "mutation-report.json" -type f 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$REPORT" ]; then
+            echo "Warning: mutation-report.json not found in artifact"
+            ls -R mutation-artifact/ || true
+            exit 0
+          fi
+
+          RUN_ID="${{ steps.resolve.outputs.run_id }}"
+
+          dotnet run .github/scripts/mutation-history.cs -- \
+            --report "$REPORT" \
+            --latest _site/mutations/data/latest.json \
+            --history _site/mutations/data/history.json \
+            --src-root src/Encina \
+            --run-id "$RUN_ID" \
+            --scope "$SCOPE"
+
+          # Archive snapshot
+          STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
+          cp -f _site/mutations/data/latest.json "_site/mutations/data/${STAMP}.json"
+
+      - name: Persist history.json back to repo
+        continue-on-error: true
+        run: |
+          cp -f _site/mutations/data/history.json docs/mutations/data/history.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/mutations/data/history.json
+          if git diff --cached --quiet; then
+            echo "No history changes to commit"
+          else
+            ENTRIES=$(grep -c timestamp docs/mutations/data/history.json || echo 0)
+            git commit -m "chore: update mutation history ($ENTRIES entries)"
+            git push origin main || echo "Warning: Could not push history update"
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

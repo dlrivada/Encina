@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Encina Mutation Testing Report</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <h1>Encina Mutation Testing Report</h1>
+    <p id="timestamp" class="subtitle">Loading...</p>
+  </header>
+
+  <div class="top-grid">
+    <div class="top-left">
+      <section id="overall" class="card overall-card">
+        <div id="overall-pct" class="big-number">--%</div>
+        <div id="overall-detail" class="subtitle">-- / -- mutants detected</div>
+      </section>
+      <section class="card trend-card">
+        <h2>Mutation Score Over Time</h2>
+        <div class="chart-toggles" id="trend-toggles"></div>
+        <canvas id="trend-chart"></canvas>
+        <p id="trend-info" class="subtitle"></p>
+      </section>
+    </div>
+    <section class="card top-right">
+      <h2>Mutant Status Distribution</h2>
+      <canvas id="donut-chart" width="300" height="300"></canvas>
+    </section>
+  </div>
+
+  <section id="gap-card" class="card">
+    <h2>Mutation Scope Coverage</h2>
+    <p id="gap-summary" class="subtitle"></p>
+    <div class="gap-bar" id="gap-bar"></div>
+    <p id="gap-list" class="gap-modules-list"></p>
+  </section>
+
+  <section class="card">
+    <div class="section-header">
+      <h2>By Module</h2>
+      <div class="header-actions">
+        <button class="copy-btn" id="copy-tsv">Copy TSV</button>
+      </div>
+    </div>
+    <input type="text" class="search-input" id="search" placeholder="Filter modules or files...">
+    <div id="filters" class="filters"></div>
+    <div style="overflow-x:auto">
+      <table id="module-table">
+        <thead>
+          <tr>
+            <th data-sort="name">Module</th>
+            <th data-sort="score" class="num">Score</th>
+            <th data-sort="killed" class="num">Killed</th>
+            <th data-sort="survived" class="num">Survived</th>
+            <th data-sort="noCoverage" class="num">No Cov</th>
+            <th data-sort="total" class="num">Total</th>
+            <th class="bar-col">Bar</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="module-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="files-section" class="card" style="display:none">
+    <div class="section-header">
+      <h2 id="files-title">Files</h2>
+      <button class="close-btn" id="close-files">Close</button>
+    </div>
+    <table id="files-table">
+      <thead>
+        <tr>
+          <th data-sort="path">File</th>
+          <th data-sort="score" class="num">Score</th>
+          <th data-sort="killed" class="num">Killed</th>
+          <th data-sort="survived" class="num">Survived</th>
+          <th data-sort="noCoverage" class="num">No Cov</th>
+          <th data-sort="total" class="num">Total</th>
+          <th class="bar-col">Bar</th>
+        </tr>
+      </thead>
+      <tbody id="files-tbody"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Mutator Effectiveness</h2>
+    <canvas id="mutator-chart"></canvas>
+  </section>
+
+  <footer>
+    Encina Mutation Testing Dashboard &mdash; Data from Stryker.NET
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
