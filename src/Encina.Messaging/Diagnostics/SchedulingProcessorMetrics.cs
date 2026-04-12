@@ -15,8 +15,10 @@ namespace Encina.Messaging.Diagnostics;
 /// track the processor's polling cycles and dispatch outcomes.
 /// </para>
 /// <para>
-/// The same static <c>Meter("Encina", "1.0")</c> is reused for consistency with all
-/// other Encina metrics.
+/// A static <c>Meter("Encina", "1.0")</c> is created with the same name and version
+/// as other Encina metric classes (e.g., <see cref="MessagingStoreMetrics"/>).
+/// OpenTelemetry aggregates instruments by meter name, so all <c>"Encina"</c> meters
+/// appear under a single logical meter in exporters.
 /// </para>
 /// </remarks>
 internal sealed class SchedulingProcessorMetrics

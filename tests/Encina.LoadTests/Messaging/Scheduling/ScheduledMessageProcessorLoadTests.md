@@ -4,7 +4,7 @@
 
 ## Justification
 
-The `ScheduledMessageProcessor` is a sequential polling background service. Its throughput is bounded by `SchedulingOptions.BatchSize * ProcessingInterval` — there is no concurrent message dispatch within a single cycle (messages are processed sequentially in `SchedulerOrchestrator.ProcessDueMessagesAsync`).
+The `ScheduledMessageProcessor` is a sequential polling background service. Its throughput is bounded by `SchedulingOptions.BatchSize / ProcessingInterval` (messages per second) — there is no concurrent message dispatch within a single cycle (messages are processed sequentially in `SchedulerOrchestrator.ProcessDueMessagesAsync`).
 
 ### 1. No concurrent dispatch within cycles
 

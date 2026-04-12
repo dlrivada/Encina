@@ -402,7 +402,12 @@ public sealed class SchedulerOrchestrator
     private async Task MarkAsFailedAsync(IScheduledMessage message, string errorMessage, CancellationToken cancellationToken)
     {
         var decision = _retryPolicy.Compute(message.RetryCount, _options.MaxRetries, _timeProvider.GetUtcNow().UtcDateTime);
-        await _store.MarkAsFailedAsync(message.Id, errorMessage, decision.NextRetryAtUtc, cancellationToken).ConfigureAwait(false);
+        var storeResult = await _store.MarkAsFailedAsync(message.Id, errorMessage, decision.NextRetryAtUtc, cancellationToken).ConfigureAwait(false);
+        if (storeResult.IsLeft)
+        {
+            var storeError = storeResult.LeftToArray()[0];
+            Log.StoreMarkAsFailedError(_logger, message.Id, storeError.Message);
+        }
     }
 }
 
@@ -574,4 +579,10 @@ internal static partial class Log
         Level = LogLevel.Warning,
         Message = "Dispatch returned failure for message {MessageId}: [{ErrorCode}] {ErrorMessage}")]
     public static partial void DispatchFailed(ILogger logger, Guid messageId, string errorCode, string errorMessage);
+
+    [LoggerMessage(
+        EventId = 311,
+        Level = LogLevel.Error,
+        Message = "Failed to update store for message {MessageId} after dispatch failure: {StoreErrorMessage}")]
+    public static partial void StoreMarkAsFailedError(ILogger logger, Guid messageId, string storeErrorMessage);
 }

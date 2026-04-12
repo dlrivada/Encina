@@ -426,7 +426,7 @@ flowchart TB
 - `ScheduledMessageProcessor` — `BackgroundService` that polls for due messages and dispatches them via `IScheduledMessageDispatcher` (#765)
 - `IScheduledMessageRetryPolicy` → `ExponentialBackoffRetryPolicy` — pluggable retry strategy (#765)
 - `IScheduledMessageDispatcher` → `CompiledExpressionScheduledMessageDispatcher` — compiled expression-tree dispatch, zero reflection on hot path (#765)
-- Soporte para CRON y mensajes recurrentes via `ICronParser`
+- Support for CRON and recurring messages via `ICronParser`
 - Configuración: `SchedulingOptions` (ProcessingInterval, BatchSize, MaxRetries, BaseRetryDelay, EnableProcessor, EnableRecurringMessages)
 
 **Dead Letter Queue:**

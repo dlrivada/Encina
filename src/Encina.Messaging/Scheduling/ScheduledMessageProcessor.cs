@@ -143,7 +143,8 @@ public sealed class ScheduledMessageProcessor : BackgroundService
         var orchestrator = scope.ServiceProvider.GetRequiredService<SchedulerOrchestrator>();
         var dispatcher = scope.ServiceProvider.GetRequiredService<IScheduledMessageDispatcher>();
 
-        using var activity = SchedulingActivitySource.StartProcessingCycle(_options.BatchSize);
+        // Do NOT use 'using var' — CompleteProcessingCycle/Failed already dispose the activity.
+        var activity = SchedulingActivitySource.StartProcessingCycle(_options.BatchSize);
 
         var result = await orchestrator.ProcessDueMessagesAsync(
             (msg, type, req, ct) => dispatcher.DispatchAsync(type, req, ct),
@@ -167,7 +168,9 @@ public sealed class ScheduledMessageProcessor : BackgroundService
             {
                 var errorCode = error.GetCode().IfNone("unknown");
                 SchedulingProcessorLog.BatchFailed(_logger, errorCode, error.Message);
-                _metrics.RecordBatch(successCount: 0, failureCount: 1);
+                // Do NOT record batch metrics here — Left means the store retrieval
+                // itself failed, not that individual messages failed dispatch.
+                // Per-message failures are tracked inside the orchestrator loop.
 
                 SchedulingActivitySource.Failed(activity, errorCode, error.Message);
             });
