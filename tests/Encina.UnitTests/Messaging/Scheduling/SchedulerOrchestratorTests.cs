@@ -31,10 +31,11 @@ public sealed class SchedulerOrchestratorTests
         var options = new SchedulingOptions();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
+        var retryPolicy = new ExponentialBackoffRetryPolicy(options);
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(null!, options, logger, messageFactory));
+            new SchedulerOrchestrator(null!, options, logger, messageFactory, retryPolicy));
     }
 
     [Fact]
@@ -44,10 +45,11 @@ public sealed class SchedulerOrchestratorTests
         var store = Substitute.For<IScheduledMessageStore>();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
+        var retryPolicy = new ExponentialBackoffRetryPolicy(new SchedulingOptions());
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(store, null!, logger, messageFactory));
+            new SchedulerOrchestrator(store, null!, logger, messageFactory, retryPolicy));
     }
 
     [Fact]
@@ -57,10 +59,11 @@ public sealed class SchedulerOrchestratorTests
         var store = Substitute.For<IScheduledMessageStore>();
         var options = new SchedulingOptions();
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
+        var retryPolicy = new ExponentialBackoffRetryPolicy(options);
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(store, options, null!, messageFactory));
+            new SchedulerOrchestrator(store, options, null!, messageFactory, retryPolicy));
     }
 
     [Fact]
@@ -70,10 +73,25 @@ public sealed class SchedulerOrchestratorTests
         var store = Substitute.For<IScheduledMessageStore>();
         var options = new SchedulingOptions();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
+        var retryPolicy = new ExponentialBackoffRetryPolicy(options);
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(store, options, logger, null!));
+            new SchedulerOrchestrator(store, options, logger, null!, retryPolicy));
+    }
+
+    [Fact]
+    public void Constructor_WithNullRetryPolicy_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var store = Substitute.For<IScheduledMessageStore>();
+        var options = new SchedulingOptions();
+        var logger = NullLogger<SchedulerOrchestrator>.Instance;
+        var messageFactory = Substitute.For<IScheduledMessageFactory>();
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() =>
+            new SchedulerOrchestrator(store, options, logger, messageFactory, null!));
     }
 
     [Fact]
@@ -94,10 +112,11 @@ public sealed class SchedulerOrchestratorTests
         var options = new SchedulingOptions();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
+        var retryPolicy = new ExponentialBackoffRetryPolicy(options);
         var cronParser = Substitute.For<ICronParser>();
 
         // Act
-        var orchestrator = new SchedulerOrchestrator(store, options, logger, messageFactory, cronParser);
+        var orchestrator = new SchedulerOrchestrator(store, options, logger, messageFactory, retryPolicy, cronParser);
 
         // Assert
         orchestrator.ShouldNotBeNull();
@@ -410,7 +429,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(Enumerable.Empty<IScheduledMessage>()));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -433,12 +452,12 @@ public sealed class SchedulerOrchestratorTests
         var executed = false;
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((msg, type, request) =>
+        var result = await orchestrator.ProcessDueMessagesAsync((msg, type, request, ct) =>
         {
             executed = true;
             msg.ShouldBe(mockMessage);
             type.ShouldBe(typeof(TestRequest));
-            return Task.CompletedTask;
+            return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(Unit.Default));
         });
 
         // Assert
@@ -462,7 +481,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -488,7 +507,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -514,7 +533,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) =>
+        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _, _) =>
             throw new InvalidOperationException("Callback failed"));
 
         // Assert
@@ -546,7 +565,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Right<EncinaError, DateTime>(nextExecution));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -576,7 +595,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Left<EncinaError, DateTime>(error));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -599,7 +618,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -622,7 +641,7 @@ public sealed class SchedulerOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IScheduledMessage>>(new[] { mockMessage }));
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await orchestrator.ProcessDueMessagesAsync(SuccessCallback());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -652,14 +671,14 @@ public sealed class SchedulerOrchestratorTests
         var processedCount = 0;
 
         // Act
-        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _) =>
+        var result = await orchestrator.ProcessDueMessagesAsync((_, _, _, _) =>
         {
             processedCount++;
             if (processedCount == 1)
             {
                 cts.Cancel(); // Cancel after first message
             }
-            return Task.CompletedTask;
+            return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(Unit.Default));
         }, cts.Token);
 
         // Assert
@@ -699,13 +718,17 @@ public sealed class SchedulerOrchestratorTests
 
     #region Helper Methods
 
+    private static ExponentialBackoffRetryPolicy CreateDefaultRetryPolicy(SchedulingOptions? options = null) =>
+        new(options ?? new SchedulingOptions());
+
     private static SchedulerOrchestrator CreateOrchestrator(SchedulingOptions? options = null)
     {
         var store = Substitute.For<IScheduledMessageStore>();
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
+        var retryPolicy = CreateDefaultRetryPolicy(options);
 
-        return new SchedulerOrchestrator(store, options ?? new SchedulingOptions(), logger, messageFactory);
+        return new SchedulerOrchestrator(store, options ?? new SchedulingOptions(), logger, messageFactory, retryPolicy);
     }
 
     private static SchedulerOrchestrator CreateOrchestratorWithCronParser()
@@ -713,9 +736,10 @@ public sealed class SchedulerOrchestratorTests
         var store = Substitute.For<IScheduledMessageStore>();
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
+        var retryPolicy = CreateDefaultRetryPolicy();
         var cronParser = Substitute.For<ICronParser>();
 
-        return new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, cronParser);
+        return new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy, cronParser);
     }
 
     private static (SchedulerOrchestrator Orchestrator, IScheduledMessageStore Store, IScheduledMessageFactory MessageFactory) CreateOrchestratorWithDependencies()
@@ -723,8 +747,9 @@ public sealed class SchedulerOrchestratorTests
         var store = Substitute.For<IScheduledMessageStore>();
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
+        var retryPolicy = CreateDefaultRetryPolicy();
 
-        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory);
+        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy);
 
         return (orchestrator, store, messageFactory);
     }
@@ -734,12 +759,19 @@ public sealed class SchedulerOrchestratorTests
         var store = Substitute.For<IScheduledMessageStore>();
         var messageFactory = Substitute.For<IScheduledMessageFactory>();
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
+        var retryPolicy = CreateDefaultRetryPolicy();
         var cronParser = Substitute.For<ICronParser>();
 
-        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, cronParser);
+        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy, cronParser);
 
         return (orchestrator, store, messageFactory, cronParser);
     }
+
+    /// <summary>
+    /// Helper: creates the ROP success callback matching the new ProcessDueMessagesAsync signature.
+    /// </summary>
+    private static Func<IScheduledMessage, Type, object, CancellationToken, ValueTask<Either<EncinaError, Unit>>> SuccessCallback() =>
+        (_, _, _, _) => new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(Unit.Default));
 
     private static IScheduledMessage CreateMockMessage(
         Guid messageId,

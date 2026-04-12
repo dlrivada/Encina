@@ -787,3 +787,22 @@ Encina.Messaging.MessagingConfiguration.UseProcessorAgreements.get -> bool
 Encina.Messaging.MessagingConfiguration.UseProcessorAgreements.set -> void
 Encina.Messaging.MessagingConfiguration.UseCrossBorderTransfer.get -> bool
 Encina.Messaging.MessagingConfiguration.UseCrossBorderTransfer.set -> void
+Encina.Messaging.Scheduling.IScheduledMessageRetryPolicy
+Encina.Messaging.Scheduling.IScheduledMessageRetryPolicy.Compute(int retryCount, int maxRetries, System.DateTime nowUtc) -> Encina.Messaging.Scheduling.RetryDecision!
+Encina.Messaging.Scheduling.RetryDecision
+Encina.Messaging.Scheduling.RetryDecision.RetryDecision(System.DateTime? NextRetryAtUtc, bool IsDeadLettered) -> void
+Encina.Messaging.Scheduling.RetryDecision.NextRetryAtUtc.get -> System.DateTime?
+Encina.Messaging.Scheduling.RetryDecision.IsDeadLettered.get -> bool
+static Encina.Messaging.Scheduling.RetryDecision.RetryAt(System.DateTime nextUtc) -> Encina.Messaging.Scheduling.RetryDecision!
+static Encina.Messaging.Scheduling.RetryDecision.DeadLetter() -> Encina.Messaging.Scheduling.RetryDecision!
+Encina.Messaging.Scheduling.ExponentialBackoffRetryPolicy
+Encina.Messaging.Scheduling.ExponentialBackoffRetryPolicy.ExponentialBackoffRetryPolicy(Encina.Messaging.Scheduling.SchedulingOptions! options) -> void
+Encina.Messaging.Scheduling.ExponentialBackoffRetryPolicy.Compute(int retryCount, int maxRetries, System.DateTime nowUtc) -> Encina.Messaging.Scheduling.RetryDecision!
+const Encina.Messaging.Scheduling.SchedulingErrorCodes.UnknownRequestShape = "scheduling.unknown_request_shape" -> string!
+Encina.Messaging.Scheduling.IScheduledMessageDispatcher
+Encina.Messaging.Scheduling.IScheduledMessageDispatcher.DispatchAsync(System.Type! requestType, object! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Messaging.Scheduling.CompiledExpressionScheduledMessageDispatcher
+Encina.Messaging.Scheduling.CompiledExpressionScheduledMessageDispatcher.CompiledExpressionScheduledMessageDispatcher(Encina.IEncina! encina) -> void
+Encina.Messaging.Scheduling.CompiledExpressionScheduledMessageDispatcher.DispatchAsync(System.Type! requestType, object! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Messaging.Scheduling.ScheduledMessageProcessor
+Encina.Messaging.Scheduling.ScheduledMessageProcessor.ScheduledMessageProcessor(System.IServiceProvider! serviceProvider, Encina.Messaging.Scheduling.SchedulingOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Scheduling.ScheduledMessageProcessor!>! logger, System.TimeProvider? timeProvider = null) -> void

@@ -2,6 +2,28 @@
 
 ### Added
 
+#### Encina.Messaging — Scheduled Message Processor + Retry Policy & Dispatcher Abstractions (#765)
+
+- **`IScheduledMessageRetryPolicy`**: Pluggable retry strategy for failed scheduled message dispatches. Default `ExponentialBackoffRetryPolicy` computes `delay = BaseRetryDelay * 2^retryCount` and dead-letters when `MaxRetries` is exhausted. Swappable via DI.
+- **`IScheduledMessageDispatcher`**: Pluggable dispatch strategy routing deserialized scheduled messages to `IEncina.Send<TResponse>` or `IEncina.Publish<TNotification>`. Default `CompiledExpressionScheduledMessageDispatcher` caches compiled expression-tree delegates per request `Type` — zero reflection on the hot path, zero `dynamic`.
+- **`RetryDecision`**: Sealed record with factory helpers `RetryAt(DateTime)` and `DeadLetter()`.
+- **`SchedulingErrorCodes.UnknownRequestShape`**: Error code for types implementing neither `IRequest<>` nor `INotification`.
+- **`SchedulingProcessorLog`**: Structured logging via `[LoggerMessage]` source generator (EventIds 2320-2325).
+- **`SchedulingProcessorMetrics`**: OpenTelemetry Meter instruments for processor cycles and dispatch outcomes.
+
+### Fixed
+
+#### Encina.Messaging — ScheduledMessageProcessor dispatches due messages (#765)
+
+`ScheduledMessageProcessor` background service now executes scheduled messages that were previously persisted but never dispatched. Polls `IScheduledMessageStore.GetDueMessagesAsync` at `SchedulingOptions.ProcessingInterval`, dispatches via `IScheduledMessageDispatcher`, applies `IScheduledMessageRetryPolicy` on failure, reschedules recurring messages via `ICronParser`. Auto-registered when `UseScheduling = true` and `SchedulingOptions.EnableProcessor = true`.
+
+### Changed
+
+#### Encina.Messaging — SchedulerOrchestrator ROP callback + retry policy injection (#765)
+
+- `ProcessDueMessagesAsync` callback signature: `Func<..., Task>` → `Func<..., CancellationToken, ValueTask<Either<EncinaError, Unit>>>`. Failures are `Left(EncinaError)` (ROP), not exceptions.
+- Constructor requires `IScheduledMessageRetryPolicy` (auto-registered in DI). Hardcoded flat-delay retry replaced by pluggable policy delegation.
+
 #### Encina.Security.Secrets — Replace IMemoryCache with ICacheProvider for Distributed Caching (#694)
 
 Replaced `CachedSecretReaderDecorator` (IMemoryCache) with `CachingSecretReaderDecorator` (ICacheProvider) for distributed cache support. Added `CachingSecretWriterDecorator` for write-through cache invalidation and `SecretCachePubSubHostedService` for cross-instance invalidation via PubSub.

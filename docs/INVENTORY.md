@@ -422,9 +422,12 @@ flowchart TB
 **Scheduling Pattern:**
 
 - `IScheduledMessage`, `IScheduledMessageStore`
-- `SchedulerOrchestrator`
-- Soporte para CRON y mensajes recurrentes
-- Configuración: `SchedulingOptions` (ProcessingInterval, BatchSize, EnableRecurringMessages)
+- `SchedulerOrchestrator` — domain logic for scheduling, cancellation, and due-message processing
+- `ScheduledMessageProcessor` — `BackgroundService` that polls for due messages and dispatches them via `IScheduledMessageDispatcher` (#765)
+- `IScheduledMessageRetryPolicy` → `ExponentialBackoffRetryPolicy` — pluggable retry strategy (#765)
+- `IScheduledMessageDispatcher` → `CompiledExpressionScheduledMessageDispatcher` — compiled expression-tree dispatch, zero reflection on hot path (#765)
+- Support for CRON and recurring messages via `ICronParser`
+- Configuration: `SchedulingOptions` (ProcessingInterval, BatchSize, MaxRetries, BaseRetryDelay, EnableProcessor, EnableRecurringMessages)
 
 **Dead Letter Queue:**
 

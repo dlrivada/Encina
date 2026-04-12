@@ -137,4 +137,46 @@ internal static class SchedulingActivitySource
         activity.SetStatus(ActivityStatusCode.Error, errorMessage);
         activity.Dispose();
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Processor-level helpers (ScheduledMessageProcessor)
+    // ────────────────────────────────────────────────────────────────────
+
+    private const string TagBatchSize = "scheduling.batch_size";
+    private const string TagProcessedCount = "scheduling.processed_count";
+
+    /// <summary>
+    /// Starts an activity for a single <c>ScheduledMessageProcessor</c> processing cycle.
+    /// </summary>
+    /// <param name="batchSize">The configured maximum batch size.</param>
+    /// <returns>The started activity, or <c>null</c> if no listener is active.</returns>
+    internal static Activity? StartProcessingCycle(int batchSize)
+    {
+        if (!ActivitySource.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = ActivitySource.StartActivity(
+            "encina.scheduling.processor_cycle", ActivityKind.Internal);
+        activity?.SetTag(TagBatchSize, batchSize);
+        return activity;
+    }
+
+    /// <summary>
+    /// Completes a processor cycle activity with the outcome counts.
+    /// </summary>
+    /// <param name="activity">The activity to complete (may be <c>null</c> if no listener was active).</param>
+    /// <param name="processedCount">Number of messages successfully dispatched in the cycle.</param>
+    internal static void CompleteProcessingCycle(Activity? activity, int processedCount)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        activity.SetTag(TagProcessedCount, processedCount);
+        activity.SetStatus(ActivityStatusCode.Ok);
+        activity.Dispose();
+    }
 }
