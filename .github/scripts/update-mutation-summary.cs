@@ -129,8 +129,11 @@ static MutationSummary? ComputeSummary(JsonDocument report)
 
     if (counts.TotalConsidered == 0)
     {
-        Console.Error.WriteLine("No eligible mutants found in report; cannot compute score.");
-        return null;
+        // Zero eligible mutants is valid when --since filters everything out
+        // (no source code changed since the target commit). Return a zero-score
+        // summary so the workflow stays green and the report is still generated.
+        return new MutationSummary(
+            0, 0, 0, 0, 0, 0, 0, counts.CompileErrors, 0, counts.Ignored, thresholds);
     }
 
     var mutationScore = 100.0 * counts.Detected / counts.TotalConsidered;
