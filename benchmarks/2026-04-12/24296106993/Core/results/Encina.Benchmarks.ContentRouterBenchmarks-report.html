@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ContentRouterBenchmarks-20260412-014845</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SimpleRoute_SingleCondition</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>2,189.9 ns</td><td>12.32 ns</td><td>7.33 ns</td><td>2,189.9 ns</td><td>1.00</td><td>0.0572</td><td>984 B</td><td>1.00</td>
+</tr><tr><td>ComplexRoute_FirstMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>1,624.9 ns</td><td>8.47 ns</td><td>5.04 ns</td><td>1,624.1 ns</td><td>0.74</td><td>0.0343</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ComplexRoute_DefaultFallback</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>1,627.8 ns</td><td>6.16 ns</td><td>4.08 ns</td><td>1,626.8 ns</td><td>0.74</td><td>0.0343</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ManyRoutes_FirstMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>2,271.5 ns</td><td>11.55 ns</td><td>7.64 ns</td><td>2,272.9 ns</td><td>1.04</td><td>0.0610</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>ManyRoutes_LateMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>2,277.5 ns</td><td>12.53 ns</td><td>8.28 ns</td><td>2,275.3 ns</td><td>1.04</td><td>0.0610</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>BuildDefinition_Simple</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>387.6 ns</td><td>3.01 ns</td><td>1.99 ns</td><td>387.4 ns</td><td>0.18</td><td>0.0348</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>BuildDefinition_Complex</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>622.4 ns</td><td>4.59 ns</td><td>2.73 ns</td><td>623.4 ns</td><td>0.28</td><td>0.0782</td><td>1320 B</td><td>1.34</td>
+</tr><tr><td>SimpleRoute_SingleCondition</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>2,181.1 ns</td><td>6.19 ns</td><td>9.08 ns</td><td>2,182.2 ns</td><td>1.00</td><td>0.0572</td><td>984 B</td><td>1.00</td>
+</tr><tr><td>ComplexRoute_FirstMatch</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>1,637.4 ns</td><td>13.49 ns</td><td>18.91 ns</td><td>1,623.8 ns</td><td>0.75</td><td>0.0343</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ComplexRoute_DefaultFallback</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>1,614.0 ns</td><td>1.59 ns</td><td>2.23 ns</td><td>1,613.8 ns</td><td>0.74</td><td>0.0343</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ManyRoutes_FirstMatch</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>2,260.4 ns</td><td>6.84 ns</td><td>9.80 ns</td><td>2,262.9 ns</td><td>1.04</td><td>0.0610</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>ManyRoutes_LateMatch</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>2,249.2 ns</td><td>10.47 ns</td><td>15.67 ns</td><td>2,246.9 ns</td><td>1.03</td><td>0.0610</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>BuildDefinition_Simple</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>369.3 ns</td><td>2.44 ns</td><td>3.65 ns</td><td>368.1 ns</td><td>0.17</td><td>0.0348</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>BuildDefinition_Complex</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>627.7 ns</td><td>4.48 ns</td><td>6.56 ns</td><td>627.9 ns</td><td>0.29</td><td>0.0782</td><td>1320 B</td><td>1.34</td>
+</tr></tbody></table>
+</body>
+</html>

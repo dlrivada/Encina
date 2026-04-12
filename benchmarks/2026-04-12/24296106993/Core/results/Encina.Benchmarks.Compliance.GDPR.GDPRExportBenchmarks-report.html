@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.GDPR.GDPRExportBenchmarks-20260412-014852</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                 </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;JSON export: 10 activities&#39;</td><td>34.70 &mu;s</td><td>0.190 &mu;s</td><td>0.266 &mu;s</td><td>1.00</td><td>0.01</td><td>2</td><td>0.7324</td><td>-</td><td>-</td><td>12.05 KB</td><td>1.00</td>
+</tr><tr><td>&#39;JSON export: 50 activities&#39;</td><td>169.76 &mu;s</td><td>0.378 &mu;s</td><td>0.530 &mu;s</td><td>4.89</td><td>0.04</td><td>4</td><td>3.1738</td><td>-</td><td>-</td><td>55.77 KB</td><td>4.63</td>
+</tr><tr><td>&#39;JSON export: 200 activities&#39;</td><td>758.87 &mu;s</td><td>3.216 &mu;s</td><td>4.714 &mu;s</td><td>21.87</td><td>0.21</td><td>6</td><td>54.6875</td><td>54.6875</td><td>54.6875</td><td>219.91 KB</td><td>18.24</td>
+</tr><tr><td>&#39;CSV export: 10 activities&#39;</td><td>14.88 &mu;s</td><td>0.131 &mu;s</td><td>0.188 &mu;s</td><td>0.43</td><td>0.01</td><td>1</td><td>3.3569</td><td>0.2289</td><td>-</td><td>54.92 KB</td><td>4.56</td>
+</tr><tr><td>&#39;CSV export: 50 activities&#39;</td><td>68.63 &mu;s</td><td>0.519 &mu;s</td><td>0.777 &mu;s</td><td>1.98</td><td>0.03</td><td>3</td><td>14.1602</td><td>2.3193</td><td>-</td><td>233 KB</td><td>19.33</td>
+</tr><tr><td>&#39;CSV export: 200 activities&#39;</td><td>397.42 &mu;s</td><td>4.538 &mu;s</td><td>6.211 &mu;s</td><td>11.45</td><td>0.20</td><td>5</td><td>49.8047</td><td>49.8047</td><td>49.8047</td><td>912.45 KB</td><td>75.69</td>
+</tr></tbody></table>
+</body>
+</html>
