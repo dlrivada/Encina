@@ -32,6 +32,7 @@ public sealed class SchedulerOrchestrator
     private readonly SchedulingOptions _options;
     private readonly ILogger<SchedulerOrchestrator> _logger;
     private readonly IScheduledMessageFactory _messageFactory;
+    private readonly IScheduledMessageRetryPolicy _retryPolicy;
     private readonly ICronParser? _cronParser;
     private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -47,13 +48,26 @@ public sealed class SchedulerOrchestrator
     /// <param name="options">The scheduling options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="messageFactory">Factory to create scheduled messages.</param>
+    /// <param name="retryPolicy">
+    /// Pluggable retry policy used to compute the next attempt time (or dead-letter)
+    /// when a scheduled message dispatch fails. The default registration in DI is
+    /// <see cref="ExponentialBackoffRetryPolicy"/>; users can swap in their own
+    /// implementation by registering it before <c>AddEncina*()</c>.
+    /// </param>
     /// <param name="cronParser">Optional cron parser for recurring messages.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when any required dependency (<paramref name="store"/>,
+    /// <paramref name="options"/>, <paramref name="logger"/>,
+    /// <paramref name="messageFactory"/>, or <paramref name="retryPolicy"/>) is
+    /// <see langword="null"/>.
+    /// </exception>
     public SchedulerOrchestrator(
         IScheduledMessageStore store,
         SchedulingOptions options,
         ILogger<SchedulerOrchestrator> logger,
         IScheduledMessageFactory messageFactory,
+        IScheduledMessageRetryPolicy retryPolicy,
         ICronParser? cronParser = null,
         TimeProvider? timeProvider = null)
     {
@@ -61,11 +75,13 @@ public sealed class SchedulerOrchestrator
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageFactory);
+        ArgumentNullException.ThrowIfNull(retryPolicy);
 
         _store = store;
         _options = options;
         _logger = logger;
         _messageFactory = messageFactory;
+        _retryPolicy = retryPolicy;
         _cronParser = cronParser;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -220,13 +236,51 @@ public sealed class SchedulerOrchestrator
     }
 
     /// <summary>
-    /// Processes due scheduled messages.
+    /// Processes due scheduled messages by retrieving them from the store, deserializing
+    /// each payload, invoking the supplied dispatch callback, and updating the store with
+    /// the outcome (mark-as-processed, reschedule recurring, or delegate to the retry
+    /// policy on failure).
     /// </summary>
-    /// <param name="executeCallback">The callback to execute each message.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of messages processed successfully, or an error.</returns>
+    /// <param name="executeCallback">
+    /// The callback that dispatches a single deserialized request. The callback follows
+    /// Railway Oriented Programming and returns
+    /// <see cref="Either{L,R}"/> of <see cref="EncinaError"/> and <see cref="Unit"/>:
+    /// <list type="bullet">
+    /// <item><description><c>Right(Unit.Default)</c> — dispatch succeeded; the message
+    /// will be marked processed (or rescheduled if recurring).</description></item>
+    /// <item><description><c>Left(error)</c> — dispatch failed in a controlled manner;
+    /// the orchestrator delegates the next-retry decision to the configured
+    /// <see cref="IScheduledMessageRetryPolicy"/> and updates the store via
+    /// <see cref="IScheduledMessageStore.MarkAsFailedAsync"/>.</description></item>
+    /// </list>
+    /// The callback receives the active <see cref="CancellationToken"/> so host shutdown
+    /// promptly aborts in-flight dispatch operations.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token honored between messages.</param>
+    /// <returns>
+    /// On success, the number of messages dispatched successfully in this batch (i.e.
+    /// callbacks that returned <c>Right</c>). Failed messages still update the store but
+    /// do not increment the count. On store retrieval failure, returns
+    /// <c>Left(EncinaError)</c>.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Exception safety net</b>: although the contract is ROP, the orchestrator
+    /// still wraps the callback in a try/catch as a safety net for true bugs (handler
+    /// crashes, <see cref="AccessViolationException"/>, etc.). Caught exceptions are
+    /// converted into a synthetic failure routed through the same retry-policy path,
+    /// so the retry behavior is consistent regardless of how the failure is signalled.
+    /// <see cref="OperationCanceledException"/> is rethrown so cancellation propagates.
+    /// </para>
+    /// <para>
+    /// <b>Retry policy delegation</b>: this method never computes retry timing inline.
+    /// Every failure (controlled <c>Left</c>, exception, unknown type, deserialization
+    /// failure) flows through the private <c>MarkAsFailedAsync</c> helper, which
+    /// delegates entirely to <see cref="IScheduledMessageRetryPolicy.Compute"/>.
+    /// </para>
+    /// </remarks>
     public async Task<Either<EncinaError, int>> ProcessDueMessagesAsync(
-        Func<IScheduledMessage, Type, object, Task> executeCallback,
+        Func<IScheduledMessage, Type, object, CancellationToken, ValueTask<Either<EncinaError, Unit>>> executeCallback,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(executeCallback);
@@ -253,7 +307,7 @@ public sealed class SchedulerOrchestrator
                 if (requestType == null)
                 {
                     Log.UnknownRequestType(_logger, message.Id, message.RequestType);
-                    await MarkAsFailedAsync(message.Id, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
+                    await MarkAsFailedAsync(message, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
                     continue;
                 }
 
@@ -261,11 +315,19 @@ public sealed class SchedulerOrchestrator
                 if (request == null)
                 {
                     Log.DeserializationFailed(_logger, message.Id, message.RequestType);
-                    await MarkAsFailedAsync(message.Id, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
+                    await MarkAsFailedAsync(message, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
                     continue;
                 }
 
-                await executeCallback(message, requestType, request).ConfigureAwait(false);
+                var dispatchResult = await executeCallback(message, requestType, request, cancellationToken).ConfigureAwait(false);
+                if (dispatchResult.IsLeft)
+                {
+                    var error = dispatchResult.LeftToArray()[0];
+                    var errorCode = error.GetCode().IfNone("unknown");
+                    Log.DispatchFailed(_logger, message.Id, errorCode, error.Message);
+                    await MarkAsFailedAsync(message, error.Message, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
 
                 if (message.IsRecurring)
                 {
@@ -279,10 +341,18 @@ public sealed class SchedulerOrchestrator
                 processedCount++;
                 Log.MessageExecuted(_logger, message.Id);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
+                throw;
+            }
+#pragma warning disable CA1031 // Do not catch general exception types — intentional safety net for handler bugs
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                // Safety net for true bugs (handler crashes, AVE, etc.).
+                // Real failures use the Either path above.
                 Log.ExecutionFailed(_logger, ex, message.Id);
-                await MarkAsFailedAsync(message.Id, ex.Message, cancellationToken).ConfigureAwait(false);
+                await MarkAsFailedAsync(message, ex.Message, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -329,10 +399,10 @@ public sealed class SchedulerOrchestrator
             }).ConfigureAwait(false);
     }
 
-    private async Task MarkAsFailedAsync(Guid messageId, string errorMessage, CancellationToken cancellationToken)
+    private async Task MarkAsFailedAsync(IScheduledMessage message, string errorMessage, CancellationToken cancellationToken)
     {
-        var nextRetryAt = _timeProvider.GetUtcNow().UtcDateTime.Add(_options.BaseRetryDelay);
-        await _store.MarkAsFailedAsync(messageId, errorMessage, nextRetryAt, cancellationToken).ConfigureAwait(false);
+        var decision = _retryPolicy.Compute(message.RetryCount, _options.MaxRetries, _timeProvider.GetUtcNow().UtcDateTime);
+        await _store.MarkAsFailedAsync(message.Id, errorMessage, decision.NextRetryAtUtc, cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -431,6 +501,12 @@ public static class SchedulingErrorCodes
     /// Delay must be positive.
     /// </summary>
     public const string InvalidDelay = "scheduling.invalid_delay";
+
+    /// <summary>
+    /// Deserialized request type implements neither <see cref="IRequest{TResponse}"/>
+    /// nor <see cref="INotification"/>.
+    /// </summary>
+    public const string UnknownRequestShape = "scheduling.unknown_request_shape";
 }
 
 /// <summary>
@@ -492,4 +568,10 @@ internal static partial class Log
         Level = LogLevel.Error,
         Message = "Failed to execute message {MessageId}")]
     public static partial void ExecutionFailed(ILogger logger, Exception ex, Guid messageId);
+
+    [LoggerMessage(
+        EventId = 310,
+        Level = LogLevel.Warning,
+        Message = "Dispatch returned failure for message {MessageId}: [{ErrorCode}] {ErrorMessage}")]
+    public static partial void DispatchFailed(ILogger logger, Guid messageId, string errorCode, string errorMessage);
 }

@@ -1,5 +1,7 @@
+using Encina;
 using Encina.Messaging.Scheduling;
 using FluentAssertions;
+using LanguageExt;
 
 namespace Encina.GuardTests.Messaging.Scheduling;
 
@@ -12,52 +14,65 @@ public class SchedulerOrchestratorGuardTests
     private readonly SchedulingOptions _options = new();
     private readonly ILogger<SchedulerOrchestrator> _logger = NullLogger<SchedulerOrchestrator>.Instance;
     private readonly IScheduledMessageFactory _messageFactory = Substitute.For<IScheduledMessageFactory>();
+    private readonly IScheduledMessageRetryPolicy _retryPolicy;
     private readonly ICronParser _cronParser = Substitute.For<ICronParser>();
 
+    public SchedulerOrchestratorGuardTests()
+    {
+        _retryPolicy = new ExponentialBackoffRetryPolicy(_options);
+    }
+
     private SchedulerOrchestrator CreateSut(ICronParser? cronParser = null) =>
-        new(_store, _options, _logger, _messageFactory, cronParser);
+        new(_store, _options, _logger, _messageFactory, _retryPolicy, cronParser);
 
     #region Constructor Guards
 
     [Fact]
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
-        var act = () => new SchedulerOrchestrator(null!, _options, _logger, _messageFactory);
+        var act = () => new SchedulerOrchestrator(null!, _options, _logger, _messageFactory, _retryPolicy);
         act.Should().Throw<ArgumentNullException>().WithParameterName("store");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new SchedulerOrchestrator(_store, null!, _logger, _messageFactory);
+        var act = () => new SchedulerOrchestrator(_store, null!, _logger, _messageFactory, _retryPolicy);
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new SchedulerOrchestrator(_store, _options, null!, _messageFactory);
+        var act = () => new SchedulerOrchestrator(_store, _options, null!, _messageFactory, _retryPolicy);
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 
     [Fact]
     public void Constructor_NullMessageFactory_ThrowsArgumentNullException()
     {
-        var act = () => new SchedulerOrchestrator(_store, _options, _logger, null!);
+        var act = () => new SchedulerOrchestrator(_store, _options, _logger, null!, _retryPolicy);
         act.Should().Throw<ArgumentNullException>().WithParameterName("messageFactory");
+    }
+
+    [Fact]
+    public void Constructor_NullRetryPolicy_ThrowsArgumentNullException()
+    {
+        var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, null!);
+        act.Should().Throw<ArgumentNullException>().WithParameterName("retryPolicy");
     }
 
     [Fact]
     public void Constructor_NullCronParser_Succeeds()
     {
-        var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, cronParser: null);
+        var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, _retryPolicy, cronParser: null);
         act.Should().NotThrow();
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
-        var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, _cronParser, timeProvider: null);
+        var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, _retryPolicy, _cronParser, timeProvider: null);
         act.Should().NotThrow();
     }
 
@@ -171,7 +186,7 @@ public class SchedulerOrchestratorGuardTests
     public async Task ScheduleRecurringAsync_RecurringDisabled_ReturnsError()
     {
         var options = new SchedulingOptions { EnableRecurringMessages = false };
-        var sut = new SchedulerOrchestrator(_store, options, _logger, _messageFactory, _cronParser);
+        var sut = new SchedulerOrchestrator(_store, options, _logger, _messageFactory, _retryPolicy, _cronParser);
 
         var result = await sut.ScheduleRecurringAsync(new TestScheduledRequest(), "* * * * *");
 
@@ -208,7 +223,7 @@ public class SchedulerOrchestratorGuardTests
             .Returns(Either<EncinaError, IEnumerable<IScheduledMessage>>.Left(expectedError));
 
         var sut = CreateSut();
-        var result = await sut.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await sut.ProcessDueMessagesAsync((_, _, _, _) => new ValueTask<Either<EncinaError, LanguageExt.Unit>>(Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Unit.Default)));
 
         result.IsLeft.Should().BeTrue();
     }
@@ -221,7 +236,7 @@ public class SchedulerOrchestratorGuardTests
                 Enumerable.Empty<IScheduledMessage>()));
 
         var sut = CreateSut();
-        var result = await sut.ProcessDueMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await sut.ProcessDueMessagesAsync((_, _, _, _) => new ValueTask<Either<EncinaError, LanguageExt.Unit>>(Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Unit.Default)));
 
         result.IsRight.Should().BeTrue();
         result.Match(Right: count => count, Left: _ => -1).Should().Be(0);

@@ -178,7 +178,16 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(config.SchedulingOptions);
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreEF>();
             services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
+            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
+                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
+            services.TryAddScoped<IScheduledMessageDispatcher>(
+                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
             services.AddScoped<SchedulerOrchestrator>();
+
+            if (config.SchedulingOptions.EnableProcessor)
+            {
+                services.AddHostedService<ScheduledMessageProcessor>();
+            }
         }
 
         if (config.UseTenancy)

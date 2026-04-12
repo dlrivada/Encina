@@ -104,7 +104,16 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(options.SchedulingOptions);
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
             services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
+            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
+                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
+            services.TryAddScoped<IScheduledMessageDispatcher>(
+                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
             services.AddScoped<SchedulerOrchestrator>();
+
+            if (options.SchedulingOptions.EnableProcessor)
+            {
+                services.AddHostedService<ScheduledMessageProcessor>();
+            }
         }
 
         // Register audit log store if enabled
@@ -216,7 +225,16 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(options.SchedulingOptions);
             services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
             services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
+            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
+                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
+            services.TryAddScoped<IScheduledMessageDispatcher>(
+                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
             services.AddScoped<SchedulerOrchestrator>();
+
+            if (options.SchedulingOptions.EnableProcessor)
+            {
+                services.AddHostedService<ScheduledMessageProcessor>();
+            }
         }
 
         // Register audit log store if enabled
