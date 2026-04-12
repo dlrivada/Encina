@@ -6,7 +6,9 @@
   "targets": {
     "$comment": "Populate with per-method target values once Phase 1 produces baseline data. Example: { \u0022SendCommand.mean_ns_max\u0022: 2000, \u0022SendCommand.allocated_bytes_max\u0022: 4096 }"
   },
-  "stabilityOverrides": {},
+  "stabilityOverrides": {
+    "EncryptedFieldBenchmarks.Encrypt_Short_16B": "AES-256-GCM encryption of a 16-byte field; sub-microsecond operation where CoV ~15% at N=28 on Linux CI runner is dominated by CPU/scheduler jitter, not code drift."
+  },
   "classes": [
     {
       "name": "AuditEventEncryptorBenchmarks",

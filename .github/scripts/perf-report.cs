@@ -263,7 +263,12 @@ static void GenerateBenchmarksReport(
         foreach (var b in m.Benchmarks)
         {
             totalMethods++;
-            if (b.ExpectedUnstable) expectedUnstable++;
+            // An override only hides the benchmark from the unstable bucket if the
+            // benchmark is actually unstable on this run. If a benchmark is both
+            // marked as expected-unstable AND happens to be Stable (e.g., because
+            // Palanca 4 amortized its jitter), count it as Stable — overrides should
+            // not penalize methods that are genuinely stable on a given measurement.
+            if (b.ExpectedUnstable && !b.Stable) expectedUnstable++;
             else if (b.Stable) stable++;
             else unstable++;
             if (b.MeanNs > 0) { sumMeanNs += b.MeanNs; countMean++; }
@@ -1117,7 +1122,7 @@ sealed class BenchmarkModule
         double covSum = 0; int covCount = 0;
         foreach (var b in Benchmarks)
         {
-            if (b.ExpectedUnstable) expectedUnstableCount++;
+            if (b.ExpectedUnstable && !b.Stable) expectedUnstableCount++;
             else if (b.Stable) stableCount++;
             else unstableCount++;
             if (b.Cov is > 0 and < double.PositiveInfinity) { covSum += b.Cov; covCount++; }

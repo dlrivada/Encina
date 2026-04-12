@@ -37,16 +37,25 @@ public class DelegateInvocationBenchmarks
     }
 
     /// <summary>
-    /// Baseline: Direct method call (fastest possible)
+    /// Baseline: Direct method call (fastest possible).
+    /// Uses <c>OperationsPerInvoke</c> to amortize the sub-nanosecond per-call cost
+    /// over 1 000 invocations so BDN's measurement overhead does not dominate the signal
+    /// (Palanca 4). Without this, the benchmark reports CoV ~30 % at N = 30 because the
+    /// per-iteration variance is dominated by CPU jitter rather than code behavior.
     /// </summary>
+    private const int DirectCallOps = 1000;
+
     [BenchmarkCategory("DocRef:bench:delegates/direct-call")]
-    [Benchmark(Baseline = true)]
+    [Benchmark(Baseline = true, OperationsPerInvoke = DirectCallOps)]
     public async Task<Unit> DirectCall()
     {
-        var result = await _handler.Handle(_notification, _ct).ConfigureAwait(false);
-        return result.Match(
-            Left: _ => Unit.Default,
-            Right: u => u);
+        Unit last = Unit.Default;
+        for (int i = 0; i < DirectCallOps; i++)
+        {
+            var result = await _handler.Handle(_notification, _ct).ConfigureAwait(false);
+            last = result.Match(Left: _ => Unit.Default, Right: u => u);
+        }
+        return last;
     }
 
     /// <summary>

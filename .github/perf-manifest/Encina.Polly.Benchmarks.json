@@ -12,7 +12,10 @@
     "BulkheadBenchmarks.AcquireMultiple_ThenReleaseAll": "Acquire + release cycles across a SemaphoreSlim; CoV 12% at N=29 is inherent to the lock release wake-up path.",
     "RateLimitingBenchmarks.RecordSuccess": "Token-bucket rate limiter under burst updates; CoV 15% at N=5 / ~12% at N=30 is inherent to the Interlocked-based counters.",
     "RateLimitingBenchmarks.RecordFailure": "Token-bucket rate limiter under burst updates; CoV 13% at N=30 is inherent.",
-    "RateLimitingBenchmarks.AcquireAsync_SimpleRateLimiting": "Async rate limiter acquire path; CoV ~18% is inherent to the PeriodicTimer-backed refill."
+    "RateLimitingBenchmarks.AcquireAsync_SimpleRateLimiting": "Async rate limiter acquire path; CoV ~18% is inherent to the PeriodicTimer-backed refill.",
+    "RateLimitingBenchmarks.GetState": "Token-bucket rate limiter state read; CoV 15% at N=15-27 is inherent to Interlocked-based counters on shared runner.",
+    "RateLimitingBenchmarks.AcquireAndRecordSuccess_Combined": "Combined acquire+record op; CoV ~14% at N=15 is inherent to the contention path.",
+    "BulkheadBenchmarks.TryAcquireAsync_HighLimit": "SemaphoreSlim acquire on high-limit bulkhead; CoV ~10% at N=27 is inherent to the contention path."
   },
   "classes": [
     {
