@@ -18,7 +18,9 @@
     // Bench table state
     bModuleFilter: 'all', bSearch: '', bShowUnstable: true, bSortField: 'module', bSortDir: 'asc',
     // Load table state
-    lAreaFilter: 'all', lSearch: '', lSortField: 'area', lSortDir: 'asc'
+    lAreaFilter: 'all', lSearch: '', lSortField: 'area', lSortDir: 'asc',
+    // "Simulate your stack" selector — starts with Core only
+    bSelectedModules: new Set(['Core'])
   };
 
   async function boot() {
@@ -86,21 +88,84 @@
   // ═══════════════════════════════════════════════════════════════════════
   function renderBenchmarks() {
     if (!state.bench) { document.getElementById('bench-subtitle').textContent = 'No benchmark data.'; return; }
-    const o = state.bench.overall || {};
 
-    document.getElementById('bench-count').textContent = (o.totalMethods ?? 0).toLocaleString();
-    document.getElementById('bench-subtitle').textContent =
-      `${o.totalModules ?? 0} modules, ${o.totalMethods ?? 0} methods (${o.stableMethods ?? 0} stable, ${o.unstableMethods ?? 0} unstable)`;
-    const mp = [];
-    if (o.meanLatencyNs != null) mp.push(`Mean latency: ${formatNs(o.meanLatencyNs)}`);
-    if (o.meanAllocatedBytes != null) mp.push(`Mean alloc: ${formatBytes(o.meanAllocatedBytes)}`);
-    document.getElementById('bench-metrics').textContent = mp.join(' · ');
+    renderModuleSelector();
+    recalcOverallFromSelection();
 
     renderBenchTrend();
-    renderBenchStability();
     renderBenchFilters();
     renderBenchTable();
     wireBenchInteractions();
+  }
+
+  // ── "Simulate your stack" selector ─────────────────────────────────
+  function renderModuleSelector() {
+    const container = document.getElementById('bench-module-chips');
+    if (!container) return;
+    container.innerHTML = '';
+    const modules = state.bench.modules || [];
+
+    for (const m of modules) {
+      const chip = document.createElement('button');
+      const methodCount = (m.benchmarks || []).length;
+      const isCore = m.name === 'Core';
+      const isSelected = state.bSelectedModules.has(m.name);
+      chip.className = 'module-chip' + (isSelected ? ' active' : '') + (isCore ? ' locked' : '');
+      chip.textContent = `${m.name} (${methodCount})`;
+      chip.dataset.module = m.name;
+      if (!isCore) {
+        chip.addEventListener('click', () => {
+          if (state.bSelectedModules.has(m.name)) state.bSelectedModules.delete(m.name);
+          else state.bSelectedModules.add(m.name);
+          chip.classList.toggle('active');
+          recalcOverallFromSelection(); // also calls renderBenchStability()
+        });
+      }
+      container.appendChild(chip);
+    }
+
+    // Wire Reset / All buttons
+    document.getElementById('bench-select-reset')?.addEventListener('click', () => {
+      state.bSelectedModules = new Set(['Core']);
+      container.querySelectorAll('.module-chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.module === 'Core');
+      });
+      recalcOverallFromSelection();
+    });
+    document.getElementById('bench-select-all')?.addEventListener('click', () => {
+      for (const m of (state.bench.modules || [])) state.bSelectedModules.add(m.name);
+      container.querySelectorAll('.module-chip').forEach(c => c.classList.add('active'));
+      recalcOverallFromSelection();
+    });
+  }
+
+  function recalcOverallFromSelection() {
+    const modules = (state.bench.modules || []).filter(m => state.bSelectedModules.has(m.name));
+    let methods = 0, stable = 0, unstable = 0;
+    let sumMean = 0, countMean = 0, sumAlloc = 0, countAlloc = 0;
+
+    for (const m of modules) {
+      for (const b of (m.benchmarks || [])) {
+        methods++;
+        if (b.stable) stable++; else unstable++;
+        if (b.meanNs > 0) { sumMean += b.meanNs; countMean++; }
+        if (b.allocatedBytes > 0) { sumAlloc += b.allocatedBytes; countAlloc++; }
+      }
+    }
+
+    const totalModules = (state.bench.modules || []).length;
+    document.getElementById('bench-count').textContent = methods.toLocaleString();
+    document.getElementById('bench-subtitle').textContent =
+      `${modules.length} / ${totalModules} modules selected · ${methods} methods (${stable} stable, ${unstable} unstable)`;
+    const mp = [];
+    if (countMean > 0) mp.push(`Mean latency: ${formatNs(sumMean / countMean)}`);
+    if (countAlloc > 0) mp.push(`Mean alloc: ${formatBytes(sumAlloc / countAlloc)}`);
+    document.getElementById('bench-metrics').textContent = mp.join(' · ');
+
+    // Store computed stats for the stability chart
+    state._selectedStable = stable;
+    state._selectedUnstable = unstable;
+    renderBenchStability();
   }
 
   function renderBenchTrend() {
@@ -132,8 +197,10 @@
   function renderBenchStability() {
     const canvas = document.getElementById('bench-stability-chart');
     if (!canvas) return;
-    const o = state.bench.overall || {};
-    const s = o.stableMethods || 0, u = o.unstableMethods || 0, t = s + u;
+    // Use selection-filtered stats if available, otherwise fall back to global overall
+    const s = state._selectedStable ?? (state.bench.overall || {}).stableMethods ?? 0;
+    const u = state._selectedUnstable ?? (state.bench.overall || {}).unstableMethods ?? 0;
+    const t = s + u;
     if (!t) return;
     const sw = canvas.offsetWidth, sh = canvas.offsetHeight;
     if (sw < 20 || sh < 20) return; // skip if hidden tab (0 dimensions)
