@@ -1,9 +1,8 @@
 {
   "package": "Encina.Extensions.Resilience",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 4,
   "targets": {
-    "contract": 10,
     "guard": 15,
     "unit": 60
   },
@@ -11,31 +10,29 @@
     "Behaviors/StandardResiliencePipelineBehavior.cs": {
       "defaultTests": [
         "unit",
-        "guard",
-        "contract"
+        "guard"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Pipeline behavior with constructor ThrowIfNull guards. IPipelineBehavior contract tested at core level; ContractTests project doesn't reference this package."
     },
     "Configuration/StandardResilienceOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults — no guard clauses"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "DI registration extensions — no ThrowIfNull guards on parameters"
     }
   }
 }
