@@ -1,23 +1,26 @@
 {
   "package": "Encina.Aspire.Testing",
-  "generated": "2026-03-29T12:00:00Z",
+  "generated": "2026-04-13T00:00:00Z",
   "reviewed": true,
   "totalFiles": 5,
   "targets": {
     "guard": 15,
-    "integration": 10,
     "unit": 55
   },
   "files": {
     "DistributedApplicationExtensions.cs": {
-      "defaultTests": [],
-      "override": ["integration"],
-      "reason": "Extension methods on DistributedApplication (Aspire hosting) — requires real Aspire host, cannot be mocked"
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "reason": "Extension methods on DistributedApplication with 17+ ThrowIfNull guards — guards testable without real Aspire host by passing null. Integration tests deferred (require Aspire host)."
     },
     "DistributedApplicationTestingBuilderExtensions.cs": {
-      "defaultTests": [],
-      "override": ["integration"],
-      "reason": "Extension methods on IDistributedApplicationTestingBuilder — requires Aspire test builder, cannot be mocked"
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "reason": "Extension methods on IDistributedApplicationTestingBuilder with ThrowIfNull guard — guard testable without real builder."
     },
     "EncinaTestContext.cs": {
       "defaultTests": [
@@ -33,9 +36,11 @@
       "reason": "Configuration POCO with default values — only needs unit tests for defaults verification"
     },
     "FailureSimulationExtensions.cs": {
-      "defaultTests": [],
-      "override": ["integration"],
-      "reason": "Extension methods on DistributedApplication for failure simulation — requires real Aspire host"
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "reason": "Extension methods on DistributedApplication with 8+ ThrowIfNull guards — guards testable without real Aspire host by passing null. Integration tests deferred."
     }
   }
 }
