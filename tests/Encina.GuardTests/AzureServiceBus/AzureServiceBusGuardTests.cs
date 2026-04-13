@@ -7,8 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using NSubstitute;
-
 using Shouldly;
 
 namespace Encina.GuardTests.AzureServiceBus;
@@ -75,8 +73,8 @@ public sealed class AzureServiceBusGuardTests
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToQueueAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToQueueAsync<object>(null!));
     }
 
     [Fact]
@@ -87,8 +85,8 @@ public sealed class AzureServiceBusGuardTests
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishToTopicAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishToTopicAsync<object>(null!));
     }
 
     // ─── ServiceCollectionExtensions guards ───
@@ -118,7 +116,7 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public void AddEncinaAzureServiceBus_ValidConfig_Registers()
+    public void AddEncinaAzureServiceBus_ValidConfig_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -127,6 +125,7 @@ public sealed class AzureServiceBusGuardTests
             o.ConnectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
 
         result.ShouldNotBeNull();
+        services.ShouldContain(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher));
     }
 
     // ─── AzureServiceBusHealthCheck ───
