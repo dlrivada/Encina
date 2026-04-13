@@ -1,10 +1,9 @@
 {
   "package": "Encina.Cdc.SqlServer",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 6,
   "targets": {
     "guard": 15,
-    "integration": 10,
     "property": 10,
     "unit": 50
   },
@@ -23,29 +22,28 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with ThrowIfNull guard"
     },
     "SqlServerCdcConnector.cs": {
       "defaultTests": [
-        "integration"
+        "unit"
       ],
       "defaultRule": "*CdcConnector.cs",
-      "reason": "CDC connector needs real database with replication"
+      "reason": "CDC connector requires SQL Server with Change Tracking enabled — integration tests not feasible without ALTER DATABASE permissions (see tests/Encina.IntegrationTests/Cdc/SqlServer/SqlServer.md). Unit tests cover DI and configuration paths."
     },
     "SqlServerCdcLog.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Log.cs",
+      "reason": "LoggerMessage source-generated file — no guards, no invariants"
     },
     "SqlServerCdcOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults — no guard clauses"
     },
     "SqlServerCdcPosition.cs": {
       "defaultTests": [
@@ -54,7 +52,7 @@
         "property"
       ],
       "defaultRule": "*CdcPosition.cs",
-      "reason": "Position serialization with round-trip invariant"
+      "reason": "Position with ToBytes/FromBytes serialization round-trip invariant and CompareTo antisymmetry"
     }
   }
 }
