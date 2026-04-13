@@ -1,12 +1,12 @@
 {
   "package": "Encina.Messaging.Encryption.DataProtection",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 3,
   "targets": {
     "guard": 15,
     "unit": 55,
-    "contract": 20.0,
-    "property": 20.0
+    "contract": 20,
+    "property": 20
   },
   "files": {
     "DataProtectionEncryptionOptions.cs": {
@@ -14,15 +14,17 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults — no guard clauses, no invariants beyond defaults"
     },
     "DataProtectionMessageEncryptionProvider.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "contract",
+        "property"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "IMessageEncryptionProvider implementation with constructor null guards, contract obligations (encrypt/decrypt interface compliance), and encrypt→decrypt round-trip invariants"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -30,7 +32,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with ThrowIfNull guard on services parameter"
     }
   }
 }
