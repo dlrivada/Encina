@@ -67,8 +67,8 @@ public sealed class GraphQLGuardTests
             NullLogger<GraphQLEncinaBridge>.Instance,
             Options.Create(new EncinaGraphQLOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.QueryAsync<TestQuery, string>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.QueryAsync<TestQuery, string>(null!));
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public sealed class GraphQLGuardTests
             NullLogger<GraphQLEncinaBridge>.Instance,
             Options.Create(new EncinaGraphQLOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.MutateAsync<TestMutation, string>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.MutateAsync<TestMutation, string>(null!));
     }
 
     [Fact]
@@ -155,9 +155,12 @@ public sealed class GraphQLGuardTests
 
         mapped.Edges.Count.ShouldBe(2);
         mapped.Edges[0].Node.ShouldBe(5);
+        mapped.Edges[0].Cursor.ShouldBe("c1");
         mapped.Edges[1].Node.ShouldBe(5);
+        mapped.Edges[1].Cursor.ShouldBe("c2");
         mapped.TotalCount.ShouldBe(2);
         mapped.PageInfo.StartCursor.ShouldBe("c1");
+        mapped.PageInfo.EndCursor.ShouldBe("c2");
     }
 
     // ─── Connection<T> / Edge<T> / RelayPageInfo POCOs ───
@@ -205,14 +208,16 @@ public sealed class GraphQLGuardTests
     }
 
     [Fact]
-    public void AddEncinaGraphQL_ValidServices_Registers()
+    public void AddEncinaGraphQL_ValidServices_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IEncina>());
 
         var result = services.AddEncinaGraphQL();
+
         result.ShouldNotBeNull();
+        services.ShouldContain(sd => sd.ServiceType == typeof(IGraphQLEncinaBridge));
     }
 
     // ─── EncinaGraphQLOptions ───
@@ -221,6 +226,15 @@ public sealed class GraphQLGuardTests
     public void EncinaGraphQLOptions_Defaults()
     {
         var options = new EncinaGraphQLOptions();
+
         options.ShouldNotBeNull();
+        options.Path.ShouldBe("/graphql");
+        options.EnableGraphQLIDE.ShouldBeTrue();
+        options.EnableIntrospection.ShouldBeTrue();
+        options.IncludeExceptionDetails.ShouldBeFalse();
+        options.MaxExecutionDepth.ShouldBe(15);
+        options.ExecutionTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+        options.EnableSubscriptions.ShouldBeTrue();
+        options.EnablePersistedQueries.ShouldBeFalse();
     }
 }
