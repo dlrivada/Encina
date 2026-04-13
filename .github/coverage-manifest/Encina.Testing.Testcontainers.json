@@ -1,10 +1,10 @@
 {
   "package": "Encina.Testing.Testcontainers",
-  "generated": "2026-03-30T00:00:00Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 12,
   "targets": {
-    "unit": 70,
-    "guard": 30
+    "unit": 40,
+    "guard": 15
   },
   "files": {
     "ConfiguredContainerFixture.cs": {
@@ -12,24 +12,24 @@
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Fixture.cs",
+      "reason": "Generic fixture with constructor ThrowIfNull guard, ConnectionString/TryGetConnectionString error paths, and DisposeAsync pre-init no-op"
     },
     "ContainerFixtureBase.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Base.cs",
+      "reason": "Abstract base with Container property (throws pre-init), IsRunning state, ConnectionString reflection, and DisposeAsync null-container no-op"
     },
     "DatabaseIntegrationTestBase.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Base.cs",
+      "reason": "Abstract test base with constructor ThrowIfNull(fixture) guard and ConnectionString/RespawnAdapter switch expressions"
     },
     "EncinaContainers.cs": {
       "defaultTests": [
@@ -37,71 +37,64 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Factory methods with ThrowIfNull(configure) guards on every custom-config overload + default factory methods that create fixtures without Docker"
     },
     "MongoDbContainerFixture.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Fixture.cs",
+      "reason": "Concrete fixture with BuildContainer() — exercised by construction; no guard clauses of its own"
     },
     "MySqlContainerFixture.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Fixture.cs",
+      "reason": "Concrete fixture with BuildContainer() — exercised by construction; no guard clauses of its own"
     },
     "MySqlIntegrationTestBase.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Base.cs",
+      "reason": "Thin abstract base inheriting DatabaseIntegrationTestBase<MySqlContainerFixture> — guard is on the parent"
     },
     "PostgreSqlContainerFixture.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Fixture.cs",
+      "reason": "Concrete fixture with BuildContainer() — exercised by construction; no guard clauses of its own"
     },
     "PostgreSqlIntegrationTestBase.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Base.cs",
+      "reason": "Thin abstract base inheriting DatabaseIntegrationTestBase<PostgreSqlContainerFixture> — guard is on the parent"
     },
     "RedisContainerFixture.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Fixture.cs",
+      "reason": "Concrete fixture with BuildContainer() — exercised by construction; no guard clauses of its own"
     },
     "SqlServerContainerFixture.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Fixture.cs",
+      "reason": "Concrete fixture with ResolveConfigValue (3 branches: parameter, env var, default) + custom constructor parameters"
     },
     "SqlServerIntegrationTestBase.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Base.cs",
+      "reason": "Thin abstract base inheriting DatabaseIntegrationTestBase<SqlServerContainerFixture> — guard is on the parent"
     }
   }
 }
