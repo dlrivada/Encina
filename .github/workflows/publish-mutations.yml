@@ -133,7 +133,7 @@ jobs:
           # Guard: do not overwrite the dashboard with an empty report.
           # When --since filters out all mutants, total=0 — keep the existing
           # latest.json which has the last real run's data.
-          TOTAL=$(grep -o '"total":[0-9]*' _site/mutations/data/latest-candidate.json | head -1 | grep -o '[0-9]*' || echo "0")
+          TOTAL=$(grep -o '"total": *[0-9]*' _site/mutations/data/latest-candidate.json | head -1 | grep -o '[0-9]*' || echo "0")
           if [ "$TOTAL" -gt 0 ]; then
             echo "Mutation data has $TOTAL mutants — updating latest.json"
             mv _site/mutations/data/latest-candidate.json _site/mutations/data/latest.json
