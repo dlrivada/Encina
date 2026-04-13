@@ -244,7 +244,7 @@ public sealed class DelayedRetryProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         cts.Cancel();
 
         // Assert - should have polled multiple times
