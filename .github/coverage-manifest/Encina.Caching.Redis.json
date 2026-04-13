@@ -1,57 +1,36 @@
 {
   "package": "Encina.Caching.Redis",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 6,
   "targets": {
     "guard": 20,
     "unit": 60,
-    "integration": 29.0
+    "integration": 29
   },
   "files": {
     "GlobalSuppressions.cs": {
       "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "Health/RedisHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "defaultTests": ["unit", "integration"],
+      "reason": "Health check — no constructor ThrowIfNull guards. Integration tests exercise with real Redis."
     },
     "RedisCacheProvider.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "defaultTests": ["unit", "guard", "integration"],
+      "reason": "Cache provider with 12 ThrowIfNull guards. Integration tests exercise with real Redis via Testcontainers."
     },
     "RedisDistributedLockProvider.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Lock provider with 7 ThrowIfNull guards"
     },
     "RedisPubSubProvider.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Pub/sub provider with 14 ThrowIfNull guards"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": ["unit", "guard"],
+      "reason": "DI registration with 12 ThrowIfNull/ThrowIfNullOrEmpty guards across 4 overloads"
     }
   }
 }
