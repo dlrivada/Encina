@@ -1,11 +1,11 @@
 {
   "package": "Encina.Quartz",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 9,
   "targets": {
     "guard": 15,
     "unit": 60,
-    "property": 26.0
+    "property": 26
   },
   "files": {
     "EncinaQuartzOptions.cs": {
@@ -13,61 +13,62 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults — no guard clauses"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "Health/QuartzHealthCheck.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "property"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check — no constructor null guards. Property tests exercise health check invariants."
     },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates — no guards, no invariants"
     },
     "Properties/AssemblyInfo.cs": {
       "defaultTests": [],
       "defaultRule": "AssemblyInfo.cs",
-      "reason": "Assembly metadata"
+      "reason": "Assembly metadata — no executable code"
     },
     "QuartzConstants.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Constants.cs",
-      "reason": "Static constants, verify values"
+      "reason": "Static constants — no guard clauses"
     },
     "QuartzNotificationJob.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Job.cs",
+      "reason": "Job with constructor ThrowIfNull guards and Execute method guard. Property tests verify notification job invariants."
     },
     "QuartzRequestJob.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Job.cs",
+      "reason": "Job with constructor ThrowIfNull guards and Execute method guard. Property tests verify request job invariants."
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "DI registration extensions — no ThrowIfNull guards on parameters"
     }
   }
 }
