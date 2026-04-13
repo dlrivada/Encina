@@ -1,76 +1,69 @@
 {
   "package": "Encina.SignalR",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 9,
   "targets": {
-    "guard": 15,
     "unit": 55
   },
   "files": {
     "BroadcastToSignalRAttribute.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Attribute.cs",
+      "reason": "Attribute marker class — no guard clauses in the codebase (zero ThrowIfNull/ThrowIfNullOrWhiteSpace in the entire package)"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "Health/SignalRHealthCheck.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check — constructor has no null guards, code relies on DI framework guarantees"
     },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates — no guards, no invariants"
     },
     "MediatorHub.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Hub.cs",
+      "reason": "SignalR Hub — constructor has no null guards, depends on DI injection"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "DI registration extensions — no ThrowIfNull guards on parameters"
     },
     "SignalRNotificationBehavior.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Behavior.cs",
-      "reason": "Behavioral component"
+      "reason": "Pipeline behavior — constructor has no null guards, depends on DI injection"
     },
     "SignalRNotificationBroadcaster.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Broadcaster.cs",
+      "reason": "Broadcaster service — constructor has no null guards, depends on DI injection"
     },
     "SignalROptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults — no guard clauses"
     }
   }
 }
