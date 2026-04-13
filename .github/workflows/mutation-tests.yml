@@ -99,35 +99,60 @@ jobs:
           path: artifacts/test-baseline
           if-no-files-found: ignore
 
+      - name: Select mutation scope
+        id: scope
+        run: |
+          # Without perTest coverage (xUnit v3 + Stryker, see stryker-mutator/
+          # stryker-net#3117), AllTests mode runs ~23k tests per mutant.
+          # Stryker also loads ALL 6,181 mutants into RAM during creation even
+          # with --since, causing OOM on the 7GB runner.
+          #
+          # Strategy: restrict the --mutate glob to one folder at a time.
+          # Schedule rotates weekly; dispatch can override.
+          #
+          # Each folder produces ~30-150 mutants = 1-3h in AllTests mode.
+          FOLDERS=(
+            "**/Core/*.cs"
+            "**/Pipeline/**/*.cs"
+            "**/Dispatchers/**/*.cs"
+            "**/Validation/*.cs"
+            "**/Sharding/Migrations/**/*.cs"
+            "**/Sharding/Routing/*.cs"
+            "**/Sharding/Resharding/**/*.cs"
+            "**/Sharding/ReferenceTables/*.cs"
+            "**/Sharding/ReplicaSelection/*.cs"
+            "**/Modules/**/*.cs"
+          )
+
+          if [ "${{ inputs.full_mode }}" = "true" ]; then
+            SCOPE="**/*.cs"
+          elif [ "${{ inputs.diff_mode }}" = "true" ]; then
+            SCOPE="**/*.cs"
+          else
+            # Rotate based on ISO week number
+            WEEK=$(date -u +%V)
+            IDX=$(( 10#$WEEK % ${#FOLDERS[@]} ))
+            SCOPE="${FOLDERS[$IDX]}"
+          fi
+
+          echo "scope=$SCOPE" >> "$GITHUB_OUTPUT"
+          echo "Selected mutation scope: $SCOPE"
+
       - name: Run mutation tests
         id: stryker
         run: |
           mkdir -p artifacts/mutation
-          # Three modes:
-          # 1. diff_mode: only files changed vs main (PR-style)
-          # 2. full_mode: mutate everything (very slow)
-          # 3. default (schedule + dispatch): only recent changes (~20 commits)
-          #
-          # coverage-analysis is "off" due to xUnit v3 incompatibility
-          # (stryker-mutator/stryker-net#3117). --since keeps scope manageable.
-          # Stryker needs a real SHA — HEAD~N notation is not supported.
+          SCOPE="${{ steps.scope.outputs.scope }}"
+
           if [ "${{ inputs.diff_mode }}" = "true" ]; then
             echo "Mode: diff (vs main)"
-            dotnet run --file .github/scripts/run-stryker.cs -- --since:main
+            dotnet run --file .github/scripts/run-stryker.cs -- --since:main "--mutate:$SCOPE"
           elif [ "${{ inputs.full_mode }}" = "true" ]; then
-            echo "Mode: full (all files, no --since)"
+            echo "Mode: full (all files — will take hours)"
             dotnet run --file .github/scripts/run-stryker.cs
           else
-            # Find a since target that guarantees source-code changes exist.
-            # Pick the 3rd most recent commit that touched src/Encina/ *.cs files.
-            # Without perTest coverage (xUnit v3 bug), AllTests mode runs ~23k tests
-            # per mutant. n=3 ≈ 3-6 changed files ≈ 30-80 mutants ≈ 1-3h.
-            SINCE_SHA=$(git log --diff-filter=ACDMR -n 3 --format='%H' -- 'src/Encina/' | tail -1)
-            if [ -z "$SINCE_SHA" ]; then
-              SINCE_SHA=$(git rev-list --max-parents=0 HEAD)
-            fi
-            echo "Mode: since 50th source-code commit ($SINCE_SHA)"
-            dotnet run --file .github/scripts/run-stryker.cs -- "--since:$SINCE_SHA"
+            echo "Mode: weekly rotation (scope: $SCOPE)"
+            dotnet run --file .github/scripts/run-stryker.cs -- "--mutate:$SCOPE"
           fi
 
       - name: Upload Stryker logs
