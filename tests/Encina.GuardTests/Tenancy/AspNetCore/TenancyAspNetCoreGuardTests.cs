@@ -37,8 +37,8 @@ public sealed class TenancyAspNetCoreGuardTests
     public async Task ClaimTenantResolver_NullContext_Throws()
     {
         var sut = new ClaimTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ResolveAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ResolveAsync(null!));
     }
 
     // ─── HeaderTenantResolver guards ───
@@ -61,8 +61,8 @@ public sealed class TenancyAspNetCoreGuardTests
     public async Task HeaderTenantResolver_NullContext_Throws()
     {
         var sut = new HeaderTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ResolveAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ResolveAsync(null!));
     }
 
     // ─── RouteTenantResolver guards ───
@@ -85,8 +85,8 @@ public sealed class TenancyAspNetCoreGuardTests
     public async Task RouteTenantResolver_NullContext_Throws()
     {
         var sut = new RouteTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ResolveAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ResolveAsync(null!));
     }
 
     // ─── SubdomainTenantResolver guards ───
@@ -109,8 +109,8 @@ public sealed class TenancyAspNetCoreGuardTests
     public async Task SubdomainTenantResolver_NullContext_Throws()
     {
         var sut = new SubdomainTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ResolveAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ResolveAsync(null!));
     }
 
     // ─── ApplicationBuilderExtensions guard ───
@@ -212,6 +212,16 @@ public sealed class TenancyAspNetCoreGuardTests
     public void TenancyAspNetCoreOptions_Defaults()
     {
         var options = new TenancyAspNetCoreOptions();
+
         options.ShouldNotBeNull();
+        options.Return400WhenTenantRequired.ShouldBeTrue();
+        options.HeaderResolver.ShouldNotBeNull();
+        options.HeaderResolver.Enabled.ShouldBeTrue();
+        options.ClaimResolver.ShouldNotBeNull();
+        options.ClaimResolver.Enabled.ShouldBeTrue();
+        options.RouteResolver.ShouldNotBeNull();
+        options.RouteResolver.Enabled.ShouldBeFalse();
+        options.SubdomainResolver.ShouldNotBeNull();
+        options.SubdomainResolver.Enabled.ShouldBeFalse();
     }
 }
