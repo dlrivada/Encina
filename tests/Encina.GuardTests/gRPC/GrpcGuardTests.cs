@@ -82,8 +82,8 @@ public sealed class GrpcGuardTests
             TypeResolver,
             Options.Create(new EncinaGrpcOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendAsync(null!, []));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendAsync(null!, []));
     }
 
     [Fact]
@@ -95,8 +95,8 @@ public sealed class GrpcGuardTests
             TypeResolver,
             Options.Create(new EncinaGrpcOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendAsync("SomeType", null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendAsync("SomeType", null!));
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public sealed class GrpcGuardTests
             TypeResolver,
             Options.Create(new EncinaGrpcOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishAsync(null!, []));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishAsync(null!, []));
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public sealed class GrpcGuardTests
             TypeResolver,
             Options.Create(new EncinaGrpcOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishAsync("SomeType", null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishAsync("SomeType", null!));
     }
 
     // ─── CachingTypeResolver guards ───
@@ -168,7 +168,7 @@ public sealed class GrpcGuardTests
     [Fact]
     public void GrpcHealthCheck_Constructs()
     {
-        var sp = new ServiceCollection().BuildServiceProvider();
+        using var sp = new ServiceCollection().BuildServiceProvider();
         var sut = new GrpcHealthCheck(sp, null);
         sut.ShouldNotBeNull();
     }
@@ -183,14 +183,17 @@ public sealed class GrpcGuardTests
     }
 
     [Fact]
-    public void AddEncinaGrpc_ValidServices_Registers()
+    public void AddEncinaGrpc_ValidServices_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<IEncina>());
 
         var result = services.AddEncinaGrpc();
+
         result.ShouldNotBeNull();
+        services.ShouldContain(sd => sd.ServiceType == typeof(IGrpcEncinaService));
+        services.ShouldContain(sd => sd.ServiceType == typeof(ITypeResolver));
     }
 
     // ─── EncinaGrpcOptions ───
@@ -199,7 +202,15 @@ public sealed class GrpcGuardTests
     public void EncinaGrpcOptions_Defaults()
     {
         var options = new EncinaGrpcOptions();
+
         options.ShouldNotBeNull();
+        options.EnableReflection.ShouldBeTrue();
+        options.EnableHealthChecks.ShouldBeTrue();
+        options.MaxReceiveMessageSize.ShouldBe(4 * 1024 * 1024);
+        options.MaxSendMessageSize.ShouldBe(4 * 1024 * 1024);
+        options.EnableLoggingInterceptor.ShouldBeTrue();
+        options.DefaultDeadline.ShouldBe(TimeSpan.FromSeconds(30));
+        options.EnableCompression.ShouldBeFalse();
     }
 
     // ─── GrpcSerializationException ───
