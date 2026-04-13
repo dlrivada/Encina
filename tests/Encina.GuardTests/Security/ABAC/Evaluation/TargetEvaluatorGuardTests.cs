@@ -5,6 +5,8 @@ using NSubstitute;
 
 using Shouldly;
 
+using Target = Encina.Security.ABAC.Target;
+
 namespace Encina.GuardTests.Security.ABAC.Evaluation;
 
 /// <summary>
