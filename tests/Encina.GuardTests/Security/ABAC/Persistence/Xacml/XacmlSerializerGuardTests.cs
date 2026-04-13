@@ -1,4 +1,5 @@
 using Encina.Security.ABAC;
+using Target = Encina.Security.ABAC.Target;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Persistence.Xacml;
 
