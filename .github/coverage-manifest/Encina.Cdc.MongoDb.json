@@ -1,10 +1,9 @@
 {
   "package": "Encina.Cdc.MongoDb",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 5,
   "targets": {
     "guard": 15,
-    "integration": 10,
     "property": 10,
     "unit": 50
   },
@@ -19,10 +18,10 @@
     },
     "MongoCdcConnector.cs": {
       "defaultTests": [
-        "integration"
+        "unit"
       ],
       "defaultRule": "*CdcConnector.cs",
-      "reason": "CDC connector needs real database with replication"
+      "reason": "CDC connector requires MongoDB replica set for Change Streams — integration tests not feasible with standard Docker (see tests/Encina.IntegrationTests/Cdc/MongoDb/MongoDb.md). Unit tests cover DI and configuration paths."
     },
     "MongoCdcOptions.cs": {
       "defaultTests": [
@@ -30,7 +29,7 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and guard clauses"
     },
     "MongoCdcPosition.cs": {
       "defaultTests": [
@@ -39,7 +38,7 @@
         "property"
       ],
       "defaultRule": "*CdcPosition.cs",
-      "reason": "Position serialization with round-trip invariant"
+      "reason": "Position with ToBytes/FromBytes serialization round-trip invariant and CompareTo antisymmetry"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -47,7 +46,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with ThrowIfNull guard"
     }
   }
 }
