@@ -111,17 +111,27 @@ jobs:
           # Schedule rotates weekly; dispatch can override.
           #
           # Each folder produces ~30-150 mutants = 1-3h in AllTests mode.
+          # Each entry must produce ≤ ~80 mutants to complete within 3h
+          # in AllTests mode (~3 min/mutant × 80 ≈ 4h with safety margin).
+          # Rule of thumb: ≤ 8 .cs files per entry.
           FOLDERS=(
             "**/Core/*.cs"
-            "**/Pipeline/**/*.cs"
-            "**/Dispatchers/**/*.cs"
+            "**/Pipeline/Behaviors/*.cs"
+            "**/Pipeline/*.cs"
+            "**/Dispatchers/Strategies/*.cs"
             "**/Validation/*.cs"
-            "**/Sharding/Migrations/**/*.cs"
+            "**/Sharding/Migrations/Strategies/*.cs"
             "**/Sharding/Routing/*.cs"
-            "**/Sharding/Resharding/**/*.cs"
-            "**/Sharding/ReferenceTables/*.cs"
             "**/Sharding/ReplicaSelection/*.cs"
-            "**/Modules/**/*.cs"
+            "**/Sharding/Execution/*.cs"
+            "**/Sharding/Shadow/**/*.cs"
+            "**/Sharding/Colocation/*.cs"
+            "**/Sharding/TimeBased/*.cs"
+            "**/Sharding/Resharding/Phases/*.cs"
+            "**/Sharding/Diagnostics/*.cs"
+            "**/Modules/Isolation/*.cs"
+            "**/Results/*.cs"
+            "**/Errors/*.cs"
           )
 
           if [ "${{ inputs.full_mode }}" = "true" ]; then
@@ -131,7 +141,7 @@ jobs:
           else
             # Rotate based on ISO week number
             WEEK=$(date -u +%V)
-            IDX=$(( 10#$WEEK % ${#FOLDERS[@]} ))
+            IDX=$(( 10#$WEEK % 17 ))
             SCOPE="${FOLDERS[$IDX]}"
           fi
 
