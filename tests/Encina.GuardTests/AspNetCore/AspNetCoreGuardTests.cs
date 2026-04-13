@@ -225,14 +225,17 @@ public sealed class AspNetCoreGuardTests
     // ─── ServiceCollectionExtensions ───
 
     [Fact]
-    public void AddEncinaAspNetCore_ValidServices_Registers()
+    public void AddEncinaAspNetCore_ValidServices_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
         var result = services.AddEncinaAspNetCore();
+
         result.ShouldNotBeNull();
+        services.ShouldContain(sd => sd.ServiceType == typeof(IRequestContextAccessor));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IHttpContextAccessor));
     }
 
     // ─── EncinaAspNetCoreOptions ───
@@ -256,9 +259,33 @@ public sealed class AspNetCoreGuardTests
     // ─── ResourceAuthorizeAttribute ───
 
     [Fact]
-    public void ResourceAuthorizeAttribute_SetsPolicy()
+    public void ResourceAuthorizeAttribute_ValidPolicy_SetsPolicy()
     {
         var attr = new ResourceAuthorizeAttribute("TestPolicy");
         attr.Policy.ShouldBe("TestPolicy");
+    }
+
+    [Fact]
+    public void ResourceAuthorizeAttribute_NullPolicy_Throws()
+    {
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            new ResourceAuthorizeAttribute(null!));
+        ex.ParamName.ShouldBe("policy");
+    }
+
+    [Fact]
+    public void ResourceAuthorizeAttribute_EmptyPolicy_Throws()
+    {
+        var ex = Should.Throw<ArgumentException>(() =>
+            new ResourceAuthorizeAttribute(string.Empty));
+        ex.ParamName.ShouldBe("policy");
+    }
+
+    [Fact]
+    public void ResourceAuthorizeAttribute_WhitespacePolicy_Throws()
+    {
+        var ex = Should.Throw<ArgumentException>(() =>
+            new ResourceAuthorizeAttribute("   "));
+        ex.ParamName.ShouldBe("policy");
     }
 }
