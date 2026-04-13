@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.PII.Benchmarks.MaskingStrategyBenchmarks-20260413-184806</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]     : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method       </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Email_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>103.12 ns</td><td>1.357 ns</td><td>0.897 ns</td><td>1.00</td><td>0.01</td><td>0.0134</td><td>224 B</td><td>1.00</td>
+</tr><tr><td>Phone_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>440.84 ns</td><td>19.405 ns</td><td>12.835 ns</td><td>4.28</td><td>0.12</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>CreditCard_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>503.79 ns</td><td>21.702 ns</td><td>14.354 ns</td><td>4.89</td><td>0.14</td><td>0.0324</td><td>544 B</td><td>2.43</td>
+</tr><tr><td>SSN_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>418.11 ns</td><td>25.755 ns</td><td>17.036 ns</td><td>4.05</td><td>0.16</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>Name_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>187.34 ns</td><td>14.601 ns</td><td>9.657 ns</td><td>1.82</td><td>0.09</td><td>0.0167</td><td>280 B</td><td>1.25</td>
+</tr><tr><td>Address_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>128.97 ns</td><td>10.747 ns</td><td>7.108 ns</td><td>1.25</td><td>0.07</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>DateOfBirth_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>232.53 ns</td><td>19.395 ns</td><td>12.829 ns</td><td>2.26</td><td>0.12</td><td>0.0229</td><td>384 B</td><td>1.71</td>
+</tr><tr><td>IPAddress_Partial</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>198.37 ns</td><td>10.794 ns</td><td>7.139 ns</td><td>1.92</td><td>0.07</td><td>0.0157</td><td>264 B</td><td>1.18</td>
+</tr><tr><td>Custom_FullMasking</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>57.43 ns</td><td>1.052 ns</td><td>0.696 ns</td><td>0.56</td><td>0.01</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Short</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>70.09 ns</td><td>0.878 ns</td><td>0.581 ns</td><td>0.68</td><td>0.01</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Long</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>102.54 ns</td><td>1.014 ns</td><td>0.671 ns</td><td>0.99</td><td>0.01</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>RegexPattern</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>586.74 ns</td><td>3.753 ns</td><td>2.482 ns</td><td>5.69</td><td>0.05</td><td>0.0248</td><td>416 B</td><td>1.86</td>
+</tr><tr><td>Email_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>98.09 ns</td><td>1.253 ns</td><td>1.875 ns</td><td>1.00</td><td>0.03</td><td>0.0134</td><td>224 B</td><td>1.00</td>
+</tr><tr><td>Phone_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>423.36 ns</td><td>1.929 ns</td><td>2.704 ns</td><td>4.32</td><td>0.09</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>CreditCard_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>490.52 ns</td><td>4.459 ns</td><td>6.395 ns</td><td>5.00</td><td>0.11</td><td>0.0324</td><td>544 B</td><td>2.43</td>
+</tr><tr><td>SSN_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>417.61 ns</td><td>3.047 ns</td><td>4.560 ns</td><td>4.26</td><td>0.09</td><td>0.0310</td><td>520 B</td><td>2.32</td>
+</tr><tr><td>Name_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>188.44 ns</td><td>1.441 ns</td><td>2.157 ns</td><td>1.92</td><td>0.04</td><td>0.0167</td><td>280 B</td><td>1.25</td>
+</tr><tr><td>Address_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>124.02 ns</td><td>1.214 ns</td><td>1.702 ns</td><td>1.26</td><td>0.03</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>DateOfBirth_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>226.57 ns</td><td>1.924 ns</td><td>2.821 ns</td><td>2.31</td><td>0.05</td><td>0.0229</td><td>384 B</td><td>1.71</td>
+</tr><tr><td>IPAddress_Partial</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>182.63 ns</td><td>1.102 ns</td><td>1.580 ns</td><td>1.86</td><td>0.04</td><td>0.0157</td><td>264 B</td><td>1.18</td>
+</tr><tr><td>Custom_FullMasking</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>54.21 ns</td><td>0.224 ns</td><td>0.314 ns</td><td>0.55</td><td>0.01</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Short</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>69.96 ns</td><td>0.227 ns</td><td>0.325 ns</td><td>0.71</td><td>0.01</td><td>0.0076</td><td>128 B</td><td>0.57</td>
+</tr><tr><td>Email_Long</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>103.23 ns</td><td>2.031 ns</td><td>3.039 ns</td><td>1.05</td><td>0.04</td><td>0.0196</td><td>328 B</td><td>1.46</td>
+</tr><tr><td>RegexPattern</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>591.83 ns</td><td>1.140 ns</td><td>1.707 ns</td><td>6.04</td><td>0.12</td><td>0.0248</td><td>416 B</td><td>1.86</td>
+</tr></tbody></table>
+</body>
+</html>

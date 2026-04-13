@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.CacheOptimizationBenchmarks-20260413-180303</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.201
+  [Host]    : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+  MediumRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                  </th><th>Mean   </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Cache_TryGetValue_ThenGetOrAdd</td><td>43.6298 ns</td><td>0.1056 ns</td><td>0.1581 ns</td><td>0.974</td><td>0.01</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>TypeCheck_Cached</td><td>12.1447 ns</td><td>0.0059 ns</td><td>0.0081 ns</td><td>0.271</td><td>0.00</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>TypeCheck_Direct</td><td>0.2714 ns</td><td>0.0011 ns</td><td>0.0015 ns</td><td>0.006</td><td>0.00</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Send_Command_CacheHit</td><td>3,614.2065 ns</td><td>20.8155 ns</td><td>31.1556 ns</td><td>80.713</td><td>0.82</td><td>0.1335</td><td>2272 B</td><td>NA</td>
+</tr><tr><td>Cache_GetOrAdd_Direct</td><td>44.7801 ns</td><td>0.1726 ns</td><td>0.2530 ns</td><td>1.000</td><td>0.01</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Publish_Notification_CacheHit</td><td>1,977.9154 ns</td><td>7.7633 ns</td><td>11.3793 ns</td><td>44.171</td><td>0.35</td><td>0.0801</td><td>1384 B</td><td>NA</td>
+</tr><tr><td>Send_Query_CacheHit</td><td>3,834.0439 ns</td><td>20.3014 ns</td><td>30.3862 ns</td><td>85.622</td><td>0.82</td><td>0.1297</td><td>2248 B</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>
