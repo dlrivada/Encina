@@ -1,156 +1,91 @@
 {
   "package": "Encina.Security.AntiTampering",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 20,
   "targets": {
-    "contract": 15,
     "guard": 20,
     "unit": 70
   },
   "files": {
     "Abstractions/IKeyProvider.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/INonceStore.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/IRequestSigner.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": [],
+      "reason": "Interface — no implementation to test"
     },
     "Abstractions/IRequestSigningClient.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "AntiTamperingErrors.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "defaultTests": ["unit"],
+      "reason": "Static error factory methods — no guard clauses"
     },
     "AntiTamperingOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Options with ThrowIfNull validation guards"
     },
     "Attributes/RequireSignatureAttribute.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Attribute marker — no guard clauses"
     },
     "Diagnostics/AntiTamperingDiagnostics.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Activity/meter wrapper — no guard clauses"
     },
     "Diagnostics/AntiTamperingLogMessages.cs": {
       "defaultTests": [],
-      "defaultRule": "*LogMessages.cs",
-      "reason": "Source-generated [LoggerMessage] delegates"
-    },
-    "Health/AntiTamperingHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Source-generated [LoggerMessage] delegates — no guards"
     },
     "HMAC/HMACSigner.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "guard"],
+      "reason": "HMAC signer with ThrowIfNull guards on constructor and methods"
     },
     "HMAC/SignatureComponents.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "POCO record — no guard clauses"
     },
     "HMAC/SigningContext.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "POCO record — no guard clauses"
     },
     "HMACAlgorithm.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Enum — no guard clauses"
+    },
+    "Health/AntiTamperingHealthCheck.cs": {
+      "defaultTests": ["unit"],
+      "reason": "Health check — no constructor null guards"
     },
     "Http/RequestSigningClient.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "guard"],
+      "reason": "HTTP client with ThrowIfNull guards on constructor and methods"
     },
     "InMemoryKeyProvider.cs": {
-      "defaultTests": [],
-      "defaultRule": "*Provider.cs",
-      "reason": "Interface — no implementation"
+      "defaultTests": ["unit", "guard"],
+      "reason": "In-memory key provider with ThrowIfNull guards on constructor and methods"
     },
     "Nonce/DistributedCacheNonceStore.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Nonce store with ThrowIfNull guards"
     },
     "Nonce/InMemoryNonceStore.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Nonce store with ThrowIfNull guards"
     },
     "Pipeline/HMACValidationPipelineBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Pipeline behavior with ThrowIfNull guards on constructor"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": ["unit", "guard"],
+      "reason": "DI registration with ThrowIfNull guards"
     }
   }
 }
