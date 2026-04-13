@@ -1,44 +1,46 @@
 {
   "package": "Encina.DistributedLock.Redis",
-  "generated": "2026-03-29T13:00:00Z",
+  "generated": "2026-04-13T00:00:00Z",
   "reviewed": true,
   "totalFiles": 5,
   "targets": {
     "guard": 20,
     "unit": 60,
-    "integration": 30.0
+    "integration": 30
   },
   "files": {
     "GlobalSuppressions.cs": {
       "defaultTests": [],
-      "reason": "Only [SuppressMessage] attributes, no logic"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "Health/RedisDistributedLockHealthCheck.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
-      "reason": "Health check using IDatabase — mockeable via IConnectionMultiplexer"
+      "reason": "Health check with constructor ThrowIfNull guards. Integration tests exercise with real Redis via Testcontainers."
     },
     "RedisDistributedLockProvider.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
-      "reason": "Lock provider using IConnectionMultiplexer.GetDatabase() — fully mockeable. Covers TryAcquire, Acquire, IsLocked, Extend, Release"
+      "reason": "Lock provider with constructor + method ThrowIfNull guards. Integration tests exercise TryAcquire/Release/IsLocked with real Redis via Testcontainers."
     },
     "RedisLockOptions.cs": {
       "defaultTests": [
         "unit"
       ],
-      "reason": "Configuration POCO — only needs defaults verification, no guard (no constructor params)"
+      "reason": "Configuration POCO with defaults — no guard clauses"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "reason": "DI registration with options validation and health check toggle"
+      "reason": "DI registration with ThrowIfNull + ThrowIfNullOrEmpty guards and options validation"
     }
   }
 }
