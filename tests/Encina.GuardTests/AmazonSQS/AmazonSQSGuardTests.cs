@@ -76,8 +76,8 @@ public sealed class AmazonSQSGuardTests
         var sut = new AmazonSQSMessagePublisher(SqsClient, SnsClient,
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToQueueAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToQueueAsync<object>(null!));
     }
 
     [Fact]
@@ -86,8 +86,8 @@ public sealed class AmazonSQSGuardTests
         var sut = new AmazonSQSMessagePublisher(SqsClient, SnsClient,
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishToTopicAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishToTopicAsync<object>(null!));
     }
 
     [Fact]
@@ -96,8 +96,8 @@ public sealed class AmazonSQSGuardTests
         var sut = new AmazonSQSMessagePublisher(SqsClient, SnsClient,
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendBatchAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendBatchAsync<object>(null!));
     }
 
     [Fact]
@@ -106,8 +106,8 @@ public sealed class AmazonSQSGuardTests
         var sut = new AmazonSQSMessagePublisher(SqsClient, SnsClient,
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToFifoQueueAsync<object>(null!, "group-1"));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToFifoQueueAsync<object>(null!, "group-1"));
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public sealed class AmazonSQSGuardTests
         var sut = new AmazonSQSMessagePublisher(SqsClient, SnsClient,
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToFifoQueueAsync(new { Id = 1 }, null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToFifoQueueAsync(new { Id = 1 }, null!));
     }
 
     // ─── AmazonSQSHealthCheck ───
@@ -140,7 +140,7 @@ public sealed class AmazonSQSGuardTests
     }
 
     [Fact]
-    public void AddEncinaAmazonSQS_ValidServices_Registers()
+    public void AddEncinaAmazonSQS_ValidServices_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -148,7 +148,9 @@ public sealed class AmazonSQSGuardTests
         services.AddSingleton(SnsClient);
 
         var result = services.AddEncinaAmazonSQS(_ => { });
+
         result.ShouldNotBeNull();
+        services.ShouldContain(sd => sd.ServiceType == typeof(IAmazonSQSMessagePublisher));
     }
 
     // ─── EncinaAmazonSQSOptions defaults ───
@@ -157,6 +159,15 @@ public sealed class AmazonSQSGuardTests
     public void EncinaAmazonSQSOptions_Defaults()
     {
         var options = new EncinaAmazonSQSOptions();
+
         options.ShouldNotBeNull();
+        options.Region.ShouldBe("us-east-1");
+        options.DefaultQueueUrl.ShouldBeNull();
+        options.DefaultTopicArn.ShouldBeNull();
+        options.UseFifoQueues.ShouldBeFalse();
+        options.MaxNumberOfMessages.ShouldBe(10);
+        options.VisibilityTimeoutSeconds.ShouldBe(30);
+        options.WaitTimeSeconds.ShouldBe(20);
+        options.UseContentBasedDeduplication.ShouldBeFalse();
     }
 }
