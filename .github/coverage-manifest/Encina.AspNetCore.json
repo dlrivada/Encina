@@ -1,27 +1,25 @@
 {
   "package": "Encina.AspNetCore",
-  "generated": "2026-03-30T00:00:00Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 24,
   "targets": {
     "unit": 60,
-    "guard": 15,
-    "contract": 10
+    "guard": 15
   },
   "files": {
     "ApplicationBuilderExtensions.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "Extension methods for IApplicationBuilder — no ThrowIfNull guards on parameters"
     },
     "Authorization/AuthorizationConfiguration.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
+      "reason": "Configuration POCO with default values, no guard clauses"
     },
     "Authorization/AuthorizationConfigurationExtensions.cs": {
       "defaultTests": [
@@ -29,40 +27,34 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "Extension methods with fluent builder pattern"
     },
     "Authorization/IResourceAuthorizer.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface — no implementation to test"
     },
     "Authorization/ResourceAuthorizeAttribute.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Attribute.cs",
+      "reason": "Attribute marker class — no guard clauses beyond property assignment"
     },
     "Authorization/ResourceAuthorizer.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Authorizer.cs",
+      "reason": "Facade with ThrowIfNull and ThrowIfNullOrWhiteSpace on public methods"
     },
     "AuthorizationPipelineBehavior.cs": {
       "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
+        "unit"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Pipeline behavior — no constructor null guards; contract is IPipelineBehavior which is tested at core level. ContractTests project lacks ASP.NET Core FrameworkReference."
     },
     "DPIAEndpointExtensions.cs": {
       "defaultTests": [
@@ -70,14 +62,14 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "Endpoint mapping extensions with ThrowIfNull(endpoints)"
     },
     "EncinaAspNetCoreOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with default values, no guard clauses"
     },
     "EncinaContextMiddleware.cs": {
       "defaultTests": [
@@ -85,12 +77,12 @@
         "guard"
       ],
       "defaultRule": "*Middleware.cs",
-      "reason": "Middleware with mockeable HttpContext"
+      "reason": "Middleware with constructor accepting RequestDelegate and mockeable HttpContext invoke path"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "Health/CompositeEncinaHealthCheck.cs": {
       "defaultTests": [
@@ -98,7 +90,7 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check that aggregates IEncinaHealthCheck instances from DI — exercise CheckHealthAsync with empty/populated providers"
     },
     "Health/EmptyHealthCheck.cs": {
       "defaultTests": [
@@ -106,15 +98,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Trivial health check returning Healthy — exercise CheckHealthAsync"
     },
     "Health/EncinaHealthCheckAdapter.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Adapter.cs",
+      "reason": "Adapter with ThrowIfNull(encinaHealthCheck) constructor guard"
     },
     "Health/HealthCheckBuilderExtensions.cs": {
       "defaultTests": [
@@ -122,7 +114,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "16+ extension methods each with ThrowIfNull(builder) guard clause"
     },
     "HttpAuditContextExtensions.cs": {
       "defaultTests": [
@@ -130,7 +122,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "4 extension methods each with ThrowIfNull(context) guard clause"
     },
     "HttpDataResidencyContextExtensions.cs": {
       "defaultTests": [
@@ -138,7 +130,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "2 extension methods each with ThrowIfNull(context) guard clause"
     },
     "HttpRegionContextProvider.cs": {
       "defaultTests": [
@@ -146,20 +138,17 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Region context provider with mockeable HttpContext and IOptions dependencies"
     },
     "IRequestContextAccessor.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "Modules/IModuleWithHealthChecks.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface — no implementation to test"
     },
     "ProblemDetailsExtensions.cs": {
       "defaultTests": [
@@ -167,20 +156,20 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "Static extension methods converting EncinaError to ProblemDetails"
     },
     "Properties/AssemblyInfo.cs": {
       "defaultTests": [],
       "defaultRule": "AssemblyInfo.cs",
-      "reason": "Assembly metadata"
+      "reason": "Assembly metadata — no executable code"
     },
     "RequestContextAccessor.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Accessor.cs",
+      "reason": "IRequestContextAccessor implementation wrapping HttpContext"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -188,7 +177,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "DI registration extensions — exercise AddEncinaAspNetCore service registration"
     }
   }
 }
