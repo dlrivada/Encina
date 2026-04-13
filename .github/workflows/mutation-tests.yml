@@ -118,8 +118,15 @@ jobs:
             echo "Mode: full (all files, no --since)"
             dotnet run --file .github/scripts/run-stryker.cs
           else
-            SINCE_SHA=$(git rev-parse HEAD~20 2>/dev/null || git rev-list --max-parents=0 HEAD)
-            echo "Mode: recent changes (since $SINCE_SHA)"
+            # Find a since target that guarantees source-code changes exist.
+            # Pick the 20th most recent commit that touched src/Encina/ *.cs files.
+            # This skips CI-only/docs-only commits and always yields mutatable diff.
+            # n=20 ≈ 15-20 changed files ≈ 200-500 mutants ≈ 1-2h in AllTests mode.
+            SINCE_SHA=$(git log --diff-filter=ACDMR -n 20 --format='%H' -- 'src/Encina/' | tail -1)
+            if [ -z "$SINCE_SHA" ]; then
+              SINCE_SHA=$(git rev-list --max-parents=0 HEAD)
+            fi
+            echo "Mode: since 50th source-code commit ($SINCE_SHA)"
             dotnet run --file .github/scripts/run-stryker.cs -- "--since:$SINCE_SHA"
           fi
 
