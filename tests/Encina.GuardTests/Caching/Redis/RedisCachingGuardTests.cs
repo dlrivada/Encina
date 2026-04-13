@@ -1,16 +1,12 @@
 using Encina.Caching.Redis;
-using RedisDistributedLockProvider = Encina.Caching.Redis.RedisDistributedLockProvider;
-using RedisLockOptions = Encina.Caching.Redis.RedisLockOptions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
 using Shouldly;
-
 using StackExchange.Redis;
+using RedisDistributedLockProvider = Encina.Caching.Redis.RedisDistributedLockProvider;
+using RedisLockOptions = Encina.Caching.Redis.RedisLockOptions;
 
 namespace Encina.GuardTests.Caching.Redis;
 

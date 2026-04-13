@@ -55,7 +55,7 @@ jobs:
         run: |
           # Coverage is handled by Codecov (see ADR-023, Issue #911)
           # SonarCloud focuses on static analysis: bugs, vulnerabilities, code smells, duplication
-          # Exclusions and CPD settings are in sonar-project.properties (single source of truth)
+          # Exclusions, inclusions, and CPD settings are passed as /d: parameters below
           dotnet sonarscanner begin \
             /k:"dlrivada_Encina" \
             /o:"dlrivada" \
@@ -154,6 +154,9 @@ jobs:
             /d:sonar.issue.ignore.multicriteria.e45.resourceKey="src/Encina.MongoDB/**/*.cs" \
             /d:sonar.issue.ignore.multicriteria.e46.ruleKey=csharpsquid:S3776 \
             /d:sonar.issue.ignore.multicriteria.e46.resourceKey="src/Encina.EntityFrameworkCore/**/*.cs" \
+            /d:sonar.inclusions="src/**/*.cs,.github/workflows/**/*.yml" \
+            /d:sonar.exclusions="**/Migrations/**,**/*.g.cs,**/obj/**,**/bin/**" \
+            /d:sonar.cpd.exclusions="src/Encina.Dapper.*/**/*.cs,src/Encina.ADO.*/**/*.cs,src/Encina.Testing*/**/*.cs,src/Encina.EntityFrameworkCore/**/*.cs,src/Encina.MongoDB/**/*.cs,src/Encina.Caching.*/**/*.cs,src/Encina.DistributedLock.*/**/*.cs,src/Encina.Marten/**/*.cs" \
             /d:sonar.verbose=false
 
       - name: Build for SonarCloud analysis

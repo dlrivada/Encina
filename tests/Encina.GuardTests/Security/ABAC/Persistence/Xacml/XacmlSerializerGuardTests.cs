@@ -1,13 +1,10 @@
 using Encina.Security.ABAC;
-using Target = Encina.Security.ABAC.Target;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Persistence.Xacml;
-
 using FluentAssertions;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Rule = Encina.Security.ABAC.Rule;
+using Target = Encina.Security.ABAC.Target;
 
 namespace Encina.GuardTests.Security.ABAC.Persistence.Xacml;
 

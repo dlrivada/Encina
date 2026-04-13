@@ -1,16 +1,12 @@
 using Encina.DistributedLock.Redis;
 using Encina.DistributedLock.Redis.Health;
-using ProviderHealthCheckOptions = Encina.Messaging.Health.ProviderHealthCheckOptions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
 using Shouldly;
-
 using StackExchange.Redis;
+using ProviderHealthCheckOptions = Encina.Messaging.Health.ProviderHealthCheckOptions;
 
 namespace Encina.GuardTests.Infrastructure.DistributedLock;
 

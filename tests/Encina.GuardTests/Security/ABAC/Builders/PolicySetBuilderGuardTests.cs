@@ -1,8 +1,7 @@
 using Encina.Security.ABAC;
-using Target = Encina.Security.ABAC.Target;
 using Encina.Security.ABAC.Builders;
-
 using Shouldly;
+using Target = Encina.Security.ABAC.Target;
 
 namespace Encina.GuardTests.Security.ABAC.Builders;
 
