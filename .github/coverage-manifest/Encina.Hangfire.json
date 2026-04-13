@@ -1,11 +1,11 @@
 {
   "package": "Encina.Hangfire",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 7,
   "targets": {
     "guard": 15,
     "unit": 60,
-    "property": 28.0
+    "property": 28
   },
   "files": {
     "EncinaHangfireOptions.cs": {
@@ -13,41 +13,44 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults — no guard clauses"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "HangfireNotificationJobAdapter.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Adapter.cs",
+      "reason": "Job adapter with constructor null guards and ExecuteAsync method guard. Property tests verify notification round-trip invariants."
     },
     "HangfireRequestJobAdapter.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Adapter.cs",
+      "reason": "Job adapter with constructor null guards and ExecuteAsync method guard. Property tests verify request round-trip invariants."
     },
     "Health/HangfireHealthCheck.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies. Property tests exercise health check invariants."
     },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+      "reason": "Source-generated [LoggerMessage] delegates — no guards, no invariants"
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -55,7 +58,7 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions — no ThrowIfNull guard on services parameter but exercises registration logic"
     }
   }
 }
