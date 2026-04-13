@@ -119,10 +119,10 @@ jobs:
             dotnet run --file .github/scripts/run-stryker.cs
           else
             # Find a since target that guarantees source-code changes exist.
-            # Pick the 20th most recent commit that touched src/Encina/ *.cs files.
-            # This skips CI-only/docs-only commits and always yields mutatable diff.
-            # n=20 ≈ 15-20 changed files ≈ 200-500 mutants ≈ 1-2h in AllTests mode.
-            SINCE_SHA=$(git log --diff-filter=ACDMR -n 20 --format='%H' -- 'src/Encina/' | tail -1)
+            # Pick the 3rd most recent commit that touched src/Encina/ *.cs files.
+            # Without perTest coverage (xUnit v3 bug), AllTests mode runs ~23k tests
+            # per mutant. n=3 ≈ 3-6 changed files ≈ 30-80 mutants ≈ 1-3h.
+            SINCE_SHA=$(git log --diff-filter=ACDMR -n 3 --format='%H' -- 'src/Encina/' | tail -1)
             if [ -z "$SINCE_SHA" ]; then
               SINCE_SHA=$(git rev-list --max-parents=0 HEAD)
             fi
