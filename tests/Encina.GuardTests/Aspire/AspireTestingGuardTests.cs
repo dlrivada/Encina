@@ -1,5 +1,3 @@
-using Aspire.Hosting;
-
 using Encina.Aspire.Testing;
 
 using Shouldly;
@@ -61,22 +59,22 @@ public sealed class AspireTestingGuardTests
     [Fact]
     public async Task AssertOutboxContainsAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await DistributedApplicationExtensions.AssertOutboxContainsAsync(null!, _ => true));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => DistributedApplicationExtensions.AssertOutboxContainsAsync(null!, _ => true));
     }
 
     [Fact]
     public async Task AssertInboxProcessedAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await DistributedApplicationExtensions.AssertInboxProcessedAsync(null!, "msg-1"));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => DistributedApplicationExtensions.AssertInboxProcessedAsync(null!, "msg-1"));
     }
 
     [Fact]
     public async Task WaitForOutboxProcessingAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await DistributedApplicationExtensions.WaitForOutboxProcessingAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => DistributedApplicationExtensions.WaitForOutboxProcessingAsync(null!));
     }
 
     // ─── FailureSimulationExtensions null guards ───
@@ -126,8 +124,8 @@ public sealed class AspireTestingGuardTests
     [Fact]
     public async Task AddToDeadLetterAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await FailureSimulationExtensions.AddToDeadLetterAsync(null!, "type", "content"));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => FailureSimulationExtensions.AddToDeadLetterAsync(null!, "type", "content"));
     }
 
     // ─── EncinaTestContext ───
@@ -152,6 +150,14 @@ public sealed class AspireTestingGuardTests
     public void EncinaTestSupportOptions_Defaults()
     {
         var options = new EncinaTestSupportOptions();
+
         options.ShouldNotBeNull();
+        options.ClearOutboxBeforeTest.ShouldBeTrue();
+        options.ClearInboxBeforeTest.ShouldBeTrue();
+        options.ResetSagasBeforeTest.ShouldBeTrue();
+        options.ClearScheduledMessagesBeforeTest.ShouldBeTrue();
+        options.ClearDeadLetterBeforeTest.ShouldBeTrue();
+        options.DefaultWaitTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+        options.PollingInterval.ShouldBe(TimeSpan.FromMilliseconds(100));
     }
 }
