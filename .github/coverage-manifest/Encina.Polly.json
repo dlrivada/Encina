@@ -1,152 +1,83 @@
 {
   "package": "Encina.Polly",
-  "generated": "2026-03-27T12:05:17Z",
+  "generated": "2026-04-13T00:00:00Z",
   "totalFiles": 18,
   "targets": {
-    "contract": 10,
     "guard": 15,
     "unit": 60
   },
   "files": {
     "Attributes/BulkheadAttribute.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Attribute marker — no guard clauses"
     },
     "Attributes/CircuitBreakerAttribute.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Attribute marker — no guard clauses"
     },
     "Attributes/RateLimitAttribute.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Attribute marker — no guard clauses"
     },
     "Attributes/RetryAttribute.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit"],
+      "reason": "Attribute marker — no guard clauses"
     },
     "Behaviors/BulkheadPipelineBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "defaultTests": ["unit"],
+      "reason": "Pipeline behavior — no constructor null guards; IPipelineBehavior contract tested at core level"
     },
     "Behaviors/CircuitBreakerPipelineBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "defaultTests": ["unit"],
+      "reason": "Pipeline behavior — no constructor null guards"
     },
     "Behaviors/DatabaseCircuitBreakerPipelineBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "defaultTests": ["unit"],
+      "reason": "Pipeline behavior — no constructor null guards"
     },
     "Behaviors/RateLimitingPipelineBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "defaultTests": ["unit"],
+      "reason": "Pipeline behavior — no constructor null guards"
     },
     "Behaviors/RetryPipelineBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "defaultTests": ["unit"],
+      "reason": "Pipeline behavior — no constructor null guards"
     },
     "Bulkhead/BulkheadManager.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Manager with ThrowIfNull guards on constructor and methods"
     },
     "Bulkhead/IBulkheadManager.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+      "reason": "Only [SuppressMessage] attributes — no executable code"
     },
     "Predicates/DatabaseTransientErrorPredicate.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Predicate with ThrowIfNull guard"
     },
     "RateLimiting/AdaptiveRateLimiter.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultTests": ["unit", "guard"],
+      "reason": "Rate limiter with ThrowIfNull guards on constructor and methods"
     },
     "RateLimiting/IRateLimiter.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interface — no implementation to test"
     },
     "RateLimiting/RateLimitResult.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Result.cs",
-      "reason": "Result type"
+      "defaultTests": ["unit"],
+      "reason": "Result record — no guard clauses"
     },
     "RateLimiting/RateLimitState.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*State.cs",
-      "reason": "Saga/aggregate state with transitions"
+      "defaultTests": ["unit"],
+      "reason": "State record — no guard clauses"
     },
     "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultTests": ["unit", "guard"],
+      "reason": "DI registration with ThrowIfNull guards"
     }
   }
 }
