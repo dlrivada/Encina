@@ -284,9 +284,10 @@ Every cell is colored by the pass/warn/fail rules above. Cells with no data (fla
 ## Relationship to other measurements
 
 - **Code coverage** (this document) measures *which lines are tested*.
+- **Mutation testing** (see [`mutation-measurement-methodology.md`](mutation-measurement-methodology.md)) measures *whether the tests that cover those lines actually verify their behavior* — by injecting small defects and checking that some test fails. Coverage and mutation are complementary: 100% coverage with 0% mutation score means the tests touch the code without verifying it.
 - **Performance measurement** (see [`performance-measurement-methodology.md`](performance-measurement-methodology.md)) measures *how fast* those lines run and *how much memory* they use.
 
-The two systems share an architectural lineage — same scripts layout, same dashboard pattern, same history + recalculation model — but are independent. A code change can improve one without affecting the other, and a methodology change in one does not propagate to the other.
+The three systems share an architectural lineage — same scripts layout, same dashboard pattern, same history + recalculation model, same DocRef citation infrastructure — but are independent. A code change can improve one without affecting the others, and a methodology change in one does not propagate.
 
 ## Working with this document
 
@@ -303,5 +304,6 @@ The document is living because the methodology is living. Honesty about what we 
 - [ADR-023 — Coverage Strategy (Codecov + SonarCloud)](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md)
 - [ADR-025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md) (architectural sibling)
 - [`performance-measurement-methodology.md`](performance-measurement-methodology.md) (sibling methodology)
+- [`mutation-measurement-methodology.md`](mutation-measurement-methodology.md) (sibling methodology — mutation testing)
 - Scripts: `.github/scripts/coverage-report.cs`, `.github/scripts/coverage-history.cs`, `.github/scripts/coverage-recalculate.cs`, `.github/scripts/generate-coverage-manifest.cs`
 - Dashboard: <https://dlrivada.github.io/Encina/coverage/>
