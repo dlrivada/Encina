@@ -97,7 +97,7 @@ public sealed class AmazonSQSGuardTests
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.SendBatchAsync<object>(null!));
+            () => sut.SendBatchAsync<object>(null!).AsTask());
     }
 
     [Fact]
