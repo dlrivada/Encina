@@ -179,7 +179,6 @@ public sealed class AmazonSQSGuardTests
     {
         var options = new EncinaAmazonSQSOptions();
 
-        options.ShouldNotBeNull();
         options.Region.ShouldBe("us-east-1");
         options.DefaultQueueUrl.ShouldBeNull();
         options.DefaultTopicArn.ShouldBeNull();
