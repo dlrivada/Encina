@@ -287,6 +287,7 @@ public sealed class ArchitectureGuardTests
     {
         var result = EventIdUniquenessRule.ExtractEventIds([]);
         result.ShouldNotBeNull();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -308,6 +309,7 @@ public sealed class ArchitectureGuardTests
     {
         var result = EventIdUniquenessRule.AssertEventIdsAreGloballyUnique([]);
         result.ShouldNotBeNull();
+        result.ShouldBeEmpty();
     }
 
     [Fact]

@@ -101,7 +101,7 @@ foreach (var file in mdFiles)
         segment = tableMarkerRegex.Replace(segment, match =>
         {
             var pattern = match.Groups["pattern"].Value;
-            var table = GenerateTable(pattern, indexJson, ref warnings);
+            var table = GenerateTable(pattern, indexJson, file, ref warnings);
             tablesGenerated++;
             return $"{match.Groups[1].Value}\n{table}\n{match.Groups[2].Value}";
         });
@@ -207,7 +207,7 @@ if (warnings > 0)
 return 0;
 
 
-static string GenerateTable(string pattern, JsonObject index, ref int warnings)
+static string GenerateTable(string pattern, JsonObject index, string sourceFile, ref int warnings)
 {
     var regex = GlobToRegex(pattern);
     var matches = new List<(string Id, JsonObject Entry)>();
@@ -252,9 +252,18 @@ static string GenerateTable(string pattern, JsonObject index, ref int warnings)
         sb.AppendLine($"| {fileCell} | {score:F2}% | {killed} | {survived} | {noCov} | {total} | {lastRunShort} |");
     }
 
+    var methodologyRel = ComputeRelativePath(sourceFile, "docs/testing/mutation-measurement-methodology.md");
     sb.AppendLine();
-    sb.AppendLine($"*{matches.Count} file(s) matched `{pattern}`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md](../testing/mutation-measurement-methodology.md).*");
+    sb.AppendLine($"*{matches.Count} file(s) matched `{pattern}`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md]({methodologyRel}).*");
     return sb.ToString();
+}
+
+static string ComputeRelativePath(string sourceFile, string targetPath)
+{
+    var sourceDir = Path.GetDirectoryName(Path.GetFullPath(sourceFile)) ?? ".";
+    var targetFull = Path.GetFullPath(targetPath);
+    var rel = Path.GetRelativePath(sourceDir, targetFull);
+    return rel.Replace('\\', '/');
 }
 
 static string LookupInlineValue(string id, string field, JsonObject index, ref int warnings)
