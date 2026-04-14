@@ -194,6 +194,15 @@ public sealed class GrpcGuardTests
         result.ShouldNotBeNull();
         services.ShouldContain(sd => sd.ServiceType == typeof(IGrpcEncinaService));
         services.ShouldContain(sd => sd.ServiceType == typeof(ITypeResolver));
+
+        using var serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        serviceProvider.GetRequiredService<IGrpcEncinaService>().ShouldNotBeNull();
+        serviceProvider.GetRequiredService<ITypeResolver>().ShouldNotBeNull();
     }
 
     // ─── EncinaGrpcOptions ───
