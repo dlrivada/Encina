@@ -125,15 +125,23 @@ public sealed class AzureServiceBusGuardTests
         var result = services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
 
         result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher));
+
+        var publisherDescriptor = services.Single(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher));
+        publisherDescriptor.ImplementationType.ShouldBe(typeof(AzureServiceBusMessagePublisher));
+        publisherDescriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+
+        var clientDescriptor = services.Single(sd => sd.ServiceType == typeof(ServiceBusClient));
+        clientDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 
         await using var provider = services.BuildServiceProvider();
         var options = provider.GetService<IOptions<EncinaAzureServiceBusOptions>>();
         var client = provider.GetService<ServiceBusClient>();
+        var publisher = provider.GetService<IAzureServiceBusMessagePublisher>();
 
         options.ShouldNotBeNull();
         options.Value.ConnectionString.ShouldBe(connectionString);
         client.ShouldNotBeNull();
+        publisher.ShouldBeOfType<AzureServiceBusMessagePublisher>();
     }
 
     // ─── AzureServiceBusHealthCheck ───
