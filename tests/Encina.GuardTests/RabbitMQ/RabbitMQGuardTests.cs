@@ -77,7 +77,7 @@ public sealed class RabbitMQGuardTests
             Options.Create(new EncinaRabbitMQOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.PublishAsync<object>(null!));
+            () => sut.PublishAsync<object>(null!).AsTask());
     }
 
     [Fact]
