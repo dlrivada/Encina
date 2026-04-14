@@ -1,12 +1,6 @@
-using Encina.Messaging.Inbox;
-using Encina.Messaging.Outbox;
-using Encina.Messaging.Sagas;
-using Encina.Messaging.Scheduling;
 using Encina.Testing.Verify;
 
 using LanguageExt;
-
-using NSubstitute;
 
 using Shouldly;
 
@@ -180,8 +174,9 @@ public sealed class VerifyGuardTests
     // ─── EncinaVerifySettings ───
 
     [Fact]
-    public void EncinaVerifySettings_Type_Exists()
+    public void EncinaVerifySettings_Constructs()
     {
-        typeof(EncinaVerifySettings).ShouldNotBeNull();
+        var settings = new EncinaVerifySettings();
+        settings.ShouldNotBeNull();
     }
 }
