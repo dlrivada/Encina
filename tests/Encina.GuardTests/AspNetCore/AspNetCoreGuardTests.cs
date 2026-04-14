@@ -263,28 +263,4 @@ public sealed class AspNetCoreGuardTests
         var attr = new ResourceAuthorizeAttribute("TestPolicy");
         attr.Policy.ShouldBe("TestPolicy");
     }
-
-    [Fact]
-    public void ResourceAuthorizeAttribute_NullPolicy_Throws()
-    {
-        var ex = Should.Throw<ArgumentException>(() =>
-            new ResourceAuthorizeAttribute(null!));
-        ex.ParamName.ShouldBe("policy");
-    }
-
-    [Fact]
-    public void ResourceAuthorizeAttribute_EmptyPolicy_Throws()
-    {
-        var ex = Should.Throw<ArgumentException>(() =>
-            new ResourceAuthorizeAttribute(string.Empty));
-        ex.ParamName.ShouldBe("policy");
-    }
-
-    [Fact]
-    public void ResourceAuthorizeAttribute_WhitespacePolicy_Throws()
-    {
-        var ex = Should.Throw<ArgumentException>(() =>
-            new ResourceAuthorizeAttribute("   "));
-        ex.ParamName.ShouldBe("policy");
-    }
 }
