@@ -68,7 +68,7 @@ public sealed class GraphQLGuardTests
             Options.Create(new EncinaGraphQLOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.QueryAsync<TestQuery, string>(null!));
+            () => sut.QueryAsync<TestQuery, string>(null!).AsTask());
     }
 
     [Fact]
