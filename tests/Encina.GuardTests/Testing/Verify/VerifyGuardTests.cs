@@ -171,12 +171,4 @@ public sealed class VerifyGuardTests
         prepared.ShouldNotBeNull();
     }
 
-    // ─── EncinaVerifySettings ───
-
-    [Fact]
-    public void EncinaVerifySettings_Constructs()
-    {
-        var settings = new EncinaVerifySettings();
-        settings.ShouldNotBeNull();
-    }
 }
