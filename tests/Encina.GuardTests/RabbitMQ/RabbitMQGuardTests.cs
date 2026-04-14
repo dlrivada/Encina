@@ -88,7 +88,7 @@ public sealed class RabbitMQGuardTests
             Options.Create(new EncinaRabbitMQOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendToQueueAsync<object>(null!, new { }));
+            () => sut.SendToQueueAsync<object>(null!, new { }).AsTask());
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class RabbitMQGuardTests
             Options.Create(new EncinaRabbitMQOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendToQueueAsync<object>("queue", null!));
+            () => sut.SendToQueueAsync<object>("queue", null!).AsTask());
     }
 
     [Fact]
