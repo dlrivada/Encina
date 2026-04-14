@@ -234,7 +234,6 @@ public sealed class GraphQLGuardTests
     {
         var options = new EncinaGraphQLOptions();
 
-        options.ShouldNotBeNull();
         options.Path.ShouldBe("/graphql");
         options.EnableGraphQLIDE.ShouldBeTrue();
         options.EnableIntrospection.ShouldBeTrue();
