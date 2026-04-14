@@ -2,6 +2,7 @@ using Azure.Messaging.ServiceBus;
 
 using Encina.AzureServiceBus;
 using Encina.AzureServiceBus.Health;
+using Encina.Messaging.Health;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -142,6 +143,117 @@ public sealed class AzureServiceBusGuardTests
         options.Value.ConnectionString.ShouldBe(connectionString);
         client.ShouldNotBeNull();
         publisher.ShouldBeOfType<AzureServiceBusMessagePublisher>();
+    }
+
+    [Fact]
+    public async Task AddEncinaAzureServiceBus_ReturnsSameServiceCollection()
+    {
+        var services = new ServiceCollection();
+        const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
+
+        var result = services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
+
+        result.ShouldBeSameAs(services);
+        await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task AddEncinaAzureServiceBus_ValidConfig_RegistersOptionsDefaults()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
+
+        services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
+
+        await using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<EncinaAzureServiceBusOptions>>();
+
+        options.Value.DefaultQueueName.ShouldBe("encina-commands");
+        options.Value.DefaultTopicName.ShouldBe("encina-events");
+        options.Value.SubscriptionName.ShouldBe("default");
+    }
+
+    [Fact]
+    public async Task AddEncinaAzureServiceBus_ValidConfig_ServiceBusClientIsSingleton()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
+
+        services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
+
+        await using var provider = services.BuildServiceProvider();
+        var client1 = provider.GetRequiredService<ServiceBusClient>();
+        var client2 = provider.GetRequiredService<ServiceBusClient>();
+
+        client1.ShouldBeSameAs(client2);
+    }
+
+    [Fact]
+    public async Task AddEncinaAzureServiceBus_ValidConfig_PublisherIsScopedDifferentPerScope()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
+
+        services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
+
+        await using var provider = services.BuildServiceProvider();
+
+        await using var scope1 = provider.CreateAsyncScope();
+        await using var scope2 = provider.CreateAsyncScope();
+
+        var publisher1 = scope1.ServiceProvider.GetRequiredService<IAzureServiceBusMessagePublisher>();
+        var publisher2 = scope2.ServiceProvider.GetRequiredService<IAzureServiceBusMessagePublisher>();
+
+        publisher1.ShouldNotBeSameAs(publisher2);
+    }
+
+    [Fact]
+    public async Task AddEncinaAzureServiceBus_ValidConfig_CalledTwice_DoesNotDuplicateClientRegistration()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
+
+        services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
+        services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
+
+        var clientDescriptors = services.Where(sd => sd.ServiceType == typeof(ServiceBusClient)).ToList();
+        clientDescriptors.Count.ShouldBe(1);
+
+        var publisherDescriptors = services.Where(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher)).ToList();
+        publisherDescriptors.Count.ShouldBe(1);
+
+        await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task AddEncinaAzureServiceBus_ValidConfig_HealthCheckRegisteredByDefault()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
+
+        services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
+
+        var healthCheckDescriptor = services.SingleOrDefault(sd => sd.ServiceType == typeof(IEncinaHealthCheck));
+        healthCheckDescriptor.ShouldNotBeNull();
+
+        await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_NullMessage_Throws()
+    {
+        await using var client = CreateMockClient();
+        var sut = new AzureServiceBusMessagePublisher(client,
+            NullLogger<AzureServiceBusMessagePublisher>.Instance,
+            Options.Create(new EncinaAzureServiceBusOptions()));
+
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ScheduleAsync<object>(null!, DateTimeOffset.UtcNow).AsTask());
     }
 
     // ─── AzureServiceBusHealthCheck ───
