@@ -13,6 +13,7 @@ var historyPath = "docs/mutations/data/history.json";
 var srcRoot = "src/Encina";
 var runId = 0L;
 var scope = "";
+var mergeFromPath = "";
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -22,6 +23,7 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--src-root" && i + 1 < args.Length) srcRoot = args[++i];
     if (args[i] == "--run-id" && i + 1 < args.Length) runId = long.Parse(args[++i]);
     if (args[i] == "--scope" && i + 1 < args.Length) scope = args[++i];
+    if (args[i] == "--merge-from" && i + 1 < args.Length) mergeFromPath = args[++i];
 }
 
 if (!File.Exists(reportPath))
@@ -117,6 +119,79 @@ foreach (var fileEntry in files.EnumerateObject())
     if (fileCounts.TotalConsidered > 0 || fileCounts.CompileErrors > 0)
     {
         pc.Files.Add(new FileEntry(relativePath, fileCounts));
+    }
+}
+
+// Track which files this run reported (for merge).
+var filesInThisRun = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+foreach (var pc in packageCounts.Values)
+{
+    foreach (var f in pc.Files)
+    {
+        filesInThisRun.Add(pc.Name + "/" + f.Path);
+    }
+}
+
+// ── Merge: carry forward files from previous latest.json that weren't
+// in this run. This lets the weekly folder rotation build a cumulative
+// picture instead of each run wiping out data from previous folders.
+if (!string.IsNullOrEmpty(mergeFromPath) && File.Exists(mergeFromPath))
+{
+    try
+    {
+        var previous = JsonNode.Parse(File.ReadAllText(mergeFromPath));
+        if (previous?["packages"] is JsonArray prevPkgs)
+        {
+            foreach (var prevPkgNode in prevPkgs)
+            {
+                if (prevPkgNode is not JsonObject prevPkg) continue;
+                var pkgName = prevPkg["name"]?.GetValue<string>() ?? "";
+                if (prevPkg["files"] is not JsonArray prevFiles || prevFiles.Count == 0) continue;
+
+                // Ensure package exists in current data
+                if (!packageCounts.TryGetValue(pkgName, out var pc))
+                {
+                    pc = new PackageCounts(pkgName);
+                    packageCounts[pkgName] = pc;
+                }
+
+                foreach (var fileNode in prevFiles)
+                {
+                    if (fileNode is not JsonObject fo) continue;
+                    var fpath = fo["path"]?.GetValue<string>() ?? "";
+                    var key = pkgName + "/" + fpath;
+                    if (filesInThisRun.Contains(key)) continue; // new run wins
+
+                    // Carry forward counts from previous snapshot
+                    int killed = fo["killed"]?.GetValue<int>() ?? 0;
+                    int survived = fo["survived"]?.GetValue<int>() ?? 0;
+                    int noCov = fo["noCoverage"]?.GetValue<int>() ?? 0;
+                    int timeouts = fo["timeouts"]?.GetValue<int>() ?? 0;
+
+                    var carriedCounts = new MutationCounts();
+                    void BulkRegister(int n, string status)
+                    {
+                        for (int i = 0; i < n; i++)
+                        {
+                            carriedCounts.Register(status);
+                            pc.Counts.Register(status);
+                            overallCounts.Register(status);
+                        }
+                    }
+                    BulkRegister(killed, "Killed");
+                    BulkRegister(survived, "Survived");
+                    BulkRegister(noCov, "NoCoverage");
+                    BulkRegister(timeouts, "Timeout");
+
+                    pc.Files.Add(new FileEntry(fpath, carriedCounts));
+                }
+            }
+            Console.WriteLine($"Merged data from {mergeFromPath}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Warning: failed to merge from {mergeFromPath}: {ex.Message}");
     }
 }
 

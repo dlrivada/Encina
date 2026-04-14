@@ -122,13 +122,28 @@ jobs:
 
           RUN_ID="${{ steps.resolve.outputs.run_id }}"
 
+          # Fetch previous latest.json from live Pages for merge.
+          # Each weekly run mutates a different folder; merging carries forward
+          # data from files not touched by this run so the dashboard accumulates.
+          MERGE_ARG=""
+          PAGES_LATEST_URL="https://dlrivada.github.io/Encina/mutations/data/latest.json"
+          if curl -fsSL -o _site/mutations/data/previous-latest.json "$PAGES_LATEST_URL" 2>/dev/null; then
+            MERGE_ARG="--merge-from _site/mutations/data/previous-latest.json"
+            echo "Will merge with previous latest.json from Pages"
+          else
+            echo "No previous latest.json on Pages — first run"
+          fi
+
           dotnet run .github/scripts/mutation-history.cs -- \
             --report "$REPORT" \
             --latest _site/mutations/data/latest-candidate.json \
             --history _site/mutations/data/history.json \
             --src-root src/Encina \
             --run-id "$RUN_ID" \
-            --scope "$SCOPE"
+            --scope "$SCOPE" \
+            $MERGE_ARG
+
+          rm -f _site/mutations/data/previous-latest.json
 
           # Guard: do not overwrite the dashboard with an empty report.
           # When --since filters out all mutants, total=0 — keep the existing
