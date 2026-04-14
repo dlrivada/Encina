@@ -28,13 +28,18 @@ public sealed class RedisDistributedLockAdditionalGuardTests
             ((IServiceCollection)null!).AddEncinaDistributedLockRedis("localhost:6379"));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void AddEncinaDistributedLockRedis_String_InvalidConnectionString_Throws(string? cs)
+    [Fact]
+    public void AddEncinaDistributedLockRedis_String_NullConnectionString_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new ServiceCollection().AddEncinaDistributedLockRedis((string)null!));
+    }
+
+    [Fact]
+    public void AddEncinaDistributedLockRedis_String_EmptyConnectionString_Throws()
     {
         Should.Throw<ArgumentException>(() =>
-            new ServiceCollection().AddEncinaDistributedLockRedis(cs!));
+            new ServiceCollection().AddEncinaDistributedLockRedis(string.Empty));
     }
 
     // ─── ServiceCollectionExtensions overload 2: (services, connectionString, configure) ───
@@ -124,8 +129,8 @@ public sealed class RedisDistributedLockAdditionalGuardTests
             Options.Create(new RedisLockOptions()),
             NullLogger<RedisDistributedLockProvider>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.TryAcquireAsync(null!, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(100), CancellationToken.None));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.TryAcquireAsync(null!, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(100), CancellationToken.None));
     }
 
     [Fact]
@@ -135,8 +140,8 @@ public sealed class RedisDistributedLockAdditionalGuardTests
             Options.Create(new RedisLockOptions()),
             NullLogger<RedisDistributedLockProvider>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.AcquireAsync(null!, TimeSpan.FromSeconds(10), CancellationToken.None));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.AcquireAsync(null!, TimeSpan.FromSeconds(10), CancellationToken.None));
     }
 
     [Fact]
@@ -146,8 +151,8 @@ public sealed class RedisDistributedLockAdditionalGuardTests
             Options.Create(new RedisLockOptions()),
             NullLogger<RedisDistributedLockProvider>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.IsLockedAsync(null!, CancellationToken.None));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.IsLockedAsync(null!, CancellationToken.None));
     }
 
     [Fact]
@@ -157,8 +162,8 @@ public sealed class RedisDistributedLockAdditionalGuardTests
             Options.Create(new RedisLockOptions()),
             NullLogger<RedisDistributedLockProvider>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ExtendAsync(null!, TimeSpan.FromSeconds(10), CancellationToken.None));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ExtendAsync(null!, TimeSpan.FromSeconds(10), CancellationToken.None));
     }
 
     // ─── RedisLockOptions defaults ───
@@ -167,6 +172,12 @@ public sealed class RedisDistributedLockAdditionalGuardTests
     public void RedisLockOptions_Defaults()
     {
         var options = new RedisLockOptions();
+
         options.ShouldNotBeNull();
+        options.Database.ShouldBe(0);
+        options.KeyPrefix.ShouldBe(string.Empty);
+        options.DefaultExpiry.ShouldBe(TimeSpan.FromSeconds(30));
+        options.DefaultWait.ShouldBe(TimeSpan.FromSeconds(10));
+        options.DefaultRetry.ShouldBe(TimeSpan.FromMilliseconds(100));
     }
 }
