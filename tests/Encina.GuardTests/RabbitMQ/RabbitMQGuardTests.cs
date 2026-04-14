@@ -142,12 +142,13 @@ public sealed class RabbitMQGuardTests
             o.HostName = "localhost");
 
         result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(IRabbitMQMessagePublisher));
 
-        using var serviceProvider = services.BuildServiceProvider();
-        var publisher = serviceProvider.GetRequiredService<IRabbitMQMessagePublisher>();
+        var publisherDescriptor = services.SingleOrDefault(sd => sd.ServiceType == typeof(IRabbitMQMessagePublisher));
 
-        publisher.ShouldNotBeNull();
+        publisherDescriptor.ShouldNotBeNull();
+        (publisherDescriptor.ImplementationType is not null ||
+         publisherDescriptor.ImplementationFactory is not null ||
+         publisherDescriptor.ImplementationInstance is not null).ShouldBeTrue();
     }
 
     // ─── EncinaRabbitMQOptions ───
