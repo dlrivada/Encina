@@ -77,8 +77,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishAsync<object>(null!).AsTask());
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.RequestAsync<object, string>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.RequestAsync<object, string>(null!).AsTask());
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.JetStreamPublishAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.JetStreamPublishAsync<object>(null!).AsTask());
     }
 
     // ─── NATSHealthCheck ───
@@ -139,6 +139,16 @@ public sealed class NATSGuardTests
         publisherDescriptors.Count.ShouldBe(1);
         publisherDescriptors[0].ImplementationType.ShouldBe(typeof(NATSMessagePublisher));
         publisherDescriptors[0].Lifetime.ShouldBe(ServiceLifetime.Scoped);
+
+        var connectionDescriptors = services
+            .Where(sd => sd.ServiceType == typeof(INatsConnection))
+            .ToList();
+        connectionDescriptors.Count.ShouldBe(1);
+        connectionDescriptors[0].Lifetime.ShouldBe(ServiceLifetime.Singleton);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<EncinaNATSOptions>>();
+        options.Value.Url.ShouldBe("nats://localhost:4222");
     }
 
     // ─── EncinaNATSOptions ───
