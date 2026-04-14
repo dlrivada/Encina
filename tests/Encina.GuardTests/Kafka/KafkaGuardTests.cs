@@ -89,7 +89,7 @@ public sealed class KafkaGuardTests
             Options.Create(new EncinaKafkaOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.ProduceWithHeadersAsync<object>(null!, new Dictionary<string, byte[]>()));
+            () => sut.ProduceWithHeadersAsync<object>(null!, new Dictionary<string, byte[]>()).AsTask());
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class KafkaGuardTests
             Options.Create(new EncinaKafkaOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.ProduceWithHeadersAsync(new { Id = 1 }, (IDictionary<string, byte[]>)null!));
+            () => sut.ProduceWithHeadersAsync(new { Id = 1 }, (IDictionary<string, byte[]>)null!).AsTask());
     }
 
     // ─── KafkaHealthCheck ───
