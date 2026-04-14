@@ -77,8 +77,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.PublishAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await sut.PublishAsync<object>(null!));
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.RequestAsync<object, string>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await sut.RequestAsync<object, string>(null!));
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.JetStreamPublishAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await sut.JetStreamPublishAsync<object>(null!));
     }
 
     // ─── NATSHealthCheck ───
@@ -132,7 +132,13 @@ public sealed class NATSGuardTests
             o.Url = "nats://localhost:4222");
 
         result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(INATSMessagePublisher));
+
+        var publisherDescriptors = services
+            .Where(sd => sd.ServiceType == typeof(INATSMessagePublisher))
+            .ToList();
+        publisherDescriptors.Count.ShouldBe(1);
+        publisherDescriptors[0].ImplementationType.ShouldBe(typeof(NATSMessagePublisher));
+        publisherDescriptors[0].Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     // ─── EncinaNATSOptions ───
