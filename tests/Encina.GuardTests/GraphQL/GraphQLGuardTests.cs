@@ -221,7 +221,7 @@ public sealed class GraphQLGuardTests
         bridgeRegistrations.Count.ShouldBe(1);
 
         var bridgeRegistration = bridgeRegistrations[0];
-        bridgeRegistration.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        bridgeRegistration.Lifetime.ShouldBe(ServiceLifetime.Scoped);
         bridgeRegistration.ImplementationType.ShouldBe(typeof(GraphQLEncinaBridge));
         bridgeRegistration.ImplementationFactory.ShouldBeNull();
         bridgeRegistration.ImplementationInstance.ShouldBeNull();
