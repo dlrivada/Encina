@@ -83,7 +83,7 @@ public sealed class GrpcGuardTests
             Options.Create(new EncinaGrpcOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendAsync(null!, []));
+            () => sut.SendAsync(null!, []).AsTask());
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class GrpcGuardTests
             Options.Create(new EncinaGrpcOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendAsync("SomeType", null!));
+            () => sut.SendAsync("SomeType", null!).AsTask());
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class GrpcGuardTests
             Options.Create(new EncinaGrpcOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.PublishAsync(null!, []));
+            () => sut.PublishAsync(null!, []).AsTask());
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class GrpcGuardTests
             Options.Create(new EncinaGrpcOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.PublishAsync("SomeType", null!));
+            () => sut.PublishAsync("SomeType", null!).AsTask());
     }
 
     // ─── CachingTypeResolver guards ───
@@ -191,25 +191,38 @@ public sealed class GrpcGuardTests
 
         var result = services.AddEncinaGrpc();
 
-        result.ShouldNotBeNull();
+        result.ShouldBe(services);
         services.ShouldContain(sd => sd.ServiceType == typeof(IGrpcEncinaService));
         services.ShouldContain(sd => sd.ServiceType == typeof(ITypeResolver));
+
+        using var serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        serviceProvider.GetRequiredService<ITypeResolver>().ShouldNotBeNull();
+
+        using var scope = serviceProvider.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IGrpcEncinaService>().ShouldNotBeNull();
     }
 
     // ─── EncinaGrpcOptions ───
 
     [Fact]
-    public void EncinaGrpcOptions_Defaults()
+    public void EncinaGrpcOptions_WhenDefaultConstructed_HasExpectedDefaults()
     {
+        const int DefaultMaxMessageSize = 4 * 1024 * 1024; // 4 MiB
+        var defaultDeadline = TimeSpan.FromSeconds(30);
+
         var options = new EncinaGrpcOptions();
 
-        options.ShouldNotBeNull();
         options.EnableReflection.ShouldBeTrue();
         options.EnableHealthChecks.ShouldBeTrue();
-        options.MaxReceiveMessageSize.ShouldBe(4 * 1024 * 1024);
-        options.MaxSendMessageSize.ShouldBe(4 * 1024 * 1024);
+        options.MaxReceiveMessageSize.ShouldBe(DefaultMaxMessageSize);
+        options.MaxSendMessageSize.ShouldBe(DefaultMaxMessageSize);
         options.EnableLoggingInterceptor.ShouldBeTrue();
-        options.DefaultDeadline.ShouldBe(TimeSpan.FromSeconds(30));
+        options.DefaultDeadline.ShouldBe(defaultDeadline);
         options.EnableCompression.ShouldBeFalse();
     }
 
@@ -242,7 +255,7 @@ public sealed class GrpcGuardTests
     // ─── EncinaGrpcOptions mutation (boundary) ───
 
     [Fact]
-    public void EncinaGrpcOptions_CanOverrideDefaults()
+    public void EncinaGrpcOptions_WhenPropertiesAreSet_OverridesDefaults()
     {
         var options = new EncinaGrpcOptions
         {

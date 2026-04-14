@@ -118,25 +118,25 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public void AddEncinaAzureServiceBus_RegistersExpectedServices_WhenConfigValid()
+    public async Task AddEncinaAzureServiceBus_RegistersExpectedServices_WhenConfigValid()
     {
+        const string ConnectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
         var services = new ServiceCollection();
         services.AddLogging();
 
-        services.AddEncinaAzureServiceBus(o =>
-            o.ConnectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
+        var result = services.AddEncinaAzureServiceBus(o => o.ConnectionString = ConnectionString);
 
-        // Verify expected service registrations
+        result.ShouldBe(services);
         services.ShouldContain(sd => sd.ServiceType == typeof(ServiceBusClient));
         services.ShouldContain(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher));
 
-        // Build provider and verify services can be resolved
-        using var provider = services.BuildServiceProvider();
-        var client = provider.GetRequiredService<ServiceBusClient>();
-        client.ShouldNotBeNull();
+        await using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<EncinaAzureServiceBusOptions>>();
+        options.Value.ConnectionString.ShouldBe(ConnectionString);
 
-        var publisher = provider.GetRequiredService<IAzureServiceBusMessagePublisher>();
-        publisher.ShouldNotBeNull();
+        await using var scope = provider.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<ServiceBusClient>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IAzureServiceBusMessagePublisher>().ShouldNotBeNull();
     }
 
     // ─── AzureServiceBusHealthCheck ───
