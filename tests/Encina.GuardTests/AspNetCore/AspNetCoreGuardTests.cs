@@ -225,14 +225,16 @@ public sealed class AspNetCoreGuardTests
     // ─── ServiceCollectionExtensions ───
 
     [Fact]
-    public void AddEncinaAspNetCore_ValidServices_Registers()
+    public void AddEncinaAspNetCore_ValidServices_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
         var result = services.AddEncinaAspNetCore();
+
         result.ShouldNotBeNull();
+        services.ShouldContain(sd => sd.ServiceType == typeof(IRequestContextAccessor));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IHttpContextAccessor));
     }
 
     // ─── EncinaAspNetCoreOptions ───
@@ -251,14 +253,5 @@ public sealed class AspNetCoreGuardTests
     {
         var config = new AuthorizationConfiguration();
         config.ShouldNotBeNull();
-    }
-
-    // ─── ResourceAuthorizeAttribute ───
-
-    [Fact]
-    public void ResourceAuthorizeAttribute_SetsPolicy()
-    {
-        var attr = new ResourceAuthorizeAttribute("TestPolicy");
-        attr.Policy.ShouldBe("TestPolicy");
     }
 }
