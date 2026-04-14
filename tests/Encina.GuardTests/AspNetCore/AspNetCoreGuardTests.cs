@@ -229,7 +229,6 @@ public sealed class AspNetCoreGuardTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
         var result = services.AddEncinaAspNetCore();
 
