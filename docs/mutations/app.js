@@ -4,6 +4,7 @@
 
   const LATEST_URL = 'data/latest.json';
   const HISTORY_URL = 'data/history.json';
+  const CITED_BY_URL = 'data/cited-by.json';
 
   // ── Helpers ──────────────────────────────────────────────────────────
   const CSS = getComputedStyle(document.documentElement);
@@ -62,6 +63,12 @@
     const res = await fetch(HISTORY_URL);
     history = res.ok ? await res.json() : [];
   } catch { history = []; }
+
+  let citedBy = {};
+  try {
+    const res = await fetch(CITED_BY_URL);
+    citedBy = res.ok ? await res.json() : {};
+  } catch { citedBy = {}; }
 
   const th = data.thresholds || { high: 85, low: 70 };
   const ov = data.overall || {};
@@ -224,6 +231,17 @@
     tbody.innerHTML = '';
     for (const f of (mod.files || [])) {
       const s = f.score ?? 0;
+      const docRef = `mut:${mod.name}/${f.path}`;
+      const citations = citedBy[docRef] || [];
+      const citationsHtml = citations.length === 0
+        ? '<span class="na" title="No documentation cites this file">—</span>'
+        : citations.map(loc => {
+            const colon = loc.lastIndexOf(':');
+            const file = colon > 0 ? loc.substring(0, colon) : loc;
+            const line = colon > 0 ? loc.substring(colon + 1) : '';
+            const url = `https://github.com/dlrivada/Encina/blob/main/${file}#L${line}`;
+            return `<a href="${url}" target="_blank" rel="noopener" title="${loc}">${file.split('/').pop()}:${line}</a>`;
+          }).join('<br>');
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${f.path}</td>
@@ -232,7 +250,8 @@
         <td class="num">${fmt(f.survived)}</td>
         <td class="num">${fmt(f.noCoverage)}</td>
         <td class="num">${fmt(f.total)}</td>
-        <td class="bar-col">${barHtml(s, thresholds)}</td>`;
+        <td class="bar-col">${barHtml(s, thresholds)}</td>
+        <td class="cited-in">${citationsHtml}</td>`;
       tbody.appendChild(tr);
     }
     section.scrollIntoView({ behavior: 'smooth' });

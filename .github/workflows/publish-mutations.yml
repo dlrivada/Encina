@@ -138,6 +138,7 @@ jobs:
             --report "$REPORT" \
             --latest _site/mutations/data/latest-candidate.json \
             --history _site/mutations/data/history.json \
+            --docref-index _site/mutations/data/docref-index-candidate.json \
             --src-root src/Encina \
             --run-id "$RUN_ID" \
             --scope "$SCOPE" \
@@ -150,28 +151,50 @@ jobs:
           # latest.json which has the last real run's data.
           TOTAL=$(grep -o '"total": *[0-9]*' _site/mutations/data/latest-candidate.json | head -1 | grep -o '[0-9]*' || echo "0")
           if [ "$TOTAL" -gt 0 ]; then
-            echo "Mutation data has $TOTAL mutants — updating latest.json"
+            echo "Mutation data has $TOTAL mutants — updating latest.json + docref-index.json"
             mv _site/mutations/data/latest-candidate.json _site/mutations/data/latest.json
+            mv _site/mutations/data/docref-index-candidate.json _site/mutations/data/docref-index.json
             STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
             cp -f _site/mutations/data/latest.json "_site/mutations/data/${STAMP}.json"
           else
             echo "No eligible mutants in report (--since filtered everything) — keeping existing latest.json"
-            rm -f _site/mutations/data/latest-candidate.json
+            rm -f _site/mutations/data/latest-candidate.json _site/mutations/data/docref-index-candidate.json
           fi
 
-      - name: Persist history.json back to repo
+      - name: Render mutref markers in documentation + build cited-by.json
+        run: |
+          # Scan docs/ AND src/ (per-package READMEs may cite mutation results).
+          dotnet run .github/scripts/mut-docs-render.cs -- \
+            --docref-index _site/mutations/data/docref-index.json \
+            --docs-root docs \
+            --scan-roots src
+
+          # Copy the freshly built cited-by.json into the Pages payload.
+          if [ -f docs/mutations/data/cited-by.json ]; then
+            cp -f docs/mutations/data/cited-by.json _site/mutations/data/cited-by.json
+          fi
+
+      - name: Persist history + docref-index + rendered docs back to repo
         continue-on-error: true
         run: |
           cp -f _site/mutations/data/history.json docs/mutations/data/history.json
+          if [ -f _site/mutations/data/docref-index.json ]; then
+            cp -f _site/mutations/data/docref-index.json docs/mutations/data/docref-index.json
+          fi
+          if [ -f _site/mutations/data/cited-by.json ]; then
+            cp -f _site/mutations/data/cited-by.json docs/mutations/data/cited-by.json
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/mutations/data/history.json
+          # Stage changes: history + index + any docs the renderer modified.
+          git add docs/mutations/data/history.json docs/mutations/data/docref-index.json docs/mutations/data/cited-by.json 2>/dev/null || true
+          git add -u docs/ src/ 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "No history changes to commit"
+            echo "No mutation-doc changes to commit"
           else
             ENTRIES=$(grep -c timestamp docs/mutations/data/history.json || echo 0)
-            git commit -m "chore: update mutation history ($ENTRIES entries)"
-            git push origin main || echo "Warning: Could not push history update"
+            git commit -m "chore: update mutation data + render mutref tables ($ENTRIES history entries)"
+            git push origin main || echo "Warning: Could not push update (branch protection?)"
           fi
 
       - name: Upload Pages artifact
