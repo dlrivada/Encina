@@ -33,7 +33,7 @@ This document outlines the vision, current status, and future direction of Encin
 |--------|---------|--------|
 | Test Count | 6,500+ | 5,000+ ✅ |
 | Line Coverage | 92.3% | ≥85% ✅ |
-| Mutation Score | 79.75% | ≥80% |
+| Mutation Score | [see dashboard](https://dlrivada.github.io/Encina/mutations/) | tracked per-package, not project-wide ([methodology](docs/testing/mutation-measurement-methodology.md)) |
 | Build Warnings | 0 | 0 ✅ |
 | SonarCloud Issues | 0 | 0 ✅ |
 
