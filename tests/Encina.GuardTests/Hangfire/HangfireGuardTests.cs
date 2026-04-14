@@ -50,8 +50,8 @@ public sealed class HangfireGuardTests
         var sut = new HangfireNotificationJobAdapter<TestNotification>(encina,
             NullLogger<HangfireNotificationJobAdapter<TestNotification>>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishAsync(null!));
     }
 
     // ─── HangfireRequestJobAdapter constructor guards ───
@@ -88,8 +88,8 @@ public sealed class HangfireGuardTests
         var sut = new HangfireRequestJobAdapter<TestRequest, TestResponse>(encina,
             NullLogger<HangfireRequestJobAdapter<TestRequest, TestResponse>>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ExecuteAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ExecuteAsync(null!));
     }
 
     // ─── HangfireHealthCheck ───
@@ -97,7 +97,7 @@ public sealed class HangfireGuardTests
     [Fact]
     public void HangfireHealthCheck_Constructs()
     {
-        var sp = new ServiceCollection().BuildServiceProvider();
+        using var sp = new ServiceCollection().BuildServiceProvider();
         var sut = new HangfireHealthCheck(sp, null);
         sut.ShouldNotBeNull();
     }
@@ -108,7 +108,9 @@ public sealed class HangfireGuardTests
     public void EncinaHangfireOptions_Defaults()
     {
         var options = new EncinaHangfireOptions();
+
         options.ShouldNotBeNull();
+        options.ProviderHealthCheck.ShouldNotBeNull();
     }
 
     // ─── Test types ───

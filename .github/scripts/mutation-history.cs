@@ -10,20 +10,24 @@ using System.Text.Json.Nodes;
 var reportPath = "artifacts/mutation/reports/mutation-report.json";
 var latestPath = "docs/mutations/data/latest.json";
 var historyPath = "docs/mutations/data/history.json";
+var docrefIndexPath = "docs/mutations/data/docref-index.json";
 var srcRoot = "src/Encina";
 var runId = 0L;
 var scope = "";
 var mergeFromPath = "";
+var dashboardBaseUrl = "https://dlrivada.github.io/Encina/mutations/";
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--report" && i + 1 < args.Length) reportPath = args[++i];
     if (args[i] == "--latest" && i + 1 < args.Length) latestPath = args[++i];
     if (args[i] == "--history" && i + 1 < args.Length) historyPath = args[++i];
+    if (args[i] == "--docref-index" && i + 1 < args.Length) docrefIndexPath = args[++i];
     if (args[i] == "--src-root" && i + 1 < args.Length) srcRoot = args[++i];
     if (args[i] == "--run-id" && i + 1 < args.Length) runId = long.Parse(args[++i]);
     if (args[i] == "--scope" && i + 1 < args.Length) scope = args[++i];
     if (args[i] == "--merge-from" && i + 1 < args.Length) mergeFromPath = args[++i];
+    if (args[i] == "--dashboard-url" && i + 1 < args.Length) dashboardBaseUrl = args[++i];
 }
 
 if (!File.Exists(reportPath))
@@ -371,6 +375,45 @@ var histDir = Path.GetDirectoryName(historyPath);
 if (histDir is not null) Directory.CreateDirectory(histDir);
 File.WriteAllText(historyPath, history.ToJsonString(options));
 Console.WriteLine($"history.json updated: {history.Count} entries");
+
+// ── Emit docref-index.json ────────────────────────────────────────────
+// One entry per file in the merged snapshot. DocRef ID format:
+//   mut:<package>/<relative-file-path>
+// Consumed by mut-docs-render.cs to expand <!-- mutref-table --> and
+// <!-- mutref --> markers in documentation, and to build cited-by.json.
+var docref = new JsonObject();
+foreach (var pc in packageCounts.Values.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+{
+    foreach (var f in pc.Files.OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase))
+    {
+        if (f.Counts.TotalConsidered == 0 && f.Counts.CompileErrors == 0) continue;
+        var id = $"mut:{pc.Name}/{f.Path}";
+        var fScore = f.Counts.TotalConsidered > 0
+            ? Math.Round(100.0 * f.Counts.Detected / f.Counts.TotalConsidered, 2)
+            : 0.0;
+        var entry = new JsonObject
+        {
+            ["package"] = pc.Name,
+            ["path"] = f.Path,
+            ["score"] = fScore,
+            ["total"] = f.Counts.TotalConsidered,
+            ["killed"] = f.Counts.Killed,
+            ["survived"] = f.Counts.Survived,
+            ["noCoverage"] = f.Counts.NoCoverage,
+            ["timeouts"] = f.Counts.Timeouts,
+            ["compileErrors"] = f.Counts.CompileErrors,
+            ["lastRun"] = timestamp,
+            ["dashboardUrl"] = $"{dashboardBaseUrl}#pkg-{Uri.EscapeDataString(pc.Name)}"
+        };
+        if (runId > 0) entry["runId"] = runId;
+        docref[id] = entry;
+    }
+}
+
+var indexDir = Path.GetDirectoryName(docrefIndexPath);
+if (indexDir is not null) Directory.CreateDirectory(indexDir);
+File.WriteAllText(docrefIndexPath, docref.ToJsonString(options));
+Console.WriteLine($"docref-index.json updated: {docref.Count} entries");
 
 return 0;
 
