@@ -1,0 +1,177 @@
+using BenchmarkDotNet.Attributes;
+using Encina.Caching.Hybrid;
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+namespace Encina.Caching.Hybrid.Benchmarks.Benchmarks;
+
+/// <summary>
+/// Benchmarks for <see cref="HybridCacheProvider"/> operations (.NET 10 multi-tier cache).
+/// </summary>
+[MemoryDiagnoser]
+[SimpleJob(warmupCount: 5, iterationCount: 20)]
+public class HybridCacheProviderBenchmarks : IDisposable
+{
+    private HybridCacheProvider _provider = null!;
+    private ServiceProvider _serviceProvider = null!;
+    private bool _disposed;
+    private string _existingKey = null!;
+    private string _missingKey = null!;
+    private TestData _testData = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var services = new ServiceCollection();
+        services.AddHybridCache();
+        services.AddDistributedMemoryCache();
+        _serviceProvider = services.BuildServiceProvider();
+
+        var hybridCache = _serviceProvider.GetRequiredService<HybridCache>();
+        var options = Options.Create(new HybridCacheProviderOptions
+        {
+            DefaultExpiration = TimeSpan.FromMinutes(5)
+        });
+
+        _provider = new HybridCacheProvider(hybridCache, options, NullLogger<HybridCacheProvider>.Instance);
+        _existingKey = "existing-key";
+        _missingKey = "missing-key";
+        _testData = new TestData(Guid.NewGuid(), "Test Name", 42);
+
+        _provider.SetAsync(_existingKey, _testData, TimeSpan.FromMinutes(5), CancellationToken.None)
+            .GetAwaiter().GetResult();
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        Dispose();
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _serviceProvider?.Dispose();
+            _disposed = true;
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/get-hit")]
+    [Benchmark(Baseline = true)]
+    public async Task<TestData?> GetAsync_CacheHit()
+    {
+        return await _provider.GetAsync<TestData>(_existingKey, CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/get-miss")]
+    [Benchmark]
+    public async Task<TestData?> GetAsync_CacheMiss()
+    {
+        return await _provider.GetAsync<TestData>(_missingKey, CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/set")]
+    [Benchmark]
+    public async Task SetAsync()
+    {
+        var key = $"set-{Guid.NewGuid():N}";
+        await _provider.SetAsync(key, _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/exists-true")]
+    [Benchmark]
+    public async Task<bool> ExistsAsync_True()
+    {
+        return await _provider.ExistsAsync(_existingKey, CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/exists-false")]
+    [Benchmark]
+    public async Task<bool> ExistsAsync_False()
+    {
+        return await _provider.ExistsAsync(_missingKey, CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/getorset-hit")]
+    [Benchmark]
+    public async Task<TestData> GetOrSetAsync_CacheHit()
+    {
+        return await _provider.GetOrSetAsync(
+            _existingKey,
+            _ => Task.FromResult(_testData),
+            TimeSpan.FromMinutes(5),
+            CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/getorset-miss")]
+    [Benchmark]
+    public async Task<TestData> GetOrSetAsync_CacheMiss()
+    {
+        var key = $"getorset-{Guid.NewGuid():N}";
+        return await _provider.GetOrSetAsync(
+            key,
+            _ => Task.FromResult(_testData),
+            TimeSpan.FromMinutes(5),
+            CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/getorset-tags")]
+    [Benchmark]
+    public async Task<TestData> GetOrSetAsync_WithTags()
+    {
+        var key = $"tagged-{Guid.NewGuid():N}";
+        return await _provider.GetOrSetAsync(
+            key,
+            _ => Task.FromResult(_testData),
+            TimeSpan.FromMinutes(5),
+            ["tag1", "tag2"],
+            CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/remove")]
+    [Benchmark]
+    public async Task RemoveAsync()
+    {
+        var key = $"remove-{Guid.NewGuid():N}";
+        await _provider.SetAsync(key, _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
+        await _provider.RemoveAsync(key, CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/remove-by-tag")]
+    [Benchmark]
+    public async Task RemoveByTagAsync()
+    {
+        var tag = $"tag-{Guid.NewGuid():N}";
+        var key = $"taggeditem-{Guid.NewGuid():N}";
+
+        await _provider.GetOrSetAsync(
+            key,
+            _ => Task.FromResult(_testData),
+            TimeSpan.FromMinutes(5),
+            [tag],
+            CancellationToken.None);
+
+        await _provider.RemoveByTagAsync(tag, CancellationToken.None);
+    }
+
+    [BenchmarkCategory("DocRef:bench:caching-hybrid/set-sliding")]
+    [Benchmark]
+    public async Task SetWithSlidingExpirationAsync()
+    {
+        var key = $"sliding-{Guid.NewGuid():N}";
+        await _provider.SetWithSlidingExpirationAsync(
+            key,
+            _testData,
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(5),
+            CancellationToken.None);
+    }
+}
+
+/// <summary>Test data record for cache benchmarks.</summary>
+public sealed record TestData(Guid Id, string Name, int Value);

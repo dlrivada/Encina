@@ -5,17 +5,12 @@ using Microsoft.Extensions.Options;
 using MsMemoryCache = Microsoft.Extensions.Caching.Memory.MemoryCache;
 using MsMemoryCacheOptions = Microsoft.Extensions.Caching.Memory.MemoryCacheOptions;
 
-namespace Encina.Caching.Benchmarks;
+namespace Encina.Caching.Memory.Benchmarks.Benchmarks;
 
 /// <summary>
-/// Benchmarks for MemoryCacheProvider operations.
+/// Benchmarks for <see cref="MemoryCacheProvider"/> operations (in-process L1 cache).
 /// </summary>
 [MemoryDiagnoser]
-// Palanca 2: iterationCount raised from 10 to 20 and warmupCount from 3 to 5 so
-// SetAsync / GetOrSetAsync_CacheMiss (CoV ~7 % at N=9) clear the two-tier
-// stability rule. SetWithSlidingExpirationAsync stays unstable because the timer-
-// backed sliding window introduces real noise (~17 % at N=28) — it is listed in
-// stabilityOverrides instead.
 [SimpleJob(warmupCount: 5, iterationCount: 20)]
 [BenchmarkCategory("Unstable")]
 public class MemoryCacheProviderBenchmarks : IDisposable
@@ -43,7 +38,6 @@ public class MemoryCacheProviderBenchmarks : IDisposable
         _missingKey = "missing-key";
         _testData = new TestData(Guid.NewGuid(), "Test Name", 42);
 
-        // Pre-populate cache
         _provider.SetAsync(_existingKey, _testData, TimeSpan.FromMinutes(5), CancellationToken.None)
             .GetAwaiter().GetResult();
     }
@@ -65,21 +59,21 @@ public class MemoryCacheProviderBenchmarks : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    [BenchmarkCategory("DocRef:bench:caching/memory-get-hit")]
+    [BenchmarkCategory("DocRef:bench:caching-memory/get-hit")]
     [Benchmark(Baseline = true)]
     public async Task<TestData?> GetAsync_CacheHit()
     {
         return await _provider.GetAsync<TestData>(_existingKey, CancellationToken.None);
     }
 
-    [BenchmarkCategory("DocRef:bench:caching/memory-get-miss")]
+    [BenchmarkCategory("DocRef:bench:caching-memory/get-miss")]
     [Benchmark]
     public async Task<TestData?> GetAsync_CacheMiss()
     {
         return await _provider.GetAsync<TestData>(_missingKey, CancellationToken.None);
     }
 
-    [BenchmarkCategory("DocRef:bench:caching/memory-set")]
+    [BenchmarkCategory("DocRef:bench:caching-memory/set")]
     [Benchmark]
     public async Task SetAsync()
     {
@@ -87,18 +81,21 @@ public class MemoryCacheProviderBenchmarks : IDisposable
         await _provider.SetAsync(key, _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/exists-true")]
     [Benchmark]
     public async Task<bool> ExistsAsync_True()
     {
         return await _provider.ExistsAsync(_existingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/exists-false")]
     [Benchmark]
     public async Task<bool> ExistsAsync_False()
     {
         return await _provider.ExistsAsync(_missingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/getorset-hit")]
     [Benchmark]
     public async Task<TestData> GetOrSetAsync_CacheHit()
     {
@@ -109,6 +106,7 @@ public class MemoryCacheProviderBenchmarks : IDisposable
             CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/getorset-miss")]
     [Benchmark]
     public async Task<TestData> GetOrSetAsync_CacheMiss()
     {
@@ -120,6 +118,7 @@ public class MemoryCacheProviderBenchmarks : IDisposable
             CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/remove")]
     [Benchmark]
     public async Task RemoveAsync()
     {
@@ -128,6 +127,7 @@ public class MemoryCacheProviderBenchmarks : IDisposable
         await _provider.RemoveAsync(key, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/set-sliding")]
     [Benchmark]
     public async Task SetWithSlidingExpirationAsync()
     {
@@ -141,4 +141,5 @@ public class MemoryCacheProviderBenchmarks : IDisposable
     }
 }
 
+/// <summary>Test data record for cache benchmarks.</summary>
 public sealed record TestData(Guid Id, string Name, int Value);
