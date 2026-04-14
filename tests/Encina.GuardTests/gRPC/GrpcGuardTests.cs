@@ -209,13 +209,14 @@ public sealed class GrpcGuardTests
 
     [Fact]
     public void EncinaGrpcOptions_Defaults()
-    {
+        const int FourMiB = 4 * 1024 * 1024;
         var options = new EncinaGrpcOptions();
 
+        options.ShouldNotBeNull();
         options.EnableReflection.ShouldBeTrue();
         options.EnableHealthChecks.ShouldBeTrue();
-        options.MaxReceiveMessageSize.ShouldBe(4 * 1024 * 1024);
-        options.MaxSendMessageSize.ShouldBe(4 * 1024 * 1024);
+        options.MaxReceiveMessageSize.ShouldBe(FourMiB);
+        options.MaxSendMessageSize.ShouldBe(FourMiB);
         options.EnableLoggingInterceptor.ShouldBeTrue();
         options.DefaultDeadline.ShouldBe(TimeSpan.FromSeconds(30));
         options.EnableCompression.ShouldBeFalse();
