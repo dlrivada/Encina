@@ -142,7 +142,6 @@ public sealed class NATSGuardTests
     {
         var options = new EncinaNATSOptions();
 
-        options.ShouldNotBeNull();
         options.Url.ShouldBe("nats://localhost:4222");
         options.SubjectPrefix.ShouldBe("encina");
         options.UseJetStream.ShouldBeFalse();
