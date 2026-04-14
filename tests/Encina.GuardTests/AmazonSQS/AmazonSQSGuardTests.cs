@@ -107,7 +107,7 @@ public sealed class AmazonSQSGuardTests
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendToFifoQueueAsync<object>(null!, "group-1"));
+            () => sut.SendToFifoQueueAsync<object>(null!, "group-1").AsTask());
     }
 
     [Fact]
