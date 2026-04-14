@@ -96,6 +96,7 @@ Before opening a PR, make sure:
 - [ ] Formatting and analyzers pass locally
 - [ ] Tests pass in Release configuration
 - [ ] Coverage does not drop below the CI threshold (90% lines)
+- [ ] If your change touches a folder with mutation data on the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/), check whether your tests would kill the relevant mutants. See [`docs/en/guides/MUTATION_TESTING.md`](docs/en/guides/MUTATION_TESTING.md) for the catalog of common mutation types and the killing patterns.
 - [ ] Pipeline behaviors follow the functional rail — no operational exceptions
 - [ ] Cross-cutting integration evaluated (see above)
 - [ ] Documentation updated if applicable

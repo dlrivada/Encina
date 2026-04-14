@@ -1,169 +1,221 @@
 # Encina Mutation Testing Guide
 
-## Goals
+> **Methodology**: [`docs/testing/mutation-measurement-methodology.md`](../../testing/mutation-measurement-methodology.md) is the contract that defines the formulas, the accumulation model, the folder rotation, and the citation system. This guide is the practical companion: how to run, interpret, and contribute.
+>
+> **Dashboard**: <https://dlrivada.github.io/Encina/mutations/>
+> **Tracking**: [#957](https://github.com/dlrivada/Encina/issues/957) (workflow stabilization, closed), [#962](https://github.com/dlrivada/Encina/issues/962) (scope widening + cited-by, closed)
 
-- Establish Stryker.NET as the baseline mutation engine for the Encina library.
-- Track actionable metrics (high 85, low 70, break 60) aligned with roadmap thresholds.
+## What mutation testing measures
 
-## Prerequisites
+Mutation testing answers: **"are the tests that cover this line strong enough to detect a real defect there?"**. Stryker injects small semantic changes (mutants) — flipping `>` to `>=`, removing a `null` check, replacing a string literal — and reports which mutants the test suite catches (`Killed`) and which it does not (`Survived`).
+
+A killed mutant is evidence the test would fail under that defect. A surviving mutant is evidence the test would pass even with the bug. **Surviving mutants are the actionable signal**.
+
+This complements coverage: coverage tells you *which* lines are tested, mutation tells you *how meaningfully*. A 100% covered line whose tests miss every mutation is a 0% mutation score — pure coverage padding. See [`coverage-measurement-methodology.md`](../../testing/coverage-measurement-methodology.md) for the coverage side.
+
+## Current state (April 2026)
+
+The Mutation Tests workflow runs weekly via GitHub Actions on the `main` branch, mutating one folder per run from a 17-entry rotation. Results accumulate per-file across runs into a single dashboard ([accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
+
+The current accumulated snapshot:
+
+<!-- mutref-table: mut:Encina/Sharding/Migrations/Strategies/* -->
+
+| File | Score | Killed | Survived | NoCov | Total | Last run |
+|------|------:|-------:|---------:|------:|------:|----------|
+| <a id="mutref-mut-Encina-Sharding-Migrations-Strategies-CanaryFirstStrategy-cs"></a>[`Sharding/Migrations/Strategies/CanaryFirstStrategy.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 9 | 0 | 9 | 2026-04-14 |
+| <a id="mutref-mut-Encina-Sharding-Migrations-Strategies-ParallelMigrationStrategy-cs"></a>[`Sharding/Migrations/Strategies/ParallelMigrationStrategy.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 21 | 0 | 21 | 2026-04-14 |
+| <a id="mutref-mut-Encina-Sharding-Migrations-Strategies-RollingUpdateStrategy-cs"></a>[`Sharding/Migrations/Strategies/RollingUpdateStrategy.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 15 | 0 | 15 | 2026-04-14 |
+| <a id="mutref-mut-Encina-Sharding-Migrations-Strategies-SequentialMigrationStrategy-cs"></a>[`Sharding/Migrations/Strategies/SequentialMigrationStrategy.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 21.43% | 3 | 11 | 0 | 14 | 2026-04-14 |
+
+*4 file(s) matched `mut:Encina/Sharding/Migrations/Strategies/*`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md](../testing/mutation-measurement-methodology.md).*
+
+<!-- /mutref-table -->
+
+<!-- mutref-table: mut:Encina/Sharding/Health/* -->
+
+| File | Score | Killed | Survived | NoCov | Total | Last run |
+|------|------:|-------:|---------:|------:|------:|----------|
+| <a id="mutref-mut-Encina-Sharding-Health-ShardHealthResult-cs"></a>[`Sharding/Health/ShardHealthResult.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 12 | 0 | 12 | 2026-04-14 |
+| <a id="mutref-mut-Encina-Sharding-Health-ShardReplicaHealthCheck-cs"></a>[`Sharding/Health/ShardReplicaHealthCheck.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 29 | 0 | 29 | 2026-04-14 |
+| <a id="mutref-mut-Encina-Sharding-Health-ShardedHealthSummary-cs"></a>[`Sharding/Health/ShardedHealthSummary.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 12 | 0 | 12 | 2026-04-14 |
+
+*3 file(s) matched `mut:Encina/Sharding/Health/*`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md](../testing/mutation-measurement-methodology.md).*
+
+<!-- /mutref-table -->
+
+The full per-package and per-file picture lives on the [dashboard](https://dlrivada.github.io/Encina/mutations/).
+
+## Running locally
+
+### Prerequisites
 
 - .NET 10 SDK installed.
-- Install Stryker CLI (`dotnet tool install --global dotnet-stryker`) if not already available.
-- Restore dependencies with `dotnet restore Encina.slnx` prior to running Stryker.
+- `dotnet tool restore` from the repository root (Stryker is pinned to v4.14.0 in `.config/dotnet-tools.json`).
 
-## Running The Suite
+### Quick run
 
-- Execute `dotnet tool run dotnet-stryker --config-file stryker-config.json --solution Encina.slnx` from the repository root.
-- Use the C# helper script for convenience: `dotnet run --file .github/scripts/run-stryker.cs`
-- Prefer Release builds to mirror CI behavior (`--configuration Release`).
-- The repository config pins `concurrency: 1` to avoid vstest runner hangs on Windows; adjust once the suite stabilizes.
+The C# helper script wraps Stryker with the repo's configuration:
 
-## Reporting
+```bash
+dotnet run --file .github/scripts/run-stryker.cs
+```
 
-- HTML report: `artifacts/mutation/<timestamp>/reports/mutation-report.html` (generated automatically).
-- Raw console output remains the primary log; redirect the helper script if a persistent log file is required.
-- Console summary highlights surviving mutants; treat anything above the break threshold as a failure condition.
+Use the same `--mutate` glob the CI rotation uses to mutate just one folder:
 
-### Current Baseline (2025-12-08)
+```bash
+dotnet run --file .github/scripts/run-stryker.cs -- \
+  "--mutate:**/Sharding/Migrations/Strategies/*.cs" \
+  "--mutate:!**/Log.cs" \
+  "--mutate:!**/LogMessages.cs" \
+  "--mutate:!**/Diagnostics/*ActivitySource.cs" \
+  "--mutate:!**/Diagnostics/*Metrics.cs" \
+  "--mutate:!**/*Errors.cs" \
+  "--mutate:!**/*Constants.cs"
+```
 
-- Mutation score: **93.74%** (449 killed, 2 survived, 0 timeout mutants) using `dotnet tool run dotnet-stryker` with the repo configuration.
-- CI runs `.github/scripts/run-stryker.cs` and enforces the baseline; refresh the README badge via `.github/scripts/update-mutation-summary.cs` right after local runs.
-- Survivors mainly sit in historical reports; the live suite is green. Keep future contributions paired with targeted tests so surviving mutants stay at zero.
+The full `**/*.cs` scope works locally given enough time (~hours) but is not feasible in CI's 350-minute runner timeout under AllTests mode. See [methodology — coverage analysis: why off](../../testing/mutation-measurement-methodology.md#coverage-analysis-why-off) for the underlying constraint.
 
-### Paused Hardening Tasks
+### Reports
 
-The dedicated mutation-hardening initiative is paused until new feature work settles. When ready to resume:
+After Stryker finishes:
 
-1. Re-run `dotnet stryker --project src/Encina/Encina.csproj --test-projects tests/Encina.UnitTests/Encina.UnitTests.csproj` to focus on the Encina core mutants (previously IDs 280–366).
-2. Investigate any survivors and add unit or property tests around metrics pipeline integration and handler result validation.
-3. Update the mutation badge and dashboard via `.github/scripts/update-mutation-summary.cs` once the new score is recorded.
+- `artifacts/mutation/reports/mutation-report.json` — raw per-mutant data
+- `artifacts/mutation/reports/mutation-report.html` — interactive HTML report (open in a browser)
+- `artifacts/mutation/logs/log-*.txt` — Stryker's trace log (when `--log-to-file` is used; CI always uses it)
 
-## Test Quality Patterns
+The C# script `.github/scripts/update-mutation-summary.cs` parses the JSON and writes a concise text summary to stdout.
 
-Encina provides helper attributes in the `Encina.Testing.Mutations` namespace to document and track mutation testing insights directly in your test code.
+## Interpreting results
 
-### NeedsMutationCoverageAttribute
+| Status | Meaning | Action |
+|--------|---------|--------|
+| `Killed` | A test failed when the mutant was injected — good. | Nothing. |
+| `Survived` | All tests passed even with the mutant. | Add or strengthen a test that detects the change. |
+| `NoCoverage` | No test covers the mutated line at all. | Add coverage first; mutation comes after. |
+| `Timeout` | A test did not finish (often an infinite loop induced by the mutant). | Counts as detected, no action needed unless the timeout is suspicious. |
+| `CompileError` | The mutant produced uncompilable code — Stryker's fault, not the test suite's. | Excluded from the score; ignore. |
+| `Ignored` | Excluded by the `mutate` filter or the `since` filter. | Excluded from the score; ignore. |
 
-Use this attribute to mark tests that have surviving mutants and need stronger assertions:
+The score formula is:
+
+```
+mutation_score = 100 × (Killed + Timeout + RuntimeError) / (Killed + Survived + NoCoverage + Timeout + RuntimeError)
+```
+
+Compile errors and ignored mutants are not in the denominator. The full reasoning is in [`mutation-measurement-methodology.md`](../../testing/mutation-measurement-methodology.md#the-mutation-score-formula).
+
+## Test quality patterns
+
+Encina ships two attributes in `Encina.Testing.Mutations` to document mutation-related decisions in test code.
+
+### `[NeedsMutationCoverage]`
+
+Mark a test that has a known surviving mutant whose detection requires a stronger assertion. The reason and (optionally) the mutant ID, source file, and line.
 
 ```csharp
 using Encina.Testing.Mutations;
 
 [Fact]
-[NeedsMutationCoverage("Boundary condition not verified - survived arithmetic mutation on line 45")]
+[NeedsMutationCoverage("Boundary not verified — survived arithmetic mutation on line 45",
+    MutantId = "280", SourceFile = "src/Calculator.cs", Line = 45)]
 public void Calculate_BoundaryValue_ShouldReturnExpectedResult()
-{
-    // Arrange
-    var calculator = new Calculator();
-
-    // Act
-    var result = calculator.Calculate(100);
-
-    // Assert - TODO: Add boundary check for 100 vs 101
-    result.ShouldBe(200);
-}
-
-// With optional metadata
-[Fact]
-[NeedsMutationCoverage("Missing null check verification", MutantId = "280", SourceFile = "src/Calculator.cs", Line = 45)]
-public void Calculate_NullInput_ShouldThrow()
 {
     // ...
 }
 ```
 
-**Workflow:**
-1. Run Stryker mutation testing
-2. Identify surviving mutants in the report
-3. Add `[NeedsMutationCoverage]` to the corresponding test with a description
-4. Strengthen the assertions to kill the mutant
-5. Remove the attribute once the mutant is killed
+The attribute is a TODO, not a forever marker — once the mutant is killed, remove it.
 
-### MutationKillerAttribute
+### `[MutationKiller]`
 
-Use this attribute to document tests explicitly written to kill specific mutation types:
+Mark a test that was specifically written to kill a particular mutation type. Useful for documenting *why* a test exists when its purpose isn't obvious from its assertions.
 
 ```csharp
-using Encina.Testing.Mutations;
-
 [Fact]
 [MutationKiller("EqualityMutation", Description = "Verifies >= is not mutated to >")]
 public void IsAdult_ExactlyEighteen_ShouldReturnTrue()
 {
-    // Arrange
     var person = new Person { Age = 18 };
-
-    // Act
-    var result = person.IsAdult(); // Uses age >= 18
-
-    // Assert - This test kills the >= to > mutation
-    result.ShouldBeTrue();
-}
-
-// With location metadata
-[Fact]
-[MutationKiller("ArithmeticMutation", SourceFile = "src/Calculator.cs", TargetMethod = "Add", Line = 25)]
-public void Add_NegativeNumbers_ShouldReturnCorrectSum()
-{
-    // ...
+    person.IsAdult().ShouldBeTrue(); // catches >= -> > mutation
 }
 ```
 
-**Common mutation types:**
-- `EqualityMutation`: `==`→`!=`, `<`→`<=`, `>`→`>=`
-- `ArithmeticMutation`: `+`→`-`, `*`→`/`, `%`→`*`
-- `BooleanMutation`: `true`→`false`, `&&`→`||`
-- `UnaryMutation`: `-x`→`x`, `!x`→`x`, `++`→`--`
-- `NullCheckMutation`: `x==null`→`x!=null`
-- `StringMutation`: `""`→`"Stryker was here!"`
-- `LinqMutation`: `First()`→`Last()`, `Any()`→`All()`
-- `BlockRemoval`: Removing entire statements
+### Common mutation types worth targeting
 
-### Best Practices
+- **EqualityMutation**: `==`↔`!=`, `<`↔`<=`, `>`↔`>=` — kill with exact-boundary tests
+- **ArithmeticMutation**: `+`↔`-`, `*`↔`/`, `%`↔`*` — kill with non-zero, non-identity inputs
+- **BooleanMutation**: `true`↔`false`, `&&`↔`||` — kill with cases where each branch matters
+- **UnaryMutation**: `-x`↔`x`, `!x`↔`x`, `++`↔`--` — kill with sign/parity-sensitive assertions
+- **NullCheckMutation**: `x == null` ↔ `x != null` — kill with both-null-and-non-null cases
+- **StringMutation**: `""` ↔ `"Stryker was here!"` — kill by asserting on actual content, not just length
+- **LinqMutation**: `First()`↔`Last()`, `Any()`↔`All()` — kill with multi-element collections where the difference matters
+- **BlockRemoval**: removing entire statements — kill by asserting on side-effects of the removed code
 
-1. **One mutation killer test per mutation type** - Keep tests focused on specific mutations
-2. **Use precise assertions** - Assertions should detect the exact code change
-3. **Document mutation location** - Include source file and line when known
-4. **Include boundary values** - Test exact boundary conditions for arithmetic/equality mutations
-5. **Multiple attributes allowed** - Tests can kill multiple mutation types
+## Workflow
 
-## CLI Integration
+The Mutation Tests workflow (`.github/workflows/mutation-tests.yml`) runs Friday at 03:00 UTC plus on `workflow_dispatch`. Three execution modes:
 
-Generate a Stryker configuration file using the Encina CLI:
+| Trigger | Mode | Scope |
+|---------|------|-------|
+| `schedule` (weekly) | Default | One folder from the 17-entry rotation, picked by ISO week number |
+| `workflow_dispatch` (default) | Default | Same as schedule |
+| `workflow_dispatch` `diff_mode: true` | Diff | `--since:main` — only files changed vs main (PR-style) |
+| `workflow_dispatch` `full_mode: true` | Full | No `--mutate` override — entire `**/*.cs`. Will exceed the timeout in current configuration. |
 
-```bash
-# Generate basic configuration
-encina generate stryker --project src/MyApp/MyApp.csproj
+After Stryker completes, `.github/workflows/publish-mutations.yml` is triggered automatically. It:
 
-# Generate with custom thresholds
-encina generate stryker --project src/MyApp/MyApp.csproj --threshold-high 85 --threshold-break 60
+1. Downloads the `mutation-report` artifact from the Mutation Tests run.
+2. Fetches the previous `latest.json` from GitHub Pages and merges it (carry-forward for files this run did not touch — see [accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
+3. Runs `mut-docs-render.cs` to expand `<!-- mutref-table -->` and `<!-- mutref -->` markers in `docs/` and `src/`, and to build `cited-by.json`.
+4. Commits any rendered doc changes back to `main`.
+5. Deploys the dashboard to <https://dlrivada.github.io/Encina/mutations/>.
 
-# Generate advanced configuration with baseline and incremental testing
-encina generate stryker --project src/MyApp/MyApp.csproj --advanced
+The publish guard refuses to overwrite the dashboard with a 0-mutant report (e.g. when `--since` filtered everything out).
 
-# Specify test projects explicitly
-encina generate stryker --project src/MyApp/MyApp.csproj -t tests/MyApp.Tests/MyApp.Tests.csproj
+## Citing mutation data in documentation
+
+Reference mutation results from any Markdown file using HTML comment markers. The `mut-docs-render.cs` step in the publish workflow expands them automatically.
+
+**Tables** (rendered in-place):
+
+```html
+<!-- mutref-table: mut:Encina/Pipeline/Behaviors/* -->
+(generated table — do not edit)
+<!-- /mutref-table -->
 ```
 
-## Recommended Thresholds
+The pattern after `mutref-table:` is a glob matched against DocRef IDs in `docs/mutations/data/docref-index.json`. `*` alone matches everything.
 
-| Project Type | Break | Low | High | Rationale |
-|--------------|-------|-----|------|-----------|
-| Core Libraries | 60% | 70% | 85% | Critical code needs strong coverage |
-| Application Code | 50% | 60% | 75% | Balance between coverage and velocity |
-| New Projects | 40% | 50% | 70% | Lower initially, increase over time |
-| Mature Projects | 70% | 80% | 90% | Established codebases should aim higher |
+**Inline values** (single metric in prose):
 
-## Tips for Effective Mutation Testing
+```html
+The current mutation score for the canary-first migration strategy is
+<!-- mutref: mut:Encina/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs:score -->0.00%<!-- /mutref -->.
+```
 
-1. **Start with a subset** - Use `--since main` to only test changed code
-2. **Use baseline mode** - Enable `baseline.enabled` to skip unchanged files
-3. **Exclude trivial code** - Methods like `ToString`, `Dispose`, `GetHashCode` add noise
-4. **Focus on killed vs survived** - Timeouts and no-coverage need attention too
-5. **Iterate on survivors** - Each surviving mutant is a potential test gap
+**Free-form prose mentions** are also captured by the cited-by index. Writing `mut:Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs` anywhere in a markdown file outside a code fence will register that doc as a citing location for that file (provided it's in the index).
 
-## Next Steps
+The dashboard's "Cited In" column shows the inverse view: for any file with mutation data, which docs cite it.
 
-- Keep the 93.74% baseline intact by refreshing the badge after every Stryker run.
-- Resume the hardening plan when feature development stabilises, starting with the paused tasks above.
-- Only introduce ignore patterns after confirming mutants are either equivalent or unreachable by design.
+See [methodology — DocRef convention](../../testing/mutation-measurement-methodology.md#docref-convention) for the full specification.
+
+## When to write a mutation-killing test
+
+Not every survivor is worth chasing. Apply judgment:
+
+- **Always kill** survivors in `Sharding`, `Pipeline`, `Validation`, `Errors`, and any code path with security or financial impact.
+- **Usually kill** survivors in `Modules`, `Dispatchers`, `Core` — these are framework hot paths used by every consumer.
+- **Equivalent mutants** (mutations that produce semantically identical code) are unkillable. Document with `[NeedsMutationCoverage("equivalent mutant: <reason>")]` if the noise is recurring.
+- **Trivial code** (logging, diagnostic plumbing, error-code tables) is excluded by the `mutate` filter — see the exclusion list in [methodology — mutate filter](../../testing/mutation-measurement-methodology.md#mutate-filter).
+
+The dashboard's per-file score is the reliable signal: anything in the `mut:Encina/...` index with a low score and a non-trivial mutant count is fair game.
+
+## Related references
+
+- [Mutation measurement methodology](../../testing/mutation-measurement-methodology.md) — formulas, accumulation, citation system
+- [Coverage measurement methodology](../../testing/coverage-measurement-methodology.md) — the obligations model and how coverage and mutation differ
+- [Performance measurement methodology](../../testing/performance-measurement-methodology.md) — the docref system this one is modelled after
+- [Stryker.NET docs](https://stryker-mutator.io/docs/stryker-net/)
+- [Issue #957](https://github.com/dlrivada/Encina/issues/957) — workflow stabilization (closed)
+- [Issue #962](https://github.com/dlrivada/Encina/issues/962) — scope widening + cited-by (closed)
