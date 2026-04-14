@@ -150,7 +150,26 @@ public sealed class AmazonSQSGuardTests
         var result = services.AddEncinaAmazonSQS(_ => { });
 
         result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(IAmazonSQSMessagePublisher));
+
+        ServiceDescriptor? publisherDescriptor = null;
+        foreach (var service in services)
+        {
+            if (service.ServiceType == typeof(IAmazonSQSMessagePublisher))
+            {
+                publisherDescriptor = service;
+                break;
+            }
+        }
+
+        publisherDescriptor.ShouldNotBeNull();
+        (publisherDescriptor.ImplementationType is not null
+            || publisherDescriptor.ImplementationFactory is not null
+            || publisherDescriptor.ImplementationInstance is not null).ShouldBeTrue();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var publisher = serviceProvider.GetRequiredService<IAmazonSQSMessagePublisher>();
+
+        publisher.ShouldNotBeNull();
     }
 
     // ─── EncinaAmazonSQSOptions defaults ───
