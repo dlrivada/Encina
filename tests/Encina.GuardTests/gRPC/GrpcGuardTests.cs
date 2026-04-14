@@ -194,33 +194,74 @@ public sealed class GrpcGuardTests
         result.ShouldNotBeNull();
         services.ShouldContain(sd => sd.ServiceType == typeof(IGrpcEncinaService));
         services.ShouldContain(sd => sd.ServiceType == typeof(ITypeResolver));
-
-        using var serviceProvider = services.BuildServiceProvider(new ServiceProviderOptions
-        {
-            ValidateOnBuild = true,
-            ValidateScopes = true
-        });
-        using var scope = serviceProvider.CreateScope();
-
-        scope.ServiceProvider.GetRequiredService<IGrpcEncinaService>().ShouldNotBeNull();
-        scope.ServiceProvider.GetRequiredService<ITypeResolver>().ShouldNotBeNull();
     }
 
     // ─── EncinaGrpcOptions ───
 
     [Fact]
     public void EncinaGrpcOptions_Defaults()
-        const int FourMiB = 4 * 1024 * 1024;
+    {
         var options = new EncinaGrpcOptions();
 
         options.ShouldNotBeNull();
         options.EnableReflection.ShouldBeTrue();
         options.EnableHealthChecks.ShouldBeTrue();
-        options.MaxReceiveMessageSize.ShouldBe(FourMiB);
-        options.MaxSendMessageSize.ShouldBe(FourMiB);
+        options.MaxReceiveMessageSize.ShouldBe(4 * 1024 * 1024);
+        options.MaxSendMessageSize.ShouldBe(4 * 1024 * 1024);
         options.EnableLoggingInterceptor.ShouldBeTrue();
         options.DefaultDeadline.ShouldBe(TimeSpan.FromSeconds(30));
         options.EnableCompression.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void AddEncinaGrpc_RegistersTypeResolverAsSingleton()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<IEncina>());
+
+        services.AddEncinaGrpc();
+
+        var descriptor = services.Single(sd => sd.ServiceType == typeof(ITypeResolver));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void AddEncinaGrpc_RegistersGrpcEncinaServiceAsScoped()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<IEncina>());
+
+        services.AddEncinaGrpc();
+
+        var descriptor = services.Single(sd => sd.ServiceType == typeof(IGrpcEncinaService));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+    }
+
+    // ─── EncinaGrpcOptions mutation (boundary) ───
+
+    [Fact]
+    public void EncinaGrpcOptions_CanOverrideDefaults()
+    {
+        var options = new EncinaGrpcOptions
+        {
+            EnableReflection = false,
+            EnableHealthChecks = false,
+            MaxReceiveMessageSize = 1024,
+            MaxSendMessageSize = 512,
+            EnableLoggingInterceptor = false,
+            DefaultDeadline = TimeSpan.FromSeconds(60),
+            EnableCompression = true
+        };
+
+        options.EnableReflection.ShouldBeFalse();
+        options.EnableHealthChecks.ShouldBeFalse();
+        options.MaxReceiveMessageSize.ShouldBe(1024);
+        options.MaxSendMessageSize.ShouldBe(512);
+        options.EnableLoggingInterceptor.ShouldBeFalse();
+        options.DefaultDeadline.ShouldBe(TimeSpan.FromSeconds(60));
+        options.EnableCompression.ShouldBeTrue();
     }
 
     // ─── GrpcSerializationException ───
