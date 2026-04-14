@@ -132,7 +132,20 @@ public sealed class KafkaGuardTests
             o.BootstrapServers = "localhost:9092");
 
         result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(IKafkaMessagePublisher));
+
+        ServiceDescriptor? publisherRegistration = null;
+        foreach (var service in services)
+        {
+            if (service.ServiceType == typeof(IKafkaMessagePublisher))
+            {
+                publisherRegistration = service;
+                break;
+            }
+        }
+
+        publisherRegistration.ShouldNotBeNull();
+        publisherRegistration!.ImplementationType.ShouldBe(typeof(KafkaMessagePublisher));
+        publisherRegistration.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     // ─── EncinaKafkaOptions ───
