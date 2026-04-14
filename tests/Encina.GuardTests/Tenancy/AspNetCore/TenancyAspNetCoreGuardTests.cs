@@ -38,7 +38,7 @@ public sealed class TenancyAspNetCoreGuardTests
     {
         var sut = new ClaimTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.ResolveAsync(null!));
+            async () => await sut.ResolveAsync(null!));
     }
 
     // ─── HeaderTenantResolver guards ───
