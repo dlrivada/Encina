@@ -146,7 +146,7 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public async Task AddEncinaAzureServiceBus_WhenCalled_ReturnsSameServiceCollection()
+    public void AddEncinaAzureServiceBus_WhenCalled_ReturnsSameServiceCollection()
     {
         var services = new ServiceCollection();
         const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
@@ -154,7 +154,6 @@ public sealed class AzureServiceBusGuardTests
         var result = services.AddEncinaAzureServiceBus(o => o.ConnectionString = connectionString);
 
         result.ShouldBeSameAs(services);
-        await Task.CompletedTask;
     }
 
     [Fact]
@@ -211,7 +210,7 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public async Task AddEncinaAzureServiceBus_ValidConfig_CalledTwice_DoesNotDuplicateClientRegistration()
+    public void AddEncinaAzureServiceBus_ValidConfig_CalledTwice_DoesNotDuplicateClientRegistration()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -225,12 +224,10 @@ public sealed class AzureServiceBusGuardTests
 
         var publisherDescriptors = services.Where(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher)).ToList();
         publisherDescriptors.Count.ShouldBe(1);
-
-        await Task.CompletedTask;
     }
 
     [Fact]
-    public async Task AddEncinaAzureServiceBus_ValidConfig_HealthCheckRegisteredByDefault()
+    public void AddEncinaAzureServiceBus_ValidConfig_HealthCheckRegisteredByDefault()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -240,8 +237,6 @@ public sealed class AzureServiceBusGuardTests
 
         var healthCheckDescriptor = services.SingleOrDefault(sd => sd.ServiceType == typeof(IEncinaHealthCheck));
         healthCheckDescriptor.ShouldNotBeNull();
-
-        await Task.CompletedTask;
     }
 
     [Fact]
