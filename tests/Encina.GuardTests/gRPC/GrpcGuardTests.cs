@@ -203,7 +203,6 @@ public sealed class GrpcGuardTests
     {
         var options = new EncinaGrpcOptions();
 
-        options.ShouldNotBeNull();
         options.EnableReflection.ShouldBeTrue();
         options.EnableHealthChecks.ShouldBeTrue();
         options.MaxReceiveMessageSize.ShouldBe(4 * 1024 * 1024);
