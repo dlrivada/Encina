@@ -145,7 +145,7 @@ public sealed class KafkaGuardTests
 
         publisherRegistration.ShouldNotBeNull();
         publisherRegistration!.ImplementationType.ShouldBe(typeof(KafkaMessagePublisher));
-        publisherRegistration.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        publisherRegistration.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     // ─── EncinaKafkaOptions ───
