@@ -11,8 +11,9 @@ using RedisLockOptions = Encina.Caching.Redis.RedisLockOptions;
 namespace Encina.GuardTests.Caching.Redis;
 
 /// <summary>
-/// Guard tests for Encina.Caching.Redis covering constructor and method null guards
-/// for providers and ServiceCollectionExtensions.
+/// Guard tests for Encina.Caching.Redis covering constructor null guards for
+/// providers (RedisCacheProvider, RedisDistributedLockProvider, RedisPubSubProvider)
+/// and argument guards on ServiceCollectionExtensions overloads.
 /// </summary>
 [Trait("Category", "Guard")]
 public sealed class RedisCachingGuardTests
@@ -125,16 +126,28 @@ public sealed class RedisCachingGuardTests
             ((IServiceCollection)null!).AddEncinaRedisCache("localhost:6379"));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void AddEncinaRedisCache_String_InvalidConnectionString_Throws(string? cs)
+    [Fact]
+    public void AddEncinaRedisCache_String_NullConnectionString_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new ServiceCollection().AddEncinaRedisCache((string)null!));
+    }
+
+    [Fact]
+    public void AddEncinaRedisCache_String_EmptyConnectionString_Throws()
     {
         Should.Throw<ArgumentException>(() =>
-            new ServiceCollection().AddEncinaRedisCache(cs!));
+            new ServiceCollection().AddEncinaRedisCache(string.Empty));
     }
 
     // ─── ServiceCollectionExtensions overload 2: (services, connectionString, configure, configureLock) ───
+
+    [Fact]
+    public void AddEncinaRedisCache_StringWithOptions_NullServices_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            ((IServiceCollection)null!).AddEncinaRedisCache("localhost:6379", _ => { }, _ => { }));
+    }
 
     [Fact]
     public void AddEncinaRedisCache_StringWithOptions_NullCacheOptions_Throws()
@@ -169,6 +182,13 @@ public sealed class RedisCachingGuardTests
     // ─── ServiceCollectionExtensions overload 4: (services, multiplexer, configure, configureLock) ───
 
     [Fact]
+    public void AddEncinaRedisCache_MultiplexerWithOptions_NullServices_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            ((IServiceCollection)null!).AddEncinaRedisCache(Mux, _ => { }, _ => { }));
+    }
+
+    [Fact]
     public void AddEncinaRedisCache_MultiplexerWithOptions_NullMultiplexer_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
@@ -195,13 +215,21 @@ public sealed class RedisCachingGuardTests
     public void RedisCacheOptions_Defaults()
     {
         var options = new RedisCacheOptions();
+
         options.ShouldNotBeNull();
+        options.DefaultExpiration.ShouldBe(TimeSpan.FromMinutes(5));
+        options.Database.ShouldBe(0);
+        options.KeyPrefix.ShouldBe(string.Empty);
+        options.ProviderHealthCheck.ShouldNotBeNull();
     }
 
     [Fact]
     public void RedisLockOptions_Defaults()
     {
         var options = new RedisLockOptions();
+
         options.ShouldNotBeNull();
+        options.Database.ShouldBe(0);
+        options.KeyPrefix.ShouldBe(string.Empty);
     }
 }
