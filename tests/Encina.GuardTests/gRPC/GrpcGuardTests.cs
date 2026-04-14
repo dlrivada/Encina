@@ -214,7 +214,7 @@ public sealed class GrpcGuardTests
     }
 
     [Fact]
-    public void AddEncinaGrpc_RegistersTypeResolverAsSingleton()
+    public void AddEncinaGrpc_WhenCalled_RegistersTypeResolverAsSingleton()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -227,7 +227,7 @@ public sealed class GrpcGuardTests
     }
 
     [Fact]
-    public void AddEncinaGrpc_RegistersGrpcEncinaServiceAsScoped()
+    public void AddEncinaGrpc_WhenCalled_RegistersGrpcEncinaServiceAsScoped()
     {
         var services = new ServiceCollection();
         services.AddLogging();

@@ -118,15 +118,25 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public void AddEncinaAzureServiceBus_ValidConfig_Registers()
+    public void AddEncinaAzureServiceBus_RegistersExpectedServices_WhenConfigValid()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
-        var result = services.AddEncinaAzureServiceBus(o =>
+        services.AddEncinaAzureServiceBus(o =>
             o.ConnectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
 
-        result.ShouldNotBeNull();
+        // Verify expected service registrations
+        services.ShouldContain(sd => sd.ServiceType == typeof(ServiceBusClient));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher));
+
+        // Build provider and verify services can be resolved
+        using var provider = services.BuildServiceProvider();
+        var client = provider.GetRequiredService<ServiceBusClient>();
+        client.ShouldNotBeNull();
+
+        var publisher = provider.GetRequiredService<IAzureServiceBusMessagePublisher>();
+        publisher.ShouldNotBeNull();
     }
 
     // ─── AzureServiceBusHealthCheck ───
