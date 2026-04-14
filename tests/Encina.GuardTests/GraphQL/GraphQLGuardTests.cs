@@ -208,7 +208,7 @@ public sealed class GraphQLGuardTests
     }
 
     [Fact]
-    public void AddEncinaGraphQL_ValidServices_RegistersExpectedServices()
+    public void AddEncinaGraphQL_ValidServices_RegistersBridge()
     {
         var services = new ServiceCollection();
         services.AddLogging();
