@@ -110,7 +110,7 @@ public sealed class RabbitMQGuardTests
             Options.Create(new EncinaRabbitMQOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.RequestAsync<object, string>(null!));
+            async () => await sut.RequestAsync<object, string>(null!));
     }
 
     // ─── RabbitMQHealthCheck ───
