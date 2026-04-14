@@ -215,9 +215,16 @@ public sealed class GraphQLGuardTests
         services.AddSingleton(Substitute.For<IEncina>());
 
         var result = services.AddEncinaGraphQL();
+        var bridgeRegistrations = services.Where(sd => sd.ServiceType == typeof(IGraphQLEncinaBridge)).ToList();
 
         result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(IGraphQLEncinaBridge));
+        bridgeRegistrations.Count.ShouldBe(1);
+
+        var bridgeRegistration = bridgeRegistrations[0];
+        bridgeRegistration.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        bridgeRegistration.ImplementationType.ShouldBe(typeof(GraphQLEncinaBridge));
+        bridgeRegistration.ImplementationFactory.ShouldBeNull();
+        bridgeRegistration.ImplementationInstance.ShouldBeNull();
     }
 
     // ─── EncinaGraphQLOptions ───
