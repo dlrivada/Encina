@@ -28,7 +28,7 @@ The current accumulated snapshot:
 | <a id="mutref-mut-Encina-Sharding-Migrations-Strategies-RollingUpdateStrategy-cs"></a>[`Sharding/Migrations/Strategies/RollingUpdateStrategy.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 15 | 0 | 15 | 2026-04-14 |
 | <a id="mutref-mut-Encina-Sharding-Migrations-Strategies-SequentialMigrationStrategy-cs"></a>[`Sharding/Migrations/Strategies/SequentialMigrationStrategy.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 21.43% | 3 | 11 | 0 | 14 | 2026-04-14 |
 
-*4 file(s) matched `mut:Encina/Sharding/Migrations/Strategies/*`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md](../testing/mutation-measurement-methodology.md).*
+*4 file(s) matched `mut:Encina/Sharding/Migrations/Strategies/*`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md](../../testing/mutation-measurement-methodology.md).*
 
 <!-- /mutref-table -->
 
@@ -40,7 +40,7 @@ The current accumulated snapshot:
 | <a id="mutref-mut-Encina-Sharding-Health-ShardReplicaHealthCheck-cs"></a>[`Sharding/Health/ShardReplicaHealthCheck.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 29 | 0 | 29 | 2026-04-14 |
 | <a id="mutref-mut-Encina-Sharding-Health-ShardedHealthSummary-cs"></a>[`Sharding/Health/ShardedHealthSummary.cs`](https://dlrivada.github.io/Encina/mutations/#pkg-Encina) | 0.00% | 0 | 12 | 0 | 12 | 2026-04-14 |
 
-*3 file(s) matched `mut:Encina/Sharding/Health/*`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md](../testing/mutation-measurement-methodology.md).*
+*3 file(s) matched `mut:Encina/Sharding/Health/*`. Data from [mutations dashboard](https://dlrivada.github.io/Encina/mutations/). See [mutation-measurement-methodology.md](../../testing/mutation-measurement-methodology.md).*
 
 <!-- /mutref-table -->
 
@@ -216,6 +216,6 @@ The dashboard's per-file score is the reliable signal: anything in the `mut:Enci
 - [Mutation measurement methodology](../../testing/mutation-measurement-methodology.md) — formulas, accumulation, citation system
 - [Coverage measurement methodology](../../testing/coverage-measurement-methodology.md) — the obligations model and how coverage and mutation differ
 - [Performance measurement methodology](../../testing/performance-measurement-methodology.md) — the docref system this one is modelled after
-- [Stryker.NET docs](https://stryker-mutator.io/docs/stryker-net/)
+- [Stryker.NET docs](https://stryker-mutator.io/docs/stryker-net/introduction/)
 - [Issue #957](https://github.com/dlrivada/Encina/issues/957) — workflow stabilization (closed)
 - [Issue #962](https://github.com/dlrivada/Encina/issues/962) — scope widening + cited-by (closed)
