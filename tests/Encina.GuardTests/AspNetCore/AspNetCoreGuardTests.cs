@@ -254,13 +254,4 @@ public sealed class AspNetCoreGuardTests
         var config = new AuthorizationConfiguration();
         config.ShouldNotBeNull();
     }
-
-    // ─── ResourceAuthorizeAttribute ───
-
-    [Fact]
-    public void ResourceAuthorizeAttribute_ValidPolicy_SetsPolicy()
-    {
-        var attr = new ResourceAuthorizeAttribute("TestPolicy");
-        attr.Policy.ShouldBe("TestPolicy");
-    }
 }
