@@ -146,7 +146,7 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public async Task AddEncinaAzureServiceBus_ReturnsSameServiceCollection()
+    public async Task AddEncinaAzureServiceBus_WhenCalled_ReturnsSameServiceCollection()
     {
         var services = new ServiceCollection();
         const string connectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";

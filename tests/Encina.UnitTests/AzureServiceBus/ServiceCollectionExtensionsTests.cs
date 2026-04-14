@@ -112,7 +112,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaAzureServiceBus_ReturnsSameServiceCollection()
+    public void AddEncinaAzureServiceBus_WhenCalled_ReturnsSameServiceCollection()
     {
         // Arrange
         var services = new ServiceCollection();
