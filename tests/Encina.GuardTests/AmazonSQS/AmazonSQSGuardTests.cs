@@ -117,7 +117,7 @@ public sealed class AmazonSQSGuardTests
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendToFifoQueueAsync(new { Id = 1 }, null!));
+            () => sut.SendToFifoQueueAsync(new { Id = 1 }, null!).AsTask());
     }
 
     // ─── AmazonSQSHealthCheck ───
