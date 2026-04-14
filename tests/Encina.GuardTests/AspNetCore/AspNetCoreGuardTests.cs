@@ -267,7 +267,7 @@ public sealed class AspNetCoreGuardTests
     [Fact]
     public void ResourceAuthorizeAttribute_NullPolicy_Throws()
     {
-        var ex = Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentException>(() =>
             new ResourceAuthorizeAttribute(null!));
         ex.ParamName.ShouldBe("policy");
     }
