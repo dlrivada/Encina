@@ -69,8 +69,10 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null, "/path")]
     [InlineData("", "/path")]
+    [InlineData("   ", "/path")]
     [InlineData("GET", null)]
     [InlineData("GET", "")]
+    [InlineData("GET", "   ")]
     public void StubSequence_InvalidMethodOrPath_Throws(string? method, string? path)
     {
         Should.Throw<ArgumentException>(() =>
@@ -136,6 +138,7 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public void SetupOutboxWebhook_InvalidPath_Throws(string? path)
     {
         Should.Throw<ArgumentException>(() =>
@@ -152,6 +155,7 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public void SetupWebhookFailure_InvalidPath_Throws(string? path)
     {
         Should.Throw<ArgumentException>(() =>
@@ -168,6 +172,7 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public void SetupWebhookTimeout_InvalidPath_Throws(string? path)
     {
         Should.Throw<ArgumentException>(() =>
@@ -184,6 +189,7 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public void VerifyWebhookReceived_InvalidPath_Throws(string? path)
     {
         Should.Throw<ArgumentException>(() =>
@@ -200,6 +206,7 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public void VerifyNoWebhooksReceived_InvalidPath_Throws(string? path)
     {
         Should.Throw<ArgumentException>(() =>
@@ -216,6 +223,7 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public void GetReceivedWebhooks_InvalidPath_Throws(string? path)
     {
         Should.Throw<ArgumentException>(() =>
@@ -232,6 +240,7 @@ public sealed class WireMockGuardTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("   ")]
     public void GetReceivedWebhookBodies_InvalidPath_Throws(string? path)
     {
         Should.Throw<ArgumentException>(() =>

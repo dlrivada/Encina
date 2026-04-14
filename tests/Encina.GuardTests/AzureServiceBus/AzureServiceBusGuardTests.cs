@@ -36,27 +36,27 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public void Constructor_NullLogger_Throws()
+    public async Task Constructor_NullLogger_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         Should.Throw<ArgumentNullException>(() =>
             new AzureServiceBusMessagePublisher(client, null!,
                 Options.Create(new EncinaAzureServiceBusOptions())));
     }
 
     [Fact]
-    public void Constructor_NullOptions_Throws()
+    public async Task Constructor_NullOptions_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         Should.Throw<ArgumentNullException>(() =>
             new AzureServiceBusMessagePublisher(client,
                 NullLogger<AzureServiceBusMessagePublisher>.Instance, null!));
     }
 
     [Fact]
-    public void Constructor_ValidArgs_Constructs()
+    public async Task Constructor_ValidArgs_Constructs()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
@@ -68,25 +68,25 @@ public sealed class AzureServiceBusGuardTests
     [Fact]
     public async Task SendToQueueAsync_NullMessage_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToQueueAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToQueueAsync<object>(null!).AsTask());
     }
 
     [Fact]
     public async Task PublishToTopicAsync_NullMessage_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishToTopicAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishToTopicAsync<object>(null!).AsTask());
     }
 
     // ─── ServiceCollectionExtensions guards ───
@@ -162,12 +162,12 @@ public sealed class AzureServiceBusGuardTests
     [Fact]
     public async Task ScheduleAsync_NullMessage_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ScheduleAsync<object>(null!, DateTimeOffset.UtcNow));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ScheduleAsync<object>(null!, DateTimeOffset.UtcNow).AsTask());
     }
 }
