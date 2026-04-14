@@ -143,6 +143,11 @@ public sealed class RabbitMQGuardTests
 
         result.ShouldNotBeNull();
         services.ShouldContain(sd => sd.ServiceType == typeof(IRabbitMQMessagePublisher));
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var publisher = serviceProvider.GetRequiredService<IRabbitMQMessagePublisher>();
+
+        publisher.ShouldNotBeNull();
     }
 
     // ─── EncinaRabbitMQOptions ───
