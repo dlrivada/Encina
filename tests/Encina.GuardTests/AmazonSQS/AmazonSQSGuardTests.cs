@@ -77,7 +77,7 @@ public sealed class AmazonSQSGuardTests
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendToQueueAsync<object>(null!));
+            async () => await sut.SendToQueueAsync<object>(null!));
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class AmazonSQSGuardTests
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.PublishToTopicAsync<object>(null!));
+            async () => await sut.PublishToTopicAsync<object>(null!));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class AmazonSQSGuardTests
             NullLogger<AmazonSQSMessagePublisher>.Instance, Options);
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.SendBatchAsync<object>(null!));
+            async () => await sut.SendBatchAsync<object>(null!));
     }
 
     [Fact]
