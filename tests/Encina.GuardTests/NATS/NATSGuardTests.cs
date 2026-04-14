@@ -123,7 +123,7 @@ public sealed class NATSGuardTests
     }
 
     [Fact]
-    public void AddEncinaNATS_ValidServices_RegistersExpectedServices()
+    public void AddEncinaNATS_ValidServices_RegistersPublisher()
     {
         var services = new ServiceCollection();
         services.AddLogging();
