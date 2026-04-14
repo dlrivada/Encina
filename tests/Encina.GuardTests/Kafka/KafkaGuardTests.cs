@@ -78,7 +78,7 @@ public sealed class KafkaGuardTests
             Options.Create(new EncinaKafkaOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.ProduceBatchAsync<object>(null!));
+            () => sut.ProduceBatchAsync<object>(null!).AsTask());
     }
 
     [Fact]
