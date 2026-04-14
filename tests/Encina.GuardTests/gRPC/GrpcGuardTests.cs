@@ -200,9 +200,10 @@ public sealed class GrpcGuardTests
             ValidateOnBuild = true,
             ValidateScopes = true
         });
+        using var scope = serviceProvider.CreateScope();
 
-        serviceProvider.GetRequiredService<IGrpcEncinaService>().ShouldNotBeNull();
-        serviceProvider.GetRequiredService<ITypeResolver>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IGrpcEncinaService>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<ITypeResolver>().ShouldNotBeNull();
     }
 
     // ─── EncinaGrpcOptions ───
