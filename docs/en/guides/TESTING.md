@@ -84,27 +84,19 @@ The output includes `encina-coverage-summary.json`, `encina-coverage-report.md`,
 
 ## Mutation Testing
 
-Run the Stryker.NET sweep through the single-file helper to keep tooling consistent across environments:
+The Mutation Tests workflow runs weekly via Stryker.NET on a rotating subset of `src/Encina/` folders. Results accumulate per-file across runs into a single dashboard at <https://dlrivada.github.io/Encina/mutations/>.
+
+For the methodology (formulas, accumulation model, citation system) see [`docs/testing/mutation-measurement-methodology.md`](../../testing/mutation-measurement-methodology.md). For the practical guide (running, interpreting, contributing) see [`MUTATION_TESTING.md`](MUTATION_TESTING.md).
+
+Quick local run:
 
 ```pwsh
 dotnet run --file .github/scripts/run-stryker.cs
 ```
 
-Reports land under the timestamped folder in `artifacts/mutation/` alongside HTML and JSON summaries. The latest full run (2025-12-08) killed 449 mutants, left 2 survivors, and reached a 93.74% score while keeping the README badge at 90% line coverage.
+Reports land under `artifacts/mutation/reports/` (JSON + HTML). The full `**/*.cs` scope works locally given enough time; the CI rotation limits each run to one folder so it fits the 350-minute job timeout.
 
-Refresh the mutation badge and surface the latest totals right after Stryker completes:
-
-```pwsh
-dotnet run --file .github/scripts/update-mutation-summary.cs
-```
-
-The helper consumes the newest `mutation-report.json`, writes a concise summary to stdout, and updates the README badge in place when the canonical pattern is present. If the badge section has been customized, it prints the Markdown snippet so you can paste it manually.
-
-### Refreshing the Mutation Badge Locally
-
-1. Run `dotnet run --file .github/scripts/run-stryker.cs` from the repository root to generate the latest mutation report under `artifacts/mutation/`.
-2. Execute `dotnet run --file .github/scripts/update-mutation-summary.cs` so the README badge and `mutation-report.txt` reflect the new score.
-3. Review the console summary and stage the updated badge, report, and any touched docs before opening a pull request.
+The README badge is updated automatically by `.github/scripts/update-mutation-summary.cs`, which is invoked by the publish workflow after each Stryker run.
 
 ## Property-Based Testing Notes
 
@@ -112,7 +104,7 @@ Property tests limit selector list sizes to keep execution time predictable. Whe
 
 ## Next Steps
 
-- Keep the Stryker baseline green (≥93.74%) by pairing new unit/property scenarios with badge refreshes through `.github/scripts/update-mutation-summary.cs`.
+- Watch the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/) for surviving mutants in modules you contribute to. Pair new code paths with assertions that detect the mutations Stryker generates (boundaries, equality, null checks, string content). See [`MUTATION_TESTING.md`](MUTATION_TESTING.md) for the catalog of common mutation types.
 - Guard the Zero Exceptions policy by verifying new send/publish scenarios return functional results (`Either`, `Option`) instead of throwing.
 - Share notification/property generators with unit fixtures so cancellation and pipeline scenarios reuse the same builders.
 - Monitor the tightened 15%/25% benchmark guardrails and load throughput limits so regressions from the latest baseline flow straight into the roadmap log.
