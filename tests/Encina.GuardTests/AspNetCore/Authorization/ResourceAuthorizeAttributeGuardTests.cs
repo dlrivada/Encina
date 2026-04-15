@@ -24,4 +24,11 @@ public class ResourceAuthorizeAttributeGuardTests
         Should.Throw<ArgumentException>(() =>
             new ResourceAuthorizeAttribute("  "));
     }
+
+    [Fact]
+    public void Constructor_ValidPolicy_SetsProperty()
+    {
+        var attr = new ResourceAuthorizeAttribute("P");
+        attr.Policy.ShouldBe("P");
+    }
 }
