@@ -67,7 +67,7 @@ public sealed class MQTTGuardTests
             Options.Create(new EncinaMQTTOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.PublishAsync<object>(null!));
+            () => sut.PublishAsync<object>(null!).AsTask());
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class MQTTGuardTests
             Options.Create(new EncinaMQTTOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.SubscribeAsync<object>(null!, "topic"));
+            () => sut.SubscribeAsync<object>(null!, "topic").AsTask());
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class MQTTGuardTests
             Options.Create(new EncinaMQTTOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.SubscribeAsync<object>(_ => ValueTask.CompletedTask, null!));
+            () => sut.SubscribeAsync<object>(_ => ValueTask.CompletedTask, null!).AsTask());
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class MQTTGuardTests
             Options.Create(new EncinaMQTTOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.SubscribePatternAsync<object>(null!, "topic/#"));
+            () => sut.SubscribePatternAsync<object>(null!, "topic/#").AsTask());
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class MQTTGuardTests
             Options.Create(new EncinaMQTTOptions()));
 
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.SubscribePatternAsync<object>((_, _) => ValueTask.CompletedTask, null!));
+            () => sut.SubscribePatternAsync<object>((_, _) => ValueTask.CompletedTask, null!).AsTask());
     }
 
     // ─── MQTTHealthCheck ───
