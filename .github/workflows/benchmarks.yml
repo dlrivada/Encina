@@ -275,7 +275,7 @@ jobs:
 
       - name: Cache NuGet packages
         if: steps.filter.outputs.skip != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ matrix.project.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
@@ -284,7 +284,7 @@ jobs:
 
       - name: Cache build output
         if: steps.filter.outputs.skip != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           # Phase 3.2 — cache the compiled benchmark project so that multiple
           # class-level jobs of the same project on the same commit reuse the
@@ -426,7 +426,7 @@ jobs:
 
       - name: Post PR comment with benchmark summary
         if: github.event_name == 'pull_request' && needs.determine-matrix.outputs.matrix_count != '0'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
