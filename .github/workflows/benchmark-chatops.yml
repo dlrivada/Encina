@@ -32,7 +32,7 @@ jobs:
       head_ref: ${{ steps.parse.outputs.head_ref }}
     steps:
       - name: React to command
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.reactions.createForIssueComment({
@@ -44,7 +44,7 @@ jobs:
 
       - name: Parse arguments
         id: parse
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const body = context.payload.comment.body.trim();
@@ -88,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger benchmarks workflow
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.actions.createWorkflowDispatch({
@@ -105,7 +105,7 @@ jobs:
             });
 
       - name: Post acknowledgement
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const project = '${{ needs.parse.outputs.project_filter }}' || 'all projects';
