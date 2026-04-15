@@ -11,14 +11,22 @@ namespace Encina.GuardTests.Validation.GuardClauses;
 [Trait("Category", "Guard")]
 public sealed class GuardsGuardTests
 {
+    // Since EncinaError is a readonly record struct, it cannot be null; the
+    // equivalent safety check is that it was not left as its default value.
+    private static void AssertInvalid(bool result, EncinaError error)
+    {
+        result.ShouldBeFalse();
+        error.ShouldNotBe(default);
+        error.Message.ShouldNotBeNullOrEmpty();
+    }
+
     // ─── TryValidateNotNull ───
 
     [Fact]
     public void TryValidateNotNull_Null_ReturnsFalse()
     {
         var result = Guards.TryValidateNotNull<string>(null, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -34,16 +42,14 @@ public sealed class GuardsGuardTests
     public void TryValidateNotEmpty_String_Null_ReturnsFalse()
     {
         var result = Guards.TryValidateNotEmpty((string?)null, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
     public void TryValidateNotEmpty_String_Empty_ReturnsFalse()
     {
         var result = Guards.TryValidateNotEmpty("", "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -59,8 +65,7 @@ public sealed class GuardsGuardTests
     public void TryValidateNotWhiteSpace_Whitespace_ReturnsFalse()
     {
         var result = Guards.TryValidateNotWhiteSpace("   ", "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -76,16 +81,14 @@ public sealed class GuardsGuardTests
     public void TryValidateNotEmpty_Collection_Null_ReturnsFalse()
     {
         var result = Guards.TryValidateNotEmpty<int>(null, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
     public void TryValidateNotEmpty_Collection_Empty_ReturnsFalse()
     {
         var result = Guards.TryValidateNotEmpty(Array.Empty<int>(), "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -102,16 +105,14 @@ public sealed class GuardsGuardTests
     public void TryValidatePositive_Negative_ReturnsFalse()
     {
         var result = Guards.TryValidatePositive(-1, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
     public void TryValidatePositive_Zero_ReturnsFalse()
     {
         var result = Guards.TryValidatePositive(0, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -127,8 +128,7 @@ public sealed class GuardsGuardTests
     public void TryValidateNegative_Positive_ReturnsFalse()
     {
         var result = Guards.TryValidateNegative(1, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -144,16 +144,14 @@ public sealed class GuardsGuardTests
     public void TryValidateInRange_BelowMin_ReturnsFalse()
     {
         var result = Guards.TryValidateInRange(0, "param", 1, 10, out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
     public void TryValidateInRange_AboveMax_ReturnsFalse()
     {
         var result = Guards.TryValidateInRange(11, "param", 1, 10, out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -183,16 +181,14 @@ public sealed class GuardsGuardTests
     public void TryValidateEmail_Null_ReturnsFalse()
     {
         var result = Guards.TryValidateEmail(null, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
     public void TryValidateEmail_Invalid_ReturnsFalse()
     {
         var result = Guards.TryValidateEmail("not-an-email", "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -208,16 +204,14 @@ public sealed class GuardsGuardTests
     public void TryValidateUrl_Null_ReturnsFalse()
     {
         var result = Guards.TryValidateUrl(null, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
     public void TryValidateUrl_Invalid_ReturnsFalse()
     {
         var result = Guards.TryValidateUrl("not-a-url", "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -233,8 +227,7 @@ public sealed class GuardsGuardTests
     public void TryValidateNotEmpty_Guid_Empty_ReturnsFalse()
     {
         var result = Guards.TryValidateNotEmpty(Guid.Empty, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -250,8 +243,7 @@ public sealed class GuardsGuardTests
     public void TryValidate_False_ReturnsFalse()
     {
         var result = Guards.TryValidate(false, "param", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
@@ -267,16 +259,14 @@ public sealed class GuardsGuardTests
     public void TryValidatePattern_Null_ReturnsFalse()
     {
         var result = Guards.TryValidatePattern(null, "param", @"^\d+$", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
     public void TryValidatePattern_NoMatch_ReturnsFalse()
     {
         var result = Guards.TryValidatePattern("abc", "param", @"^\d+$", out var error);
-        result.ShouldBeFalse();
-        error.Message.ShouldNotBeNullOrEmpty();
+        AssertInvalid(result, error);
     }
 
     [Fact]
