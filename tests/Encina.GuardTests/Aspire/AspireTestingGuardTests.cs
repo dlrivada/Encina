@@ -157,8 +157,11 @@ public sealed class AspireTestingGuardTests
     [Fact]
     public void EncinaTestContext_ValidOptions_Constructs()
     {
-        var sut = new EncinaTestContext(new EncinaTestSupportOptions());
-        sut.ShouldNotBeNull();
+        var options = new EncinaTestSupportOptions();
+
+        var sut = new EncinaTestContext(options);
+
+        sut.Options.ShouldBeSameAs(options);
     }
 
     // ─── EncinaTestSupportOptions ───
