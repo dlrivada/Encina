@@ -143,7 +143,7 @@ public sealed class MQTTGuardTests
             o.Host = "localhost");
 
         result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(IMQTTMessagePublisher));
+        result.ShouldContain(sd => sd.ServiceType == typeof(IMQTTMessagePublisher));
     }
 
     // ─── EncinaMQTTOptions ───
