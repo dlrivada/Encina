@@ -38,7 +38,7 @@ public sealed class TenancyAspNetCoreGuardTests
     {
         var sut = new ClaimTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.ResolveAsync(null!));
+            () => sut.ResolveAsync(null!).AsTask());
     }
 
     // ─── HeaderTenantResolver guards ───
@@ -62,7 +62,7 @@ public sealed class TenancyAspNetCoreGuardTests
     {
         var sut = new HeaderTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.ResolveAsync(null!));
+            () => sut.ResolveAsync(null!).AsTask());
     }
 
     // ─── RouteTenantResolver guards ───
@@ -86,7 +86,7 @@ public sealed class TenancyAspNetCoreGuardTests
     {
         var sut = new RouteTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.ResolveAsync(null!));
+            () => sut.ResolveAsync(null!).AsTask());
     }
 
     // ─── SubdomainTenantResolver guards ───
@@ -110,7 +110,7 @@ public sealed class TenancyAspNetCoreGuardTests
     {
         var sut = new SubdomainTenantResolver(Options.Create(new TenancyAspNetCoreOptions()));
         await Should.ThrowAsync<ArgumentNullException>(
-            async () => await sut.ResolveAsync(null!));
+            () => sut.ResolveAsync(null!).AsTask());
     }
 
     // ─── ApplicationBuilderExtensions guard ───
