@@ -17,64 +17,73 @@ public sealed class AspireTestingGuardTests
     [Fact]
     public void GetEncinaTestContext_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             DistributedApplicationExtensions.GetEncinaTestContext(null!));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void GetOutboxStore_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             DistributedApplicationExtensions.GetOutboxStore(null!));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void GetInboxStore_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             DistributedApplicationExtensions.GetInboxStore(null!));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void GetSagaStore_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             DistributedApplicationExtensions.GetSagaStore(null!));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void GetPendingOutboxMessages_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             DistributedApplicationExtensions.GetPendingOutboxMessages(null!));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void GetDeadLetterMessages_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             DistributedApplicationExtensions.GetDeadLetterMessages(null!));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public async Task AssertOutboxContainsAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
             () => DistributedApplicationExtensions.AssertOutboxContainsAsync(null!, _ => true));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public async Task AssertInboxProcessedAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
             () => DistributedApplicationExtensions.AssertInboxProcessedAsync(null!, "msg-1"));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public async Task WaitForOutboxProcessingAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
             () => DistributedApplicationExtensions.WaitForOutboxProcessingAsync(null!));
+        ex.ParamName.ShouldBe("app");
     }
 
     // ─── FailureSimulationExtensions null guards ───
@@ -82,50 +91,57 @@ public sealed class AspireTestingGuardTests
     [Fact]
     public void SimulateSagaTimeout_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             FailureSimulationExtensions.SimulateSagaTimeout(null!, Guid.NewGuid()));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void SimulateSagaFailure_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             FailureSimulationExtensions.SimulateSagaFailure(null!, Guid.NewGuid(), "error"));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void SimulateOutboxMessageFailure_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             FailureSimulationExtensions.SimulateOutboxMessageFailure(null!, Guid.NewGuid()));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void SimulateOutboxDeadLetter_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             FailureSimulationExtensions.SimulateOutboxDeadLetter(null!, Guid.NewGuid()));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void SimulateInboxMessageFailure_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             FailureSimulationExtensions.SimulateInboxMessageFailure(null!, "msg-1"));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public void SimulateInboxExpiration_NullApp_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             FailureSimulationExtensions.SimulateInboxExpiration(null!, "msg-1"));
+        ex.ParamName.ShouldBe("app");
     }
 
     [Fact]
     public async Task AddToDeadLetterAsync_NullApp_Throws()
     {
-        await Should.ThrowAsync<ArgumentNullException>(
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
             () => FailureSimulationExtensions.AddToDeadLetterAsync(null!, "type", "content"));
+        ex.ParamName.ShouldBe("app");
     }
 
     // ─── EncinaTestContext ───
@@ -133,8 +149,9 @@ public sealed class AspireTestingGuardTests
     [Fact]
     public void EncinaTestContext_NullOptions_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             new EncinaTestContext(null!));
+        ex.ParamName.ShouldBe("options");
     }
 
     [Fact]
