@@ -151,7 +151,6 @@ public sealed class AspireTestingGuardTests
     {
         var options = new EncinaTestSupportOptions();
 
-        options.ShouldNotBeNull();
         options.ClearOutboxBeforeTest.ShouldBeTrue();
         options.ClearInboxBeforeTest.ShouldBeTrue();
         options.ResetSagasBeforeTest.ShouldBeTrue();
