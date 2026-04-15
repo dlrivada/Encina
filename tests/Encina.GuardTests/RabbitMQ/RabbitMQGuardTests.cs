@@ -76,8 +76,8 @@ public sealed class RabbitMQGuardTests
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishAsync<object>(null!).AsTask());
     }
 
     [Fact]
@@ -87,8 +87,8 @@ public sealed class RabbitMQGuardTests
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToQueueAsync<object>(null!, new { }));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToQueueAsync<object>(null!, new { }).AsTask());
     }
 
     [Fact]
@@ -98,8 +98,8 @@ public sealed class RabbitMQGuardTests
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToQueueAsync<object>("queue", null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToQueueAsync<object>("queue", null!).AsTask());
     }
 
     [Fact]
@@ -109,8 +109,8 @@ public sealed class RabbitMQGuardTests
             NullLogger<RabbitMQMessagePublisher>.Instance,
             Options.Create(new EncinaRabbitMQOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.RequestAsync<object, string>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            async () => await sut.RequestAsync<object, string>(null!));
     }
 
     // ─── RabbitMQHealthCheck ───
@@ -118,7 +118,7 @@ public sealed class RabbitMQGuardTests
     [Fact]
     public void RabbitMQHealthCheck_Constructs()
     {
-        var sp = new ServiceCollection().BuildServiceProvider();
+        using var sp = new ServiceCollection().BuildServiceProvider();
         var sut = new RabbitMQHealthCheck(sp, null);
         sut.ShouldNotBeNull();
     }
@@ -133,14 +133,22 @@ public sealed class RabbitMQGuardTests
     }
 
     [Fact]
-    public void AddEncinaRabbitMQ_ValidServices_Registers()
+    public void AddEncinaRabbitMQ_ValidServices_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         var result = services.AddEncinaRabbitMQ(o =>
             o.HostName = "localhost");
+
         result.ShouldNotBeNull();
+
+        var publisherDescriptor = services.SingleOrDefault(sd => sd.ServiceType == typeof(IRabbitMQMessagePublisher));
+
+        publisherDescriptor.ShouldNotBeNull();
+        (publisherDescriptor.ImplementationType is not null ||
+         publisherDescriptor.ImplementationFactory is not null ||
+         publisherDescriptor.ImplementationInstance is not null).ShouldBeTrue();
     }
 
     // ─── EncinaRabbitMQOptions ───
@@ -149,6 +157,16 @@ public sealed class RabbitMQGuardTests
     public void EncinaRabbitMQOptions_Defaults()
     {
         var options = new EncinaRabbitMQOptions();
+
         options.ShouldNotBeNull();
+        options.HostName.ShouldBe("localhost");
+        options.Port.ShouldBe(5672);
+        options.VirtualHost.ShouldBe("/");
+        options.UserName.ShouldBe("guest");
+        options.Password.ShouldBe("guest");
+        options.ExchangeName.ShouldBe("encina");
+        options.UsePublisherConfirms.ShouldBeTrue();
+        options.PrefetchCount.ShouldBe((ushort)10);
+        options.Durable.ShouldBeTrue();
     }
 }
