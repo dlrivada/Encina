@@ -7,8 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using NSubstitute;
-
 using Shouldly;
 
 namespace Encina.GuardTests.AzureServiceBus;
@@ -38,27 +36,27 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public void Constructor_NullLogger_Throws()
+    public async Task Constructor_NullLogger_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         Should.Throw<ArgumentNullException>(() =>
             new AzureServiceBusMessagePublisher(client, null!,
                 Options.Create(new EncinaAzureServiceBusOptions())));
     }
 
     [Fact]
-    public void Constructor_NullOptions_Throws()
+    public async Task Constructor_NullOptions_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         Should.Throw<ArgumentNullException>(() =>
             new AzureServiceBusMessagePublisher(client,
                 NullLogger<AzureServiceBusMessagePublisher>.Instance, null!));
     }
 
     [Fact]
-    public void Constructor_ValidArgs_Constructs()
+    public async Task Constructor_ValidArgs_Constructs()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
@@ -70,25 +68,25 @@ public sealed class AzureServiceBusGuardTests
     [Fact]
     public async Task SendToQueueAsync_NullMessage_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.SendToQueueAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.SendToQueueAsync<object>(null!).AsTask());
     }
 
     [Fact]
     public async Task PublishToTopicAsync_NullMessage_Throws()
     {
-        var client = CreateMockClient();
+        await using var client = CreateMockClient();
         var sut = new AzureServiceBusMessagePublisher(client,
             NullLogger<AzureServiceBusMessagePublisher>.Instance,
             Options.Create(new EncinaAzureServiceBusOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishToTopicAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishToTopicAsync<object>(null!).AsTask());
     }
 
     // ─── ServiceCollectionExtensions guards ───
@@ -118,15 +116,25 @@ public sealed class AzureServiceBusGuardTests
     }
 
     [Fact]
-    public void AddEncinaAzureServiceBus_ValidConfig_Registers()
+    public async Task AddEncinaAzureServiceBus_RegistersExpectedServices_WhenConfigValid()
     {
+        const string ConnectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==";
         var services = new ServiceCollection();
         services.AddLogging();
 
-        var result = services.AddEncinaAzureServiceBus(o =>
-            o.ConnectionString = "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=dGVzdA==");
+        var result = services.AddEncinaAzureServiceBus(o => o.ConnectionString = ConnectionString);
 
-        result.ShouldNotBeNull();
+        result.ShouldBe(services);
+        services.ShouldContain(sd => sd.ServiceType == typeof(ServiceBusClient));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IAzureServiceBusMessagePublisher));
+
+        await using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<EncinaAzureServiceBusOptions>>();
+        options.Value.ConnectionString.ShouldBe(ConnectionString);
+
+        await using var scope = provider.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<ServiceBusClient>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IAzureServiceBusMessagePublisher>().ShouldNotBeNull();
     }
 
     // ─── AzureServiceBusHealthCheck ───
@@ -147,5 +155,19 @@ public sealed class AzureServiceBusGuardTests
         var options = new EncinaAzureServiceBusOptions();
         options.ShouldNotBeNull();
         options.ConnectionString.ShouldBe(string.Empty);
+    }
+
+    // ─── ScheduleAsync null guard (regression) ───
+
+    [Fact]
+    public async Task ScheduleAsync_NullMessage_Throws()
+    {
+        await using var client = CreateMockClient();
+        var sut = new AzureServiceBusMessagePublisher(client,
+            NullLogger<AzureServiceBusMessagePublisher>.Instance,
+            Options.Create(new EncinaAzureServiceBusOptions()));
+
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ScheduleAsync<object>(null!, DateTimeOffset.UtcNow).AsTask());
     }
 }
