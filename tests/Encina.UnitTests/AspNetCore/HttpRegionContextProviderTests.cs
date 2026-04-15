@@ -100,7 +100,7 @@ public sealed class HttpRegionContextProviderTests
     }
 
     [Fact]
-    public async Task GetCurrentRegionAsync_HeaderWhitespaceTrimmed()
+    public async Task GetCurrentRegionAsync_HeaderWithWhitespace_ReturnsTrimmedRegionCode()
     {
         var http = new DefaultHttpContext();
         http.Request.Headers["X-Data-Region"] = "  DE  ";

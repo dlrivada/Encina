@@ -15,7 +15,7 @@ public sealed class ServiceCollectionExtensionsTests
     // ── AddEncinaAspNetCore (parameterless overload) ───────────────────────
 
     [Fact]
-    public void AddEncinaAspNetCore_RegistersRequestContextAccessor()
+    public void AddEncinaAspNetCore_WhenCalled_RegistersRequestContextAccessor()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -29,7 +29,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaAspNetCore_RegistersHttpContextAccessor()
+    public void AddEncinaAspNetCore_WhenCalled_RegistersHttpContextAccessor()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -120,7 +120,7 @@ public sealed class ServiceCollectionExtensionsTests
     // ── AddAuthorization (EncinaConfiguration extension) ───────────────────
 
     [Fact]
-    public void AddAuthorization_AddsAuthorizationPipelineBehavior()
+    public void AddAuthorization_WhenCalled_AddsAuthorizationPipelineBehavior()
     {
         var configuration = new EncinaConfiguration();
 
@@ -147,7 +147,7 @@ public sealed class ServiceCollectionExtensionsTests
     // ── AddEncinaAuthorization registers RequireAuthenticated policy ───────
 
     [Fact]
-    public void AddEncinaAuthorization_RegistersRequireAuthenticatedPolicy()
+    public void AddEncinaAuthorization_WhenCalled_RegistersRequireAuthenticatedPolicy()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -161,7 +161,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaAuthorization_RegistersHttpContextAccessor()
+    public void AddEncinaAuthorization_WhenCalled_RegistersHttpContextAccessor()
     {
         var services = new ServiceCollection();
         services.AddLogging();

@@ -20,7 +20,7 @@ public sealed class ApplicationBuilderExtensionsTests
     }
 
     [Fact]
-    public void UseEncinaContext_ReturnsApplicationBuilder()
+    public void UseEncinaContext_WhenCalled_ReturnsApplicationBuilder()
     {
         using var provider = BuildProvider();
         var app = new ApplicationBuilder(provider);
@@ -32,7 +32,7 @@ public sealed class ApplicationBuilderExtensionsTests
     }
 
     [Fact]
-    public void UseEncinaContext_RegistersMiddlewareInPipeline()
+    public void UseEncinaContext_WhenBuilt_RegistersMiddlewareInPipeline()
     {
         using var provider = BuildProvider();
         var app = new ApplicationBuilder(provider);
@@ -44,7 +44,7 @@ public sealed class ApplicationBuilderExtensionsTests
     }
 
     [Fact]
-    public async Task UseEncinaContext_PipelineExecutesMiddlewareWithoutThrowing()
+    public async Task UseEncinaContext_WhenPipelineExecuted_DoesNotThrow()
     {
         using var provider = BuildProvider();
         var app = new ApplicationBuilder(provider);

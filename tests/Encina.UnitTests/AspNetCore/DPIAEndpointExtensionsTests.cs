@@ -38,6 +38,9 @@ public sealed class DPIAEndpointExtensionsTests
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
     private static IDPIAService CreateService(
         IReadOnlyList<DPIAReadModel>? all = null,
         IReadOnlyList<DPIAReadModel>? expired = null,
@@ -47,7 +50,6 @@ public sealed class DPIAEndpointExtensionsTests
     {
         var service = Substitute.For<IDPIAService>();
 
-#pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mocking
         service.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, IReadOnlyList<DPIAReadModel>>>(
                 Right<EncinaError, IReadOnlyList<DPIAReadModel>>(all ?? [])));
@@ -78,20 +80,20 @@ public sealed class DPIAEndpointExtensionsTests
                 Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(rejectResult
                 ?? Right<EncinaError, Unit>(Unit.Default)));
-#pragma warning restore CA2012
 
         return service;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
     private static IDPIATemplateProvider CreateTemplateProvider(
         IReadOnlyList<DPIATemplate>? templates = null)
     {
         var provider = Substitute.For<IDPIATemplateProvider>();
-#pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mocking
         provider.GetAllTemplatesAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, IReadOnlyList<DPIATemplate>>>(
                 Right<EncinaError, IReadOnlyList<DPIATemplate>>(templates ?? [])));
-#pragma warning restore CA2012
         return provider;
     }
 
