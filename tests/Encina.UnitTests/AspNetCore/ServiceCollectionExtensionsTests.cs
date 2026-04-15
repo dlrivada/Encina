@@ -195,8 +195,8 @@ public sealed class ServiceCollectionExtensionsTests
 
         var config = provider.GetRequiredService<IOptions<AuthorizationConfiguration>>().Value;
         config.AutoApplyPolicies.ShouldBeFalse();
-        config.DefaultCommandPolicy.ShouldBe("RequireAuthenticated");
-        config.DefaultQueryPolicy.ShouldBe("RequireAuthenticated");
+        config.DefaultCommandPolicy.ShouldBe(AuthorizationConfiguration.RequireAuthenticatedPolicyName);
+        config.DefaultQueryPolicy.ShouldBe(AuthorizationConfiguration.RequireAuthenticatedPolicyName);
     }
 
     [Fact]
