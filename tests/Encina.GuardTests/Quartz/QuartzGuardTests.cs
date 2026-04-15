@@ -1,3 +1,4 @@
+using Encina.Messaging.Health;
 using Encina.Quartz;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -105,6 +106,11 @@ public sealed class QuartzGuardTests
 
         options.ShouldNotBeNull();
         options.ProviderHealthCheck.ShouldNotBeNull();
+        options.ProviderHealthCheck.Enabled.ShouldBeTrue();
+        options.ProviderHealthCheck.Timeout.ShouldBe(TimeSpan.FromSeconds(5));
+        options.ProviderHealthCheck.Name.ShouldBeNull();
+        options.ProviderHealthCheck.Tags.ShouldBe(["encina", "database", "ready"]);
+        options.ProviderHealthCheck.FailureStatus.ShouldBe(HealthStatus.Unhealthy);
     }
 
     public sealed record TestNotification : INotification;
