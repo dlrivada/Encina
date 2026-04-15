@@ -10,20 +10,20 @@ namespace Encina.UnitTests.AspNetCore;
 /// </summary>
 public sealed class ApplicationBuilderExtensionsTests
 {
-    private static ApplicationBuilder CreateAppBuilder()
+    private static ServiceProvider BuildProvider()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         services.AddEncinaAspNetCore();
-        var provider = services.BuildServiceProvider();
-        return new ApplicationBuilder(provider);
+        return services.BuildServiceProvider();
     }
 
     [Fact]
     public void UseEncinaContext_ReturnsApplicationBuilder()
     {
-        var app = CreateAppBuilder();
+        using var provider = BuildProvider();
+        var app = new ApplicationBuilder(provider);
 
         var result = app.UseEncinaContext();
 
@@ -34,7 +34,8 @@ public sealed class ApplicationBuilderExtensionsTests
     [Fact]
     public void UseEncinaContext_RegistersMiddlewareInPipeline()
     {
-        var app = CreateAppBuilder();
+        using var provider = BuildProvider();
+        var app = new ApplicationBuilder(provider);
 
         app.UseEncinaContext();
         var pipeline = app.Build();
@@ -45,7 +46,8 @@ public sealed class ApplicationBuilderExtensionsTests
     [Fact]
     public async Task UseEncinaContext_PipelineExecutesMiddlewareWithoutThrowing()
     {
-        var app = CreateAppBuilder();
+        using var provider = BuildProvider();
+        var app = new ApplicationBuilder(provider);
         app.UseEncinaContext();
         var pipeline = app.Build();
 

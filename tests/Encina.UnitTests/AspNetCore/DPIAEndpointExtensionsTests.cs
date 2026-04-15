@@ -16,8 +16,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
-#pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mocking
-
 namespace Encina.UnitTests.AspNetCore;
 
 /// <summary>
@@ -25,6 +23,21 @@ namespace Encina.UnitTests.AspNetCore;
 /// </summary>
 public sealed class DPIAEndpointExtensionsTests
 {
+    /// <summary>
+    /// Holds the started test host and its HTTP client so both are disposed together.
+    /// </summary>
+    private sealed class TestHarness(IHost host, HttpClient client) : IAsyncDisposable
+    {
+        public HttpClient Client { get; } = client;
+
+        public async ValueTask DisposeAsync()
+        {
+            Client.Dispose();
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
+
     private static IDPIAService CreateService(
         IReadOnlyList<DPIAReadModel>? all = null,
         IReadOnlyList<DPIAReadModel>? expired = null,
@@ -34,6 +47,7 @@ public sealed class DPIAEndpointExtensionsTests
     {
         var service = Substitute.For<IDPIAService>();
 
+#pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mocking
         service.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, IReadOnlyList<DPIAReadModel>>>(
                 Right<EncinaError, IReadOnlyList<DPIAReadModel>>(all ?? [])));
@@ -64,6 +78,7 @@ public sealed class DPIAEndpointExtensionsTests
                 Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(rejectResult
                 ?? Right<EncinaError, Unit>(Unit.Default)));
+#pragma warning restore CA2012
 
         return service;
     }
@@ -72,13 +87,15 @@ public sealed class DPIAEndpointExtensionsTests
         IReadOnlyList<DPIATemplate>? templates = null)
     {
         var provider = Substitute.For<IDPIATemplateProvider>();
+#pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mocking
         provider.GetAllTemplatesAsync(Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, IReadOnlyList<DPIATemplate>>>(
                 Right<EncinaError, IReadOnlyList<DPIATemplate>>(templates ?? [])));
+#pragma warning restore CA2012
         return provider;
     }
 
-    private static async Task<HttpClient> CreateClientAsync(
+    private static async Task<TestHarness> CreateHarnessAsync(
         IDPIAService service,
         IDPIATemplateProvider? templateProvider = null,
         string prefix = "/api/dpia")
@@ -108,7 +125,7 @@ public sealed class DPIAEndpointExtensionsTests
             });
 
         var host = await builder.StartAsync();
-        return host.GetTestClient();
+        return new TestHarness(host, host.GetTestClient());
     }
 
     // ── DTO defaults ────────────────────────────────────────────────────────
@@ -200,9 +217,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task GetAssessments_EmptyList_ReturnsOk()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.GetAsync(new Uri("/api/dpia/assessments", UriKind.Relative));
+        using var response = await harness.Client.GetAsync(new Uri("/api/dpia/assessments", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
@@ -215,9 +232,9 @@ public sealed class DPIAEndpointExtensionsTests
             new() { Id = Guid.NewGuid(), RequestTypeName = "MyApp.OrderCommand" }
         };
         var service = CreateService(all: assessments);
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.GetAsync(new Uri("/api/dpia/assessments", UriKind.Relative));
+        using var response = await harness.Client.GetAsync(new Uri("/api/dpia/assessments", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
@@ -228,9 +245,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task GetAssessmentById_NotFound_Returns404()
     {
         var service = CreateService(); // singleAssessment = null → returns NotFound error
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.GetAsync(
+        using var response = await harness.Client.GetAsync(
             new Uri($"/api/dpia/assessments/{Guid.NewGuid()}", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -242,9 +259,9 @@ public sealed class DPIAEndpointExtensionsTests
         var id = Guid.NewGuid();
         var assessment = new DPIAReadModel { Id = id, RequestTypeName = "MyApp.OrderCommand" };
         var service = CreateService(singleAssessment: assessment);
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.GetAsync(
+        using var response = await harness.Client.GetAsync(
             new Uri($"/api/dpia/assessments/{id}", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -256,9 +273,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task Approve_Success_Returns200()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.PostAsync(
+        using var response = await harness.Client.PostAsync(
             new Uri($"/api/dpia/assessments/{Guid.NewGuid()}/approve", UriKind.Relative),
             content: null);
 
@@ -270,9 +287,9 @@ public sealed class DPIAEndpointExtensionsTests
     {
         var service = CreateService(
             approveResult: Left<EncinaError, Unit>(DPIAErrors.AssessmentNotFound(Guid.Empty)));
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.PostAsync(
+        using var response = await harness.Client.PostAsync(
             new Uri($"/api/dpia/assessments/{Guid.NewGuid()}/approve", UriKind.Relative),
             content: null);
 
@@ -285,9 +302,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task Reject_Success_Returns200()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.PostAsJsonAsync(
+        using var response = await harness.Client.PostAsJsonAsync(
             new Uri($"/api/dpia/assessments/{Guid.NewGuid()}/reject", UriKind.Relative),
             new RejectDPIARequest { Reason = "test" });
 
@@ -298,9 +315,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task Reject_NoBody_UsesDefaultReason_Returns200()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.PostAsync(
+        using var response = await harness.Client.PostAsync(
             new Uri($"/api/dpia/assessments/{Guid.NewGuid()}/reject", UriKind.Relative),
             content: null);
 
@@ -312,9 +329,9 @@ public sealed class DPIAEndpointExtensionsTests
     {
         var service = CreateService(
             rejectResult: Left<EncinaError, Unit>(DPIAErrors.AssessmentNotFound(Guid.Empty)));
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.PostAsync(
+        using var response = await harness.Client.PostAsync(
             new Uri($"/api/dpia/assessments/{Guid.NewGuid()}/reject", UriKind.Relative),
             content: null);
 
@@ -327,9 +344,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task GetTemplates_EmptyList_Returns200()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.GetAsync(new Uri("/api/dpia/templates", UriKind.Relative));
+        using var response = await harness.Client.GetAsync(new Uri("/api/dpia/templates", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
@@ -340,9 +357,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task GetExpired_EmptyList_Returns200()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.GetAsync(new Uri("/api/dpia/expired", UriKind.Relative));
+        using var response = await harness.Client.GetAsync(new Uri("/api/dpia/expired", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
@@ -353,9 +370,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task Assess_UnresolvableType_Returns400()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service);
+        await using var harness = await CreateHarnessAsync(service);
 
-        using var response = await client.PostAsync(
+        using var response = await harness.Client.PostAsync(
             new Uri("/api/dpia/assessments/Some.NonExistent.Type/assess", UriKind.Relative),
             content: null);
 
@@ -368,9 +385,9 @@ public sealed class DPIAEndpointExtensionsTests
     public async Task CustomPrefix_RoutesUnderNewPrefix()
     {
         var service = CreateService();
-        using var client = await CreateClientAsync(service, prefix: "/compliance/dpia");
+        await using var harness = await CreateHarnessAsync(service, prefix: "/compliance/dpia");
 
-        using var response = await client.GetAsync(new Uri("/compliance/dpia/assessments", UriKind.Relative));
+        using var response = await harness.Client.GetAsync(new Uri("/compliance/dpia/assessments", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
