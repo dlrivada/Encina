@@ -35,7 +35,7 @@ public class QuartzNotificationJobTests
     {
         // Arrange
         var notification = _notificationFaker.WithMessage("test-message").Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
+        _context.JobDetail.JobDataMap[QuartzConstants.NotificationKey] = notification;
 
         // Act
         await _job.Execute(_context);
@@ -62,7 +62,7 @@ public class QuartzNotificationJobTests
     {
         // Arrange
         var notification = _notificationFaker.Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
+        _context.JobDetail.JobDataMap[QuartzConstants.NotificationKey] = notification;
 
         // Act
         await _job.Execute(_context);
@@ -79,7 +79,7 @@ public class QuartzNotificationJobTests
     {
         // Arrange
         var notification = _notificationFaker.Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
+        _context.JobDetail.JobDataMap[QuartzConstants.NotificationKey] = notification;
 
         // Act
         await _job.Execute(_context);
@@ -97,7 +97,7 @@ public class QuartzNotificationJobTests
         // Arrange
         var notification = _notificationFaker.Generate();
         var exception = new InvalidOperationException("Test exception");
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
+        _context.JobDetail.JobDataMap[QuartzConstants.NotificationKey] = notification;
         _encina.When(m => m.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw exception);
 
@@ -118,7 +118,7 @@ public class QuartzNotificationJobTests
         // Arrange
         var notification = _notificationFaker.Generate();
         var cts = new CancellationTokenSource();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.NotificationKey, notification);
+        _context.JobDetail.JobDataMap[QuartzConstants.NotificationKey] = notification;
         _context.CancellationToken.Returns(cts.Token);
 
         // Act

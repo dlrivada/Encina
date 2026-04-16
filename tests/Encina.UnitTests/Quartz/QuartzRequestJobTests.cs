@@ -40,7 +40,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.WithData("test-data").Generate();
         var expectedResponse = _responseFaker.WithSuccess().Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
@@ -61,7 +61,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.WithData("test-data").Generate();
         var error = EncinaErrors.Create("test.error", "Test error message");
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, TestResponse>(error));
 
@@ -86,7 +86,7 @@ public class QuartzRequestJobTests
     {
         // Arrange
         var request = _requestFaker.Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
 
@@ -105,7 +105,7 @@ public class QuartzRequestJobTests
     {
         // Arrange
         var request = _requestFaker.Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
 
@@ -125,7 +125,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.Generate();
         var error = EncinaErrors.Create("test.error", "Test error");
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, TestResponse>(error));
 
@@ -145,7 +145,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.Generate();
         var exception = new InvalidOperationException("Test exception");
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns<Either<EncinaError, TestResponse>>(_ => throw exception);
 
@@ -166,7 +166,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.Generate();
         var cts = new CancellationTokenSource();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _context.CancellationToken.Returns(cts.Token);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));

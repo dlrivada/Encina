@@ -4,7 +4,7 @@ using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -66,14 +66,14 @@ public sealed class NIS2MeasureEvaluatorContractTests
 
         var expectedMeasures = Enum.GetValues<NIS2Measure>();
 
-        measures.Should().BeEquivalentTo(expectedMeasures,
+        measures.ShouldBe(expectedMeasures.ToHashSet(),
             "every NIS2Measure enum value must have a corresponding evaluator");
     }
 
     [Fact]
     public void AllEvaluators_ExactlyTenRegistered()
     {
-        Evaluators.Should().HaveCount(10,
+        Evaluators.Count.ShouldBe(10,
             "NIS2 Art. 21(2) defines exactly 10 mandatory measures (a)-(j)");
     }
 
@@ -84,7 +84,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
     {
         var measures = Evaluators.Select(e => e.Measure).ToList();
 
-        measures.Should().OnlyHaveUniqueItems(
+        measures.ShouldBeUnique(
             "each evaluator must assess a distinct NIS2 measure");
     }
 
@@ -94,7 +94,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
     [MemberData(nameof(AllEvaluators))]
     public void Measure_ShouldBeDefinedEnumValue(INIS2MeasureEvaluator evaluator)
     {
-        Enum.IsDefined(evaluator.Measure).Should().BeTrue(
+        Enum.IsDefined(evaluator.Measure).ShouldBeTrue(
             $"evaluator {evaluator.GetType().Name} should return a defined NIS2Measure value");
     }
 
@@ -111,7 +111,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert — evaluators should always return a result, never an error
-        result.IsRight.Should().BeTrue(
+        result.IsRight.ShouldBeTrue(
             $"evaluator {evaluator.GetType().Name} should return Right, not Left (error)");
     }
 
@@ -126,7 +126,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert
-        result.IsRight.Should().BeTrue(
+        result.IsRight.ShouldBeTrue(
             $"evaluator {evaluator.GetType().Name} should return Right with fully configured options");
     }
 
@@ -143,7 +143,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert
-        result.IfRight(r => r.Measure.Should().Be(evaluator.Measure,
+        result.IfRight(r => r.Measure.ShouldBe(evaluator.Measure,
             $"the result Measure should match the evaluator's Measure property"));
     }
 
@@ -160,7 +160,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert
-        result.IfRight(r => r.Details.Should().NotBeNullOrWhiteSpace(
+        result.IfRight(r => r.Details.ShouldNotBeNullOrWhiteSpace(
             "evaluator results must include a meaningful Details description"));
     }
 
@@ -178,7 +178,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
         var result = await evaluator.EvaluateAsync(context, cts.Token);
 
         // Assert
-        result.IsRight.Should().BeTrue(
+        result.IsRight.ShouldBeTrue(
             $"evaluator {evaluator.GetType().Name} should accept a CancellationToken gracefully");
     }
 
@@ -199,7 +199,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
         {
             if (!r.IsSatisfied)
             {
-                r.Recommendations.Should().NotBeEmpty(
+                r.Recommendations.ShouldNotBeEmpty(
                     "not-satisfied results must include actionable recommendations");
             }
         });

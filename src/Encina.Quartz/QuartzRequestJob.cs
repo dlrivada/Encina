@@ -40,7 +40,7 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var requestObj = context.JobDetail.JobDataMap.Get(QuartzConstants.RequestKey);
+        var requestObj = context.JobDetail.JobDataMap[QuartzConstants.RequestKey];
 
         if (requestObj is not TRequest request)
         {
