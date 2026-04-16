@@ -38,7 +38,10 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate([1, 2]);
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
+        var exception = Should.Throw<InvalidOperationException>(act);
+        exception.Message.ShouldContain("exactly");
+        exception.Message.ShouldContain("1");
+        exception.Message.ShouldContain("2");
     }
 
     #endregion
