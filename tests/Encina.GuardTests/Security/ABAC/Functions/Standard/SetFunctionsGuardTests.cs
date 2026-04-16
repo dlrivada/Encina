@@ -46,7 +46,10 @@ public class SetFunctionsGuardTests
         var result = (AttributeBag)fn.Evaluate([bag1, bag2])!;
 
         result.Count.ShouldBe(2);
-        result.Values.Select(v => v.Value).ShouldBe(new object?[] { "b", "c" });
+        result.Values
+            .Select(v => (string?)v.Value)
+            .OrderBy(v => v)
+            .ShouldBe(["b", "c"]);
     }
 
     [Fact]
