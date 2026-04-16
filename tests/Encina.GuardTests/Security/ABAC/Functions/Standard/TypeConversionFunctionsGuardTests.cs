@@ -39,7 +39,7 @@ public class TypeConversionFunctionsGuardTests
         var act = () => fn.Evaluate([1, 2]);
 
         var exception = Should.Throw<InvalidOperationException>(act);
-        exception.Message.ShouldMatch("*exactly*1*2*");
+        exception.Message.ShouldMatch(@"exactly\s+1\s+argument.*received\s+2");
     }
 
     #endregion

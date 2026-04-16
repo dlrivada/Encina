@@ -71,10 +71,7 @@ public class ScatterGatherRunnerGuardTests
         var definition = CreateMinimalDefinition();
 
         // Should not throw guards - will execute the pipeline
-        var result = await sut.ExecuteAsync(definition, new TestRequest());
-        // The result depends on handler logic, but guards should not throw
-        // Just verify execution completed without exception (Either was returned)
-        _ = result;
+        await Should.NotThrowAsync(async () => await sut.ExecuteAsync(definition, new TestRequest()));
     }
 
     #endregion
