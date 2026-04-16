@@ -12,8 +12,9 @@ namespace Encina.GuardTests.Caching.Redis;
 
 /// <summary>
 /// Guard tests for Encina.Caching.Redis covering constructor null guards for
-/// providers (RedisCacheProvider, RedisDistributedLockProvider, RedisPubSubProvider)
-/// and argument guards on ServiceCollectionExtensions overloads.
+/// providers (RedisCacheProvider, RedisDistributedLockProvider, RedisPubSubProvider),
+/// argument guards on ServiceCollectionExtensions overloads, and default option
+/// values for Redis caching configuration types.
 /// </summary>
 [Trait("Category", "Guard")]
 public sealed class RedisCachingGuardTests
