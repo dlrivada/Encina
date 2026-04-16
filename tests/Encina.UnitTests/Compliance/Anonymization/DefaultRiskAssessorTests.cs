@@ -283,7 +283,7 @@ public class DefaultRiskAssessorTests
         // Assert
         result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        _ = assessment.ReIdentificationProbability;
+        assessment.ReIdentificationProbability.ShouldBe(1.0 / 5.0, 0.0001);
     }
 
     #endregion
