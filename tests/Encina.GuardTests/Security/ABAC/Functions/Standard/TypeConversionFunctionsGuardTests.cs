@@ -96,7 +96,10 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate(["abc"]);
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot");
+        var exception = Should.Throw<InvalidOperationException>(act);
+        exception.Message.ShouldContain("cannot");
+        exception.Message.ShouldContain("double");
+        exception.Message.ShouldContain("abc");
     }
 
     #endregion
@@ -126,7 +129,10 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate(["yes"]);
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot");
+        var exception = Should.Throw<InvalidOperationException>(act);
+        exception.Message.ShouldContain("cannot");
+        exception.Message.ShouldContain("boolean");
+        exception.Message.ShouldContain("yes");
     }
 
     #endregion
