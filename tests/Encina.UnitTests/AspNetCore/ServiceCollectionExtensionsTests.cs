@@ -160,6 +160,7 @@ public sealed class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddRouting();
 
         services.AddEncinaAuthorization();
         using var provider = BuildValidatedProvider(services);
@@ -174,6 +175,7 @@ public sealed class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddRouting();
 
         services.AddEncinaAuthorization();
         using var provider = BuildValidatedProvider(services);
@@ -198,6 +200,7 @@ public sealed class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddRouting();
 
         services.AddEncinaAuthorization();
         using var provider = BuildValidatedProvider(services);
@@ -213,6 +216,7 @@ public sealed class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddRouting();
 
         services.AddEncinaAuthorization(
             configurePolicies: policies =>
