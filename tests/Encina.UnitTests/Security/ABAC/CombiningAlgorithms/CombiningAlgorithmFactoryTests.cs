@@ -95,8 +95,7 @@ public sealed class CombiningAlgorithmFactoryTests
         {
             var act = () => _sut.GetAlgorithm(id);
 
-            Should.NotThrow(act); //
-                $"CombiningAlgorithmId.{id} should be registered in the factory");
+            Should.NotThrow(act);
         }
     }
 

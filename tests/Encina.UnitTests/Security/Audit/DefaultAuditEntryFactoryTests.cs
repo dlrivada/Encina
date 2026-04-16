@@ -46,7 +46,7 @@ public class DefaultAuditEntryFactoryTests
         entry.EntityId.ShouldBe(request.Id.ToString());
         entry.Outcome.ShouldBe(AuditOutcome.Success);
         entry.ErrorMessage.ShouldBeNull();
-        entry.TimestampUtc.ShouldBeInRange(DateTime.UtcNow - TimeSpan.FromSeconds(5, DateTime.UtcNow + TimeSpan.FromSeconds(5));
+        entry.TimestampUtc.ShouldBeInRange(DateTime.UtcNow - TimeSpan.FromSeconds(5), DateTime.UtcNow + TimeSpan.FromSeconds(5));
     }
 
     [Fact]
