@@ -168,7 +168,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var ids = sut.GetAllFunctionIds();
 
-        ids.ShouldBeInOrder(SortDirection.Ascending);
+        ids.ShouldBe(ids.OrderBy(x => x, StringComparer.Ordinal));
     }
 
     [Fact]

@@ -40,16 +40,8 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!context.JobDetail.JobDataMap.ContainsKey(QuartzConstants.RequestKey))
-        {
-            Log.RequestNotFoundInJobDataMap(_logger, context.JobDetail.Key);
-
-            throw new JobExecutionException(
-                $"Request key '{QuartzConstants.RequestKey}' was not found in JobDataMap for request type {typeof(TRequest).Name}");
-        }
-        var requestObj = context.JobDetail.JobDataMap[QuartzConstants.RequestKey];
-
-        if (requestObj is not TRequest request)
+        if (!context.JobDetail.JobDataMap.TryGetValue(QuartzConstants.RequestKey, out var requestObj) ||
+            requestObj is not TRequest request)
         {
             Log.RequestNotFoundInJobDataMap(_logger, context.JobDetail.Key);
 

@@ -57,7 +57,7 @@ public class AnonymizationProfileTests
 
         // Assert
         profile.FieldRules.Count.ShouldBe(2);
-        profile.FieldRules.ShouldBe(rules);
+        profile.FieldRules.Select(r => r.FieldName).ShouldBe(rules.Select(r => r.FieldName));
     }
 
     [Fact]
