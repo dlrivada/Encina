@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 using NSubstitute;
 
@@ -20,7 +20,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.EnforcementMode.Should().Be(ABACEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(ABACEnforcementMode.Block);
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.DefaultNotApplicableEffect.Should().Be(Effect.Deny);
+        options.DefaultNotApplicableEffect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.IncludeAdvice.Should().BeTrue();
+        options.IncludeAdvice.ShouldBeTrue();
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.FailOnMissingObligationHandler.Should().BeTrue();
+        options.FailOnMissingObligationHandler.ShouldBeTrue();
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.ValidateExpressionsAtStartup.Should().BeFalse();
+        options.ValidateExpressionsAtStartup.ShouldBeFalse();
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.UsePersistentPAP.Should().BeFalse();
+        options.UsePersistentPAP.ShouldBeFalse();
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.PolicyCaching.Should().NotBeNull();
-        options.PolicyCaching.Enabled.Should().BeFalse();
+        options.PolicyCaching.ShouldNotBeNull();
+        options.PolicyCaching.Enabled.ShouldBeFalse();
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.CustomFunctions.Should().BeEmpty();
+        options.CustomFunctions.ShouldBeEmpty();
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.SeedPolicySets.Should().BeEmpty();
+        options.SeedPolicySets.ShouldBeEmpty();
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.SeedPolicies.Should().BeEmpty();
+        options.SeedPolicies.ShouldBeEmpty();
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions();
 
-        options.ExpressionScanAssemblies.Should().BeEmpty();
+        options.ExpressionScanAssemblies.ShouldBeEmpty();
     }
 
     #endregion
@@ -121,7 +121,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Warn };
 
-        options.EnforcementMode.Should().Be(ABACEnforcementMode.Warn);
+        options.EnforcementMode.ShouldBe(ABACEnforcementMode.Warn);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Disabled };
 
-        options.EnforcementMode.Should().Be(ABACEnforcementMode.Disabled);
+        options.EnforcementMode.ShouldBe(ABACEnforcementMode.Disabled);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions { DefaultNotApplicableEffect = Effect.Permit };
 
-        options.DefaultNotApplicableEffect.Should().Be(Effect.Permit);
+        options.DefaultNotApplicableEffect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions { IncludeAdvice = false };
 
-        options.IncludeAdvice.Should().BeFalse();
+        options.IncludeAdvice.ShouldBeFalse();
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions { FailOnMissingObligationHandler = false };
 
-        options.FailOnMissingObligationHandler.Should().BeFalse();
+        options.FailOnMissingObligationHandler.ShouldBeFalse();
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class ABACOptionsGuardTests
     {
         var options = new ABACOptions { UsePersistentPAP = true };
 
-        options.UsePersistentPAP.Should().BeTrue();
+        options.UsePersistentPAP.ShouldBeTrue();
     }
 
     #endregion
@@ -176,7 +176,7 @@ public class ABACOptionsGuardTests
 
         var act = () => options.AddFunction(null!, function);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class ABACOptionsGuardTests
 
         var act = () => options.AddFunction("", function);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class ABACOptionsGuardTests
 
         var act = () => options.AddFunction("   ", function);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -208,8 +208,8 @@ public class ABACOptionsGuardTests
 
         var act = () => options.AddFunction("custom:test", null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("function");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("function");
     }
 
     [Fact]
@@ -220,8 +220,8 @@ public class ABACOptionsGuardTests
 
         options.AddFunction("custom:test", function);
 
-        options.CustomFunctions.Should().ContainSingle()
-            .Which.FunctionId.Should().Be("custom:test");
+        options.CustomFunctions.ShouldHaveSingleItem()
+            .FunctionId.ShouldBe("custom:test");
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public class ABACOptionsGuardTests
 
         var result = options.AddFunction("custom:test", function);
 
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public class ABACOptionsGuardTests
         options.AddFunction("custom:func1", f1)
                .AddFunction("custom:func2", f2);
 
-        options.CustomFunctions.Should().HaveCount(2);
+        options.CustomFunctions.Count.ShouldBe(2);
     }
 
     #endregion
@@ -259,8 +259,8 @@ public class ABACOptionsGuardTests
 
         var result = options.UseXacmlXmlSerializer();
 
-        options.UseXacmlXml.Should().BeTrue();
-        result.Should().BeSameAs(options);
+        options.UseXacmlXml.ShouldBeTrue();
+        result.ShouldBeSameAs(options);
     }
 
     #endregion
@@ -274,8 +274,8 @@ public class ABACOptionsGuardTests
 
         var result = options.RegisterXacmlXmlSerializer();
 
-        options.RegisterXacmlXmlAsKeyed.Should().BeTrue();
-        result.Should().BeSameAs(options);
+        options.RegisterXacmlXmlAsKeyed.ShouldBeTrue();
+        result.ShouldBeSameAs(options);
     }
 
     #endregion
@@ -299,8 +299,8 @@ public class ABACOptionsGuardTests
 
         options.SeedPolicySets.Add(ps);
 
-        options.SeedPolicySets.Should().ContainSingle()
-            .Which.Id.Should().Be("seed-ps");
+        options.SeedPolicySets.ShouldHaveSingleItem()
+            .Id.ShouldBe("seed-ps");
     }
 
     [Fact]
@@ -320,8 +320,8 @@ public class ABACOptionsGuardTests
 
         options.SeedPolicies.Add(pol);
 
-        options.SeedPolicies.Should().ContainSingle()
-            .Which.Id.Should().Be("seed-pol");
+        options.SeedPolicies.ShouldHaveSingleItem()
+            .Id.ShouldBe("seed-pol");
     }
 
     [Fact]
@@ -331,7 +331,7 @@ public class ABACOptionsGuardTests
 
         options.ExpressionScanAssemblies.Add(typeof(ABACOptions).Assembly);
 
-        options.ExpressionScanAssemblies.Should().ContainSingle();
+        options.ExpressionScanAssemblies.ShouldHaveSingleItem();
     }
 
     #endregion

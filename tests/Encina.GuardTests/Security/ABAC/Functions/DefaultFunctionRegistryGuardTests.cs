@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 using NSubstitute;
 
@@ -22,11 +22,11 @@ public class DefaultFunctionRegistryGuardTests
 
         var allIds = sut.GetAllFunctionIds();
 
-        allIds.Should().NotBeEmpty();
-        allIds.Should().Contain(XACMLFunctionIds.StringEqual);
-        allIds.Should().Contain(XACMLFunctionIds.IntegerAdd);
-        allIds.Should().Contain(XACMLFunctionIds.And);
-        allIds.Should().Contain(XACMLFunctionIds.StringRegexpMatch);
+        allIds.ShouldNotBeEmpty();
+        allIds.ShouldContain(XACMLFunctionIds.StringEqual);
+        allIds.ShouldContain(XACMLFunctionIds.IntegerAdd);
+        allIds.ShouldContain(XACMLFunctionIds.And);
+        allIds.ShouldContain(XACMLFunctionIds.StringRegexpMatch);
     }
 
     #endregion
@@ -40,7 +40,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var act = () => sut.GetFunction(null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var act = () => sut.GetFunction("");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var act = () => sut.GetFunction("   ");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var result = sut.GetFunction("nonexistent-function");
 
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class DefaultFunctionRegistryGuardTests
 
         var result = sut.GetFunction(XACMLFunctionIds.StringEqual);
 
-        result.Should().NotBeNull();
-        result!.ReturnType.Should().Be(XACMLDataTypes.Boolean);
+        result.ShouldNotBeNull();
+        result!.ReturnType.ShouldBe(XACMLDataTypes.Boolean);
     }
 
     #endregion
@@ -96,7 +96,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var act = () => sut.Register(null!, fn);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var act = () => sut.Register("", fn);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var act = () => sut.Register("   ", fn);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var act = () => sut.Register("custom-fn", null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class DefaultFunctionRegistryGuardTests
         sut.Register("custom-geo-within", fn);
 
         var result = sut.GetFunction("custom-geo-within");
-        result.Should().BeSameAs(fn);
+        result.ShouldBeSameAs(fn);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class DefaultFunctionRegistryGuardTests
         sut.Register(XACMLFunctionIds.StringEqual, customFn);
 
         var result = sut.GetFunction(XACMLFunctionIds.StringEqual);
-        result.Should().BeSameAs(customFn);
+        result.ShouldBeSameAs(customFn);
     }
 
     #endregion
@@ -168,7 +168,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var ids = sut.GetAllFunctionIds();
 
-        ids.Should().BeInAscendingOrder(StringComparer.Ordinal);
+        ids.ShouldBeInOrder(SortDirection.Ascending);
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public class DefaultFunctionRegistryGuardTests
 
         var ids = sut.GetAllFunctionIds();
 
-        ids.Should().Contain("zzz-custom");
+        ids.ShouldContain("zzz-custom");
     }
 
     #endregion

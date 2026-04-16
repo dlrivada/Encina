@@ -1,7 +1,7 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Compliance.NIS2;
 
@@ -25,7 +25,7 @@ public sealed class NIS2IncidentGuardTests
             ["service-a"],
             "initial assessment");
 
-        incident.Id.Should().NotBeEmpty();
+        incident.Id.ShouldNotBe(Guid.Empty);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class NIS2IncidentGuardTests
             ["svc"],
             "assessment");
 
-        incident.Description.Should().Be("test description");
+        incident.Description.ShouldBe("test description");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class NIS2IncidentGuardTests
             ["svc"],
             "assessment");
 
-        incident.Severity.Should().Be(NIS2IncidentSeverity.Critical);
+        incident.Severity.ShouldBe(NIS2IncidentSeverity.Critical);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class NIS2IncidentGuardTests
             ["svc"],
             "assessment");
 
-        incident.DetectedAtUtc.Should().Be(detectedAt);
+        incident.DetectedAtUtc.ShouldBe(detectedAt);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class NIS2IncidentGuardTests
             ["svc"],
             "assessment");
 
-        incident.IsSignificant.Should().BeTrue();
+        incident.IsSignificant.ShouldBeTrue();
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class NIS2IncidentGuardTests
             services,
             "assessment");
 
-        incident.AffectedServices.Should().HaveCount(2);
+        incident.AffectedServices.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class NIS2IncidentGuardTests
             ["svc"],
             "my assessment");
 
-        incident.InitialAssessment.Should().Be("my assessment");
+        incident.InitialAssessment.ShouldBe("my assessment");
     }
 
     [Fact]
@@ -127,9 +127,9 @@ public sealed class NIS2IncidentGuardTests
             ["svc"],
             "assessment");
 
-        incident.EarlyWarningAtUtc.Should().BeNull();
-        incident.IncidentNotificationAtUtc.Should().BeNull();
-        incident.FinalReportAtUtc.Should().BeNull();
+        incident.EarlyWarningAtUtc.ShouldBeNull();
+        incident.IncidentNotificationAtUtc.ShouldBeNull();
+        incident.FinalReportAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class NIS2IncidentGuardTests
         var incident = NIS2Incident.Create(
             "test", NIS2IncidentSeverity.High, detected, true, ["svc"], "assessment");
 
-        incident.EarlyWarningDeadlineUtc.Should().Be(detected.AddHours(24));
+        incident.EarlyWarningDeadlineUtc.ShouldBe(detected.AddHours(24));
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class NIS2IncidentGuardTests
         var incident = NIS2Incident.Create(
             "test", NIS2IncidentSeverity.High, detected, true, ["svc"], "assessment");
 
-        incident.IncidentNotificationDeadlineUtc.Should().Be(detected.AddHours(72));
+        incident.IncidentNotificationDeadlineUtc.ShouldBe(detected.AddHours(72));
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public sealed class NIS2IncidentGuardTests
         var incident = NIS2Incident.Create(
             "test", NIS2IncidentSeverity.Low, DateTimeOffset.UtcNow, false, ["svc"], "assessment");
 
-        incident.FinalReportDeadlineUtc.Should().BeNull();
+        incident.FinalReportDeadlineUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public sealed class NIS2IncidentGuardTests
             IncidentNotificationAtUtc = notifiedAt
         };
 
-        incident.FinalReportDeadlineUtc.Should().Be(notifiedAt.AddMonths(1));
+        incident.FinalReportDeadlineUtc.ShouldBe(notifiedAt.AddMonths(1));
     }
 }
 
@@ -202,9 +202,9 @@ public sealed class NIS2ComplianceResultGuardTests
             measures,
             DateTimeOffset.UtcNow);
 
-        result.IsCompliant.Should().BeTrue();
-        result.MissingCount.Should().Be(0);
-        result.CompliancePercentage.Should().Be(100);
+        result.IsCompliant.ShouldBeTrue();
+        result.MissingCount.ShouldBe(0);
+        result.CompliancePercentage.ShouldBe(100);
     }
 
     [Fact]
@@ -221,9 +221,9 @@ public sealed class NIS2ComplianceResultGuardTests
             measures,
             DateTimeOffset.UtcNow);
 
-        result.IsCompliant.Should().BeFalse();
-        result.MissingCount.Should().Be(1);
-        result.CompliancePercentage.Should().Be(0);
+        result.IsCompliant.ShouldBeFalse();
+        result.MissingCount.ShouldBe(1);
+        result.CompliancePercentage.ShouldBe(0);
     }
 
     [Fact]
@@ -235,8 +235,8 @@ public sealed class NIS2ComplianceResultGuardTests
             [],
             DateTimeOffset.UtcNow);
 
-        result.IsCompliant.Should().BeTrue();
-        result.CompliancePercentage.Should().Be(0);
+        result.IsCompliant.ShouldBeTrue();
+        result.CompliancePercentage.ShouldBe(0);
     }
 
     [Fact]
@@ -248,8 +248,8 @@ public sealed class NIS2ComplianceResultGuardTests
             [],
             DateTimeOffset.UtcNow);
 
-        result.EntityType.Should().Be(NIS2EntityType.Important);
-        result.Sector.Should().Be(NIS2Sector.Health);
+        result.EntityType.ShouldBe(NIS2EntityType.Important);
+        result.Sector.ShouldBe(NIS2Sector.Health);
     }
 }
 
@@ -268,10 +268,10 @@ public sealed class NIS2MeasureResultGuardTests
         var result = NIS2MeasureResult.Satisfied(
             NIS2Measure.RiskAnalysisAndSecurityPolicies, "OK");
 
-        result.IsSatisfied.Should().BeTrue();
-        result.Measure.Should().Be(NIS2Measure.RiskAnalysisAndSecurityPolicies);
-        result.Details.Should().Be("OK");
-        result.Recommendations.Should().BeEmpty();
+        result.IsSatisfied.ShouldBeTrue();
+        result.Measure.ShouldBe(NIS2Measure.RiskAnalysisAndSecurityPolicies);
+        result.Details.ShouldBe("OK");
+        result.Recommendations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -280,10 +280,11 @@ public sealed class NIS2MeasureResultGuardTests
         var result = NIS2MeasureResult.NotSatisfied(
             NIS2Measure.IncidentHandling, "Missing", ["Fix it"]);
 
-        result.IsSatisfied.Should().BeFalse();
-        result.Measure.Should().Be(NIS2Measure.IncidentHandling);
-        result.Details.Should().Be("Missing");
-        result.Recommendations.Should().ContainSingle("Fix it");
+        result.IsSatisfied.ShouldBeFalse();
+        result.Measure.ShouldBe(NIS2Measure.IncidentHandling);
+        result.Details.ShouldBe("Missing");
+        result.Recommendations.ShouldContain("Fix it");
+        result.Recommendations.Count.ShouldBe(1);
     }
 }
 
@@ -319,11 +320,11 @@ public sealed class SupplyChainAssessmentGuardTests
             now,
             nextDue);
 
-        assessment.SupplierId.Should().Be("supplier-1");
-        assessment.OverallRisk.Should().Be(SupplierRiskLevel.Medium);
-        assessment.Risks.Should().HaveCount(1);
-        assessment.AssessedAtUtc.Should().Be(now);
-        assessment.NextAssessmentDueAtUtc.Should().Be(nextDue);
+        assessment.SupplierId.ShouldBe("supplier-1");
+        assessment.OverallRisk.ShouldBe(SupplierRiskLevel.Medium);
+        assessment.Risks.Count.ShouldBe(1);
+        assessment.AssessedAtUtc.ShouldBe(now);
+        assessment.NextAssessmentDueAtUtc.ShouldBe(nextDue);
     }
 }
 
@@ -341,12 +342,12 @@ public sealed class SupplierInfoGuardTests
     {
         var info = SupplierInfo.Create("supplier-1", "Test Supplier", SupplierRiskLevel.Low);
 
-        info.SupplierId.Should().Be("supplier-1");
-        info.Name.Should().Be("Test Supplier");
-        info.RiskLevel.Should().Be(SupplierRiskLevel.Low);
-        info.MitigationMeasures.Should().BeEmpty();
-        info.CertificationStatus.Should().BeNull();
-        info.LastAssessmentAtUtc.Should().BeNull();
+        info.SupplierId.ShouldBe("supplier-1");
+        info.Name.ShouldBe("Test Supplier");
+        info.RiskLevel.ShouldBe(SupplierRiskLevel.Low);
+        info.MitigationMeasures.ShouldBeEmpty();
+        info.CertificationStatus.ShouldBeNull();
+        info.LastAssessmentAtUtc.ShouldBeNull();
     }
 }
 
@@ -371,11 +372,11 @@ public sealed class ManagementAccountabilityRecordGuardTests
             now,
             areas);
 
-        record.ResponsiblePerson.Should().Be("Jane Doe");
-        record.Role.Should().Be("CISO");
-        record.AcknowledgedAtUtc.Should().Be(now);
-        record.ComplianceAreas.Should().HaveCount(2);
-        record.TrainingCompletedAtUtc.Should().BeNull();
+        record.ResponsiblePerson.ShouldBe("Jane Doe");
+        record.Role.ShouldBe("CISO");
+        record.AcknowledgedAtUtc.ShouldBe(now);
+        record.ComplianceAreas.Count.ShouldBe(2);
+        record.TrainingCompletedAtUtc.ShouldBeNull();
     }
 }
 
@@ -402,10 +403,10 @@ public sealed class NIS2MeasureContextGuardTests
             TenantId = "tenant-1"
         };
 
-        context.Options.Should().BeSameAs(options);
-        context.TimeProvider.Should().BeSameAs(TimeProvider.System);
-        context.ServiceProvider.Should().BeSameAs(serviceProvider);
-        context.TenantId.Should().Be("tenant-1");
+        context.Options.ShouldBeSameAs(options);
+        context.TimeProvider.ShouldBeSameAs(TimeProvider.System);
+        context.ServiceProvider.ShouldBeSameAs(serviceProvider);
+        context.TenantId.ShouldBe("tenant-1");
     }
 
     [Fact]
@@ -418,7 +419,7 @@ public sealed class NIS2MeasureContextGuardTests
             ServiceProvider = NSubstitute.Substitute.For<IServiceProvider>()
         };
 
-        context.TenantId.Should().BeNull();
+        context.TenantId.ShouldBeNull();
     }
 }
 

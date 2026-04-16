@@ -3,7 +3,7 @@ using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.HMAC;
 using Encina.Security.AntiTampering.Http;
 using Encina.Security.AntiTampering.Pipeline;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -24,8 +24,8 @@ public class AntiTamperingGuardTests
     {
         var act = () => new HMACSigner(null!, Options.Create(new AntiTamperingOptions()));
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("keyProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("keyProvider");
     }
 
     [Fact]
@@ -34,8 +34,8 @@ public class AntiTamperingGuardTests
         var keyProvider = Substitute.For<IKeyProvider>();
         var act = () => new HMACSigner(keyProvider, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -46,8 +46,8 @@ public class AntiTamperingGuardTests
 
         var act = async () => await sut.SignAsync(ReadOnlyMemory<byte>.Empty, null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public class AntiTamperingGuardTests
 
         var act = async () => await sut.VerifyAsync(ReadOnlyMemory<byte>.Empty, "sig", null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     [Theory]
@@ -81,7 +81,7 @@ public class AntiTamperingGuardTests
 
         var act = async () => await sut.VerifyAsync(ReadOnlyMemory<byte>.Empty, signature!, context);
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -93,8 +93,8 @@ public class AntiTamperingGuardTests
     {
         var act = () => new InMemoryKeyProvider(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Theory]
@@ -107,7 +107,7 @@ public class AntiTamperingGuardTests
 
         var act = async () => await sut.GetKeyAsync(keyId!);
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -117,8 +117,8 @@ public class AntiTamperingGuardTests
 
         var act = () => sut.AddKey("key-id", null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("key");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("key");
     }
 
     [Theory]
@@ -131,7 +131,7 @@ public class AntiTamperingGuardTests
 
         var act = () => sut.AddKey(keyId!, new byte[32]);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -144,8 +144,8 @@ public class AntiTamperingGuardTests
         var act = () => new RequestSigningClient(
             null!, Options.Create(new AntiTamperingOptions()), TimeProvider.System);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestSigner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestSigner");
     }
 
     [Fact]
@@ -154,8 +154,8 @@ public class AntiTamperingGuardTests
         var requestSigner = Substitute.For<IRequestSigner>();
         var act = () => new RequestSigningClient(requestSigner, null!, TimeProvider.System);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -165,8 +165,8 @@ public class AntiTamperingGuardTests
         var act = () => new RequestSigningClient(
             requestSigner, Options.Create(new AntiTamperingOptions()), null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -178,8 +178,8 @@ public class AntiTamperingGuardTests
 
         var act = async () => await sut.SignRequestAsync(null!, "key-id");
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     [Theory]
@@ -195,7 +195,7 @@ public class AntiTamperingGuardTests
 
         var act = async () => await sut.SignRequestAsync(request, keyId!);
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -213,8 +213,8 @@ public class AntiTamperingGuardTests
             TimeProvider.System,
             Substitute.For<ILogger<HMACValidationPipelineBehavior<TestCommand, Unit>>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestSigner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestSigner");
     }
 
     [Fact]
@@ -228,8 +228,8 @@ public class AntiTamperingGuardTests
             TimeProvider.System,
             Substitute.For<ILogger<HMACValidationPipelineBehavior<TestCommand, Unit>>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("nonceStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("nonceStore");
     }
 
     [Fact]
@@ -243,8 +243,8 @@ public class AntiTamperingGuardTests
             TimeProvider.System,
             Substitute.For<ILogger<HMACValidationPipelineBehavior<TestCommand, Unit>>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("httpContextAccessor");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("httpContextAccessor");
     }
 
     [Fact]
@@ -258,8 +258,8 @@ public class AntiTamperingGuardTests
             TimeProvider.System,
             Substitute.For<ILogger<HMACValidationPipelineBehavior<TestCommand, Unit>>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -273,8 +273,8 @@ public class AntiTamperingGuardTests
             null!,
             Substitute.For<ILogger<HMACValidationPipelineBehavior<TestCommand, Unit>>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -288,8 +288,8 @@ public class AntiTamperingGuardTests
             TimeProvider.System,
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -306,7 +306,7 @@ public class AntiTamperingGuardTests
 
         var act = () => options.AddKey(keyId!, "secret");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -319,7 +319,7 @@ public class AntiTamperingGuardTests
 
         var act = () => options.AddKey("key-id", secret!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -332,8 +332,8 @@ public class AntiTamperingGuardTests
         IServiceCollection services = null!;
         var act = () => services.AddEncinaAntiTampering();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -342,8 +342,8 @@ public class AntiTamperingGuardTests
         IServiceCollection services = null!;
         var act = () => services.AddDistributedNonceStore();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion

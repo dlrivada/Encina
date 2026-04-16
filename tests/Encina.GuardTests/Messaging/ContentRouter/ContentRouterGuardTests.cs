@@ -1,5 +1,5 @@
 using Encina.Messaging.ContentRouter;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using ContentRouterClass = Encina.Messaging.ContentRouter.ContentRouter;
 
@@ -19,7 +19,7 @@ public class ContentRouterGuardTests
 
         var act = () => new ContentRouterClass(null!, logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class ContentRouterGuardTests
 
         var act = () => new ContentRouterClass(options, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -43,7 +43,7 @@ public class ContentRouterGuardTests
 
         var act = async () => await router.RouteAsync<TestMessage, string>(null!, new TestMessage());
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("definition");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("definition");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class ContentRouterGuardTests
 
         var act = async () => await router.RouteAsync<TestMessage, string>(definition, null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("message");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("message");
     }
 
     #endregion
@@ -71,7 +71,7 @@ public class ContentRouterGuardTests
 
         var act = () => builder.When((Func<TestMessage, bool>)null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("condition");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("condition");
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ContentRouterGuardTests
 
         var act = () => builder.When(null!, _ => true);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class ContentRouterGuardTests
 
         var act = () => builder.When("", _ => true);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class ContentRouterGuardTests
 
         var act = () => builder.When("   ", _ => true);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class ContentRouterGuardTests
 
         var act = () => builder.When("route1", null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("condition");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("condition");
     }
 
     #endregion
@@ -126,7 +126,7 @@ public class ContentRouterGuardTests
         var act = () => builder.Default(
             (Func<TestMessage, CancellationToken, ValueTask<Either<EncinaError, string>>>)null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class ContentRouterGuardTests
 
         var act = () => builder.Default((Func<TestMessage, Either<EncinaError, string>>)null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     #endregion
@@ -150,7 +150,7 @@ public class ContentRouterGuardTests
 
         var act = () => builder.Build();
 
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -165,7 +165,7 @@ public class ContentRouterGuardTests
 
         var act = () => routeBuilder.WithMetadata(null!, "value");
 
-        act.Should().Throw<ArgumentException>().WithParameterName("key");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class ContentRouterGuardTests
 
         var act = () => routeBuilder.WithMetadata("", "value");
 
-        act.Should().Throw<ArgumentException>().WithParameterName("key");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class ContentRouterGuardTests
 
         var act = () => routeBuilder.WithMetadata("key", null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("value");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("value");
     }
 
     #endregion
@@ -203,7 +203,7 @@ public class ContentRouterGuardTests
         var act = () => routeBuilder.RouteTo(
             (Func<TestMessage, CancellationToken, ValueTask<Either<EncinaError, string>>>)null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class ContentRouterGuardTests
 
         var act = () => routeBuilder.RouteTo((Func<TestMessage, Either<EncinaError, string>>)null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class ContentRouterGuardTests
         var act = () => routeBuilder.RouteTo(
             (Func<TestMessage, CancellationToken, ValueTask<string>>)null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public class ContentRouterGuardTests
 
         var act = () => routeBuilder.RouteTo((Func<TestMessage, string>)null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     #endregion
@@ -252,7 +252,7 @@ public class ContentRouterGuardTests
             _ => true,
             (_, _) => ValueTask.FromResult(Either<EncinaError, string>.Right("ok")));
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public class ContentRouterGuardTests
             _ => true,
             (_, _) => ValueTask.FromResult(Either<EncinaError, string>.Right("ok")));
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -274,7 +274,7 @@ public class ContentRouterGuardTests
             _ => true,
             (_, _) => ValueTask.FromResult(Either<EncinaError, string>.Right("ok")));
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public class ContentRouterGuardTests
             null!,
             (_, _) => ValueTask.FromResult(Either<EncinaError, string>.Right("ok")));
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("condition");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("condition");
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public class ContentRouterGuardTests
             _ => true,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     #endregion

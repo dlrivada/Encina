@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.Caching;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.GuardTests.Security.Secrets.Caching;
@@ -21,8 +21,8 @@ public sealed class SecretCachePubSubHostedServiceGuardTests
             new SecretCachingOptions(),
             NullLogger<SecretCachePubSubHostedService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -34,8 +34,8 @@ public sealed class SecretCachePubSubHostedServiceGuardTests
             null!,
             NullLogger<SecretCachePubSubHostedService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public sealed class SecretCachePubSubHostedServiceGuardTests
             new SecretCachingOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class SecretCachePubSubHostedServiceGuardTests
             new SecretCachingOptions(),
             NullLogger<SecretCachePubSubHostedService>.Instance);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class SecretCachePubSubHostedServiceGuardTests
             options,
             NullLogger<SecretCachePubSubHostedService>.Instance);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class SecretCachePubSubHostedServiceGuardTests
             options,
             NullLogger<SecretCachePubSubHostedService>.Instance);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion

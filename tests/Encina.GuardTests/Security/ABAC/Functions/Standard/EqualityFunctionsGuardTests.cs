@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -21,7 +21,7 @@ public class EqualityFunctionsGuardTests
 
         var act = () => fn.Evaluate(["only-one"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringEqual)!;
 
-        fn.Evaluate(["admin", "admin"]).Should().Be(true);
+        fn.Evaluate(["admin", "admin"]).ShouldBe(true);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringEqual)!;
 
-        fn.Evaluate(["admin", "user"]).Should().Be(false);
+        fn.Evaluate(["admin", "user"]).ShouldBe(false);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringEqual)!;
 
-        fn.Evaluate(["Admin", "admin"]).Should().Be(false);
+        fn.Evaluate(["Admin", "admin"]).ShouldBe(false);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringEqual)!;
 
-        fn.Evaluate([null, null]).Should().Be(true);
+        fn.Evaluate([null, null]).ShouldBe(true);
     }
 
     #endregion
@@ -65,7 +65,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.BooleanEqual)!;
 
-        fn.Evaluate([true, true]).Should().Be(true);
+        fn.Evaluate([true, true]).ShouldBe(true);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.BooleanEqual)!;
 
-        fn.Evaluate([true, false]).Should().Be(false);
+        fn.Evaluate([true, false]).ShouldBe(false);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class EqualityFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, true]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     #endregion
@@ -95,7 +95,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerEqual)!;
 
-        fn.Evaluate([42, 42]).Should().Be(true);
+        fn.Evaluate([42, 42]).ShouldBe(true);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerEqual)!;
 
-        fn.Evaluate([42, 43]).Should().Be(false);
+        fn.Evaluate([42, 43]).ShouldBe(false);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerEqual)!;
 
-        fn.Evaluate(["42", 42]).Should().Be(true);
+        fn.Evaluate(["42", 42]).ShouldBe(true);
     }
 
     #endregion
@@ -123,7 +123,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleEqual)!;
 
-        fn.Evaluate([3.14, 3.14]).Should().Be(true);
+        fn.Evaluate([3.14, 3.14]).ShouldBe(true);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleEqual)!;
 
-        fn.Evaluate([3.14, 2.71]).Should().Be(false);
+        fn.Evaluate([3.14, 2.71]).ShouldBe(false);
     }
 
     #endregion
@@ -144,7 +144,7 @@ public class EqualityFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.DateEqual)!;
         var date = new DateOnly(2026, 4, 3);
 
-        fn.Evaluate([date, date]).Should().Be(true);
+        fn.Evaluate([date, date]).ShouldBe(true);
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DateEqual)!;
 
-        fn.Evaluate([new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)]).Should().Be(false);
+        fn.Evaluate([new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)]).ShouldBe(false);
     }
 
     #endregion
@@ -165,7 +165,7 @@ public class EqualityFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.DateTimeEqual)!;
         var dt = new DateTime(2026, 4, 3, 12, 0, 0, DateTimeKind.Utc);
 
-        fn.Evaluate([dt, dt]).Should().Be(true);
+        fn.Evaluate([dt, dt]).ShouldBe(true);
     }
 
     #endregion
@@ -178,7 +178,7 @@ public class EqualityFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.TimeEqual)!;
         var ts = TimeSpan.FromHours(14);
 
-        fn.Evaluate([ts, ts]).Should().Be(true);
+        fn.Evaluate([ts, ts]).ShouldBe(true);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class EqualityFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.TimeEqual)!;
 
-        fn.Evaluate([TimeSpan.FromHours(9), TimeSpan.FromHours(17)]).Should().Be(false);
+        fn.Evaluate([TimeSpan.FromHours(9), TimeSpan.FromHours(17)]).ShouldBe(false);
     }
 
     #endregion

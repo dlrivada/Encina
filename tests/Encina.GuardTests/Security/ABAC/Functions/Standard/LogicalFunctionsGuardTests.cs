@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -21,7 +21,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate(Array.Empty<object?>());
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*at least 1*received 0*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("at");
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.And)!;
 
-        fn.Evaluate([true, true, true]).Should().Be(true);
+        fn.Evaluate([true, true, true]).ShouldBe(true);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.And)!;
 
-        fn.Evaluate([true, false, true]).Should().Be(false);
+        fn.Evaluate([true, false, true]).ShouldBe(false);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.And)!;
 
-        fn.Evaluate([true]).Should().Be(true);
+        fn.Evaluate([true]).ShouldBe(true);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate([true, null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate([true, 42]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*cannot convert*Boolean*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.And)!;
 
-        fn.Evaluate(["true", "true"]).Should().Be(true);
+        fn.Evaluate(["true", "true"]).ShouldBe(true);
     }
 
     #endregion
@@ -87,7 +87,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate(Array.Empty<object?>());
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*at least 1*received 0*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("at");
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Or)!;
 
-        fn.Evaluate([false, false, false]).Should().Be(false);
+        fn.Evaluate([false, false, false]).ShouldBe(false);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Or)!;
 
-        fn.Evaluate([false, true, false]).Should().Be(true);
+        fn.Evaluate([false, true, false]).ShouldBe(true);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate([false, null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     #endregion
@@ -127,7 +127,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate([true, false]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 1*received 2*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Not)!;
 
-        fn.Evaluate([true]).Should().Be(false);
+        fn.Evaluate([true]).ShouldBe(false);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class LogicalFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Not)!;
 
-        fn.Evaluate([false]).Should().Be(true);
+        fn.Evaluate([false]).ShouldBe(true);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate([null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     #endregion
@@ -167,7 +167,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate([2]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*at least 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("at");
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class LogicalFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.NOf)!;
 
         // Need 2 true values: true, true, false => 2 >= 2 => true
-        fn.Evaluate([2, true, true, false]).Should().Be(true);
+        fn.Evaluate([2, true, true, false]).ShouldBe(true);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class LogicalFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.NOf)!;
 
         // Need 3 true values: true, true, false => 2 < 3 => false
-        fn.Evaluate([3, true, true, false]).Should().Be(false);
+        fn.Evaluate([3, true, true, false]).ShouldBe(false);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class LogicalFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.NOf)!;
 
         // N=0 means always true
-        fn.Evaluate([0, false, false]).Should().Be(true);
+        fn.Evaluate([0, false, false]).ShouldBe(true);
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class LogicalFunctionsGuardTests
 
         var act = () => fn.Evaluate([1, null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     #endregion

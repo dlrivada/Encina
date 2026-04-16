@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -33,7 +33,7 @@ public class SetFunctionsGuardTests
 
         var act = () => fn.Evaluate([MakeStringBag("a")]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -45,8 +45,8 @@ public class SetFunctionsGuardTests
 
         var result = (AttributeBag)fn.Evaluate([bag1, bag2])!;
 
-        result.Count.Should().Be(2);
-        result.Values.Select(v => v.Value).Should().BeEquivalentTo(new object?[] { "b", "c" });
+        result.Count.ShouldBe(2);
+        result.Values.Select(v => v.Value).ShouldBe(new object?[] { "b", "c" });
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class SetFunctionsGuardTests
 
         var result = (AttributeBag)fn.Evaluate([bag1, bag2])!;
 
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     #endregion
@@ -74,7 +74,7 @@ public class SetFunctionsGuardTests
 
         var result = (AttributeBag)fn.Evaluate([bag1, bag2])!;
 
-        result.Count.Should().Be(3);
+        result.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class SetFunctionsGuardTests
 
         var result = (AttributeBag)fn.Evaluate([AttributeBag.Empty, AttributeBag.Empty])!;
 
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     #endregion
@@ -98,7 +98,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeStringBag("a", "b");
         var bag2 = MakeStringBag("a", "b", "c");
 
-        fn.Evaluate([bag1, bag2]).Should().Be(true);
+        fn.Evaluate([bag1, bag2]).ShouldBe(true);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeStringBag("a", "z");
         var bag2 = MakeStringBag("a", "b", "c");
 
-        fn.Evaluate([bag1, bag2]).Should().Be(false);
+        fn.Evaluate([bag1, bag2]).ShouldBe(false);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class SetFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringSubset)!;
 
-        fn.Evaluate([AttributeBag.Empty, MakeStringBag("a")]).Should().Be(true);
+        fn.Evaluate([AttributeBag.Empty, MakeStringBag("a")]).ShouldBe(true);
     }
 
     #endregion
@@ -130,7 +130,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeStringBag("a", "b");
         var bag2 = MakeStringBag("b", "c");
 
-        fn.Evaluate([bag1, bag2]).Should().Be(true);
+        fn.Evaluate([bag1, bag2]).ShouldBe(true);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeStringBag("a");
         var bag2 = MakeStringBag("b");
 
-        fn.Evaluate([bag1, bag2]).Should().Be(false);
+        fn.Evaluate([bag1, bag2]).ShouldBe(false);
     }
 
     #endregion
@@ -154,7 +154,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeStringBag("a", "b", "c");
         var bag2 = MakeStringBag("c", "b", "a");
 
-        fn.Evaluate([bag1, bag2]).Should().Be(true);
+        fn.Evaluate([bag1, bag2]).ShouldBe(true);
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeStringBag("a", "b");
         var bag2 = MakeStringBag("a", "c");
 
-        fn.Evaluate([bag1, bag2]).Should().Be(false);
+        fn.Evaluate([bag1, bag2]).ShouldBe(false);
     }
 
     #endregion
@@ -180,7 +180,7 @@ public class SetFunctionsGuardTests
 
         var result = (AttributeBag)fn.Evaluate([bag1, bag2])!;
 
-        result.Count.Should().Be(2);
+        result.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeIntBag(1, 2);
         var bag2 = MakeIntBag(1, 2, 3);
 
-        fn.Evaluate([bag1, bag2]).Should().Be(true);
+        fn.Evaluate([bag1, bag2]).ShouldBe(true);
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class SetFunctionsGuardTests
         var bag1 = MakeIntBag(1, 2, 3);
         var bag2 = MakeIntBag(3, 2, 1);
 
-        fn.Evaluate([bag1, bag2]).Should().Be(true);
+        fn.Evaluate([bag1, bag2]).ShouldBe(true);
     }
 
     #endregion

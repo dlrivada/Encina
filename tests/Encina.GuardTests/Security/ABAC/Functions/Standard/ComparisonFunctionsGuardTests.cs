@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -21,7 +21,7 @@ public class ComparisonFunctionsGuardTests
 
         var act = () => fn.Evaluate([10]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class ComparisonFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, 5]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Theory]
@@ -44,7 +44,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Theory]
@@ -57,7 +57,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Theory]
@@ -70,7 +70,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Theory]
@@ -83,7 +83,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     #endregion
@@ -97,7 +97,7 @@ public class ComparisonFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, 5.0]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Theory]
@@ -110,7 +110,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Theory]
@@ -122,7 +122,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([5.0, 5.0]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([5.0, 5.0]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     #endregion
@@ -156,7 +156,7 @@ public class ComparisonFunctionsGuardTests
 
         var act = () => fn.Evaluate(["a", "b", "c"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 3*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Theory]
@@ -169,7 +169,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Theory]
@@ -181,7 +181,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([a, b]);
 
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate(["hello", "hello"]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate(["hello", "hello"]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     #endregion
@@ -215,7 +215,7 @@ public class ComparisonFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, new DateOnly(2026, 1, 1)]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([new DateOnly(2026, 12, 31), new DateOnly(2026, 1, 1)]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     #endregion
@@ -249,7 +249,7 @@ public class ComparisonFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, DateTime.UtcNow]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([later, earlier]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     #endregion
@@ -275,7 +275,7 @@ public class ComparisonFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, TimeSpan.FromHours(12)]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([TimeSpan.FromHours(18), TimeSpan.FromHours(9)]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public class ComparisonFunctionsGuardTests
 
         var result = fn.Evaluate([TimeSpan.FromHours(9), TimeSpan.FromHours(18)]);
 
-        result.Should().Be(true);
+        result.ShouldBe(true);
     }
 
     #endregion

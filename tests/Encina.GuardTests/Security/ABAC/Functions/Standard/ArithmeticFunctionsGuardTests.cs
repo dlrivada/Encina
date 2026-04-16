@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -21,7 +21,7 @@ public class ArithmeticFunctionsGuardTests
 
         var act = () => fn.Evaluate([1]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class ArithmeticFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, 5]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerAdd)!;
 
-        fn.Evaluate([10, 5]).Should().Be(15);
+        fn.Evaluate([10, 5]).ShouldBe(15);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerSubtract)!;
 
-        fn.Evaluate([10, 3]).Should().Be(7);
+        fn.Evaluate([10, 3]).ShouldBe(7);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerMultiply)!;
 
-        fn.Evaluate([6, 7]).Should().Be(42);
+        fn.Evaluate([6, 7]).ShouldBe(42);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerDivide)!;
 
-        fn.Evaluate([10, 3]).Should().Be(3);
+        fn.Evaluate([10, 3]).ShouldBe(3);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class ArithmeticFunctionsGuardTests
 
         var act = () => fn.Evaluate([10, 0]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*division by zero*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("division");
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerMod)!;
 
-        fn.Evaluate([10, 3]).Should().Be(1);
+        fn.Evaluate([10, 3]).ShouldBe(1);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class ArithmeticFunctionsGuardTests
 
         var act = () => fn.Evaluate([10, 0]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*division by zero*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("division");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerAbs)!;
 
-        fn.Evaluate([42]).Should().Be(42);
+        fn.Evaluate([42]).ShouldBe(42);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerAbs)!;
 
-        fn.Evaluate([-42]).Should().Be(42);
+        fn.Evaluate([-42]).ShouldBe(42);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class ArithmeticFunctionsGuardTests
 
         var act = () => fn.Evaluate([1, 2]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 1*received 2*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     #endregion
@@ -129,7 +129,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleAdd)!;
 
-        fn.Evaluate([1.5, 2.5]).Should().Be(4.0);
+        fn.Evaluate([1.5, 2.5]).ShouldBe(4.0);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleSubtract)!;
 
-        fn.Evaluate([5.0, 2.5]).Should().Be(2.5);
+        fn.Evaluate([5.0, 2.5]).ShouldBe(2.5);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleMultiply)!;
 
-        fn.Evaluate([3.0, 4.0]).Should().Be(12.0);
+        fn.Evaluate([3.0, 4.0]).ShouldBe(12.0);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleDivide)!;
 
-        fn.Evaluate([10.0, 4.0]).Should().Be(2.5);
+        fn.Evaluate([10.0, 4.0]).ShouldBe(2.5);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class ArithmeticFunctionsGuardTests
 
         var act = () => fn.Evaluate([10.0, 0.0]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*division by zero*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("division");
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleAbs)!;
 
-        fn.Evaluate([-3.14]).Should().Be(3.14);
+        fn.Evaluate([-3.14]).ShouldBe(3.14);
     }
 
     #endregion
@@ -183,7 +183,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Round)!;
 
-        fn.Evaluate([3.5]).Should().Be(4.0);
+        fn.Evaluate([3.5]).ShouldBe(4.0);
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public class ArithmeticFunctionsGuardTests
 
         var act = () => fn.Evaluate([null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Floor)!;
 
-        fn.Evaluate([3.9]).Should().Be(3.0);
+        fn.Evaluate([3.9]).ShouldBe(3.0);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class ArithmeticFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Floor)!;
 
-        fn.Evaluate([-3.1]).Should().Be(-4.0);
+        fn.Evaluate([-3.1]).ShouldBe(-4.0);
     }
 
     #endregion

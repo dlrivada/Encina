@@ -6,7 +6,7 @@ using Encina.Messaging.Encryption.Model;
 using Encina.Messaging.Encryption.Serialization;
 using Encina.Messaging.Serialization;
 using Encina.Security.Encryption.Abstractions;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -24,7 +24,7 @@ public class MessageEncryptionGuardTests
 
         var act = () => new DefaultMessageEncryptionProvider(null!, keyProvider);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("fieldEncryptor");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("fieldEncryptor");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class MessageEncryptionGuardTests
 
         var act = () => new DefaultMessageEncryptionProvider(fieldEncryptor, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("keyProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("keyProvider");
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class MessageEncryptionGuardTests
 
         var act = async () => await provider.EncryptAsync(new byte[] { 1 }, null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class MessageEncryptionGuardTests
 
         var act = async () => await provider.DecryptAsync(null!, context);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("payload");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("payload");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class MessageEncryptionGuardTests
 
         var act = async () => await provider.DecryptAsync(payload, null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -96,7 +96,7 @@ public class MessageEncryptionGuardTests
             Options.Create(new MessageEncryptionOptions()),
             NullLogger<EncryptingMessageSerializer>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class MessageEncryptionGuardTests
             Options.Create(new MessageEncryptionOptions()),
             NullLogger<EncryptingMessageSerializer>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("provider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("provider");
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class MessageEncryptionGuardTests
             null!,
             NullLogger<EncryptingMessageSerializer>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class MessageEncryptionGuardTests
             Options.Create(new MessageEncryptionOptions()),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -144,7 +144,7 @@ public class MessageEncryptionGuardTests
     {
         var act = () => new DefaultTenantKeyResolver(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class MessageEncryptionGuardTests
 
         var act = () => resolver.ResolveKeyId(null!);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("tenantId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("tenantId");
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public class MessageEncryptionGuardTests
 
         var act = () => resolver.ResolveKeyId(string.Empty);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("tenantId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("tenantId");
     }
 
     #endregion
@@ -178,7 +178,7 @@ public class MessageEncryptionGuardTests
             null!,
             NullLogger<MessageEncryptionHealthCheck>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class MessageEncryptionGuardTests
             Substitute.For<IServiceProvider>(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -200,7 +200,7 @@ public class MessageEncryptionGuardTests
     {
         var act = () => EncryptedPayloadFormatter.Format(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("payload");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("payload");
     }
 
     #endregion

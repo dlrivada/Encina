@@ -1,6 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -26,8 +26,8 @@ public class ReadAuditGuardTests
         var act = async () => await store.LogReadAsync(null!);
 
         // Assert
-        (await act.Should().ThrowAsync<ArgumentNullException>())
-            .WithParameterName("entry");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("entry");
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class ReadAuditGuardTests
         var act = async () => await store.GetAccessHistoryAsync(null!, "id");
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class ReadAuditGuardTests
         var act = async () => await store.GetAccessHistoryAsync("", "id");
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class ReadAuditGuardTests
         var act = async () => await store.GetAccessHistoryAsync("Patient", null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class ReadAuditGuardTests
             null!, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class ReadAuditGuardTests
             "", DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public class ReadAuditGuardTests
         var act = async () => await store.QueryAsync(null!);
 
         // Assert
-        (await act.Should().ThrowAsync<ArgumentNullException>())
-            .WithParameterName("query");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("query");
     }
 
     #endregion
@@ -125,7 +125,7 @@ public class ReadAuditGuardTests
         var act = () => context.WithPurpose(null!);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class ReadAuditGuardTests
         var act = () => context.WithPurpose(string.Empty);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class ReadAuditGuardTests
         var act = () => context.WithPurpose("   ");
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -165,11 +165,11 @@ public class ReadAuditGuardTests
         var options = new ReadAuditOptions();
 
         // Act
-        var act = () => options.IsAuditable(null!);
+        var act = (Action)(() => options.IsAuditable(null!));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entityType");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("entityType");
     }
 
     [Fact]
@@ -179,11 +179,11 @@ public class ReadAuditGuardTests
         var options = new ReadAuditOptions();
 
         // Act
-        var act = () => options.GetSamplingRate(null!);
+        var act = (Action)(() => options.GetSamplingRate(null!));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entityType");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("entityType");
     }
 
     #endregion
@@ -201,8 +201,8 @@ public class ReadAuditGuardTests
         var act = () => new ReadAuditRetentionService(null!, options, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("readAuditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("readAuditStore");
     }
 
     [Fact]
@@ -216,8 +216,8 @@ public class ReadAuditGuardTests
         var act = () => new ReadAuditRetentionService(store, null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -231,8 +231,8 @@ public class ReadAuditGuardTests
         var act = () => new ReadAuditRetentionService(store, options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -255,8 +255,8 @@ public class ReadAuditGuardTests
             null!, store, requestContext, auditContext, options, timeProvider, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -275,8 +275,8 @@ public class ReadAuditGuardTests
             inner, null!, requestContext, auditContext, options, timeProvider, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("readAuditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("readAuditStore");
     }
 
     [Fact]
@@ -295,8 +295,8 @@ public class ReadAuditGuardTests
             inner, store, null!, auditContext, options, timeProvider, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
@@ -315,8 +315,8 @@ public class ReadAuditGuardTests
             inner, store, requestContext, null!, options, timeProvider, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("readAuditContext");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("readAuditContext");
     }
 
     [Fact]
@@ -335,8 +335,8 @@ public class ReadAuditGuardTests
             inner, store, requestContext, auditContext, null!, timeProvider, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -355,8 +355,8 @@ public class ReadAuditGuardTests
             inner, store, requestContext, auditContext, options, null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -375,8 +375,8 @@ public class ReadAuditGuardTests
             inner, store, requestContext, auditContext, options, timeProvider, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion

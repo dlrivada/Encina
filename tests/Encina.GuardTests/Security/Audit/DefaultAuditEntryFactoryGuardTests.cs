@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 
@@ -30,8 +30,8 @@ public class DefaultAuditEntryFactoryGuardTests
         var act = () => _factory.Create<TestCommand, string>(
             null!, "response", context, AuditOutcome.Success, null, now, now);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("request");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class DefaultAuditEntryFactoryGuardTests
         var act = () => _factory.Create<TestCommand, string>(
             request, "response", null!, AuditOutcome.Success, null, now, now);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class DefaultAuditEntryFactoryGuardTests
         var act = () => _factory.Create<TestCommand, string>(
             request, "response", context, AuditOutcome.Success, null, now, now);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class DefaultAuditEntryFactoryGuardTests
 
         var act = () => _factory.Create(request, context, AuditOutcome.Success, null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     public sealed class TestCommand : ICommand<Unit> { }

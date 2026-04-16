@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.GoogleCloudSecretManager;
-using FluentAssertions;
+using Shouldly;
 using Google.Cloud.SecretManager.V1;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -23,8 +23,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = () => new GoogleCloudSecretManagerProvider(null!, options, logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("client");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("client");
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = () => new GoogleCloudSecretManagerProvider(client, null!, logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = () => new GoogleCloudSecretManagerProvider(client, options, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -62,8 +62,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -99,8 +99,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -136,8 +136,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.SetSecretAsync(null!, "value");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -147,8 +147,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.SetSecretAsync("", "value");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -158,8 +158,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.SetSecretAsync("key", null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("value");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("value");
     }
 
     #endregion
@@ -173,8 +173,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.RotateSecretAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -184,8 +184,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.RotateSecretAsync("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -195,8 +195,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = async () => await provider.RotateSecretAsync("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -210,8 +210,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = () => services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "p");
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -221,8 +221,8 @@ public class GoogleCloudSecretManagerGuardTests
 
         var act = () => services.AddGoogleCloudSecretManager(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureGcp");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configureGcp");
     }
 
     #endregion

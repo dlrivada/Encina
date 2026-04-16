@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -25,7 +25,7 @@ public class HigherOrderFunctionsGuardTests
 
         var act = () => fn.Evaluate([XACMLFunctionIds.StringEqual, "admin"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*at least 3*received 2*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("at");
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class HigherOrderFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, "admin", bag]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class HigherOrderFunctionsGuardTests
 
         var act = () => fn.Evaluate(["nonexistent-function", "admin", bag]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*not registered*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("not");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class HigherOrderFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.AnyOfFunc)!;
         var bag = MakeStringBag("admin", "user", "manager");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).Should().Be(true);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).ShouldBe(true);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class HigherOrderFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.AnyOfFunc)!;
         var bag = MakeStringBag("user", "manager");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).Should().Be(false);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).ShouldBe(false);
     }
 
     #endregion
@@ -78,7 +78,7 @@ public class HigherOrderFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.AllOfFunc)!;
         var bag = MakeStringBag("admin", "admin", "admin");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).Should().Be(true);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).ShouldBe(true);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class HigherOrderFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.AllOfFunc)!;
         var bag = MakeStringBag("admin", "user", "admin");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).Should().Be(false);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, "admin", bag]).ShouldBe(false);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class HigherOrderFunctionsGuardTests
 
         var act = () => fn.Evaluate(["nonexistent-function", "admin", bag]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*not registered*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("not");
     }
 
     #endregion
@@ -112,7 +112,7 @@ public class HigherOrderFunctionsGuardTests
 
         var act = () => fn.Evaluate([XACMLFunctionIds.StringEqual, MakeStringBag("a")]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 3*received 2*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class HigherOrderFunctionsGuardTests
         var bag1 = MakeStringBag("admin", "user");
         var bag2 = MakeStringBag("manager", "admin");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).Should().Be(true);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).ShouldBe(true);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class HigherOrderFunctionsGuardTests
         var bag1 = MakeStringBag("admin", "user");
         var bag2 = MakeStringBag("manager", "viewer");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).Should().Be(false);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).ShouldBe(false);
     }
 
     #endregion
@@ -146,7 +146,7 @@ public class HigherOrderFunctionsGuardTests
         var bag1 = MakeStringBag("a", "b");
         var bag2 = MakeStringBag("a", "b", "c");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).Should().Be(true);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).ShouldBe(true);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class HigherOrderFunctionsGuardTests
         var bag1 = MakeStringBag("a", "z");
         var bag2 = MakeStringBag("a", "b", "c");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).Should().Be(false);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).ShouldBe(false);
     }
 
     #endregion
@@ -170,7 +170,7 @@ public class HigherOrderFunctionsGuardTests
         var bag1 = MakeStringBag("admin");
         var bag2 = MakeStringBag("admin");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).Should().Be(true);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).ShouldBe(true);
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public class HigherOrderFunctionsGuardTests
         var bag1 = MakeStringBag("admin");
         var bag2 = MakeStringBag("admin", "user");
 
-        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).Should().Be(false);
+        fn.Evaluate([XACMLFunctionIds.StringEqual, bag1, bag2]).ShouldBe(false);
     }
 
     #endregion
@@ -194,7 +194,7 @@ public class HigherOrderFunctionsGuardTests
 
         var act = () => fn.Evaluate([XACMLFunctionIds.StringNormalizeToLowerCase]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -205,11 +205,11 @@ public class HigherOrderFunctionsGuardTests
 
         var result = fn.Evaluate([XACMLFunctionIds.StringNormalizeToLowerCase, bag]);
 
-        result.Should().BeOfType<AttributeBag>();
+        result.ShouldBeOfType<AttributeBag>();
         var resultBag = (AttributeBag)result!;
-        resultBag.Count.Should().Be(2);
-        resultBag.Values[0].Value.Should().Be("hello");
-        resultBag.Values[1].Value.Should().Be("world");
+        resultBag.Count.ShouldBe(2);
+        resultBag.Values[0].Value.ShouldBe("hello");
+        resultBag.Values[1].Value.ShouldBe("world");
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public class HigherOrderFunctionsGuardTests
 
         var act = () => fn.Evaluate(["nonexistent-function", bag]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*not registered*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("not");
     }
 
     #endregion

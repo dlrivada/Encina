@@ -1,7 +1,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 
@@ -18,7 +18,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.Caching.Should().NotBeNull("Caching sub-options must be pre-initialized");
+        options.Caching.ShouldNotBeNull("Caching sub-options must be pre-initialized");
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.Resilience.Should().NotBeNull("Resilience sub-options must be pre-initialized");
+        options.Resilience.ShouldNotBeNull("Resilience sub-options must be pre-initialized");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.DefaultCacheDuration.Should().BeGreaterThan(TimeSpan.Zero,
+        options.DefaultCacheDuration.ShouldBeGreaterThan(TimeSpan.Zero,
             "Default cache duration must be positive");
     }
 
@@ -43,8 +43,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.EnableCaching.Should().BeTrue(
-            "Caching should be enabled by default");
+        options.EnableCaching.ShouldBeTrue("Caching should be enabled by default");
     }
 
     [Fact]
@@ -52,8 +51,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.EnableResilience.Should().BeFalse(
-            "Resilience must be opt-in");
+        options.EnableResilience.ShouldBeFalse("Resilience must be opt-in");
     }
 
     [Fact]
@@ -61,8 +59,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.EnableMetrics.Should().BeFalse(
-            "Metrics must be opt-in");
+        options.EnableMetrics.ShouldBeFalse("Metrics must be opt-in");
     }
 
     [Fact]
@@ -70,8 +67,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.EnableSecretInjection.Should().BeFalse(
-            "Secret injection must be opt-in");
+        options.EnableSecretInjection.ShouldBeFalse("Secret injection must be opt-in");
     }
 
     [Fact]
@@ -79,8 +75,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.EnableAccessAuditing.Should().BeFalse(
-            "Access auditing must be opt-in");
+        options.EnableAccessAuditing.ShouldBeFalse("Access auditing must be opt-in");
     }
 
     [Fact]
@@ -88,8 +83,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var options = new SecretsOptions();
 
-        options.ProviderHealthCheck.Should().BeFalse(
-            "Provider health check must be opt-in");
+        options.ProviderHealthCheck.ShouldBeFalse("Provider health check must be opt-in");
     }
 
     #endregion
@@ -101,8 +95,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var caching = new SecretCachingOptions();
 
-        caching.CacheKeyPrefix.Should().NotBeNullOrWhiteSpace(
-            "Cache key prefix must have a sensible default");
+        caching.CacheKeyPrefix.ShouldNotBeNullOrWhiteSpace("Cache key prefix must have a sensible default");
     }
 
     [Fact]
@@ -110,8 +103,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var caching = new SecretCachingOptions();
 
-        caching.InvalidationChannel.Should().NotBeNullOrWhiteSpace(
-            "Invalidation channel must have a sensible default");
+        caching.InvalidationChannel.ShouldNotBeNullOrWhiteSpace("Invalidation channel must have a sensible default");
     }
 
     [Fact]
@@ -119,7 +111,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var resilience = new SecretsResilienceOptions();
 
-        resilience.MaxRetryAttempts.Should().BeGreaterThan(0,
+        resilience.MaxRetryAttempts.ShouldBeGreaterThan(0,
             "Default retry attempts must be positive");
     }
 
@@ -128,7 +120,7 @@ public sealed class SecretsOptionsGuardTests
     {
         var resilience = new SecretsResilienceOptions();
 
-        resilience.OperationTimeout.Should().BeGreaterThan(TimeSpan.Zero,
+        resilience.OperationTimeout.ShouldBeGreaterThan(TimeSpan.Zero,
             "Default operation timeout must be positive");
     }
 

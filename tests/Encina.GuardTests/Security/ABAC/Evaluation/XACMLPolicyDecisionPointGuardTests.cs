@@ -4,7 +4,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Evaluation;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -38,8 +38,8 @@ public class XACMLPolicyDecisionPointGuardTests
             new CombiningAlgorithmFactory(),
             NullLoggerFactory.Instance.CreateLogger<XACMLPolicyDecisionPoint>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("pap");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("pap");
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public class XACMLPolicyDecisionPointGuardTests
             new CombiningAlgorithmFactory(),
             NullLoggerFactory.Instance.CreateLogger<XACMLPolicyDecisionPoint>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("targetEvaluator");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("targetEvaluator");
     }
 
     [Fact]
@@ -66,8 +66,8 @@ public class XACMLPolicyDecisionPointGuardTests
             new CombiningAlgorithmFactory(),
             NullLoggerFactory.Instance.CreateLogger<XACMLPolicyDecisionPoint>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("conditionEvaluator");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("conditionEvaluator");
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class XACMLPolicyDecisionPointGuardTests
             null!,
             NullLoggerFactory.Instance.CreateLogger<XACMLPolicyDecisionPoint>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("algorithmFactory");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("algorithmFactory");
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public class XACMLPolicyDecisionPointGuardTests
             new CombiningAlgorithmFactory(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class XACMLPolicyDecisionPointGuardTests
     {
         var act = () => CreatePDP();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -120,8 +120,8 @@ public class XACMLPolicyDecisionPointGuardTests
         var act = async () => await sut.EvaluateAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -147,7 +147,7 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.NotApplicable);
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -170,9 +170,9 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.Indeterminate);
-        decision.Status.Should().NotBeNull();
-        decision.Status!.StatusCode.Should().Be("processing-error");
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+        decision.Status.ShouldNotBeNull();
+        decision.Status!.StatusCode.ShouldBe("processing-error");
     }
 
     #endregion
@@ -210,7 +210,7 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.NotApplicable);
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -248,7 +248,7 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.NotApplicable);
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -297,8 +297,8 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.Permit);
-        decision.PolicyId.Should().Be("permit-pol");
+        decision.Effect.ShouldBe(Effect.Permit);
+        decision.PolicyId.ShouldBe("permit-pol");
     }
 
     #endregion
@@ -321,8 +321,8 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.Indeterminate);
-        decision.Status.Should().NotBeNull();
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+        decision.Status.ShouldNotBeNull();
     }
 
     #endregion
@@ -375,8 +375,8 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.Permit);
-        decision.Obligations.Should().ContainSingle(o => o.Id == "permit-ob");
+        decision.Effect.ShouldBe(Effect.Permit);
+        decision.Obligations.ShouldContain(o => o.Id == "permit-ob");
     }
 
     #endregion
@@ -429,7 +429,7 @@ public class XACMLPolicyDecisionPointGuardTests
         var decision = await sut.EvaluateAsync(context);
 
         // Assert
-        decision.Effect.Should().Be(Effect.Deny);
+        decision.Effect.ShouldBe(Effect.Deny);
     }
 
     #endregion

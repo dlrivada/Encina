@@ -1,6 +1,6 @@
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Serialization;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Inbox;
 
@@ -21,7 +21,7 @@ public class InboxGuardTests
             Substitute.For<IInboxMessageFactory>(),
             Substitute.For<IMessageSerializer>());
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class InboxGuardTests
             Substitute.For<IInboxMessageFactory>(),
             Substitute.For<IMessageSerializer>());
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class InboxGuardTests
             Substitute.For<IInboxMessageFactory>(),
             Substitute.For<IMessageSerializer>());
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class InboxGuardTests
             null!,
             Substitute.For<IMessageSerializer>());
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("messageFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageFactory");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class InboxGuardTests
             Substitute.For<IInboxMessageFactory>(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("messageSerializer");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageSerializer");
     }
 
     #endregion
@@ -88,7 +88,7 @@ public class InboxGuardTests
         var act = async () => await orchestrator.ProcessAsync<string>(
             null!, "type", "corr", null, () => default);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("messageId");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class InboxGuardTests
         var act = async () => await orchestrator.ProcessAsync<string>(
             "", "type", "corr", null, () => default);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("messageId");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class InboxGuardTests
         var act = async () => await orchestrator.ProcessAsync<string>(
             "   ", "type", "corr", null, () => default);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("messageId");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("messageId");
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class InboxGuardTests
         var act = async () => await orchestrator.ProcessAsync<string>(
             "msg-1", null!, "corr", null, () => default);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("requestType");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("requestType");
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class InboxGuardTests
         var act = async () => await orchestrator.ProcessAsync<string>(
             "msg-1", "", "corr", null, () => default);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("requestType");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("requestType");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class InboxGuardTests
         var act = async () => await orchestrator.ProcessAsync<string>(
             "msg-1", "type", "corr", null, null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("processCallback");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("processCallback");
     }
 
     #endregion
@@ -155,7 +155,7 @@ public class InboxGuardTests
     {
         var act = () => new InboxPipelineBehavior<TestRequest, string>(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("orchestrator");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("orchestrator");
     }
 
     #endregion

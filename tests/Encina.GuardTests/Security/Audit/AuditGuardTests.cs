@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -24,8 +24,8 @@ public class AuditGuardTests
         var act = () => new DefaultAuditEntryFactory(null!, options);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("piiMasker");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("piiMasker");
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public class AuditGuardTests
         var act = () => new DefaultAuditEntryFactory(piiMasker, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public class AuditGuardTests
         var act = () => factory.Create<TestCommand>(null!, context, AuditOutcome.Success, null);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("request");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class AuditGuardTests
         var act = () => factory.Create(request, null!, AuditOutcome.Success, null);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -93,8 +93,8 @@ public class AuditGuardTests
             null!, entryFactory, options, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("auditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class AuditGuardTests
             auditStore, null!, options, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entryFactory");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("entryFactory");
     }
 
     [Fact]
@@ -127,8 +127,8 @@ public class AuditGuardTests
             auditStore, entryFactory, null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -144,8 +144,8 @@ public class AuditGuardTests
             auditStore, entryFactory, options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -162,8 +162,8 @@ public class AuditGuardTests
         var act = async () => await store.RecordAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("entry");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("entry");
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class AuditGuardTests
         var act = async () => await store.GetByEntityAsync(null!, null);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class AuditGuardTests
         var act = async () => await store.GetByEntityAsync("", null);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class AuditGuardTests
         var act = async () => await store.GetByUserAsync(null!, null, null);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class AuditGuardTests
         var act = async () => await store.GetByUserAsync("", null, null);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public class AuditGuardTests
         var act = async () => await store.GetByCorrelationIdAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -241,7 +241,7 @@ public class AuditGuardTests
         var act = async () => await store.GetByCorrelationIdAsync("");
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -258,8 +258,8 @@ public class AuditGuardTests
         var act = () => options.ExcludeType(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestType");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestType");
     }
 
     [Fact]
@@ -272,8 +272,8 @@ public class AuditGuardTests
         var act = () => options.IncludeQueryType(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("queryType");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("queryType");
     }
 
     #endregion
@@ -290,8 +290,8 @@ public class AuditGuardTests
         var act = () => services.AddEncinaAudit();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -309,8 +309,8 @@ public class AuditGuardTests
         var act = () => new AuditRetentionService(null!, options, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("auditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
@@ -324,8 +324,8 @@ public class AuditGuardTests
         var act = () => new AuditRetentionService(auditStore, null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -339,8 +339,8 @@ public class AuditGuardTests
         var act = () => new AuditRetentionService(auditStore, options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -354,8 +354,8 @@ public class AuditGuardTests
         var act = () => new DefaultSensitiveDataRedactor(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -369,8 +369,8 @@ public class AuditGuardTests
         var act = () => redactor.MaskForAudit<TestCommand>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("request");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -384,8 +384,8 @@ public class AuditGuardTests
         var act = () => redactor.MaskForAudit((object)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("request");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("request");
     }
 
     #endregion
@@ -402,8 +402,8 @@ public class AuditGuardTests
         var act = async () => await store.QueryAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("query");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("query");
     }
 
     #endregion

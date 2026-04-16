@@ -1,6 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -28,8 +28,8 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             null!, _store, _requestContext, _auditContext, _options, _timeProvider, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             _inner, null!, _requestContext, _auditContext, _options, _timeProvider, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("readAuditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("readAuditStore");
     }
 
     [Fact]
@@ -48,8 +48,8 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             _inner, _store, null!, _auditContext, _options, _timeProvider, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             _inner, _store, _requestContext, null!, _options, _timeProvider, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("readAuditContext");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("readAuditContext");
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             _inner, _store, _requestContext, _auditContext, null!, _timeProvider, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             _inner, _store, _requestContext, _auditContext, _options, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             _inner, _store, _requestContext, _auditContext, _options, _timeProvider, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class AuditedReadOnlyRepositoryGuardTests
         var act = () => new AuditedReadOnlyRepository<TestEntity, Guid>(
             _inner, _store, _requestContext, _auditContext, _options, _timeProvider, _logger);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     public sealed class TestEntity : IEntity<Guid>, IReadAuditable

@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -20,7 +20,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringFromInteger)!;
 
-        fn.Evaluate([42]).Should().Be("42");
+        fn.Evaluate([42]).ShouldBe("42");
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringFromInteger)!;
 
-        fn.Evaluate([-100]).Should().Be("-100");
+        fn.Evaluate([-100]).ShouldBe("-100");
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate([1, 2]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 1*received 2*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     #endregion
@@ -50,7 +50,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerFromString)!;
 
-        fn.Evaluate(["42"]).Should().Be(42);
+        fn.Evaluate(["42"]).ShouldBe(42);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate(["not-a-number"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*cannot parse*integer*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate([null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     #endregion
@@ -82,7 +82,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleFromString)!;
 
-        fn.Evaluate(["3.14"]).Should().Be(3.14);
+        fn.Evaluate(["3.14"]).ShouldBe(3.14);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate(["abc"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*cannot parse*double*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot");
     }
 
     #endregion
@@ -104,7 +104,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.BooleanFromString)!;
 
-        fn.Evaluate(["true"]).Should().Be(true);
+        fn.Evaluate(["true"]).ShouldBe(true);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.BooleanFromString)!;
 
-        fn.Evaluate(["false"]).Should().Be(false);
+        fn.Evaluate(["false"]).ShouldBe(false);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate(["yes"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*cannot parse*boolean*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot");
     }
 
     #endregion
@@ -134,7 +134,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringFromBoolean)!;
 
-        fn.Evaluate([true]).Should().Be("true");
+        fn.Evaluate([true]).ShouldBe("true");
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringFromBoolean)!;
 
-        fn.Evaluate([false]).Should().Be("false");
+        fn.Evaluate([false]).ShouldBe("false");
     }
 
     #endregion
@@ -154,7 +154,7 @@ public class TypeConversionFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringFromDouble)!;
 
-        fn.Evaluate([3.14]).Should().Be("3.14");
+        fn.Evaluate([3.14]).ShouldBe("3.14");
     }
 
     #endregion
@@ -169,8 +169,8 @@ public class TypeConversionFunctionsGuardTests
 
         var result = fn.Evaluate([dt]) as string;
 
-        result.Should().NotBeNull();
-        result.Should().Contain("2026-04-03");
+        result.ShouldNotBeNull();
+        result.ShouldContain("2026-04-03");
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate([null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     #endregion

@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Encina.GuardTests.Security.Audit;
@@ -17,8 +17,8 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaAudit();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -28,8 +28,8 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaAudit(opts => opts.AuditAllCommands = false);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -39,8 +39,8 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaReadAuditing();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaReadAuditing(opts => opts.RequirePurpose = true);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaAudit();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaReadAuditing();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaAudit(configure: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -91,6 +91,6 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaReadAuditing(configure: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 }

@@ -2,7 +2,7 @@
 
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -35,8 +35,8 @@ public class ABACPipelineBehaviorGuardTests
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("pdp");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("pdp");
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public class ABACPipelineBehaviorGuardTests
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("attributeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("attributeProvider");
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public class ABACPipelineBehaviorGuardTests
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("securityContextAccessor");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("securityContextAccessor");
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class ABACPipelineBehaviorGuardTests
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("obligationExecutor");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("obligationExecutor");
     }
 
     [Fact]
@@ -95,8 +95,8 @@ public class ABACPipelineBehaviorGuardTests
             null!,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class ABACPipelineBehaviorGuardTests
             Options.Create(new ABACOptions()),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class ABACPipelineBehaviorGuardTests
     {
         var act = () => CreateBehavior();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -145,8 +145,8 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        called.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        called.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -178,7 +178,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -212,7 +212,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -246,7 +246,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -283,7 +283,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -320,7 +320,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -354,7 +354,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -379,7 +379,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -413,7 +413,7 @@ public class ABACPipelineBehaviorGuardTests
         var result = await sut.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue("obligation failure should deny even when PDP says Permit per XACML 7.18");
+        result.IsLeft.ShouldBeTrue("obligation failure should deny even when PDP says Permit per XACML 7.18");
     }
 
     #endregion

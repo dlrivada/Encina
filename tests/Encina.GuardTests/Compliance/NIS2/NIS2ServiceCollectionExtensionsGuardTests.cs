@@ -2,7 +2,7 @@ using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -22,8 +22,8 @@ public sealed class NIS2ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaNIS2();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -41,13 +41,13 @@ public sealed class NIS2ServiceCollectionExtensionsGuardTests
         var provider = services.BuildServiceProvider();
 
         provider.GetRequiredService<IOptions<NIS2Options>>().Value
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
         provider.GetRequiredService<ISupplyChainSecurityValidator>()
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
         provider.GetRequiredService<IMFAEnforcer>()
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
         provider.GetRequiredService<IEncryptionValidator>()
-            .Should().NotBeNull();
+            .ShouldNotBeNull();
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public sealed class NIS2ServiceCollectionExtensionsGuardTests
         var provider = services.BuildServiceProvider();
         var opts = provider.GetRequiredService<IOptions<NIS2Options>>().Value;
 
-        opts.EntityType.Should().Be(NIS2EntityType.Important);
-        opts.Sector.Should().Be(NIS2Sector.Manufacturing);
-        opts.EnforcementMode.Should().Be(NIS2EnforcementMode.Disabled);
+        opts.EntityType.ShouldBe(NIS2EntityType.Important);
+        opts.Sector.ShouldBe(NIS2Sector.Manufacturing);
+        opts.EnforcementMode.ShouldBe(NIS2EnforcementMode.Disabled);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class NIS2ServiceCollectionExtensionsGuardTests
         var provider = services.BuildServiceProvider();
         var evaluators = provider.GetServices<INIS2MeasureEvaluator>().ToList();
 
-        evaluators.Should().HaveCount(10);
+        evaluators.Count.ShouldBe(10);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class NIS2ServiceCollectionExtensionsGuardTests
 
         // Health check registration adds to the builder
         var healthCheckOptions = provider.GetService<IOptions<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckServiceOptions>>();
-        healthCheckOptions.Should().NotBeNull();
+        healthCheckOptions.ShouldNotBeNull();
     }
 
     [Fact]
@@ -114,6 +114,6 @@ public sealed class NIS2ServiceCollectionExtensionsGuardTests
         var provider = services.BuildServiceProvider();
         var resolved = provider.GetRequiredService<IMFAEnforcer>();
 
-        resolved.Should().BeSameAs(customEnforcer);
+        resolved.ShouldBeSameAs(customEnforcer);
     }
 }

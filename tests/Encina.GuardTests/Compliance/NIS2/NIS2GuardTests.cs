@@ -4,7 +4,7 @@ using Encina.Compliance.NIS2.Evaluators;
 using Encina.Compliance.NIS2.Health;
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -41,8 +41,8 @@ public sealed class NIS2CompliancePipelineBehaviorGuardTests
             ValidServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("mfaEnforcer");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("mfaEnforcer");
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public sealed class NIS2CompliancePipelineBehaviorGuardTests
             ValidServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("supplyChainValidator");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("supplyChainValidator");
     }
 
     [Fact]
@@ -69,8 +69,8 @@ public sealed class NIS2CompliancePipelineBehaviorGuardTests
             ValidServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public sealed class NIS2CompliancePipelineBehaviorGuardTests
             null!,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -97,8 +97,8 @@ public sealed class NIS2CompliancePipelineBehaviorGuardTests
             ValidServiceProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     private sealed record TestRequest : IRequest<string>;
@@ -121,8 +121,8 @@ public sealed class NIS2ComplianceHealthCheckGuardTests
             null!,
             NullLogger<NIS2ComplianceHealthCheck>.Instance);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public sealed class NIS2ComplianceHealthCheckGuardTests
             Substitute.For<IServiceProvider>(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 }
 
@@ -161,8 +161,8 @@ public sealed class DefaultEncryptionValidatorGuardTests
     {
         var act = () => new DefaultEncryptionValidator(null!, ValidServiceProvider, ValidEncryptionLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -171,8 +171,8 @@ public sealed class DefaultEncryptionValidatorGuardTests
         var act = () => new DefaultEncryptionValidator(
             Options.Create(new NIS2Options()), null!, ValidEncryptionLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public sealed class DefaultEncryptionValidatorGuardTests
         var act = () => new DefaultEncryptionValidator(
             Options.Create(new NIS2Options()), ValidServiceProvider, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -192,8 +192,8 @@ public sealed class DefaultEncryptionValidatorGuardTests
 
         var act = async () => await validator.IsDataEncryptedAtRestAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("dataCategory");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("dataCategory");
     }
 
     [Fact]
@@ -203,8 +203,8 @@ public sealed class DefaultEncryptionValidatorGuardTests
 
         var act = async () => await validator.IsDataEncryptedInTransitAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("endpoint");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("endpoint");
     }
 }
 
@@ -226,8 +226,8 @@ public sealed class DefaultSupplyChainSecurityValidatorGuardTests
     {
         var act = () => new DefaultSupplyChainSecurityValidator(null!, TimeProvider.System);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -236,8 +236,8 @@ public sealed class DefaultSupplyChainSecurityValidatorGuardTests
         var act = () => new DefaultSupplyChainSecurityValidator(
             Options.Create(new NIS2Options()), null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -247,8 +247,8 @@ public sealed class DefaultSupplyChainSecurityValidatorGuardTests
 
         var act = async () => await validator.AssessSupplierAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("supplierId");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("supplierId");
     }
 
     [Fact]
@@ -258,8 +258,8 @@ public sealed class DefaultSupplyChainSecurityValidatorGuardTests
 
         var act = async () => await validator.ValidateSupplierForOperationAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("supplierId");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("supplierId");
     }
 }
 
@@ -280,8 +280,8 @@ public sealed class NIS2OptionsValidatorGuardTests
 
         var act = () => validator.Validate(null, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 }
 
@@ -300,8 +300,8 @@ public sealed class RiskAnalysisEvaluatorGuardTests
     {
         var act = () => new RiskAnalysisEvaluator(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 }
 
@@ -332,8 +332,8 @@ public sealed class DefaultNIS2ComplianceValidatorGuardTests
             ValidServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("evaluators");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("evaluators");
     }
 
     [Fact]
@@ -346,8 +346,8 @@ public sealed class DefaultNIS2ComplianceValidatorGuardTests
             ValidServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -360,8 +360,8 @@ public sealed class DefaultNIS2ComplianceValidatorGuardTests
             ValidServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -374,8 +374,8 @@ public sealed class DefaultNIS2ComplianceValidatorGuardTests
             null!,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -388,8 +388,8 @@ public sealed class DefaultNIS2ComplianceValidatorGuardTests
             ValidServiceProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 }
 
@@ -432,8 +432,8 @@ public sealed class DefaultNIS2IncidentHandlerGuardTests
             ValidHandlerServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -445,8 +445,8 @@ public sealed class DefaultNIS2IncidentHandlerGuardTests
             ValidHandlerServiceProvider,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -458,8 +458,8 @@ public sealed class DefaultNIS2IncidentHandlerGuardTests
             null!,
             ValidLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -471,8 +471,8 @@ public sealed class DefaultNIS2IncidentHandlerGuardTests
             ValidHandlerServiceProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -482,8 +482,8 @@ public sealed class DefaultNIS2IncidentHandlerGuardTests
 
         var act = async () => await handler.ReportIncidentAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("incident");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("incident");
     }
 
     [Fact]
@@ -494,8 +494,8 @@ public sealed class DefaultNIS2IncidentHandlerGuardTests
         var act = async () => await handler.IsWithinNotificationDeadlineAsync(
             null!, NIS2NotificationPhase.EarlyWarning);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("incident");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("incident");
     }
 
     [Fact]
@@ -505,8 +505,8 @@ public sealed class DefaultNIS2IncidentHandlerGuardTests
 
         var act = async () => await handler.GetNextDeadlineAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("incident");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("incident");
     }
 }
 
