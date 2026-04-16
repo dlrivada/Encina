@@ -76,21 +76,19 @@ public class DefaultRiskAssessorTests
     #region Validation Tests
 
     [Fact]
-    public void AssessAsync_NullDataset_ThrowsArgumentNullException()
+    public async Task AssessAsync_NullDataset_ThrowsArgumentNullException()
     {
         // Arrange
         var sut = new DefaultRiskAssessor();
 
-        // Act
-        Action act = () => { var _ = sut.AssessAsync<TestRecord>(null!, ["City"]); };
-
-        // Assert
-        Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("dataset");
+        // Act & Assert
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
+            async () => await sut.AssessAsync<TestRecord>(null!, ["City"]));
+        ex.ParamName.ShouldBe("dataset");
     }
 
     [Fact]
-    public void AssessAsync_NullQuasiIdentifiers_ThrowsArgumentNullException()
+    public async Task AssessAsync_NullQuasiIdentifiers_ThrowsArgumentNullException()
     {
         // Arrange
         var sut = new DefaultRiskAssessor();
@@ -100,12 +98,10 @@ public class DefaultRiskAssessorTests
             new() { City = "LA", Age = 25, Gender = "F", Diagnosis = "Cold", Salary = 60000 },
         };
 
-        // Act
-        Action act = () => { var _ = sut.AssessAsync<TestRecord>(dataset, null!); };
-
-        // Assert
-        Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("quasiIdentifiers");
+        // Act & Assert
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
+            async () => await sut.AssessAsync<TestRecord>(dataset, null!));
+        ex.ParamName.ShouldBe("quasiIdentifiers");
     }
 
     [Theory]
