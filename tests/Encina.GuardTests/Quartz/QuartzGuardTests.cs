@@ -1,3 +1,4 @@
+using Encina.Messaging.Health;
 using Encina.Quartz;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,17 +22,19 @@ public sealed class QuartzGuardTests
     [Fact]
     public void NotificationJob_NullEncina_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             new QuartzNotificationJob<TestNotification>(null!,
                 NullLogger<QuartzNotificationJob<TestNotification>>.Instance));
+        ex.ParamName.ShouldBe("encina");
     }
 
     [Fact]
     public void NotificationJob_NullLogger_Throws()
     {
         var encina = Substitute.For<IEncina>();
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             new QuartzNotificationJob<TestNotification>(encina, null!));
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -50,8 +53,8 @@ public sealed class QuartzGuardTests
         var sut = new QuartzNotificationJob<TestNotification>(encina,
             NullLogger<QuartzNotificationJob<TestNotification>>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.Execute(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.Execute(null!));
     }
 
     // ─── QuartzRequestJob constructor guards ───
@@ -59,17 +62,19 @@ public sealed class QuartzGuardTests
     [Fact]
     public void RequestJob_NullEncina_Throws()
     {
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             new QuartzRequestJob<TestRequest, TestResponse>(null!,
                 NullLogger<QuartzRequestJob<TestRequest, TestResponse>>.Instance));
+        ex.ParamName.ShouldBe("encina");
     }
 
     [Fact]
     public void RequestJob_NullLogger_Throws()
     {
         var encina = Substitute.For<IEncina>();
-        Should.Throw<ArgumentNullException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             new QuartzRequestJob<TestRequest, TestResponse>(encina, null!));
+        ex.ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -88,8 +93,8 @@ public sealed class QuartzGuardTests
         var sut = new QuartzRequestJob<TestRequest, TestResponse>(encina,
             NullLogger<QuartzRequestJob<TestRequest, TestResponse>>.Instance);
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.Execute(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.Execute(null!));
     }
 
     // ─── EncinaQuartzOptions ───
@@ -98,7 +103,14 @@ public sealed class QuartzGuardTests
     public void EncinaQuartzOptions_Defaults()
     {
         var options = new EncinaQuartzOptions();
+
         options.ShouldNotBeNull();
+        options.ProviderHealthCheck.ShouldNotBeNull();
+        options.ProviderHealthCheck.Enabled.ShouldBeTrue();
+        options.ProviderHealthCheck.Timeout.ShouldBe(TimeSpan.FromSeconds(5));
+        options.ProviderHealthCheck.Name.ShouldBeNull();
+        options.ProviderHealthCheck.Tags.ShouldBe(["encina", "database", "ready"]);
+        options.ProviderHealthCheck.FailureStatus.ShouldBe(HealthStatus.Unhealthy);
     }
 
     public sealed record TestNotification : INotification;
