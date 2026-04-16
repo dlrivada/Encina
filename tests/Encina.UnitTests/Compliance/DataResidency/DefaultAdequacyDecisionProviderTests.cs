@@ -1,7 +1,7 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,9 +28,9 @@ public class DefaultAdequacyDecisionProviderTests
         var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
 
         // Act & Assert
-        sut.HasAdequacy(RegionRegistry.DE).Should().BeTrue();
-        sut.HasAdequacy(RegionRegistry.FR).Should().BeTrue();
-        sut.HasAdequacy(RegionRegistry.IT).Should().BeTrue();
+        sut.HasAdequacy(RegionRegistry.DE).ShouldBeTrue();
+        sut.HasAdequacy(RegionRegistry.FR).ShouldBeTrue();
+        sut.HasAdequacy(RegionRegistry.IT).ShouldBeTrue();
     }
 
     [Fact]
@@ -40,9 +40,9 @@ public class DefaultAdequacyDecisionProviderTests
         var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
 
         // Act & Assert
-        sut.HasAdequacy(RegionRegistry.NO).Should().BeTrue();
-        sut.HasAdequacy(RegionRegistry.IS).Should().BeTrue();
-        sut.HasAdequacy(RegionRegistry.LI).Should().BeTrue();
+        sut.HasAdequacy(RegionRegistry.NO).ShouldBeTrue();
+        sut.HasAdequacy(RegionRegistry.IS).ShouldBeTrue();
+        sut.HasAdequacy(RegionRegistry.LI).ShouldBeTrue();
     }
 
     [Fact]
@@ -52,10 +52,10 @@ public class DefaultAdequacyDecisionProviderTests
         var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
 
         // Act & Assert
-        sut.HasAdequacy(RegionRegistry.JP).Should().BeTrue();
-        sut.HasAdequacy(RegionRegistry.GB).Should().BeTrue();
-        sut.HasAdequacy(RegionRegistry.CH).Should().BeTrue();
-        sut.HasAdequacy(RegionRegistry.KR).Should().BeTrue();
+        sut.HasAdequacy(RegionRegistry.JP).ShouldBeTrue();
+        sut.HasAdequacy(RegionRegistry.GB).ShouldBeTrue();
+        sut.HasAdequacy(RegionRegistry.CH).ShouldBeTrue();
+        sut.HasAdequacy(RegionRegistry.KR).ShouldBeTrue();
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public class DefaultAdequacyDecisionProviderTests
         var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
 
         // Act & Assert
-        sut.HasAdequacy(RegionRegistry.CN).Should().BeFalse();
-        sut.HasAdequacy(RegionRegistry.IN).Should().BeFalse();
+        sut.HasAdequacy(RegionRegistry.CN).ShouldBeFalse();
+        sut.HasAdequacy(RegionRegistry.IN).ShouldBeFalse();
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class DefaultAdequacyDecisionProviderTests
         var sut = new DefaultAdequacyDecisionProvider(optionsMock, _logger);
 
         // Act & Assert
-        sut.HasAdequacy(customRegion).Should().BeTrue();
+        sut.HasAdequacy(customRegion).ShouldBeTrue();
     }
 
     [Fact]
@@ -97,9 +97,9 @@ public class DefaultAdequacyDecisionProviderTests
         var regions = sut.GetAdequateRegions();
 
         // Assert
-        regions.Should().NotBeEmpty();
-        regions.Should().Contain(r => r.Code == "DE");
-        regions.Should().Contain(r => r.Code == "JP");
+        regions.ShouldNotBeEmpty();
+        regions.ShouldContain(r => r.Code == "DE");
+        regions.ShouldContain(r => r.Code == "JP");
     }
 
     [Fact]
@@ -120,6 +120,6 @@ public class DefaultAdequacyDecisionProviderTests
         var regions = sut.GetAdequateRegions();
 
         // Assert
-        regions.Should().Contain(r => r.Code == "XX");
+        regions.ShouldContain(r => r.Code == "XX");
     }
 }

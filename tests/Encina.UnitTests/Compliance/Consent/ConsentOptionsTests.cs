@@ -1,5 +1,5 @@
 using Encina.Compliance.Consent;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent;
 
@@ -14,77 +14,77 @@ public class ConsentOptionsTests
     public void Defaults_EnforcementMode_ShouldBeBlock()
     {
         var options = new ConsentOptions();
-        options.EnforcementMode.Should().Be(ConsentEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(ConsentEnforcementMode.Block);
     }
 
     [Fact]
     public void Defaults_DefaultExpirationDays_ShouldBe365()
     {
         var options = new ConsentOptions();
-        options.DefaultExpirationDays.Should().Be(365);
+        options.DefaultExpirationDays.ShouldBe(365);
     }
 
     [Fact]
     public void Defaults_TrackConsentProof_ShouldBeFalse()
     {
         var options = new ConsentOptions();
-        options.TrackConsentProof.Should().BeFalse();
+        options.TrackConsentProof.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_RequireExplicitConsent_ShouldBeTrue()
     {
         var options = new ConsentOptions();
-        options.RequireExplicitConsent.Should().BeTrue();
+        options.RequireExplicitConsent.ShouldBeTrue();
     }
 
     [Fact]
     public void Defaults_AllowGranularWithdrawal_ShouldBeTrue()
     {
         var options = new ConsentOptions();
-        options.AllowGranularWithdrawal.Should().BeTrue();
+        options.AllowGranularWithdrawal.ShouldBeTrue();
     }
 
     [Fact]
     public void Defaults_AddHealthCheck_ShouldBeFalse()
     {
         var options = new ConsentOptions();
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_AutoRegisterFromAttributes_ShouldBeTrue()
     {
         var options = new ConsentOptions();
-        options.AutoRegisterFromAttributes.Should().BeTrue();
+        options.AutoRegisterFromAttributes.ShouldBeTrue();
     }
 
     [Fact]
     public void Defaults_AssembliesToScan_ShouldBeEmpty()
     {
         var options = new ConsentOptions();
-        options.AssembliesToScan.Should().BeEmpty();
+        options.AssembliesToScan.ShouldBeEmpty();
     }
 
     [Fact]
     public void Defaults_PurposeDefinitions_ShouldBeEmpty()
     {
         var options = new ConsentOptions();
-        options.PurposeDefinitions.Should().BeEmpty();
+        options.PurposeDefinitions.ShouldBeEmpty();
     }
 
     [Fact]
     public void Defaults_FailOnUnknownPurpose_ShouldBeFalse()
     {
         var options = new ConsentOptions();
-        options.FailOnUnknownPurpose.Should().BeFalse();
+        options.FailOnUnknownPurpose.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_DetailedPurposeDefinitions_ShouldBeEmpty()
     {
         var options = new ConsentOptions();
-        options.DetailedPurposeDefinitions.Should().BeEmpty();
+        options.DetailedPurposeDefinitions.ShouldBeEmpty();
     }
 
     #endregion
@@ -101,8 +101,8 @@ public class ConsentOptionsTests
         options.DefinePurpose(ConsentPurposes.Marketing);
 
         // Assert
-        options.PurposeDefinitions.Should().Contain(ConsentPurposes.Marketing);
-        options.DetailedPurposeDefinitions.Should().ContainKey(ConsentPurposes.Marketing);
+        options.PurposeDefinitions.ShouldContain(ConsentPurposes.Marketing);
+        options.DetailedPurposeDefinitions.ShouldContainKey(ConsentPurposes.Marketing);
     }
 
     [Fact]
@@ -122,10 +122,10 @@ public class ConsentOptionsTests
 
         // Assert
         var definition = options.DetailedPurposeDefinitions[ConsentPurposes.Marketing];
-        definition.Description.Should().Be("Email marketing");
-        definition.RequiresExplicitOptIn.Should().BeTrue();
-        definition.CanBeWithdrawnAnytime.Should().BeTrue();
-        definition.DefaultExpirationDays.Should().Be(180);
+        definition.Description.ShouldBe("Email marketing");
+        definition.RequiresExplicitOptIn.ShouldBeTrue();
+        definition.CanBeWithdrawnAnytime.ShouldBeTrue();
+        definition.DefaultExpirationDays.ShouldBe(180);
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class ConsentOptionsTests
             .DefinePurpose(ConsentPurposes.Analytics);
 
         // Assert
-        result.Should().BeSameAs(options);
-        options.PurposeDefinitions.Should().HaveCount(2);
+        result.ShouldBeSameAs(options);
+        options.PurposeDefinitions.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class ConsentOptionsTests
     {
         var options = new ConsentOptions();
         var act = () => options.DefinePurpose(null!);
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class ConsentOptionsTests
     {
         var options = new ConsentOptions();
         var act = () => options.DefinePurpose("   ");
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -171,10 +171,10 @@ public class ConsentOptionsTests
 
         // Assert
         var definition = options.DetailedPurposeDefinitions[ConsentPurposes.Analytics];
-        definition.Description.Should().BeNull();
-        definition.RequiresExplicitOptIn.Should().BeFalse();
-        definition.CanBeWithdrawnAnytime.Should().BeTrue();
-        definition.DefaultExpirationDays.Should().BeNull();
+        definition.Description.ShouldBeNull();
+        definition.RequiresExplicitOptIn.ShouldBeFalse();
+        definition.CanBeWithdrawnAnytime.ShouldBeTrue();
+        definition.DefaultExpirationDays.ShouldBeNull();
     }
 
     #endregion
@@ -188,10 +188,10 @@ public class ConsentOptionsTests
         var entry = new ConsentOptions.PurposeDefinitionEntry();
 
         // Assert
-        entry.Description.Should().BeNull();
-        entry.RequiresExplicitOptIn.Should().BeFalse();
-        entry.CanBeWithdrawnAnytime.Should().BeTrue();
-        entry.DefaultExpirationDays.Should().BeNull();
+        entry.Description.ShouldBeNull();
+        entry.RequiresExplicitOptIn.ShouldBeFalse();
+        entry.CanBeWithdrawnAnytime.ShouldBeTrue();
+        entry.DefaultExpirationDays.ShouldBeNull();
     }
 
     #endregion
@@ -201,7 +201,7 @@ public class ConsentOptionsTests
     [Fact]
     public void ConsentEnforcementMode_ShouldHaveThreeValues()
     {
-        Enum.GetValues<ConsentEnforcementMode>().Should().HaveCount(3);
+        Enum.GetValues<ConsentEnforcementMode>().Count.ShouldBe(3);
     }
 
     [Theory]
@@ -211,7 +211,7 @@ public class ConsentOptionsTests
     public void ConsentEnforcementMode_ShouldHaveExpectedIntValues(
         ConsentEnforcementMode mode, int expected)
     {
-        ((int)mode).Should().Be(expected);
+        ((int)mode).ShouldBe(expected);
     }
 
     #endregion

@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using System.Security.Claims;
 using Encina.Security;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security;
 
@@ -20,7 +20,7 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.UserId.Should().Be("user-123");
+        context.UserId.ShouldBe("user-123");
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.UserId.Should().Be("user-456");
+        context.UserId.ShouldBe("user-456");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class SecurityContextTests
         var context = new SecurityContext(principal, options);
 
         // Assert
-        context.UserId.Should().Be("user-789");
+        context.UserId.ShouldBe("user-789");
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Roles.Should().BeEquivalentTo(["Admin", "Manager"]);
+        context.Roles.ShouldBe(["Admin", "Manager"]);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Roles.Should().Contain("Editor");
+        context.Roles.ShouldContain("Editor");
     }
 
     [Fact]
@@ -91,9 +91,9 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert - ImmutableHashSet deduplicates (case-insensitive)
-        context.Roles.Should().HaveCount(2);
-        context.Roles.Should().Contain("Admin");
-        context.Roles.Should().Contain("Editor");
+        context.Roles.Count.ShouldBe(2);
+        context.Roles.ShouldContain("Admin");
+        context.Roles.ShouldContain("Editor");
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Permissions.Should().BeEquivalentTo(["orders:read", "orders:write"]);
+        context.Permissions.ShouldBe(["orders:read", "orders:write"]);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.TenantId.Should().Be("tenant-abc");
+        context.TenantId.ShouldBe("tenant-abc");
     }
 
     [Fact]
@@ -146,10 +146,10 @@ public class SecurityContextTests
         var context = new SecurityContext(principal, options);
 
         // Assert
-        context.UserId.Should().Be("u1");
-        context.Roles.Should().Contain("admin");
-        context.Permissions.Should().Contain("read");
-        context.TenantId.Should().Be("t1");
+        context.UserId.ShouldBe("u1");
+        context.Roles.ShouldContain("admin");
+        context.Permissions.ShouldContain("read");
+        context.TenantId.ShouldBe("t1");
     }
 
     [Fact]
@@ -163,12 +163,12 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.IsAuthenticated.Should().BeTrue();
-        context.UserId.Should().BeNull();
-        context.TenantId.Should().BeNull();
-        context.Roles.Should().BeEmpty();
-        context.Permissions.Should().BeEmpty();
-        context.User.Should().BeSameAs(principal);
+        context.IsAuthenticated.ShouldBeTrue();
+        context.UserId.ShouldBeNull();
+        context.TenantId.ShouldBeNull();
+        context.Roles.ShouldBeEmpty();
+        context.Permissions.ShouldBeEmpty();
+        context.User.ShouldBeSameAs(principal);
     }
 
     [Fact]
@@ -178,12 +178,12 @@ public class SecurityContextTests
         var context = new SecurityContext(null);
 
         // Assert
-        context.IsAuthenticated.Should().BeFalse();
-        context.UserId.Should().BeNull();
-        context.TenantId.Should().BeNull();
-        context.Roles.Should().BeEmpty();
-        context.Permissions.Should().BeEmpty();
-        context.User.Should().BeNull();
+        context.IsAuthenticated.ShouldBeFalse();
+        context.UserId.ShouldBeNull();
+        context.TenantId.ShouldBeNull();
+        context.Roles.ShouldBeEmpty();
+        context.Permissions.ShouldBeEmpty();
+        context.User.ShouldBeNull();
     }
 
     [Fact]
@@ -193,12 +193,12 @@ public class SecurityContextTests
         var context = SecurityContext.Anonymous;
 
         // Assert
-        context.IsAuthenticated.Should().BeFalse();
-        context.UserId.Should().BeNull();
-        context.TenantId.Should().BeNull();
-        context.Roles.Should().BeEmpty();
-        context.Permissions.Should().BeEmpty();
-        context.User.Should().BeNull();
+        context.IsAuthenticated.ShouldBeFalse();
+        context.UserId.ShouldBeNull();
+        context.TenantId.ShouldBeNull();
+        context.Roles.ShouldBeEmpty();
+        context.Permissions.ShouldBeEmpty();
+        context.User.ShouldBeNull();
     }
 
     [Fact]
@@ -211,8 +211,8 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Roles.Contains("admin").Should().BeTrue();
-        context.Roles.Contains("ADMIN").Should().BeTrue();
+        context.Roles.Contains("admin").ShouldBeTrue();
+        context.Roles.Contains("ADMIN").ShouldBeTrue();
     }
 
     [Fact]
@@ -225,8 +225,8 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Permissions.Contains("orders:read").Should().BeTrue();
-        context.Permissions.Contains("ORDERS:READ").Should().BeTrue();
+        context.Permissions.Contains("orders:read").ShouldBeTrue();
+        context.Permissions.Contains("ORDERS:READ").ShouldBeTrue();
     }
 
     [Fact]
@@ -237,8 +237,8 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert - IReadOnlySet doesn't expose Add/Remove
-        context.Roles.Should().BeAssignableTo<IReadOnlySet<string>>();
-        context.Roles.Should().BeAssignableTo<ImmutableHashSet<string>>();
+        context.Roles.ShouldBeAssignableTo<IReadOnlySet<string>>();
+        context.Roles.ShouldBeAssignableTo<ImmutableHashSet<string>>();
     }
 
     [Fact]
@@ -249,8 +249,8 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Permissions.Should().BeAssignableTo<IReadOnlySet<string>>();
-        context.Permissions.Should().BeAssignableTo<ImmutableHashSet<string>>();
+        context.Permissions.ShouldBeAssignableTo<IReadOnlySet<string>>();
+        context.Permissions.ShouldBeAssignableTo<ImmutableHashSet<string>>();
     }
 
     [Fact]
@@ -265,8 +265,8 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert - empty values filtered (implementation uses IsNullOrEmpty)
-        context.Roles.Should().HaveCount(1);
-        context.Roles.Should().Contain("Admin");
+        context.Roles.Count.ShouldBe(1);
+        context.Roles.ShouldContain("Admin");
     }
 
     [Fact]
@@ -279,8 +279,8 @@ public class SecurityContextTests
         var context = new SecurityContext(principal, options: null);
 
         // Assert
-        context.UserId.Should().Be("user-1");
-        context.Roles.Should().Contain("Admin");
+        context.UserId.ShouldBe("user-1");
+        context.Roles.ShouldContain("Admin");
     }
 
     #region Helpers

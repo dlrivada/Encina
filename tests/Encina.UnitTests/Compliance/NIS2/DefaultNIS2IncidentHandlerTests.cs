@@ -6,7 +6,7 @@ using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Model;
 using Encina.Testing.Time;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -75,9 +75,9 @@ public class DefaultNIS2IncidentHandlerTests
         var result = await sut.ReportIncidentAsync(incident);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var unit = result.Match(r => r, _ => default);
-        unit.Should().Be(Unit.Default);
+        unit.ShouldBe(Unit.Default);
     }
 
     #endregion
@@ -99,9 +99,9 @@ public class DefaultNIS2IncidentHandlerTests
             incident, NIS2NotificationPhase.EarlyWarning);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isWithin = result.Match(r => r, _ => false);
-        isWithin.Should().BeTrue();
+        isWithin.ShouldBeTrue();
     }
 
     [Fact]
@@ -119,9 +119,9 @@ public class DefaultNIS2IncidentHandlerTests
             incident, NIS2NotificationPhase.EarlyWarning);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isWithin = result.Match(r => r, _ => true);
-        isWithin.Should().BeFalse();
+        isWithin.ShouldBeFalse();
     }
 
     [Fact]
@@ -139,9 +139,9 @@ public class DefaultNIS2IncidentHandlerTests
             incident, NIS2NotificationPhase.IncidentNotification);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isWithin = result.Match(r => r, _ => false);
-        isWithin.Should().BeTrue();
+        isWithin.ShouldBeTrue();
     }
 
     #endregion
@@ -159,10 +159,10 @@ public class DefaultNIS2IncidentHandlerTests
         var result = await sut.GetNextDeadlineAsync(incident);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var (phase, deadline) = result.Match(r => r, _ => default);
-        phase.Should().Be(NIS2NotificationPhase.EarlyWarning);
-        deadline.Should().Be(incident.EarlyWarningDeadlineUtc);
+        phase.ShouldBe(NIS2NotificationPhase.EarlyWarning);
+        deadline.ShouldBe(incident.EarlyWarningDeadlineUtc);
     }
 
     [Fact]
@@ -177,10 +177,10 @@ public class DefaultNIS2IncidentHandlerTests
         var result = await sut.GetNextDeadlineAsync(incident);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var (phase, deadline) = result.Match(r => r, _ => default);
-        phase.Should().Be(NIS2NotificationPhase.IncidentNotification);
-        deadline.Should().Be(incident.IncidentNotificationDeadlineUtc);
+        phase.ShouldBe(NIS2NotificationPhase.IncidentNotification);
+        deadline.ShouldBe(incident.IncidentNotificationDeadlineUtc);
     }
 
     [Fact]
@@ -198,9 +198,9 @@ public class DefaultNIS2IncidentHandlerTests
         var result = await sut.GetNextDeadlineAsync(incident);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.Message.Should().Contain("completed");
+        error.Message.ShouldContain("completed");
     }
 
     #endregion
@@ -229,7 +229,7 @@ public class DefaultNIS2IncidentHandlerTests
         var result = await sut.ReportIncidentAsync(incident);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await breachService.Received(1).RecordBreachAsync(
             Arg.Is<string>(s => s.Contains("NIS2 Incident")),
             Arg.Any<BreachSeverity>(),
@@ -253,7 +253,7 @@ public class DefaultNIS2IncidentHandlerTests
         var result = await sut.ReportIncidentAsync(incident);
 
         // Assert — should succeed without forwarding
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -277,7 +277,7 @@ public class DefaultNIS2IncidentHandlerTests
         var result = await sut.ReportIncidentAsync(incident);
 
         // Assert — incident report still succeeds
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Theory]

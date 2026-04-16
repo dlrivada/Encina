@@ -2,7 +2,7 @@
 
 using Encina.Security.Audit;
 using Encina.Testing.Time;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -39,7 +39,7 @@ public class ReadAuditRetentionServiceTests
         var act = () => new ReadAuditRetentionService(_mockStore, options, _logger);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public class ReadAuditRetentionServiceTests
         var act = () => new ReadAuditRetentionService(null!, options, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("readAuditStore");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("readAuditStore");
     }
 
     [Fact]
@@ -63,8 +63,8 @@ public class ReadAuditRetentionServiceTests
         var act = () => new ReadAuditRetentionService(_mockStore, null!, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -77,8 +77,8 @@ public class ReadAuditRetentionServiceTests
         var act = () => new ReadAuditRetentionService(_mockStore, options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("logger");
     }
 
     #endregion

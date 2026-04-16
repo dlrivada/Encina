@@ -1,7 +1,7 @@
 using Encina.Compliance.Consent;
 using Encina.Compliance.Consent.Abstractions;
 using Encina.Compliance.Consent.ReadModels;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -32,14 +32,14 @@ public class DefaultConsentValidatorTests
     public void Constructor_NullConsentService_ShouldThrow()
     {
         var act = () => new DefaultConsentValidator(null!, _timeProvider);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("consentService");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("consentService");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_ShouldThrow()
     {
         var act = () => new DefaultConsentValidator(_consentService, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     #endregion
@@ -56,11 +56,11 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeTrue();
-        validation.Errors.Should().BeEmpty();
-        validation.MissingPurposes.Should().BeEmpty();
+        validation.IsValid.ShouldBeTrue();
+        validation.Errors.ShouldBeEmpty();
+        validation.MissingPurposes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -74,9 +74,9 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing", "analytics"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeTrue();
+        validation.IsValid.ShouldBeTrue();
     }
 
     #endregion
@@ -93,11 +93,11 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeFalse();
-        validation.MissingPurposes.Should().Contain("marketing");
-        validation.Errors.Should().ContainSingle();
+        validation.IsValid.ShouldBeFalse();
+        validation.MissingPurposes.ShouldContain("marketing");
+        validation.Errors.ShouldHaveSingleItem();
     }
 
     #endregion
@@ -114,10 +114,10 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeFalse();
-        validation.MissingPurposes.Should().Contain("marketing");
+        validation.IsValid.ShouldBeFalse();
+        validation.MissingPurposes.ShouldContain("marketing");
     }
 
     #endregion
@@ -134,10 +134,10 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeFalse();
-        validation.MissingPurposes.Should().Contain("marketing");
+        validation.IsValid.ShouldBeFalse();
+        validation.MissingPurposes.ShouldContain("marketing");
     }
 
     [Fact]
@@ -151,10 +151,10 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeFalse();
-        validation.MissingPurposes.Should().Contain("marketing");
+        validation.IsValid.ShouldBeFalse();
+        validation.MissingPurposes.ShouldContain("marketing");
     }
 
     #endregion
@@ -171,10 +171,10 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (ConsentValidationResult)result;
-        validation.IsValid.Should().BeFalse();
-        validation.MissingPurposes.Should().Contain("marketing");
+        validation.IsValid.ShouldBeFalse();
+        validation.MissingPurposes.ShouldContain("marketing");
     }
 
     #endregion
@@ -195,7 +195,7 @@ public class DefaultConsentValidatorTests
         var result = await _validator.ValidateAsync("user-1", ["marketing"]);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -206,14 +206,14 @@ public class DefaultConsentValidatorTests
     public async Task ValidateAsync_NullSubjectId_ShouldThrow()
     {
         var act = async () => await _validator.ValidateAsync(null!, ["marketing"]);
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
     public async Task ValidateAsync_NullPurposes_ShouldThrow()
     {
         var act = async () => await _validator.ValidateAsync("user-1", null!);
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion

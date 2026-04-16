@@ -1,7 +1,7 @@
 using Encina.Compliance.Retention.Events;
 using Encina.Compliance.Retention.ReadModels;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -53,7 +53,7 @@ public class LegalHoldProjectionTests
         var name = _sut.ProjectionName;
 
         // Assert
-        name.Should().Be("LegalHoldProjection");
+        name.ShouldBe("LegalHoldProjection");
     }
 
     #endregion
@@ -80,14 +80,14 @@ public class LegalHoldProjectionTests
         var result = _sut.Create(placed, _context);
 
         // Assert
-        result.Id.Should().Be(holdId);
-        result.EntityId.Should().Be("employee-7");
-        result.Reason.Should().Be("Regulatory investigation - Ref. INV-2026-001");
-        result.AppliedByUserId.Should().Be("chief-legal-officer");
-        result.AppliedAtUtc.Should().Be(appliedAt);
-        result.TenantId.Should().Be("tenant-A");
-        result.ModuleId.Should().Be("module-B");
-        result.LastModifiedAtUtc.Should().Be(appliedAt);
+        result.Id.ShouldBe(holdId);
+        result.EntityId.ShouldBe("employee-7");
+        result.Reason.ShouldBe("Regulatory investigation - Ref. INV-2026-001");
+        result.AppliedByUserId.ShouldBe("chief-legal-officer");
+        result.AppliedAtUtc.ShouldBe(appliedAt);
+        result.TenantId.ShouldBe("tenant-A");
+        result.ModuleId.ShouldBe("module-B");
+        result.LastModifiedAtUtc.ShouldBe(appliedAt);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class LegalHoldProjectionTests
         var result = _sut.Create(placed, _context);
 
         // Assert
-        result.IsActive.Should().BeTrue();
+        result.IsActive.ShouldBeTrue();
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class LegalHoldProjectionTests
         var result = _sut.Create(placed, _context);
 
         // Assert
-        result.Version.Should().Be(1);
+        result.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public class LegalHoldProjectionTests
         var result = _sut.Create(placed, _context);
 
         // Assert
-        result.ReleasedByUserId.Should().BeNull();
-        result.ReleasedAtUtc.Should().BeNull();
+        result.ReleasedByUserId.ShouldBeNull();
+        result.ReleasedAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class LegalHoldProjectionTests
         var result = _sut.Create(placed, _context);
 
         // Assert
-        result.TenantId.Should().BeNull();
-        result.ModuleId.Should().BeNull();
+        result.TenantId.ShouldBeNull();
+        result.ModuleId.ShouldBeNull();
     }
 
     #endregion
@@ -165,10 +165,10 @@ public class LegalHoldProjectionTests
         var result = _sut.Apply(lifted, readModel, _context);
 
         // Assert
-        result.IsActive.Should().BeFalse();
-        result.ReleasedByUserId.Should().Be("senior-counsel");
-        result.ReleasedAtUtc.Should().Be(releasedAt);
-        result.LastModifiedAtUtc.Should().Be(releasedAt);
+        result.IsActive.ShouldBeFalse();
+        result.ReleasedByUserId.ShouldBe("senior-counsel");
+        result.ReleasedAtUtc.ShouldBe(releasedAt);
+        result.LastModifiedAtUtc.ShouldBe(releasedAt);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class LegalHoldProjectionTests
         var result = _sut.Apply(lifted, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(2);
+        result.Version.ShouldBe(2);
     }
 
     [Fact]
@@ -213,13 +213,13 @@ public class LegalHoldProjectionTests
         var result = _sut.Apply(lifted, readModel, _context);
 
         // Assert
-        result.Id.Should().Be(holdId);
-        result.EntityId.Should().Be("contract-999");
-        result.Reason.Should().Be("Dispute resolution");
-        result.AppliedByUserId.Should().Be("legal-team");
-        result.TenantId.Should().Be("tenant-Z");
-        result.ModuleId.Should().Be("module-W");
-        result.AppliedAtUtc.Should().Be(placed.AppliedAtUtc);
+        result.Id.ShouldBe(holdId);
+        result.EntityId.ShouldBe("contract-999");
+        result.Reason.ShouldBe("Dispute resolution");
+        result.AppliedByUserId.ShouldBe("legal-team");
+        result.TenantId.ShouldBe("tenant-Z");
+        result.ModuleId.ShouldBe("module-W");
+        result.AppliedAtUtc.ShouldBe(placed.AppliedAtUtc);
     }
 
     #endregion

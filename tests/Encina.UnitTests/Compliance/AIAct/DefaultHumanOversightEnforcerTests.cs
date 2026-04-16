@@ -1,6 +1,6 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 
 namespace Encina.UnitTests.Compliance.AIAct;
@@ -24,9 +24,9 @@ public class DefaultHumanOversightEnforcerTests
         var result = await _sut.RequiresHumanReviewAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var requires = (bool)result;
-        requires.Should().BeTrue();
+        requires.ShouldBeTrue();
     }
 
     [Fact]
@@ -39,9 +39,9 @@ public class DefaultHumanOversightEnforcerTests
         var result = await _sut.RequiresHumanReviewAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var requires = (bool)result;
-        requires.Should().BeFalse();
+        requires.ShouldBeFalse();
     }
 
     // -- RecordHumanDecisionAsync --
@@ -56,7 +56,7 @@ public class DefaultHumanOversightEnforcerTests
         var result = await _sut.RecordHumanDecisionAsync(decision);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- HasHumanApprovalAsync --
@@ -72,9 +72,9 @@ public class DefaultHumanOversightEnforcerTests
         var result = await _sut.HasHumanApprovalAsync(decision.DecisionId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var exists = (bool)result;
-        exists.Should().BeTrue();
+        exists.ShouldBeTrue();
     }
 
     [Fact]
@@ -84,9 +84,9 @@ public class DefaultHumanOversightEnforcerTests
         var result = await _sut.HasHumanApprovalAsync(Guid.NewGuid());
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var exists = (bool)result;
-        exists.Should().BeFalse();
+        exists.ShouldBeFalse();
     }
 
     // -- Helper --

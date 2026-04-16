@@ -1,5 +1,5 @@
 using Encina.Compliance.Consent;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent;
 
@@ -17,8 +17,8 @@ public class RequireConsentAttributeTests
         var attr = new RequireConsentAttribute(ConsentPurposes.Marketing);
 
         // Assert
-        attr.Purposes.Should().HaveCount(1);
-        attr.Purposes.Should().Contain(ConsentPurposes.Marketing);
+        attr.Purposes.Count.ShouldBe(1);
+        attr.Purposes.ShouldContain(ConsentPurposes.Marketing);
     }
 
     [Fact]
@@ -31,10 +31,10 @@ public class RequireConsentAttributeTests
             ConsentPurposes.Personalization);
 
         // Assert
-        attr.Purposes.Should().HaveCount(3);
-        attr.Purposes.Should().Contain(ConsentPurposes.Marketing);
-        attr.Purposes.Should().Contain(ConsentPurposes.Analytics);
-        attr.Purposes.Should().Contain(ConsentPurposes.Personalization);
+        attr.Purposes.Count.ShouldBe(3);
+        attr.Purposes.ShouldContain(ConsentPurposes.Marketing);
+        attr.Purposes.ShouldContain(ConsentPurposes.Analytics);
+        attr.Purposes.ShouldContain(ConsentPurposes.Personalization);
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public class RequireConsentAttributeTests
         var act = () => new RequireConsentAttribute();
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("purposes");
+        Should.Throw<ArgumentException>(act)
+            .ParamName.ShouldBe("purposes");
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class RequireConsentAttributeTests
         var act = () => new RequireConsentAttribute(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -69,7 +69,7 @@ public class RequireConsentAttributeTests
         var attr = new RequireConsentAttribute(ConsentPurposes.Marketing);
 
         // Assert
-        attr.SubjectIdProperty.Should().BeNull();
+        attr.SubjectIdProperty.ShouldBeNull();
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class RequireConsentAttributeTests
         };
 
         // Assert
-        attr.SubjectIdProperty.Should().Be("CustomerId");
+        attr.SubjectIdProperty.ShouldBe("CustomerId");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class RequireConsentAttributeTests
         var attr = new RequireConsentAttribute(ConsentPurposes.Marketing);
 
         // Assert
-        attr.ErrorMessage.Should().BeNull();
+        attr.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class RequireConsentAttributeTests
         };
 
         // Assert
-        attr.ErrorMessage.Should().Be("Consent required for marketing");
+        attr.ErrorMessage.ShouldBe("Consent required for marketing");
     }
 
     #endregion
@@ -122,9 +122,9 @@ public class RequireConsentAttributeTests
             .Single();
 
         // Assert
-        usage.ValidOn.Should().Be(AttributeTargets.Class);
-        usage.AllowMultiple.Should().BeFalse();
-        usage.Inherited.Should().BeTrue();
+        usage.ValidOn.ShouldBe(AttributeTargets.Class);
+        usage.AllowMultiple.ShouldBeFalse();
+        usage.Inherited.ShouldBeTrue();
     }
 
     #endregion

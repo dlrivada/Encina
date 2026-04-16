@@ -3,7 +3,7 @@
 using Encina.Compliance.CrossBorderTransfer.Aggregates;
 using Encina.Compliance.CrossBorderTransfer.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using static LanguageExt.Prelude;
 
@@ -27,20 +27,20 @@ public class ApprovedTransferAggregateTests
             expiresAtUtc: expiresAt, tenantId: "tenant-1", moduleId: "module-1");
 
         // Assert
-        transfer.Id.Should().Be(id);
-        transfer.SourceCountryCode.Should().Be("DE");
-        transfer.DestinationCountryCode.Should().Be("US");
-        transfer.DataCategory.Should().Be("personal-data");
-        transfer.Basis.Should().Be(TransferBasis.SCCs);
-        transfer.SCCAgreementId.Should().Be(sccId);
-        transfer.TIAId.Should().Be(tiaId);
-        transfer.ApprovedBy.Should().Be("admin");
-        transfer.ExpiresAtUtc.Should().Be(expiresAt);
-        transfer.TenantId.Should().Be("tenant-1");
-        transfer.ModuleId.Should().Be("module-1");
-        transfer.IsRevoked.Should().BeFalse();
-        transfer.IsExpired.Should().BeFalse();
-        transfer.RevokedAtUtc.Should().BeNull();
+        transfer.Id.ShouldBe(id);
+        transfer.SourceCountryCode.ShouldBe("DE");
+        transfer.DestinationCountryCode.ShouldBe("US");
+        transfer.DataCategory.ShouldBe("personal-data");
+        transfer.Basis.ShouldBe(TransferBasis.SCCs);
+        transfer.SCCAgreementId.ShouldBe(sccId);
+        transfer.TIAId.ShouldBe(tiaId);
+        transfer.ApprovedBy.ShouldBe("admin");
+        transfer.ExpiresAtUtc.ShouldBe(expiresAt);
+        transfer.TenantId.ShouldBe("tenant-1");
+        transfer.ModuleId.ShouldBe("module-1");
+        transfer.IsRevoked.ShouldBeFalse();
+        transfer.IsExpired.ShouldBeFalse();
+        transfer.RevokedAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public class ApprovedTransferAggregateTests
             Guid.NewGuid(), null!, "US", "personal-data", TransferBasis.SCCs, approvedBy: "admin");
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("sourceCountryCode");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("sourceCountryCode");
     }
 
     [Fact]
@@ -63,8 +63,8 @@ public class ApprovedTransferAggregateTests
             Guid.NewGuid(), "DE", "US", "personal-data", TransferBasis.Blocked, approvedBy: "admin");
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("basis");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("basis");
     }
 
     [Fact]
@@ -77,9 +77,9 @@ public class ApprovedTransferAggregateTests
         transfer.Revoke("Data breach detected", "compliance-officer");
 
         // Assert
-        transfer.IsRevoked.Should().BeTrue();
-        transfer.RevokedAtUtc.Should().NotBeNull();
-        transfer.RevokedAtUtc.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        transfer.IsRevoked.ShouldBeTrue();
+        transfer.RevokedAtUtc.ShouldNotBeNull();
+        transfer.RevokedAtUtc!.Value.ShouldBeInRange(DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5), DateTimeOffset.UtcNow + TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class ApprovedTransferAggregateTests
         var act = () => transfer.Revoke("Second revocation", "admin");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class ApprovedTransferAggregateTests
         transfer.Expire();
 
         // Assert
-        transfer.IsExpired.Should().BeTrue();
+        transfer.IsExpired.ShouldBeTrue();
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class ApprovedTransferAggregateTests
         var act = () => transfer.Expire();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class ApprovedTransferAggregateTests
         var act = () => transfer.Expire();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -146,8 +146,8 @@ public class ApprovedTransferAggregateTests
         transfer.Renew(newExpiration, "admin");
 
         // Assert
-        transfer.ExpiresAtUtc.Should().Be(newExpiration);
-        transfer.IsExpired.Should().BeFalse();
+        transfer.ExpiresAtUtc.ShouldBe(newExpiration);
+        transfer.IsExpired.ShouldBeFalse();
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class ApprovedTransferAggregateTests
         var act = () => transfer.Renew(DateTimeOffset.UtcNow.AddYears(1), "admin");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class ApprovedTransferAggregateTests
         var result = transfer.IsValid(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class ApprovedTransferAggregateTests
         var result = transfer.IsValid(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class ApprovedTransferAggregateTests
         var result = transfer.IsValid(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class ApprovedTransferAggregateTests
         var result = transfer.IsValid(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     // --- Helper methods ---

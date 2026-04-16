@@ -4,7 +4,7 @@ using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
 using Encina.Modules.Isolation;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -124,8 +124,8 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
         await _validator.DidNotReceive()
             .ValidateAsync(Arg.Any<TestPbDRequest>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
@@ -138,8 +138,8 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestNoPbDRequest(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
         await _validator.DidNotReceive()
             .ValidateAsync(Arg.Any<TestNoPbDRequest>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
@@ -160,8 +160,8 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
     }
 
     [Fact]
@@ -176,9 +176,9 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(PrivacyByDesignErrors.DataMinimizationViolationCode);
+        error.GetEncinaCode().ShouldBe(PrivacyByDesignErrors.DataMinimizationViolationCode);
     }
 
     [Fact]
@@ -210,9 +210,9 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(PrivacyByDesignErrors.MinimizationScoreBelowThresholdCode);
+        error.GetEncinaCode().ShouldBe(PrivacyByDesignErrors.MinimizationScoreBelowThresholdCode);
     }
 
     #endregion
@@ -231,8 +231,8 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
     }
 
     [Fact]
@@ -247,8 +247,8 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
     }
 
     #endregion
@@ -319,7 +319,7 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -339,9 +339,9 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(PrivacyByDesignErrors.StoreErrorCode);
+        error.GetEncinaCode().ShouldBe(PrivacyByDesignErrors.StoreErrorCode);
     }
 
     [Fact]
@@ -357,8 +357,8 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
     }
 
     #endregion
@@ -372,8 +372,7 @@ public class DataMinimizationPipelineBehaviorTests
 
         Func<Task> act = async () => await sut.Handle(null!, _context, SuccessNext(), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -383,8 +382,7 @@ public class DataMinimizationPipelineBehaviorTests
 
         Func<Task> act = async () => await sut.Handle(new TestPbDRequest(), null!, SuccessNext(), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -394,8 +392,7 @@ public class DataMinimizationPipelineBehaviorTests
 
         Func<Task> act = async () => await sut.Handle(new TestPbDRequest(), _context, null!, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("nextStep");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("nextStep");
     }
 
     #endregion
@@ -414,7 +411,7 @@ public class DataMinimizationPipelineBehaviorTests
         var result = await sut.Handle(
             new TestPbDRequest(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

@@ -4,7 +4,7 @@ using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.Anonymization.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -28,7 +28,7 @@ public class InMemoryKeyProviderTests
         var provider = new InMemoryKeyProvider();
 
         // Assert
-        provider.Count.Should().Be(1);
+        provider.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -43,10 +43,10 @@ public class InMemoryKeyProviderTests
 
         // Assert
         var listResult = await provider.ListKeysAsync();
-        listResult.IsRight.Should().BeTrue();
+        listResult.IsRight.ShouldBeTrue();
         var keys = listResult.Match(Right: k => k, Left: _ => []);
-        keys.Should().HaveCount(1);
-        keys[0].CreatedAtUtc.Should().Be(fixedTime);
+        keys.Count.ShouldBe(1);
+        keys[0].CreatedAtUtc.ShouldBe(fixedTime);
     }
 
     #endregion
@@ -63,9 +63,9 @@ public class InMemoryKeyProviderTests
         var result = await provider.GetActiveKeyIdAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var keyId = result.Match(Right: id => id, Left: _ => string.Empty);
-        keyId.Should().NotBeNullOrEmpty();
+        keyId.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -79,10 +79,10 @@ public class InMemoryKeyProviderTests
         var result = await provider.GetActiveKeyIdAsync();
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.NoActiveKeyCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.NoActiveKeyCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -102,10 +102,10 @@ public class InMemoryKeyProviderTests
         var result = await provider.GetKeyAsync(activeKeyId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var keyBytes = result.Match(Right: b => b, Left: _ => []);
-        keyBytes.Should().NotBeEmpty();
-        keyBytes.Should().HaveCount(32); // 256-bit key
+        keyBytes.ShouldNotBeEmpty();
+        keyBytes.Count.ShouldBe(32); // 256-bit key
     }
 
     [Fact]
@@ -118,10 +118,10 @@ public class InMemoryKeyProviderTests
         var result = await provider.GetKeyAsync("non-existing-key-id");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -141,16 +141,16 @@ public class InMemoryKeyProviderTests
         var rotateResult = await provider.RotateKeyAsync(originalKeyId);
 
         // Assert
-        rotateResult.IsRight.Should().BeTrue();
+        rotateResult.IsRight.ShouldBeTrue();
         var newKeyInfo = rotateResult.Match(Right: k => k, Left: _ => null!);
-        newKeyInfo.Should().NotBeNull();
-        newKeyInfo.IsActive.Should().BeTrue();
-        newKeyInfo.KeyId.Should().NotBe(originalKeyId);
+        newKeyInfo.ShouldNotBeNull();
+        newKeyInfo.IsActive.ShouldBeTrue();
+        newKeyInfo.KeyId.ShouldNotBe(originalKeyId);
 
         // Verify the new key is now the active one
         var activeKeyIdResult = await provider.GetActiveKeyIdAsync();
         var activeKeyId = activeKeyIdResult.Match(Right: id => id, Left: _ => string.Empty);
-        activeKeyId.Should().Be(newKeyInfo.KeyId);
+        activeKeyId.ShouldBe(newKeyInfo.KeyId);
     }
 
     [Fact]
@@ -168,8 +168,8 @@ public class InMemoryKeyProviderTests
         var listResult = await provider.ListKeysAsync();
         var keys = listResult.Match(Right: k => k, Left: _ => []);
         var oldKey = keys.FirstOrDefault(k => k.KeyId == originalKeyId);
-        oldKey.Should().NotBeNull();
-        oldKey!.IsActive.Should().BeFalse();
+        oldKey.ShouldNotBeNull();
+        oldKey!.IsActive.ShouldBeFalse();
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class InMemoryKeyProviderTests
     {
         // Arrange
         var provider = new InMemoryKeyProvider();
-        provider.Count.Should().Be(1);
+        provider.Count.ShouldBe(1);
 
         var activeKeyIdResult = await provider.GetActiveKeyIdAsync();
         var activeKeyId = activeKeyIdResult.Match(Right: id => id, Left: _ => string.Empty);
@@ -186,7 +186,7 @@ public class InMemoryKeyProviderTests
         await provider.RotateKeyAsync(activeKeyId);
 
         // Assert
-        provider.Count.Should().Be(2);
+        provider.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -199,10 +199,10 @@ public class InMemoryKeyProviderTests
         var result = await provider.RotateKeyAsync("non-existing-key-id");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -225,9 +225,9 @@ public class InMemoryKeyProviderTests
         var result = await provider.ListKeysAsync();
 
         // Assert - initial key + 2 rotations = 3 keys
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var keys = result.Match(Right: k => k, Left: _ => []);
-        keys.Should().HaveCount(3);
+        keys.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -241,9 +241,9 @@ public class InMemoryKeyProviderTests
         var result = await provider.ListKeysAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var keys = result.Match(Right: k => k, Left: _ => []);
-        keys.Should().BeEmpty();
+        keys.ShouldBeEmpty();
     }
 
     #endregion
@@ -255,13 +255,13 @@ public class InMemoryKeyProviderTests
     {
         // Arrange
         var provider = new InMemoryKeyProvider();
-        provider.Count.Should().Be(1);
+        provider.Count.ShouldBe(1);
 
         // Act
         provider.Clear();
 
         // Assert
-        provider.Count.Should().Be(0);
+        provider.Count.ShouldBe(0);
     }
 
     #endregion

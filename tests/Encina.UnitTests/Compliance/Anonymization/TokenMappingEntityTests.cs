@@ -1,6 +1,6 @@
 using Encina.Compliance.Anonymization;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -34,13 +34,13 @@ public class TokenMappingEntityTests
         };
 
         // Assert
-        entity.Id.Should().Be(id);
-        entity.Token.Should().Be(token);
-        entity.OriginalValueHash.Should().Be(hash);
-        entity.EncryptedOriginalValue.Should().BeEquivalentTo(encrypted);
-        entity.KeyId.Should().Be(keyId);
-        entity.CreatedAtUtc.Should().Be(created);
-        entity.ExpiresAtUtc.Should().Be(expires);
+        entity.Id.ShouldBe(id);
+        entity.Token.ShouldBe(token);
+        entity.OriginalValueHash.ShouldBe(hash);
+        entity.EncryptedOriginalValue.ShouldBe(encrypted);
+        entity.KeyId.ShouldBe(keyId);
+        entity.CreatedAtUtc.ShouldBe(created);
+        entity.ExpiresAtUtc.ShouldBe(expires);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class TokenMappingEntityTests
         };
 
         // Assert
-        entity.CreatedAtUtc.Should().Be(default(DateTimeOffset));
+        entity.CreatedAtUtc.ShouldBe(default(DateTimeOffset));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class TokenMappingEntityTests
         };
 
         // Assert
-        entity.ExpiresAtUtc.Should().BeNull();
+        entity.ExpiresAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class TokenMappingEntityTests
         };
 
         // Assert
-        entity.ExpiresAtUtc.Should().Be(expires);
+        entity.ExpiresAtUtc.ShouldBe(expires);
     }
 
     [Fact]
@@ -112,10 +112,10 @@ public class TokenMappingEntityTests
         };
 
         // Act & Assert
-        entity.Id.Should().Be("required-id");
-        entity.Token.Should().Be("required-token");
-        entity.OriginalValueHash.Should().Be("required-hash");
-        entity.EncryptedOriginalValue.Should().Equal(0xAA, 0xBB);
-        entity.KeyId.Should().Be("required-key");
+        entity.Id.ShouldBe("required-id");
+        entity.Token.ShouldBe("required-token");
+        entity.OriginalValueHash.ShouldBe("required-hash");
+        entity.EncryptedOriginalValue.ShouldBe(0xAA, 0xBB);
+        entity.KeyId.ShouldBe("required-key");
     }
 }

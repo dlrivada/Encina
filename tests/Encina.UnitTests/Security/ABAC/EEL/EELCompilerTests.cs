@@ -3,7 +3,7 @@ using System.Dynamic;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.EEL;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -49,7 +49,7 @@ public sealed class EELCompilerTests : IDisposable
     /// </summary>
     private static T AssertRight<T>(Either<EncinaError, T> either, string context = "")
     {
-        either.IsRight.Should().BeTrue($"expected Right but got Left{(context.Length > 0 ? $": {context}" : "")}");
+        either.IsRight.ShouldBeTrue($"expected Right but got Left{(context.Length > 0 ? $": {context}" : "")}");
         return either.Match(Left: _ => default!, Right: v => v);
     }
 
@@ -58,7 +58,7 @@ public sealed class EELCompilerTests : IDisposable
     /// </summary>
     private static EncinaError AssertLeft<T>(Either<EncinaError, T> either, string context = "")
     {
-        either.IsLeft.Should().BeTrue($"expected Left but got Right{(context.Length > 0 ? $": {context}" : "")}");
+        either.IsLeft.ShouldBeTrue($"expected Left but got Right{(context.Length > 0 ? $": {context}" : "")}");
         return either.Match(Left: e => e, Right: _ => default);
     }
 
@@ -69,7 +69,7 @@ public sealed class EELCompilerTests : IDisposable
     {
         var result = await _compiler.CompileAsync("true");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class EELCompilerTests : IDisposable
         var result = await _compiler.CompileAsync("invalid >>>syntax");
 
         var error = AssertLeft(result);
-        error.GetCode().IfNone("").Should().Be(ABACErrors.InvalidConditionCode);
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.InvalidConditionCode);
     }
 
     [Fact]
@@ -88,13 +88,13 @@ public sealed class EELCompilerTests : IDisposable
         var result2 = await _compiler.CompileAsync("1 == 1");
 
         // Both should succeed
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
 
         // Should return the same cached instance
         var runner1 = result1.Match(Left: _ => null!, Right: r => r);
         var runner2 = result2.Match(Left: _ => null!, Right: r => r);
-        runner1.Should().BeSameAs(runner2);
+        runner1.ShouldBeSameAs(runner2);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class EELCompilerTests : IDisposable
     {
         var act = () => _compiler.CompileAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class EELCompilerTests : IDisposable
     {
         var act = () => _compiler.CompileAsync("").AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class EELCompilerTests : IDisposable
     {
         var act = () => _compiler.CompileAsync("   ").AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class EELCompilerTests : IDisposable
         // A string expression cannot be implicitly converted to bool
         var result = await _compiler.CompileAsync("\"hello\"");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -141,7 +141,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var result = await _compiler.EvaluateAsync("true", globals);
 
-        AssertRight(result).Should().BeTrue();
+        AssertRight(result).ShouldBeTrue();
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var result = await _compiler.EvaluateAsync("false", globals);
 
-        AssertRight(result).Should().BeFalse();
+        AssertRight(result).ShouldBeFalse();
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var result = await _compiler.EvaluateAsync("user.department == \"Finance\"", globals);
 
-        AssertRight(result).Should().BeTrue();
+        AssertRight(result).ShouldBeTrue();
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var result = await _compiler.EvaluateAsync("resource.amount > 10000", globals);
 
-        AssertRight(result).Should().BeTrue();
+        AssertRight(result).ShouldBeTrue();
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var result = await _compiler.EvaluateAsync("environment.isBusinessHours == true", globals);
 
-        AssertRight(result).Should().BeTrue();
+        AssertRight(result).ShouldBeTrue();
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public sealed class EELCompilerTests : IDisposable
             "user.department == \"Finance\" && action.name == \"read\"",
             globals);
 
-        AssertRight(result).Should().BeTrue();
+        AssertRight(result).ShouldBeTrue();
     }
 
     [Fact]
@@ -208,7 +208,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var result = await _compiler.EvaluateAsync("invalid >>> syntax", globals);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public sealed class EELCompilerTests : IDisposable
         // Accessing a property that doesn't exist on the dynamic object
         var result = await _compiler.EvaluateAsync("user.nonExistentProperty == \"test\"", globals);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public sealed class EELCompilerTests : IDisposable
         var globals = MakeGlobals();
         var act = () => _compiler.EvaluateAsync(null!, globals).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public sealed class EELCompilerTests : IDisposable
     {
         var act = () => _compiler.EvaluateAsync("true", null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public sealed class EELCompilerTests : IDisposable
             "user.role == \"admin\" || user.role == \"viewer\"",
             globals);
 
-        AssertRight(result).Should().BeTrue();
+        AssertRight(result).ShouldBeTrue();
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var result = await _compiler.EvaluateAsync("!((bool)user.isBlocked)", globals);
 
-        AssertRight(result).Should().BeTrue();
+        AssertRight(result).ShouldBeTrue();
     }
 
     #endregion
@@ -276,8 +276,8 @@ public sealed class EELCompilerTests : IDisposable
         var result1 = await _compiler.EvaluateAsync("user.department == \"Finance\"", globals1);
         var result2 = await _compiler.EvaluateAsync("user.department == \"Finance\"", globals2);
 
-        AssertRight(result1).Should().BeTrue();
-        AssertRight(result2).Should().BeFalse();
+        AssertRight(result1).ShouldBeTrue();
+        AssertRight(result2).ShouldBeFalse();
     }
 
     #endregion
@@ -293,7 +293,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var results = await Task.WhenAll(tasks);
 
-        results.Should().AllSatisfy(r => r.IsRight.Should().BeTrue());
+        results.ShouldAllBe(r => r.IsRight.ShouldBeTrue());
     }
 
     #endregion
@@ -311,7 +311,7 @@ public sealed class EELCompilerTests : IDisposable
             compiler.Dispose();
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

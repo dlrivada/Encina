@@ -2,7 +2,7 @@ using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -25,10 +25,10 @@ public sealed class ModelTests
             Reason = null
         };
 
-        detail.EntityId.Should().Be("entity-1");
-        detail.DataCategory.Should().Be("user-data");
-        detail.Outcome.Should().Be(DeletionOutcome.Deleted);
-        detail.Reason.Should().BeNull();
+        detail.EntityId.ShouldBe("entity-1");
+        detail.DataCategory.ShouldBe("user-data");
+        detail.Outcome.ShouldBe(DeletionOutcome.Deleted);
+        detail.Reason.ShouldBeNull();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class ModelTests
             Reason = "Active hold: Case #12345"
         };
 
-        detail.Reason.Should().Be("Active hold: Case #12345");
+        detail.Reason.ShouldBe("Active hold: Case #12345");
     }
 
     #endregion
@@ -57,13 +57,13 @@ public sealed class ModelTests
     [InlineData(DeletionOutcome.Skipped, 4)]
     public void DeletionOutcome_HasExpectedValues(DeletionOutcome outcome, int expected)
     {
-        ((int)outcome).Should().Be(expected);
+        ((int)outcome).ShouldBe(expected);
     }
 
     [Fact]
     public void DeletionOutcome_AllValuesDefined()
     {
-        Enum.GetValues<DeletionOutcome>().Should().HaveCount(5);
+        Enum.GetValues<DeletionOutcome>().Count.ShouldBe(5);
     }
 
     #endregion
@@ -82,11 +82,11 @@ public sealed class ModelTests
             DaysUntilExpiration = 5
         };
 
-        data.EntityId.Should().Be("entity-3");
-        data.DataCategory.Should().Be("marketing");
-        data.ExpiresAtUtc.Should().Be(expiresAt);
-        data.DaysUntilExpiration.Should().Be(5);
-        data.PolicyId.Should().BeNull();
+        data.EntityId.ShouldBe("entity-3");
+        data.DataCategory.ShouldBe("marketing");
+        data.ExpiresAtUtc.ShouldBe(expiresAt);
+        data.DaysUntilExpiration.ShouldBe(5);
+        data.PolicyId.ShouldBeNull();
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class ModelTests
             PolicyId = "policy-123"
         };
 
-        data.PolicyId.Should().Be("policy-123");
+        data.PolicyId.ShouldBe("policy-123");
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class ModelTests
             DaysUntilExpiration = -2
         };
 
-        data.DaysUntilExpiration.Should().BeNegative();
+        data.DaysUntilExpiration.ShouldBeLessThan(0);
     }
 
     #endregion
@@ -128,13 +128,13 @@ public sealed class ModelTests
     [InlineData(RetentionPolicyType.ConsentBased, 2)]
     public void RetentionPolicyType_HasExpectedValues(RetentionPolicyType type, int expected)
     {
-        ((int)type).Should().Be(expected);
+        ((int)type).ShouldBe(expected);
     }
 
     [Fact]
     public void RetentionPolicyType_AllValuesDefined()
     {
-        Enum.GetValues<RetentionPolicyType>().Should().HaveCount(3);
+        Enum.GetValues<RetentionPolicyType>().Count.ShouldBe(3);
     }
 
     #endregion
@@ -148,13 +148,13 @@ public sealed class ModelTests
     [InlineData(RetentionStatus.UnderLegalHold, 3)]
     public void RetentionStatus_HasExpectedValues(RetentionStatus status, int expected)
     {
-        ((int)status).Should().Be(expected);
+        ((int)status).ShouldBe(expected);
     }
 
     [Fact]
     public void RetentionStatus_AllValuesDefined()
     {
-        Enum.GetValues<RetentionStatus>().Should().HaveCount(4);
+        Enum.GetValues<RetentionStatus>().Count.ShouldBe(4);
     }
 
     #endregion
@@ -167,13 +167,13 @@ public sealed class ModelTests
     [InlineData(RetentionEnforcementMode.Disabled, 2)]
     public void RetentionEnforcementMode_HasExpectedValues(RetentionEnforcementMode mode, int expected)
     {
-        ((int)mode).Should().Be(expected);
+        ((int)mode).ShouldBe(expected);
     }
 
     [Fact]
     public void RetentionEnforcementMode_AllValuesDefined()
     {
-        Enum.GetValues<RetentionEnforcementMode>().Should().HaveCount(3);
+        Enum.GetValues<RetentionEnforcementMode>().Count.ShouldBe(3);
     }
 
     #endregion
@@ -189,7 +189,7 @@ public sealed class ModelTests
             Status = RetentionStatus.Active
         };
 
-        model.IsExpired(DateTimeOffset.UtcNow).Should().BeTrue();
+        model.IsExpired(DateTimeOffset.UtcNow).ShouldBeTrue();
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public sealed class ModelTests
             Status = RetentionStatus.Active
         };
 
-        model.IsExpired(DateTimeOffset.UtcNow).Should().BeFalse();
+        model.IsExpired(DateTimeOffset.UtcNow).ShouldBeFalse();
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public sealed class ModelTests
             Status = RetentionStatus.Deleted
         };
 
-        model.IsExpired(DateTimeOffset.UtcNow).Should().BeFalse();
+        model.IsExpired(DateTimeOffset.UtcNow).ShouldBeFalse();
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public sealed class ModelTests
             Status = RetentionStatus.Active
         };
 
-        model.IsExpired(now).Should().BeTrue();
+        model.IsExpired(now).ShouldBeTrue();
     }
 
     [Fact]
@@ -234,13 +234,13 @@ public sealed class ModelTests
     {
         var model = new RetentionRecordReadModel();
 
-        model.EntityId.Should().Be(string.Empty);
-        model.DataCategory.Should().Be(string.Empty);
-        model.LegalHoldId.Should().BeNull();
-        model.DeletedAtUtc.Should().BeNull();
-        model.AnonymizedAtUtc.Should().BeNull();
-        model.TenantId.Should().BeNull();
-        model.ModuleId.Should().BeNull();
+        model.EntityId.ShouldBe(string.Empty);
+        model.DataCategory.ShouldBe(string.Empty);
+        model.LegalHoldId.ShouldBeNull();
+        model.DeletedAtUtc.ShouldBeNull();
+        model.AnonymizedAtUtc.ShouldBeNull();
+        model.TenantId.ShouldBeNull();
+        model.ModuleId.ShouldBeNull();
     }
 
     #endregion
@@ -268,13 +268,13 @@ public sealed class ModelTests
             ExecutedAtUtc = executedAt
         };
 
-        result.TotalRecordsEvaluated.Should().Be(5);
-        result.RecordsDeleted.Should().Be(2);
-        result.RecordsRetained.Should().Be(1);
-        result.RecordsFailed.Should().Be(1);
-        result.RecordsUnderHold.Should().Be(1);
-        result.Details.Should().HaveCount(2);
-        result.ExecutedAtUtc.Should().Be(executedAt);
+        result.TotalRecordsEvaluated.ShouldBe(5);
+        result.RecordsDeleted.ShouldBe(2);
+        result.RecordsRetained.ShouldBe(1);
+        result.RecordsFailed.ShouldBe(1);
+        result.RecordsUnderHold.ShouldBe(1);
+        result.Details.Count.ShouldBe(2);
+        result.ExecutedAtUtc.ShouldBe(executedAt);
     }
 
     #endregion

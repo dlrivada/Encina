@@ -1,6 +1,6 @@
 using Encina.Compliance.AIAct.Attributes;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct.Attributes;
 
@@ -13,14 +13,14 @@ public class HighRiskAIAttributeTests
     public void Category_ShouldBeSettable()
     {
         var attr = new HighRiskAIAttribute { Category = AISystemCategory.LawEnforcement };
-        attr.Category.Should().Be(AISystemCategory.LawEnforcement);
+        attr.Category.ShouldBe(AISystemCategory.LawEnforcement);
     }
 
     [Fact]
     public void SystemId_ShouldDefaultToNull()
     {
         var attr = new HighRiskAIAttribute { Category = AISystemCategory.EmploymentWorkersManagement };
-        attr.SystemId.Should().BeNull();
+        attr.SystemId.ShouldBeNull();
     }
 
     [Fact]
@@ -31,15 +31,15 @@ public class HighRiskAIAttributeTests
             Category = AISystemCategory.EmploymentWorkersManagement,
             SystemId = "cv-screener"
         };
-        attr.SystemId.Should().Be("cv-screener");
+        attr.SystemId.ShouldBe("cv-screener");
     }
 
     [Fact]
     public void OptionalProperties_ShouldDefaultToNull()
     {
         var attr = new HighRiskAIAttribute { Category = AISystemCategory.EmploymentWorkersManagement };
-        attr.Provider.Should().BeNull();
-        attr.Version.Should().BeNull();
-        attr.Description.Should().BeNull();
+        attr.Provider.ShouldBeNull();
+        attr.Version.ShouldBeNull();
+        attr.Description.ShouldBeNull();
     }
 }

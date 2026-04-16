@@ -1,7 +1,7 @@
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -23,7 +23,7 @@ public class GeneralizationTechniqueTests
         var result = _technique.Technique;
 
         // Assert
-        result.Should().Be(AnonymizationTechnique.Generalization);
+        result.ShouldBe(AnonymizationTechnique.Generalization);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class GeneralizationTechniqueTests
         var result = _technique.CanApply(typeof(int));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class GeneralizationTechniqueTests
         var result = _technique.CanApply(typeof(double));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class GeneralizationTechniqueTests
         var result = _technique.CanApply(typeof(DateTime));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class GeneralizationTechniqueTests
         var result = _technique.CanApply(typeof(string));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class GeneralizationTechniqueTests
         var result = _technique.CanApply(typeof(bool));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class GeneralizationTechniqueTests
 
         // Assert
         result.Match(
-            Right: v => ((string)v!).Should().Be("20-29"),
+            Right: v => ((string)v!).ShouldBe("20-29"),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -102,7 +102,7 @@ public class GeneralizationTechniqueTests
 
         // Assert
         result.Match(
-            Right: v => ((string)v!).Should().Be("15-19"),
+            Right: v => ((string)v!).ShouldBe("15-19"),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -119,7 +119,7 @@ public class GeneralizationTechniqueTests
         // Assert
         // LanguageExt throws ValueIsNullException when Right(null) is called
         // and the null check is before the try/catch block
-        await act.Should().ThrowAsync<ValueIsNullException>();
+        await Should.ThrowAsync<ValueIsNullException>(act);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class GeneralizationTechniqueTests
 
         // Assert
         result.Match(
-            Right: v => ((string)v!).Should().Be("20-29"),
+            Right: v => ((string)v!).ShouldBe("20-29"),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -147,7 +147,7 @@ public class GeneralizationTechniqueTests
 
         // Assert
         result.Match(
-            Right: v => ((string)v!).Should().Be("20-29"),
+            Right: v => ((string)v!).ShouldBe("20-29"),
             Left: _ => Assert.Fail("Expected Right"));
     }
 }

@@ -2,7 +2,7 @@ using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Health;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,8 +35,8 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("healthy");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("healthy");
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("ISecretReader");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("ISecretReader");
     }
 
     [Fact]
@@ -65,14 +65,14 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("readerType");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("readerType");
     }
 
     [Fact]
     public void DefaultName_IsCorrect()
     {
-        SecretsHealthCheck.DefaultName.Should().Be("encina-secrets");
+        SecretsHealthCheck.DefaultName.ShouldBe("encina-secrets");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class SecretsHealthCheckTests
     {
         var act = () => new SecretsHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -100,8 +100,8 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Data.Should().ContainKey("cachingEnabled");
-        result.Data["cachingEnabled"].Should().Be(true);
+        result.Data.ShouldContainKey("cachingEnabled");
+        result.Data["cachingEnabled"].ShouldBe(true);
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Data.Should().ContainKey("cachingEnabled");
-        result.Data["cachingEnabled"].Should().Be(false);
+        result.Data.ShouldContainKey("cachingEnabled");
+        result.Data["cachingEnabled"].ShouldBe(false);
     }
 
     [Fact]
@@ -133,8 +133,8 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Data.Should().ContainKey("decorators");
-        result.Data["decorators"].Should().Be("cached");
+        result.Data.ShouldContainKey("decorators");
+        result.Data["decorators"].ShouldBe("cached");
     }
 
     #endregion
@@ -164,9 +164,9 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("probeResult");
-        result.Data["probeResult"].Should().Be("success");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("probeResult");
+        result.Data["probeResult"].ShouldBe("success");
     }
 
     [Fact]
@@ -193,10 +193,10 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Data.Should().ContainKey("probeResult");
-        result.Data["probeResult"].Should().Be("failed");
-        result.Data.Should().ContainKey("probeError");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Data.ShouldContainKey("probeResult");
+        result.Data["probeResult"].ShouldBe("failed");
+        result.Data.ShouldContainKey("probeError");
     }
 
     [Fact]
@@ -215,8 +215,8 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().NotContainKey("probeResult");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldNotContainKey("probeResult");
     }
 
     #endregion
@@ -246,8 +246,8 @@ public sealed class SecretsHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Exception.Should().BeOfType<InvalidOperationException>();
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Exception.ShouldBeOfType<InvalidOperationException>();
     }
 
     #endregion

@@ -2,7 +2,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Evaluation;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -59,9 +59,9 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.NotApplicable);
-        decision.Obligations.Should().BeEmpty();
-        decision.Advice.Should().BeEmpty();
+        decision.Effect.ShouldBe(Effect.NotApplicable);
+        decision.Obligations.ShouldBeEmpty();
+        decision.Advice.ShouldBeEmpty();
     }
 
     #endregion
@@ -97,7 +97,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
+        decision.Effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Deny);
+        decision.Effect.ShouldBe(Effect.Deny);
     }
 
     #endregion
@@ -197,7 +197,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.NotApplicable);
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -247,7 +247,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
+        decision.Effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -293,7 +293,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.NotApplicable);
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -323,7 +323,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Deny, "Deny overrides Permit per XACML §C.1");
+        decision.Effect.ShouldBe(Effect.Deny, "Deny overrides Permit per XACML §C.1");
     }
 
     [Fact]
@@ -349,7 +349,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit, "Permit overrides Deny per XACML §C.2");
+        decision.Effect.ShouldBe(Effect.Permit, "Permit overrides Deny per XACML §C.2");
     }
 
     #endregion
@@ -379,7 +379,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.NotApplicable);
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -420,7 +420,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
+        decision.Effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -458,7 +458,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.NotApplicable);
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -501,9 +501,9 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
-        decision.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("log-access");
+        decision.Effect.ShouldBe(Effect.Permit);
+        decision.Obligations.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("log-access");
     }
 
     [Fact]
@@ -542,8 +542,8 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
-        decision.Obligations.Should().BeEmpty("Deny obligations excluded when effect is Permit");
+        decision.Effect.ShouldBe(Effect.Permit);
+        decision.Obligations.ShouldBeEmpty("Deny obligations excluded when effect is Permit");
     }
 
     [Fact]
@@ -575,9 +575,9 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
-        decision.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("policy-audit");
+        decision.Effect.ShouldBe(Effect.Permit);
+        decision.Obligations.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("policy-audit");
     }
 
     #endregion
@@ -620,9 +620,9 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
-        decision.Advice.Should().ContainSingle()
-            .Which.Id.Should().Be("show-disclaimer");
+        decision.Effect.ShouldBe(Effect.Permit);
+        decision.Advice.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("show-disclaimer");
     }
 
     [Fact]
@@ -669,7 +669,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Advice.Should().BeEmpty("IncludeAdvice is false");
+        decision.Advice.ShouldBeEmpty("IncludeAdvice is false");
     }
 
     #endregion
@@ -685,7 +685,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.EvaluationDuration.Should().BeGreaterThanOrEqualTo(TimeSpan.Zero);
+        decision.EvaluationDuration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
     }
 
     #endregion
@@ -701,9 +701,9 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Indeterminate);
-        decision.Status.Should().NotBeNull();
-        decision.Status!.StatusCode.Should().Be("processing-error");
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+        decision.Status.ShouldNotBeNull();
+        decision.Status!.StatusCode.ShouldBe("processing-error");
     }
 
     [Fact]
@@ -742,7 +742,7 @@ public sealed class XACMLPolicyDecisionPointTests
         var decision = await pdp.EvaluateAsync(ctx);
 
         // Should still evaluate policy sets even though standalone policies failed
-        decision.Effect.Should().Be(Effect.Permit);
+        decision.Effect.ShouldBe(Effect.Permit);
     }
 
     #endregion
@@ -799,7 +799,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Permit);
+        decision.Effect.ShouldBe(Effect.Permit);
     }
 
     #endregion
@@ -814,7 +814,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var act = () => pdp.EvaluateAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -876,8 +876,8 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        decision.Effect.Should().Be(Effect.Indeterminate);
-        decision.Status.Should().NotBeNull();
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+        decision.Status.ShouldNotBeNull();
     }
 
     #endregion

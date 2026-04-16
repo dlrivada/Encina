@@ -1,7 +1,7 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.BreachNotification.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -37,14 +37,14 @@ public class BreachRecordTests
             severity);
 
         // Assert
-        record.Nature.Should().Be(nature);
-        record.ApproximateSubjectsAffected.Should().Be(approximateSubjectsAffected);
-        record.CategoriesOfDataAffected.Should().BeEquivalentTo(categoriesOfDataAffected);
-        record.DPOContactDetails.Should().Be(dpoContactDetails);
-        record.LikelyConsequences.Should().Be(likelyConsequences);
-        record.MeasuresTaken.Should().Be(measuresTaken);
-        record.DetectedAtUtc.Should().Be(detectedAtUtc);
-        record.Severity.Should().Be(severity);
+        record.Nature.ShouldBe(nature);
+        record.ApproximateSubjectsAffected.ShouldBe(approximateSubjectsAffected);
+        record.CategoriesOfDataAffected.ShouldBe(categoriesOfDataAffected);
+        record.DPOContactDetails.ShouldBe(dpoContactDetails);
+        record.LikelyConsequences.ShouldBe(likelyConsequences);
+        record.MeasuresTaken.ShouldBe(measuresTaken);
+        record.DetectedAtUtc.ShouldBe(detectedAtUtc);
+        record.Severity.ShouldBe(severity);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class BreachRecordTests
         var record = CreateDefaultRecord(detectedAtUtc: detectedAtUtc);
 
         // Assert
-        record.NotificationDeadlineUtc.Should().Be(detectedAtUtc.AddHours(72));
+        record.NotificationDeadlineUtc.ShouldBe(detectedAtUtc.AddHours(72));
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public class BreachRecordTests
         var record = CreateDefaultRecord();
 
         // Assert
-        record.Id.Should().NotBeNullOrWhiteSpace();
-        record.Id.Should().HaveLength(32);
-        record.Id.Should().MatchRegex("^[0-9a-f]{32}$");
+        record.Id.ShouldNotBeNullOrWhiteSpace();
+        record.Id.Length.ShouldBe(32);
+        record.Id.ShouldMatch("^[0-9a-f]{32}$");
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class BreachRecordTests
         var record = CreateDefaultRecord();
 
         // Assert
-        record.Status.Should().Be(BreachStatus.Detected);
+        record.Status.ShouldBe(BreachStatus.Detected);
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public class BreachRecordTests
         var record = CreateDefaultRecord();
 
         // Assert
-        record.PhasedReports.Should().NotBeNull();
-        record.PhasedReports.Should().BeEmpty();
+        record.PhasedReports.ShouldNotBeNull();
+        record.PhasedReports.ShouldBeEmpty();
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class BreachRecordTests
         var record = CreateDefaultRecord();
 
         // Assert
-        record.SubjectNotificationExemption.Should().Be(SubjectNotificationExemption.None);
+        record.SubjectNotificationExemption.ShouldBe(SubjectNotificationExemption.None);
     }
 
     [Fact]
@@ -110,11 +110,11 @@ public class BreachRecordTests
         var record = CreateDefaultRecord();
 
         // Assert
-        record.NotifiedAuthorityAtUtc.Should().BeNull();
-        record.NotifiedSubjectsAtUtc.Should().BeNull();
-        record.ResolvedAtUtc.Should().BeNull();
-        record.ResolutionSummary.Should().BeNull();
-        record.DelayReason.Should().BeNull();
+        record.NotifiedAuthorityAtUtc.ShouldBeNull();
+        record.NotifiedSubjectsAtUtc.ShouldBeNull();
+        record.ResolvedAtUtc.ShouldBeNull();
+        record.ResolutionSummary.ShouldBeNull();
+        record.DelayReason.ShouldBeNull();
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class BreachRecordTests
         var record2 = CreateDefaultRecord();
 
         // Assert
-        record1.Id.Should().NotBe(record2.Id);
+        record1.Id.ShouldNotBe(record2.Id);
     }
 
     #endregion
@@ -142,9 +142,9 @@ public class BreachRecordTests
         var modified = original with { Status = BreachStatus.Investigating };
 
         // Assert
-        original.Status.Should().Be(BreachStatus.Detected);
-        modified.Status.Should().Be(BreachStatus.Investigating);
-        modified.Id.Should().Be(original.Id);
+        original.Status.ShouldBe(BreachStatus.Detected);
+        modified.Status.ShouldBe(BreachStatus.Investigating);
+        modified.Id.ShouldBe(original.Id);
     }
 
     #endregion

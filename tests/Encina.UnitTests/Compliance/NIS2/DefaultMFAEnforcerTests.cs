@@ -1,6 +1,6 @@
 using Encina.Compliance.NIS2;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -25,9 +25,9 @@ public class DefaultMFAEnforcerTests
         var result = await _sut.IsMFAEnabledAsync(userId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isEnabled = result.Match(r => r, _ => false);
-        isEnabled.Should().BeTrue();
+        isEnabled.ShouldBeTrue();
     }
 
     #endregion
@@ -45,9 +45,9 @@ public class DefaultMFAEnforcerTests
         var result = await _sut.RequireMFAAsync(request, context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var unit = result.Match(r => r, _ => default);
-        unit.Should().Be(Unit.Default);
+        unit.ShouldBe(Unit.Default);
     }
 
     #endregion

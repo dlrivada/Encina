@@ -3,7 +3,7 @@ using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -37,7 +37,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         using var scope = provider.CreateScope();
         var validator = scope.ServiceProvider.GetService<INIS2ComplianceValidator>();
-        validator.Should().NotBeNull();
+        validator.ShouldNotBeNull();
     }
 
     #endregion
@@ -53,7 +53,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         using var scope = provider.CreateScope();
         var handler = scope.ServiceProvider.GetService<INIS2IncidentHandler>();
-        handler.Should().NotBeNull();
+        handler.ShouldNotBeNull();
     }
 
     #endregion
@@ -68,7 +68,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var validator = provider.GetService<ISupplyChainSecurityValidator>();
-        validator.Should().NotBeNull();
+        validator.ShouldNotBeNull();
     }
 
     #endregion
@@ -83,7 +83,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var enforcer = provider.GetService<IMFAEnforcer>();
-        enforcer.Should().NotBeNull();
+        enforcer.ShouldNotBeNull();
     }
 
     #endregion
@@ -98,7 +98,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var validator = provider.GetService<IEncryptionValidator>();
-        validator.Should().NotBeNull();
+        validator.ShouldNotBeNull();
     }
 
     #endregion
@@ -113,7 +113,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var evaluators = provider.GetServices<INIS2MeasureEvaluator>();
-        evaluators.Should().HaveCount(10);
+        evaluators.Count.ShouldBe(10);
     }
 
     #endregion
@@ -136,7 +136,7 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType.IsGenericType &&
             d.ServiceType.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>));
-        descriptor.Should().NotBeNull();
+        descriptor.ShouldNotBeNull();
     }
 
     #endregion

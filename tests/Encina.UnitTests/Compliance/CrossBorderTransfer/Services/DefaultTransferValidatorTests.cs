@@ -7,7 +7,7 @@ using Encina.Compliance.CrossBorderTransfer.Services;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,7 +46,7 @@ public class DefaultTransferValidatorTests
         var act = async () => await _sut.ValidateAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -66,10 +66,10 @@ public class DefaultTransferValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var outcome = result.Match(Right: o => o, Left: _ => throw new InvalidOperationException("Expected Right"));
-        outcome.IsAllowed.Should().BeTrue();
-        outcome.Basis.Should().Be(TransferBasis.AdequacyDecision);
+        outcome.IsAllowed.ShouldBeTrue();
+        outcome.Basis.ShouldBe(TransferBasis.AdequacyDecision);
     }
 
     [Fact]
@@ -92,10 +92,10 @@ public class DefaultTransferValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var outcome = result.Match(Right: o => o, Left: _ => throw new InvalidOperationException("Expected Right"));
-        outcome.IsAllowed.Should().BeTrue();
-        outcome.Basis.Should().Be(TransferBasis.SCCs);
+        outcome.IsAllowed.ShouldBeTrue();
+        outcome.Basis.ShouldBe(TransferBasis.SCCs);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class DefaultTransferValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -144,10 +144,10 @@ public class DefaultTransferValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var outcome = result.Match(Right: o => o, Left: _ => throw new InvalidOperationException("Expected Right"));
-        outcome.IsAllowed.Should().BeTrue();
-        outcome.Basis.Should().Be(TransferBasis.SCCs);
+        outcome.IsAllowed.ShouldBeTrue();
+        outcome.Basis.ShouldBe(TransferBasis.SCCs);
     }
 
     [Fact]
@@ -179,10 +179,10 @@ public class DefaultTransferValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert — all checks fail, transfer is blocked
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var outcome = result.Match(Right: o => o, Left: _ => throw new InvalidOperationException("Expected Right"));
-        outcome.IsAllowed.Should().BeFalse();
-        outcome.Basis.Should().Be(TransferBasis.Blocked);
+        outcome.IsAllowed.ShouldBeFalse();
+        outcome.Basis.ShouldBe(TransferBasis.Blocked);
     }
 
     [Fact]
@@ -206,6 +206,6 @@ public class DefaultTransferValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 }

@@ -2,7 +2,7 @@ using System.Reflection;
 
 using Encina.Compliance.Retention;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -20,9 +20,9 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.PolicyNotFound("pol-42");
         var details = error.GetDetails();
 
-        details.Should().NotBeNull();
-        details.Should().ContainKey("policyId");
-        details["policyId"].Should().Be("pol-42");
+        details.ShouldNotBeNull();
+        details.ShouldContainKey("policyId");
+        details["policyId"].ShouldBe("pol-42");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.PolicyNotFound("pol-1");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("retention_processing");
+        details.ShouldContainKey("retention_processing");
     }
 
     #endregion
@@ -44,9 +44,9 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.PolicyAlreadyExists("audit-logs");
         var details = error.GetDetails();
 
-        details.Should().NotBeNull();
-        details.Should().ContainKey("dataCategory");
-        details["dataCategory"].Should().Be("audit-logs");
+        details.ShouldNotBeNull();
+        details.ShouldContainKey("dataCategory");
+        details["dataCategory"].ShouldBe("audit-logs");
     }
 
     #endregion
@@ -59,8 +59,8 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.RecordNotFound("rec-77");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("recordId");
-        details["recordId"].Should().Be("rec-77");
+        details.ShouldContainKey("recordId");
+        details["recordId"].ShouldBe("rec-77");
     }
 
     #endregion
@@ -73,8 +73,8 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.RecordAlreadyExists("rec-99");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("recordId");
-        details["recordId"].Should().Be("rec-99");
+        details.ShouldContainKey("recordId");
+        details["recordId"].ShouldBe("rec-99");
     }
 
     #endregion
@@ -87,8 +87,8 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.HoldNotFound("hold-55");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("holdId");
-        details["holdId"].Should().Be("hold-55");
+        details.ShouldContainKey("holdId");
+        details["holdId"].ShouldBe("hold-55");
     }
 
     #endregion
@@ -101,10 +101,10 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.HoldAlreadyActive("ent-22");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("entityId");
-        details["entityId"].Should().Be("ent-22");
-        details.Should().ContainKey("requirement");
-        details["requirement"].Should().Be("article_17_3_e_legal_claims");
+        details.ShouldContainKey("entityId");
+        details["entityId"].ShouldBe("ent-22");
+        details.ShouldContainKey("requirement");
+        details["requirement"].ShouldBe("article_17_3_e_legal_claims");
     }
 
     #endregion
@@ -117,8 +117,8 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.HoldAlreadyReleased("hold-33");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("holdId");
-        details["holdId"].Should().Be("hold-33");
+        details.ShouldContainKey("holdId");
+        details["holdId"].ShouldBe("hold-33");
     }
 
     #endregion
@@ -131,15 +131,15 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.EnforcementFailed("timeout");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("requirement");
-        details["requirement"].Should().Be("article_5_1_e_storage_limitation");
+        details.ShouldContainKey("requirement");
+        details["requirement"].ShouldBe("article_5_1_e_storage_limitation");
     }
 
     [Fact]
     public void EnforcementFailed_WithNullException_DoesNotThrow()
     {
         var error = RetentionErrors.EnforcementFailed("generic failure", null);
-        error.Message.Should().Contain("generic failure");
+        error.Message.ShouldContain("generic failure");
     }
 
     #endregion
@@ -152,10 +152,10 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.DeletionFailed("ent-1", "FK constraint");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("entityId");
-        details["entityId"].Should().Be("ent-1");
-        details.Should().ContainKey("requirement");
-        details["requirement"].Should().Be("article_17_1_a_no_longer_necessary");
+        details.ShouldContainKey("entityId");
+        details["entityId"].ShouldBe("ent-1");
+        details.ShouldContainKey("requirement");
+        details["requirement"].ShouldBe("article_17_1_a_no_longer_necessary");
     }
 
     #endregion
@@ -168,16 +168,16 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.StoreError("GetById", "Not found");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("operation");
-        details["operation"].Should().Be("GetById");
+        details.ShouldContainKey("operation");
+        details["operation"].ShouldBe("GetById");
     }
 
     [Fact]
     public void StoreError_MessageIncludesBothOperationAndReason()
     {
         var error = RetentionErrors.StoreError("UpdateStatus", "Concurrency conflict");
-        error.Message.Should().Contain("UpdateStatus");
-        error.Message.Should().Contain("Concurrency conflict");
+        error.Message.ShouldContain("UpdateStatus");
+        error.Message.ShouldContain("Concurrency conflict");
     }
 
     #endregion
@@ -190,16 +190,16 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.InvalidParameter("duration", "Must be > 0");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("parameterName");
-        details["parameterName"].Should().Be("duration");
+        details.ShouldContainKey("parameterName");
+        details["parameterName"].ShouldBe("duration");
     }
 
     [Fact]
     public void InvalidParameter_MessageIncludesBothNameAndReason()
     {
         var error = RetentionErrors.InvalidParameter("dataCategory", "Cannot be empty");
-        error.Message.Should().Contain("dataCategory");
-        error.Message.Should().Contain("Cannot be empty");
+        error.Message.ShouldContain("dataCategory");
+        error.Message.ShouldContain("Cannot be empty");
     }
 
     #endregion
@@ -212,17 +212,17 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.NoPolicyForCategory("user-sessions");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("dataCategory");
-        details["dataCategory"].Should().Be("user-sessions");
-        details.Should().ContainKey("requirement");
-        details["requirement"].Should().Be("article_5_1_e_storage_limitation");
+        details.ShouldContainKey("dataCategory");
+        details["dataCategory"].ShouldBe("user-sessions");
+        details.ShouldContainKey("requirement");
+        details["requirement"].ShouldBe("article_5_1_e_storage_limitation");
     }
 
     [Fact]
     public void NoPolicyForCategory_MessageReferencesArticle5()
     {
         var error = RetentionErrors.NoPolicyForCategory("marketing");
-        error.Message.Should().Contain("Article 5(1)(e)");
+        error.Message.ShouldContain("Article 5(1)(e)");
     }
 
     #endregion
@@ -235,10 +235,10 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.PipelineRecordCreationFailed("invoices", "Store unavailable");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("dataCategory");
-        details["dataCategory"].Should().Be("invoices");
-        details.Should().ContainKey("requirement");
-        details["requirement"].Should().Be("article_5_1_e_storage_limitation");
+        details.ShouldContainKey("dataCategory");
+        details["dataCategory"].ShouldBe("invoices");
+        details.ShouldContainKey("requirement");
+        details["requirement"].ShouldBe("article_5_1_e_storage_limitation");
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.PipelineRecordCreationFailed("orders", "timeout", ex);
 
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.PipelineRecordCreationFailedCode),
+            Some: code => code.ShouldBe(RetentionErrors.PipelineRecordCreationFailedCode),
             None: () => Assert.Fail("Expected code"));
     }
 
@@ -263,10 +263,10 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.InvalidStateTransition(id, "Expire");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("aggregateId");
-        details["aggregateId"].Should().Be(id.ToString());
-        details.Should().ContainKey("operation");
-        details["operation"].Should().Be("Expire");
+        details.ShouldContainKey("aggregateId");
+        details["aggregateId"].ShouldBe(id.ToString());
+        details.ShouldContainKey("operation");
+        details["operation"].ShouldBe("Expire");
     }
 
     #endregion
@@ -279,8 +279,8 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.ServiceError("GetRetentionPeriod");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("operation");
-        details["operation"].Should().Be("GetRetentionPeriod");
+        details.ShouldContainKey("operation");
+        details["operation"].ShouldBe("GetRetentionPeriod");
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.ServiceError("TrackEntity", ex);
 
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.ServiceErrorCode),
+            Some: code => code.ShouldBe(RetentionErrors.ServiceErrorCode),
             None: () => Assert.Fail("Expected code"));
     }
 
@@ -305,8 +305,8 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.EventHistoryUnavailable(id);
         var details = error.GetDetails();
 
-        details.Should().ContainKey("aggregateId");
-        details["aggregateId"].Should().Be(id.ToString());
+        details.ShouldContainKey("aggregateId");
+        details["aggregateId"].ShouldBe(id.ToString());
     }
 
     [Fact]
@@ -314,7 +314,7 @@ public sealed class RetentionErrorsMetadataTests
     {
         var id = Guid.NewGuid();
         var error = RetentionErrors.EventHistoryUnavailable(id);
-        error.Message.Should().Contain("Phase 4");
+        error.Message.ShouldContain("Phase 4");
     }
 
     #endregion
@@ -327,16 +327,16 @@ public sealed class RetentionErrorsMetadataTests
         var error = RetentionErrors.PipelineEntityIdNotFound("CreateInvoiceResponse");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("responseType");
-        details["responseType"].Should().Be("CreateInvoiceResponse");
+        details.ShouldContainKey("responseType");
+        details["responseType"].ShouldBe("CreateInvoiceResponse");
     }
 
     [Fact]
     public void PipelineEntityIdNotFound_MessageSuggestsIdOrEntityId()
     {
         var error = RetentionErrors.PipelineEntityIdNotFound("MyResponse");
-        error.Message.Should().Contain("Id");
-        error.Message.Should().Contain("EntityId");
+        error.Message.ShouldContain("Id");
+        error.Message.ShouldContain("EntityId");
     }
 
     #endregion
@@ -369,7 +369,7 @@ public sealed class RetentionErrorsMetadataTests
 
         foreach (var error in errors)
         {
-            error.Message.Should().NotBeNullOrWhiteSpace();
+            error.Message.ShouldNotBeNullOrWhiteSpace();
         }
     }
 
@@ -399,7 +399,7 @@ public sealed class RetentionErrorsMetadataTests
 
         foreach (var error in errors)
         {
-            error.GetCode().IsSome.Should().BeTrue($"Error with message '{error.Message}' should have a code");
+            error.GetCode().IsSome.ShouldBeTrue();
         }
     }
 

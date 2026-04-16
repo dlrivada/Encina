@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -22,7 +22,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData(5, 5, false)]
     public void IntegerGreaterThan_ReturnsExpected(int a, int b, bool expected)
     {
-        Eval(XACMLFunctionIds.IntegerGreaterThan, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerGreaterThan, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -31,7 +31,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData(5, 5, false)]
     public void IntegerLessThan_ReturnsExpected(int a, int b, bool expected)
     {
-        Eval(XACMLFunctionIds.IntegerLessThan, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerLessThan, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -40,7 +40,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData(3, 5, false)]
     public void IntegerGreaterThanOrEqual_ReturnsExpected(int a, int b, bool expected)
     {
-        Eval(XACMLFunctionIds.IntegerGreaterThanOrEqual, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerGreaterThanOrEqual, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -49,7 +49,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData(5, 3, false)]
     public void IntegerLessThanOrEqual_ReturnsExpected(int a, int b, bool expected)
     {
-        Eval(XACMLFunctionIds.IntegerLessThanOrEqual, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerLessThanOrEqual, a, b).ShouldBe(expected);
     }
 
     #endregion
@@ -62,7 +62,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData(1.0, 1.0, false)]
     public void DoubleGreaterThan_ReturnsExpected(double a, double b, bool expected)
     {
-        Eval(XACMLFunctionIds.DoubleGreaterThan, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.DoubleGreaterThan, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -70,7 +70,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData(3.14, 2.71, false)]
     public void DoubleLessThan_ReturnsExpected(double a, double b, bool expected)
     {
-        Eval(XACMLFunctionIds.DoubleLessThan, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.DoubleLessThan, a, b).ShouldBe(expected);
     }
 
     #endregion
@@ -83,7 +83,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData("a", "a", false)]
     public void StringGreaterThan_ReturnsExpected(string a, string b, bool expected)
     {
-        Eval(XACMLFunctionIds.StringGreaterThan, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.StringGreaterThan, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -91,7 +91,7 @@ public sealed class ComparisonFunctionsTests
     [InlineData("b", "a", false)]
     public void StringLessThan_ReturnsExpected(string a, string b, bool expected)
     {
-        Eval(XACMLFunctionIds.StringLessThan, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.StringLessThan, a, b).ShouldBe(expected);
     }
 
     #endregion
@@ -103,7 +103,7 @@ public sealed class ComparisonFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerGreaterThan)!;
         var act = () => fn.Evaluate([1]);
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion

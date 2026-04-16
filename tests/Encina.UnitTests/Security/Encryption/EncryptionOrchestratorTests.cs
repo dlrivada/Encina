@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Algorithms;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -46,9 +46,9 @@ public sealed class EncryptionOrchestratorTests : IDisposable
 
         var result = await _sut.EncryptAsync(command, _context);
 
-        result.IsRight.Should().BeTrue();
-        command.Email.Should().StartWith("ENC:v1:");
-        command.Name.Should().Be("John"); // Not encrypted
+        result.IsRight.ShouldBeTrue();
+        command.Email.ShouldStartWith("ENC:v1:");
+        command.Name.ShouldBe("John"); // Not encrypted
     }
 
     [Fact]
@@ -63,10 +63,10 @@ public sealed class EncryptionOrchestratorTests : IDisposable
 
         var result = await _sut.EncryptAsync(command, _context);
 
-        result.IsRight.Should().BeTrue();
-        command.Email.Should().StartWith("ENC:v1:");
-        command.Phone.Should().StartWith("ENC:v1:");
-        command.Name.Should().Be("John");
+        result.IsRight.ShouldBeTrue();
+        command.Email.ShouldStartWith("ENC:v1:");
+        command.Phone.ShouldStartWith("ENC:v1:");
+        command.Name.ShouldBe("John");
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public sealed class EncryptionOrchestratorTests : IDisposable
 
         var result = await _sut.EncryptAsync(command, _context);
 
-        result.IsRight.Should().BeTrue();
-        command.Name.Should().Be("John");
+        result.IsRight.ShouldBeTrue();
+        command.Name.ShouldBe("John");
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class EncryptionOrchestratorTests : IDisposable
 
         var result = await _sut.EncryptAsync(command, _context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class EncryptionOrchestratorTests : IDisposable
 
         var result = await _sut.EncryptAsync(command, _context, cts.Token);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -114,9 +114,9 @@ public sealed class EncryptionOrchestratorTests : IDisposable
         await _sut.EncryptAsync(command, _context);
         var result = await _sut.DecryptAsync(command, _context);
 
-        result.IsRight.Should().BeTrue();
-        command.Email.Should().Be("user@test.com");
-        command.Name.Should().Be("John");
+        result.IsRight.ShouldBeTrue();
+        command.Email.ShouldBe("user@test.com");
+        command.Name.ShouldBe("John");
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class EncryptionOrchestratorTests : IDisposable
         var result = await _sut.DecryptAsync(command, _context);
 
         // "not-encrypted" doesn't start with "ENC:v1:", so FailOnError=true → Left
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -138,8 +138,8 @@ public sealed class EncryptionOrchestratorTests : IDisposable
         var result = await _sut.DecryptAsync(command, _context);
 
         // FailOnError=false → continues, leaves value unchanged
-        result.IsRight.Should().BeTrue();
-        command.Email.Should().Be("not-encrypted");
+        result.IsRight.ShouldBeTrue();
+        command.Email.ShouldBe("not-encrypted");
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public sealed class EncryptionOrchestratorTests : IDisposable
 
         var result = await _sut.DecryptAsync(command, _context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion

@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.Compliance.GDPR;
-using FluentAssertions;
+using Shouldly;
 using LawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 
 namespace Encina.UnitTests.Compliance.GDPR.Attributes;
@@ -24,11 +24,11 @@ public class ProcessingActivityAttributeTests
         };
 
         // Assert
-        attr.Purpose.Should().Be("Order fulfillment");
-        attr.LawfulBasis.Should().Be(LawfulBasis.Contract);
-        attr.DataCategories.Should().BeEquivalentTo(["Name", "Email"]);
-        attr.DataSubjects.Should().BeEquivalentTo(["Customers"]);
-        attr.RetentionDays.Should().Be(2555);
+        attr.Purpose.ShouldBe("Order fulfillment");
+        attr.LawfulBasis.ShouldBe(LawfulBasis.Contract);
+        attr.DataCategories.ShouldBe(["Name", "Email"]);
+        attr.DataSubjects.ShouldBe(["Customers"]);
+        attr.RetentionDays.ShouldBe(2555);
     }
 
     [Fact]
@@ -45,10 +45,10 @@ public class ProcessingActivityAttributeTests
         };
 
         // Assert
-        attr.Recipients.Should().BeEmpty();
-        attr.SecurityMeasures.Should().BeEmpty();
-        attr.ThirdCountryTransfers.Should().BeNull();
-        attr.Safeguards.Should().BeNull();
+        attr.Recipients.ShouldBeEmpty();
+        attr.SecurityMeasures.ShouldBeEmpty();
+        attr.ThirdCountryTransfers.ShouldBeNull();
+        attr.Safeguards.ShouldBeNull();
     }
 
     [Fact]
@@ -69,10 +69,10 @@ public class ProcessingActivityAttributeTests
         };
 
         // Assert
-        attr.Recipients.Should().BeEquivalentTo(["Analytics Provider"]);
-        attr.SecurityMeasures.Should().Be("TLS 1.3");
-        attr.ThirdCountryTransfers.Should().Be("US (AWS)");
-        attr.Safeguards.Should().Be("Standard Contractual Clauses");
+        attr.Recipients.ShouldBe(["Analytics Provider"]);
+        attr.SecurityMeasures.ShouldBe("TLS 1.3");
+        attr.ThirdCountryTransfers.ShouldBe("US (AWS)");
+        attr.Safeguards.ShouldBe("Standard Contractual Clauses");
     }
 
     [Fact]
@@ -83,10 +83,10 @@ public class ProcessingActivityAttributeTests
             .GetCustomAttribute<AttributeUsageAttribute>();
 
         // Assert
-        usage.Should().NotBeNull();
-        usage!.ValidOn.Should().Be(AttributeTargets.Class);
-        usage.AllowMultiple.Should().BeFalse();
-        usage.Inherited.Should().BeTrue();
+        usage.ShouldNotBeNull();
+        usage!.ValidOn.ShouldBe(AttributeTargets.Class);
+        usage.AllowMultiple.ShouldBeFalse();
+        usage.Inherited.ShouldBeTrue();
     }
 
     [Fact]
@@ -96,9 +96,9 @@ public class ProcessingActivityAttributeTests
         var attr = typeof(SampleDecoratedRequest).GetCustomAttribute<ProcessingActivityAttribute>();
 
         // Assert
-        attr.Should().NotBeNull();
-        attr!.Purpose.Should().Be("Test processing");
-        attr.LawfulBasis.Should().Be(LawfulBasis.Contract);
+        attr.ShouldNotBeNull();
+        attr!.Purpose.ShouldBe("Test processing");
+        attr.LawfulBasis.ShouldBe(LawfulBasis.Contract);
     }
 
     [Theory]
@@ -121,6 +121,6 @@ public class ProcessingActivityAttributeTests
         };
 
         // Assert
-        attr.LawfulBasis.Should().Be(basis);
+        attr.LawfulBasis.ShouldBe(basis);
     }
 }

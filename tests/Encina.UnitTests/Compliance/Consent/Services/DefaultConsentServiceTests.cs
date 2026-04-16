@@ -5,7 +5,7 @@ using Encina.Compliance.Consent.ReadModels;
 using Encina.Compliance.Consent.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -57,7 +57,7 @@ public class DefaultConsentServiceTests
             _timeProvider,
             NullLogger<DefaultConsentService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("repository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("repository");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class DefaultConsentServiceTests
             _timeProvider,
             NullLogger<DefaultConsentService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("readModelRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readModelRepository");
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class DefaultConsentServiceTests
             _timeProvider,
             NullLogger<DefaultConsentService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class DefaultConsentServiceTests
             null!,
             NullLogger<DefaultConsentService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class DefaultConsentServiceTests
             _timeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -129,9 +129,9 @@ public class DefaultConsentServiceTests
             ipAddress: "127.0.0.1", proofOfConsent: "hash-abc");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: id => id.Should().NotBeEmpty(),
+            Right: id => id.ShouldNotBeEmpty(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         await _repository.Received(1).CreateAsync(
@@ -155,7 +155,7 @@ public class DefaultConsentServiceTests
             "subject-1", "marketing", "v1", "web-form", "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -178,7 +178,7 @@ public class DefaultConsentServiceTests
         var result = await _sut.WithdrawConsentAsync(consentId, "admin", "User requested");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -194,10 +194,10 @@ public class DefaultConsentServiceTests
         var result = await _sut.WithdrawConsentAsync(consentId, "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(consentId.ToString()));
+            Left: error => error.Message.ShouldContain(consentId.ToString()));
     }
 
     [Fact]
@@ -214,10 +214,10 @@ public class DefaultConsentServiceTests
         var result = await _sut.WithdrawConsentAsync(consentId, "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain("Invalid consent state transition"));
+            Left: error => error.Message.ShouldContain("Invalid consent state transition"));
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public class DefaultConsentServiceTests
         var result = await _sut.WithdrawConsentAsync(consentId, "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -262,7 +262,7 @@ public class DefaultConsentServiceTests
             source: "web-form");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -278,10 +278,10 @@ public class DefaultConsentServiceTests
         var result = await _sut.RenewConsentAsync(consentId, "v2", "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(consentId.ToString()));
+            Left: error => error.Message.ShouldContain(consentId.ToString()));
     }
 
     #endregion
@@ -306,7 +306,7 @@ public class DefaultConsentServiceTests
             ipAddress: "10.0.0.1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -323,7 +323,7 @@ public class DefaultConsentServiceTests
             consentId, "v3", "web-form", "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -344,9 +344,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.GetConsentAsync(consentId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: model => model.Id.Should().Be(consentId),
+            Right: model => model.Id.ShouldBe(consentId),
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         // Should NOT hit the read model repository
@@ -370,7 +370,7 @@ public class DefaultConsentServiceTests
         var result = await _sut.GetConsentAsync(consentId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _cache.Received(1).SetAsync(
             $"consent:{consentId}",
             Arg.Any<ConsentReadModel>(),
@@ -392,10 +392,10 @@ public class DefaultConsentServiceTests
         var result = await _sut.GetConsentAsync(consentId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(consentId.ToString()));
+            Left: error => error.Message.ShouldContain(consentId.ToString()));
     }
 
     #endregion
@@ -414,9 +414,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.GetConsentBySubjectAndPurposeAsync("subject-1", "marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: opt => opt.IsSome.Should().BeTrue(),
+            Right: opt => opt.IsSome.ShouldBeTrue(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -437,9 +437,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.GetConsentBySubjectAndPurposeAsync("subject-1", "marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: opt => opt.IsSome.Should().BeTrue(),
+            Right: opt => opt.IsSome.ShouldBeTrue(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         await _cache.Received(1).SetAsync(
@@ -465,9 +465,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.GetConsentBySubjectAndPurposeAsync("subject-1", "marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: opt => opt.IsNone.Should().BeTrue(),
+            Right: opt => opt.IsNone.ShouldBeTrue(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -493,9 +493,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.HasValidConsentAsync("subject-1", "marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: valid => valid.Should().BeTrue(),
+            Right: valid => valid.ShouldBeTrue(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -517,9 +517,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.HasValidConsentAsync("subject-1", "marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: valid => valid.Should().BeTrue(),
+            Right: valid => valid.ShouldBeTrue(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -541,9 +541,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.HasValidConsentAsync("subject-1", "marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: valid => valid.Should().BeFalse(),
+            Right: valid => valid.ShouldBeFalse(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -561,9 +561,9 @@ public class DefaultConsentServiceTests
         var result = await _sut.HasValidConsentAsync("subject-1", "marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: valid => valid.Should().BeFalse(),
+            Right: valid => valid.ShouldBeFalse(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -581,13 +581,13 @@ public class DefaultConsentServiceTests
         var result = await _sut.GetConsentHistoryAsync(consentId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error =>
             {
-                error.Message.Should().Contain(consentId.ToString());
-                error.Message.Should().Contain("not available");
+                error.Message.ShouldContain(consentId.ToString());
+                error.Message.ShouldContain("not available");
             });
     }
 

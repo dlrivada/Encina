@@ -7,7 +7,7 @@ using Encina.Compliance.Retention.ReadModels;
 using Encina.Compliance.Retention.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -69,7 +69,7 @@ public sealed class DefaultLegalHoldServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("repository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("repository");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class DefaultLegalHoldServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("readModelRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readModelRepository");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class DefaultLegalHoldServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("recordReadModelRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("recordReadModelRepository");
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class DefaultLegalHoldServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("retentionRecordService");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("retentionRecordService");
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class DefaultLegalHoldServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class DefaultLegalHoldServiceTests
             null!,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class DefaultLegalHoldServiceTests
             _timeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -190,8 +190,8 @@ public sealed class DefaultLegalHoldServiceTests
             reason: "Ongoing litigation - Case #12345",
             appliedByUserId: "legal-counsel-1");
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
         await _repository.Received(1).CreateAsync(
             Arg.Any<LegalHoldAggregate>(),
             Arg.Any<CancellationToken>());
@@ -210,7 +210,7 @@ public sealed class DefaultLegalHoldServiceTests
             reason: "Litigation hold",
             appliedByUserId: "legal-counsel-1");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public sealed class DefaultLegalHoldServiceTests
             reason: "Litigation hold",
             appliedByUserId: "legal-counsel-1");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _retentionRecordService.Received(2).HoldRecordAsync(
             Arg.Any<Guid>(),
             Arg.Any<Guid>(),
@@ -285,7 +285,7 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.LiftHoldAsync(holdId, releasedByUserId: "legal-counsel-1");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<LegalHoldAggregate>(),
             Arg.Any<CancellationToken>());
@@ -301,8 +301,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.LiftHoldAsync(holdId, releasedByUserId: "legal-counsel-1");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     [Fact]
@@ -318,8 +318,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.LiftHoldAsync(holdId, releasedByUserId: "legal-counsel-2");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("Invalid state transition"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("Invalid state transition"));
     }
 
     [Fact]
@@ -346,7 +346,7 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.LiftHoldAsync(holdId, releasedByUserId: "legal-counsel-1");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         // Records must NOT be released because another hold is still active
         await _retentionRecordService
@@ -374,8 +374,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.GetHoldAsync(holdId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(holdId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(holdId), _ => { });
 
         await _readModelRepository
             .DidNotReceive()
@@ -397,8 +397,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.GetHoldAsync(holdId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(holdId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(holdId), _ => { });
 
         await _cache.Received(1).SetAsync(
             $"ret:hold:{holdId}",
@@ -421,8 +421,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.GetHoldAsync(holdId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -449,8 +449,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.GetActiveHoldsForEntityAsync(entityId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(list => list.Should().HaveCount(2), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(list => list.Count.ShouldBe(2), _ => { });
     }
 
     [Fact]
@@ -467,8 +467,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.GetActiveHoldsForEntityAsync(entityId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(list => list.Should().BeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(list => list.ShouldBeEmpty(), _ => { });
     }
 
     #endregion
@@ -486,8 +486,8 @@ public sealed class DefaultLegalHoldServiceTests
 
         var result = await _sut.GetHoldHistoryAsync(holdId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not yet available"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not yet available"));
     }
 
     #endregion

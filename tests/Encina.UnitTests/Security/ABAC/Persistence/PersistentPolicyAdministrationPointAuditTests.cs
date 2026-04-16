@@ -5,7 +5,7 @@ using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -419,7 +419,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         var result = await _sut.AddPolicySetAsync(ps);
 
         // Assert — the policy operation still succeeds
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -438,7 +438,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         var result = await _sut.AddPolicySetAsync(ps);
 
         // Assert — the policy operation still succeeds
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // ── No Audit Store ──────────────────────────────────────────────
@@ -463,7 +463,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         var result = await sutNoAudit.AddPolicySetAsync(ps);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // ── Actor Resolution ────────────────────────────────────────────

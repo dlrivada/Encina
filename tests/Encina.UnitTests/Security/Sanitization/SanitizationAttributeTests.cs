@@ -1,5 +1,5 @@
 using Encina.Security.Sanitization.Attributes;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -10,31 +10,31 @@ public sealed class SanitizationAttributeTests
     [Fact]
     public void SanitizationType_Html_HasValue0()
     {
-        ((int)SanitizationType.Html).Should().Be(0);
+        ((int)SanitizationType.Html).ShouldBe(0);
     }
 
     [Fact]
     public void SanitizationType_Sql_HasValue1()
     {
-        ((int)SanitizationType.Sql).Should().Be(1);
+        ((int)SanitizationType.Sql).ShouldBe(1);
     }
 
     [Fact]
     public void SanitizationType_Shell_HasValue2()
     {
-        ((int)SanitizationType.Shell).Should().Be(2);
+        ((int)SanitizationType.Shell).ShouldBe(2);
     }
 
     [Fact]
     public void SanitizationType_Custom_HasValue3()
     {
-        ((int)SanitizationType.Custom).Should().Be(3);
+        ((int)SanitizationType.Custom).ShouldBe(3);
     }
 
     [Fact]
     public void SanitizationType_StripHtml_HasValue4()
     {
-        ((int)SanitizationType.StripHtml).Should().Be(4);
+        ((int)SanitizationType.StripHtml).ShouldBe(4);
     }
 
     #endregion
@@ -46,13 +46,13 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new SanitizeHtmlAttribute();
 
-        attr.SanitizationType.Should().Be(SanitizationType.Html);
+        attr.SanitizationType.ShouldBe(SanitizationType.Html);
     }
 
     [Fact]
     public void SanitizeHtmlAttribute_IsAttributeUsage_Property()
     {
-        typeof(SanitizeHtmlAttribute).Should().BeDecoratedWith<AttributeUsageAttribute>();
+        typeof(SanitizeHtmlAttribute).GetCustomAttributes(typeof(AttributeUsageAttribute), false).ShouldNotBeEmpty();
     }
 
     #endregion
@@ -64,7 +64,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new SanitizeSqlAttribute();
 
-        attr.SanitizationType.Should().Be(SanitizationType.Sql);
+        attr.SanitizationType.ShouldBe(SanitizationType.Sql);
     }
 
     #endregion
@@ -76,7 +76,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new SanitizeAttribute();
 
-        attr.SanitizationType.Should().Be(SanitizationType.Custom);
+        attr.SanitizationType.ShouldBe(SanitizationType.Custom);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new SanitizeAttribute();
 
-        attr.Profile.Should().BeNull();
+        attr.Profile.ShouldBeNull();
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new SanitizeAttribute { Profile = "BlogPost" };
 
-        attr.Profile.Should().Be("BlogPost");
+        attr.Profile.ShouldBe("BlogPost");
     }
 
     #endregion
@@ -104,7 +104,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new StripHtmlAttribute();
 
-        attr.SanitizationType.Should().Be(SanitizationType.StripHtml);
+        attr.SanitizationType.ShouldBe(SanitizationType.StripHtml);
     }
 
     #endregion
@@ -114,19 +114,19 @@ public sealed class SanitizationAttributeTests
     [Fact]
     public void EncodingContext_Html_HasValue0()
     {
-        ((int)EncodingContext.Html).Should().Be(0);
+        ((int)EncodingContext.Html).ShouldBe(0);
     }
 
     [Fact]
     public void EncodingContext_JavaScript_HasValue1()
     {
-        ((int)EncodingContext.JavaScript).Should().Be(1);
+        ((int)EncodingContext.JavaScript).ShouldBe(1);
     }
 
     [Fact]
     public void EncodingContext_Url_HasValue2()
     {
-        ((int)EncodingContext.Url).Should().Be(2);
+        ((int)EncodingContext.Url).ShouldBe(2);
     }
 
     #endregion
@@ -138,7 +138,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new EncodeForHtmlAttribute();
 
-        attr.EncodingContext.Should().Be(EncodingContext.Html);
+        attr.EncodingContext.ShouldBe(EncodingContext.Html);
     }
 
     #endregion
@@ -150,7 +150,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new EncodeForJavaScriptAttribute();
 
-        attr.EncodingContext.Should().Be(EncodingContext.JavaScript);
+        attr.EncodingContext.ShouldBe(EncodingContext.JavaScript);
     }
 
     #endregion
@@ -162,7 +162,7 @@ public sealed class SanitizationAttributeTests
     {
         var attr = new EncodeForUrlAttribute();
 
-        attr.EncodingContext.Should().Be(EncodingContext.Url);
+        attr.EncodingContext.ShouldBe(EncodingContext.Url);
     }
 
     #endregion

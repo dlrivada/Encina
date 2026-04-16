@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Builders;
-using FluentAssertions;
+using Shouldly;
 using Target = Encina.Security.ABAC.Target;
 
 namespace Encina.UnitTests.Security.ABAC.Builders;
@@ -18,7 +18,7 @@ public sealed class RuleBuilderTests
     {
         var act = () => new RuleBuilder("rule-1", Effect.Permit);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class RuleBuilderTests
     {
         var act = () => new RuleBuilder("rule-1", Effect.Deny);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class RuleBuilderTests
     {
         var act = () => new RuleBuilder(null!, Effect.Permit);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class RuleBuilderTests
     {
         var act = () => new RuleBuilder("", Effect.Permit);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -52,8 +52,8 @@ public sealed class RuleBuilderTests
     {
         var act = () => new RuleBuilder("rule-1", invalidEffect);
 
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithParameterName("effect");
+        Should.Throw<ArgumentOutOfRangeException>(act)
+                .ParamName.ShouldBe("effect");
     }
 
     #endregion
@@ -65,7 +65,7 @@ public sealed class RuleBuilderTests
     {
         var rule = new RuleBuilder("test-rule", Effect.Permit).Build();
 
-        rule.Id.Should().Be("test-rule");
+        rule.Id.ShouldBe("test-rule");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class RuleBuilderTests
     {
         var rule = new RuleBuilder("test-rule", Effect.Deny).Build();
 
-        rule.Effect.Should().Be(Effect.Deny);
+        rule.Effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class RuleBuilderTests
     {
         var rule = new RuleBuilder("test-rule", Effect.Permit).Build();
 
-        rule.Description.Should().BeNull();
+        rule.Description.ShouldBeNull();
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class RuleBuilderTests
     {
         var rule = new RuleBuilder("test-rule", Effect.Permit).Build();
 
-        rule.Target.Should().BeNull();
+        rule.Target.ShouldBeNull();
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class RuleBuilderTests
     {
         var rule = new RuleBuilder("test-rule", Effect.Permit).Build();
 
-        rule.Condition.Should().BeNull();
+        rule.Condition.ShouldBeNull();
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public sealed class RuleBuilderTests
     {
         var rule = new RuleBuilder("test-rule", Effect.Permit).Build();
 
-        rule.Obligations.Should().BeEmpty();
+        rule.Obligations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class RuleBuilderTests
     {
         var rule = new RuleBuilder("test-rule", Effect.Permit).Build();
 
-        rule.Advice.Should().BeEmpty();
+        rule.Advice.ShouldBeEmpty();
     }
 
     #endregion
@@ -127,7 +127,7 @@ public sealed class RuleBuilderTests
             .WithDescription("Test description")
             .Build();
 
-        rule.Description.Should().Be("Test description");
+        rule.Description.ShouldBe("Test description");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class RuleBuilderTests
         var act = () => new RuleBuilder("rule-1", Effect.Permit)
             .WithDescription(null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class RuleBuilderTests
             .WithTarget(target)
             .Build();
 
-        rule.Target.Should().BeSameAs(target);
+        rule.Target.ShouldBeSameAs(target);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public sealed class RuleBuilderTests
         var act = () => new RuleBuilder("rule-1", Effect.Permit)
             .WithTarget((Target)null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -169,8 +169,8 @@ public sealed class RuleBuilderTests
                     ConditionOperator.Equals, "admin"))))
             .Build();
 
-        rule.Target.Should().NotBeNull();
-        rule.Target!.AnyOfElements.Should().HaveCount(1);
+        rule.Target.ShouldNotBeNull();
+        rule.Target!.AnyOfElements.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public sealed class RuleBuilderTests
             .WithCondition(condition)
             .Build();
 
-        rule.Condition.Should().BeSameAs(condition);
+        rule.Condition.ShouldBeSameAs(condition);
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public sealed class RuleBuilderTests
             .AddObligation(obligation)
             .Build();
 
-        rule.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("log-access");
+        rule.Obligations.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("log-access");
     }
 
     [Fact]
@@ -213,8 +213,8 @@ public sealed class RuleBuilderTests
             .AddObligation("audit", ob => ob.OnPermit())
             .Build();
 
-        rule.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("audit");
+        rule.Obligations.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("audit");
     }
 
     [Fact]
@@ -231,8 +231,8 @@ public sealed class RuleBuilderTests
             .AddAdvice(advice)
             .Build();
 
-        rule.Advice.Should().ContainSingle()
-            .Which.Id.Should().Be("notify");
+        rule.Advice.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("notify");
     }
 
     [Fact]
@@ -242,8 +242,8 @@ public sealed class RuleBuilderTests
             .AddAdvice("suggest", a => a.OnDeny())
             .Build();
 
-        rule.Advice.Should().ContainSingle()
-            .Which.Id.Should().Be("suggest");
+        rule.Advice.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("suggest");
     }
 
     [Fact]
@@ -259,9 +259,9 @@ public sealed class RuleBuilderTests
 
         // All methods return the builder for chaining — verify the build succeeds
         var rule = result.Build();
-        rule.Id.Should().Be("rule-1");
-        rule.Obligations.Should().HaveCount(1);
-        rule.Advice.Should().HaveCount(1);
+        rule.Id.ShouldBe("rule-1");
+        rule.Obligations.Count.ShouldBe(1);
+        rule.Advice.Count.ShouldBe(1);
     }
 
     #endregion

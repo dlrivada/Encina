@@ -4,7 +4,7 @@ using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.GDPR;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -82,7 +82,7 @@ public class DefaultDPIAAssessmentEngineTests
 
         var act = async () => await sut.AssessAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -93,11 +93,11 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.OverallRisk.Should().Be(RiskLevel.Low);
-        dpiaResult.IdentifiedRisks.Should().BeEmpty();
-        dpiaResult.RequiresPriorConsultation.Should().BeFalse();
+        dpiaResult.OverallRisk.ShouldBe(RiskLevel.Low);
+        dpiaResult.IdentifiedRisks.ShouldBeEmpty();
+        dpiaResult.RequiresPriorConsultation.ShouldBeFalse();
     }
 
     [Fact]
@@ -110,10 +110,10 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.OverallRisk.Should().Be(RiskLevel.High);
-        dpiaResult.IdentifiedRisks.Should().HaveCount(1);
+        dpiaResult.OverallRisk.ShouldBe(RiskLevel.High);
+        dpiaResult.IdentifiedRisks.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -130,10 +130,10 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.OverallRisk.Should().Be(RiskLevel.High);
-        dpiaResult.IdentifiedRisks.Should().HaveCount(2);
+        dpiaResult.OverallRisk.ShouldBe(RiskLevel.High);
+        dpiaResult.IdentifiedRisks.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -144,10 +144,10 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.IdentifiedRisks.Should().BeEmpty();
-        dpiaResult.OverallRisk.Should().Be(RiskLevel.Low);
+        dpiaResult.IdentifiedRisks.ShouldBeEmpty();
+        dpiaResult.OverallRisk.ShouldBe(RiskLevel.Low);
     }
 
     [Fact]
@@ -162,10 +162,10 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.IdentifiedRisks.Should().HaveCount(1);
-        dpiaResult.OverallRisk.Should().Be(RiskLevel.Medium);
+        dpiaResult.IdentifiedRisks.Count.ShouldBe(1);
+        dpiaResult.OverallRisk.ShouldBe(RiskLevel.Medium);
     }
 
     [Fact]
@@ -177,9 +177,9 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.RequiresPriorConsultation.Should().BeTrue();
+        dpiaResult.RequiresPriorConsultation.ShouldBeTrue();
     }
 
     [Fact]
@@ -191,9 +191,9 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.RequiresPriorConsultation.Should().BeFalse();
+        dpiaResult.RequiresPriorConsultation.ShouldBeFalse();
     }
 
     [Fact]
@@ -217,9 +217,9 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.ProposedMitigations.Should().ContainSingle(m => m.Description == "Implement encryption");
+        dpiaResult.ProposedMitigations.Where(m => m.Description == "Implement encryption").ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -246,9 +246,9 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.ProposedMitigations.Should().Contain(m => m.Description == "Apply encryption");
+        dpiaResult.ProposedMitigations.ShouldContain(m => m.Description == "Apply encryption");
     }
 
     [Fact]
@@ -259,9 +259,9 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.AssessAsync(context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var dpiaResult = (DPIAResult)result;
-        dpiaResult.AssessedAtUtc.Should().Be(FixedNow);
+        dpiaResult.AssessedAtUtc.ShouldBe(FixedNow);
     }
 
     #endregion
@@ -275,7 +275,7 @@ public class DefaultDPIAAssessmentEngineTests
 
         var act = async () => await sut.RequiresDPIAAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -285,8 +285,8 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.RequiresDPIAAsync(typeof(TestCommandWithDPIA));
 
-        result.IsRight.Should().BeTrue();
-        ((bool)result).Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        ((bool)result).ShouldBeTrue();
     }
 
     [Fact]
@@ -296,8 +296,8 @@ public class DefaultDPIAAssessmentEngineTests
 
         var result = await sut.RequiresDPIAAsync(typeof(TestCommandWithoutDPIA));
 
-        result.IsRight.Should().BeTrue();
-        ((bool)result).Should().BeFalse();
+        result.IsRight.ShouldBeTrue();
+        ((bool)result).ShouldBeFalse();
     }
 
     #endregion

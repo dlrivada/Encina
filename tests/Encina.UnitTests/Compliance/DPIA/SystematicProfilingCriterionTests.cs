@@ -3,7 +3,7 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -24,14 +24,14 @@ public class SystematicProfilingCriterionTests
     [Fact]
     public void Name_ShouldReturnExpectedValue()
     {
-        _sut.Name.Should().Be("Systematic Profiling (Art. 35(3)(a))");
+        _sut.Name.ShouldBe("Systematic Profiling (Art. 35(3)(a))");
     }
 
     [Fact]
     public async Task EvaluateAsync_NullContext_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.EvaluateAsync(null!);
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class SystematicProfilingCriterionTests
 
         var result = await _sut.EvaluateAsync(context);
 
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -51,9 +51,9 @@ public class SystematicProfilingCriterionTests
 
         var result = await _sut.EvaluateAsync(context);
 
-        result.Should().NotBeNull();
-        result!.Level.Should().Be(RiskLevel.High);
-        result.Category.Should().Be("Systematic Profiling");
+        result.ShouldNotBeNull();
+        result!.Level.ShouldBe(RiskLevel.High);
+        result.Category.ShouldBe("Systematic Profiling");
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class SystematicProfilingCriterionTests
 
         var result = await _sut.EvaluateAsync(context);
 
-        result.Should().NotBeNull();
-        result!.Level.Should().Be(RiskLevel.VeryHigh);
+        result.ShouldNotBeNull();
+        result!.Level.ShouldBe(RiskLevel.VeryHigh);
     }
 }

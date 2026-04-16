@@ -1,7 +1,7 @@
 using System.Text;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.GDPR.Export;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR.Export;
 
@@ -20,13 +20,13 @@ public class CsvRoPAExporterTests
     [Fact]
     public void ContentType_ShouldBeTextCsv()
     {
-        _sut.ContentType.Should().Be("text/csv");
+        _sut.ContentType.ShouldBe("text/csv");
     }
 
     [Fact]
     public void FileExtension_ShouldBeDotCsv()
     {
-        _sut.FileExtension.Should().Be(".csv");
+        _sut.FileExtension.ShouldBe(".csv");
     }
 
     // -- ExportAsync --
@@ -41,14 +41,14 @@ public class CsvRoPAExporterTests
         var result = await _sut.ExportAsync([], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var export = (RoPAExportResult)result;
-        export.ActivityCount.Should().Be(0);
+        export.ActivityCount.ShouldBe(0);
 
         var csv = GetCsvContent(export);
-        csv.Should().Contain("# Records of Processing Activities");
-        csv.Should().Contain("# Controller: Acme Corp");
-        csv.Should().Contain("Id,Name,Purpose,LawfulBasis");
+        csv.ShouldContain("# Records of Processing Activities");
+        csv.ShouldContain("# Controller: Acme Corp");
+        csv.ShouldContain("Id,Name,Purpose,LawfulBasis");
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class CsvRoPAExporterTests
         var result = await _sut.ExportAsync([activity], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var csv = GetCsvContent((RoPAExportResult)result);
 
         // Should contain header row + 1 data row
@@ -71,9 +71,9 @@ public class CsvRoPAExporterTests
             .ToList();
 
         // Header + data row
-        dataLines.Should().HaveCount(2);
-        dataLines[1].Should().Contain("Order Processing");
-        dataLines[1].Should().Contain("Contract");
+        dataLines.Count.ShouldBe(2);
+        dataLines[1].ShouldContain("Order Processing");
+        dataLines[1].ShouldContain("Contract");
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class CsvRoPAExporterTests
 
         // Assert
         var csv = GetCsvContent((RoPAExportResult)result);
-        csv.Should().Contain("# DPO: Jane Doe (dpo@acme.com)");
+        csv.ShouldContain("# DPO: Jane Doe (dpo@acme.com)");
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class CsvRoPAExporterTests
 
         // Assert
         var csv = GetCsvContent((RoPAExportResult)result);
-        csv.Should().Contain("Name;Email;Phone");
+        csv.ShouldContain("Name;Email;Phone");
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class CsvRoPAExporterTests
 
         // Assert
         var csv = GetCsvContent((RoPAExportResult)result);
-        csv.Should().Contain("\"Processing, including fulfillment\"");
+        csv.ShouldContain("\"Processing, including fulfillment\"");
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class CsvRoPAExporterTests
 
         // Assert
         var csv = GetCsvContent((RoPAExportResult)result);
-        csv.Should().Contain("\"Process \"\"special\"\" data\"");
+        csv.ShouldContain("\"Process \"\"special\"\" data\"");
     }
 
     [Fact]
@@ -155,10 +155,10 @@ public class CsvRoPAExporterTests
         var result = await _sut.ExportAsync([], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var export = (RoPAExportResult)result;
         var bom = Encoding.UTF8.GetPreamble();
-        export.Content.Take(bom.Length).Should().BeEquivalentTo(bom);
+        export.Content.Take(bom.Length).ShouldBe(bom);
     }
 
     [Fact]
@@ -177,32 +177,30 @@ public class CsvRoPAExporterTests
         var result = await _sut.ExportAsync(activities, metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var export = (RoPAExportResult)result;
-        export.ActivityCount.Should().Be(3);
+        export.ActivityCount.ShouldBe(3);
 
         var csv = GetCsvContent(export);
         var dataLines = csv.Split('\n')
             .Where(l => !l.StartsWith('#') && !string.IsNullOrWhiteSpace(l))
             .ToList();
 
-        dataLines.Should().HaveCount(4); // 1 header + 3 data rows
+        dataLines.Count.ShouldBe(4); // 1 header + 3 data rows
     }
 
     [Fact]
     public async Task ExportAsync_NullActivities_ShouldThrowArgumentNullException()
     {
         var act = async () => await _sut.ExportAsync(null!, CreateMetadata());
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("activities");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("activities");
     }
 
     [Fact]
     public async Task ExportAsync_NullMetadata_ShouldThrowArgumentNullException()
     {
         var act = async () => await _sut.ExportAsync([], null!);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("metadata");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("metadata");
     }
 
     [Fact]
@@ -220,7 +218,7 @@ public class CsvRoPAExporterTests
         // Find the data row and check retention days field
         var dataRow = csv.Split('\n')
             .First(l => !l.StartsWith('#') && !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Id", StringComparison.Ordinal));
-        dataRow.Should().Contain(",730,");
+        dataRow.ShouldContain(",730,");
     }
 
     [Fact]
@@ -238,7 +236,7 @@ public class CsvRoPAExporterTests
         var result = await _sut.ExportAsync([activity], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // Should not throw; null fields should be handled as empty strings
     }
 

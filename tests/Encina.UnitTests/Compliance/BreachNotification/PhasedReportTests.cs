@@ -1,7 +1,7 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.BreachNotification.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -31,11 +31,11 @@ public class PhasedReportTests
             submittedByUserId);
 
         // Assert
-        report.BreachId.Should().Be(breachId);
-        report.ReportNumber.Should().Be(reportNumber);
-        report.Content.Should().Be(content);
-        report.SubmittedAtUtc.Should().Be(submittedAtUtc);
-        report.SubmittedByUserId.Should().Be(submittedByUserId);
+        report.BreachId.ShouldBe(breachId);
+        report.ReportNumber.ShouldBe(reportNumber);
+        report.Content.ShouldBe(content);
+        report.SubmittedAtUtc.ShouldBe(submittedAtUtc);
+        report.SubmittedByUserId.ShouldBe(submittedByUserId);
     }
 
     [Fact]
@@ -49,9 +49,9 @@ public class PhasedReportTests
             submittedAtUtc: DateTimeOffset.UtcNow);
 
         // Assert
-        report.Id.Should().NotBeNullOrWhiteSpace();
-        report.Id.Should().HaveLength(32);
-        report.Id.Should().MatchRegex("^[0-9a-f]{32}$");
+        report.Id.ShouldNotBeNullOrWhiteSpace();
+        report.Id.Length.ShouldBe(32);
+        report.Id.ShouldMatch("^[0-9a-f]{32}$");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class PhasedReportTests
             submittedByUserId: null);
 
         // Assert
-        report.SubmittedByUserId.Should().BeNull();
+        report.SubmittedByUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class PhasedReportTests
             submittedAtUtc: DateTimeOffset.UtcNow);
 
         // Assert
-        report.SubmittedByUserId.Should().BeNull();
+        report.SubmittedByUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class PhasedReportTests
         var report2 = PhasedReport.Create("breach-001", 2, "Report 2", DateTimeOffset.UtcNow);
 
         // Assert
-        report1.Id.Should().NotBe(report2.Id);
+        report1.Id.ShouldNotBe(report2.Id);
     }
 
     #endregion
@@ -108,9 +108,9 @@ public class PhasedReportTests
         var modified = original with { Content = "Updated content" };
 
         // Assert
-        original.Content.Should().Be("Original content");
-        modified.Content.Should().Be("Updated content");
-        modified.Id.Should().Be(original.Id);
+        original.Content.ShouldBe("Original content");
+        modified.Content.ShouldBe("Updated content");
+        modified.Id.ShouldBe(original.Id);
     }
 
     #endregion

@@ -3,7 +3,7 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.HashiCorpVault;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -44,7 +44,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
         services.AddHashiCorpVaultSecrets(ValidVaultConfig);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretReader>().Should().NotBeNull();
+        provider.GetService<ISecretReader>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
         services.AddHashiCorpVaultSecrets(ValidVaultConfig);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretWriter>().Should().NotBeNull();
+        provider.GetService<ISecretWriter>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
         services.AddHashiCorpVaultSecrets(ValidVaultConfig);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretRotator>().Should().NotBeNull();
+        provider.GetService<ISecretRotator>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
         services.AddHashiCorpVaultSecrets(ValidVaultConfig);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<HashiCorpVaultSecretProvider>().Should().NotBeNull();
+        provider.GetService<HashiCorpVaultSecretProvider>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -92,8 +92,8 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
         var writer = provider.GetRequiredService<ISecretWriter>();
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
-        writer.Should().BeOfType<CachingSecretWriterDecorator>();
-        rotator.Should().BeSameAs(underlying);
+        writer.ShouldBeOfType<CachingSecretWriterDecorator>();
+        rotator.ShouldBeSameAs(underlying);
     }
 
     #endregion
@@ -115,8 +115,8 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SecretsOptions>>().Value;
-        options.EnableCaching.Should().BeFalse();
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(30));
+        options.EnableCaching.ShouldBeFalse();
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(30));
     }
 
     [Fact]
@@ -133,8 +133,8 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<HashiCorpVaultOptions>();
-        options.MountPoint.Should().Be("custom-kv");
-        options.VaultAddress.Should().Be("https://vault.example.com:8200");
+        options.MountPoint.ShouldBe("custom-kv");
+        options.VaultAddress.ShouldBe("https://vault.example.com:8200");
     }
 
     #endregion
@@ -152,8 +152,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             // VaultAddress intentionally left empty
         });
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*VaultAddress*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*VaultAddress*required*");
     }
 
     [Fact]
@@ -167,8 +166,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             // AuthMethod intentionally left null
         });
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*AuthMethod*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*AuthMethod*required*");
     }
 
     [Fact]
@@ -182,8 +180,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             vault.AuthMethod = new TokenAuthMethodInfo("hvs.test");
         });
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*VaultAddress*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*VaultAddress*required*");
     }
 
     #endregion
@@ -197,7 +194,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
 
         var result = services.AddHashiCorpVaultSecrets(ValidVaultConfig);
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -211,7 +208,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             services.AddHashiCorpVaultSecrets(ValidVaultConfig);
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -225,8 +222,8 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
 
         var act = () => services.AddHashiCorpVaultSecrets(ValidVaultConfig);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -236,8 +233,8 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
 
         var act = () => services.AddHashiCorpVaultSecrets(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureVault");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configureVault");
     }
 
     #endregion

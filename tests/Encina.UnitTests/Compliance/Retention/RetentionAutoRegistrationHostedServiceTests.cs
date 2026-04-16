@@ -5,7 +5,7 @@ using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -366,7 +366,7 @@ public sealed class RetentionAutoRegistrationHostedServiceTests
 
         var task = sut.StopAsync(CancellationToken.None);
 
-        task.IsCompletedSuccessfully.Should().BeTrue();
+        task.IsCompletedSuccessfully.ShouldBeTrue();
     }
 
     #endregion

@@ -1,7 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
 
-using FluentAssertions;
+using Shouldly;
 
 using Target = Encina.Security.ABAC.Target;
 
@@ -67,7 +67,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(null, ctx);
 
-        result.Should().Be(Effect.Permit, "null target matches all requests");
+        result.ShouldBe(Effect.Permit, "null target matches all requests");
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "empty AnyOfElements matches all requests");
+        result.ShouldBe(Effect.Permit, "empty AnyOfElements matches all requests");
     }
 
     #endregion
@@ -113,7 +113,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit);
+        result.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.NotApplicable);
+        result.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -188,7 +188,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "first AllOf matches — OR satisfied");
+        result.ShouldBe(Effect.Permit, "first AllOf matches — OR satisfied");
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "second AllOf matches — OR satisfied");
+        result.ShouldBe(Effect.Permit, "second AllOf matches — OR satisfied");
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.NotApplicable);
+        result.ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "empty AllOf list matches all requests");
+        result.ShouldBe(Effect.Permit, "empty AllOf list matches all requests");
     }
 
     #endregion
@@ -325,7 +325,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "both matches satisfied — AND logic");
+        result.ShouldBe(Effect.Permit, "both matches satisfied — AND logic");
     }
 
     [Fact]
@@ -361,7 +361,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.NotApplicable, "action does not match — AND fails");
+        result.ShouldBe(Effect.NotApplicable, "action does not match — AND fails");
     }
 
     [Fact]
@@ -384,7 +384,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "empty matches list matches all requests");
+        result.ShouldBe(Effect.Permit, "empty matches list matches all requests");
     }
 
     #endregion
@@ -437,7 +437,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "both AnyOf elements match — top-level AND");
+        result.ShouldBe(Effect.Permit, "both AnyOf elements match — top-level AND");
     }
 
     [Fact]
@@ -485,7 +485,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.NotApplicable, "second AnyOf does not match — top-level AND fails");
+        result.ShouldBe(Effect.NotApplicable, "second AnyOf does not match — top-level AND fails");
     }
 
     #endregion
@@ -521,7 +521,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Indeterminate, "MustBePresent attribute is missing");
+        result.ShouldBe(Effect.Indeterminate, "MustBePresent attribute is missing");
     }
 
     [Fact]
@@ -553,7 +553,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.NotApplicable, "optional attribute missing → no match");
+        result.ShouldBe(Effect.NotApplicable, "optional attribute missing → no match");
     }
 
     [Fact]
@@ -584,7 +584,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Indeterminate, "unregistered function should produce indeterminate");
+        result.ShouldBe(Effect.Indeterminate, "unregistered function should produce indeterminate");
     }
 
     #endregion
@@ -622,7 +622,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit, "one of the bag values matches");
+        result.ShouldBe(Effect.Permit, "one of the bag values matches");
     }
 
     [Fact]
@@ -656,7 +656,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.NotApplicable, "no bag values match");
+        result.ShouldBe(Effect.NotApplicable, "no bag values match");
     }
 
     #endregion
@@ -702,7 +702,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Indeterminate,
+        result.ShouldBe(Effect.Indeterminate,
             "indeterminate propagates when no AllOf matches");
     }
 
@@ -745,7 +745,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit,
+        result.ShouldBe(Effect.Permit,
             "at least one AllOf matches, so indeterminate does not propagate");
     }
 
@@ -782,7 +782,7 @@ public sealed class TargetEvaluatorTests
 
         var result = _sut.EvaluateTarget(target, ctx);
 
-        result.Should().Be(Effect.Permit);
+        result.ShouldBe(Effect.Permit);
     }
 
     #endregion
@@ -794,7 +794,7 @@ public sealed class TargetEvaluatorTests
     {
         var act = () => _sut.EvaluateTarget(null, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -802,7 +802,7 @@ public sealed class TargetEvaluatorTests
     {
         var act = () => new TargetEvaluator(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion

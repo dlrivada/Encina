@@ -1,7 +1,7 @@
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -23,7 +23,7 @@ public class DataMaskingTechniqueTests
         var result = _technique.Technique;
 
         // Assert
-        result.Should().Be(AnonymizationTechnique.DataMasking);
+        result.ShouldBe(AnonymizationTechnique.DataMasking);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class DataMaskingTechniqueTests
         var result = _technique.CanApply(typeof(string));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class DataMaskingTechniqueTests
         var result = _technique.CanApply(typeof(int));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class DataMaskingTechniqueTests
 
         // Assert
         result.Match(
-            Right: v => ((string)v!).Should().Be("J*******"),
+            Right: v => ((string)v!).ShouldBe("J*******"),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -71,7 +71,7 @@ public class DataMaskingTechniqueTests
         // Assert
         // LanguageExt throws ValueIsNullException when Right(null) is called
         // and the null check is before the try/catch block
-        await act.Should().ThrowAsync<ValueIsNullException>();
+        await Should.ThrowAsync<ValueIsNullException>(act);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class DataMaskingTechniqueTests
 
         // Assert
         result.Match(
-            Right: v => ((string)v!).Should().BeEmpty(),
+            Right: v => ((string)v!).ShouldBeEmpty(),
             Left: _ => Assert.Fail("Expected Right"));
     }
 }

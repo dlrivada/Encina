@@ -3,7 +3,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Configuration;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,8 +41,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var provider = CreateProvider(o => o.SecretNames = ["db-connection"]);
         provider.Load();
 
-        provider.TryGet("db-connection", out var value).Should().BeTrue();
-        value.Should().Be("Server=localhost");
+        provider.TryGet("db-connection", out var value).ShouldBeTrue();
+        value.ShouldBe("Server=localhost");
     }
 
     [Fact]
@@ -56,10 +56,10 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var provider = CreateProvider(o => o.SecretNames = ["secret-1", "secret-2"]);
         provider.Load();
 
-        provider.TryGet("secret-1", out var v1).Should().BeTrue();
-        v1.Should().Be("value-1");
-        provider.TryGet("secret-2", out var v2).Should().BeTrue();
-        v2.Should().Be("value-2");
+        provider.TryGet("secret-1", out var v1).ShouldBeTrue();
+        v1.ShouldBe("value-1");
+        provider.TryGet("secret-2", out var v2).ShouldBeTrue();
+        v2.ShouldBe("value-2");
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var provider = CreateProvider(o => o.SecretNames = []);
         provider.Load();
 
-        provider.TryGet("anything", out _).Should().BeFalse();
+        provider.TryGet("anything", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
 
         var act = () => provider.Load();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var provider = CreateProvider(o => o.SecretNames = []);
         provider.Load();
 
-        provider.TryGet("nonexistent", out _).Should().BeFalse();
+        provider.TryGet("nonexistent", out _).ShouldBeFalse();
     }
 
     #endregion
@@ -110,7 +110,7 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var provider = CreateProvider(o => o.SecretNames = ["bad-secret"]);
         provider.Load();
 
-        provider.TryGet("bad-secret", out _).Should().BeFalse();
+        provider.TryGet("bad-secret", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -125,9 +125,9 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var provider = CreateProvider(o => o.SecretNames = ["good-secret", "bad-secret"]);
         provider.Load();
 
-        provider.TryGet("good-secret", out var value).Should().BeTrue();
-        value.Should().Be("good-value");
-        provider.TryGet("bad-secret", out _).Should().BeFalse();
+        provider.TryGet("good-secret", out var value).ShouldBeTrue();
+        value.ShouldBe("good-value");
+        provider.TryGet("bad-secret", out _).ShouldBeFalse();
     }
 
     #endregion
@@ -148,8 +148,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         provider.Load();
 
         // "--" should be replaced with ":" (ConfigurationPath.KeyDelimiter)
-        provider.TryGet("Database:ConnectionString", out var value).Should().BeTrue();
-        value.Should().Be("Server=localhost");
+        provider.TryGet("Database:ConnectionString", out var value).ShouldBeTrue();
+        value.ShouldBe("Server=localhost");
     }
 
     [Fact]
@@ -165,8 +165,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         });
         provider.Load();
 
-        provider.TryGet("App:Settings:Key", out var value).Should().BeTrue();
-        value.Should().Be("my-value");
+        provider.TryGet("App:Settings:Key", out var value).ShouldBeTrue();
+        value.ShouldBe("my-value");
     }
 
     [Fact]
@@ -182,8 +182,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         });
         provider.Load();
 
-        provider.TryGet("my-secret", out var value).Should().BeTrue();
-        value.Should().Be("value");
+        provider.TryGet("my-secret", out var value).ShouldBeTrue();
+        value.ShouldBe("value");
     }
 
     #endregion
@@ -205,8 +205,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         provider.Load();
 
         // With StripPrefix=true, "myapp/" is stripped from the config key
-        provider.TryGet("api-key", out var value).Should().BeTrue();
-        value.Should().Be("key-123");
+        provider.TryGet("api-key", out var value).ShouldBeTrue();
+        value.ShouldBe("key-123");
     }
 
     [Fact]
@@ -224,8 +224,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         provider.Load();
 
         // With StripPrefix=false, the full resolved name (with prefix) is the key
-        provider.TryGet("myapp/api-key", out var value).Should().BeTrue();
-        value.Should().Be("key-123");
+        provider.TryGet("myapp/api-key", out var value).ShouldBeTrue();
+        value.ShouldBe("key-123");
     }
 
     [Fact]
@@ -244,8 +244,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         provider.Load();
 
         // "prod/" stripped, "--" replaced with ":"
-        provider.TryGet("Database:Password", out var value).Should().BeTrue();
-        value.Should().Be("secret-pass");
+        provider.TryGet("Database:Password", out var value).ShouldBeTrue();
+        value.ShouldBe("secret-pass");
     }
 
     #endregion
@@ -261,8 +261,8 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var provider = CreateProvider(o => o.SecretNames = ["MySecret"]);
         provider.Load();
 
-        provider.TryGet("mysecret", out var value).Should().BeTrue();
-        value.Should().Be("value");
+        provider.TryGet("mysecret", out var value).ShouldBeTrue();
+        value.ShouldBe("value");
     }
 
     #endregion
@@ -282,7 +282,7 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
             .Add(new SecretsConfigurationSource(sp, options))
             .Build();
 
-        config["api-key"].Should().Be("my-api-key");
+        config["api-key"].ShouldBe("my-api-key");
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
             .Add(new SecretsConfigurationSource(sp, options))
             .Build();
 
-        config.GetSection("Database")["ConnectionString"].Should().Be("Server=localhost");
+        config.GetSection("Database")["ConnectionString"].ShouldBe("Server=localhost");
     }
 
     #endregion
@@ -320,7 +320,7 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
             provider.Dispose();
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

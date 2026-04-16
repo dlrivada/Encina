@@ -1,5 +1,5 @@
 using Encina.Compliance.Consent;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent;
 
@@ -23,7 +23,7 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -93,8 +93,8 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultExpirationDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DefaultExpirationDays");
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultExpirationDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DefaultExpirationDays");
     }
 
     #endregion
@@ -133,8 +133,8 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("PurposeDefinitions");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("PurposeDefinitions");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -175,8 +175,8 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("marketing");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("marketing");
     }
 
     [Fact]
@@ -196,8 +196,8 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("analytics");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("analytics");
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public class ConsentOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -228,7 +228,7 @@ public class ConsentOptionsValidatorTests
     public void Validate_NullOptions_ShouldThrow()
     {
         var act = () => _validator.Validate(null, null!);
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion

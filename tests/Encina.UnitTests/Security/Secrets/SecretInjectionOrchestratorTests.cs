@@ -3,7 +3,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Injection;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -81,8 +81,8 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
     {
         var act = () => new SecretInjectionOrchestrator(null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("secretReader");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("secretReader");
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
     {
         var act = () => new SecretInjectionOrchestrator(_secretReader, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -105,8 +105,8 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
 
         var result = await _orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => -1).Should().Be(0);
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: v => v, Left: _ => -1).ShouldBe(0);
         await _secretReader.DidNotReceive().GetSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -123,9 +123,9 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
 
         var result = await _orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => -1).Should().Be(1);
-        request.ApiKey.Should().Be("sk-12345");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: v => v, Left: _ => -1).ShouldBe(1);
+        request.ApiKey.ShouldBe("sk-12345");
     }
 
     #endregion
@@ -143,10 +143,10 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
 
         var result = await _orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => -1).Should().Be(2);
-        request.ApiKey.Should().Be("key-value");
-        request.DbPassword.Should().Be("db-pass");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: v => v, Left: _ => -1).ShouldBe(2);
+        request.ApiKey.ShouldBe("key-value");
+        request.DbPassword.ShouldBe("db-pass");
     }
 
     #endregion
@@ -163,8 +163,8 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
 
         var result = await _orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.InjectionFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.InjectionFailedCode));
     }
 
     [Fact]
@@ -177,9 +177,9 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
 
         var result = await _orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: v => v, Left: _ => -1).Should().Be(0);
-        request.OptionalKey.Should().Be("");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: v => v, Left: _ => -1).ShouldBe(0);
+        request.OptionalKey.ShouldBe("");
     }
 
     #endregion
@@ -195,8 +195,8 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
 
         var result = await _orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        request.Secret.Should().Be("versioned-value");
+        result.IsRight.ShouldBeTrue();
+        request.Secret.ShouldBe("versioned-value");
         await _secretReader.Received(1).GetSecretAsync("secret-key/v2", Arg.Any<CancellationToken>());
     }
 
@@ -217,7 +217,7 @@ public sealed class SecretInjectionOrchestratorTests : IDisposable
 
         var result = await _orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

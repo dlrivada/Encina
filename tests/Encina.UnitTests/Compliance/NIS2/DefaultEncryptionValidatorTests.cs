@@ -3,7 +3,7 @@
 using Encina.Compliance.NIS2;
 using Encina.Security.Encryption.Abstractions;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -68,9 +68,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.IsDataEncryptedAtRestAsync("PII");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isEncrypted = result.Match(r => r, _ => false);
-        isEncrypted.Should().BeTrue();
+        isEncrypted.ShouldBeTrue();
     }
 
     [Fact]
@@ -84,9 +84,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.IsDataEncryptedAtRestAsync("Marketing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isEncrypted = result.Match(r => r, _ => true);
-        isEncrypted.Should().BeFalse();
+        isEncrypted.ShouldBeFalse();
     }
 
     #endregion
@@ -104,9 +104,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.IsDataEncryptedInTransitAsync("https://api.example.com");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isEncrypted = result.Match(r => r, _ => false);
-        isEncrypted.Should().BeTrue();
+        isEncrypted.ShouldBeTrue();
     }
 
     [Fact]
@@ -120,9 +120,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.IsDataEncryptedInTransitAsync("https://unregistered.example.com");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isEncrypted = result.Match(r => r, _ => true);
-        isEncrypted.Should().BeFalse();
+        isEncrypted.ShouldBeFalse();
     }
 
     #endregion
@@ -140,9 +140,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.ValidateEncryptionPolicyAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hasPolicy = result.Match(r => r, _ => false);
-        hasPolicy.Should().BeTrue();
+        hasPolicy.ShouldBeTrue();
     }
 
     [Fact]
@@ -155,9 +155,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.ValidateEncryptionPolicyAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hasPolicy = result.Match(r => r, _ => true);
-        hasPolicy.Should().BeFalse();
+        hasPolicy.ShouldBeFalse();
     }
 
     #endregion
@@ -183,9 +183,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.ValidateEncryptionPolicyAsync();
 
         // Assert — has policy AND active key → true
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hasPolicy = result.Match(r => r, _ => false);
-        hasPolicy.Should().BeTrue();
+        hasPolicy.ShouldBeTrue();
     }
 
     [Fact]
@@ -207,9 +207,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.ValidateEncryptionPolicyAsync();
 
         // Assert — config says encrypted BUT infrastructure has no active key → false
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hasPolicy = result.Match(r => r, _ => true);
-        hasPolicy.Should().BeFalse("IKeyProvider exists but has no active key — infrastructure mismatch");
+        hasPolicy.ShouldBeFalse();
     }
 
     [Fact]
@@ -231,9 +231,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.ValidateEncryptionPolicyAsync();
 
         // Assert — IKeyProvider error treated as no active key
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hasPolicy = result.Match(r => r, _ => true);
-        hasPolicy.Should().BeFalse("IKeyProvider returned error — treated as no active key");
+        hasPolicy.ShouldBeFalse();
     }
 
     [Fact]
@@ -254,9 +254,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.ValidateEncryptionPolicyAsync();
 
         // Assert — resilience catches exception, returns fallback (false)
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hasPolicy = result.Match(r => r, _ => true);
-        hasPolicy.Should().BeFalse("exception in IKeyProvider should be caught by resilience helper");
+        hasPolicy.ShouldBeFalse();
     }
 
     [Fact]
@@ -270,9 +270,9 @@ public class DefaultEncryptionValidatorTests
         var result = await sut.ValidateEncryptionPolicyAsync();
 
         // Assert — config-only validation is sufficient when no IKeyProvider
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hasPolicy = result.Match(r => r, _ => false);
-        hasPolicy.Should().BeTrue("no IKeyProvider means config-only validation");
+        hasPolicy.ShouldBeTrue();
     }
 
     #endregion

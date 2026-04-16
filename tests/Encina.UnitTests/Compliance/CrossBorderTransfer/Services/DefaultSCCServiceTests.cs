@@ -7,7 +7,7 @@ using Encina.Compliance.CrossBorderTransfer.ReadModels;
 using Encina.Compliance.CrossBorderTransfer.Services;
 using Encina.Marten;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -48,8 +48,8 @@ public class DefaultSCCServiceTests
         var result = await _sut.RegisterAgreementAsync(
             "processor-1", SCCModule.ControllerToProcessor, "v2021", Now);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class DefaultSCCServiceTests
         var result = await _sut.RegisterAgreementAsync(
             "processor-1", SCCModule.ControllerToProcessor, "v2021", Now);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class DefaultSCCServiceTests
         var result = await _sut.RegisterAgreementAsync(
             "processor-1", SCCModule.ControllerToProcessor, "v2021", Now);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -96,7 +96,7 @@ public class DefaultSCCServiceTests
         var result = await _sut.AddSupplementaryMeasureAsync(
             aggregate.Id, SupplementaryMeasureType.Technical, "AES-256");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class DefaultSCCServiceTests
         var result = await _sut.AddSupplementaryMeasureAsync(
             Guid.NewGuid(), SupplementaryMeasureType.Technical, "AES-256");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class DefaultSCCServiceTests
         var result = await _sut.AddSupplementaryMeasureAsync(
             Guid.NewGuid(), SupplementaryMeasureType.Technical, "AES-256");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -142,7 +142,7 @@ public class DefaultSCCServiceTests
 
         var result = await _sut.RevokeAgreementAsync(aggregate.Id, "Breach detected", "admin");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class DefaultSCCServiceTests
 
         var result = await _sut.RevokeAgreementAsync(Guid.NewGuid(), "Breach", "admin");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -179,7 +179,7 @@ public class DefaultSCCServiceTests
 
         var result = await _sut.GetAgreementAsync(agreementId);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.DidNotReceive().LoadAsync(agreementId, Arg.Any<CancellationToken>());
     }
 
@@ -197,7 +197,7 @@ public class DefaultSCCServiceTests
 
         var result = await _sut.GetAgreementAsync(aggregate.Id);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class DefaultSCCServiceTests
 
         var result = await _sut.GetAgreementAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -223,9 +223,9 @@ public class DefaultSCCServiceTests
     {
         var result = await _sut.ValidateAgreementAsync("processor-1", SCCModule.ControllerToProcessor);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
-            r => r.IsValid.Should().BeFalse(),
+            r => r.IsValid.ShouldBeFalse(),
             _ => { });
     }
 

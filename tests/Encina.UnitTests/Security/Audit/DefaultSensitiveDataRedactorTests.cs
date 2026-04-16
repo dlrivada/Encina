@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Security.Audit;
@@ -29,8 +29,8 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.Email.Should().Be("user@example.com");
-        masked.Password.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Email.ShouldBe("user@example.com");
+        masked.Password.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.UserId.Should().Be("user-1");
-        masked.Token.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.UserId.ShouldBe("user-1");
+        masked.Token.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.Name.Should().Be("Test");
-        masked.ApiKey.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Name.ShouldBe("Test");
+        masked.ApiKey.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     [Fact]
@@ -78,11 +78,11 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.Username.Should().Be("testuser");
-        masked.Password.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
-        masked.Token.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
-        masked.ApiKey.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
-        masked.Ssn.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Username.ShouldBe("testuser");
+        masked.Password.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Token.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.ApiKey.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Ssn.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     #endregion
@@ -102,10 +102,10 @@ public class DefaultSensitiveDataRedactorTests
         var redacted = _redactor.RedactJsonString(json);
 
         // Assert
-        redacted.Should().Contain("[REDACTED]");
-        redacted.Should().NotContain("secret");
-        redacted.Should().Contain("user@test.com"); // email should not be redacted
-        redacted.Should().Contain("Test");
+        redacted.ShouldContain("[REDACTED]");
+        redacted.ShouldNotContain("secret");
+        redacted.ShouldContain("user@test.com"); // email should not be redacted
+        redacted.ShouldContain("Test");
     }
 
     [Fact]
@@ -132,9 +132,9 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.Level1!.Value.Should().Be("public");
-        masked.Level1.Level2!.Secret.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
-        masked.Level1.Level2.Level3!.Token.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Level1!.Value.ShouldBe("public");
+        masked.Level1.Level2!.Secret.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Level1.Level2.Level3!.Token.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     #endregion
@@ -158,11 +158,11 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.Users.Should().HaveCount(2);
-        masked.Users![0].Name.Should().Be("User1");
-        masked.Users[0].Password.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
-        masked.Users[1].Name.Should().Be("User2");
-        masked.Users[1].Password.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Users.Count.ShouldBe(2);
+        masked.Users![0].Name.ShouldBe("User1");
+        masked.Users[0].Password.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Users[1].Name.ShouldBe("User2");
+        masked.Users[1].Password.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     [Fact]
@@ -188,11 +188,11 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.Groups.Should().NotBeNull();
-        masked.Groups![0].Name.Should().Be("Group1");
-        masked.Groups[0].Members.Should().NotBeNull();
-        masked.Groups[0].Members![0].Name.Should().Be("Member1");
-        masked.Groups[0].Members![0].ApiKey.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Groups.ShouldNotBeNull();
+        masked.Groups![0].Name.ShouldBe("Group1");
+        masked.Groups[0].Members.ShouldNotBeNull();
+        masked.Groups[0].Members![0].Name.ShouldBe("Member1");
+        masked.Groups[0].Members![0].ApiKey.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     #endregion
@@ -209,8 +209,8 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString(json);
 
         // Assert
-        result.Should().Contain("[REDACTED]");
-        result.Should().Contain("test@test.com");
+        result.ShouldContain("[REDACTED]");
+        result.ShouldContain("test@test.com");
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString(json);
 
         // Assert
-        result.Should().Contain("[REDACTED]");
+        result.ShouldContain("[REDACTED]");
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString(json);
 
         // Assert
-        result.Should().Contain("[REDACTED]");
+        result.ShouldContain("[REDACTED]");
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString(json);
 
         // Assert
-        result.Should().Contain("[REDACTED]");
+        result.ShouldContain("[REDACTED]");
     }
 
     #endregion
@@ -266,7 +266,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString(malformedJson);
 
         // Assert
-        result.Should().Be(malformedJson);
+        result.ShouldBe(malformedJson);
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString("");
 
         // Assert
-        result.Should().Be("");
+        result.ShouldBe("");
     }
 
     [Fact]
@@ -286,7 +286,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString(null!);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.RedactJsonString("   ");
 
         // Assert
-        result.Should().Be("   ");
+        result.ShouldBe("   ");
     }
 
     [Fact]
@@ -310,7 +310,7 @@ public class DefaultSensitiveDataRedactorTests
         var result = _redactor.MaskForAudit(request);
 
         // Assert
-        result.Should().BeSameAs(request);
+        result.ShouldBeSameAs(request);
     }
 
     #endregion
@@ -332,9 +332,9 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request, ["CustomSecret"]);
 
         // Assert
-        masked.Name.Should().Be("Test");
-        masked.CustomSecret.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
-        masked.NormalField.Should().Be("visible");
+        masked.Name.ShouldBe("Test");
+        masked.CustomSecret.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.NormalField.ShouldBe("visible");
     }
 
     [Fact]
@@ -357,9 +357,9 @@ public class DefaultSensitiveDataRedactorTests
         var masked = redactor.MaskForAudit(request);
 
         // Assert
-        masked.Name.Should().Be("Test");
-        masked.CustomField.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
-        masked.DateOfBirth.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.Name.ShouldBe("Test");
+        masked.CustomField.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
+        masked.DateOfBirth.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     #endregion
@@ -376,9 +376,9 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        var typedResult = masked.Should().BeOfType<SimpleRequest>().Subject;
-        typedResult.Email.Should().Be("test@test.com");
-        typedResult.Password.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        var typedResult = masked.ShouldBeOfType<SimpleRequest>().Subject;
+        typedResult.Email.ShouldBe("test@test.com");
+        typedResult.Password.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     [Fact]
@@ -396,8 +396,8 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request, ["CustomSecret"]);
 
         // Assert
-        var typedResult = masked.Should().BeOfType<CustomFieldsRequest>().Subject;
-        typedResult.CustomSecret.Should().Be(DefaultSensitiveDataRedactor.RedactedValue);
+        var typedResult = masked.ShouldBeOfType<CustomFieldsRequest>().Subject;
+        typedResult.CustomSecret.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 
     #endregion
@@ -408,20 +408,20 @@ public class DefaultSensitiveDataRedactorTests
     public void DefaultSensitiveFieldPatterns_ShouldContainCommonSensitiveFields()
     {
         // Assert
-        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.Should().Contain("password");
-        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.Should().Contain("secret");
-        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.Should().Contain("token");
-        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.Should().Contain("apikey");
-        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.Should().Contain("ssn");
-        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.Should().Contain("creditcard");
-        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.Should().Contain("cvv");
+        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.ShouldContain("password");
+        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.ShouldContain("secret");
+        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.ShouldContain("token");
+        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.ShouldContain("apikey");
+        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.ShouldContain("ssn");
+        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.ShouldContain("creditcard");
+        DefaultSensitiveDataRedactor.DefaultSensitiveFieldPatterns.ShouldContain("cvv");
     }
 
     [Fact]
     public void RedactedValue_ShouldBeCorrectString()
     {
         // Assert
-        DefaultSensitiveDataRedactor.RedactedValue.Should().Be("[REDACTED]");
+        DefaultSensitiveDataRedactor.RedactedValue.ShouldBe("[REDACTED]");
     }
 
     #endregion
@@ -435,8 +435,8 @@ public class DefaultSensitiveDataRedactorTests
         var act = () => new DefaultSensitiveDataRedactor(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("options");
     }
 
     #endregion

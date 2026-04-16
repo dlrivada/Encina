@@ -1,5 +1,5 @@
 using Encina.Security.Encryption;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Encryption;
 
@@ -12,10 +12,10 @@ public sealed class EncryptionAttributeTests
     {
         var attr = new EncryptAttribute();
 
-        attr.Algorithm.Should().Be(EncryptionAlgorithm.Aes256Gcm);
-        attr.FailOnError.Should().BeTrue();
-        attr.Purpose.Should().BeNull();
-        attr.KeyId.Should().BeNull();
+        attr.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
+        attr.FailOnError.ShouldBeTrue();
+        attr.Purpose.ShouldBeNull();
+        attr.KeyId.ShouldBeNull();
     }
 
     [Fact]
@@ -23,7 +23,7 @@ public sealed class EncryptionAttributeTests
     {
         var attr = new EncryptAttribute { Purpose = "User.Email" };
 
-        attr.Purpose.Should().Be("User.Email");
+        attr.Purpose.ShouldBe("User.Email");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class EncryptionAttributeTests
     {
         var attr = new EncryptAttribute { KeyId = "custom-key" };
 
-        attr.KeyId.Should().Be("custom-key");
+        attr.KeyId.ShouldBe("custom-key");
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class EncryptionAttributeTests
     {
         var attr = new EncryptAttribute();
 
-        attr.Should().BeAssignableTo<EncryptionAttribute>();
+        attr.ShouldBeAssignableTo<EncryptionAttribute>();
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class EncryptionAttributeTests
     {
         var attr = new EncryptAttribute { FailOnError = false };
 
-        attr.FailOnError.Should().BeFalse();
+        attr.FailOnError.ShouldBeFalse();
     }
 
     #endregion
@@ -59,7 +59,7 @@ public sealed class EncryptionAttributeTests
     {
         var attr = new EncryptedResponseAttribute();
 
-        attr.Should().BeAssignableTo<Attribute>();
+        attr.ShouldBeAssignableTo<Attribute>();
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class EncryptionAttributeTests
         var type = typeof(TestEncryptedResponseClass);
         var attrs = type.GetCustomAttributes(typeof(EncryptedResponseAttribute), true);
 
-        attrs.Should().HaveCount(1);
+        attrs.Count.ShouldBe(1);
     }
 
     #endregion
@@ -80,7 +80,7 @@ public sealed class EncryptionAttributeTests
     {
         var attr = new DecryptOnReceiveAttribute();
 
-        attr.Should().BeAssignableTo<Attribute>();
+        attr.ShouldBeAssignableTo<Attribute>();
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class EncryptionAttributeTests
         var type = typeof(TestDecryptOnReceiveClass);
         var attrs = type.GetCustomAttributes(typeof(DecryptOnReceiveAttribute), true);
 
-        attrs.Should().HaveCount(1);
+        attrs.Count.ShouldBe(1);
     }
 
     #endregion

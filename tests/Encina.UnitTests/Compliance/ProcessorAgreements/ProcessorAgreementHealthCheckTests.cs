@@ -6,7 +6,7 @@ using Encina.Compliance.ProcessorAgreements.Health;
 using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -67,7 +67,7 @@ public class ProcessorAgreementHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext(), CancellationToken.None);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class ProcessorAgreementHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext(), CancellationToken.None);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -109,8 +109,8 @@ public class ProcessorAgreementHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext(), CancellationToken.None);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IProcessorService");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("IProcessorService");
     }
 
     [Fact]
@@ -132,14 +132,14 @@ public class ProcessorAgreementHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext(), CancellationToken.None);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IDPAService");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("IDPAService");
     }
 
     [Fact]
     public void DefaultName_HasExpectedValue()
     {
         // Assert
-        ProcessorAgreementHealthCheck.DefaultName.Should().Be("encina-processor-agreements");
+        ProcessorAgreementHealthCheck.DefaultName.ShouldBe("encina-processor-agreements");
     }
 }

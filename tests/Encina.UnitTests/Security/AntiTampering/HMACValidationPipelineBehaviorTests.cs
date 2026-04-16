@@ -5,7 +5,7 @@ using Encina.Security.AntiTampering;
 using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.HMAC;
 using Encina.Security.AntiTampering.Pipeline;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -105,8 +105,8 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(request, _context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(request, _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -139,9 +139,9 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone("").Should().Be(AntiTamperingErrors.SignatureMissingCode);
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.SignatureMissingCode);
     }
 
     [Fact]
@@ -155,9 +155,9 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone("").Should().Be(AntiTamperingErrors.SignatureMissingCode);
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.SignatureMissingCode);
     }
 
     #endregion
@@ -176,9 +176,9 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone("").Should().Be(AntiTamperingErrors.TimestampExpiredCode);
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.TimestampExpiredCode);
     }
 
     [Fact]
@@ -192,9 +192,9 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone("").Should().Be(AntiTamperingErrors.TimestampExpiredCode);
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.TimestampExpiredCode);
     }
 
     #endregion
@@ -215,9 +215,9 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone("").Should().Be(AntiTamperingErrors.NonceReusedCode);
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.NonceReusedCode);
     }
 
     [Fact]
@@ -232,9 +232,9 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone("").Should().Be(AntiTamperingErrors.NonceMissingCode);
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.NonceMissingCode);
     }
 
     #endregion
@@ -269,8 +269,8 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, nextStep, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -294,9 +294,9 @@ public sealed class HMACValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone("").Should().Be(AntiTamperingErrors.SignatureInvalidCode);
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.SignatureInvalidCode);
     }
 
     #endregion

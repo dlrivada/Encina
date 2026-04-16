@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Encina.Security;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -40,7 +40,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- AllowAnonymous --
@@ -58,7 +58,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- DenyAnonymous --
@@ -76,7 +76,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -92,9 +92,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
     }
 
     // -- RequireRole --
@@ -112,7 +112,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -128,9 +128,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.InsufficientRolesCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.InsufficientRolesCode);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- RequireAllRoles --
@@ -164,7 +164,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -180,9 +180,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.InsufficientRolesCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.InsufficientRolesCode);
     }
 
     // -- RequirePermission --
@@ -207,7 +207,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -230,9 +230,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.PermissionDeniedCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.PermissionDeniedCode);
     }
 
     [Fact]
@@ -255,7 +255,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 #pragma warning disable CA2012
         await _permissionEvaluator.Received(1)
             .HasAllPermissionsAsync(ctx, Arg.Any<string[]>(), Arg.Any<CancellationToken>());
@@ -278,7 +278,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -312,9 +312,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.ClaimMissingCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.ClaimMissingCode);
     }
 
     [Fact]
@@ -330,9 +330,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.ClaimMissingCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.ClaimMissingCode);
     }
 
     // -- RequireOwnership --
@@ -357,7 +357,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -380,9 +380,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.NotOwnerCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.NotOwnerCode);
     }
 
     // -- RequireAuthenticatedByDefault --
@@ -400,7 +400,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -416,9 +416,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
     }
 
     // -- Missing security context --
@@ -437,9 +437,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.MissingContextCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.MissingContextCode);
     }
 
     [Fact]
@@ -456,9 +456,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
     }
 
     // -- Multiple attributes combined --
@@ -476,9 +476,9 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert — Should fail on DenyAnonymous, not RequireRole
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").Should().Be(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
     }
 
     [Fact]
@@ -494,7 +494,7 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- Error metadata --
@@ -512,11 +512,11 @@ public class SecurityPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
         var details = error.GetDetails();
-        details.Should().ContainKey("requestType");
-        details["requestType"].Should().Be(typeof(DenyAnonymousCommand).FullName);
+        details.ShouldContainKey("requestType");
+        details["requestType"].ShouldBe(typeof(DenyAnonymousCommand).FullName);
     }
 
     // -- Null request guard --
@@ -532,8 +532,8 @@ public class SecurityPipelineBehaviorTests
             null!, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     #region Helpers

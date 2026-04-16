@@ -2,7 +2,7 @@ using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
 using Encina.Compliance.AIAct.Health;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -40,7 +40,7 @@ public class AIActHealthCheckTests
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class AIActHealthCheckTests
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class AIActHealthCheckTests
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class AIActHealthCheckTests
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
@@ -110,22 +110,22 @@ public class AIActHealthCheckTests
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
     public void DefaultName_ShouldBeEncinaAIAct()
     {
-        AIActHealthCheck.DefaultName.Should().Be("encina-aiact");
+        AIActHealthCheck.DefaultName.ShouldBe("encina-aiact");
     }
 
     [Fact]
     public void Tags_ShouldContainExpectedTags()
     {
-        AIActHealthCheck.Tags.Should().Contain("encina");
-        AIActHealthCheck.Tags.Should().Contain("aiact");
-        AIActHealthCheck.Tags.Should().Contain("compliance");
-        AIActHealthCheck.Tags.Should().Contain("ready");
+        AIActHealthCheck.Tags.ShouldContain("encina");
+        AIActHealthCheck.Tags.ShouldContain("aiact");
+        AIActHealthCheck.Tags.ShouldContain("compliance");
+        AIActHealthCheck.Tags.ShouldContain("ready");
     }
 
     // -- Helpers --

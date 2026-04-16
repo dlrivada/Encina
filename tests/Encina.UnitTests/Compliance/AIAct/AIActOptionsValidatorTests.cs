@@ -1,6 +1,6 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Compliance.AIAct;
@@ -22,7 +22,7 @@ public class AIActOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class AIActOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
+        result.Failed.ShouldBeTrue();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class AIActOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     [Fact]
@@ -75,6 +75,6 @@ public class AIActOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 }

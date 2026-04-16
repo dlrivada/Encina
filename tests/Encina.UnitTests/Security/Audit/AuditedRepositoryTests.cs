@@ -3,7 +3,7 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -36,7 +36,7 @@ public sealed class AuditedRepositoryTests
             harness.TimeProvider,
             NullLogger<AuditedRepository<AuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class AuditedRepositoryTests
             harness.TimeProvider,
             NullLogger<AuditedRepository<AuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("readAuditStore");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readAuditStore");
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class AuditedRepositoryTests
             harness.TimeProvider,
             NullLogger<AuditedRepository<AuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class AuditedRepositoryTests
             harness.TimeProvider,
             NullLogger<AuditedRepository<AuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("readAuditContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readAuditContext");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class AuditedRepositoryTests
             harness.TimeProvider,
             NullLogger<AuditedRepository<AuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class AuditedRepositoryTests
             null!,
             NullLogger<AuditedRepository<AuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class AuditedRepositoryTests
             harness.TimeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     // ── GetByIdAsync ────────────────────────────────────────────────────
@@ -150,14 +150,14 @@ public sealed class AuditedRepositoryTests
 
         var result = await sut.GetByIdAsync(id);
 
-        result.IsSome.Should().BeTrue();
-        harness.LoggedEntries.Should().HaveCount(1);
+        result.IsSome.ShouldBeTrue();
+        harness.LoggedEntries.Count.ShouldBe(1);
         var entry = harness.LoggedEntries[0];
-        entry.EntityCount.Should().Be(1);
-        entry.EntityId.Should().Be(id.ToString());
-        entry.EntityType.Should().Be(nameof(AuditedTestEntity));
-        entry.AccessMethod.Should().Be(ReadAccessMethod.Repository);
-        entry.Metadata.Should().ContainKey("method").WhoseValue.Should().Be("GetById");
+        entry.EntityCount.ShouldBe(1);
+        entry.EntityId.ShouldBe(id.ToString());
+        entry.EntityType.ShouldBe(nameof(AuditedTestEntity));
+        entry.AccessMethod.ShouldBe(ReadAccessMethod.Repository);
+        entry.Metadata.ShouldContainKey("method").WhoseValue.ShouldBe("GetById");
     }
 
     [Fact]
@@ -172,9 +172,9 @@ public sealed class AuditedRepositoryTests
 
         var result = await sut.GetByIdAsync(id);
 
-        result.IsNone.Should().BeTrue();
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].EntityCount.Should().Be(0);
+        result.IsNone.ShouldBeTrue();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetByIdAsync(id);
 
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     // ── GetAllAsync ─────────────────────────────────────────────────────
@@ -209,11 +209,11 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.GetAllAsync();
 
-        result.Should().HaveCount(3);
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].EntityCount.Should().Be(3);
-        harness.LoggedEntries[0].Metadata!["method"].Should().Be("GetAll");
-        harness.LoggedEntries[0].EntityId.Should().BeNull();
+        result.Count.ShouldBe(3);
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].EntityCount.ShouldBe(3);
+        harness.LoggedEntries[0].Metadata!["method"].ShouldBe("GetAll");
+        harness.LoggedEntries[0].EntityId.ShouldBeNull();
     }
 
     [Fact]
@@ -226,9 +226,9 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.GetAllAsync();
 
-        result.Should().BeEmpty();
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].EntityCount.Should().Be(0);
+        result.ShouldBeEmpty();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── FindAsync (Specification) ───────────────────────────────────────
@@ -245,10 +245,10 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.FindAsync(spec);
 
-        result.Should().HaveCount(1);
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].Metadata!["method"].Should().Be("Find");
-        harness.LoggedEntries[0].EntityCount.Should().Be(1);
+        result.Count.ShouldBe(1);
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].Metadata!["method"].ShouldBe("Find");
+        harness.LoggedEntries[0].EntityCount.ShouldBe(1);
     }
 
     [Fact]
@@ -262,9 +262,9 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.FindAsync(spec);
 
-        result.Should().BeEmpty();
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].EntityCount.Should().Be(0);
+        result.ShouldBeEmpty();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── FindOneAsync ────────────────────────────────────────────────────
@@ -281,10 +281,10 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.FindOneAsync(spec);
 
-        result.IsSome.Should().BeTrue();
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].EntityCount.Should().Be(1);
-        harness.LoggedEntries[0].Metadata!["method"].Should().Be("FindOne");
+        result.IsSome.ShouldBeTrue();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].EntityCount.ShouldBe(1);
+        harness.LoggedEntries[0].Metadata!["method"].ShouldBe("FindOne");
     }
 
     [Fact]
@@ -298,9 +298,9 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.FindOneAsync(spec);
 
-        result.IsNone.Should().BeTrue();
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].EntityCount.Should().Be(0);
+        result.IsNone.ShouldBeTrue();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── FindAsync (predicate) ───────────────────────────────────────────
@@ -321,10 +321,10 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.FindAsync(predicate);
 
-        result.Should().HaveCount(2);
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].Metadata!["method"].Should().Be("FindByPredicate");
-        harness.LoggedEntries[0].EntityCount.Should().Be(2);
+        result.Count.ShouldBe(2);
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].Metadata!["method"].ShouldBe("FindByPredicate");
+        harness.LoggedEntries[0].EntityCount.ShouldBe(2);
     }
 
     [Fact]
@@ -338,8 +338,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.FindAsync(predicate);
 
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].EntityCount.Should().Be(0);
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── GetPagedAsync ───────────────────────────────────────────────────
@@ -358,10 +358,10 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.GetPagedAsync(1, 10);
 
-        result.Items.Should().HaveCount(1);
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].Metadata!["method"].Should().Be("GetPaged");
-        harness.LoggedEntries[0].EntityCount.Should().Be(1);
+        result.Items.Count.ShouldBe(1);
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].Metadata!["method"].ShouldBe("GetPaged");
+        harness.LoggedEntries[0].EntityCount.ShouldBe(1);
     }
 
     [Fact]
@@ -383,10 +383,10 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.GetPagedAsync(spec, 2, 25);
 
-        result.TotalCount.Should().Be(27);
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].Metadata!["method"].Should().Be("GetPagedWithSpec");
-        harness.LoggedEntries[0].EntityCount.Should().Be(2);
+        result.TotalCount.ShouldBe(27);
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].Metadata!["method"].ShouldBe("GetPagedWithSpec");
+        harness.LoggedEntries[0].EntityCount.ShouldBe(2);
     }
 
     // ── Metadata operations (NOT audited) ───────────────────────────────
@@ -401,8 +401,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.AnyAsync(spec);
 
-        result.Should().BeTrue();
-        harness.LoggedEntries.Should().BeEmpty();
+        result.ShouldBeTrue();
+        harness.LoggedEntries.ShouldBeEmpty();
         await harness.Inner.Received(1).AnyAsync(spec, Arg.Any<CancellationToken>());
     }
 
@@ -416,8 +416,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.AnyAsync(predicate);
 
-        result.Should().BeTrue();
-        harness.LoggedEntries.Should().BeEmpty();
+        result.ShouldBeTrue();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -430,8 +430,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.CountAsync(spec);
 
-        result.Should().Be(11);
-        harness.LoggedEntries.Should().BeEmpty();
+        result.ShouldBe(11);
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -443,8 +443,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.CountAsync();
 
-        result.Should().Be(99);
-        harness.LoggedEntries.Should().BeEmpty();
+        result.ShouldBe(99);
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     // ── Write operations (delegated, no audit) ──────────────────────────
@@ -459,7 +459,7 @@ public sealed class AuditedRepositoryTests
         await sut.AddAsync(entity);
 
         await harness.Inner.Received(1).AddAsync(entity, Arg.Any<CancellationToken>());
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -476,7 +476,7 @@ public sealed class AuditedRepositoryTests
         await sut.AddRangeAsync(entities);
 
         await harness.Inner.Received(1).AddRangeAsync(entities, Arg.Any<CancellationToken>());
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -489,7 +489,7 @@ public sealed class AuditedRepositoryTests
         sut.Update(entity);
 
         harness.Inner.Received(1).Update(entity);
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -502,7 +502,7 @@ public sealed class AuditedRepositoryTests
         sut.UpdateRange(entities);
 
         harness.Inner.Received(1).UpdateRange(entities);
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -515,7 +515,7 @@ public sealed class AuditedRepositoryTests
         sut.Remove(entity);
 
         harness.Inner.Received(1).Remove(entity);
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -528,7 +528,7 @@ public sealed class AuditedRepositoryTests
         sut.RemoveRange(entities);
 
         harness.Inner.Received(1).RemoveRange(entities);
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -541,8 +541,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         var result = await sut.RemoveByIdAsync(id);
 
-        result.Should().BeTrue();
-        harness.LoggedEntries.Should().BeEmpty();
+        result.ShouldBeTrue();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     // ── ShouldAudit sampling / exclusion logic ──────────────────────────
@@ -560,7 +560,7 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetAllAsync();
 
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -576,8 +576,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetAllAsync();
 
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].UserId.Should().Be("user-42");
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].UserId.ShouldBe("user-42");
     }
 
     [Fact]
@@ -590,7 +590,7 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetAllAsync();
 
-        harness.LoggedEntries.Should().BeEmpty();
+        harness.LoggedEntries.ShouldBeEmpty();
     }
 
     // ── Audit failure resilience ────────────────────────────────────────
@@ -611,8 +611,8 @@ public sealed class AuditedRepositoryTests
 
         var act = async () => await sut.GetAllAsync();
 
-        var result = await act.Should().NotThrowAsync();
-        result.Which.Should().HaveCount(1);
+        var result = await Should.NotThrowAsync(act);
+        result.Which.Count.ShouldBe(1);
     }
 
     // ── RequirePurpose branch ───────────────────────────────────────────
@@ -630,8 +630,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetAllAsync();
 
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].Purpose.Should().BeNull();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].Purpose.ShouldBeNull();
     }
 
     [Fact]
@@ -647,8 +647,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetAllAsync();
 
-        harness.LoggedEntries.Should().HaveCount(1);
-        harness.LoggedEntries[0].Purpose.Should().Be("Compliance review");
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].Purpose.ShouldBe("Compliance review");
     }
 
     // ── Harness & helpers ───────────────────────────────────────────────

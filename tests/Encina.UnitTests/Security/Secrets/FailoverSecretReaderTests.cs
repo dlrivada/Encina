@@ -3,7 +3,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Providers;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -26,8 +26,8 @@ public sealed class FailoverSecretReaderTests
     {
         var act = () => new FailoverSecretReader(null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("providers");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("providers");
     }
 
     [Fact]
@@ -37,8 +37,8 @@ public sealed class FailoverSecretReaderTests
 
         var act = () => new FailoverSecretReader(providers, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -46,8 +46,8 @@ public sealed class FailoverSecretReaderTests
     {
         var act = () => new FailoverSecretReader([], _logger);
 
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("providers");
+        Should.Throw<ArgumentException>(act)
+            .ParamName.ShouldBe("providers");
     }
 
     #endregion
@@ -65,8 +65,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("secret-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("secret-value"));
     }
 
     [Fact]
@@ -81,8 +81,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync("key");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.FailoverExhaustedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.FailoverExhaustedCode));
     }
 
     #endregion
@@ -102,8 +102,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("primary-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("primary-value"));
         await secondary.DidNotReceive().GetSecretAsync("key", Arg.Any<CancellationToken>());
     }
 
@@ -124,8 +124,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("fallback-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("fallback-value"));
     }
 
     [Fact]
@@ -151,8 +151,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync("key");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.FailoverExhaustedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.FailoverExhaustedCode));
     }
 
     #endregion
@@ -172,8 +172,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync<TestConfig>("config");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Host.Should().Be("localhost"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.Host.ShouldBe("localhost"));
     }
 
     [Fact]
@@ -194,8 +194,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync<TestConfig>("config");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Host.Should().Be("fallback-host"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.Host.ShouldBe("fallback-host"));
     }
 
     [Fact]
@@ -211,8 +211,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync<TestConfig>("config");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.FailoverExhaustedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.FailoverExhaustedCode));
     }
 
     #endregion
@@ -232,8 +232,8 @@ public sealed class FailoverSecretReaderTests
 
         var result = await reader.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("primary-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("primary-value"));
         await fallback.DidNotReceive().GetSecretAsync("key", Arg.Any<CancellationToken>());
     }
 
@@ -244,8 +244,8 @@ public sealed class FailoverSecretReaderTests
 
         var act = () => primary.WithFailover(_logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("primary");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("primary");
     }
 
     [Fact]
@@ -255,8 +255,8 @@ public sealed class FailoverSecretReaderTests
 
         var act = () => primary.WithFailover(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -271,7 +271,7 @@ public sealed class FailoverSecretReaderTests
 
         var act = () => reader.GetSecretAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -282,7 +282,7 @@ public sealed class FailoverSecretReaderTests
 
         var act = () => reader.GetSecretAsync("").AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion

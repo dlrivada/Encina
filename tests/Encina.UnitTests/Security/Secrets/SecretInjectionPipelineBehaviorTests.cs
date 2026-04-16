@@ -3,7 +3,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Injection;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -94,8 +94,8 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
 
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
         await _secretReader.DidNotReceive().GetSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -114,9 +114,9 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
 
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
-        request.ApiKey.Should().Be("injected-key");
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
+        request.ApiKey.ShouldBe("injected-key");
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
 
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
-        _nextStepCalled.Should().BeFalse();
+        result.IsLeft.ShouldBeTrue();
+        _nextStepCalled.ShouldBeFalse();
     }
 
     #endregion
@@ -147,8 +147,8 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
 
         var act = () => behavior.Handle(null!, _context, nextStep, CancellationToken.None).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -160,8 +160,8 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
 
         var act = () => behavior.Handle(request, null!, nextStep, CancellationToken.None).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -176,8 +176,8 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
         var act = () => new SecretInjectionPipelineBehavior<TestSecretCommand, Unit>(
             null!, options, _behaviorLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("orchestrator");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("orchestrator");
     }
 
     [Fact]
@@ -188,8 +188,8 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
         var act = () => new SecretInjectionPipelineBehavior<TestSecretCommand, Unit>(
             orchestrator, null!, _behaviorLogger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -201,8 +201,8 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
         var act = () => new SecretInjectionPipelineBehavior<TestSecretCommand, Unit>(
             orchestrator, options, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -223,7 +223,7 @@ public sealed class SecretInjectionPipelineBehaviorTests : IDisposable
 
         var result = await behavior.Handle(request, _context, nextStep, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

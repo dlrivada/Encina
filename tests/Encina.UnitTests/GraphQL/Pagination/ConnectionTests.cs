@@ -1,6 +1,6 @@
 using Encina.DomainModeling.Pagination;
 using Encina.GraphQL.Pagination;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.GraphQL.Pagination;
 
@@ -35,13 +35,13 @@ public sealed class ConnectionTests
         var connection = Connection<TestOrder>.FromPagedData(pagedData);
 
         // Assert
-        connection.Edges.Should().HaveCount(3);
-        connection.Edges[0].Node.Id.Should().Be(1);
-        connection.Edges[0].Cursor.Should().Be("cursor_1");
-        connection.Edges[1].Node.Id.Should().Be(2);
-        connection.Edges[1].Cursor.Should().Be("cursor_2");
-        connection.Edges[2].Node.Id.Should().Be(3);
-        connection.Edges[2].Cursor.Should().Be("cursor_3");
+        connection.Edges.Count.ShouldBe(3);
+        connection.Edges[0].Node.Id.ShouldBe(1);
+        connection.Edges[0].Cursor.ShouldBe("cursor_1");
+        connection.Edges[1].Node.Id.ShouldBe(2);
+        connection.Edges[1].Cursor.ShouldBe("cursor_2");
+        connection.Edges[2].Node.Id.ShouldBe(3);
+        connection.Edges[2].Cursor.ShouldBe("cursor_3");
     }
 
     [Fact]
@@ -65,10 +65,10 @@ public sealed class ConnectionTests
         var connection = Connection<TestOrder>.FromPagedData(pagedData);
 
         // Assert
-        connection.PageInfo.HasPreviousPage.Should().BeTrue();
-        connection.PageInfo.HasNextPage.Should().BeTrue();
-        connection.PageInfo.StartCursor.Should().Be("start_cursor");
-        connection.PageInfo.EndCursor.Should().Be("end_cursor");
+        connection.PageInfo.HasPreviousPage.ShouldBeTrue();
+        connection.PageInfo.HasNextPage.ShouldBeTrue();
+        connection.PageInfo.StartCursor.ShouldBe("start_cursor");
+        connection.PageInfo.EndCursor.ShouldBe("end_cursor");
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class ConnectionTests
         var connection = Connection<TestOrder>.FromPagedData(pagedData);
 
         // Assert
-        connection.TotalCount.Should().Be(42);
+        connection.TotalCount.ShouldBe(42);
     }
 
     [Fact]
@@ -96,18 +96,17 @@ public sealed class ConnectionTests
         var connection = Connection<TestOrder>.FromPagedData(pagedData);
 
         // Assert
-        connection.TotalCount.Should().BeNull();
+        connection.TotalCount.ShouldBeNull();
     }
 
     [Fact]
     public void FromPagedData_NullData_ThrowsArgumentNullException()
     {
         // Act
-        var act = () => Connection<TestOrder>.FromPagedData(null!);
+        Action act = () => Connection<TestOrder>.FromPagedData(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("data");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("data");
     }
 
     #endregion
@@ -121,9 +120,9 @@ public sealed class ConnectionTests
         var connection = Connection<TestOrder>.Empty();
 
         // Assert
-        connection.Edges.Should().BeEmpty();
-        connection.Nodes.Should().BeEmpty();
-        connection.TotalCount.Should().Be(0);
+        connection.Edges.ShouldBeEmpty();
+        connection.Nodes.ShouldBeEmpty();
+        connection.TotalCount.ShouldBe(0);
     }
 
     [Fact]
@@ -133,10 +132,10 @@ public sealed class ConnectionTests
         var connection = Connection<TestOrder>.Empty();
 
         // Assert
-        connection.PageInfo.HasPreviousPage.Should().BeFalse();
-        connection.PageInfo.HasNextPage.Should().BeFalse();
-        connection.PageInfo.StartCursor.Should().BeNull();
-        connection.PageInfo.EndCursor.Should().BeNull();
+        connection.PageInfo.HasPreviousPage.ShouldBeFalse();
+        connection.PageInfo.HasNextPage.ShouldBeFalse();
+        connection.PageInfo.StartCursor.ShouldBeNull();
+        connection.PageInfo.EndCursor.ShouldBeNull();
     }
 
     #endregion
@@ -160,9 +159,9 @@ public sealed class ConnectionTests
         var connection = Connection<TestOrder>.FromPagedData(pagedData);
 
         // Assert
-        connection.Nodes.Should().HaveCount(2);
-        connection.Nodes[0].Id.Should().Be(1);
-        connection.Nodes[1].Id.Should().Be(2);
+        connection.Nodes.Count.ShouldBe(2);
+        connection.Nodes[0].Id.ShouldBe(1);
+        connection.Nodes[1].Id.ShouldBe(2);
     }
 
     #endregion
@@ -180,9 +179,9 @@ public sealed class ConnectionTests
         };
 
         // Assert
-        edge.Node.Id.Should().Be(1);
-        edge.Node.Name.Should().Be("Test Order");
-        edge.Cursor.Should().Be("test_cursor");
+        edge.Node.Id.ShouldBe(1);
+        edge.Node.Name.ShouldBe("Test Order");
+        edge.Cursor.ShouldBe("test_cursor");
     }
 
     #endregion
@@ -196,10 +195,10 @@ public sealed class ConnectionTests
         var pageInfo = RelayPageInfo.Empty();
 
         // Assert
-        pageInfo.HasPreviousPage.Should().BeFalse();
-        pageInfo.HasNextPage.Should().BeFalse();
-        pageInfo.StartCursor.Should().BeNull();
-        pageInfo.EndCursor.Should().BeNull();
+        pageInfo.HasPreviousPage.ShouldBeFalse();
+        pageInfo.HasNextPage.ShouldBeFalse();
+        pageInfo.StartCursor.ShouldBeNull();
+        pageInfo.EndCursor.ShouldBeNull();
     }
 
     [Fact]
@@ -215,10 +214,10 @@ public sealed class ConnectionTests
         };
 
         // Assert
-        pageInfo.HasPreviousPage.Should().BeTrue();
-        pageInfo.HasNextPage.Should().BeTrue();
-        pageInfo.StartCursor.Should().Be("start");
-        pageInfo.EndCursor.Should().Be("end");
+        pageInfo.HasPreviousPage.ShouldBeTrue();
+        pageInfo.HasNextPage.ShouldBeTrue();
+        pageInfo.StartCursor.ShouldBe("start");
+        pageInfo.EndCursor.ShouldBe("end");
     }
 
     #endregion

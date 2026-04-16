@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.Configuration;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,8 +16,8 @@ public sealed class SecretsConfigurationSourceTests
 
         var act = () => new SecretsConfigurationSource(null!, options);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -27,8 +27,8 @@ public sealed class SecretsConfigurationSourceTests
 
         var act = () => new SecretsConfigurationSource(provider, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     #endregion
@@ -45,8 +45,8 @@ public sealed class SecretsConfigurationSourceTests
 
         var result = source.Build(builder);
 
-        result.Should().NotBeNull();
-        result.Should().BeOfType<SecretsConfigurationProvider>();
+        result.ShouldNotBeNull();
+        result.ShouldBeOfType<SecretsConfigurationProvider>();
     }
 
     #endregion

@@ -1,5 +1,5 @@
 using Encina.Compliance.Anonymization.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -21,7 +21,7 @@ public class TokenMappingTests
             keyId: "key-001");
 
         // Assert
-        mapping.Id.Should().NotBeNullOrEmpty();
+        mapping.Id.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class TokenMappingTests
             keyId: "key-001");
 
         // Assert
-        mapping.Token.Should().Be("tok_abc123");
+        mapping.Token.ShouldBe("tok_abc123");
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class TokenMappingTests
             keyId: "key-001");
 
         // Assert
-        mapping.OriginalValueHash.Should().Be("hmac_sha256_base64_hash");
+        mapping.OriginalValueHash.ShouldBe("hmac_sha256_base64_hash");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class TokenMappingTests
             keyId: "key-001");
 
         // Assert
-        mapping.EncryptedOriginalValue.Should().BeEquivalentTo(encrypted);
+        mapping.EncryptedOriginalValue.ShouldBe(encrypted);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class TokenMappingTests
             keyId: "key-2025-01");
 
         // Assert
-        mapping.KeyId.Should().Be("key-2025-01");
+        mapping.KeyId.ShouldBe("key-2025-01");
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public class TokenMappingTests
         var after = DateTimeOffset.UtcNow;
 
         // Assert
-        mapping.CreatedAtUtc.Should().BeOnOrAfter(before);
-        mapping.CreatedAtUtc.Should().BeOnOrBefore(after);
+        mapping.CreatedAtUtc.ShouldBeGreaterThanOrEqualTo(before);
+        mapping.CreatedAtUtc.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class TokenMappingTests
             expiresAtUtc: expiration);
 
         // Assert
-        mapping.ExpiresAtUtc.Should().Be(expiration);
+        mapping.ExpiresAtUtc.ShouldBe(expiration);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class TokenMappingTests
             keyId: "key-001");
 
         // Assert
-        mapping.ExpiresAtUtc.Should().BeNull();
+        mapping.ExpiresAtUtc.ShouldBeNull();
     }
 
     #endregion
@@ -167,7 +167,7 @@ public class TokenMappingTests
         };
 
         // Assert
-        mapping1.Should().Be(mapping2);
+        mapping1.ShouldBe(mapping2);
     }
 
     #endregion

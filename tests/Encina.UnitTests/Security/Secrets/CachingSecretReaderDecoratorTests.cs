@@ -4,7 +4,7 @@ using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -47,8 +47,8 @@ public sealed class CachingSecretReaderDecoratorTests
         var result = await decorator.GetSecretAsync("key");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("cached-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("cached-value"));
         await _innerReader.DidNotReceive().GetSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         // GetOrSetAsync should NOT be called on cache hit
         await _cache.DidNotReceive().GetOrSetAsync(
@@ -87,8 +87,8 @@ public sealed class CachingSecretReaderDecoratorTests
         var result = await decorator.GetSecretAsync("key");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("inner-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("inner-value"));
         await _cache.Received(1).GetOrSetAsync(
             Arg.Is<string>(k => k.Contains(":v:key")),
             Arg.Any<Func<CancellationToken, Task<string>>>(),
@@ -125,7 +125,7 @@ public sealed class CachingSecretReaderDecoratorTests
         var result = await decorator.GetSecretAsync("key");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         // SetAsync should not be called for error results (LKG is also off since resilience is disabled)
         await _cache.DidNotReceive().SetAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
@@ -155,8 +155,8 @@ public sealed class CachingSecretReaderDecoratorTests
         var result = await decorator.GetSecretAsync("key");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("fallback-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("fallback-value"));
     }
 
     #endregion
@@ -279,7 +279,7 @@ public sealed class CachingSecretReaderDecoratorTests
         var act = () => new CachingSecretReaderDecorator(
             null!, _cache, _cachingOptions, _secretsOptions, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public sealed class CachingSecretReaderDecoratorTests
         var act = () => new CachingSecretReaderDecorator(
             _innerReader, null!, _cachingOptions, _secretsOptions, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -297,7 +297,7 @@ public sealed class CachingSecretReaderDecoratorTests
         var act = () => new CachingSecretReaderDecorator(
             _innerReader, _cache, null!, _secretsOptions, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cachingOptions");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cachingOptions");
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class CachingSecretReaderDecoratorTests
         var act = () => new CachingSecretReaderDecorator(
             _innerReader, _cache, _cachingOptions, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("secretsOptions");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("secretsOptions");
     }
 
     [Fact]
@@ -315,7 +315,7 @@ public sealed class CachingSecretReaderDecoratorTests
         var act = () => new CachingSecretReaderDecorator(
             _innerReader, _cache, _cachingOptions, _secretsOptions, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion

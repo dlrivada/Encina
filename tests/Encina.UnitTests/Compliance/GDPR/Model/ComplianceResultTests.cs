@@ -1,5 +1,5 @@
 using Encina.Compliance.GDPR;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR.Model;
 
@@ -15,9 +15,9 @@ public class ComplianceResultTests
         var result = ComplianceResult.Compliant();
 
         // Assert
-        result.IsCompliant.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-        result.Warnings.Should().BeEmpty();
+        result.IsCompliant.ShouldBeTrue();
+        result.Errors.ShouldBeEmpty();
+        result.Warnings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -27,10 +27,10 @@ public class ComplianceResultTests
         var result = ComplianceResult.CompliantWithWarnings("Retention near limit", "Optional safeguards missing");
 
         // Assert
-        result.IsCompliant.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-        result.Warnings.Should().HaveCount(2);
-        result.Warnings.Should().Contain("Retention near limit");
+        result.IsCompliant.ShouldBeTrue();
+        result.Errors.ShouldBeEmpty();
+        result.Warnings.Count.ShouldBe(2);
+        result.Warnings.ShouldContain("Retention near limit");
     }
 
     [Fact]
@@ -40,10 +40,10 @@ public class ComplianceResultTests
         var result = ComplianceResult.NonCompliant("Missing consent", "No lawful basis");
 
         // Assert
-        result.IsCompliant.Should().BeFalse();
-        result.Errors.Should().HaveCount(2);
-        result.Errors.Should().Contain("Missing consent");
-        result.Warnings.Should().BeEmpty();
+        result.IsCompliant.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(2);
+        result.Errors.ShouldContain("Missing consent");
+        result.Warnings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -55,9 +55,9 @@ public class ComplianceResultTests
             ["Non-critical warning"]);
 
         // Assert
-        result.IsCompliant.Should().BeFalse();
-        result.Errors.Should().HaveCount(1);
-        result.Warnings.Should().HaveCount(1);
+        result.IsCompliant.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(1);
+        result.Warnings.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class ComplianceResultTests
         var result = ComplianceResult.CompliantWithWarnings();
 
         // Assert
-        result.IsCompliant.Should().BeTrue();
-        result.Warnings.Should().BeEmpty();
+        result.IsCompliant.ShouldBeTrue();
+        result.Warnings.ShouldBeEmpty();
     }
 }

@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit.ReadAudit;
 
@@ -27,8 +27,8 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.LogReadAsync(entry);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        _store.Count.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        _store.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -44,10 +44,10 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.LogReadAsync(entry2);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        _store.Count.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        _store.Count.ShouldBe(1);
         var stored = _store.GetAllEntries()[0];
-        stored.EntityType.Should().Be("FinancialRecord");
+        stored.EntityType.ShouldBe("FinancialRecord");
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class InMemoryReadAuditStoreTests
         var act = async () => await _store.LogReadAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("entry");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+                .ParamName.ShouldBe("entry");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.LogReadAsync(entry, cts.Token);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class InMemoryReadAuditStoreTests
         await Task.WhenAll(tasks);
 
         // Assert
-        _store.Count.Should().Be(100);
+        _store.Count.ShouldBe(100);
     }
 
     #endregion
@@ -107,15 +107,15 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.GetAccessHistoryAsync("Patient", "P-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(1);
-                entries[0].EntityId.Should().Be("P-1");
+                entries.Count.ShouldBe(1);
+                entries[0].EntityId.ShouldBe("P-1");
                 return true;
             },
-            Left: _ => false).Should().BeTrue();
+            Left: _ => false).ShouldBeTrue();
     }
 
     [Fact]
@@ -128,10 +128,10 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.GetAccessHistoryAsync("Patient", "P-999");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: entries => entries.Count,
-            Left: _ => -1).Should().Be(0);
+            Left: _ => -1).ShouldBe(0);
     }
 
     [Fact]
@@ -144,10 +144,10 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.GetAccessHistoryAsync("patient", "P-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: entries => entries.Count,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -169,11 +169,11 @@ public class InMemoryReadAuditStoreTests
         result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(2);
-                entries[0].AccessedAtUtc.Should().BeOnOrAfter(entries[1].AccessedAtUtc);
+                entries.Count.ShouldBe(2);
+                entries[0].AccessedAtUtc.ShouldBeGreaterThanOrEqualTo(entries[1].AccessedAtUtc);
                 return true;
             },
-            Left: _ => false).Should().BeTrue();
+            Left: _ => false).ShouldBeTrue();
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class InMemoryReadAuditStoreTests
         var act = async () => await _store.GetAccessHistoryAsync(null!, "id");
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public class InMemoryReadAuditStoreTests
         var act = async () => await _store.GetAccessHistoryAsync("Patient", null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -213,10 +213,10 @@ public class InMemoryReadAuditStoreTests
             "user-1", now.AddMinutes(-1), now.AddMinutes(1));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: entries => entries.Count,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -231,10 +231,10 @@ public class InMemoryReadAuditStoreTests
             "user-1", now.AddDays(-1), now);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: entries => entries.Count,
-            Left: _ => -1).Should().Be(0);
+            Left: _ => -1).ShouldBe(0);
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public class InMemoryReadAuditStoreTests
             null!, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -267,15 +267,15 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(5);
-                paged.Items.Should().HaveCount(5);
+                paged.TotalCount.ShouldBe(5);
+                paged.Items.Count.ShouldBe(5);
                 return true;
             },
-            Left: _ => false).Should().BeTrue();
+            Left: _ => false).ShouldBeTrue();
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(2);
+            Left: _ => -1).ShouldBe(2);
     }
 
     [Fact]
@@ -312,7 +312,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -332,7 +332,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -350,7 +350,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -372,7 +372,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -396,16 +396,16 @@ public class InMemoryReadAuditStoreTests
         result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(25);
-                paged.Items.Should().HaveCount(10);
-                paged.PageNumber.Should().Be(2);
-                paged.PageSize.Should().Be(10);
-                paged.TotalPages.Should().Be(3);
-                paged.HasPreviousPage.Should().BeTrue();
-                paged.HasNextPage.Should().BeTrue();
+                paged.TotalCount.ShouldBe(25);
+                paged.Items.Count.ShouldBe(10);
+                paged.PageNumber.ShouldBe(2);
+                paged.PageSize.ShouldBe(10);
+                paged.TotalPages.ShouldBe(3);
+                paged.HasPreviousPage.ShouldBeTrue();
+                paged.HasNextPage.ShouldBeTrue();
                 return true;
             },
-            Left: _ => false).Should().BeTrue();
+            Left: _ => false).ShouldBeTrue();
     }
 
     [Fact]
@@ -423,7 +423,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -441,7 +441,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -463,7 +463,7 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: paged => paged.TotalCount,
-            Left: _ => -1).Should().Be(1);
+            Left: _ => -1).ShouldBe(1);
     }
 
     [Fact]
@@ -473,8 +473,8 @@ public class InMemoryReadAuditStoreTests
         var act = async () => await _store.QueryAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("query");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+                .ParamName.ShouldBe("query");
     }
 
     [Fact]
@@ -495,10 +495,10 @@ public class InMemoryReadAuditStoreTests
         result.Match(
             Right: paged =>
             {
-                paged.PageSize.Should().BeLessThanOrEqualTo(ReadAuditQuery.MaxPageSize);
+                paged.PageSize.ShouldBeLessThanOrEqualTo(ReadAuditQuery.MaxPageSize);
                 return true;
             },
-            Left: _ => false).Should().BeTrue();
+            Left: _ => false).ShouldBeTrue();
     }
 
     #endregion
@@ -518,11 +518,11 @@ public class InMemoryReadAuditStoreTests
         var result = await _store.PurgeEntriesAsync(now.AddDays(-3));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: count => count,
-            Left: _ => -1).Should().Be(2);
-        _store.Count.Should().Be(1);
+            Left: _ => -1).ShouldBe(2);
+        _store.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -537,8 +537,8 @@ public class InMemoryReadAuditStoreTests
         // Assert
         result.Match(
             Right: count => count,
-            Left: _ => -1).Should().Be(0);
-        _store.Count.Should().Be(1);
+            Left: _ => -1).ShouldBe(0);
+        _store.Count.ShouldBe(1);
     }
 
     #endregion
@@ -556,8 +556,8 @@ public class InMemoryReadAuditStoreTests
         _store.Clear();
 
         // Assert
-        _store.Count.Should().Be(0);
-        _store.GetAllEntries().Should().BeEmpty();
+        _store.Count.ShouldBe(0);
+        _store.GetAllEntries().ShouldBeEmpty();
     }
 
     #endregion

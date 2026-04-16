@@ -2,7 +2,7 @@ using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
 using Encina.Compliance.AIAct.Attributes;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -52,11 +52,11 @@ public class DefaultAIActComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.RiskLevel.Should().Be(AIRiskLevel.MinimalRisk);
-        compliance.IsProhibited.Should().BeFalse();
-        compliance.Violations.Should().BeEmpty();
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.MinimalRisk);
+        compliance.IsProhibited.ShouldBeFalse();
+        compliance.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -69,9 +69,9 @@ public class DefaultAIActComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, "unknown-system");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.RiskLevel.Should().Be(AIRiskLevel.MinimalRisk);
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.MinimalRisk);
     }
 
     // -- Registered system --
@@ -103,9 +103,9 @@ public class DefaultAIActComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, "test-system");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.RiskLevel.Should().Be(AIRiskLevel.HighRisk);
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.HighRisk);
     }
 
     // -- Classifier error --
@@ -128,7 +128,7 @@ public class DefaultAIActComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, "test-system");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     // -- Attribute-based system ID resolution --
@@ -161,7 +161,7 @@ public class DefaultAIActComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, (string?)null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -191,6 +191,6 @@ public class DefaultAIActComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, (string?)null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 }

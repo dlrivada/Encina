@@ -6,7 +6,7 @@ using Encina.Compliance.DPIA.Health;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -29,16 +29,16 @@ public class DPIAHealthCheckTests
     [Fact]
     public void DefaultName_HasExpectedValue()
     {
-        DPIAHealthCheck.DefaultName.Should().Be("encina-dpia");
+        DPIAHealthCheck.DefaultName.ShouldBe("encina-dpia");
     }
 
     [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        DPIAHealthCheck.Tags.Should().Contain("encina");
-        DPIAHealthCheck.Tags.Should().Contain("gdpr");
-        DPIAHealthCheck.Tags.Should().Contain("dpia");
-        DPIAHealthCheck.Tags.Should().Contain("compliance");
+        DPIAHealthCheck.Tags.ShouldContain("encina");
+        DPIAHealthCheck.Tags.ShouldContain("gdpr");
+        DPIAHealthCheck.Tags.ShouldContain("dpia");
+        DPIAHealthCheck.Tags.ShouldContain("compliance");
     }
 
     #endregion
@@ -66,8 +66,8 @@ public class DPIAHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("fully configured");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("fully configured");
     }
 
     #endregion
@@ -85,8 +85,8 @@ public class DPIAHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("DPIAOptions are not configured");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("DPIAOptions are not configured");
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public class DPIAHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IDPIAService");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("IDPIAService");
     }
 
     [Fact]
@@ -117,8 +117,8 @@ public class DPIAHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IDPIAAssessmentEngine");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("IDPIAAssessmentEngine");
     }
 
     #endregion
@@ -152,8 +152,8 @@ public class DPIAHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("expired");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("expired");
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public class DPIAHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("Draft");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("Draft");
     }
 
     #endregion
@@ -215,10 +215,10 @@ public class DPIAHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Data.Should().ContainKey("enforcementMode");
-        result.Data["enforcementMode"].Should().Be("Block");
-        result.Data.Should().ContainKey("serviceType");
-        result.Data.Should().ContainKey("engineType");
+        result.Data.ShouldContainKey("enforcementMode");
+        result.Data["enforcementMode"].ShouldBe("Block");
+        result.Data.ShouldContainKey("serviceType");
+        result.Data.ShouldContainKey("engineType");
     }
 
     #endregion

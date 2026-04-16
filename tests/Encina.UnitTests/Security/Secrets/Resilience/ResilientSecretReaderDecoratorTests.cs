@@ -3,7 +3,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -35,7 +35,7 @@ public sealed class ResilientSecretReaderDecoratorTests
         var act = () => new ResilientSecretReaderDecorator(
             null!, ResiliencePipeline.Empty, _options, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class ResilientSecretReaderDecoratorTests
         var act = () => new ResilientSecretReaderDecorator(
             _innerReader, null!, _options, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("pipeline");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("pipeline");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class ResilientSecretReaderDecoratorTests
         var act = () => new ResilientSecretReaderDecorator(
             _innerReader, ResiliencePipeline.Empty, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class ResilientSecretReaderDecoratorTests
         var act = () => new ResilientSecretReaderDecorator(
             _innerReader, ResiliencePipeline.Empty, _options, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -79,8 +79,8 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("my-secret");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("secret-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("secret-value"));
     }
 
     #endregion
@@ -98,8 +98,8 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("my-secret");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.NotFoundCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.NotFoundCode)));
         await _innerReader.Received(1).GetSecretAsync("my-secret", Arg.Any<CancellationToken>());
     }
 
@@ -114,8 +114,8 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("my-secret");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.AccessDeniedCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.AccessDeniedCode)));
         await _innerReader.Received(1).GetSecretAsync("my-secret", Arg.Any<CancellationToken>());
     }
 
@@ -142,9 +142,9 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("my-secret");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("secret-value"));
-        callCount.Should().Be(2);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("secret-value"));
+        callCount.ShouldBe(2);
     }
 
     [Fact]
@@ -158,8 +158,8 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("my-secret");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.ProviderUnavailableCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.ProviderUnavailableCode)));
         // 1 initial + 2 retries = 3 total calls
         await _innerReader.Received(3).GetSecretAsync("my-secret", Arg.Any<CancellationToken>());
     }
@@ -179,9 +179,9 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("my-secret");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.CircuitBreakerOpenCode)));
+            c.ShouldBe(SecretsErrors.CircuitBreakerOpenCode)));
     }
 
     #endregion
@@ -199,9 +199,9 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("my-secret");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.ResilienceTimeoutCode)));
+            c.ShouldBe(SecretsErrors.ResilienceTimeoutCode)));
     }
 
     #endregion
@@ -219,11 +219,11 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync<TestConfig>("config");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(v =>
         {
-            v.Host.Should().Be("localhost");
-            v.Port.Should().Be(5432);
+            v.Host.ShouldBe("localhost");
+            v.Port.ShouldBe(5432);
         });
     }
 
@@ -242,8 +242,8 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync<TestConfig>("config");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.NotFoundCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.NotFoundCode)));
         await _innerReader.Received(1).GetSecretAsync<TestConfig>("config", Arg.Any<CancellationToken>());
     }
 
@@ -271,9 +271,9 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync<TestConfig>("config");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Host.Should().Be("localhost"));
-        callCount.Should().Be(2);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.Host.ShouldBe("localhost"));
+        callCount.ShouldBe(2);
     }
 
     #endregion
@@ -291,9 +291,9 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync<TestConfig>("config");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.CircuitBreakerOpenCode)));
+            c.ShouldBe(SecretsErrors.CircuitBreakerOpenCode)));
     }
 
     #endregion
@@ -311,9 +311,9 @@ public sealed class ResilientSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync<TestConfig>("config");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.ResilienceTimeoutCode)));
+            c.ShouldBe(SecretsErrors.ResilienceTimeoutCode)));
     }
 
     #endregion

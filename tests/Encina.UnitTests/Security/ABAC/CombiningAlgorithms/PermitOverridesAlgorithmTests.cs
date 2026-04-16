@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -15,21 +15,21 @@ public sealed class PermitOverridesAlgorithmTests
     [Fact]
     public void AlgorithmId_ReturnsPermitOverrides()
     {
-        _sut.AlgorithmId.Should().Be(CombiningAlgorithmId.PermitOverrides);
+        _sut.AlgorithmId.ShouldBe(CombiningAlgorithmId.PermitOverrides);
     }
 
     [Fact]
     public void CombineRuleResults_SinglePermit_ReturnsPermit()
     {
         var results = new[] { MakeRuleResult(Effect.Permit) };
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit);
     }
 
     [Fact]
     public void CombineRuleResults_SingleDeny_ReturnsDeny()
     {
         var results = new[] { MakeRuleResult(Effect.Deny) };
-        _sut.CombineRuleResults(results).Should().Be(Effect.Deny);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class PermitOverridesAlgorithmTests
             MakeRuleResult(Effect.Permit)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit,
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit,
             "Permit overrides Deny per XACML §C.2");
     }
 
@@ -54,7 +54,7 @@ public sealed class PermitOverridesAlgorithmTests
             MakeRuleResult(Effect.NotApplicable)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.NotApplicable);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class PermitOverridesAlgorithmTests
             MakeRuleResult(Effect.Indeterminate, ruleEffect: Effect.Deny)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Indeterminate,
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Indeterminate,
             "Deny + Indeterminate{{D}} → Indeterminate per PermitOverrides");
     }
 
@@ -79,14 +79,14 @@ public sealed class PermitOverridesAlgorithmTests
             MakeRuleResult(Effect.Indeterminate, ruleEffect: Effect.Permit)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Indeterminate);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Indeterminate);
     }
 
     [Fact]
     public void CombineRuleResults_Empty_ReturnsNotApplicable()
     {
         _sut.CombineRuleResults(Array.Empty<RuleEvaluationResult>())
-            .Should().Be(Effect.NotApplicable);
+            .ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class PermitOverridesAlgorithmTests
             MakePolicyResult(Effect.Permit, "p2")
         };
 
-        _sut.CombinePolicyResults(results).Effect.Should().Be(Effect.Permit);
+        _sut.CombinePolicyResults(results).Effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -112,8 +112,8 @@ public sealed class PermitOverridesAlgorithmTests
         };
 
         var combined = _sut.CombinePolicyResults(results);
-        combined.Effect.Should().Be(Effect.Permit);
-        combined.Obligations.Should().ContainSingle().Which.Id.Should().Be("audit");
+        combined.Effect.ShouldBe(Effect.Permit);
+        combined.Obligations.ShouldHaveSingleItem().Which.Id.ShouldBe("audit");
     }
 
     #region Helpers

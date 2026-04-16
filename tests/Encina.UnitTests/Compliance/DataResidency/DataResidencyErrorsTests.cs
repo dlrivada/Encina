@@ -1,6 +1,6 @@
 using Encina.Compliance.DataResidency;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -13,8 +13,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.RegionNotAllowed("personal-data", "US");
 
         // Assert
-        error.GetCode().IsSome.Should().BeTrue();
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.RegionNotAllowedCode);
+        error.GetCode().IsSome.ShouldBeTrue();
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.RegionNotAllowedCode);
     }
 
     [Fact]
@@ -24,8 +24,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.RegionNotAllowed("healthcare-data", "CN");
 
         // Assert
-        error.Message.Should().Contain("CN");
-        error.Message.Should().Contain("healthcare-data");
+        error.Message.ShouldContain("CN");
+        error.Message.ShouldContain("healthcare-data");
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.CrossBorderTransferDenied("DE", "US", "No adequacy");
 
         // Assert
-        error.GetCode().IsSome.Should().BeTrue();
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.CrossBorderTransferDeniedCode);
+        error.GetCode().IsSome.ShouldBeTrue();
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.CrossBorderTransferDeniedCode);
     }
 
     [Fact]
@@ -46,9 +46,9 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.CrossBorderTransferDenied("DE", "CN", "No safeguards");
 
         // Assert
-        error.Message.Should().Contain("DE");
-        error.Message.Should().Contain("CN");
-        error.Message.Should().Contain("No safeguards");
+        error.Message.ShouldContain("DE");
+        error.Message.ShouldContain("CN");
+        error.Message.ShouldContain("No safeguards");
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.RegionNotResolved("No header found");
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.RegionNotResolvedCode);
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.RegionNotResolvedCode);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.PolicyNotFound("healthcare-data");
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.PolicyNotFoundCode);
-        error.Message.Should().Contain("healthcare-data");
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.PolicyNotFoundCode);
+        error.Message.ShouldContain("healthcare-data");
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.PolicyAlreadyExists("personal-data");
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.PolicyAlreadyExistsCode);
-        error.Message.Should().Contain("personal-data");
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.PolicyAlreadyExistsCode);
+        error.Message.ShouldContain("personal-data");
     }
 
     [Fact]
@@ -90,9 +90,9 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.StoreError("Record", "Connection failed");
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.StoreErrorCode);
-        error.Message.Should().Contain("Record");
-        error.Message.Should().Contain("Connection failed");
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.StoreErrorCode);
+        error.Message.ShouldContain("Record");
+        error.Message.ShouldContain("Connection failed");
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.StoreError("GetByEntity", "Failed", ex);
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.StoreErrorCode);
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.StoreErrorCode);
     }
 
     [Fact]
@@ -115,8 +115,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.TransferValidationFailed("Timeout");
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.TransferValidationFailedCode);
-        error.Message.Should().Contain("Timeout");
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.TransferValidationFailedCode);
+        error.Message.ShouldContain("Timeout");
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.LocationNotFound("loc-1");
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.LocationNotFoundCode);
-        error.Message.Should().Contain("loc-1");
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.LocationNotFoundCode);
+        error.Message.ShouldContain("loc-1");
     }
 
     [Fact]
@@ -140,9 +140,9 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.InvalidStateTransition(aggregateId, "Update");
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.InvalidStateTransitionCode);
-        error.Message.Should().Contain(aggregateId.ToString());
-        error.Message.Should().Contain("Update");
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.InvalidStateTransitionCode);
+        error.Message.ShouldContain(aggregateId.ToString());
+        error.Message.ShouldContain("Update");
     }
 
     [Fact]
@@ -155,9 +155,9 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.ServiceError("Create", exception);
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.ServiceErrorCode);
-        error.Message.Should().Contain("Create");
-        error.Message.Should().Contain("fail");
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.ServiceErrorCode);
+        error.Message.ShouldContain("Create");
+        error.Message.ShouldContain("fail");
     }
 
     [Fact]
@@ -170,8 +170,8 @@ public class DataResidencyErrorsTests
         var error = DataResidencyErrors.EventHistoryUnavailable(aggregateId);
 
         // Assert
-        error.GetCode().Match(Some: code => code, None: () => "").Should().Be(DataResidencyErrors.EventHistoryUnavailableCode);
-        error.Message.Should().Contain(aggregateId.ToString());
+        error.GetCode().Match(Some: code => code, None: () => "").ShouldBe(DataResidencyErrors.EventHistoryUnavailableCode);
+        error.Message.ShouldContain(aggregateId.ToString());
     }
 
     [Fact]
@@ -193,6 +193,6 @@ public class DataResidencyErrorsTests
             DataResidencyErrors.EventHistoryUnavailableCode
         };
 
-        codes.Should().OnlyHaveUniqueItems();
+        codes.ShouldBeUnique();
     }
 }

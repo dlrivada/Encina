@@ -1,6 +1,6 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -34,7 +34,7 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.RegisterSystemAsync(registration);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -48,9 +48,9 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.RegisterSystemAsync(CreateRegistration("sys-1"));
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("already registered");
+        error.Message.ShouldContain("already registered");
     }
 
     // -- GetSystemAsync --
@@ -66,9 +66,9 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.GetSystemAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var found = (AISystemRegistration)result;
-        found.SystemId.Should().Be("sys-1");
+        found.SystemId.ShouldBe("sys-1");
     }
 
     [Fact]
@@ -78,9 +78,9 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.GetSystemAsync("nonexistent");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("not registered");
+        error.Message.ShouldContain("not registered");
     }
 
     // -- GetAllSystemsAsync --
@@ -92,9 +92,9 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.GetAllSystemsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var systems = result.Match(Right: s => s, Left: _ => []);
-        systems.Should().BeEmpty();
+        systems.ShouldBeEmpty();
     }
 
     [Fact]
@@ -108,9 +108,9 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.GetAllSystemsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var systems = result.Match(Right: s => s, Left: _ => []);
-        systems.Should().HaveCount(2);
+        systems.Count.ShouldBe(2);
     }
 
     // -- GetSystemsByRiskLevelAsync --
@@ -126,10 +126,10 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.GetSystemsByRiskLevelAsync(AIRiskLevel.HighRisk);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var systems = result.Match(Right: s => s, Left: _ => []);
-        systems.Should().HaveCount(1);
-        systems[0].SystemId.Should().Be("sys-high");
+        systems.Count.ShouldBe(1);
+        systems[0].SystemId.ShouldBe("sys-high");
     }
 
     // -- IsRegistered --
@@ -141,13 +141,13 @@ public class InMemoryAISystemRegistryTests
         await _sut.RegisterSystemAsync(CreateRegistration("sys-1"));
 
         // Act & Assert
-        _sut.IsRegistered("sys-1").Should().BeTrue();
+        _sut.IsRegistered("sys-1").ShouldBeTrue();
     }
 
     [Fact]
     public void IsRegistered_UnregisteredSystem_ShouldReturnFalse()
     {
-        _sut.IsRegistered("nonexistent").Should().BeFalse();
+        _sut.IsRegistered("nonexistent").ShouldBeFalse();
     }
 
     // -- ReclassifyAsync --
@@ -162,10 +162,10 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.ReclassifyAsync("sys-1", AIRiskLevel.MinimalRisk, "Risk re-assessment");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var updated = await _sut.GetSystemAsync("sys-1");
         var reg = (AISystemRegistration)updated;
-        reg.RiskLevel.Should().Be(AIRiskLevel.MinimalRisk);
+        reg.RiskLevel.ShouldBe(AIRiskLevel.MinimalRisk);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class InMemoryAISystemRegistryTests
         var result = await _sut.ReclassifyAsync("nonexistent", AIRiskLevel.HighRisk, "test");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -15,12 +15,12 @@ public class RegionTests
             hasAdequacyDecision: true, DataProtectionLevel.High);
 
         // Assert
-        region.Code.Should().Be("DE");
-        region.Country.Should().Be("DE");
-        region.IsEU.Should().BeTrue();
-        region.IsEEA.Should().BeTrue();
-        region.HasAdequacyDecision.Should().BeTrue();
-        region.ProtectionLevel.Should().Be(DataProtectionLevel.High);
+        region.Code.ShouldBe("DE");
+        region.Country.ShouldBe("DE");
+        region.IsEU.ShouldBeTrue();
+        region.IsEEA.ShouldBeTrue();
+        region.HasAdequacyDecision.ShouldBeTrue();
+        region.ProtectionLevel.ShouldBe(DataProtectionLevel.High);
     }
 
     [Fact]
@@ -31,8 +31,8 @@ public class RegionTests
         var region2 = Region.Create("DE", "DE", true, true, true, DataProtectionLevel.High);
 
         // Assert
-        region1.Should().Be(region2);
-        (region1 == region2).Should().BeTrue();
+        region1.ShouldBe(region2);
+        (region1 == region2).ShouldBeTrue();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class RegionTests
         var region2 = Region.Create("DE", "DE", true, true, true, DataProtectionLevel.High);
 
         // Assert
-        region1.Should().Be(region2);
+        region1.ShouldBe(region2);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class RegionTests
         var region2 = Region.Create("FR", "FR", true, true, true, DataProtectionLevel.High);
 
         // Assert
-        region1.Should().NotBe(region2);
+        region1.ShouldNotBe(region2);
     }
 
     [Fact]
@@ -65,9 +65,9 @@ public class RegionTests
             hasAdequacyDecision: true, DataProtectionLevel.Medium);
 
         // Assert
-        region.IsEU.Should().BeFalse();
-        region.IsEEA.Should().BeFalse();
-        region.HasAdequacyDecision.Should().BeTrue();
+        region.IsEU.ShouldBeFalse();
+        region.IsEEA.ShouldBeFalse();
+        region.HasAdequacyDecision.ShouldBeTrue();
     }
 
     [Theory]
@@ -81,6 +81,6 @@ public class RegionTests
         var region = Region.Create("XX", "XX", false, false, false, level);
 
         // Assert
-        region.ProtectionLevel.Should().Be(level);
+        region.ProtectionLevel.ShouldBe(level);
     }
 }

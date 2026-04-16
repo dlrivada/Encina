@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit.ReadAudit;
 
@@ -17,29 +17,29 @@ public class ReadAuditQueryBuilderTests
         var query = new ReadAuditQuery();
 
         // Assert
-        query.UserId.Should().BeNull();
-        query.TenantId.Should().BeNull();
-        query.EntityType.Should().BeNull();
-        query.EntityId.Should().BeNull();
-        query.AccessMethod.Should().BeNull();
-        query.Purpose.Should().BeNull();
-        query.CorrelationId.Should().BeNull();
-        query.FromUtc.Should().BeNull();
-        query.ToUtc.Should().BeNull();
-        query.PageNumber.Should().Be(1);
-        query.PageSize.Should().Be(ReadAuditQuery.DefaultPageSize);
+        query.UserId.ShouldBeNull();
+        query.TenantId.ShouldBeNull();
+        query.EntityType.ShouldBeNull();
+        query.EntityId.ShouldBeNull();
+        query.AccessMethod.ShouldBeNull();
+        query.Purpose.ShouldBeNull();
+        query.CorrelationId.ShouldBeNull();
+        query.FromUtc.ShouldBeNull();
+        query.ToUtc.ShouldBeNull();
+        query.PageNumber.ShouldBe(1);
+        query.PageSize.ShouldBe(ReadAuditQuery.DefaultPageSize);
     }
 
     [Fact]
     public void DefaultPageSize_ShouldBe50()
     {
-        ReadAuditQuery.DefaultPageSize.Should().Be(50);
+        ReadAuditQuery.DefaultPageSize.ShouldBe(50);
     }
 
     [Fact]
     public void MaxPageSize_ShouldBe1000()
     {
-        ReadAuditQuery.MaxPageSize.Should().Be(1000);
+        ReadAuditQuery.MaxPageSize.ShouldBe(1000);
     }
 
     #endregion
@@ -53,7 +53,7 @@ public class ReadAuditQueryBuilderTests
         var builder = ReadAuditQuery.Builder();
 
         // Assert
-        builder.Should().NotBeNull();
+        builder.ShouldNotBeNull();
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.UserId.Should().Be("user-123");
+        query.UserId.ShouldBe("user-123");
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.TenantId.Should().Be("tenant-abc");
+        query.TenantId.ShouldBe("tenant-abc");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.EntityType.Should().Be("Patient");
+        query.EntityType.ShouldBe("Patient");
     }
 
     [Fact]
@@ -101,8 +101,8 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.EntityType.Should().Be("Patient");
-        query.EntityId.Should().Be("P-123");
+        query.EntityType.ShouldBe("Patient");
+        query.EntityId.ShouldBe("P-123");
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.AccessMethod.Should().Be(ReadAccessMethod.Export);
+        query.AccessMethod.ShouldBe(ReadAccessMethod.Export);
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.Purpose.Should().Be("Patient care");
+        query.Purpose.ShouldBe("Patient care");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.CorrelationId.Should().Be("corr-xyz");
+        query.CorrelationId.ShouldBe("corr-xyz");
     }
 
     [Fact]
@@ -154,8 +154,8 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.FromUtc.Should().Be(from);
-        query.ToUtc.Should().Be(to);
+        query.FromUtc.ShouldBe(from);
+        query.ToUtc.ShouldBe(to);
     }
 
     [Fact]
@@ -167,8 +167,8 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.FromUtc.Should().BeNull();
-        query.ToUtc.Should().BeNull();
+        query.FromUtc.ShouldBeNull();
+        query.ToUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.PageNumber.Should().Be(3);
+        query.PageNumber.ShouldBe(3);
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.PageSize.Should().Be(100);
+        query.PageSize.ShouldBe(100);
     }
 
     [Fact]
@@ -216,16 +216,16 @@ public class ReadAuditQueryBuilderTests
             .Build();
 
         // Assert
-        query.UserId.Should().Be("user-1");
-        query.TenantId.Should().Be("tenant-A");
-        query.EntityType.Should().Be("Patient");
-        query.AccessMethod.Should().Be(ReadAccessMethod.Repository);
-        query.Purpose.Should().Be("Audit review");
-        query.CorrelationId.Should().Be("corr-1");
-        query.FromUtc.Should().Be(from);
-        query.ToUtc.Should().Be(to);
-        query.PageNumber.Should().Be(2);
-        query.PageSize.Should().Be(25);
+        query.UserId.ShouldBe("user-1");
+        query.TenantId.ShouldBe("tenant-A");
+        query.EntityType.ShouldBe("Patient");
+        query.AccessMethod.ShouldBe(ReadAccessMethod.Repository);
+        query.Purpose.ShouldBe("Audit review");
+        query.CorrelationId.ShouldBe("corr-1");
+        query.FromUtc.ShouldBe(from);
+        query.ToUtc.ShouldBe(to);
+        query.PageNumber.ShouldBe(2);
+        query.PageSize.ShouldBe(25);
     }
 
     #endregion

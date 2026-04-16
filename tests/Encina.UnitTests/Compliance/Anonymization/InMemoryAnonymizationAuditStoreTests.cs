@@ -3,7 +3,7 @@
 using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.Anonymization.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -24,7 +24,7 @@ public class InMemoryAnonymizationAuditStoreTests
     public void Constructor_ShouldInitializeEmpty()
     {
         // Assert
-        _store.Count.Should().Be(0);
+        _store.Count.ShouldBe(0);
     }
 
     #endregion
@@ -41,8 +41,8 @@ public class InMemoryAnonymizationAuditStoreTests
         var result = await _store.AddEntryAsync(entry);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        _store.Count.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        _store.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class InMemoryAnonymizationAuditStoreTests
         await _store.AddEntryAsync(CreateEntry(subjectId: "subject-3"));
 
         // Assert
-        _store.Count.Should().Be(3);
+        _store.Count.ShouldBe(3);
     }
 
     #endregion
@@ -73,10 +73,10 @@ public class InMemoryAnonymizationAuditStoreTests
         var result = await _store.GetBySubjectIdAsync("subject-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var list = result.Match(Right: l => l, Left: _ => []);
-        list.Should().HaveCount(2);
-        list.Should().OnlyContain(e => e.SubjectId == "subject-1");
+        list.Count.ShouldBe(2);
+        list.ShouldAllBe(e => e.SubjectId == "subject-1");
     }
 
     [Fact]
@@ -89,9 +89,9 @@ public class InMemoryAnonymizationAuditStoreTests
         var result = await _store.GetBySubjectIdAsync("non-existing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var list = result.Match(Right: l => l, Left: _ => []);
-        list.Should().BeEmpty();
+        list.ShouldBeEmpty();
     }
 
     [Fact]
@@ -106,10 +106,10 @@ public class InMemoryAnonymizationAuditStoreTests
         var result = await _store.GetBySubjectIdAsync("subject-2");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var list = result.Match(Right: l => l, Left: _ => []);
-        list.Should().HaveCount(1);
-        list[0].SubjectId.Should().Be("subject-2");
+        list.Count.ShouldBe(1);
+        list[0].SubjectId.ShouldBe("subject-2");
     }
 
     #endregion
@@ -123,9 +123,9 @@ public class InMemoryAnonymizationAuditStoreTests
         var result = await _store.GetAllAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var list = result.Match(Right: l => l, Left: _ => []);
-        list.Should().BeEmpty();
+        list.ShouldBeEmpty();
     }
 
     [Fact]
@@ -140,9 +140,9 @@ public class InMemoryAnonymizationAuditStoreTests
         var result = await _store.GetAllAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var list = result.Match(Right: l => l, Left: _ => []);
-        list.Should().HaveCount(3);
+        list.Count.ShouldBe(3);
     }
 
     #endregion
@@ -161,9 +161,9 @@ public class InMemoryAnonymizationAuditStoreTests
         var asyncResult = await _store.GetAllAsync();
 
         // Assert
-        syncResult.Should().HaveCount(2);
+        syncResult.Count.ShouldBe(2);
         var asyncList = asyncResult.Match(Right: l => l, Left: _ => []);
-        asyncList.Should().HaveCount(syncResult.Count);
+        asyncList.Count.ShouldBe(syncResult.Count);
     }
 
     #endregion
@@ -176,13 +176,13 @@ public class InMemoryAnonymizationAuditStoreTests
         // Arrange
         await _store.AddEntryAsync(CreateEntry(subjectId: "subject-1"));
         await _store.AddEntryAsync(CreateEntry(subjectId: "subject-2"));
-        _store.Count.Should().Be(2);
+        _store.Count.ShouldBe(2);
 
         // Act
         _store.Clear();
 
         // Assert
-        _store.Count.Should().Be(0);
+        _store.Count.ShouldBe(0);
     }
 
     #endregion

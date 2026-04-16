@@ -2,7 +2,7 @@ using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
 using Encina.Security.Sanitization.Profiles;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -43,9 +43,9 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = _sut.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
-        request.Title.Should().NotContain("<script>");
-        request.Name.Should().Be("Unaffected");
+        result.IsRight.ShouldBeTrue();
+        request.Title.ShouldNotContain("<script>");
+        request.Name.ShouldBe("Unaffected");
     }
 
     [Fact]
@@ -58,9 +58,9 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = _sut.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
-        request.SearchTerm.Should().NotContain("--");
-        request.SearchTerm.Should().NotContain(";");
+        result.IsRight.ShouldBeTrue();
+        request.SearchTerm.ShouldNotContain("--");
+        request.SearchTerm.ShouldNotContain(";");
     }
 
     [Fact]
@@ -75,11 +75,11 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = _sut.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
-        request.HtmlContent.Should().NotContain("<script>");
-        request.SqlFilter.Should().NotContain("--");
-        request.SqlFilter.Should().NotContain(";");
-        request.PlainText.Should().Be("Untouched");
+        result.IsRight.ShouldBeTrue();
+        request.HtmlContent.ShouldNotContain("<script>");
+        request.SqlFilter.ShouldNotContain("--");
+        request.SqlFilter.ShouldNotContain(";");
+        request.PlainText.ShouldBe("Untouched");
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = _sut.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
-        request.Name.Should().Be("John");
+        result.IsRight.ShouldBeTrue();
+        request.Name.ShouldBe("John");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = _sut.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class SanitizationOrchestratorTests : IDisposable
     {
         var act = () => _sut.Sanitize<TestHtmlRequest>(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -134,8 +134,8 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = orchestrator.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
-        request.Name.Should().NotContain("<script>");
+        result.IsRight.ShouldBeTrue();
+        request.Name.ShouldNotContain("<script>");
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = orchestrator.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // Title has [SanitizeHtml] — processed by attribute handler
         // Name has no attribute — processed by auto-sanitize using default profile
     }
@@ -183,10 +183,10 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = orchestrator.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // BasicFormatting allows <b> but strips <script>
-        request.Name.Should().Contain("<b>");
-        request.Name.Should().NotContain("<script>");
+        request.Name.ShouldContain("<b>");
+        request.Name.ShouldNotContain("<script>");
     }
 
     #endregion
@@ -216,11 +216,11 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = orchestrator.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
-        request.Content.Should().Contain("<p>");
-        request.Content.Should().Contain("<b>");
-        request.Content.Should().NotContain("<script>");
-        request.Content.Should().NotContain("<div>");
+        result.IsRight.ShouldBeTrue();
+        request.Content.ShouldContain("<p>");
+        request.Content.ShouldContain("<b>");
+        request.Content.ShouldNotContain("<script>");
+        request.Content.ShouldNotContain("<div>");
     }
 
     [Fact]
@@ -240,8 +240,8 @@ public sealed class SanitizationOrchestratorTests : IDisposable
         // Should not throw — falls back to default profile
         var result = orchestrator.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
-        request.Content.Should().NotContain("<script>");
+        result.IsRight.ShouldBeTrue();
+        request.Content.ShouldNotContain("<script>");
     }
 
     #endregion
@@ -258,9 +258,9 @@ public sealed class SanitizationOrchestratorTests : IDisposable
 
         var result = _sut.Sanitize(request);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // StripHtml uses SanitizationProfiles.None → pass-through (no tags, no strip flags)
-        request.RawContent.Should().Be("<b>bold</b> text");
+        request.RawContent.ShouldBe("<b>bold</b> text");
     }
 
     #endregion

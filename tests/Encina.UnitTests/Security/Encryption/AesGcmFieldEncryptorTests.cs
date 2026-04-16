@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Algorithms;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using NSubstitute;
 using static LanguageExt.Prelude;
@@ -41,13 +41,13 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await _sut.EncryptStringAsync("hello world", context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var encrypted = result.Match(Right: v => v, Left: _ => default);
-        encrypted.KeyId.Should().Be(TestKeyId);
-        encrypted.Algorithm.Should().Be(EncryptionAlgorithm.Aes256Gcm);
-        encrypted.Nonce.Length.Should().Be(12);
-        encrypted.Tag.Length.Should().Be(16);
-        encrypted.Ciphertext.IsDefaultOrEmpty.Should().BeFalse();
+        encrypted.KeyId.ShouldBe(TestKeyId);
+        encrypted.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
+        encrypted.Nonce.Length.ShouldBe(12);
+        encrypted.Tag.Length.ShouldBe(16);
+        encrypted.Ciphertext.IsDefaultOrEmpty.ShouldBeFalse();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await _sut.EncryptStringAsync(string.Empty, context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -69,14 +69,14 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
         var result1 = await _sut.EncryptStringAsync(plaintext, context);
         var result2 = await _sut.EncryptStringAsync(plaintext, context);
 
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
 
         var enc1 = result1.Match(Right: v => v, Left: _ => default);
         var enc2 = result2.Match(Right: v => v, Left: _ => default);
 
         // Different nonces → different ciphertext
-        enc1.Nonce.Should().NotEqual(enc2.Nonce);
+        enc1.Nonce.ShouldNotBe(enc2.Nonce);
     }
 
     [Fact]
@@ -91,9 +91,9 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await _sut.EncryptStringAsync("hello", context);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var encrypted = result.Match(Right: v => v, Left: _ => default);
-        encrypted.KeyId.Should().Be(altKeyId);
+        encrypted.KeyId.ShouldBe(altKeyId);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await _sut.EncryptStringAsync("hello", context);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await _sut.EncryptStringAsync("hello", context);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await encryptor.EncryptStringAsync("hello", context);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -146,9 +146,9 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var decryptResult = await _sut.DecryptStringAsync(encrypted, context);
 
-        decryptResult.IsRight.Should().BeTrue();
+        decryptResult.IsRight.ShouldBeTrue();
         var decrypted = decryptResult.Match(Right: v => v, Left: _ => string.Empty);
-        decrypted.Should().Be(original);
+        decrypted.ShouldBe(original);
     }
 
     [Fact]
@@ -162,9 +162,9 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var decryptResult = await _sut.DecryptStringAsync(encrypted, context);
 
-        decryptResult.IsRight.Should().BeTrue();
+        decryptResult.IsRight.ShouldBeTrue();
         var decrypted = decryptResult.Match(Right: v => v, Left: _ => string.Empty);
-        decrypted.Should().Be(original);
+        decrypted.ShouldBe(original);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var decryptResult = await wrongEncryptor.DecryptStringAsync(encrypted, context);
 
-        decryptResult.IsLeft.Should().BeTrue();
+        decryptResult.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var decryptResult = await _sut.DecryptStringAsync(tampered, context);
 
-        decryptResult.IsLeft.Should().BeTrue();
+        decryptResult.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await _sut.DecryptStringAsync(empty, context);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var result = await _sut.DecryptStringAsync(invalid, context);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -263,14 +263,14 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
         var original = new byte[] { 1, 2, 3, 4, 5 };
 
         var encryptResult = await _sut.EncryptBytesAsync(original, context);
-        encryptResult.IsRight.Should().BeTrue();
+        encryptResult.IsRight.ShouldBeTrue();
 
         var encrypted = encryptResult.Match(Right: v => v, Left: _ => default);
         var decryptResult = await _sut.DecryptBytesAsync(encrypted, context);
 
-        decryptResult.IsRight.Should().BeTrue();
+        decryptResult.IsRight.ShouldBeTrue();
         var decrypted = decryptResult.Match(Right: v => v, Left: _ => []);
-        decrypted.Should().BeEquivalentTo(original);
+        decrypted.ShouldBe(original);
     }
 
     #endregion
@@ -292,9 +292,9 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var decryptResult = await _sut.DecryptStringAsync(encrypted, context);
 
-        decryptResult.IsRight.Should().BeTrue();
+        decryptResult.IsRight.ShouldBeTrue();
         var decrypted = decryptResult.Match(Right: v => v, Left: _ => string.Empty);
-        decrypted.Should().Be(original);
+        decrypted.ShouldBe(original);
     }
 
     [Fact]
@@ -316,7 +316,7 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
 
         var decryptResult = await _sut.DecryptStringAsync(encrypted, decryptContext);
 
-        decryptResult.IsLeft.Should().BeTrue();
+        decryptResult.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -338,9 +338,9 @@ public sealed class AesGcmFieldEncryptorTests : IDisposable
         // Decrypt with old key — should still work because KeyId is stored in EncryptedValue
         var decryptResult = await _sut.DecryptStringAsync(encrypted, context);
 
-        decryptResult.IsRight.Should().BeTrue();
+        decryptResult.IsRight.ShouldBeTrue();
         var decrypted = decryptResult.Match(Right: v => v, Left: _ => string.Empty);
-        decrypted.Should().Be("hello");
+        decrypted.ShouldBe("hello");
     }
 
     #endregion

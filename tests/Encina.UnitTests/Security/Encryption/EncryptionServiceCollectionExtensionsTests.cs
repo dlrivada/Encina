@@ -1,7 +1,7 @@
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Health;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -22,11 +22,11 @@ public sealed class EncryptionServiceCollectionExtensionsTests
         services.AddEncinaEncryption();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<IFieldEncryptor>().Should().NotBeNull();
-        provider.GetService<IKeyProvider>().Should().NotBeNull();
+        provider.GetService<IFieldEncryptor>().ShouldNotBeNull();
+        provider.GetService<IKeyProvider>().ShouldNotBeNull();
 
         using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetService<IEncryptionOrchestrator>().Should().NotBeNull();
+        scope.ServiceProvider.GetService<IEncryptionOrchestrator>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
         services.AddEncinaEncryption();
 
         var descriptor = services.First(d => d.ServiceType == typeof(IFieldEncryptor));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
         services.AddEncinaEncryption();
 
         var descriptor = services.First(d => d.ServiceType == typeof(IKeyProvider));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
         services.AddEncinaEncryption();
 
         var descriptor = services.First(d => d.ServiceType == typeof(IEncryptionOrchestrator));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
         services.AddEncinaEncryption();
 
         var descriptor = services.First(d => d.ServiceType == typeof(IPipelineBehavior<,>));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Transient);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Transient);
     }
 
     [Fact]
@@ -86,8 +86,8 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<EncryptionOptions>>().Value;
-        options.FailOnDecryptionError.Should().BeFalse();
-        options.EnableTracing.Should().BeTrue();
+        options.FailOnDecryptionError.ShouldBeFalse();
+        options.EnableTracing.ShouldBeTrue();
     }
 
     [Fact]
@@ -99,11 +99,11 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<EncryptionOptions>>().Value;
-        options.DefaultAlgorithm.Should().Be(EncryptionAlgorithm.Aes256Gcm);
-        options.FailOnDecryptionError.Should().BeTrue();
-        options.AddHealthCheck.Should().BeFalse();
-        options.EnableTracing.Should().BeFalse();
-        options.EnableMetrics.Should().BeFalse();
+        options.DefaultAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
+        options.FailOnDecryptionError.ShouldBeTrue();
+        options.AddHealthCheck.ShouldBeFalse();
+        options.EnableTracing.ShouldBeFalse();
+        options.EnableMetrics.ShouldBeFalse();
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var resolved = provider.GetRequiredService<IKeyProvider>();
-        resolved.Should().BeSameAs(customProvider);
+        resolved.ShouldBeSameAs(customProvider);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var result = services.AddEncinaEncryption();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
             services.AddEncinaEncryption();
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -152,8 +152,8 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var act = () => services.AddEncinaEncryption();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -169,7 +169,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var keyProvider = provider.GetRequiredService<IKeyProvider>();
-        keyProvider.Should().BeOfType<InMemoryKeyProvider>();
+        keyProvider.ShouldBeOfType<InMemoryKeyProvider>();
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var act = () => services.AddEncinaEncryption<InMemoryKeyProvider>();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -196,7 +196,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var healthCheckOptions = provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
-        healthCheckOptions.Registrations.Should().Contain(r => r.Name == EncryptionHealthCheck.DefaultName);
+        healthCheckOptions.Registrations.ShouldContain(r => r.Name == EncryptionHealthCheck.DefaultName);
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
         services.AddEncinaEncryption(options => options.AddHealthCheck = false);
 
         var hasHealthChecks = services.Any(d => d.ServiceType == typeof(HealthCheckService));
-        hasHealthChecks.Should().BeFalse();
+        hasHealthChecks.ShouldBeFalse();
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public sealed class EncryptionServiceCollectionExtensionsTests
         services.AddEncinaEncryption();
 
         var hasHealthChecks = services.Any(d => d.ServiceType == typeof(HealthCheckService));
-        hasHealthChecks.Should().BeFalse();
+        hasHealthChecks.ShouldBeFalse();
     }
 
     #endregion

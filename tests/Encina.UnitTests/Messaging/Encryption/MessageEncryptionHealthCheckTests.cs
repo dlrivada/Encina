@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.Health;
 using Encina.Messaging.Encryption.Model;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -53,9 +53,9 @@ public class MessageEncryptionHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("keyId");
-        result.Data.Should().ContainKey("algorithm");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("keyId");
+        result.Data.ShouldContainKey("algorithm");
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public class MessageEncryptionHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IMessageEncryptionProvider");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("IMessageEncryptionProvider");
     }
 
     [Fact]
@@ -103,8 +103,8 @@ public class MessageEncryptionHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("encrypt phase");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("encrypt phase");
     }
 
     [Fact]
@@ -145,8 +145,8 @@ public class MessageEncryptionHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("decrypt phase");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("decrypt phase");
     }
 
     [Fact]
@@ -174,13 +174,13 @@ public class MessageEncryptionHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Exception.Should().NotBeNull();
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Exception.ShouldNotBeNull();
     }
 
     [Fact]
     public void DefaultName_HasExpectedValue()
     {
-        MessageEncryptionHealthCheck.DefaultName.Should().Be("encina-message-encryption");
+        MessageEncryptionHealthCheck.DefaultName.ShouldBe("encina-message-encryption");
     }
 }

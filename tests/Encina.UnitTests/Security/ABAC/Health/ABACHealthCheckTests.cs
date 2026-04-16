@@ -4,7 +4,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Health;
 using Encina.Security.ABAC.Persistence;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -67,8 +67,8 @@ public sealed class ABACHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("policy sets");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("policy sets");
     }
 
     #endregion
@@ -103,8 +103,8 @@ public sealed class ABACHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("standalone policies");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("standalone policies");
     }
 
     #endregion
@@ -127,8 +127,8 @@ public sealed class ABACHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("No policies or policy sets loaded");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("No policies or policy sets loaded");
     }
 
     #endregion
@@ -153,7 +153,7 @@ public sealed class ABACHealthCheckTests
 
         // PAP error on policy sets → hasPolicySets=false, then checks standalone
         // No standalone policies → Degraded
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     #endregion
@@ -172,9 +172,9 @@ public sealed class ABACHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("Failed to query");
-        result.Exception.Should().BeOfType<InvalidOperationException>();
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("Failed to query");
+        result.Exception.ShouldBeOfType<InvalidOperationException>();
     }
 
     #endregion
@@ -211,7 +211,7 @@ public sealed class ABACHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     #endregion
@@ -238,8 +238,8 @@ public sealed class ABACHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("Persistent policy store connectivity check failed");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("Persistent policy store connectivity check failed");
     }
 
     [Fact]
@@ -258,8 +258,8 @@ public sealed class ABACHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("Persistent policy store connectivity check failed");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("Persistent policy store connectivity check failed");
     }
 
     #endregion
@@ -283,7 +283,7 @@ public sealed class ABACHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         // Should reach PAP check and return Degraded (no policies)
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     #endregion
@@ -293,16 +293,16 @@ public sealed class ABACHealthCheckTests
     [Fact]
     public void DefaultName_IsEncinaAbac()
     {
-        ABACHealthCheck.DefaultName.Should().Be("encina-abac");
+        ABACHealthCheck.DefaultName.ShouldBe("encina-abac");
     }
 
     [Fact]
     public void Tags_ContainsExpectedTags()
     {
-        ABACHealthCheck.Tags.Should().Contain("encina");
-        ABACHealthCheck.Tags.Should().Contain("security");
-        ABACHealthCheck.Tags.Should().Contain("abac");
-        ABACHealthCheck.Tags.Should().Contain("ready");
+        ABACHealthCheck.Tags.ShouldContain("encina");
+        ABACHealthCheck.Tags.ShouldContain("security");
+        ABACHealthCheck.Tags.ShouldContain("abac");
+        ABACHealthCheck.Tags.ShouldContain("ready");
     }
 
     #endregion
@@ -314,7 +314,7 @@ public sealed class ABACHealthCheckTests
     {
         var act = () => new ABACHealthCheck(null!, CreateServiceProvider());
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -323,7 +323,7 @@ public sealed class ABACHealthCheckTests
         var pap = Substitute.For<IPolicyAdministrationPoint>();
         var act = () => new ABACHealthCheck(pap, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion

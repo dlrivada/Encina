@@ -1,5 +1,5 @@
 using Encina.Compliance.GDPR;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Compliance.GDPR;
@@ -26,7 +26,7 @@ public class GDPROptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class GDPROptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("ControllerName");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("ControllerName");
     }
 
     [Fact]
@@ -61,8 +61,8 @@ public class GDPROptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("ControllerEmail");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("ControllerEmail");
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class GDPROptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -95,8 +95,8 @@ public class GDPROptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DataProtectionOfficer.Name");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DataProtectionOfficer.Name");
     }
 
     [Fact]
@@ -113,8 +113,8 @@ public class GDPROptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DataProtectionOfficer.Email");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DataProtectionOfficer.Email");
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class GDPROptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -141,7 +141,6 @@ public class GDPROptionsValidatorTests
         var act = () => _sut.Validate(null, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 }

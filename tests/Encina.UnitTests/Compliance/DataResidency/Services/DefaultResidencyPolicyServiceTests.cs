@@ -8,7 +8,7 @@ using Encina.Compliance.DataResidency.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -51,8 +51,8 @@ public class DefaultResidencyPolicyServiceTests
             "healthcare-data", ["DE", "FR"], false, [],
             null, null, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class DefaultResidencyPolicyServiceTests
             "data", ["DE"], false, [],
             null, null, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class DefaultResidencyPolicyServiceTests
             "data", ["DE"], false, [],
             null, null, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -104,7 +104,7 @@ public class DefaultResidencyPolicyServiceTests
 
         var result = await _sut.GetPolicyAsync(policyId, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.DidNotReceive().LoadAsync(policyId, Arg.Any<CancellationToken>());
     }
 
@@ -131,7 +131,7 @@ public class DefaultResidencyPolicyServiceTests
 
         var result = await _sut.GetPolicyAsync(policyId, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class DefaultResidencyPolicyServiceTests
 
         var result = await _sut.GetPolicyAsync(Guid.NewGuid(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class DefaultResidencyPolicyServiceTests
 
         var result = await _sut.GetPolicyAsync(Guid.NewGuid(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

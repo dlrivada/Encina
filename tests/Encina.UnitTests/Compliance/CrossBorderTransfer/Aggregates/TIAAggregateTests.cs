@@ -3,7 +3,7 @@
 using Encina.Compliance.CrossBorderTransfer.Aggregates;
 using Encina.Compliance.CrossBorderTransfer.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using static LanguageExt.Prelude;
 
@@ -21,19 +21,19 @@ public class TIAAggregateTests
         var tia = TIAAggregate.Create(id, "DE", "US", "personal-data", "user-1", "tenant-1", "module-1");
 
         // Assert
-        tia.Id.Should().Be(id);
-        tia.SourceCountryCode.Should().Be("DE");
-        tia.DestinationCountryCode.Should().Be("US");
-        tia.DataCategory.Should().Be("personal-data");
-        tia.Status.Should().Be(TIAStatus.Draft);
-        tia.TenantId.Should().Be("tenant-1");
-        tia.ModuleId.Should().Be("module-1");
-        tia.RiskScore.Should().BeNull();
-        tia.Findings.Should().BeNull();
-        tia.AssessorId.Should().BeNull();
-        tia.DPOReviewedAtUtc.Should().BeNull();
-        tia.CompletedAtUtc.Should().BeNull();
-        tia.RequiredSupplementaryMeasures.Should().BeEmpty();
+        tia.Id.ShouldBe(id);
+        tia.SourceCountryCode.ShouldBe("DE");
+        tia.DestinationCountryCode.ShouldBe("US");
+        tia.DataCategory.ShouldBe("personal-data");
+        tia.Status.ShouldBe(TIAStatus.Draft);
+        tia.TenantId.ShouldBe("tenant-1");
+        tia.ModuleId.ShouldBe("module-1");
+        tia.RiskScore.ShouldBeNull();
+        tia.Findings.ShouldBeNull();
+        tia.AssessorId.ShouldBeNull();
+        tia.DPOReviewedAtUtc.ShouldBeNull();
+        tia.CompletedAtUtc.ShouldBeNull();
+        tia.RequiredSupplementaryMeasures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class TIAAggregateTests
         var act = () => TIAAggregate.Create(Guid.NewGuid(), null!, "US", "personal-data", "user-1");
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("sourceCountryCode");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("sourceCountryCode");
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public class TIAAggregateTests
         var act = () => TIAAggregate.Create(Guid.NewGuid(), "DE", null!, "personal-data", "user-1");
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("destinationCountryCode");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("destinationCountryCode");
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public class TIAAggregateTests
         var act = () => TIAAggregate.Create(Guid.NewGuid(), "DE", "US", null!, "user-1");
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("dataCategory");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("dataCategory");
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public class TIAAggregateTests
         var act = () => TIAAggregate.Create(Guid.NewGuid(), "DE", "US", "personal-data", null!);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("createdBy");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("createdBy");
     }
 
     [Fact]
@@ -90,10 +90,10 @@ public class TIAAggregateTests
         tia.AssessRisk(0.75, "High surveillance risk", "assessor-1");
 
         // Assert
-        tia.RiskScore.Should().Be(0.75);
-        tia.Findings.Should().Be("High surveillance risk");
-        tia.AssessorId.Should().Be("assessor-1");
-        tia.Status.Should().Be(TIAStatus.InProgress);
+        tia.RiskScore.ShouldBe(0.75);
+        tia.Findings.ShouldBe("High surveillance risk");
+        tia.AssessorId.ShouldBe("assessor-1");
+        tia.Status.ShouldBe(TIAStatus.InProgress);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class TIAAggregateTests
         var act = () => tia.AssessRisk(0.5, "Re-assessment", "assessor-2");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -119,8 +119,8 @@ public class TIAAggregateTests
         var act = () => tia.AssessRisk(1.1, "findings", "assessor-1");
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("riskScore");
+        Should.Throw<ArgumentOutOfRangeException>(act)
+            .And.ParamName.ShouldBe("riskScore");
     }
 
     [Fact]
@@ -133,8 +133,8 @@ public class TIAAggregateTests
         var act = () => tia.AssessRisk(-0.1, "findings", "assessor-1");
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("riskScore");
+        Should.Throw<ArgumentOutOfRangeException>(act)
+            .And.ParamName.ShouldBe("riskScore");
     }
 
     [Fact]
@@ -148,11 +148,11 @@ public class TIAAggregateTests
         tia.RequireSupplementaryMeasure(measureId, SupplementaryMeasureType.Technical, "End-to-end encryption required");
 
         // Assert
-        tia.RequiredSupplementaryMeasures.Should().HaveCount(1);
-        tia.RequiredSupplementaryMeasures[0].Id.Should().Be(measureId);
-        tia.RequiredSupplementaryMeasures[0].Type.Should().Be(SupplementaryMeasureType.Technical);
-        tia.RequiredSupplementaryMeasures[0].Description.Should().Be("End-to-end encryption required");
-        tia.RequiredSupplementaryMeasures[0].IsImplemented.Should().BeFalse();
+        tia.RequiredSupplementaryMeasures.Count.ShouldBe(1);
+        tia.RequiredSupplementaryMeasures[0].Id.ShouldBe(measureId);
+        tia.RequiredSupplementaryMeasures[0].Type.ShouldBe(SupplementaryMeasureType.Technical);
+        tia.RequiredSupplementaryMeasures[0].Description.ShouldBe("End-to-end encryption required");
+        tia.RequiredSupplementaryMeasures[0].IsImplemented.ShouldBeFalse();
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class TIAAggregateTests
         var act = () => tia.RequireSupplementaryMeasure(Guid.NewGuid(), SupplementaryMeasureType.Contractual, "Audit rights");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public class TIAAggregateTests
         tia.SubmitForDPOReview("submitter-1");
 
         // Assert
-        tia.Status.Should().Be(TIAStatus.PendingDPOReview);
+        tia.Status.ShouldBe(TIAStatus.PendingDPOReview);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public class TIAAggregateTests
         var act = () => tia.SubmitForDPOReview("submitter-1");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -204,8 +204,8 @@ public class TIAAggregateTests
         tia.ApproveDPOReview("dpo-1");
 
         // Assert
-        tia.DPOReviewedAtUtc.Should().NotBeNull();
-        tia.DPOReviewedAtUtc.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        tia.DPOReviewedAtUtc.ShouldNotBeNull();
+        tia.DPOReviewedAtUtc!.Value.ShouldBeInRange(DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5), DateTimeOffset.UtcNow + TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class TIAAggregateTests
         var act = () => tia.ApproveDPOReview("dpo-1");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -231,8 +231,8 @@ public class TIAAggregateTests
         tia.RejectDPOReview("dpo-1", "Insufficient supplementary measures");
 
         // Assert
-        tia.Status.Should().Be(TIAStatus.InProgress);
-        tia.DPOReviewedAtUtc.Should().NotBeNull();
+        tia.Status.ShouldBe(TIAStatus.InProgress);
+        tia.DPOReviewedAtUtc.ShouldNotBeNull();
     }
 
     [Fact]
@@ -245,9 +245,9 @@ public class TIAAggregateTests
         tia.Complete();
 
         // Assert
-        tia.Status.Should().Be(TIAStatus.Completed);
-        tia.CompletedAtUtc.Should().NotBeNull();
-        tia.CompletedAtUtc.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        tia.Status.ShouldBe(TIAStatus.Completed);
+        tia.CompletedAtUtc.ShouldNotBeNull();
+        tia.CompletedAtUtc!.Value.ShouldBeInRange(DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5), DateTimeOffset.UtcNow + TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public class TIAAggregateTests
         tia.Expire();
 
         // Assert
-        tia.Status.Should().Be(TIAStatus.Expired);
+        tia.Status.ShouldBe(TIAStatus.Expired);
     }
 
     [Fact]
@@ -273,7 +273,7 @@ public class TIAAggregateTests
         var act = () => tia.Expire();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -284,40 +284,40 @@ public class TIAAggregateTests
 
         // Act - Create (Draft)
         var tia = TIAAggregate.Create(id, "DE", "US", "personal-data", "user-1", "tenant-1", "module-1");
-        tia.Status.Should().Be(TIAStatus.Draft);
+        tia.Status.ShouldBe(TIAStatus.Draft);
 
         // Act - Assess risk (InProgress)
         tia.AssessRisk(0.8, "High risk due to FISA 702", "assessor-1");
-        tia.Status.Should().Be(TIAStatus.InProgress);
+        tia.Status.ShouldBe(TIAStatus.InProgress);
 
         // Act - Add supplementary measures
         tia.RequireSupplementaryMeasure(Guid.NewGuid(), SupplementaryMeasureType.Technical, "E2E encryption");
         tia.RequireSupplementaryMeasure(Guid.NewGuid(), SupplementaryMeasureType.Contractual, "Audit rights clause");
-        tia.RequiredSupplementaryMeasures.Should().HaveCount(2);
+        tia.RequiredSupplementaryMeasures.Count.ShouldBe(2);
 
         // Act - Submit for DPO review (PendingDPOReview)
         tia.SubmitForDPOReview("submitter-1");
-        tia.Status.Should().Be(TIAStatus.PendingDPOReview);
+        tia.Status.ShouldBe(TIAStatus.PendingDPOReview);
 
         // Act - Approve DPO review
         tia.ApproveDPOReview("dpo-1");
-        tia.DPOReviewedAtUtc.Should().NotBeNull();
+        tia.DPOReviewedAtUtc.ShouldNotBeNull();
 
         // Act - Complete
         tia.Complete();
-        tia.Status.Should().Be(TIAStatus.Completed);
-        tia.CompletedAtUtc.Should().NotBeNull();
+        tia.Status.ShouldBe(TIAStatus.Completed);
+        tia.CompletedAtUtc.ShouldNotBeNull();
 
         // Assert - Final state
-        tia.Id.Should().Be(id);
-        tia.SourceCountryCode.Should().Be("DE");
-        tia.DestinationCountryCode.Should().Be("US");
-        tia.DataCategory.Should().Be("personal-data");
-        tia.RiskScore.Should().Be(0.8);
-        tia.Findings.Should().Be("High risk due to FISA 702");
-        tia.AssessorId.Should().Be("assessor-1");
-        tia.TenantId.Should().Be("tenant-1");
-        tia.ModuleId.Should().Be("module-1");
+        tia.Id.ShouldBe(id);
+        tia.SourceCountryCode.ShouldBe("DE");
+        tia.DestinationCountryCode.ShouldBe("US");
+        tia.DataCategory.ShouldBe("personal-data");
+        tia.RiskScore.ShouldBe(0.8);
+        tia.Findings.ShouldBe("High risk due to FISA 702");
+        tia.AssessorId.ShouldBe("assessor-1");
+        tia.TenantId.ShouldBe("tenant-1");
+        tia.ModuleId.ShouldBe("module-1");
     }
 
     // --- Helper methods to advance aggregate to specific states ---

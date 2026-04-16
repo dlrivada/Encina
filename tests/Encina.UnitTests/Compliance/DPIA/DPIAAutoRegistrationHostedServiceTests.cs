@@ -7,7 +7,7 @@ using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -103,7 +103,7 @@ public class DPIAAutoRegistrationHostedServiceTests
 
         var act = () => sut.StartAsync(CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion
@@ -144,7 +144,7 @@ public class DPIAAutoRegistrationHostedServiceTests
 
         var act = () => sut.StopAsync(CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion

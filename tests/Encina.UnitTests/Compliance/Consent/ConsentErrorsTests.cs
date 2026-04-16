@@ -1,5 +1,5 @@
 using Encina.Compliance.Consent;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent;
 
@@ -13,29 +13,29 @@ public class ConsentErrorsTests
     [Fact]
     public void ErrorCodes_ShouldFollowConsentPrefix()
     {
-        ConsentErrors.MissingConsentCode.Should().StartWith("consent.");
-        ConsentErrors.ConsentExpiredCode.Should().StartWith("consent.");
-        ConsentErrors.ConsentWithdrawnCode.Should().StartWith("consent.");
-        ConsentErrors.RequiresReconsentCode.Should().StartWith("consent.");
-        ConsentErrors.VersionMismatchCode.Should().StartWith("consent.");
-        ConsentErrors.ConsentNotFoundCode.Should().StartWith("consent.");
-        ConsentErrors.InvalidStateTransitionCode.Should().StartWith("consent.");
-        ConsentErrors.ServiceErrorCode.Should().StartWith("consent.");
-        ConsentErrors.EventHistoryUnavailableCode.Should().StartWith("consent.");
+        ConsentErrors.MissingConsentCode.ShouldStartWith("consent.");
+        ConsentErrors.ConsentExpiredCode.ShouldStartWith("consent.");
+        ConsentErrors.ConsentWithdrawnCode.ShouldStartWith("consent.");
+        ConsentErrors.RequiresReconsentCode.ShouldStartWith("consent.");
+        ConsentErrors.VersionMismatchCode.ShouldStartWith("consent.");
+        ConsentErrors.ConsentNotFoundCode.ShouldStartWith("consent.");
+        ConsentErrors.InvalidStateTransitionCode.ShouldStartWith("consent.");
+        ConsentErrors.ServiceErrorCode.ShouldStartWith("consent.");
+        ConsentErrors.EventHistoryUnavailableCode.ShouldStartWith("consent.");
     }
 
     [Fact]
     public void ErrorCodes_ShouldHaveExpectedValues()
     {
-        ConsentErrors.MissingConsentCode.Should().Be("consent.missing");
-        ConsentErrors.ConsentExpiredCode.Should().Be("consent.expired");
-        ConsentErrors.ConsentWithdrawnCode.Should().Be("consent.withdrawn");
-        ConsentErrors.RequiresReconsentCode.Should().Be("consent.requires_reconsent");
-        ConsentErrors.VersionMismatchCode.Should().Be("consent.version_mismatch");
-        ConsentErrors.ConsentNotFoundCode.Should().Be("consent.not_found");
-        ConsentErrors.InvalidStateTransitionCode.Should().Be("consent.invalid_state_transition");
-        ConsentErrors.ServiceErrorCode.Should().Be("consent.service_error");
-        ConsentErrors.EventHistoryUnavailableCode.Should().Be("consent.event_history_unavailable");
+        ConsentErrors.MissingConsentCode.ShouldBe("consent.missing");
+        ConsentErrors.ConsentExpiredCode.ShouldBe("consent.expired");
+        ConsentErrors.ConsentWithdrawnCode.ShouldBe("consent.withdrawn");
+        ConsentErrors.RequiresReconsentCode.ShouldBe("consent.requires_reconsent");
+        ConsentErrors.VersionMismatchCode.ShouldBe("consent.version_mismatch");
+        ConsentErrors.ConsentNotFoundCode.ShouldBe("consent.not_found");
+        ConsentErrors.InvalidStateTransitionCode.ShouldBe("consent.invalid_state_transition");
+        ConsentErrors.ServiceErrorCode.ShouldBe("consent.service_error");
+        ConsentErrors.EventHistoryUnavailableCode.ShouldBe("consent.event_history_unavailable");
     }
 
     #endregion
@@ -49,9 +49,9 @@ public class ConsentErrorsTests
         var error = ConsentErrors.MissingConsent("user-123", "marketing");
 
         // Assert
-        error.Message.Should().Contain("user-123");
-        error.Message.Should().Contain("marketing");
-        error.Message.Should().Contain("Article 6(1)(a)");
+        error.Message.ShouldContain("user-123");
+        error.Message.ShouldContain("marketing");
+        error.Message.ShouldContain("Article 6(1)(a)");
     }
 
     #endregion
@@ -68,9 +68,9 @@ public class ConsentErrorsTests
         var error = ConsentErrors.ConsentExpired("user-456", "analytics", expiredAt);
 
         // Assert
-        error.Message.Should().Contain("user-456");
-        error.Message.Should().Contain("analytics");
-        error.Message.Should().Contain("2026-01-15");
+        error.Message.ShouldContain("user-456");
+        error.Message.ShouldContain("analytics");
+        error.Message.ShouldContain("2026-01-15");
     }
 
     #endregion
@@ -87,9 +87,9 @@ public class ConsentErrorsTests
         var error = ConsentErrors.ConsentWithdrawn("user-789", "profiling", withdrawnAt);
 
         // Assert
-        error.Message.Should().Contain("user-789");
-        error.Message.Should().Contain("profiling");
-        error.Message.Should().Contain("Article 7(3)");
+        error.Message.ShouldContain("user-789");
+        error.Message.ShouldContain("profiling");
+        error.Message.ShouldContain("Article 7(3)");
     }
 
     #endregion
@@ -103,10 +103,10 @@ public class ConsentErrorsTests
         var error = ConsentErrors.RequiresReconsent("user-100", "marketing", "v3", "v1");
 
         // Assert
-        error.Message.Should().Contain("user-100");
-        error.Message.Should().Contain("marketing");
-        error.Message.Should().Contain("v3");
-        error.Message.Should().Contain("v1");
+        error.Message.ShouldContain("user-100");
+        error.Message.ShouldContain("marketing");
+        error.Message.ShouldContain("v3");
+        error.Message.ShouldContain("v1");
     }
 
     #endregion
@@ -120,10 +120,10 @@ public class ConsentErrorsTests
         var error = ConsentErrors.VersionMismatch("user-200", "analytics", "v5", "v2");
 
         // Assert
-        error.Message.Should().Contain("user-200");
-        error.Message.Should().Contain("analytics");
-        error.Message.Should().Contain("v5");
-        error.Message.Should().Contain("v2");
+        error.Message.ShouldContain("user-200");
+        error.Message.ShouldContain("analytics");
+        error.Message.ShouldContain("v5");
+        error.Message.ShouldContain("v2");
     }
 
     #endregion
@@ -140,7 +140,7 @@ public class ConsentErrorsTests
         var error = ConsentErrors.ConsentNotFound(consentId);
 
         // Assert
-        error.Message.Should().Contain(consentId.ToString());
+        error.Message.ShouldContain(consentId.ToString());
     }
 
     #endregion
@@ -154,9 +154,9 @@ public class ConsentErrorsTests
         var error = ConsentErrors.InvalidStateTransition("Active", "Active");
 
         // Assert
-        error.Message.Should().Contain("Active");
-        error.Message.Should().Contain("Active");
-        error.Message.Should().Contain("Invalid");
+        error.Message.ShouldContain("Active");
+        error.Message.ShouldContain("Active");
+        error.Message.ShouldContain("Invalid");
     }
 
     [Fact]
@@ -166,8 +166,8 @@ public class ConsentErrorsTests
         var error = ConsentErrors.InvalidStateTransition("Withdrawn", "Expired");
 
         // Assert
-        error.Message.Should().Contain("Withdrawn");
-        error.Message.Should().Contain("Expired");
+        error.Message.ShouldContain("Withdrawn");
+        error.Message.ShouldContain("Expired");
     }
 
     #endregion
@@ -184,8 +184,8 @@ public class ConsentErrorsTests
         var error = ConsentErrors.ServiceError("GrantConsent", exception);
 
         // Assert
-        error.Message.Should().Contain("GrantConsent");
-        error.Message.Should().Contain("Connection refused");
+        error.Message.ShouldContain("GrantConsent");
+        error.Message.ShouldContain("Connection refused");
     }
 
     #endregion
@@ -202,7 +202,7 @@ public class ConsentErrorsTests
         var error = ConsentErrors.EventHistoryUnavailable(consentId);
 
         // Assert
-        error.Message.Should().Contain(consentId.ToString());
+        error.Message.ShouldContain(consentId.ToString());
     }
 
     #endregion

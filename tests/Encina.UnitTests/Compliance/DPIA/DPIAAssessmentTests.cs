@@ -2,7 +2,7 @@
 
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -31,7 +31,7 @@ public class DPIAAssessmentTests
     {
         var assessment = CreateDefaultAssessment(DPIAAssessmentStatus.Approved);
 
-        assessment.IsCurrent(FixedNow).Should().BeTrue();
+        assessment.IsCurrent(FixedNow).ShouldBeTrue();
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class DPIAAssessmentTests
             DPIAAssessmentStatus.Approved,
             nextReviewAtUtc: FixedNow.AddDays(30));
 
-        assessment.IsCurrent(FixedNow).Should().BeTrue();
+        assessment.IsCurrent(FixedNow).ShouldBeTrue();
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class DPIAAssessmentTests
             DPIAAssessmentStatus.Approved,
             nextReviewAtUtc: FixedNow.AddDays(-1));
 
-        assessment.IsCurrent(FixedNow).Should().BeFalse();
+        assessment.IsCurrent(FixedNow).ShouldBeFalse();
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class DPIAAssessmentTests
             DPIAAssessmentStatus.Approved,
             nextReviewAtUtc: FixedNow);
 
-        assessment.IsCurrent(FixedNow).Should().BeFalse();
+        assessment.IsCurrent(FixedNow).ShouldBeFalse();
     }
 
     [Theory]
@@ -74,7 +74,7 @@ public class DPIAAssessmentTests
     {
         var assessment = CreateDefaultAssessment(status);
 
-        assessment.IsCurrent(FixedNow).Should().BeFalse();
+        assessment.IsCurrent(FixedNow).ShouldBeFalse();
     }
 
     #endregion
@@ -88,9 +88,9 @@ public class DPIAAssessmentTests
 
         var updated = original with { Status = DPIAAssessmentStatus.Approved };
 
-        updated.Status.Should().Be(DPIAAssessmentStatus.Approved);
-        original.Status.Should().Be(DPIAAssessmentStatus.Draft);
-        updated.Id.Should().Be(original.Id);
+        updated.Status.ShouldBe(DPIAAssessmentStatus.Approved);
+        original.Status.ShouldBe(DPIAAssessmentStatus.Draft);
+        updated.Id.ShouldBe(original.Id);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class DPIAAssessmentTests
     {
         var assessment = CreateDefaultAssessment();
 
-        assessment.AuditTrail.Should().BeEmpty();
+        assessment.AuditTrail.ShouldBeEmpty();
     }
 
     #endregion

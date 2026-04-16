@@ -6,7 +6,7 @@ using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
 using Encina.Testing.Time;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -86,14 +86,14 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.ValidateAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = result.Match(r => r, _ => null!);
-        compliance.IsCompliant.Should().BeTrue();
-        compliance.MeasureResults.Should().HaveCount(3);
-        compliance.MissingMeasures.Should().BeEmpty();
-        compliance.CompliancePercentage.Should().Be(100);
-        compliance.EntityType.Should().Be(NIS2EntityType.Essential);
-        compliance.Sector.Should().Be(NIS2Sector.DigitalInfrastructure);
+        compliance.IsCompliant.ShouldBeTrue();
+        compliance.MeasureResults.Count.ShouldBe(3);
+        compliance.MissingMeasures.ShouldBeEmpty();
+        compliance.CompliancePercentage.ShouldBe(100);
+        compliance.EntityType.ShouldBe(NIS2EntityType.Essential);
+        compliance.Sector.ShouldBe(NIS2Sector.DigitalInfrastructure);
     }
 
     [Fact]
@@ -112,13 +112,12 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.ValidateAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = result.Match(r => r, _ => null!);
-        compliance.IsCompliant.Should().BeFalse();
-        compliance.MeasureResults.Should().HaveCount(3);
-        compliance.MissingMeasures.Should().ContainSingle()
-            .Which.Should().Be(NIS2Measure.IncidentHandling);
-        compliance.MissingCount.Should().Be(1);
+        compliance.IsCompliant.ShouldBeFalse();
+        compliance.MeasureResults.Count.ShouldBe(3);
+        compliance.MissingMeasures.ShouldHaveSingleItem().ShouldBe(NIS2Measure.IncidentHandling);
+        compliance.MissingCount.ShouldBe(1);
     }
 
     [Fact]
@@ -142,13 +141,13 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.ValidateAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = result.Match(r => r, _ => null!);
-        compliance.IsCompliant.Should().BeFalse();
-        compliance.MissingMeasures.Should().Contain(NIS2Measure.CyberHygiene);
+        compliance.IsCompliant.ShouldBeFalse();
+        compliance.MissingMeasures.ShouldContain(NIS2Measure.CyberHygiene);
         var failedResult = compliance.MeasureResults.Single(m => m.Measure == NIS2Measure.CyberHygiene);
-        failedResult.IsSatisfied.Should().BeFalse();
-        failedResult.Details.Should().Contain("Evaluator crashed");
+        failedResult.IsSatisfied.ShouldBeFalse();
+        failedResult.Details.ShouldContain("Evaluator crashed");
     }
 
     #endregion
@@ -171,11 +170,11 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.GetMissingRequirementsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var missing = result.Match(r => r, _ => null!);
-        missing.Should().HaveCount(2);
-        missing.Should().Contain(NIS2Measure.IncidentHandling);
-        missing.Should().Contain(NIS2Measure.Cryptography);
+        missing.Count.ShouldBe(2);
+        missing.ShouldContain(NIS2Measure.IncidentHandling);
+        missing.ShouldContain(NIS2Measure.Cryptography);
     }
 
     #endregion
@@ -211,7 +210,7 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.ValidateAsync();
 
         // Assert — returned cached result, evaluator not called
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await evaluator.DidNotReceive().EvaluateAsync(
             Arg.Any<NIS2MeasureContext>(), Arg.Any<CancellationToken>());
     }
@@ -237,7 +236,7 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.ValidateAsync();
 
         // Assert — evaluator WAS called
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await evaluator.Received(1).EvaluateAsync(
             Arg.Any<NIS2MeasureContext>(), Arg.Any<CancellationToken>());
 
@@ -260,7 +259,7 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.ValidateAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await evaluator.Received(1).EvaluateAsync(
             Arg.Any<NIS2MeasureContext>(), Arg.Any<CancellationToken>());
     }
@@ -314,7 +313,7 @@ public class DefaultNIS2ComplianceValidatorTests
         var result = await sut.ValidateAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -407,8 +406,8 @@ public class DefaultNIS2ComplianceValidatorTests
         await sut.ValidateAsync();
 
         // Assert — TenantId should be propagated to the evaluator context
-        capturedContext.Should().NotBeNull();
-        capturedContext!.TenantId.Should().Be("tenant-abc");
+        capturedContext.ShouldNotBeNull();
+        capturedContext!.TenantId.ShouldBe("tenant-abc");
     }
 
     #endregion

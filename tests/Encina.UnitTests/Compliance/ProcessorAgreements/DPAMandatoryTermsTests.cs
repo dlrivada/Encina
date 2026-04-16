@@ -2,7 +2,7 @@
 
 using Encina.Compliance.ProcessorAgreements.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -18,7 +18,7 @@ public sealed class DPAMandatoryTermsTests
     {
         var terms = CreateFullyCompliantTerms();
 
-        terms.IsFullyCompliant.Should().BeTrue();
+        terms.IsFullyCompliant.ShouldBeTrue();
     }
 
     [Theory]
@@ -45,7 +45,7 @@ public sealed class DPAMandatoryTermsTests
             AuditRights = h
         };
 
-        terms.IsFullyCompliant.Should().BeFalse();
+        terms.IsFullyCompliant.ShouldBeFalse();
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class DPAMandatoryTermsTests
     {
         var terms = CreateAllFalseTerms();
 
-        terms.IsFullyCompliant.Should().BeFalse();
+        terms.IsFullyCompliant.ShouldBeFalse();
     }
 
     #endregion
@@ -65,7 +65,7 @@ public sealed class DPAMandatoryTermsTests
     {
         var terms = CreateFullyCompliantTerms();
 
-        terms.MissingTerms.Should().BeEmpty();
+        terms.MissingTerms.ShouldBeEmpty();
     }
 
     [Fact]
@@ -73,15 +73,15 @@ public sealed class DPAMandatoryTermsTests
     {
         var terms = CreateAllFalseTerms();
 
-        terms.MissingTerms.Should().HaveCount(8);
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.ProcessOnDocumentedInstructions));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.ConfidentialityObligations));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.SecurityMeasures));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.SubProcessorRequirements));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.DataSubjectRightsAssistance));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.ComplianceAssistance));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.DataDeletionOrReturn));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.AuditRights));
+        terms.MissingTerms.Count.ShouldBe(8);
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.ProcessOnDocumentedInstructions));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.ConfidentialityObligations));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.SecurityMeasures));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.SubProcessorRequirements));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.DataSubjectRightsAssistance));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.ComplianceAssistance));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.DataDeletionOrReturn));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.AuditRights));
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public sealed class DPAMandatoryTermsTests
     {
         var terms = CreateFullyCompliantTerms() with { AuditRights = false };
 
-        terms.MissingTerms.Should().HaveCount(1);
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.AuditRights));
+        terms.MissingTerms.Count.ShouldBe(1);
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.AuditRights));
     }
 
     [Fact]
@@ -103,10 +103,10 @@ public sealed class DPAMandatoryTermsTests
             AuditRights = false
         };
 
-        terms.MissingTerms.Should().HaveCount(3);
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.ProcessOnDocumentedInstructions));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.SecurityMeasures));
-        terms.MissingTerms.Should().Contain(nameof(DPAMandatoryTerms.AuditRights));
+        terms.MissingTerms.Count.ShouldBe(3);
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.ProcessOnDocumentedInstructions));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.SecurityMeasures));
+        terms.MissingTerms.ShouldContain(nameof(DPAMandatoryTerms.AuditRights));
     }
 
     #endregion
@@ -119,7 +119,7 @@ public sealed class DPAMandatoryTermsTests
         var terms1 = CreateFullyCompliantTerms();
         var terms2 = CreateFullyCompliantTerms();
 
-        terms1.Should().Be(terms2);
+        terms1.ShouldBe(terms2);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class DPAMandatoryTermsTests
         var terms1 = CreateFullyCompliantTerms();
         var terms2 = CreateFullyCompliantTerms() with { AuditRights = false };
 
-        terms1.Should().NotBe(terms2);
+        terms1.ShouldNotBe(terms2);
     }
 
     [Fact]
@@ -137,8 +137,8 @@ public sealed class DPAMandatoryTermsTests
         var original = CreateFullyCompliantTerms();
         var modified = original with { AuditRights = false };
 
-        original.AuditRights.Should().BeTrue();
-        modified.AuditRights.Should().BeFalse();
+        original.AuditRights.ShouldBeTrue();
+        modified.AuditRights.ShouldBeFalse();
     }
 
     #endregion

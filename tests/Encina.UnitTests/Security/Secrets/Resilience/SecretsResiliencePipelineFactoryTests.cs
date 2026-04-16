@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 
@@ -24,7 +24,7 @@ public sealed class SecretsResiliencePipelineFactoryTests
 
         var pipeline = SecretsResiliencePipelineFactory.Create(options, state, _logger);
 
-        pipeline.Should().NotBeNull();
+        pipeline.ShouldNotBeNull();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class SecretsResiliencePipelineFactoryTests
 
         var pipeline = SecretsResiliencePipelineFactory.Create(options, state, _logger);
 
-        pipeline.Should().NotBeNull();
+        pipeline.ShouldNotBeNull();
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class SecretsResiliencePipelineFactoryTests
 
         var pipeline = SecretsResiliencePipelineFactory.Create(options, state, _logger);
 
-        pipeline.Should().NotBeNull();
+        pipeline.ShouldNotBeNull();
     }
 
     #endregion
@@ -70,7 +70,7 @@ public sealed class SecretsResiliencePipelineFactoryTests
 
         var act = () => SecretsResiliencePipelineFactory.Create(null!, state, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class SecretsResiliencePipelineFactoryTests
 
         var act = () => SecretsResiliencePipelineFactory.Create(options, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("circuitBreakerState");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("circuitBreakerState");
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class SecretsResiliencePipelineFactoryTests
 
         var act = () => SecretsResiliencePipelineFactory.Create(options, state, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion

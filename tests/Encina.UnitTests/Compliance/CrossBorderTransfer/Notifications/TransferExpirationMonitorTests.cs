@@ -3,7 +3,7 @@
 using Encina.Compliance.CrossBorderTransfer;
 using Encina.Compliance.CrossBorderTransfer.Notifications;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -41,7 +41,7 @@ public class TransferExpirationMonitorTests
     {
         var act = () => CreateSut();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class TransferExpirationMonitorTests
         await sut.StopAsync(CancellationToken.None);
 
         // Monitoring disabled - scope factory should not be called for monitoring cycles
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     [Fact]
@@ -78,6 +78,6 @@ public class TransferExpirationMonitorTests
 
         var act = async () => await sut.StopAsync(CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 }

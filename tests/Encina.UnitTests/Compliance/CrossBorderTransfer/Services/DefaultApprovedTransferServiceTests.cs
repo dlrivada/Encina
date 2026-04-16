@@ -7,7 +7,7 @@ using Encina.Compliance.CrossBorderTransfer.ReadModels;
 using Encina.Compliance.CrossBorderTransfer.Services;
 using Encina.Marten;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,9 +54,9 @@ public class DefaultApprovedTransferServiceTests
             "DE", "US", "personal-data", TransferBasis.SCCs, approvedBy: "admin");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: id => id.Should().NotBeEmpty(),
+            Right: id => id.ShouldNotBeEmpty(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -73,7 +73,7 @@ public class DefaultApprovedTransferServiceTests
             "DE", "US", "personal-data", TransferBasis.SCCs, approvedBy: "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -89,10 +89,10 @@ public class DefaultApprovedTransferServiceTests
             "DE", "US", "personal-data", TransferBasis.SCCs, approvedBy: "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.Should().Contain("blocked", "error should indicate a blocked transfer"));
+            Left: err => err.Message.ShouldContain("blocked", "error should indicate a blocked transfer"));
     }
 
     #endregion
@@ -120,7 +120,7 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.RevokeTransferAsync(transferId, "No longer needed", "admin");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.RevokeTransferAsync(transferId, "reason", "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -156,10 +156,10 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.RevokeTransferAsync(transferId, "second revocation", "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.Should().Contain("revoked", "error should indicate already revoked"));
+            Left: err => err.Message.ShouldContain("revoked", "error should indicate already revoked"));
     }
 
     #endregion
@@ -189,7 +189,7 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.RenewTransferAsync(transferId, newExpiry, "admin");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -210,10 +210,10 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.RenewTransferAsync(transferId, newExpiry, "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.Should().Contain("revoked", "error should indicate already revoked"));
+            Left: err => err.Message.ShouldContain("revoked", "error should indicate already revoked"));
     }
 
     #endregion
@@ -232,9 +232,9 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.IsTransferApprovedAsync("DE", "US", "personal-data");
 
         // Assert — not-found is treated as "not approved" (Right: false)
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: isApproved => isApproved.Should().BeFalse(),
+            Right: isApproved => isApproved.ShouldBeFalse(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -265,11 +265,11 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.GetApprovedTransferAsync("DE", "US", "personal-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: model =>
             {
-                model.Id.Should().Be(readModel.Id);
+                model.Id.ShouldBe(readModel.Id);
                 return model;
             },
             Left: _ => throw new InvalidOperationException("Expected Right"));
@@ -286,10 +286,10 @@ public class DefaultApprovedTransferServiceTests
         var result = await _sut.GetApprovedTransferAsync("DE", "US", "personal-data");
 
         // Assert — returns Left with transfer_not_found error code
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.Should().Contain("No approved transfer found", "error should indicate not found"));
+            Left: err => err.Message.ShouldContain("No approved transfer found", "error should indicate not found"));
     }
 
     #endregion

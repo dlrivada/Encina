@@ -1,6 +1,6 @@
 using Encina.Compliance.LawfulBasis.Aggregates;
 using Encina.Compliance.LawfulBasis.Events;
-using FluentAssertions;
+using Shouldly;
 using GDPR = global::Encina.Compliance.GDPR;
 
 namespace Encina.UnitTests.Compliance.LawfulBasisModule.Aggregates;
@@ -25,17 +25,17 @@ public class LawfulBasisAggregateTests
             Now);
 
         // Assert
-        aggregate.Id.Should().Be(DefaultId);
-        aggregate.RequestTypeName.Should().Be("MyApp.Commands.CreateOrder");
-        aggregate.Basis.Should().Be(global::Encina.Compliance.GDPR.LawfulBasis.Contract);
-        aggregate.Purpose.Should().Be("Order processing");
-        aggregate.LIAReference.Should().BeNull();
-        aggregate.LegalReference.Should().BeNull();
-        aggregate.ContractReference.Should().Be("contract-ref-001");
-        aggregate.IsRevoked.Should().BeFalse();
-        aggregate.RevocationReason.Should().BeNull();
-        aggregate.TenantId.Should().BeNull();
-        aggregate.ModuleId.Should().BeNull();
+        aggregate.Id.ShouldBe(DefaultId);
+        aggregate.RequestTypeName.ShouldBe("MyApp.Commands.CreateOrder");
+        aggregate.Basis.ShouldBe(global::Encina.Compliance.GDPR.LawfulBasis.Contract);
+        aggregate.Purpose.ShouldBe("Order processing");
+        aggregate.LIAReference.ShouldBeNull();
+        aggregate.LegalReference.ShouldBeNull();
+        aggregate.ContractReference.ShouldBe("contract-ref-001");
+        aggregate.IsRevoked.ShouldBeFalse();
+        aggregate.RevocationReason.ShouldBeNull();
+        aggregate.TenantId.ShouldBeNull();
+        aggregate.ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -48,12 +48,12 @@ public class LawfulBasisAggregateTests
             Now, "tenant-1", "module-1");
 
         // Assert
-        aggregate.Purpose.Should().Be("Fraud prevention");
-        aggregate.LIAReference.Should().Be("LIA-2024-FRAUD-001");
-        aggregate.LegalReference.Should().Be("GDPR Art. 6(1)(f)");
-        aggregate.ContractReference.Should().Be("contract-ref");
-        aggregate.TenantId.Should().Be("tenant-1");
-        aggregate.ModuleId.Should().Be("module-1");
+        aggregate.Purpose.ShouldBe("Fraud prevention");
+        aggregate.LIAReference.ShouldBe("LIA-2024-FRAUD-001");
+        aggregate.LegalReference.ShouldBe("GDPR Art. 6(1)(f)");
+        aggregate.ContractReference.ShouldBe("contract-ref");
+        aggregate.TenantId.ShouldBe("tenant-1");
+        aggregate.ModuleId.ShouldBe("module-1");
     }
 
     [Theory]
@@ -68,8 +68,7 @@ public class LawfulBasisAggregateTests
             null, null, null, null, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("requestTypeName");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("requestTypeName");
     }
 
     [Fact]
@@ -82,19 +81,15 @@ public class LawfulBasisAggregateTests
             Now, "tenant-1", "module-1");
 
         // Assert
-        aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<LawfulBasisRegistered>()
-            .Which.Should().BeEquivalentTo(new
-            {
-                RegistrationId = DefaultId,
-                RequestTypeName = "MyApp.Commands.CreateOrder",
-                Basis = global::Encina.Compliance.GDPR.LawfulBasis.Contract,
-                Purpose = (string?)"Order processing",
-                ContractReference = (string?)"contract-ref-001",
-                TenantId = (string?)"tenant-1",
-                ModuleId = (string?)"module-1",
-            });
-        aggregate.Version.Should().Be(1);
+        aggregate.UncommittedEvents.ShouldHaveSingleItem().ShouldBeOfType<LawfulBasisRegistered>().ShouldSatisfyAllConditions(
+            e => e.RegistrationId.ShouldBe(DefaultId),
+            e => e.RequestTypeName.ShouldBe("MyApp.Commands.CreateOrder"),
+            e => e.Basis.ShouldBe(global::Encina.Compliance.GDPR.LawfulBasis.Contract),
+            e => e.Purpose.ShouldBe("Order processing"),
+            e => e.ContractReference.ShouldBe("contract-ref-001"),
+            e => e.TenantId.ShouldBe("tenant-1"),
+            e => e.ModuleId.ShouldBe("module-1"));
+        aggregate.Version.ShouldBe(1);
     }
 
     #endregion
@@ -113,10 +108,10 @@ public class LawfulBasisAggregateTests
             "LIA-2024-001", null, null, Now.AddDays(30));
 
         // Assert
-        aggregate.Basis.Should().Be(global::Encina.Compliance.GDPR.LawfulBasis.LegitimateInterests);
-        aggregate.Purpose.Should().Be("Updated purpose");
-        aggregate.LIAReference.Should().Be("LIA-2024-001");
-        aggregate.ContractReference.Should().BeNull();
+        aggregate.Basis.ShouldBe(global::Encina.Compliance.GDPR.LawfulBasis.LegitimateInterests);
+        aggregate.Purpose.ShouldBe("Updated purpose");
+        aggregate.LIAReference.ShouldBe("LIA-2024-001");
+        aggregate.ContractReference.ShouldBeNull();
     }
 
     [Fact]
@@ -131,8 +126,7 @@ public class LawfulBasisAggregateTests
             null, null, null, Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*revoked*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("revoked");
     }
 
     [Fact]
@@ -147,8 +141,7 @@ public class LawfulBasisAggregateTests
             null, null, null, Now.AddDays(30));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*same*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("same");
     }
 
     [Fact]
@@ -163,12 +156,12 @@ public class LawfulBasisAggregateTests
             null, "EU Directive 2024/XXX", null, Now.AddDays(30));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        var changedEvent = aggregate.UncommittedEvents[^1].Should().BeOfType<LawfulBasisChanged>().Subject;
-        changedEvent.OldBasis.Should().Be(global::Encina.Compliance.GDPR.LawfulBasis.Contract);
-        changedEvent.NewBasis.Should().Be(global::Encina.Compliance.GDPR.LawfulBasis.LegalObligation);
-        changedEvent.Purpose.Should().Be("Legal requirement");
-        changedEvent.LegalReference.Should().Be("EU Directive 2024/XXX");
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        var changedEvent = aggregate.UncommittedEvents[^1].ShouldBeOfType<LawfulBasisChanged>();
+        changedEvent.OldBasis.ShouldBe(global::Encina.Compliance.GDPR.LawfulBasis.Contract);
+        changedEvent.NewBasis.ShouldBe(global::Encina.Compliance.GDPR.LawfulBasis.LegalObligation);
+        changedEvent.Purpose.ShouldBe("Legal requirement");
+        changedEvent.LegalReference.ShouldBe("EU Directive 2024/XXX");
     }
 
     #endregion
@@ -185,8 +178,8 @@ public class LawfulBasisAggregateTests
         aggregate.Revoke("Processing no longer needed", Now.AddDays(90));
 
         // Assert
-        aggregate.IsRevoked.Should().BeTrue();
-        aggregate.RevocationReason.Should().Be("Processing no longer needed");
+        aggregate.IsRevoked.ShouldBeTrue();
+        aggregate.RevocationReason.ShouldBe("Processing no longer needed");
     }
 
     [Fact]
@@ -199,8 +192,7 @@ public class LawfulBasisAggregateTests
         var act = () => aggregate.Revoke("Second revocation", Now.AddDays(120));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*already been revoked*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("already been revoked");
     }
 
     [Theory]
@@ -216,8 +208,7 @@ public class LawfulBasisAggregateTests
         var act = () => aggregate.Revoke(reason!, Now.AddDays(90));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("reason");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("reason");
     }
 
     [Fact]
@@ -230,10 +221,10 @@ public class LawfulBasisAggregateTests
         aggregate.Revoke("No longer required", Now.AddDays(90));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        var revokedEvent = aggregate.UncommittedEvents[^1].Should().BeOfType<LawfulBasisRevoked>().Subject;
-        revokedEvent.Reason.Should().Be("No longer required");
-        revokedEvent.RegistrationId.Should().Be(DefaultId);
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        var revokedEvent = aggregate.UncommittedEvents[^1].ShouldBeOfType<LawfulBasisRevoked>();
+        revokedEvent.Reason.ShouldBe("No longer required");
+        revokedEvent.RegistrationId.ShouldBe(DefaultId);
     }
 
     #endregion
@@ -248,15 +239,15 @@ public class LawfulBasisAggregateTests
             DefaultId, "MyApp.Commands.CreateOrder", global::Encina.Compliance.GDPR.LawfulBasis.Contract,
             "Order processing", null, null, "contract-ref",
             Now);
-        aggregate.Version.Should().Be(1);
+        aggregate.Version.ShouldBe(1);
 
         aggregate.ChangeBasis(
             global::Encina.Compliance.GDPR.LawfulBasis.LegalObligation, null,
             null, "legal-ref", null, Now.AddDays(30));
-        aggregate.Version.Should().Be(2);
+        aggregate.Version.ShouldBe(2);
 
         aggregate.Revoke("Done", Now.AddDays(60));
-        aggregate.Version.Should().Be(3);
+        aggregate.Version.ShouldBe(3);
     }
 
     #endregion

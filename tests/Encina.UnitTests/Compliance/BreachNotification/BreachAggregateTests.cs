@@ -1,7 +1,7 @@
 using Encina.Compliance.BreachNotification.Aggregates;
 using Encina.Compliance.BreachNotification.Events;
 using Encina.Compliance.BreachNotification.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -100,7 +100,7 @@ public class BreachAggregateTests
         var aggregate = CreateDetectedAggregate();
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Detected);
+        aggregate.Status.ShouldBe(BreachStatus.Detected);
     }
 
     [Fact]
@@ -120,14 +120,14 @@ public class BreachAggregateTests
             "module-1");
 
         // Assert
-        aggregate.Id.Should().Be(DefaultId);
-        aggregate.Nature.Should().Be("Data exfiltration via API");
-        aggregate.Severity.Should().Be(BreachSeverity.Critical);
-        aggregate.EstimatedAffectedSubjects.Should().Be(2000);
-        aggregate.Description.Should().Be("Sensitive data was exfiltrated through an unprotected API endpoint.");
-        aggregate.DetectedAtUtc.Should().Be(Now);
-        aggregate.TenantId.Should().Be("tenant-1");
-        aggregate.ModuleId.Should().Be("module-1");
+        aggregate.Id.ShouldBe(DefaultId);
+        aggregate.Nature.ShouldBe("Data exfiltration via API");
+        aggregate.Severity.ShouldBe(BreachSeverity.Critical);
+        aggregate.EstimatedAffectedSubjects.ShouldBe(2000);
+        aggregate.Description.ShouldBe("Sensitive data was exfiltrated through an unprotected API endpoint.");
+        aggregate.DetectedAtUtc.ShouldBe(Now);
+        aggregate.TenantId.ShouldBe("tenant-1");
+        aggregate.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class BreachAggregateTests
         var aggregate = CreateDetectedAggregate();
 
         // Assert
-        aggregate.DeadlineUtc.Should().Be(Now.AddHours(72));
+        aggregate.DeadlineUtc.ShouldBe(Now.AddHours(72));
     }
 
     [Fact]
@@ -147,9 +147,9 @@ public class BreachAggregateTests
         var aggregate = CreateDetectedAggregate();
 
         // Assert
-        aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<BreachDetected>();
-        aggregate.Version.Should().Be(1);
+        aggregate.UncommittedEvents.ShouldHaveSingleItem()
+            .Which.ShouldBeOfType<BreachDetected>();
+        aggregate.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -169,19 +169,19 @@ public class BreachAggregateTests
             "module-1");
 
         // Assert
-        var evt = aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<BreachDetected>().Subject;
+        var evt = aggregate.UncommittedEvents.ShouldHaveSingleItem()
+            .Which.ShouldBeOfType<BreachDetected>().Subject;
 
-        evt.BreachId.Should().Be(DefaultId);
-        evt.Nature.Should().Be("Unauthorized access");
-        evt.Severity.Should().Be(BreachSeverity.High);
-        evt.DetectedByRule.Should().Be("rule-access");
-        evt.EstimatedAffectedSubjects.Should().Be(500);
-        evt.Description.Should().Be("Breach description.");
-        evt.DetectedByUserId.Should().Be("user-1");
-        evt.DetectedAtUtc.Should().Be(Now);
-        evt.TenantId.Should().Be("tenant-1");
-        evt.ModuleId.Should().Be("module-1");
+        evt.BreachId.ShouldBe(DefaultId);
+        evt.Nature.ShouldBe("Unauthorized access");
+        evt.Severity.ShouldBe(BreachSeverity.High);
+        evt.DetectedByRule.ShouldBe("rule-access");
+        evt.EstimatedAffectedSubjects.ShouldBe(500);
+        evt.Description.ShouldBe("Breach description.");
+        evt.DetectedByUserId.ShouldBe("user-1");
+        evt.DetectedAtUtc.ShouldBe(Now);
+        evt.TenantId.ShouldBe("tenant-1");
+        evt.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -191,8 +191,8 @@ public class BreachAggregateTests
         var aggregate = CreateDetectedAggregate(tenantId: "tenant-abc", moduleId: "module-xyz");
 
         // Assert
-        aggregate.TenantId.Should().Be("tenant-abc");
-        aggregate.ModuleId.Should().Be("module-xyz");
+        aggregate.TenantId.ShouldBe("tenant-abc");
+        aggregate.ModuleId.ShouldBe("module-xyz");
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public class BreachAggregateTests
         var aggregate = CreateDetectedAggregate();
 
         // Assert
-        aggregate.TenantId.Should().BeNull();
-        aggregate.ModuleId.Should().BeNull();
+        aggregate.TenantId.ShouldBeNull();
+        aggregate.ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -213,14 +213,14 @@ public class BreachAggregateTests
         var aggregate = CreateDetectedAggregate();
 
         // Assert
-        aggregate.AssessedAtUtc.Should().BeNull();
-        aggregate.ReportedToDPAAtUtc.Should().BeNull();
-        aggregate.NotifiedSubjectsAtUtc.Should().BeNull();
-        aggregate.ContainedAtUtc.Should().BeNull();
-        aggregate.ClosedAtUtc.Should().BeNull();
-        aggregate.AuthorityName.Should().BeNull();
-        aggregate.SubjectCount.Should().Be(0);
-        aggregate.PhasedReportCount.Should().Be(0);
+        aggregate.AssessedAtUtc.ShouldBeNull();
+        aggregate.ReportedToDPAAtUtc.ShouldBeNull();
+        aggregate.NotifiedSubjectsAtUtc.ShouldBeNull();
+        aggregate.ContainedAtUtc.ShouldBeNull();
+        aggregate.ClosedAtUtc.ShouldBeNull();
+        aggregate.AuthorityName.ShouldBeNull();
+        aggregate.SubjectCount.ShouldBe(0);
+        aggregate.PhasedReportCount.ShouldBe(0);
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public class BreachAggregateTests
             Now);
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Detected);
+        aggregate.Status.ShouldBe(BreachStatus.Detected);
     }
 
     [Theory]
@@ -252,7 +252,7 @@ public class BreachAggregateTests
             DefaultId, nature!, BreachSeverity.High, "rule-1", 100, "desc", null, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -266,7 +266,7 @@ public class BreachAggregateTests
             DefaultId, "nature", BreachSeverity.High, rule!, 100, "desc", null, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -280,7 +280,7 @@ public class BreachAggregateTests
             DefaultId, "nature", BreachSeverity.High, "rule-1", 100, description!, null, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -302,7 +302,7 @@ public class BreachAggregateTests
             Now.AddHours(2));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Investigating);
+        aggregate.Status.ShouldBe(BreachStatus.Investigating);
     }
 
     [Fact]
@@ -320,8 +320,8 @@ public class BreachAggregateTests
             Now.AddHours(3));
 
         // Assert
-        aggregate.Severity.Should().Be(BreachSeverity.Critical);
-        aggregate.EstimatedAffectedSubjects.Should().Be(1500);
+        aggregate.Severity.ShouldBe(BreachSeverity.Critical);
+        aggregate.EstimatedAffectedSubjects.ShouldBe(1500);
     }
 
     [Fact]
@@ -340,7 +340,7 @@ public class BreachAggregateTests
             assessedAt);
 
         // Assert
-        aggregate.AssessedAtUtc.Should().Be(assessedAt);
+        aggregate.AssessedAtUtc.ShouldBe(assessedAt);
     }
 
     [Fact]
@@ -358,9 +358,9 @@ public class BreachAggregateTests
             Now.AddHours(2));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<BreachAssessed>();
-        aggregate.Version.Should().Be(2);
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachAssessed>();
+        aggregate.Version.ShouldBe(2);
     }
 
     [Fact]
@@ -379,15 +379,15 @@ public class BreachAggregateTests
             assessedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<BreachAssessed>().Subject;
-        evt.BreachId.Should().Be(aggregate.Id);
-        evt.UpdatedSeverity.Should().Be(BreachSeverity.Critical);
-        evt.UpdatedAffectedSubjects.Should().Be(1200);
-        evt.AssessmentSummary.Should().Be("Full assessment summary.");
-        evt.AssessedByUserId.Should().Be("user-assessor-1");
-        evt.AssessedAtUtc.Should().Be(assessedAt);
-        evt.TenantId.Should().Be("tenant-1");
-        evt.ModuleId.Should().Be("module-1");
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachAssessed>().Subject;
+        evt.BreachId.ShouldBe(aggregate.Id);
+        evt.UpdatedSeverity.ShouldBe(BreachSeverity.Critical);
+        evt.UpdatedAffectedSubjects.ShouldBe(1200);
+        evt.AssessmentSummary.ShouldBe("Full assessment summary.");
+        evt.AssessedByUserId.ShouldBe("user-assessor-1");
+        evt.AssessedAtUtc.ShouldBe(assessedAt);
+        evt.TenantId.ShouldBe("tenant-1");
+        evt.ModuleId.ShouldBe("module-1");
     }
 
     [Theory]
@@ -404,7 +404,7 @@ public class BreachAggregateTests
             BreachSeverity.High, 500, summary!, "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -421,7 +421,7 @@ public class BreachAggregateTests
             BreachSeverity.High, 500, "Summary.", userId!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -443,7 +443,7 @@ public class BreachAggregateTests
             Now.AddHours(10));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.AuthorityNotified);
+        aggregate.Status.ShouldBe(BreachStatus.AuthorityNotified);
     }
 
     [Fact]
@@ -461,7 +461,7 @@ public class BreachAggregateTests
             Now.AddHours(12));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.AuthorityNotified);
+        aggregate.Status.ShouldBe(BreachStatus.AuthorityNotified);
     }
 
     [Fact]
@@ -480,8 +480,8 @@ public class BreachAggregateTests
             reportedAt);
 
         // Assert
-        aggregate.AuthorityName.Should().Be("ICO");
-        aggregate.ReportedToDPAAtUtc.Should().Be(reportedAt);
+        aggregate.AuthorityName.ShouldBe("ICO");
+        aggregate.ReportedToDPAAtUtc.ShouldBe(reportedAt);
     }
 
     [Fact]
@@ -499,8 +499,8 @@ public class BreachAggregateTests
             Now.AddHours(10));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<BreachReportedToDPA>();
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachReportedToDPA>();
     }
 
     [Fact]
@@ -519,15 +519,15 @@ public class BreachAggregateTests
             reportedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<BreachReportedToDPA>().Subject;
-        evt.BreachId.Should().Be(aggregate.Id);
-        evt.AuthorityName.Should().Be("AEPD");
-        evt.AuthorityContactInfo.Should().Be("dpo@aepd.es");
-        evt.ReportSummary.Should().Be("Full report.");
-        evt.ReportedByUserId.Should().Be("user-reporter-1");
-        evt.ReportedAtUtc.Should().Be(reportedAt);
-        evt.TenantId.Should().Be("tenant-1");
-        evt.ModuleId.Should().Be("module-1");
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachReportedToDPA>().Subject;
+        evt.BreachId.ShouldBe(aggregate.Id);
+        evt.AuthorityName.ShouldBe("AEPD");
+        evt.AuthorityContactInfo.ShouldBe("dpo@aepd.es");
+        evt.ReportSummary.ShouldBe("Full report.");
+        evt.ReportedByUserId.ShouldBe("user-reporter-1");
+        evt.ReportedAtUtc.ShouldBe(reportedAt);
+        evt.TenantId.ShouldBe("tenant-1");
+        evt.ModuleId.ShouldBe("module-1");
     }
 
     [Theory]
@@ -544,7 +544,7 @@ public class BreachAggregateTests
             name!, "contact", "summary", "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -561,7 +561,7 @@ public class BreachAggregateTests
             "AEPD", contact!, "summary", "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -578,7 +578,7 @@ public class BreachAggregateTests
             "AEPD", "contact", summary!, "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -595,7 +595,7 @@ public class BreachAggregateTests
             "AEPD", "contact", "summary", userId!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -617,7 +617,7 @@ public class BreachAggregateTests
             Now.AddHours(24));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.SubjectsNotified);
+        aggregate.Status.ShouldBe(BreachStatus.SubjectsNotified);
     }
 
     [Fact]
@@ -636,8 +636,8 @@ public class BreachAggregateTests
             notifiedAt);
 
         // Assert
-        aggregate.SubjectCount.Should().Be(950);
-        aggregate.NotifiedSubjectsAtUtc.Should().Be(notifiedAt);
+        aggregate.SubjectCount.ShouldBe(950);
+        aggregate.NotifiedSubjectsAtUtc.ShouldBe(notifiedAt);
     }
 
     [Fact]
@@ -655,7 +655,7 @@ public class BreachAggregateTests
             Now.AddHours(24));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<BreachNotifiedToSubjects>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachNotifiedToSubjects>();
     }
 
     [Fact]
@@ -674,13 +674,13 @@ public class BreachAggregateTests
             notifiedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<BreachNotifiedToSubjects>().Subject;
-        evt.BreachId.Should().Be(aggregate.Id);
-        evt.SubjectCount.Should().Be(800);
-        evt.CommunicationMethod.Should().Be("public-notice");
-        evt.Exemption.Should().Be(SubjectNotificationExemption.DisproportionateEffort);
-        evt.NotifiedByUserId.Should().Be("user-notifier-1");
-        evt.NotifiedAtUtc.Should().Be(notifiedAt);
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachNotifiedToSubjects>().Subject;
+        evt.BreachId.ShouldBe(aggregate.Id);
+        evt.SubjectCount.ShouldBe(800);
+        evt.CommunicationMethod.ShouldBe("public-notice");
+        evt.Exemption.ShouldBe(SubjectNotificationExemption.DisproportionateEffort);
+        evt.NotifiedByUserId.ShouldBe("user-notifier-1");
+        evt.NotifiedAtUtc.ShouldBe(notifiedAt);
     }
 
     [Theory]
@@ -697,7 +697,7 @@ public class BreachAggregateTests
             100, method!, SubjectNotificationExemption.None, "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -714,7 +714,7 @@ public class BreachAggregateTests
             100, "email", SubjectNotificationExemption.None, userId!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -734,7 +734,7 @@ public class BreachAggregateTests
             Now.AddHours(6));
 
         // Assert
-        aggregate.PhasedReportCount.Should().Be(1);
+        aggregate.PhasedReportCount.ShouldBe(1);
     }
 
     [Fact]
@@ -749,7 +749,7 @@ public class BreachAggregateTests
         aggregate.AddPhasedReport("Phase 3.", "user-1", Now.AddHours(18));
 
         // Assert
-        aggregate.PhasedReportCount.Should().Be(3);
+        aggregate.PhasedReportCount.ShouldBe(3);
     }
 
     [Fact]
@@ -765,8 +765,8 @@ public class BreachAggregateTests
             Now.AddHours(6));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<BreachPhasedReportAdded>();
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachPhasedReportAdded>();
     }
 
     [Fact]
@@ -784,9 +784,9 @@ public class BreachAggregateTests
             .OfType<BreachPhasedReportAdded>()
             .ToList();
 
-        events.Should().HaveCount(2);
-        events[0].PhaseNumber.Should().Be(1);
-        events[1].PhaseNumber.Should().Be(2);
+        events.Count.ShouldBe(2);
+        events[0].PhaseNumber.ShouldBe(1);
+        events[1].PhaseNumber.ShouldBe(2);
     }
 
     [Fact]
@@ -803,14 +803,14 @@ public class BreachAggregateTests
             submittedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<BreachPhasedReportAdded>().Subject;
-        evt.BreachId.Should().Be(aggregate.Id);
-        evt.PhaseNumber.Should().Be(1);
-        evt.ReportContent.Should().Be("Detailed phase 1 findings.");
-        evt.SubmittedByUserId.Should().Be("user-reporter-1");
-        evt.SubmittedAtUtc.Should().Be(submittedAt);
-        evt.TenantId.Should().Be("tenant-1");
-        evt.ModuleId.Should().Be("module-1");
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachPhasedReportAdded>().Subject;
+        evt.BreachId.ShouldBe(aggregate.Id);
+        evt.PhaseNumber.ShouldBe(1);
+        evt.ReportContent.ShouldBe("Detailed phase 1 findings.");
+        evt.SubmittedByUserId.ShouldBe("user-reporter-1");
+        evt.SubmittedAtUtc.ShouldBe(submittedAt);
+        evt.TenantId.ShouldBe("tenant-1");
+        evt.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -824,7 +824,7 @@ public class BreachAggregateTests
         aggregate.AddPhasedReport("Report.", "user-1", Now.AddHours(6));
 
         // Assert
-        aggregate.Status.Should().Be(statusBefore);
+        aggregate.Status.ShouldBe(statusBefore);
     }
 
     [Fact]
@@ -837,7 +837,7 @@ public class BreachAggregateTests
         aggregate.AddPhasedReport("Phase report during investigation.", "user-1", Now.AddHours(6));
 
         // Assert
-        aggregate.PhasedReportCount.Should().Be(1);
+        aggregate.PhasedReportCount.ShouldBe(1);
     }
 
     [Fact]
@@ -850,7 +850,7 @@ public class BreachAggregateTests
         aggregate.AddPhasedReport("Phase report after DPA notification.", "user-1", Now.AddHours(24));
 
         // Assert
-        aggregate.PhasedReportCount.Should().Be(1);
+        aggregate.PhasedReportCount.ShouldBe(1);
     }
 
     [Fact]
@@ -863,7 +863,7 @@ public class BreachAggregateTests
         aggregate.AddPhasedReport("Phase report after subject notification.", "user-1", Now.AddHours(48));
 
         // Assert
-        aggregate.PhasedReportCount.Should().Be(1);
+        aggregate.PhasedReportCount.ShouldBe(1);
     }
 
     [Fact]
@@ -876,7 +876,7 @@ public class BreachAggregateTests
         aggregate.AddPhasedReport("Final phase report after containment.", "user-1", Now.AddDays(7));
 
         // Assert
-        aggregate.PhasedReportCount.Should().Be(1);
+        aggregate.PhasedReportCount.ShouldBe(1);
     }
 
     [Theory]
@@ -892,7 +892,7 @@ public class BreachAggregateTests
         var act = () => aggregate.AddPhasedReport(content!, "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -908,7 +908,7 @@ public class BreachAggregateTests
         var act = () => aggregate.AddPhasedReport("Content.", userId!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -928,7 +928,7 @@ public class BreachAggregateTests
             Now.AddHours(1));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Resolved);
+        aggregate.Status.ShouldBe(BreachStatus.Resolved);
     }
 
     [Fact]
@@ -944,7 +944,7 @@ public class BreachAggregateTests
             Now.AddHours(6));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Resolved);
+        aggregate.Status.ShouldBe(BreachStatus.Resolved);
     }
 
     [Fact]
@@ -960,7 +960,7 @@ public class BreachAggregateTests
             Now.AddHours(24));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Resolved);
+        aggregate.Status.ShouldBe(BreachStatus.Resolved);
     }
 
     [Fact]
@@ -976,7 +976,7 @@ public class BreachAggregateTests
             Now.AddHours(48));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Resolved);
+        aggregate.Status.ShouldBe(BreachStatus.Resolved);
     }
 
     [Fact]
@@ -993,7 +993,7 @@ public class BreachAggregateTests
             containedAt);
 
         // Assert
-        aggregate.ContainedAtUtc.Should().Be(containedAt);
+        aggregate.ContainedAtUtc.ShouldBe(containedAt);
     }
 
     [Fact]
@@ -1009,7 +1009,7 @@ public class BreachAggregateTests
             Now.AddHours(5));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<BreachContained>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachContained>();
     }
 
     [Fact]
@@ -1026,13 +1026,13 @@ public class BreachAggregateTests
             containedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<BreachContained>().Subject;
-        evt.BreachId.Should().Be(aggregate.Id);
-        evt.ContainmentMeasures.Should().Be("Credentials rotated.");
-        evt.ContainedByUserId.Should().Be("user-containment-1");
-        evt.ContainedAtUtc.Should().Be(containedAt);
-        evt.TenantId.Should().Be("tenant-1");
-        evt.ModuleId.Should().Be("module-1");
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachContained>().Subject;
+        evt.BreachId.ShouldBe(aggregate.Id);
+        evt.ContainmentMeasures.ShouldBe("Credentials rotated.");
+        evt.ContainedByUserId.ShouldBe("user-containment-1");
+        evt.ContainedAtUtc.ShouldBe(containedAt);
+        evt.TenantId.ShouldBe("tenant-1");
+        evt.ModuleId.ShouldBe("module-1");
     }
 
     [Theory]
@@ -1048,7 +1048,7 @@ public class BreachAggregateTests
         var act = () => aggregate.Contain(measures!, "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -1064,7 +1064,7 @@ public class BreachAggregateTests
         var act = () => aggregate.Contain("Measures.", userId!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -1084,7 +1084,7 @@ public class BreachAggregateTests
             Now.AddDays(30));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Closed);
+        aggregate.Status.ShouldBe(BreachStatus.Closed);
     }
 
     [Fact]
@@ -1100,7 +1100,7 @@ public class BreachAggregateTests
             Now.AddDays(30));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.Closed);
+        aggregate.Status.ShouldBe(BreachStatus.Closed);
     }
 
     [Fact]
@@ -1117,7 +1117,7 @@ public class BreachAggregateTests
             closedAt);
 
         // Assert
-        aggregate.ClosedAtUtc.Should().Be(closedAt);
+        aggregate.ClosedAtUtc.ShouldBe(closedAt);
     }
 
     [Fact]
@@ -1133,7 +1133,7 @@ public class BreachAggregateTests
             Now.AddDays(30));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<BreachClosed>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachClosed>();
     }
 
     [Fact]
@@ -1150,11 +1150,11 @@ public class BreachAggregateTests
             closedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<BreachClosed>().Subject;
-        evt.BreachId.Should().Be(aggregate.Id);
-        evt.ResolutionSummary.Should().Be("Root cause identified. All measures applied.");
-        evt.ClosedByUserId.Should().Be("user-closer-1");
-        evt.ClosedAtUtc.Should().Be(closedAt);
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachClosed>().Subject;
+        evt.BreachId.ShouldBe(aggregate.Id);
+        evt.ResolutionSummary.ShouldBe("Root cause identified. All measures applied.");
+        evt.ClosedByUserId.ShouldBe("user-closer-1");
+        evt.ClosedAtUtc.ShouldBe(closedAt);
     }
 
     [Theory]
@@ -1170,7 +1170,7 @@ public class BreachAggregateTests
         var act = () => aggregate.Close(summary!, "user-1", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -1186,7 +1186,7 @@ public class BreachAggregateTests
         var act = () => aggregate.Close("Summary.", userId!, Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -1204,8 +1204,8 @@ public class BreachAggregateTests
             BreachSeverity.Critical, 2000, "Re-assessment.", "user-1", Now.AddHours(5));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Investigating*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Investigating");
     }
 
     [Fact]
@@ -1219,8 +1219,8 @@ public class BreachAggregateTests
             BreachSeverity.Critical, 2000, "Late assessment.", "user-1", Now.AddHours(24));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*AuthorityNotified*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("AuthorityNotified");
     }
 
     [Fact]
@@ -1234,8 +1234,8 @@ public class BreachAggregateTests
             BreachSeverity.Critical, 2000, "Assessment.", "user-1", Now.AddHours(48));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*SubjectsNotified*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("SubjectsNotified");
     }
 
     [Fact]
@@ -1249,8 +1249,8 @@ public class BreachAggregateTests
             BreachSeverity.Critical, 2000, "Assessment.", "user-1", Now.AddDays(7));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Resolved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Resolved");
     }
 
     [Fact]
@@ -1264,8 +1264,8 @@ public class BreachAggregateTests
             BreachSeverity.Critical, 2000, "Assessment.", "user-1", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Closed*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Closed");
     }
 
     [Fact]
@@ -1279,8 +1279,8 @@ public class BreachAggregateTests
             "Another DPA", "contact", "summary", "user-1", Now.AddHours(24));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*AuthorityNotified*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("AuthorityNotified");
     }
 
     [Fact]
@@ -1294,8 +1294,8 @@ public class BreachAggregateTests
             "DPA", "contact", "summary", "user-1", Now.AddHours(48));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*SubjectsNotified*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("SubjectsNotified");
     }
 
     [Fact]
@@ -1309,8 +1309,8 @@ public class BreachAggregateTests
             "DPA", "contact", "summary", "user-1", Now.AddDays(7));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Resolved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Resolved");
     }
 
     [Fact]
@@ -1324,8 +1324,8 @@ public class BreachAggregateTests
             "DPA", "contact", "summary", "user-1", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Closed*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Closed");
     }
 
     [Fact]
@@ -1339,8 +1339,8 @@ public class BreachAggregateTests
             100, "email", SubjectNotificationExemption.None, "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Detected*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Detected");
     }
 
     [Fact]
@@ -1354,8 +1354,8 @@ public class BreachAggregateTests
             100, "email", SubjectNotificationExemption.None, "user-1", Now.AddHours(6));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Investigating*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Investigating");
     }
 
     [Fact]
@@ -1369,8 +1369,8 @@ public class BreachAggregateTests
             100, "email", SubjectNotificationExemption.None, "user-1", Now.AddHours(48));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*SubjectsNotified*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("SubjectsNotified");
     }
 
     [Fact]
@@ -1384,8 +1384,8 @@ public class BreachAggregateTests
             100, "email", SubjectNotificationExemption.None, "user-1", Now.AddDays(7));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Resolved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Resolved");
     }
 
     [Fact]
@@ -1399,8 +1399,8 @@ public class BreachAggregateTests
             100, "email", SubjectNotificationExemption.None, "user-1", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Closed*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Closed");
     }
 
     [Fact]
@@ -1414,8 +1414,8 @@ public class BreachAggregateTests
             "Late report.", "user-1", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*closed*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("closed");
     }
 
     [Fact]
@@ -1429,8 +1429,8 @@ public class BreachAggregateTests
             "Containment measures.", "user-1", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*closed*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("closed");
     }
 
     [Fact]
@@ -1444,8 +1444,8 @@ public class BreachAggregateTests
             "Premature closure.", "user-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Detected*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Detected");
     }
 
     [Fact]
@@ -1459,8 +1459,8 @@ public class BreachAggregateTests
             "Premature closure.", "user-1", Now.AddHours(6));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Investigating*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Investigating");
     }
 
     [Fact]
@@ -1474,8 +1474,8 @@ public class BreachAggregateTests
             "Premature closure.", "user-1", Now.AddHours(24));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*AuthorityNotified*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("AuthorityNotified");
     }
 
     [Fact]
@@ -1489,8 +1489,8 @@ public class BreachAggregateTests
             "Double closure.", "user-1", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Closed*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Closed");
     }
 
     #endregion
@@ -1513,8 +1513,8 @@ public class BreachAggregateTests
             "tenant-1",
             "module-1");
 
-        aggregate.Status.Should().Be(BreachStatus.Detected);
-        aggregate.DeadlineUtc.Should().Be(Now.AddHours(72));
+        aggregate.Status.ShouldBe(BreachStatus.Detected);
+        aggregate.DeadlineUtc.ShouldBe(Now.AddHours(72));
 
         // Act: Assess
         var assessedAt = Now.AddHours(2);
@@ -1525,10 +1525,10 @@ public class BreachAggregateTests
             "user-assessor-1",
             assessedAt);
 
-        aggregate.Status.Should().Be(BreachStatus.Investigating);
-        aggregate.Severity.Should().Be(BreachSeverity.Critical);
-        aggregate.EstimatedAffectedSubjects.Should().Be(1200);
-        aggregate.AssessedAtUtc.Should().Be(assessedAt);
+        aggregate.Status.ShouldBe(BreachStatus.Investigating);
+        aggregate.Severity.ShouldBe(BreachSeverity.Critical);
+        aggregate.EstimatedAffectedSubjects.ShouldBe(1200);
+        aggregate.AssessedAtUtc.ShouldBe(assessedAt);
 
         // Act: ReportToDPA
         var reportedAt = Now.AddHours(12);
@@ -1539,9 +1539,9 @@ public class BreachAggregateTests
             "user-reporter-1",
             reportedAt);
 
-        aggregate.Status.Should().Be(BreachStatus.AuthorityNotified);
-        aggregate.AuthorityName.Should().Be("AEPD");
-        aggregate.ReportedToDPAAtUtc.Should().Be(reportedAt);
+        aggregate.Status.ShouldBe(BreachStatus.AuthorityNotified);
+        aggregate.AuthorityName.ShouldBe("AEPD");
+        aggregate.ReportedToDPAAtUtc.ShouldBe(reportedAt);
 
         // Act: NotifySubjects
         var notifiedAt = Now.AddHours(24);
@@ -1552,9 +1552,9 @@ public class BreachAggregateTests
             "user-notifier-1",
             notifiedAt);
 
-        aggregate.Status.Should().Be(BreachStatus.SubjectsNotified);
-        aggregate.SubjectCount.Should().Be(1200);
-        aggregate.NotifiedSubjectsAtUtc.Should().Be(notifiedAt);
+        aggregate.Status.ShouldBe(BreachStatus.SubjectsNotified);
+        aggregate.SubjectCount.ShouldBe(1200);
+        aggregate.NotifiedSubjectsAtUtc.ShouldBe(notifiedAt);
 
         // Act: Contain
         var containedAt = Now.AddHours(48);
@@ -1563,8 +1563,8 @@ public class BreachAggregateTests
             "user-containment-1",
             containedAt);
 
-        aggregate.Status.Should().Be(BreachStatus.Resolved);
-        aggregate.ContainedAtUtc.Should().Be(containedAt);
+        aggregate.Status.ShouldBe(BreachStatus.Resolved);
+        aggregate.ContainedAtUtc.ShouldBe(containedAt);
 
         // Act: Close
         var closedAt = Now.AddDays(30);
@@ -1573,22 +1573,22 @@ public class BreachAggregateTests
             "user-closer-1",
             closedAt);
 
-        aggregate.Status.Should().Be(BreachStatus.Closed);
-        aggregate.ClosedAtUtc.Should().Be(closedAt);
+        aggregate.Status.ShouldBe(BreachStatus.Closed);
+        aggregate.ClosedAtUtc.ShouldBe(closedAt);
 
         // Assert: All events raised in order
-        aggregate.UncommittedEvents.Should().HaveCount(6);
-        aggregate.UncommittedEvents[0].Should().BeOfType<BreachDetected>();
-        aggregate.UncommittedEvents[1].Should().BeOfType<BreachAssessed>();
-        aggregate.UncommittedEvents[2].Should().BeOfType<BreachReportedToDPA>();
-        aggregate.UncommittedEvents[3].Should().BeOfType<BreachNotifiedToSubjects>();
-        aggregate.UncommittedEvents[4].Should().BeOfType<BreachContained>();
-        aggregate.UncommittedEvents[5].Should().BeOfType<BreachClosed>();
-        aggregate.Version.Should().Be(6);
+        aggregate.UncommittedEvents.Count.ShouldBe(6);
+        aggregate.UncommittedEvents[0].ShouldBeOfType<BreachDetected>();
+        aggregate.UncommittedEvents[1].ShouldBeOfType<BreachAssessed>();
+        aggregate.UncommittedEvents[2].ShouldBeOfType<BreachReportedToDPA>();
+        aggregate.UncommittedEvents[3].ShouldBeOfType<BreachNotifiedToSubjects>();
+        aggregate.UncommittedEvents[4].ShouldBeOfType<BreachContained>();
+        aggregate.UncommittedEvents[5].ShouldBeOfType<BreachClosed>();
+        aggregate.Version.ShouldBe(6);
 
         // Assert: TenantId and ModuleId preserved throughout
-        aggregate.TenantId.Should().Be("tenant-1");
-        aggregate.ModuleId.Should().Be("module-1");
+        aggregate.TenantId.ShouldBe("tenant-1");
+        aggregate.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -1606,16 +1606,16 @@ public class BreachAggregateTests
         aggregate.AddPhasedReport("Phase 3: Post-notification update.", "user-1", Now.AddHours(18));
 
         // Assert
-        aggregate.PhasedReportCount.Should().Be(3);
+        aggregate.PhasedReportCount.ShouldBe(3);
 
         var phasedEvents = aggregate.UncommittedEvents
             .OfType<BreachPhasedReportAdded>()
             .ToList();
 
-        phasedEvents.Should().HaveCount(3);
-        phasedEvents[0].PhaseNumber.Should().Be(1);
-        phasedEvents[1].PhaseNumber.Should().Be(2);
-        phasedEvents[2].PhaseNumber.Should().Be(3);
+        phasedEvents.Count.ShouldBe(3);
+        phasedEvents[0].PhaseNumber.ShouldBe(1);
+        phasedEvents[1].PhaseNumber.ShouldBe(2);
+        phasedEvents[2].PhaseNumber.ShouldBe(3);
     }
 
     [Fact]
@@ -1633,8 +1633,8 @@ public class BreachAggregateTests
             Now.AddHours(6));
 
         // Assert
-        aggregate.Status.Should().Be(BreachStatus.AuthorityNotified);
-        aggregate.AssessedAtUtc.Should().BeNull();
+        aggregate.Status.ShouldBe(BreachStatus.AuthorityNotified);
+        aggregate.AssessedAtUtc.ShouldBeNull();
     }
 
     #endregion

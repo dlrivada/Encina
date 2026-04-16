@@ -2,7 +2,7 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.SecretsManager;
 using Encina.Security.Secrets.AwsSecretsManager;
-using FluentAssertions;
+using Shouldly;
 using NSubstitute;
 
 namespace Encina.UnitTests.Security.Secrets.AwsSecretsManager;
@@ -14,7 +14,7 @@ public sealed class AwsSecretsManagerOptionsTests
     {
         var options = new AwsSecretsManagerOptions();
 
-        options.Region.Should().BeNull();
+        options.Region.ShouldBeNull();
     }
 
     [Fact]
@@ -22,7 +22,7 @@ public sealed class AwsSecretsManagerOptionsTests
     {
         var options = new AwsSecretsManagerOptions();
 
-        options.Credentials.Should().BeNull();
+        options.Credentials.ShouldBeNull();
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class AwsSecretsManagerOptionsTests
     {
         var options = new AwsSecretsManagerOptions();
 
-        options.ClientConfig.Should().BeNull();
+        options.ClientConfig.ShouldBeNull();
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class AwsSecretsManagerOptionsTests
 
         options.Region = RegionEndpoint.USEast1;
 
-        options.Region.Should().Be(RegionEndpoint.USEast1);
+        options.Region.ShouldBe(RegionEndpoint.USEast1);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class AwsSecretsManagerOptionsTests
 
         options.Credentials = credentials;
 
-        options.Credentials.Should().BeSameAs(credentials);
+        options.Credentials.ShouldBeSameAs(credentials);
     }
 
     [Fact]
@@ -62,6 +62,6 @@ public sealed class AwsSecretsManagerOptionsTests
 
         options.ClientConfig = config;
 
-        options.ClientConfig.Should().BeSameAs(config);
+        options.ClientConfig.ShouldBeSameAs(config);
     }
 }

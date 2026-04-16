@@ -10,7 +10,7 @@ using Encina.Compliance.ProcessorAgreements.ReadModels;
 using Encina.Compliance.ProcessorAgreements.Scheduling;
 using Encina.Marten;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -55,7 +55,7 @@ public class CheckDPAExpirationHandlerTests
         var result = await handler.Handle(new CheckDPAExpirationCommand(), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _encina.DidNotReceive().Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
     }
 
@@ -82,7 +82,7 @@ public class CheckDPAExpirationHandlerTests
         var result = await handler.Handle(new CheckDPAExpirationCommand(), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         await _dpaRepository.Received(1).LoadAsync(dpaId, Arg.Any<CancellationToken>());
         await _dpaRepository.Received(1).SaveAsync(Arg.Any<DPAAggregate>(), Arg.Any<CancellationToken>());
@@ -117,7 +117,7 @@ public class CheckDPAExpirationHandlerTests
         var result = await handler.Handle(new CheckDPAExpirationCommand(), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         await _dpaRepository.DidNotReceive().LoadAsync(
             Arg.Any<Guid>(),
@@ -162,7 +162,7 @@ public class CheckDPAExpirationHandlerTests
         var result = await handler.Handle(new CheckDPAExpirationCommand(), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         await _dpaRepository.Received(1).LoadAsync(dpaId1, Arg.Any<CancellationToken>());
         await _dpaRepository.Received(1).SaveAsync(Arg.Any<DPAAggregate>(), Arg.Any<CancellationToken>());
@@ -193,9 +193,9 @@ public class CheckDPAExpirationHandlerTests
         var result = await handler.Handle(new CheckDPAExpirationCommand(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var returnedError = result.Match(Right: _ => default!, Left: e => e);
-        returnedError.GetCode().IfNone("").Should().Be("store.failure");
+        returnedError.GetCode().IfNone("").ShouldBe("store.failure");
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class CheckDPAExpirationHandlerTests
         var result = await handler.Handle(new CheckDPAExpirationCommand(), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         // Second DPA should still be processed and notified
         await _encina.Received(1).Publish(

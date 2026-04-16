@@ -1,5 +1,5 @@
 using Encina.Compliance.Retention;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -17,7 +17,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.DefaultRetentionPeriod.Should().BeNull();
+        options.DefaultRetentionPeriod.ShouldBeNull();
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.AlertBeforeExpirationDays.Should().Be(30);
+        options.AlertBeforeExpirationDays.ShouldBe(30);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.PublishNotifications.Should().BeTrue();
+        options.PublishNotifications.ShouldBeTrue();
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.EnableAutomaticEnforcement.Should().BeTrue();
+        options.EnableAutomaticEnforcement.ShouldBeTrue();
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.EnforcementInterval.Should().Be(TimeSpan.FromMinutes(60));
+        options.EnforcementInterval.ShouldBe(TimeSpan.FromMinutes(60));
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.EnforcementMode.Should().Be(RetentionEnforcementMode.Warn);
+        options.EnforcementMode.ShouldBe(RetentionEnforcementMode.Warn);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.AutoRegisterFromAttributes.Should().BeTrue();
+        options.AutoRegisterFromAttributes.ShouldBeTrue();
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class RetentionOptionsTests
         var options = new RetentionOptions();
 
         // Assert
-        options.AssembliesToScan.Should().BeEmpty();
+        options.AssembliesToScan.ShouldBeEmpty();
     }
 
     #endregion
@@ -114,7 +114,7 @@ public class RetentionOptionsTests
         options.DefaultRetentionPeriod = TimeSpan.FromDays(365);
 
         // Assert
-        options.DefaultRetentionPeriod.Should().Be(TimeSpan.FromDays(365));
+        options.DefaultRetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class RetentionOptionsTests
         options.AlertBeforeExpirationDays = 14;
 
         // Assert
-        options.AlertBeforeExpirationDays.Should().Be(14);
+        options.AlertBeforeExpirationDays.ShouldBe(14);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class RetentionOptionsTests
         options.PublishNotifications = false;
 
         // Assert
-        options.PublishNotifications.Should().BeFalse();
+        options.PublishNotifications.ShouldBeFalse();
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class RetentionOptionsTests
         options.AddHealthCheck = true;
 
         // Assert
-        options.AddHealthCheck.Should().BeTrue();
+        options.AddHealthCheck.ShouldBeTrue();
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class RetentionOptionsTests
         options.EnableAutomaticEnforcement = false;
 
         // Assert
-        options.EnableAutomaticEnforcement.Should().BeFalse();
+        options.EnableAutomaticEnforcement.ShouldBeFalse();
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class RetentionOptionsTests
         options.EnforcementInterval = TimeSpan.FromHours(6);
 
         // Assert
-        options.EnforcementInterval.Should().Be(TimeSpan.FromHours(6));
+        options.EnforcementInterval.ShouldBe(TimeSpan.FromHours(6));
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public class RetentionOptionsTests
         options.EnforcementMode = RetentionEnforcementMode.Block;
 
         // Assert
-        options.EnforcementMode.Should().Be(RetentionEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(RetentionEnforcementMode.Block);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class RetentionOptionsTests
         options.EnforcementMode = RetentionEnforcementMode.Disabled;
 
         // Assert
-        options.EnforcementMode.Should().Be(RetentionEnforcementMode.Disabled);
+        options.EnforcementMode.ShouldBe(RetentionEnforcementMode.Disabled);
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class RetentionOptionsTests
         options.AutoRegisterFromAttributes = false;
 
         // Assert
-        options.AutoRegisterFromAttributes.Should().BeFalse();
+        options.AutoRegisterFromAttributes.ShouldBeFalse();
     }
 
     [Fact]
@@ -232,8 +232,8 @@ public class RetentionOptionsTests
         options.AssembliesToScan.Add(assembly);
 
         // Assert
-        options.AssembliesToScan.Should().ContainSingle()
-            .Which.Should().BeSameAs(assembly);
+        options.AssembliesToScan.ShouldHaveSingleItem()
+            .Which.ShouldBeSameAs(assembly);
     }
 
     #endregion
@@ -250,7 +250,7 @@ public class RetentionOptionsTests
         var result = options.AddPolicy("financial-records", policy => policy.RetainForDays(365));
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public class RetentionOptionsTests
         var act = () => options.AddPolicy(null!, policy => policy.RetainForDays(365));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public class RetentionOptionsTests
         var act = () => options.AddPolicy("financial-records", null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public class RetentionOptionsTests
         });
 
         // Assert
-        configureInvoked.Should().BeTrue();
+        configureInvoked.ShouldBeTrue();
     }
 
     [Fact]
@@ -310,7 +310,7 @@ public class RetentionOptionsTests
             .AddPolicy("marketing-consent", policy => policy.RetainForDays(730));
 
         // Assert
-        options.ConfiguredPolicies.Should().HaveCount(3);
+        options.ConfiguredPolicies.Count.ShouldBe(3);
     }
 
     #endregion

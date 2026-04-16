@@ -3,7 +3,7 @@
 using Encina.Compliance.CrossBorderTransfer.Aggregates;
 using Encina.Compliance.CrossBorderTransfer.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using static LanguageExt.Prelude;
 
@@ -25,18 +25,18 @@ public class SCCAgreementAggregateTests
             executedAt, expiresAt, "tenant-1", "module-1");
 
         // Assert
-        scc.Id.Should().Be(id);
-        scc.ProcessorId.Should().Be("processor-1");
-        scc.Module.Should().Be(SCCModule.ControllerToProcessor);
-        scc.SCCVersion.Should().Be("2021/914");
-        scc.ExecutedAtUtc.Should().Be(executedAt);
-        scc.ExpiresAtUtc.Should().Be(expiresAt);
-        scc.TenantId.Should().Be("tenant-1");
-        scc.ModuleId.Should().Be("module-1");
-        scc.IsRevoked.Should().BeFalse();
-        scc.IsExpired.Should().BeFalse();
-        scc.RevokedAtUtc.Should().BeNull();
-        scc.SupplementaryMeasures.Should().BeEmpty();
+        scc.Id.ShouldBe(id);
+        scc.ProcessorId.ShouldBe("processor-1");
+        scc.Module.ShouldBe(SCCModule.ControllerToProcessor);
+        scc.SCCVersion.ShouldBe("2021/914");
+        scc.ExecutedAtUtc.ShouldBe(executedAt);
+        scc.ExpiresAtUtc.ShouldBe(expiresAt);
+        scc.TenantId.ShouldBe("tenant-1");
+        scc.ModuleId.ShouldBe("module-1");
+        scc.IsRevoked.ShouldBeFalse();
+        scc.IsExpired.ShouldBeFalse();
+        scc.RevokedAtUtc.ShouldBeNull();
+        scc.SupplementaryMeasures.ShouldBeEmpty();
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public class SCCAgreementAggregateTests
             Guid.NewGuid(), null!, SCCModule.ControllerToProcessor, "2021/914", DateTimeOffset.UtcNow);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("processorId");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("processorId");
     }
 
     [Fact]
@@ -62,11 +62,11 @@ public class SCCAgreementAggregateTests
         scc.AddSupplementaryMeasure(measureId, SupplementaryMeasureType.Technical, "Data encryption at rest");
 
         // Assert
-        scc.SupplementaryMeasures.Should().HaveCount(1);
-        scc.SupplementaryMeasures[0].Id.Should().Be(measureId);
-        scc.SupplementaryMeasures[0].Type.Should().Be(SupplementaryMeasureType.Technical);
-        scc.SupplementaryMeasures[0].Description.Should().Be("Data encryption at rest");
-        scc.SupplementaryMeasures[0].IsImplemented.Should().BeFalse();
+        scc.SupplementaryMeasures.Count.ShouldBe(1);
+        scc.SupplementaryMeasures[0].Id.ShouldBe(measureId);
+        scc.SupplementaryMeasures[0].Type.ShouldBe(SupplementaryMeasureType.Technical);
+        scc.SupplementaryMeasures[0].Description.ShouldBe("Data encryption at rest");
+        scc.SupplementaryMeasures[0].IsImplemented.ShouldBeFalse();
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class SCCAgreementAggregateTests
             Guid.NewGuid(), SupplementaryMeasureType.Organizational, "Staff training");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class SCCAgreementAggregateTests
             Guid.NewGuid(), SupplementaryMeasureType.Contractual, "Audit clause");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -107,9 +107,9 @@ public class SCCAgreementAggregateTests
         scc.Revoke("Processor non-compliance", "admin");
 
         // Assert
-        scc.IsRevoked.Should().BeTrue();
-        scc.RevokedAtUtc.Should().NotBeNull();
-        scc.RevokedAtUtc.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        scc.IsRevoked.ShouldBeTrue();
+        scc.RevokedAtUtc.ShouldNotBeNull();
+        scc.RevokedAtUtc!.Value.ShouldBeInRange(DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5), DateTimeOffset.UtcNow + TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class SCCAgreementAggregateTests
         var act = () => scc.Revoke("Second revocation", "admin");
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class SCCAgreementAggregateTests
         scc.Expire();
 
         // Assert
-        scc.IsExpired.Should().BeTrue();
+        scc.IsExpired.ShouldBeTrue();
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class SCCAgreementAggregateTests
         var act = () => scc.Expire();
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class SCCAgreementAggregateTests
         var result = scc.IsValid(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class SCCAgreementAggregateTests
         var result = scc.IsValid(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public class SCCAgreementAggregateTests
         var result = scc.IsValid(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     // --- Helper methods ---

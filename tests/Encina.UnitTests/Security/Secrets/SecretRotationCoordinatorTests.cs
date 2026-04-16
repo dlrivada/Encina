@@ -3,7 +3,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Rotation;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -32,8 +32,8 @@ public sealed class SecretRotationCoordinatorTests
     {
         var act = () => new SecretRotationCoordinator(null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("handlers");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("handlers");
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public sealed class SecretRotationCoordinatorTests
     {
         var act = () => new SecretRotationCoordinator([], logger: null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class SecretRotationCoordinatorTests
     {
         var act = () => new SecretRotationCoordinator([_handler], _logger, rotator: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class SecretRotationCoordinatorTests
     {
         var act = () => new SecretRotationCoordinator([_handler], _logger, reader: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -72,8 +72,8 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("db-password");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.RotationFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.RotationFailedCode));
     }
 
     #endregion
@@ -91,7 +91,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("db-password");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         // Verify the full workflow was executed
         await _reader.Received(1).GetSecretAsync("db-password", Arg.Any<CancellationToken>());
@@ -110,7 +110,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("key");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // OnRotation should be called with empty string for oldValue
         await _handler.Received(1).OnRotationAsync("key", string.Empty, "new-value", Arg.Any<CancellationToken>());
     }
@@ -125,7 +125,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("key");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _rotator.DidNotReceive().RotateSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -144,7 +144,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("key");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         // Should NOT proceed to rotate or notify
         await _rotator.DidNotReceive().RotateSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _handler.DidNotReceive().OnRotationAsync(
@@ -163,7 +163,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("key");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         // Should NOT proceed to notify
         await _handler.DidNotReceive().OnRotationAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -182,7 +182,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("key");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -203,7 +203,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var result = await coordinator.RotateWithCallbacksAsync("key");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // oldValue should be empty string when reader fails
         await _handler.Received(1).OnRotationAsync("key", string.Empty, "new-value", Arg.Any<CancellationToken>());
     }
@@ -219,7 +219,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var act = () => coordinator.RotateWithCallbacksAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public sealed class SecretRotationCoordinatorTests
 
         var act = () => coordinator.RotateWithCallbacksAsync("").AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion

@@ -3,7 +3,7 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -19,7 +19,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.EnforcementMode.Should().Be(DPIAEnforcementMode.Warn);
+        options.EnforcementMode.ShouldBe(DPIAEnforcementMode.Warn);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.DefaultReviewPeriod.Should().Be(TimeSpan.FromDays(365));
+        options.DefaultReviewPeriod.ShouldBe(TimeSpan.FromDays(365));
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.PublishNotifications.Should().BeTrue();
+        options.PublishNotifications.ShouldBeTrue();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.EnableExpirationMonitoring.Should().BeFalse();
+        options.EnableExpirationMonitoring.ShouldBeFalse();
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.ExpirationCheckInterval.Should().Be(TimeSpan.FromHours(1));
+        options.ExpirationCheckInterval.ShouldBe(TimeSpan.FromHours(1));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.AutoRegisterFromAttributes.Should().BeFalse();
+        options.AutoRegisterFromAttributes.ShouldBeFalse();
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.AutoDetectHighRisk.Should().BeFalse();
+        options.AutoDetectHighRisk.ShouldBeFalse();
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.AssembliesToScan.Should().BeEmpty();
+        options.AssembliesToScan.ShouldBeEmpty();
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.DPOEmail.Should().BeNull();
+        options.DPOEmail.ShouldBeNull();
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.DPOName.Should().BeNull();
+        options.DPOName.ShouldBeNull();
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions();
 
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     #endregion
@@ -111,7 +111,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Block };
 
-        options.BlockWithoutDPIA.Should().BeTrue();
+        options.BlockWithoutDPIA.ShouldBeTrue();
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class DPIAOptionsTests
     {
         var options = new DPIAOptions { EnforcementMode = DPIAEnforcementMode.Warn };
 
-        options.BlockWithoutDPIA.Should().BeFalse();
+        options.BlockWithoutDPIA.ShouldBeFalse();
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class DPIAOptionsTests
 
         options.BlockWithoutDPIA = true;
 
-        options.EnforcementMode.Should().Be(DPIAEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(DPIAEnforcementMode.Block);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class DPIAOptionsTests
         options.BlockWithoutDPIA = false;
 
         // Setting false does NOT change mode (by design)
-        options.EnforcementMode.Should().Be(DPIAEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(DPIAEnforcementMode.Block);
     }
 
     #endregion

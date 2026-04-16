@@ -1,5 +1,5 @@
 using Encina.Security.Sanitization.Encoders;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -14,10 +14,10 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForHtml("<script>alert(1)</script>");
 
-        result.Should().NotContain("<");
-        result.Should().NotContain(">");
-        result.Should().Contain("&lt;");
-        result.Should().Contain("&gt;");
+        result.ShouldNotContain("<");
+        result.ShouldNotContain(">");
+        result.ShouldContain("&lt;");
+        result.ShouldContain("&gt;");
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForHtml("Tom & Jerry");
 
-        result.Should().Contain("&amp;");
+        result.ShouldContain("&amp;");
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForHtml("value with \"quotes\"");
 
-        result.Should().Contain("&quot;");
+        result.ShouldContain("&quot;");
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForHtml("it's");
 
-        result.Should().Contain("&#x27;");
+        result.ShouldContain("&#x27;");
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForHtml("Hello World");
 
-        result.Should().Be("Hello World");
+        result.ShouldBe("Hello World");
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForHtml(string.Empty);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public sealed class DefaultOutputEncoderTests
     {
         var act = () => _sut.EncodeForHtml(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     #endregion
@@ -78,7 +78,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForHtmlAttribute("value\"break");
 
-        result.Should().Contain("&quot;");
+        result.ShouldContain("&quot;");
     }
 
     [Fact]
@@ -86,8 +86,8 @@ public sealed class DefaultOutputEncoderTests
     {
         var act = () => _sut.EncodeForHtmlAttribute(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     #endregion
@@ -99,7 +99,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForJavaScript("value\"with\\slash");
 
-        result.Should().NotBe("value\"with\\slash");
+        result.ShouldNotBe("value\"with\\slash");
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForJavaScript("<script>");
 
-        result.Should().NotContain("<");
-        result.Should().NotContain(">");
+        result.ShouldNotContain("<");
+        result.ShouldNotContain(">");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForJavaScript("Hello World");
 
-        result.Should().Be("Hello World");
+        result.ShouldBe("Hello World");
     }
 
     [Fact]
@@ -124,8 +124,8 @@ public sealed class DefaultOutputEncoderTests
     {
         var act = () => _sut.EncodeForJavaScript(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     #endregion
@@ -137,8 +137,8 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForUrl("hello world&foo=bar");
 
-        result.Should().NotContain(" ");
-        result.Should().NotContain("&");
+        result.ShouldNotContain(" ");
+        result.ShouldNotContain("&");
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForUrl("helloworld123");
 
-        result.Should().Be("helloworld123");
+        result.ShouldBe("helloworld123");
     }
 
     [Fact]
@@ -154,8 +154,8 @@ public sealed class DefaultOutputEncoderTests
     {
         var act = () => _sut.EncodeForUrl(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     #endregion
@@ -168,7 +168,7 @@ public sealed class DefaultOutputEncoderTests
         var result = _sut.EncodeForCss("expression(alert(1))");
 
         // Non-alphanumeric characters should be hex-escaped
-        result.Should().Contain("\\");
+        result.ShouldContain("\\");
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForCss("color123");
 
-        result.Should().Be("color123");
+        result.ShouldBe("color123");
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class DefaultOutputEncoderTests
     {
         var result = _sut.EncodeForCss(string.Empty);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public sealed class DefaultOutputEncoderTests
         var result = _sut.EncodeForCss(";");
 
         // ';' is 0x3B → \00003B
-        result.Should().Be("\\00003B");
+        result.ShouldBe("\\00003B");
     }
 
     [Fact]
@@ -201,8 +201,8 @@ public sealed class DefaultOutputEncoderTests
     {
         var act = () => _sut.EncodeForCss(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     #endregion

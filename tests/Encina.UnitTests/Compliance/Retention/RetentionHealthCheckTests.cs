@@ -2,7 +2,7 @@ using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Health;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -21,7 +21,7 @@ public sealed class RetentionHealthCheckTests
     [Fact]
     public void DefaultName_ShouldBeEncinaRetention()
     {
-        RetentionHealthCheck.DefaultName.Should().Be("encina-retention");
+        RetentionHealthCheck.DefaultName.ShouldBe("encina-retention");
     }
 
     [Fact]
@@ -29,11 +29,11 @@ public sealed class RetentionHealthCheckTests
     {
         var tags = RetentionHealthCheck.Tags.ToList();
 
-        tags.Should().Contain("encina");
-        tags.Should().Contain("gdpr");
-        tags.Should().Contain("retention");
-        tags.Should().Contain("compliance");
-        tags.Should().Contain("ready");
+        tags.ShouldContain("encina");
+        tags.ShouldContain("gdpr");
+        tags.ShouldContain("retention");
+        tags.ShouldContain("compliance");
+        tags.ShouldContain("ready");
     }
 
     [Fact]
@@ -45,8 +45,8 @@ public sealed class RetentionHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("RetentionOptions");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("RetentionOptions");
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public sealed class RetentionHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IRetentionRecordService");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("IRetentionRecordService");
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public sealed class RetentionHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IRetentionPolicyService");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldContain("IRetentionPolicyService");
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public sealed class RetentionHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("ILegalHoldService");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description.ShouldContain("ILegalHoldService");
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public sealed class RetentionHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("fully configured");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description.ShouldContain("fully configured");
     }
 
     [Fact]
@@ -124,8 +124,8 @@ public sealed class RetentionHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Data.Should().ContainKey("enforcementMode");
-        result.Data["enforcementMode"].Should().Be("Block");
+        result.Data.ShouldContainKey("enforcementMode");
+        result.Data["enforcementMode"].ShouldBe("Block");
     }
 
     [Fact]
@@ -141,9 +141,9 @@ public sealed class RetentionHealthCheckTests
 
         var result = await sut.CheckHealthAsync(CreateContext());
 
-        result.Data.Should().ContainKey("recordServiceType");
-        result.Data.Should().ContainKey("policyServiceType");
-        result.Data.Should().ContainKey("legalHoldServiceType");
+        result.Data.ShouldContainKey("recordServiceType");
+        result.Data.ShouldContainKey("policyServiceType");
+        result.Data.ShouldContainKey("legalHoldServiceType");
     }
 
     private static HealthCheckContext CreateContext() => new()

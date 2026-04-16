@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -163,7 +163,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await pdp.DidNotReceive()
             .EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>());
     }
@@ -192,7 +192,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new UnprotectedRequest(), MockContext(), callback, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await pdp.DidNotReceive()
             .EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>());
     }
@@ -210,8 +210,8 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Left: _ => null!, Right: r => r).Value.Should().Be("ok");
+        result.IsRight.ShouldBeTrue();
+        result.Match(Left: _ => null!, Right: r => r).Value.ShouldBe("ok");
     }
 
     [Fact]
@@ -228,8 +228,8 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        handler.Invocations.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        handler.Invocations.ShouldBe(1);
     }
 
     [Fact]
@@ -246,7 +246,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("failed obligation overrides Permit to Deny per XACML §7.18");
+        result.IsLeft.ShouldBeTrue("failed obligation overrides Permit to Deny per XACML §7.18");
     }
 
     #endregion
@@ -263,7 +263,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("Block mode should deny access");
+        result.IsLeft.ShouldBeTrue("Block mode should deny access");
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue("Warn mode should allow access despite Deny decision");
+        result.IsRight.ShouldBeTrue("Warn mode should allow access despite Deny decision");
     }
 
     #endregion
@@ -293,7 +293,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("NotApplicable with default=Deny should deny access");
+        result.IsLeft.ShouldBeTrue("NotApplicable with default=Deny should deny access");
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue("NotApplicable with default=Permit should allow access");
+        result.IsRight.ShouldBeTrue("NotApplicable with default=Permit should allow access");
     }
 
     [Fact]
@@ -321,7 +321,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue("Warn mode overrides even NotApplicable→Deny");
+        result.IsRight.ShouldBeTrue("Warn mode overrides even NotApplicable→Deny");
     }
 
     #endregion
@@ -338,7 +338,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("Indeterminate should deny in Block mode");
+        result.IsLeft.ShouldBeTrue("Indeterminate should deny in Block mode");
     }
 
     [Fact]
@@ -351,7 +351,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue("Warn mode should allow access despite Indeterminate");
+        result.IsRight.ShouldBeTrue("Warn mode should allow access despite Indeterminate");
     }
 
     #endregion
@@ -370,7 +370,7 @@ public sealed class ABACPipelineBehaviorTests
         var result = await behavior.Handle(
             new ProtectedRequest(), MockContext(), SuccessCallback(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("PDP exception should produce Indeterminate → Left");
+        result.IsLeft.ShouldBeTrue("PDP exception should produce Indeterminate → Left");
     }
 
     #endregion
@@ -388,7 +388,7 @@ public sealed class ABACPipelineBehaviorTests
             CreateOptions(),
             NullLogger<ABACPipelineBehavior<ProtectedRequest, ProtectedResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -403,7 +403,7 @@ public sealed class ABACPipelineBehaviorTests
             CreateOptions(),
             NullLogger<ABACPipelineBehavior<ProtectedRequest, ProtectedResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -418,7 +418,7 @@ public sealed class ABACPipelineBehaviorTests
             CreateOptions(),
             NullLogger<ABACPipelineBehavior<ProtectedRequest, ProtectedResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -433,7 +433,7 @@ public sealed class ABACPipelineBehaviorTests
             CreateOptions(),
             NullLogger<ABACPipelineBehavior<ProtectedRequest, ProtectedResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -448,7 +448,7 @@ public sealed class ABACPipelineBehaviorTests
             null!,
             NullLogger<ABACPipelineBehavior<ProtectedRequest, ProtectedResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -463,7 +463,7 @@ public sealed class ABACPipelineBehaviorTests
             CreateOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion

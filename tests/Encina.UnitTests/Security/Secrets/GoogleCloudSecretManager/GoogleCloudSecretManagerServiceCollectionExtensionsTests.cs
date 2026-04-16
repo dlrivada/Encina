@@ -3,7 +3,7 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.GoogleCloudSecretManager;
-using FluentAssertions;
+using Shouldly;
 using Google.Cloud.SecretManager.V1;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -37,7 +37,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
         services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "test-project");
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretReader>().Should().NotBeNull();
+        provider.GetService<ISecretReader>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
         services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "test-project");
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretWriter>().Should().NotBeNull();
+        provider.GetService<ISecretWriter>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
         services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "test-project");
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretRotator>().Should().NotBeNull();
+        provider.GetService<ISecretRotator>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
         services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "test-project");
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<GoogleCloudSecretManagerProvider>().Should().NotBeNull();
+        provider.GetService<GoogleCloudSecretManagerProvider>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
         var writer = provider.GetRequiredService<ISecretWriter>();
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
-        writer.Should().BeOfType<CachingSecretWriterDecorator>();
-        rotator.Should().BeSameAs(underlying);
+        writer.ShouldBeOfType<CachingSecretWriterDecorator>();
+        rotator.ShouldBeSameAs(underlying);
     }
 
     #endregion
@@ -100,8 +100,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var act = () => services.AddGoogleCloudSecretManager(gcp => { });
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*ProjectId*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*ProjectId*required*");
     }
 
     [Fact]
@@ -111,8 +110,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var act = () => services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "   ");
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*ProjectId*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*ProjectId*required*");
     }
 
     #endregion
@@ -134,8 +132,8 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SecretsOptions>>().Value;
-        options.EnableCaching.Should().BeFalse();
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(30));
+        options.EnableCaching.ShouldBeFalse();
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(30));
     }
 
     #endregion
@@ -149,7 +147,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var result = services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "p");
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -163,7 +161,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
             services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "p2");
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -177,8 +175,8 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var act = () => services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "p");
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -188,8 +186,8 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var act = () => services.AddGoogleCloudSecretManager(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureGcp");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configureGcp");
     }
 
     #endregion

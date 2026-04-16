@@ -1,6 +1,6 @@
 using Encina.Compliance.GDPR;
 using Encina.Compliance.GDPR.Export;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -29,12 +29,10 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IProcessingActivityRegistry>().Should().NotBeNull()
-            .And.BeOfType<InMemoryProcessingActivityRegistry>();
-        provider.GetService<IGDPRComplianceValidator>().Should().NotBeNull()
-            .And.BeOfType<DefaultGDPRComplianceValidator>();
-        provider.GetService<JsonRoPAExporter>().Should().NotBeNull();
-        provider.GetService<CsvRoPAExporter>().Should().NotBeNull();
+        provider.GetService<IProcessingActivityRegistry>().ShouldNotBeNull().ShouldBeOfType<InMemoryProcessingActivityRegistry>();
+        provider.GetService<IGDPRComplianceValidator>().ShouldNotBeNull().ShouldBeOfType<DefaultGDPRComplianceValidator>();
+        provider.GetService<JsonRoPAExporter>().ShouldNotBeNull();
+        provider.GetService<CsvRoPAExporter>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -50,7 +48,7 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IOptions<GDPROptions>>().Should().NotBeNull();
+        provider.GetService<IOptions<GDPROptions>>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -60,8 +58,7 @@ public class ServiceCollectionExtensionsTests
         var act = () => ((IServiceCollection)null!).AddEncinaGDPR();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -82,7 +79,7 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert — TryAdd should NOT override the custom registration
-        provider.GetService<IProcessingActivityRegistry>().Should().BeSameAs(customRegistry);
+        provider.GetService<IProcessingActivityRegistry>().ShouldBeSameAs(customRegistry);
     }
 
     [Fact]
@@ -104,7 +101,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetService<IGDPRComplianceValidator>().Should().BeSameAs(customValidator);
+        scope.ServiceProvider.GetService<IGDPRComplianceValidator>().ShouldBeSameAs(customValidator);
     }
 
     [Fact]
@@ -122,7 +119,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert — health check should be registered
-        services.Should().Contain(sd => sd.ImplementationType != null &&
+        services.ShouldContain(sd => sd.ImplementationType != null &&
             sd.ImplementationType.Name.Contains("HealthCheckService"));
     }
 
@@ -140,7 +137,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ImplementationType == typeof(GDPRAutoRegistrationHostedService));
     }
 
@@ -158,7 +155,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        services.Should().NotContain(sd =>
+        services.ShouldNotContain(sd =>
             sd.ImplementationType == typeof(GDPRAutoRegistrationHostedService));
     }
 
@@ -176,6 +173,6 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        returned.Should().BeSameAs(services);
+        returned.ShouldBeSameAs(services);
     }
 }

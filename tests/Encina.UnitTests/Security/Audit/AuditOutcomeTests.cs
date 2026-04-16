@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -13,11 +13,11 @@ public class AuditOutcomeTests
     public void AllValues_ShouldExist()
     {
         // Assert
-        Enum.GetValues<AuditOutcome>().Should().HaveCount(4);
-        Enum.IsDefined(AuditOutcome.Success).Should().BeTrue();
-        Enum.IsDefined(AuditOutcome.Failure).Should().BeTrue();
-        Enum.IsDefined(AuditOutcome.Denied).Should().BeTrue();
-        Enum.IsDefined(AuditOutcome.Error).Should().BeTrue();
+        Enum.GetValues<AuditOutcome>().Count.ShouldBe(4);
+        Enum.IsDefined(AuditOutcome.Success).ShouldBeTrue();
+        Enum.IsDefined(AuditOutcome.Failure).ShouldBeTrue();
+        Enum.IsDefined(AuditOutcome.Denied).ShouldBeTrue();
+        Enum.IsDefined(AuditOutcome.Error).ShouldBeTrue();
     }
 
     [Theory]
@@ -28,7 +28,7 @@ public class AuditOutcomeTests
     public void Values_ShouldHaveExpectedUnderlyingValue(AuditOutcome outcome, int expectedValue)
     {
         // Assert
-        ((int)outcome).Should().Be(expectedValue);
+        ((int)outcome).ShouldBe(expectedValue);
     }
 
     [Theory]
@@ -46,7 +46,7 @@ public class AuditOutcomeTests
         var deserialized = JsonSerializer.Deserialize<AuditOutcome>(json, options);
 
         // Assert
-        deserialized.Should().Be(outcome);
+        deserialized.ShouldBe(outcome);
     }
 
     [Theory]
@@ -57,7 +57,7 @@ public class AuditOutcomeTests
     public void ToString_ShouldReturnExpectedName(AuditOutcome outcome, string expectedName)
     {
         // Assert
-        outcome.ToString().Should().Be(expectedName);
+        outcome.ToString().ShouldBe(expectedName);
     }
 
     [Theory]
@@ -71,7 +71,7 @@ public class AuditOutcomeTests
         var result = Enum.Parse<AuditOutcome>(name);
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class AuditOutcomeTests
         var result = Enum.TryParse<AuditOutcome>("Invalid", out _);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class AuditOutcomeTests
         var defaultValue = default(AuditOutcome);
 
         // Assert - Default enum value is 0, which is Success
-        defaultValue.Should().Be(AuditOutcome.Success);
+        defaultValue.ShouldBe(AuditOutcome.Success);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class AuditOutcomeTests
         var deserialized = JsonSerializer.Deserialize<AuditEntry>(json, options);
 
         // Assert
-        deserialized.Should().NotBeNull();
-        deserialized!.Outcome.Should().Be(AuditOutcome.Denied);
+        deserialized.ShouldNotBeNull();
+        deserialized!.Outcome.ShouldBe(AuditOutcome.Denied);
     }
 }

@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -71,8 +71,8 @@ public class DefaultPseudonymizerTests
         var act = () => new DefaultPseudonymizer(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("keyProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("keyProvider");
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class DefaultPseudonymizerTests
         var act = () => new DefaultPseudonymizer(keyProvider);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -104,17 +104,17 @@ public class DefaultPseudonymizerTests
         var result = await sut.PseudonymizeAsync(person, TestKeyId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var pseudonymized = result.Match(Right: p => p, Left: _ => null!);
-        pseudonymized.Should().NotBeNull();
-        pseudonymized.Name.Should().NotBe("John Doe");
-        pseudonymized.Email.Should().NotBe("john@example.com");
+        pseudonymized.ShouldNotBeNull();
+        pseudonymized.Name.ShouldNotBe("John Doe");
+        pseudonymized.Email.ShouldNotBe("john@example.com");
 
         // Values should be valid Base64
         var nameAction = () => Convert.FromBase64String(pseudonymized.Name!);
-        nameAction.Should().NotThrow();
+        Should.NotThrow(nameAction);
         var emailAction = () => Convert.FromBase64String(pseudonymized.Email!);
-        emailAction.Should().NotThrow();
+        Should.NotThrow(emailAction);
     }
 
     [Fact]
@@ -129,9 +129,9 @@ public class DefaultPseudonymizerTests
         var result = await sut.PseudonymizeAsync(person, TestKeyId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var pseudonymized = result.Match(Right: p => p, Left: _ => null!);
-        pseudonymized.Age.Should().Be(25);
+        pseudonymized.Age.ShouldBe(25);
     }
 
     [Fact]
@@ -146,10 +146,10 @@ public class DefaultPseudonymizerTests
         var result = await sut.PseudonymizeAsync(person, TestKeyId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var pseudonymized = result.Match(Right: p => p, Left: _ => null!);
-        pseudonymized.Name.Should().BeNull();
-        pseudonymized.Email.Should().NotBe("john@example.com");
+        pseudonymized.Name.ShouldBeNull();
+        pseudonymized.Email.ShouldNotBe("john@example.com");
     }
 
     [Fact]
@@ -164,10 +164,10 @@ public class DefaultPseudonymizerTests
         var result = await sut.PseudonymizeAsync(person, TestKeyId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -183,9 +183,9 @@ public class DefaultPseudonymizerTests
         await sut.PseudonymizeAsync(person, TestKeyId);
 
         // Assert - Original object should remain unchanged
-        person.Name.Should().Be("John Doe");
-        person.Email.Should().Be("john@example.com");
-        person.Age.Should().Be(30);
+        person.Name.ShouldBe("John Doe");
+        person.Email.ShouldBe("john@example.com");
+        person.Age.ShouldBe(30);
     }
 
     [Fact]
@@ -199,8 +199,8 @@ public class DefaultPseudonymizerTests
         var act = async () => await sut.PseudonymizeAsync<TestPerson>(null!, TestKeyId);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "data");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("data");
     }
 
     [Fact]
@@ -215,8 +215,8 @@ public class DefaultPseudonymizerTests
         var act = async () => await sut.PseudonymizeAsync(person, null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "keyId");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("keyId");
     }
 
     #endregion
@@ -238,11 +238,11 @@ public class DefaultPseudonymizerTests
         var result = await sut.DepseudonymizeAsync(pseudonymized, TestKeyId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var restored = result.Match(Right: p => p, Left: _ => null!);
-        restored.Name.Should().Be("John Doe");
-        restored.Email.Should().Be("john@example.com");
-        restored.Age.Should().Be(42);
+        restored.Name.ShouldBe("John Doe");
+        restored.Email.ShouldBe("john@example.com");
+        restored.Age.ShouldBe(42);
     }
 
     [Fact]
@@ -259,10 +259,10 @@ public class DefaultPseudonymizerTests
         var result = await sut.DepseudonymizeAsync(person, TestKeyId);
 
         // Assert - Non-Base64 strings are skipped (left unchanged)
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var restored = result.Match(Right: p => p, Left: _ => null!);
-        restored.Name.Should().Be("Not Base64!!!");
-        restored.Email.Should().Be("plaintext@email");
+        restored.Name.ShouldBe("Not Base64!!!");
+        restored.Email.ShouldBe("plaintext@email");
     }
 
     [Fact]
@@ -288,10 +288,10 @@ public class DefaultPseudonymizerTests
         var result = await sut2.DepseudonymizeAsync(pseudonymized, TestKeyId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.DecryptionFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -307,10 +307,10 @@ public class DefaultPseudonymizerTests
         var result = await sut.DepseudonymizeAsync(person, TestKeyId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -325,8 +325,8 @@ public class DefaultPseudonymizerTests
         var act = async () => await sut.DepseudonymizeAsync<TestPerson>(null!, TestKeyId);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "data");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("data");
     }
 
     #endregion
@@ -346,18 +346,18 @@ public class DefaultPseudonymizerTests
             original, TestKeyId, PseudonymizationAlgorithm.Aes256Gcm);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var pseudonym = result.Match(Right: v => v, Left: _ => string.Empty);
-        pseudonym.Should().NotBeNullOrEmpty();
-        pseudonym.Should().NotBe(original);
+        pseudonym.ShouldNotBeNullOrEmpty();
+        pseudonym.ShouldNotBe(original);
 
         // Should be valid Base64
         var parseAction = () => Convert.FromBase64String(pseudonym);
-        parseAction.Should().NotThrow();
+        Should.NotThrow(parseAction);
 
         // Decoded bytes should contain nonce (12) + tag (16) + ciphertext
         var decoded = Convert.FromBase64String(pseudonym);
-        decoded.Length.Should().BeGreaterThanOrEqualTo(12 + 16 + 1);
+        decoded.Length.ShouldBeGreaterThanOrEqualTo(12 + 16 + 1);
     }
 
     [Fact]
@@ -377,7 +377,7 @@ public class DefaultPseudonymizerTests
         // Assert - AES-GCM uses random nonces, so outputs should differ
         var pseudonym1 = result1.Match(Right: v => v, Left: _ => string.Empty);
         var pseudonym2 = result2.Match(Right: v => v, Left: _ => string.Empty);
-        pseudonym1.Should().NotBe(pseudonym2);
+        pseudonym1.ShouldNotBe(pseudonym2);
     }
 
     [Fact]
@@ -393,14 +393,14 @@ public class DefaultPseudonymizerTests
             original, TestKeyId, PseudonymizationAlgorithm.HmacSha256);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var hash = result.Match(Right: v => v, Left: _ => string.Empty);
-        hash.Should().NotBeNullOrEmpty();
-        hash.Should().NotBe(original);
+        hash.ShouldNotBeNullOrEmpty();
+        hash.ShouldNotBe(original);
 
         // HMAC-SHA256 produces a 32-byte hash, Base64 encoded
         var decoded = Convert.FromBase64String(hash);
-        decoded.Should().HaveCount(32);
+        decoded.Count.ShouldBe(32);
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public class DefaultPseudonymizerTests
         // Assert
         var hash1 = result1.Match(Right: v => v, Left: _ => string.Empty);
         var hash2 = result2.Match(Right: v => v, Left: _ => string.Empty);
-        hash1.Should().Be(hash2);
+        hash1.ShouldBe(hash2);
     }
 
     [Fact]
@@ -439,7 +439,7 @@ public class DefaultPseudonymizerTests
         // Assert
         var hash1 = result1.Match(Right: v => v, Left: _ => string.Empty);
         var hash2 = result2.Match(Right: v => v, Left: _ => string.Empty);
-        hash1.Should().NotBe(hash2);
+        hash1.ShouldNotBe(hash2);
     }
 
     [Fact]
@@ -454,10 +454,10 @@ public class DefaultPseudonymizerTests
             "some-value", TestKeyId, PseudonymizationAlgorithm.Aes256Gcm);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -473,8 +473,8 @@ public class DefaultPseudonymizerTests
             null!, TestKeyId, PseudonymizationAlgorithm.Aes256Gcm);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "value");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("value");
     }
 
     #endregion
@@ -497,9 +497,9 @@ public class DefaultPseudonymizerTests
         var result = await sut.DepseudonymizeValueAsync(pseudonym, TestKeyId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var restored = result.Match(Right: v => v, Left: _ => string.Empty);
-        restored.Should().Be(original);
+        restored.ShouldBe(original);
     }
 
     [Fact]
@@ -513,10 +513,10 @@ public class DefaultPseudonymizerTests
         var result = await sut.DepseudonymizeValueAsync("not-valid-base64!!!", TestKeyId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.DepseudonymizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.DepseudonymizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -543,10 +543,10 @@ public class DefaultPseudonymizerTests
         var result = await sut2.DepseudonymizeValueAsync(pseudonym, TestKeyId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.DecryptionFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -561,10 +561,10 @@ public class DefaultPseudonymizerTests
         var result = await sut.DepseudonymizeValueAsync("c29tZS1kYXRh", TestKeyId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -579,8 +579,8 @@ public class DefaultPseudonymizerTests
         var act = async () => await sut.DepseudonymizeValueAsync(null!, TestKeyId);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "pseudonym");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("pseudonym");
     }
 
     #endregion
@@ -606,11 +606,11 @@ public class DefaultPseudonymizerTests
         var depseudoResult = await sut.DepseudonymizeAsync(pseudonymized, TestKeyId);
 
         // Assert
-        depseudoResult.IsRight.Should().BeTrue();
+        depseudoResult.IsRight.ShouldBeTrue();
         var restored = depseudoResult.Match(Right: p => p, Left: _ => null!);
-        restored.Name.Should().Be("Alice Wonderland");
-        restored.Email.Should().Be("alice@wonderland.org");
-        restored.Age.Should().Be(99);
+        restored.Name.ShouldBe("Alice Wonderland");
+        restored.Email.ShouldBe("alice@wonderland.org");
+        restored.Age.ShouldBe(99);
     }
 
     [Fact]
@@ -628,9 +628,9 @@ public class DefaultPseudonymizerTests
         var depseudoResult = await sut.DepseudonymizeValueAsync(pseudonym, TestKeyId);
 
         // Assert
-        depseudoResult.IsRight.Should().BeTrue();
+        depseudoResult.IsRight.ShouldBeTrue();
         var restored = depseudoResult.Match(Right: v => v, Left: _ => string.Empty);
-        restored.Should().Be(original);
+        restored.ShouldBe(original);
     }
 
     [Fact]
@@ -647,10 +647,10 @@ public class DefaultPseudonymizerTests
         var depseudoResult = await sut.DepseudonymizeAsync(pseudonymized, TestKeyId);
 
         // Assert
-        depseudoResult.IsRight.Should().BeTrue();
+        depseudoResult.IsRight.ShouldBeTrue();
         var restored = depseudoResult.Match(Right: p => p, Left: _ => null!);
-        restored.Name.Should().Be("");
-        restored.Email.Should().Be("");
+        restored.Name.ShouldBe("");
+        restored.Email.ShouldBe("");
     }
 
     [Fact]
@@ -668,9 +668,9 @@ public class DefaultPseudonymizerTests
         var depseudoResult = await sut.DepseudonymizeValueAsync(pseudonym, TestKeyId);
 
         // Assert
-        depseudoResult.IsRight.Should().BeTrue();
+        depseudoResult.IsRight.ShouldBeTrue();
         var restored = depseudoResult.Match(Right: v => v, Left: _ => string.Empty);
-        restored.Should().Be(unicodeValue);
+        restored.ShouldBe(unicodeValue);
     }
 
     #endregion
@@ -689,7 +689,7 @@ public class DefaultPseudonymizerTests
         var result = await sut.PseudonymizeAsync(person, TestKeyId);
 
         // Assert - ReadOnlyCalculated is a get-only property, should not be touched
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // The fact that pseudonymization succeeded without exception is the assertion.
         // Read-only properties should be ignored by the reflection-based discovery.
     }

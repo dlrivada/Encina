@@ -1,6 +1,6 @@
 using System.Globalization;
 using Encina.DomainModeling.Pagination;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -29,12 +29,12 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.Items.Should().BeEquivalentTo(items);
-        result.NextCursor.Should().Be("next123");
-        result.PreviousCursor.Should().Be("prev456");
-        result.HasNextPage.Should().BeTrue();
-        result.HasPreviousPage.Should().BeTrue();
-        result.TotalCount.Should().Be(100);
+        result.Items.ShouldBe(items);
+        result.NextCursor.ShouldBe("next123");
+        result.PreviousCursor.ShouldBe("prev456");
+        result.HasNextPage.ShouldBeTrue();
+        result.HasPreviousPage.ShouldBeTrue();
+        result.TotalCount.ShouldBe(100);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.TotalCount.Should().BeNull();
+        result.TotalCount.ShouldBeNull();
     }
 
     #endregion
@@ -67,7 +67,7 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.IsEmpty.Should().BeFalse();
+        result.IsEmpty.ShouldBeFalse();
     }
 
     #endregion
@@ -96,13 +96,13 @@ public class CursorPaginatedResultTests
         var result = CursorPaginatedResult<string>.Empty();
 
         // Assert
-        result.Items.Should().BeEmpty();
-        result.NextCursor.Should().BeNull();
-        result.PreviousCursor.Should().BeNull();
-        result.HasNextPage.Should().BeFalse();
-        result.HasPreviousPage.Should().BeFalse();
-        result.TotalCount.Should().Be(0);
-        result.IsEmpty.Should().BeTrue();
+        result.Items.ShouldBeEmpty();
+        result.NextCursor.ShouldBeNull();
+        result.PreviousCursor.ShouldBeNull();
+        result.HasNextPage.ShouldBeFalse();
+        result.HasPreviousPage.ShouldBeFalse();
+        result.TotalCount.ShouldBe(0);
+        result.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -112,8 +112,8 @@ public class CursorPaginatedResultTests
         var result = CursorPaginatedResult<string>.Empty(pageSize: 50);
 
         // Assert
-        result.Items.Should().BeEmpty();
-        result.TotalCount.Should().Be(0);
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
     }
 
     #endregion
@@ -138,7 +138,7 @@ public class CursorPaginatedResultTests
         var mapped = result.Map(x => x * 2);
 
         // Assert
-        mapped.Items.Should().BeEquivalentTo([2, 4, 6]);
+        mapped.Items.ShouldBe([2, 4, 6]);
     }
 
     [Fact]
@@ -159,11 +159,11 @@ public class CursorPaginatedResultTests
         var mapped = result.Map(x => x.ToString(CultureInfo.InvariantCulture));
 
         // Assert
-        mapped.NextCursor.Should().Be("next123");
-        mapped.PreviousCursor.Should().Be("prev456");
-        mapped.HasNextPage.Should().BeTrue();
-        mapped.HasPreviousPage.Should().BeTrue();
-        mapped.TotalCount.Should().Be(50);
+        mapped.NextCursor.ShouldBe("next123");
+        mapped.PreviousCursor.ShouldBe("prev456");
+        mapped.HasNextPage.ShouldBeTrue();
+        mapped.HasPreviousPage.ShouldBeTrue();
+        mapped.TotalCount.ShouldBe(50);
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public class CursorPaginatedResultTests
         var mapped = result.Map(x => x.ToString(CultureInfo.InvariantCulture));
 
         // Assert
-        mapped.Items.Should().BeEmpty();
-        mapped.IsEmpty.Should().BeTrue();
+        mapped.Items.ShouldBeEmpty();
+        mapped.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -197,8 +197,8 @@ public class CursorPaginatedResultTests
         };
 
         // Act & Assert
-        var action = () => result.Map<string>(null!);
-        action.Should().Throw<ArgumentNullException>();
+        Action action = () => result.Map<string>(null!);
+        Should.Throw<ArgumentNullException>(action);
     }
 
     [Fact]
@@ -217,9 +217,9 @@ public class CursorPaginatedResultTests
         var mapped = result.Map(x => new { Id = x, Name = $"Item-{x}" });
 
         // Assert
-        mapped.Items.Should().HaveCount(3);
-        mapped.Items[0].Id.Should().Be(1);
-        mapped.Items[0].Name.Should().Be("Item-1");
+        mapped.Items.Count.ShouldBe(3);
+        mapped.Items[0].Id.ShouldBe(1);
+        mapped.Items[0].Name.ShouldBe("Item-1");
     }
 
     #endregion
@@ -240,10 +240,10 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.HasPreviousPage.Should().BeFalse();
-        result.HasNextPage.Should().BeTrue();
-        result.PreviousCursor.Should().BeNull();
-        result.NextCursor.Should().NotBeNullOrEmpty();
+        result.HasPreviousPage.ShouldBeFalse();
+        result.HasNextPage.ShouldBeTrue();
+        result.PreviousCursor.ShouldBeNull();
+        result.NextCursor.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -260,10 +260,10 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.HasPreviousPage.Should().BeTrue();
-        result.HasNextPage.Should().BeTrue();
-        result.PreviousCursor.Should().NotBeNullOrEmpty();
-        result.NextCursor.Should().NotBeNullOrEmpty();
+        result.HasPreviousPage.ShouldBeTrue();
+        result.HasNextPage.ShouldBeTrue();
+        result.PreviousCursor.ShouldNotBeNullOrEmpty();
+        result.NextCursor.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -280,10 +280,10 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.HasPreviousPage.Should().BeTrue();
-        result.HasNextPage.Should().BeFalse();
-        result.PreviousCursor.Should().NotBeNullOrEmpty();
-        result.NextCursor.Should().BeNull();
+        result.HasPreviousPage.ShouldBeTrue();
+        result.HasNextPage.ShouldBeFalse();
+        result.PreviousCursor.ShouldNotBeNullOrEmpty();
+        result.NextCursor.ShouldBeNull();
     }
 
     [Fact]
@@ -300,10 +300,10 @@ public class CursorPaginatedResultTests
         };
 
         // Assert
-        result.HasPreviousPage.Should().BeFalse();
-        result.HasNextPage.Should().BeFalse();
-        result.PreviousCursor.Should().BeNull();
-        result.NextCursor.Should().BeNull();
+        result.HasPreviousPage.ShouldBeFalse();
+        result.HasNextPage.ShouldBeFalse();
+        result.PreviousCursor.ShouldBeNull();
+        result.NextCursor.ShouldBeNull();
     }
 
     #endregion
@@ -331,7 +331,7 @@ public class CursorPaginatedResultTests
         };
 
         // Assert - Same Items reference means records are equal
-        result1.Should().Be(result2);
+        result1.ShouldBe(result2);
     }
 
     [Fact]
@@ -354,7 +354,7 @@ public class CursorPaginatedResultTests
         };
 
         // Assert - Structural equality comparison
-        result1.Should().BeEquivalentTo(result2);
+        result1.ShouldBe(result2);
     }
 
     #endregion

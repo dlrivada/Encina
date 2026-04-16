@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -17,7 +17,7 @@ public sealed class OrderedDenyOverridesAlgorithmTests
     [Fact]
     public void AlgorithmId_ReturnsOrderedDenyOverrides()
     {
-        _sut.AlgorithmId.Should().Be(CombiningAlgorithmId.OrderedDenyOverrides);
+        _sut.AlgorithmId.ShouldBe(CombiningAlgorithmId.OrderedDenyOverrides);
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class OrderedDenyOverridesAlgorithmTests
     {
         var denyOverrides = new DenyOverridesAlgorithm();
 
-        _sut.AlgorithmId.Should().NotBe(denyOverrides.AlgorithmId,
+        _sut.AlgorithmId.ShouldNotBe(denyOverrides.AlgorithmId,
             "OrderedDenyOverrides has a distinct AlgorithmId from DenyOverrides");
     }
 
@@ -38,7 +38,7 @@ public sealed class OrderedDenyOverridesAlgorithmTests
             MakeRuleResult(Effect.Deny)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Deny,
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Deny,
             "Deny overrides Permit — same as DenyOverrides");
     }
 
@@ -51,14 +51,14 @@ public sealed class OrderedDenyOverridesAlgorithmTests
             MakeRuleResult(Effect.NotApplicable)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.NotApplicable);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
     public void CombineRuleResults_Empty_ReturnsNotApplicable()
     {
         _sut.CombineRuleResults(Array.Empty<RuleEvaluationResult>())
-            .Should().Be(Effect.NotApplicable);
+            .ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class OrderedDenyOverridesAlgorithmTests
             MakeRuleResult(Effect.Indeterminate, ruleEffect: Effect.Deny)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Indeterminate);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Indeterminate);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class OrderedDenyOverridesAlgorithmTests
             MakePolicyResult(Effect.Deny, "p2")
         };
 
-        _sut.CombinePolicyResults(results).Effect.Should().Be(Effect.Deny);
+        _sut.CombinePolicyResults(results).Effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -103,9 +103,9 @@ public sealed class OrderedDenyOverridesAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Deny);
-        combined.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("audit-log");
+        combined.Effect.ShouldBe(Effect.Deny);
+        combined.Obligations.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("audit-log");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class OrderedDenyOverridesAlgorithmTests
         var orderedResult = _sut.CombineRuleResults(results);
         var standardResult = denyOverrides.CombineRuleResults(results);
 
-        orderedResult.Should().Be(standardResult,
+        orderedResult.ShouldBe(standardResult,
             "Ordered variant must produce identical results to DenyOverrides");
     }
 

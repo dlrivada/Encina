@@ -4,7 +4,7 @@ using Encina.Security.Audit;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -42,8 +42,8 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var act = () => new AuditedSecretRotatorDecorator(null!, _auditStore, _requestContext, options, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var act = () => new AuditedSecretRotatorDecorator(_innerRotator, null!, _requestContext, options, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("auditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
@@ -64,8 +64,8 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _auditStore, null!, options, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public sealed class AuditedSecretRotatorDecoratorTests
     {
         var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _auditStore, _requestContext, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _auditStore, _requestContext, options, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -101,7 +101,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var result = await decorator.RotateSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
     }
 
@@ -136,7 +136,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var result = await decorator.RotateSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var result = await decorator.RotateSecretAsync("key");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         await _auditStore.Received(1).RecordAsync(
             Arg.Is<AuditEntry>(e =>
                 e.Outcome == AuditOutcome.Failure &&
@@ -190,7 +190,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var result = await decorator.RotateSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         var result = await decorator.RotateSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion

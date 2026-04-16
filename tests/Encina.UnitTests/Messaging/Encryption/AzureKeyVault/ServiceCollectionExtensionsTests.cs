@@ -1,7 +1,7 @@
 using Azure.Security.KeyVault.Keys;
 using Encina.Messaging.Encryption.AzureKeyVault;
 using Encina.Security.Encryption.Abstractions;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -14,10 +14,10 @@ public class ServiceCollectionExtensionsTests
     {
         IServiceCollection services = null!;
 
-        var act = () => services.AddEncinaMessageEncryptionAzureKeyVault(
+        Action act = () => services.AddEncinaMessageEncryptionAzureKeyVault(
             o => { o.VaultUri = new Uri("https://vault.azure.net/"); o.KeyName = "k"; });
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -25,9 +25,9 @@ public class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
 
-        var act = () => services.AddEncinaMessageEncryptionAzureKeyVault(null!);
+        Action act = () => services.AddEncinaMessageEncryptionAzureKeyVault(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("configure");
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class ServiceCollectionExtensionsTests
             o.KeyName = "test-key";
         });
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
 
-        options.VaultUri.Should().Be(vaultUri);
-        options.KeyName.Should().Be("my-key");
+        options.VaultUri.ShouldBe(vaultUri);
+        options.KeyName.ShouldBe("my-key");
     }
 
     [Fact]
@@ -77,8 +77,8 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(KeyClient));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -95,9 +95,9 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IKeyProvider));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
-        descriptor.ImplementationType.Should().Be(typeof(AzureKeyVaultKeyProvider));
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        descriptor.ImplementationType.ShouldBe(typeof(AzureKeyVaultKeyProvider));
     }
 
     [Fact]
@@ -113,10 +113,9 @@ public class ServiceCollectionExtensionsTests
 
         var sp = services.BuildServiceProvider();
 
-        var act = () => sp.GetRequiredService<KeyClient>();
+        Action act = () => sp.GetRequiredService<KeyClient>();
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*VaultUri*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("VaultUri");
     }
 
     [Fact]
@@ -138,7 +137,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var resolved = sp.GetRequiredService<KeyClient>();
 
-        resolved.Should().BeSameAs(existingClient);
+        resolved.ShouldBeSameAs(existingClient);
     }
 
     [Fact]
@@ -161,8 +160,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var encOptions = sp.GetRequiredService<IOptions<global::Encina.Messaging.Encryption.MessageEncryptionOptions>>().Value;
 
-        encOptions.EncryptAllMessages.Should().BeTrue();
-        encOptions.DefaultKeyId.Should().Be("custom-key");
+        encOptions.EncryptAllMessages.ShouldBeTrue();
+        encOptions.DefaultKeyId.ShouldBe("custom-key");
     }
 
     [Fact]
@@ -181,8 +180,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
 
         // KeyClient should resolve without error (uses our credential, not DefaultAzureCredential)
-        var act = () => sp.GetRequiredService<KeyClient>();
-        act.Should().NotThrow();
+        Action act = () => sp.GetRequiredService<KeyClient>();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -202,8 +201,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
 
         // Should not throw - uses the custom client options
-        var act = () => sp.GetRequiredService<KeyClient>();
-        act.Should().NotThrow();
+        Action act = () => sp.GetRequiredService<KeyClient>();
+        Should.NotThrow(act);
     }
 
     /// <summary>

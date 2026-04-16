@@ -6,7 +6,7 @@ using Encina.Compliance.Retention.ReadModels;
 using Encina.Compliance.Retention.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -60,7 +60,7 @@ public sealed class DefaultRetentionRecordServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("repository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("repository");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class DefaultRetentionRecordServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("readModelRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readModelRepository");
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class DefaultRetentionRecordServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class DefaultRetentionRecordServiceTests
             null!,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class DefaultRetentionRecordServiceTests
             _timeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -136,8 +136,8 @@ public sealed class DefaultRetentionRecordServiceTests
             policyId: Guid.NewGuid(),
             retentionPeriod: TimeSpan.FromDays(365));
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
         await _repository.Received(1).CreateAsync(
             Arg.Any<RetentionRecordAggregate>(),
             Arg.Any<CancellationToken>());
@@ -157,7 +157,7 @@ public sealed class DefaultRetentionRecordServiceTests
             policyId: Guid.NewGuid(),
             retentionPeriod: TimeSpan.FromDays(365));
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -183,7 +183,7 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.MarkExpiredAsync(recordId);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<RetentionRecordAggregate>(),
             Arg.Any<CancellationToken>());
@@ -199,8 +199,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.MarkExpiredAsync(recordId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     [Fact]
@@ -216,8 +216,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.MarkExpiredAsync(recordId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("Invalid state transition"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("Invalid state transition"));
     }
 
     #endregion
@@ -244,7 +244,7 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.HoldRecordAsync(recordId, legalHoldId);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<RetentionRecordAggregate>(),
             Arg.Any<CancellationToken>());
@@ -260,8 +260,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.HoldRecordAsync(recordId, Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -288,7 +288,7 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.ReleaseRecordAsync(recordId, legalHoldId);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<RetentionRecordAggregate>(),
             Arg.Any<CancellationToken>());
@@ -304,8 +304,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.ReleaseRecordAsync(recordId, Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -331,7 +331,7 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.MarkDeletedAsync(recordId);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<RetentionRecordAggregate>(),
             Arg.Any<CancellationToken>());
@@ -347,8 +347,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.MarkDeletedAsync(recordId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -374,7 +374,7 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.MarkAnonymizedAsync(recordId);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<RetentionRecordAggregate>(),
             Arg.Any<CancellationToken>());
@@ -390,8 +390,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.MarkAnonymizedAsync(recordId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -414,8 +414,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.GetRecordAsync(recordId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(recordId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(recordId), _ => { });
 
         await _readModelRepository
             .DidNotReceive()
@@ -437,8 +437,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.GetRecordAsync(recordId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(recordId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(recordId), _ => { });
 
         await _cache.Received(1).SetAsync(
             $"ret:record:{recordId}",
@@ -461,8 +461,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.GetRecordAsync(recordId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -480,8 +480,8 @@ public sealed class DefaultRetentionRecordServiceTests
 
         var result = await _sut.GetRecordHistoryAsync(recordId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not yet available"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not yet available"));
     }
 
     #endregion

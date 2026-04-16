@@ -2,7 +2,7 @@
 
 using Encina.Caching;
 using Encina.Security.Secrets.Caching;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -54,7 +54,7 @@ public sealed class SecretCachePubSubHostedServiceTests
         var act = () => sut.StartAsync(CancellationToken.None);
 
         // Assert — should not throw, just log warning
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class SecretCachePubSubHostedServiceTests
         var act = () => sut.StartAsync(CancellationToken.None);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class SecretCachePubSubHostedServiceTests
         var act = () => sut.StopAsync(CancellationToken.None);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #region Handler Callback Invocation
@@ -122,7 +122,7 @@ public sealed class SecretCachePubSubHostedServiceTests
         await sut.StartAsync(CancellationToken.None);
 
         // Act
-        capturedHandler.Should().NotBeNull();
+        capturedHandler.ShouldNotBeNull();
         var message = new SecretCacheInvalidationMessage("my-secret", "Set", DateTime.UtcNow);
         await capturedHandler!(message);
 
@@ -169,28 +169,28 @@ public sealed class SecretCachePubSubHostedServiceTests
     public void Constructor_NullCache_ThrowsArgumentNullException()
     {
         var act = () => new SecretCachePubSubHostedService(null!, _pubSub, _options, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new SecretCachePubSubHostedService(_cache, _pubSub, null!, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new SecretCachePubSubHostedService(_cache, _pubSub, _options, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullPubSub_DoesNotThrow()
     {
         var act = () => new SecretCachePubSubHostedService(_cache, null, _options, _logger);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public sealed class SecretCachePubSubHostedServiceTests
     {
         var options = new SecretCachingOptions { InvalidationChannel = "" };
         var act = () => new SecretCachePubSubHostedService(_cache, _pubSub, options, _logger);
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public sealed class SecretCachePubSubHostedServiceTests
     {
         var options = new SecretCachingOptions { CacheKeyPrefix = "" };
         var act = () => new SecretCachePubSubHostedService(_cache, _pubSub, options, _logger);
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion

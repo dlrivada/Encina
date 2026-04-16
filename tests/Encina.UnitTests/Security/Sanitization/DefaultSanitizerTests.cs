@@ -1,7 +1,7 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Profiles;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Security.Sanitization;
@@ -24,8 +24,8 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeHtml(input);
 
-        result.Should().NotContain("<script>");
-        result.Should().NotContain("alert");
+        result.ShouldNotContain("<script>");
+        result.ShouldNotContain("alert");
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeHtml(input);
 
-        result.Should().Be("Hello World");
+        result.ShouldBe("Hello World");
     }
 
     [Fact]
@@ -45,8 +45,8 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeHtml(input);
 
-        result.Should().NotContain("onerror");
-        result.Should().NotContain("alert");
+        result.ShouldNotContain("onerror");
+        result.ShouldNotContain("alert");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeHtml(input);
 
-        result.Should().NotContain("javascript:");
+        result.ShouldNotContain("javascript:");
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class DefaultSanitizerTests
     {
         var result = _sut.SanitizeHtml(string.Empty);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public sealed class DefaultSanitizerTests
     {
         var act = () => _sut.SanitizeHtml(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Theory]
@@ -87,12 +87,12 @@ public sealed class DefaultSanitizerTests
     {
         var result = _sut.SanitizeHtml(payload);
 
-        result.Should().NotContain("alert");
-        result.Should().NotContain("onerror");
-        result.Should().NotContain("onload");
-        result.Should().NotContain("onfocus");
-        result.Should().NotContain("<script");
-        result.Should().NotContain("<iframe");
+        result.ShouldNotContain("alert");
+        result.ShouldNotContain("onerror");
+        result.ShouldNotContain("onload");
+        result.ShouldNotContain("onfocus");
+        result.ShouldNotContain("<script");
+        result.ShouldNotContain("<iframe");
     }
 
     #endregion
@@ -106,7 +106,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForSql(input);
 
-        result.Should().Be("O''Brien");
+        result.ShouldBe("O''Brien");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForSql(input);
 
-        result.Should().NotContain("--");
+        result.ShouldNotContain("--");
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForSql(input);
 
-        result.Should().NotContain("/*");
-        result.Should().NotContain("*/");
+        result.ShouldNotContain("/*");
+        result.ShouldNotContain("*/");
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForSql(input);
 
-        result.Should().NotContain(";");
+        result.ShouldNotContain(";");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForSql(input);
 
-        result.Should().NotContain("xp_cmdshell");
+        result.ShouldNotContain("xp_cmdshell");
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForSql(input);
 
-        result.Should().Be("normal value");
+        result.ShouldBe("normal value");
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class DefaultSanitizerTests
     {
         var result = _sut.SanitizeForSql(string.Empty);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -173,8 +173,8 @@ public sealed class DefaultSanitizerTests
     {
         var act = () => _sut.SanitizeForSql(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Theory]
@@ -186,10 +186,10 @@ public sealed class DefaultSanitizerTests
     {
         var result = _sut.SanitizeForSql(payload);
 
-        result.Should().NotContain("--");
-        result.Should().NotContain(";");
-        result.Should().NotContain("/*");
-        result.Should().NotContain("xp_");
+        result.ShouldNotContain("--");
+        result.ShouldNotContain(";");
+        result.ShouldNotContain("/*");
+        result.ShouldNotContain("xp_");
     }
 
     #endregion
@@ -204,7 +204,7 @@ public sealed class DefaultSanitizerTests
         var result = _sut.SanitizeForShell(input);
 
         // On Windows: ^& escaped; on Unix: wrapped in single quotes
-        result.Should().NotBe(input);
+        result.ShouldNotBe(input);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForShell(input);
 
-        result.Should().Contain("normaltext");
+        result.ShouldContain("normaltext");
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public sealed class DefaultSanitizerTests
     {
         var result = _sut.SanitizeForShell(string.Empty);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -230,8 +230,8 @@ public sealed class DefaultSanitizerTests
     {
         var act = () => _sut.SanitizeForShell(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Theory]
@@ -243,7 +243,7 @@ public sealed class DefaultSanitizerTests
         var result = _sut.SanitizeForShell(payload);
 
         // Result should be different from the raw input (escaped or quoted)
-        result.Should().NotBe(payload);
+        result.ShouldNotBe(payload);
     }
 
     #endregion
@@ -258,7 +258,7 @@ public sealed class DefaultSanitizerTests
         var result = _sut.SanitizeForJson(input);
 
         // JsonSerializer may use \u0022 or \" for double quotes — both are valid JSON escaping
-        result.Should().NotContain("\"");
+        result.ShouldNotContain("\"");
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForJson(input);
 
-        result.Should().Contain("\\\\");
+        result.ShouldContain("\\\\");
     }
 
     [Fact]
@@ -278,8 +278,8 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForJson(input);
 
-        result.Should().Contain("\\n");
-        result.Should().Contain("\\t");
+        result.ShouldContain("\\n");
+        result.ShouldContain("\\t");
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForJson(input);
 
-        result.Should().Be("normal value");
+        result.ShouldBe("normal value");
     }
 
     [Fact]
@@ -297,7 +297,7 @@ public sealed class DefaultSanitizerTests
     {
         var result = _sut.SanitizeForJson(string.Empty);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -305,8 +305,8 @@ public sealed class DefaultSanitizerTests
     {
         var act = () => _sut.SanitizeForJson(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     #endregion
@@ -320,7 +320,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForXml(input);
 
-        result.Should().Contain("&amp;");
+        result.ShouldContain("&amp;");
     }
 
     [Fact]
@@ -330,8 +330,8 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForXml(input);
 
-        result.Should().Contain("&lt;");
-        result.Should().Contain("&gt;");
+        result.ShouldContain("&lt;");
+        result.ShouldContain("&gt;");
     }
 
     [Fact]
@@ -341,8 +341,8 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForXml(input);
 
-        result.Should().Contain("&quot;");
-        result.Should().Contain("&apos;");
+        result.ShouldContain("&quot;");
+        result.ShouldContain("&apos;");
     }
 
     [Fact]
@@ -353,9 +353,9 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForXml(input);
 
-        result.Should().NotContain("\x01");
-        result.Should().Contain("valid");
-        result.Should().Contain("invalid");
+        result.ShouldNotContain("\x01");
+        result.ShouldContain("valid");
+        result.ShouldContain("invalid");
     }
 
     [Fact]
@@ -365,9 +365,9 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForXml(input);
 
-        result.Should().Contain("\n");
-        result.Should().Contain("\t");
-        result.Should().Contain("\r");
+        result.ShouldContain("\n");
+        result.ShouldContain("\t");
+        result.ShouldContain("\r");
     }
 
     [Fact]
@@ -377,7 +377,7 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.SanitizeForXml(input);
 
-        result.Should().Be("normal value");
+        result.ShouldBe("normal value");
     }
 
     [Fact]
@@ -385,7 +385,7 @@ public sealed class DefaultSanitizerTests
     {
         var result = _sut.SanitizeForXml(string.Empty);
 
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -393,8 +393,8 @@ public sealed class DefaultSanitizerTests
     {
         var act = () => _sut.SanitizeForXml(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     #endregion
@@ -408,8 +408,8 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.Custom(input, SanitizationProfiles.RichText);
 
-        result.Should().Contain("<p>");
-        result.Should().NotContain("<script>");
+        result.ShouldContain("<p>");
+        result.ShouldNotContain("<script>");
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public sealed class DefaultSanitizerTests
         var result = _sut.Custom(input, SanitizationProfiles.None);
 
         // None profile: no allowed tags, no strip flags → pass-through
-        result.Should().Be(input);
+        result.ShouldBe(input);
     }
 
     [Fact]
@@ -430,9 +430,9 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.Custom(input, SanitizationProfiles.BasicFormatting);
 
-        result.Should().Contain("<b>");
-        result.Should().Contain("<p>");
-        result.Should().NotContain("<script>");
+        result.ShouldContain("<b>");
+        result.ShouldContain("<p>");
+        result.ShouldNotContain("<script>");
     }
 
     [Fact]
@@ -440,8 +440,8 @@ public sealed class DefaultSanitizerTests
     {
         var act = () => _sut.Custom(null!, SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -449,8 +449,8 @@ public sealed class DefaultSanitizerTests
     {
         var act = () => _sut.Custom("test", null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("profile");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("profile");
     }
 
     [Fact]
@@ -467,9 +467,9 @@ public sealed class DefaultSanitizerTests
 
         var result = _sut.Custom(input, profile);
 
-        result.Should().Contain("<p>");
-        result.Should().Contain("<a");
-        result.Should().NotContain("<div>");
+        result.ShouldContain("<p>");
+        result.ShouldContain("<a");
+        result.ShouldNotContain("<div>");
     }
 
     #endregion
@@ -489,7 +489,7 @@ public sealed class DefaultSanitizerTests
 
         // Should not throw and should work
         var result = sanitizer.SanitizeHtml("<p>test</p>");
-        result.Should().NotBeNull();
+        result.ShouldNotBeNull();
     }
 
     #endregion

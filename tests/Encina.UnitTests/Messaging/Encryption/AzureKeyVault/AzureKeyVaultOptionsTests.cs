@@ -1,7 +1,7 @@
 using Azure.Core;
 using Azure.Security.KeyVault.Keys;
 using Encina.Messaging.Encryption.AzureKeyVault;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption.AzureKeyVault;
 
@@ -11,35 +11,35 @@ public class AzureKeyVaultOptionsTests
     public void Defaults_VaultUri_IsNull()
     {
         var options = new AzureKeyVaultOptions();
-        options.VaultUri.Should().BeNull();
+        options.VaultUri.ShouldBeNull();
     }
 
     [Fact]
     public void Defaults_KeyName_IsNull()
     {
         var options = new AzureKeyVaultOptions();
-        options.KeyName.Should().BeNull();
+        options.KeyName.ShouldBeNull();
     }
 
     [Fact]
     public void Defaults_KeyVersion_IsNull()
     {
         var options = new AzureKeyVaultOptions();
-        options.KeyVersion.Should().BeNull();
+        options.KeyVersion.ShouldBeNull();
     }
 
     [Fact]
     public void Defaults_Credential_IsNull()
     {
         var options = new AzureKeyVaultOptions();
-        options.Credential.Should().BeNull();
+        options.Credential.ShouldBeNull();
     }
 
     [Fact]
     public void Defaults_ClientOptions_IsNull()
     {
         var options = new AzureKeyVaultOptions();
-        options.ClientOptions.Should().BeNull();
+        options.ClientOptions.ShouldBeNull();
     }
 
     [Fact]
@@ -47,21 +47,21 @@ public class AzureKeyVaultOptionsTests
     {
         var uri = new Uri("https://my-vault.vault.azure.net/");
         var options = new AzureKeyVaultOptions { VaultUri = uri };
-        options.VaultUri.Should().Be(uri);
+        options.VaultUri.ShouldBe(uri);
     }
 
     [Fact]
     public void KeyName_IsSettable()
     {
         var options = new AzureKeyVaultOptions { KeyName = "my-key" };
-        options.KeyName.Should().Be("my-key");
+        options.KeyName.ShouldBe("my-key");
     }
 
     [Fact]
     public void KeyVersion_IsSettable()
     {
         var options = new AzureKeyVaultOptions { KeyVersion = "abc123" };
-        options.KeyVersion.Should().Be("abc123");
+        options.KeyVersion.ShouldBe("abc123");
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class AzureKeyVaultOptionsTests
     {
         var credential = Substitute.For<TokenCredential>();
         var options = new AzureKeyVaultOptions { Credential = credential };
-        options.Credential.Should().BeSameAs(credential);
+        options.Credential.ShouldBeSameAs(credential);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class AzureKeyVaultOptionsTests
     {
         var clientOptions = new KeyClientOptions();
         var options = new AzureKeyVaultOptions { ClientOptions = clientOptions };
-        options.ClientOptions.Should().BeSameAs(clientOptions);
+        options.ClientOptions.ShouldBeSameAs(clientOptions);
     }
 
     [Fact]
@@ -91,8 +91,8 @@ public class AzureKeyVaultOptionsTests
 
         var result = options.ToString();
 
-        result.Should().Contain("my-vault.vault.azure.net");
-        result.Should().Contain("test-key");
+        result.ShouldContain("my-vault.vault.azure.net");
+        result.ShouldContain("test-key");
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class AzureKeyVaultOptionsTests
 
         var result = options.ToString();
 
-        result.Should().Contain("AzureKeyVaultOptions");
+        result.ShouldContain("AzureKeyVaultOptions");
     }
 
     [Fact]
@@ -121,10 +121,10 @@ public class AzureKeyVaultOptionsTests
             ClientOptions = clientOptions
         };
 
-        options.VaultUri.Should().Be(uri);
-        options.KeyName.Should().Be("key-name");
-        options.KeyVersion.Should().Be("v1");
-        options.Credential.Should().BeSameAs(credential);
-        options.ClientOptions.Should().BeSameAs(clientOptions);
+        options.VaultUri.ShouldBe(uri);
+        options.KeyName.ShouldBe("key-name");
+        options.KeyVersion.ShouldBe("v1");
+        options.Credential.ShouldBeSameAs(credential);
+        options.ClientOptions.ShouldBeSameAs(clientOptions);
     }
 }

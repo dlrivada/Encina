@@ -4,7 +4,7 @@ using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -44,7 +44,7 @@ public sealed class CachingSecretWriterDecoratorTests
         var result = await decorator.SetSecretAsync("key", "value");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         // Verify all cache key variants are invalidated
         await _cache.Received().RemoveAsync(
@@ -88,7 +88,7 @@ public sealed class CachingSecretWriterDecoratorTests
         var result = await decorator.SetSecretAsync("key", "value");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         await _cache.DidNotReceive().RemoveAsync(
             Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _pubSub.DidNotReceive().PublishAsync(
@@ -112,7 +112,7 @@ public sealed class CachingSecretWriterDecoratorTests
         var result = await decorator.SetSecretAsync("key", "value");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _cache.Received().RemoveAsync(
             Arg.Is<string>(k => k.Contains(":v:key")),
             Arg.Any<CancellationToken>());
@@ -138,7 +138,7 @@ public sealed class CachingSecretWriterDecoratorTests
         var result = await decorator.SetSecretAsync("key", "value");
 
         // Assert — inner write succeeded, pubsub failure is swallowed
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         // Verify local cache invalidation still happened despite PubSub failure
         await _cache.Received().RemoveAsync(
@@ -167,7 +167,7 @@ public sealed class CachingSecretWriterDecoratorTests
         var result = await decorator.SetSecretAsync("key", "value");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _pubSub.DidNotReceive().PublishAsync(
             Arg.Any<string>(), Arg.Any<SecretCacheInvalidationMessage>(), Arg.Any<CancellationToken>());
 
@@ -189,7 +189,7 @@ public sealed class CachingSecretWriterDecoratorTests
     {
         var act = () => new CachingSecretWriterDecorator(null!, _cache, _pubSub, _options, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class CachingSecretWriterDecoratorTests
     {
         var act = () => new CachingSecretWriterDecorator(_innerWriter, null!, _pubSub, _options, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class CachingSecretWriterDecoratorTests
     {
         var act = () => new CachingSecretWriterDecorator(_innerWriter, _cache, _pubSub, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public sealed class CachingSecretWriterDecoratorTests
     {
         var act = () => new CachingSecretWriterDecorator(_innerWriter, _cache, _pubSub, _options, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public sealed class CachingSecretWriterDecoratorTests
     {
         var act = () => new CachingSecretWriterDecorator(_innerWriter, _cache, null, _options, _logger);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

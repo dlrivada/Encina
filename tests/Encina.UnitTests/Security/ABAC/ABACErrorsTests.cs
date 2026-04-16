@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 
 namespace Encina.UnitTests.Security.ABAC;
@@ -33,8 +33,8 @@ public sealed class ABACErrorsTests
     public void ErrorCode_HasAbacPrefix(string fieldName, string expectedValue)
     {
         var field = typeof(ABACErrors).GetField(fieldName);
-        field.Should().NotBeNull();
-        field!.GetValue(null).Should().Be(expectedValue);
+        field.ShouldNotBeNull();
+        field!.GetValue(null).ShouldBe(expectedValue);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class ABACErrorsTests
             ABACErrors.VariableNotFoundCode
         };
 
-        codes.Should().OnlyHaveUniqueItems();
+        codes.ShouldBeUnique();
     }
 
     #endregion
@@ -73,7 +73,7 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.AccessDenied(typeof(string));
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.AccessDeniedCode);
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.AccessDeniedCode);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.AccessDenied(typeof(string), "test-policy");
 
-        error.Message.Should().Contain("test-policy");
+        error.Message.ShouldContain("test-policy");
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.AccessDenied(typeof(string));
 
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("ABAC policy evaluation");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("ABAC policy evaluation");
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.Indeterminate(typeof(int));
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.IndeterminateCode);
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.IndeterminateCode);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.Indeterminate(typeof(int), "missing attribute");
 
-        error.Message.Should().Contain("missing attribute");
+        error.Message.ShouldContain("missing attribute");
     }
 
     [Fact]
@@ -114,8 +114,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.PolicyNotFound("finance-policy");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.PolicyNotFoundCode);
-        error.Message.Should().Contain("finance-policy");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.PolicyNotFoundCode);
+        error.Message.ShouldContain("finance-policy");
     }
 
     [Fact]
@@ -123,8 +123,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.PolicySetNotFound("org-policies");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.PolicySetNotFoundCode);
-        error.Message.Should().Contain("org-policies");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.PolicySetNotFoundCode);
+        error.Message.ShouldContain("org-policies");
     }
 
     [Fact]
@@ -133,8 +133,8 @@ public sealed class ABACErrorsTests
         var ex = new InvalidOperationException("test error");
         var error = ABACErrors.EvaluationFailed(typeof(string), ex);
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.EvaluationFailedCode);
-        error.Message.Should().Contain("test error");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.EvaluationFailedCode);
+        error.Message.ShouldContain("test error");
     }
 
     [Fact]
@@ -142,9 +142,9 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.AttributeResolutionFailed("department", AttributeCategory.Subject);
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.AttributeResolutionFailedCode);
-        error.Message.Should().Contain("department");
-        error.Message.Should().Contain("Subject");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.AttributeResolutionFailedCode);
+        error.Message.ShouldContain("department");
+        error.Message.ShouldContain("Subject");
     }
 
     [Fact]
@@ -152,9 +152,9 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.InvalidPolicy("bad-policy", "no rules defined");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.InvalidPolicyCode);
-        error.Message.Should().Contain("bad-policy");
-        error.Message.Should().Contain("no rules defined");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.InvalidPolicyCode);
+        error.Message.ShouldContain("bad-policy");
+        error.Message.ShouldContain("no rules defined");
     }
 
     [Fact]
@@ -162,8 +162,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.InvalidPolicySet("bad-set", "empty");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.InvalidPolicySetCode);
-        error.Message.Should().Contain("bad-set");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.InvalidPolicySetCode);
+        error.Message.ShouldContain("bad-set");
     }
 
     [Fact]
@@ -171,8 +171,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.InvalidCondition("user.role ==", "unexpected end of expression");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.InvalidConditionCode);
-        error.Message.Should().Contain("invalid");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.InvalidConditionCode);
+        error.Message.ShouldContain("invalid");
     }
 
     [Fact]
@@ -180,8 +180,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.InvalidCondition("bad expression");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.InvalidConditionCode);
-        error.Message.Should().Contain("parsed");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.InvalidConditionCode);
+        error.Message.ShouldContain("parsed");
     }
 
     [Fact]
@@ -189,8 +189,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.DuplicatePolicy("dup-policy");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.DuplicatePolicyCode);
-        error.Message.Should().Contain("dup-policy");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.DuplicatePolicyCode);
+        error.Message.ShouldContain("dup-policy");
     }
 
     [Fact]
@@ -198,8 +198,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.DuplicatePolicySet("dup-set");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.DuplicatePolicySetCode);
-        error.Message.Should().Contain("dup-set");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.DuplicatePolicySetCode);
+        error.Message.ShouldContain("dup-set");
     }
 
     [Fact]
@@ -207,8 +207,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.CombiningFailed("deny-overrides", "conflicting results");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.CombiningFailedCode);
-        error.Message.Should().Contain("deny-overrides");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.CombiningFailedCode);
+        error.Message.ShouldContain("deny-overrides");
     }
 
     [Fact]
@@ -216,8 +216,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.CombiningFailed("permit-overrides");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.CombiningFailedCode);
-        error.Message.Should().Contain("indeterminate");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.CombiningFailedCode);
+        error.Message.ShouldContain("indeterminate");
     }
 
     [Fact]
@@ -225,8 +225,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.MissingContext(typeof(string));
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.MissingContextCode);
-        error.Message.Should().Contain("String");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.MissingContextCode);
+        error.Message.ShouldContain("String");
     }
 
     [Fact]
@@ -234,9 +234,9 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.ObligationFailed("log-access", "handler timeout");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.ObligationFailedCode);
-        error.Message.Should().Contain("log-access");
-        error.Message.Should().Contain("handler timeout");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.ObligationFailedCode);
+        error.Message.ShouldContain("log-access");
+        error.Message.ShouldContain("handler timeout");
     }
 
     [Fact]
@@ -244,8 +244,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.ObligationFailed("log-access");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.ObligationFailedCode);
-        error.Message.Should().Contain("XACML");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.ObligationFailedCode);
+        error.Message.ShouldContain("XACML");
     }
 
     [Fact]
@@ -253,8 +253,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.FunctionNotFound("custom:geo-distance");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.FunctionNotFoundCode);
-        error.Message.Should().Contain("custom:geo-distance");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.FunctionNotFoundCode);
+        error.Message.ShouldContain("custom:geo-distance");
     }
 
     [Fact]
@@ -263,9 +263,9 @@ public sealed class ABACErrorsTests
         var ex = new DivideByZeroException("division by zero");
         var error = ABACErrors.FunctionError("integer-divide", ex);
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.FunctionErrorCode);
-        error.Message.Should().Contain("integer-divide");
-        error.Message.Should().Contain("division by zero");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.FunctionErrorCode);
+        error.Message.ShouldContain("integer-divide");
+        error.Message.ShouldContain("division by zero");
     }
 
     [Fact]
@@ -273,8 +273,8 @@ public sealed class ABACErrorsTests
     {
         var error = ABACErrors.VariableNotFound("user-role");
 
-        error.GetCode().IfNone("").Should().Be(ABACErrors.VariableNotFoundCode);
-        error.Message.Should().Contain("user-role");
+        error.GetCode().IfNone("").ShouldBe(ABACErrors.VariableNotFoundCode);
+        error.Message.ShouldContain("user-role");
     }
 
     #endregion

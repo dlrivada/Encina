@@ -2,7 +2,7 @@
 
 using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -31,15 +31,15 @@ public class DPAAggregateTests
             signedAt, expiresAtUtc: FixedNow.AddYears(1), FixedNow);
 
         // Assert
-        aggregate.Id.Should().Be(id);
-        aggregate.ProcessorId.Should().Be(processorId);
-        aggregate.Status.Should().Be(DPAStatus.Active);
-        aggregate.MandatoryTerms.Should().Be(terms);
-        aggregate.HasSCCs.Should().BeTrue();
-        aggregate.ProcessingPurposes.Should().BeEquivalentTo(purposes);
-        aggregate.SignedAtUtc.Should().Be(signedAt);
-        aggregate.CreatedAtUtc.Should().Be(FixedNow);
-        aggregate.LastUpdatedAtUtc.Should().Be(FixedNow);
+        aggregate.Id.ShouldBe(id);
+        aggregate.ProcessorId.ShouldBe(processorId);
+        aggregate.Status.ShouldBe(DPAStatus.Active);
+        aggregate.MandatoryTerms.ShouldBe(terms);
+        aggregate.HasSCCs.ShouldBeTrue();
+        aggregate.ProcessingPurposes.ShouldBe(purposes);
+        aggregate.SignedAtUtc.ShouldBe(signedAt);
+        aggregate.CreatedAtUtc.ShouldBe(FixedNow);
+        aggregate.LastUpdatedAtUtc.ShouldBe(FixedNow);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class DPAAggregateTests
         var aggregate = CreateDefaultDPA(expiresAtUtc: expiresAt);
 
         // Assert
-        aggregate.ExpiresAtUtc.Should().Be(expiresAt);
+        aggregate.ExpiresAtUtc.ShouldBe(expiresAt);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class DPAAggregateTests
             occurredAtUtc: FixedNow);
 
         // Assert
-        aggregate.ExpiresAtUtc.Should().BeNull();
+        aggregate.ExpiresAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public class DPAAggregateTests
             new List<string> { "Processing" }, FixedNow, null, FixedNow);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("mandatoryTerms");
+        Should.Throw<ArgumentNullException>(act)
+            .And.ParamName.ShouldBe("mandatoryTerms");
     }
 
     [Fact]
@@ -92,8 +92,8 @@ public class DPAAggregateTests
             hasSCCs: false, null!, FixedNow, null, FixedNow);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("processingPurposes");
+        Should.Throw<ArgumentNullException>(act)
+            .And.ParamName.ShouldBe("processingPurposes");
     }
 
     [Fact]
@@ -105,8 +105,8 @@ public class DPAAggregateTests
             hasSCCs: false, new List<string>(), FixedNow, null, FixedNow);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("processingPurposes");
+        Should.Throw<ArgumentException>(act)
+            .And.ParamName.ShouldBe("processingPurposes");
     }
 
     #endregion
@@ -127,10 +127,10 @@ public class DPAAggregateTests
             "Regulatory requirement change", amendedAt);
 
         // Assert
-        aggregate.MandatoryTerms.Should().Be(updatedTerms);
-        aggregate.HasSCCs.Should().BeFalse();
-        aggregate.ProcessingPurposes.Should().BeEquivalentTo(newPurposes);
-        aggregate.LastUpdatedAtUtc.Should().Be(amendedAt);
+        aggregate.MandatoryTerms.ShouldBe(updatedTerms);
+        aggregate.HasSCCs.ShouldBeFalse();
+        aggregate.ProcessingPurposes.ShouldBe(newPurposes);
+        aggregate.LastUpdatedAtUtc.ShouldBe(amendedAt);
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class DPAAggregateTests
             FixedNow.AddDays(6));
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public class DPAAggregateTests
             FixedNow.AddDays(6));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class DPAAggregateTests
             FixedNow.AddDays(6));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -199,7 +199,7 @@ public class DPAAggregateTests
         aggregate.Audit("auditor-001", "No issues found", auditedAt);
 
         // Assert
-        aggregate.LastUpdatedAtUtc.Should().Be(auditedAt);
+        aggregate.LastUpdatedAtUtc.ShouldBe(auditedAt);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class DPAAggregateTests
             FixedNow.AddDays(6));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -233,8 +233,8 @@ public class DPAAggregateTests
         aggregate.Renew(newExpiry, renewedAt);
 
         // Assert
-        aggregate.ExpiresAtUtc.Should().Be(newExpiry);
-        aggregate.LastUpdatedAtUtc.Should().Be(renewedAt);
+        aggregate.ExpiresAtUtc.ShouldBe(newExpiry);
+        aggregate.LastUpdatedAtUtc.ShouldBe(renewedAt);
     }
 
     [Fact]
@@ -243,13 +243,13 @@ public class DPAAggregateTests
         // Arrange
         var aggregate = CreateDefaultDPA();
         aggregate.MarkPendingRenewal(FixedNow.AddDays(5));
-        aggregate.Status.Should().Be(DPAStatus.PendingRenewal);
+        aggregate.Status.ShouldBe(DPAStatus.PendingRenewal);
 
         // Act
         aggregate.Renew(FixedNow.AddYears(1), FixedNow.AddDays(6));
 
         // Assert
-        aggregate.Status.Should().Be(DPAStatus.Active);
+        aggregate.Status.ShouldBe(DPAStatus.Active);
     }
 
     #endregion
@@ -267,8 +267,8 @@ public class DPAAggregateTests
         aggregate.Terminate("Contract breach", terminatedAt);
 
         // Assert
-        aggregate.Status.Should().Be(DPAStatus.Terminated);
-        aggregate.LastUpdatedAtUtc.Should().Be(terminatedAt);
+        aggregate.Status.ShouldBe(DPAStatus.Terminated);
+        aggregate.LastUpdatedAtUtc.ShouldBe(terminatedAt);
     }
 
     [Fact]
@@ -282,7 +282,7 @@ public class DPAAggregateTests
         var act = () => aggregate.Terminate("Second termination", FixedNow.AddDays(6));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -300,8 +300,8 @@ public class DPAAggregateTests
         aggregate.MarkExpired(expiredAt);
 
         // Assert
-        aggregate.Status.Should().Be(DPAStatus.Expired);
-        aggregate.LastUpdatedAtUtc.Should().Be(expiredAt);
+        aggregate.Status.ShouldBe(DPAStatus.Expired);
+        aggregate.LastUpdatedAtUtc.ShouldBe(expiredAt);
     }
 
     #endregion
@@ -318,7 +318,7 @@ public class DPAAggregateTests
         aggregate.MarkPendingRenewal(FixedNow.AddMonths(11));
 
         // Assert
-        aggregate.Status.Should().Be(DPAStatus.PendingRenewal);
+        aggregate.Status.ShouldBe(DPAStatus.PendingRenewal);
     }
 
     [Fact]
@@ -332,7 +332,7 @@ public class DPAAggregateTests
         var act = () => aggregate.MarkPendingRenewal(FixedNow.AddDays(6));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -349,7 +349,7 @@ public class DPAAggregateTests
         var result = aggregate.IsActive(FixedNow.AddMonths(6));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -362,7 +362,7 @@ public class DPAAggregateTests
         var result = aggregate.IsActive(FixedNow.AddYears(2));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -376,7 +376,7 @@ public class DPAAggregateTests
         var result = aggregate.IsActive(FixedNow.AddDays(6));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion
@@ -388,27 +388,27 @@ public class DPAAggregateTests
     {
         // Arrange - Create active agreement
         var aggregate = CreateDefaultDPA(expiresAtUtc: FixedNow.AddYears(1));
-        aggregate.Status.Should().Be(DPAStatus.Active);
+        aggregate.Status.ShouldBe(DPAStatus.Active);
 
         // Act/Assert - Mark pending renewal
         aggregate.MarkPendingRenewal(FixedNow.AddMonths(11));
-        aggregate.Status.Should().Be(DPAStatus.PendingRenewal);
+        aggregate.Status.ShouldBe(DPAStatus.PendingRenewal);
 
         // Act/Assert - Renew (transitions back to Active)
         aggregate.Renew(FixedNow.AddYears(2), FixedNow.AddMonths(11).AddDays(5));
-        aggregate.Status.Should().Be(DPAStatus.Active);
-        aggregate.ExpiresAtUtc.Should().Be(FixedNow.AddYears(2));
+        aggregate.Status.ShouldBe(DPAStatus.Active);
+        aggregate.ExpiresAtUtc.ShouldBe(FixedNow.AddYears(2));
 
         // Act/Assert - Terminate
         aggregate.Terminate("Business relationship ended", FixedNow.AddYears(1).AddMonths(6));
-        aggregate.Status.Should().Be(DPAStatus.Terminated);
+        aggregate.Status.ShouldBe(DPAStatus.Terminated);
 
         // Act/Assert - Cannot perform further operations
         var amendAct = () => aggregate.Amend(
             CreateFullyCompliantTerms(), hasSCCs: true,
             new List<string> { "Purpose" }, "Post-termination",
             FixedNow.AddYears(1).AddMonths(7));
-        amendAct.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(amendAct);
     }
 
     #endregion

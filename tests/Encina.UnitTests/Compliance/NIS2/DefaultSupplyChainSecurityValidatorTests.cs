@@ -2,7 +2,7 @@ using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Model;
 using Encina.Testing.Time;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Options;
 
@@ -60,11 +60,11 @@ public class DefaultSupplyChainSecurityValidatorTests
         var result = await sut.AssessSupplierAsync("acme-cloud");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(r => r, _ => null!);
-        assessment.SupplierId.Should().Be("acme-cloud");
-        assessment.OverallRisk.Should().Be(SupplierRiskLevel.Low);
-        assessment.AssessedAtUtc.Should().Be(_baseTime);
+        assessment.SupplierId.ShouldBe("acme-cloud");
+        assessment.OverallRisk.ShouldBe(SupplierRiskLevel.Low);
+        assessment.AssessedAtUtc.ShouldBe(_baseTime);
     }
 
     [Fact]
@@ -78,10 +78,10 @@ public class DefaultSupplyChainSecurityValidatorTests
         var result = await sut.AssessSupplierAsync("unknown-supplier");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.Message.Should().Contain("unknown-supplier");
-        error.Message.Should().Contain("not registered");
+        error.Message.ShouldContain("unknown-supplier");
+        error.Message.ShouldContain("not registered");
     }
 
     [Fact]
@@ -100,9 +100,9 @@ public class DefaultSupplyChainSecurityValidatorTests
         var result = await sut.AssessSupplierAsync("stale-vendor");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(r => r, _ => null!);
-        assessment.Risks.Should().Contain(r =>
+        assessment.Risks.ShouldContain(r =>
             r.RiskLevel == SupplierRiskLevel.Medium &&
             r.RiskDescription.Contains("older than 12 months"));
     }
@@ -123,10 +123,10 @@ public class DefaultSupplyChainSecurityValidatorTests
         var result = await sut.AssessSupplierAsync("risky-supplier");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(r => r, _ => null!);
-        assessment.OverallRisk.Should().Be(SupplierRiskLevel.Critical);
-        assessment.Risks.Should().Contain(r =>
+        assessment.OverallRisk.ShouldBe(SupplierRiskLevel.Critical);
+        assessment.Risks.ShouldContain(r =>
             r.RiskLevel == SupplierRiskLevel.Critical &&
             r.RiskDescription.Contains("Critical"));
     }
@@ -149,9 +149,9 @@ public class DefaultSupplyChainSecurityValidatorTests
         var result = await sut.ValidateSupplierForOperationAsync("safe-vendor");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isAcceptable = result.Match(r => r, _ => false);
-        isAcceptable.Should().BeTrue();
+        isAcceptable.ShouldBeTrue();
     }
 
     [Fact]
@@ -168,9 +168,9 @@ public class DefaultSupplyChainSecurityValidatorTests
         var result = await sut.ValidateSupplierForOperationAsync("critical-vendor");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isAcceptable = result.Match(r => r, _ => true);
-        isAcceptable.Should().BeFalse();
+        isAcceptable.ShouldBeFalse();
     }
 
     #endregion
@@ -203,12 +203,12 @@ public class DefaultSupplyChainSecurityValidatorTests
         var result = await sut.GetSupplierRisksAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var risks = result.Match(r => r, _ => null!);
-        risks.Should().HaveCount(2);
-        risks.Should().Contain(r => r.SupplierId == "high-risk");
-        risks.Should().Contain(r => r.SupplierId == "critical-risk");
-        risks.Should().NotContain(r => r.SupplierId == "low-risk");
+        risks.Count.ShouldBe(2);
+        risks.ShouldContain(r => r.SupplierId == "high-risk");
+        risks.ShouldContain(r => r.SupplierId == "critical-risk");
+        risks.ShouldNotContain(r => r.SupplierId == "low-risk");
     }
 
     #endregion

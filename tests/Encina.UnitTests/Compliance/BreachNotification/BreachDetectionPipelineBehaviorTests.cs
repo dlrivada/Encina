@@ -5,7 +5,7 @@ using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -60,7 +60,7 @@ public class BreachDetectionPipelineBehaviorTests
             _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("detector");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("detector");
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class BreachDetectionPipelineBehaviorTests
             _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("breachService");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("breachService");
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class BreachDetectionPipelineBehaviorTests
             _detector, _breachService, null!, _timeProvider,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class BreachDetectionPipelineBehaviorTests
             null!,
             NullLogger<BreachDetectionPipelineBehavior<SampleBreachMonitoredRequest, Unit>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class BreachDetectionPipelineBehaviorTests
             _detector, _breachService, Options.Create(new BreachNotificationOptions()),
             _timeProvider, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -122,7 +122,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _detector.DidNotReceive()
             .DetectAsync(Arg.Any<SecurityEvent>(), Arg.Any<CancellationToken>());
     }
@@ -163,7 +163,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _detector.DidNotReceive()
             .DetectAsync(Arg.Any<SecurityEvent>(), Arg.Any<CancellationToken>());
     }
@@ -204,7 +204,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _breachService.DidNotReceive()
             .RecordBreachAsync(
                 Arg.Any<string>(), Arg.Any<BreachSeverity>(), Arg.Any<string>(),
@@ -232,10 +232,10 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.BreachDetectedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.BreachDetectedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -255,9 +255,9 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("UnauthorizedAccessRule");
+        error.Message.ShouldContain("UnauthorizedAccessRule");
     }
 
     [Fact]
@@ -276,9 +276,9 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("SampleBreachMonitoredRequest");
+        error.Message.ShouldContain("SampleBreachMonitoredRequest");
     }
 
     [Fact]
@@ -322,10 +322,10 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("RuleAlpha");
-        error.Message.Should().Contain("RuleBeta");
+        error.Message.ShouldContain("RuleAlpha");
+        error.Message.ShouldContain("RuleBeta");
     }
 
     #endregion
@@ -348,7 +348,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -396,7 +396,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -417,7 +417,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -441,10 +441,10 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.DetectionFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.DetectionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -465,7 +465,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -495,8 +495,8 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(userId: "user-1"), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        capturedEvent.Should().NotBeNull();
-        capturedEvent!.EventType.Should().Be(SecurityEventType.UnauthorizedAccess);
+        capturedEvent.ShouldNotBeNull();
+        capturedEvent!.EventType.ShouldBe(SecurityEventType.UnauthorizedAccess);
     }
 
     [Fact]
@@ -525,8 +525,8 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(userId: "user-1"), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        capturedEvent.Should().NotBeNull();
-        capturedEvent!.OccurredAtUtc.Should().Be(expectedTime);
+        capturedEvent.ShouldNotBeNull();
+        capturedEvent!.OccurredAtUtc.ShouldBe(expectedTime);
     }
 
     [Fact]
@@ -552,8 +552,8 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(userId: "user-1"), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        capturedEvent.Should().NotBeNull();
-        capturedEvent!.Source.Should().Contain("SampleBreachMonitoredRequest");
+        capturedEvent.ShouldNotBeNull();
+        capturedEvent!.Source.ShouldContain("SampleBreachMonitoredRequest");
     }
 
     #endregion
@@ -580,7 +580,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -620,7 +620,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -642,7 +642,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     #endregion
@@ -741,7 +741,7 @@ public class BreachDetectionPipelineBehaviorTests
 
         // Assert
         var error = (EncinaError)result;
-        error.Message.Should().Be("Detection system unavailable");
+        error.Message.ShouldBe("Detection system unavailable");
     }
 
     #endregion
@@ -766,7 +766,7 @@ public class BreachDetectionPipelineBehaviorTests
 
         // Assert
         var error = (EncinaError)result;
-        error.Message.Should().Contain("SampleBreachMonitoredRequest");
+        error.Message.ShouldContain("SampleBreachMonitoredRequest");
     }
 
     [Fact]
@@ -812,7 +812,7 @@ public class BreachDetectionPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert -- Warn mode returns the original result even when breach detected
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -830,8 +830,8 @@ public class BreachDetectionPipelineBehaviorTests
             null!, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     #endregion

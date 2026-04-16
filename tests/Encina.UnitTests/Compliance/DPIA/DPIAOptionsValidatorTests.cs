@@ -3,7 +3,7 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Options;
 
@@ -25,7 +25,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Theory]
@@ -38,7 +38,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -52,9 +52,9 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementMode");
-        result.FailureMessage.Should().Contain("99");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldContain("99");
     }
 
     #endregion
@@ -68,8 +68,8 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultReviewPeriod");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DefaultReviewPeriod");
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultReviewPeriod");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DefaultReviewPeriod");
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -108,8 +108,8 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("ExpirationCheckInterval");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("ExpirationCheckInterval");
     }
 
     [Fact]
@@ -123,8 +123,8 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("ExpirationCheckInterval");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("ExpirationCheckInterval");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -166,9 +166,9 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DPOEmail");
-        result.FailureMessage.Should().Contain("@");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DPOEmail");
+        result.FailureMessage.ShouldContain("@");
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -219,11 +219,11 @@ public class DPIAOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementMode");
-        result.FailureMessage.Should().Contain("DefaultReviewPeriod");
-        result.FailureMessage.Should().Contain("ExpirationCheckInterval");
-        result.FailureMessage.Should().Contain("DPOEmail");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldContain("DefaultReviewPeriod");
+        result.FailureMessage.ShouldContain("ExpirationCheckInterval");
+        result.FailureMessage.ShouldContain("DPOEmail");
     }
 
     #endregion
@@ -235,8 +235,8 @@ public class DPIAOptionsValidatorTests
     {
         var act = () => _sut.Validate(null, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     #endregion

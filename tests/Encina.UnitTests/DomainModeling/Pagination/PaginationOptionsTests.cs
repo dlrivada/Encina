@@ -1,5 +1,5 @@
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -17,8 +17,8 @@ public class PaginationOptionsTests
         var options = new PaginationOptions();
 
         // Assert
-        options.PageNumber.Should().Be(1);
-        options.PageSize.Should().Be(20);
+        options.PageNumber.ShouldBe(1);
+        options.PageSize.ShouldBe(20);
     }
 
     [Fact]
@@ -28,8 +28,8 @@ public class PaginationOptionsTests
         var options = new PaginationOptions(PageNumber: 5, PageSize: 50);
 
         // Assert
-        options.PageNumber.Should().Be(5);
-        options.PageSize.Should().Be(50);
+        options.PageNumber.ShouldBe(5);
+        options.PageSize.ShouldBe(50);
     }
 
     [Theory]
@@ -43,8 +43,8 @@ public class PaginationOptionsTests
         var options = new PaginationOptions(pageNumber, pageSize);
 
         // Assert
-        options.PageNumber.Should().Be(pageNumber);
-        options.PageSize.Should().Be(pageSize);
+        options.PageNumber.ShouldBe(pageNumber);
+        options.PageSize.ShouldBe(pageSize);
     }
 
     #endregion
@@ -68,7 +68,7 @@ public class PaginationOptionsTests
         var options = new PaginationOptions(pageNumber, pageSize);
 
         // Assert
-        options.Skip.Should().Be(expectedSkip);
+        options.Skip.ShouldBe(expectedSkip);
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public class PaginationOptionsTests
         var options = new PaginationOptions(PageNumber: 7, PageSize: 25);
 
         // Act & Assert
-        options.Skip.Should().Be((7 - 1) * 25);
-        options.Skip.Should().Be(150);
+        options.Skip.ShouldBe((7 - 1) * 25);
+        options.Skip.ShouldBe(150);
     }
 
     #endregion
@@ -93,8 +93,8 @@ public class PaginationOptionsTests
         var options = PaginationOptions.Default;
 
         // Assert
-        options.PageNumber.Should().Be(1);
-        options.PageSize.Should().Be(20);
+        options.PageNumber.ShouldBe(1);
+        options.PageSize.ShouldBe(20);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class PaginationOptionsTests
         var options2 = PaginationOptions.Default;
 
         // Assert
-        options1.Should().BeSameAs(options2);
+        options1.ShouldBeSameAs(options2);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class PaginationOptionsTests
         var options = PaginationOptions.Default;
 
         // Assert
-        options.Skip.Should().Be(0);
+        options.Skip.ShouldBe(0);
     }
 
     #endregion
@@ -136,9 +136,9 @@ public class PaginationOptionsTests
         var result = original.WithPage(pageNumber);
 
         // Assert
-        result.PageNumber.Should().Be(pageNumber);
-        result.PageSize.Should().Be(original.PageSize); // Size unchanged
-        result.Should().NotBeSameAs(original);
+        result.PageNumber.ShouldBe(pageNumber);
+        result.PageSize.ShouldBe(original.PageSize); // Size unchanged
+        result.ShouldNotBeSameAs(original);
     }
 
     [Fact]
@@ -151,8 +151,8 @@ public class PaginationOptionsTests
         var result = original.WithPage(10);
 
         // Assert
-        result.PageNumber.Should().Be(10);
-        result.PageSize.Should().Be(50);
+        result.PageNumber.ShouldBe(10);
+        result.PageSize.ShouldBe(50);
     }
 
     [Theory]
@@ -165,8 +165,8 @@ public class PaginationOptionsTests
         var options = PaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithPage(pageNumber);
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Action action = () => options.WithPage(pageNumber);
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     #endregion
@@ -187,9 +187,9 @@ public class PaginationOptionsTests
         var result = original.WithSize(pageSize);
 
         // Assert
-        result.PageSize.Should().Be(pageSize);
-        result.PageNumber.Should().Be(original.PageNumber); // Page unchanged
-        result.Should().NotBeSameAs(original);
+        result.PageSize.ShouldBe(pageSize);
+        result.PageNumber.ShouldBe(original.PageNumber); // Page unchanged
+        result.ShouldNotBeSameAs(original);
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public class PaginationOptionsTests
         var result = original.WithSize(100);
 
         // Assert
-        result.PageNumber.Should().Be(5);
-        result.PageSize.Should().Be(100);
+        result.PageNumber.ShouldBe(5);
+        result.PageSize.ShouldBe(100);
     }
 
     [Theory]
@@ -216,8 +216,8 @@ public class PaginationOptionsTests
         var options = PaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSize(pageSize);
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Action action = () => options.WithSize(pageSize);
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     #endregion
@@ -233,9 +233,9 @@ public class PaginationOptionsTests
             .WithSize(50);
 
         // Assert
-        options.PageNumber.Should().Be(5);
-        options.PageSize.Should().Be(50);
-        options.Skip.Should().Be(200); // (5-1) * 50 = 200
+        options.PageNumber.ShouldBe(5);
+        options.PageSize.ShouldBe(50);
+        options.Skip.ShouldBe(200); // (5-1) * 50 = 200
     }
 
     [Fact]
@@ -247,9 +247,9 @@ public class PaginationOptionsTests
             .WithPage(3);
 
         // Assert
-        options.PageNumber.Should().Be(3);
-        options.PageSize.Should().Be(25);
-        options.Skip.Should().Be(50); // (3-1) * 25 = 50
+        options.PageNumber.ShouldBe(3);
+        options.PageSize.ShouldBe(25);
+        options.Skip.ShouldBe(50); // (3-1) * 25 = 50
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public class PaginationOptionsTests
             .WithPage(10);
 
         // Assert
-        options.PageNumber.Should().Be(10);
+        options.PageNumber.ShouldBe(10);
     }
 
     [Fact]
@@ -275,7 +275,7 @@ public class PaginationOptionsTests
             .WithSize(100);
 
         // Assert
-        options.PageSize.Should().Be(100);
+        options.PageSize.ShouldBe(100);
     }
 
     #endregion
@@ -290,8 +290,8 @@ public class PaginationOptionsTests
         var options2 = new PaginationOptions(5, 50);
 
         // Assert
-        options1.Should().Be(options2);
-        (options1 == options2).Should().BeTrue();
+        options1.ShouldBe(options2);
+        (options1 == options2).ShouldBeTrue();
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public class PaginationOptionsTests
         var options2 = new PaginationOptions(6, 50);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public class PaginationOptionsTests
         var options2 = new PaginationOptions(5, 100);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     #endregion
@@ -327,7 +327,7 @@ public class PaginationOptionsTests
         var options = new PaginationOptions(PageNumber: 10000, PageSize: 100);
 
         // Act & Assert
-        options.Skip.Should().Be(999900); // (10000-1) * 100
+        options.Skip.ShouldBe(999900); // (10000-1) * 100
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public class PaginationOptionsTests
         var options = new PaginationOptions(PageNumber: 2, PageSize: 10000);
 
         // Act & Assert
-        options.Skip.Should().Be(10000); // (2-1) * 10000
+        options.Skip.ShouldBe(10000); // (2-1) * 10000
     }
 
     [Fact]
@@ -350,9 +350,9 @@ public class PaginationOptionsTests
         var modified = original with { PageNumber = 5 };
 
         // Assert
-        modified.PageNumber.Should().Be(5);
-        modified.PageSize.Should().Be(20);
-        original.PageNumber.Should().Be(1); // Original unchanged
+        modified.PageNumber.ShouldBe(5);
+        modified.PageSize.ShouldBe(20);
+        original.PageNumber.ShouldBe(1); // Original unchanged
     }
 
     #endregion

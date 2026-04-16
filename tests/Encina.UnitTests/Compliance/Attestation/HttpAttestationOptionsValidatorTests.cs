@@ -1,7 +1,7 @@
 using Encina.Compliance.Attestation;
 using Encina.Compliance.Attestation.Validation;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Attestation;
 
@@ -16,8 +16,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("AttestEndpointUrl");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("AttestEndpointUrl");
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("HTTPS");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("HTTPS");
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("localhost");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("localhost");
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("loopback");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("loopback");
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("private");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("private");
     }
 
     [Fact]
@@ -113,8 +113,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("private");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("private");
     }
 
     [Fact]
@@ -127,8 +127,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("private");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("private");
     }
 
     [Fact]
@@ -141,8 +141,8 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("link-local");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("link-local");
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -170,6 +170,6 @@ public class HttpAttestationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
+        result.Failed.ShouldBeTrue();
     }
 }

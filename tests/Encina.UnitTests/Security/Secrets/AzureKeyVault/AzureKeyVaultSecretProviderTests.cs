@@ -5,7 +5,7 @@ using Azure;
 using Azure.Security.KeyVault.Secrets;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.AzureKeyVault;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -42,8 +42,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync("api-key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("secret-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("secret-value"));
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync("missing");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode));
     }
 
     [Fact]
@@ -66,8 +66,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync("restricted");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.AccessDeniedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.AccessDeniedCode));
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync("restricted");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.AccessDeniedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.AccessDeniedCode));
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync("key");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.ProviderUnavailableCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.ProviderUnavailableCode));
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync("key");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.ProviderUnavailableCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.ProviderUnavailableCode));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class AzureKeyVaultSecretProviderTests
     {
         var act = async () => await _provider.GetSecretAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class AzureKeyVaultSecretProviderTests
     {
         var act = async () => await _provider.GetSecretAsync("");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class AzureKeyVaultSecretProviderTests
     {
         var act = async () => await _provider.GetSecretAsync("   ");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -143,11 +143,11 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync<TestConfig>("db-config");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(v =>
         {
-            v.Host.Should().Be("localhost");
-            v.Port.Should().Be(5432);
+            v.Host.ShouldBe("localhost");
+            v.Port.ShouldBe(5432);
         });
     }
 
@@ -159,8 +159,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync<TestConfig>("bad-json");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.DeserializationFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.DeserializationFailedCode));
     }
 
     [Fact]
@@ -171,8 +171,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync<TestConfig>("null-json");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.DeserializationFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.DeserializationFailedCode));
     }
 
     [Fact]
@@ -183,8 +183,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.GetSecretAsync<TestConfig>("missing-config");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode));
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class AzureKeyVaultSecretProviderTests
     {
         var act = async () => await _provider.GetSecretAsync<TestConfig>(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -207,7 +207,7 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.SetSecretAsync("my-secret", "my-value");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -218,8 +218,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.SetSecretAsync("read-only", "value");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.AccessDeniedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.AccessDeniedCode));
     }
 
     [Fact]
@@ -230,8 +230,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.SetSecretAsync("key", "value");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.ProviderUnavailableCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.ProviderUnavailableCode));
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public sealed class AzureKeyVaultSecretProviderTests
     {
         var act = async () => await _provider.SetSecretAsync(null!, "value");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public sealed class AzureKeyVaultSecretProviderTests
     {
         var act = async () => await _provider.SetSecretAsync("key", null!);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -264,7 +264,7 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.RotateSecretAsync("rotatable");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -275,8 +275,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.RotateSecretAsync("missing");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.RotationFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.RotationFailedCode));
     }
 
     [Fact]
@@ -287,8 +287,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.RotateSecretAsync("restricted");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.RotationFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.RotationFailedCode));
     }
 
     [Fact]
@@ -301,8 +301,8 @@ public sealed class AzureKeyVaultSecretProviderTests
 
         var result = await _provider.RotateSecretAsync("key");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.RotationFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.RotationFailedCode));
     }
 
     [Fact]
@@ -310,7 +310,7 @@ public sealed class AzureKeyVaultSecretProviderTests
     {
         var act = async () => await _provider.RotateSecretAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion

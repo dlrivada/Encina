@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.Configuration;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -12,7 +12,7 @@ public sealed class SecretsConfigurationOptionsTests
     {
         var options = new SecretsConfigurationOptions();
 
-        options.SecretNames.Should().BeEmpty();
+        options.SecretNames.ShouldBeEmpty();
     }
 
     [Fact]
@@ -20,7 +20,7 @@ public sealed class SecretsConfigurationOptionsTests
     {
         var options = new SecretsConfigurationOptions();
 
-        options.SecretPrefix.Should().BeNull();
+        options.SecretPrefix.ShouldBeNull();
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class SecretsConfigurationOptionsTests
     {
         var options = new SecretsConfigurationOptions();
 
-        options.StripPrefix.Should().BeTrue();
+        options.StripPrefix.ShouldBeTrue();
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class SecretsConfigurationOptionsTests
     {
         var options = new SecretsConfigurationOptions();
 
-        options.KeyDelimiter.Should().Be("--");
+        options.KeyDelimiter.ShouldBe("--");
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class SecretsConfigurationOptionsTests
     {
         var options = new SecretsConfigurationOptions();
 
-        options.ReloadInterval.Should().BeNull();
+        options.ReloadInterval.ShouldBeNull();
     }
 
     #endregion
@@ -66,11 +66,11 @@ public sealed class SecretsConfigurationOptionsTests
             ReloadInterval = reloadInterval
         };
 
-        options.SecretNames.Should().BeEquivalentTo(secretNames);
-        options.SecretPrefix.Should().Be("myapp/");
-        options.StripPrefix.Should().BeFalse();
-        options.KeyDelimiter.Should().Be("__");
-        options.ReloadInterval.Should().Be(reloadInterval);
+        options.SecretNames.ShouldBe(secretNames);
+        options.SecretPrefix.ShouldBe("myapp/");
+        options.StripPrefix.ShouldBeFalse();
+        options.KeyDelimiter.ShouldBe("__");
+        options.ReloadInterval.ShouldBe(reloadInterval);
     }
 
     #endregion

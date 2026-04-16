@@ -3,7 +3,7 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -35,7 +35,7 @@ public sealed class ResilientSecretWriterDecoratorTests
         var act = () => new ResilientSecretWriterDecorator(
             null!, ResiliencePipeline.Empty, _options, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class ResilientSecretWriterDecoratorTests
         var act = () => new ResilientSecretWriterDecorator(
             _innerWriter, null!, _options, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("pipeline");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("pipeline");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class ResilientSecretWriterDecoratorTests
         var act = () => new ResilientSecretWriterDecorator(
             _innerWriter, ResiliencePipeline.Empty, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class ResilientSecretWriterDecoratorTests
         var act = () => new ResilientSecretWriterDecorator(
             _innerWriter, ResiliencePipeline.Empty, _options, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -79,7 +79,7 @@ public sealed class ResilientSecretWriterDecoratorTests
 
         var result = await decorator.SetSecretAsync("my-secret", "my-value");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -97,9 +97,9 @@ public sealed class ResilientSecretWriterDecoratorTests
 
         var result = await decorator.SetSecretAsync("my-secret", "my-value");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.AccessDeniedCode)));
+            c.ShouldBe(SecretsErrors.AccessDeniedCode)));
         await _innerWriter.Received(1).SetSecretAsync("my-secret", "my-value", Arg.Any<CancellationToken>());
     }
 
@@ -126,8 +126,8 @@ public sealed class ResilientSecretWriterDecoratorTests
 
         var result = await decorator.SetSecretAsync("my-secret", "my-value");
 
-        result.IsRight.Should().BeTrue();
-        callCount.Should().Be(2);
+        result.IsRight.ShouldBeTrue();
+        callCount.ShouldBe(2);
     }
 
     [Fact]
@@ -141,9 +141,9 @@ public sealed class ResilientSecretWriterDecoratorTests
 
         var result = await decorator.SetSecretAsync("my-secret", "my-value");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.ProviderUnavailableCode)));
+            c.ShouldBe(SecretsErrors.ProviderUnavailableCode)));
         // 1 initial + 2 retries = 3 total calls
         await _innerWriter.Received(3).SetSecretAsync("my-secret", "my-value", Arg.Any<CancellationToken>());
     }
@@ -163,9 +163,9 @@ public sealed class ResilientSecretWriterDecoratorTests
 
         var result = await decorator.SetSecretAsync("my-secret", "my-value");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.CircuitBreakerOpenCode)));
+            c.ShouldBe(SecretsErrors.CircuitBreakerOpenCode)));
     }
 
     #endregion
@@ -183,9 +183,9 @@ public sealed class ResilientSecretWriterDecoratorTests
 
         var result = await decorator.SetSecretAsync("my-secret", "my-value");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.IfLeft(e => e.GetCode().IfSome(c =>
-            c.Should().Be(SecretsErrors.ResilienceTimeoutCode)));
+            c.ShouldBe(SecretsErrors.ResilienceTimeoutCode)));
     }
 
     #endregion

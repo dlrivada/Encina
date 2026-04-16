@@ -1,6 +1,6 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Providers;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 
@@ -33,8 +33,8 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
 
         var result = await _provider.GetSecretAsync(TestEnvVarName);
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("my-secret-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("my-secret-value"));
     }
 
     [Fact]
@@ -42,8 +42,8 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
     {
         var result = await _provider.GetSecretAsync("NON_EXISTENT_VAR_12345");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode));
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
     {
         var act = () => _provider.GetSecretAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
     {
         var act = () => _provider.GetSecretAsync("").AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
     {
         var act = () => _provider.GetSecretAsync("   ").AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -81,8 +81,8 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
 
         var result = await _provider.GetSecretAsync(TestEnvVarName, cts.Token);
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("my-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("my-value"));
     }
 
     [Fact]
@@ -93,8 +93,8 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
 
         var result = await _provider.GetSecretAsync("NON_EXISTENT_CANCEL_TEST", cts.Token);
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode));
     }
 
     #endregion
@@ -108,11 +108,11 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
 
         var result = await _provider.GetSecretAsync<TestConnectionConfig>(TestJsonEnvVarName);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(v =>
         {
-            v.Host.Should().Be("localhost");
-            v.Port.Should().Be(5432);
+            v.Host.ShouldBe("localhost");
+            v.Port.ShouldBe(5432);
         });
     }
 
@@ -121,8 +121,8 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
     {
         var result = await _provider.GetSecretAsync<TestConnectionConfig>("NON_EXISTENT_VAR_67890");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode));
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
 
         var result = await _provider.GetSecretAsync<TestConnectionConfig>(TestJsonEnvVarName);
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.DeserializationFailedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.DeserializationFailedCode));
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class EnvironmentSecretProviderTests : IDisposable
     {
         var act = () => _provider.GetSecretAsync<TestConnectionConfig>(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion

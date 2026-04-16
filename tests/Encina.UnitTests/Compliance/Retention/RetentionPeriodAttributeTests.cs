@@ -1,6 +1,6 @@
 using Encina.Compliance.Retention;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -21,8 +21,8 @@ public class RetentionPeriodAttributeTests
             .Single();
 
         // Assert
-        usage.ValidOn.Should().HaveFlag(AttributeTargets.Class);
-        usage.ValidOn.Should().HaveFlag(AttributeTargets.Property);
+        usage.ValidOn.HasFlag(AttributeTargets.Class).ShouldBeTrue();
+        usage.ValidOn.HasFlag(AttributeTargets.Property).ShouldBeTrue();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class RetentionPeriodAttributeTests
             .Single();
 
         // Assert
-        usage.AllowMultiple.Should().BeFalse();
+        usage.AllowMultiple.ShouldBeFalse();
     }
 
     #endregion
@@ -52,7 +52,7 @@ public class RetentionPeriodAttributeTests
         var period = attribute.RetentionPeriod;
 
         // Assert
-        period.Should().Be(TimeSpan.FromDays(90));
+        period.ShouldBe(TimeSpan.FromDays(90));
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute { Days = 365 };
 
         // Act & Assert
-        attribute.RetentionPeriod.Should().Be(TimeSpan.FromDays(365));
+        attribute.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
     }
 
     #endregion
@@ -79,7 +79,7 @@ public class RetentionPeriodAttributeTests
         var period = attribute.RetentionPeriod;
 
         // Assert
-        period.Should().Be(TimeSpan.FromDays(7 * 365));
+        period.ShouldBe(TimeSpan.FromDays(7 * 365));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute { Years = 1 };
 
         // Act & Assert
-        attribute.RetentionPeriod.TotalDays.Should().Be(365);
+        attribute.RetentionPeriod.TotalDays.ShouldBe(365);
     }
 
     #endregion
@@ -106,7 +106,7 @@ public class RetentionPeriodAttributeTests
         var period = attribute.RetentionPeriod;
 
         // Assert
-        period.Should().Be(TimeSpan.Zero);
+        period.ShouldBe(TimeSpan.Zero);
     }
 
     #endregion
@@ -123,7 +123,7 @@ public class RetentionPeriodAttributeTests
         var period = attribute.RetentionPeriod;
 
         // Assert
-        period.Should().Be(TimeSpan.FromDays(30));
+        period.ShouldBe(TimeSpan.FromDays(30));
     }
 
     #endregion
@@ -137,7 +137,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute();
 
         // Assert
-        attribute.Reason.Should().BeNull();
+        attribute.Reason.ShouldBeNull();
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute { Reason = "German tax law (AO section 147)" };
 
         // Assert
-        attribute.Reason.Should().Be("German tax law (AO section 147)");
+        attribute.Reason.ShouldBe("German tax law (AO section 147)");
     }
 
     #endregion
@@ -161,7 +161,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute();
 
         // Assert
-        attribute.AutoDelete.Should().BeTrue();
+        attribute.AutoDelete.ShouldBeTrue();
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute { AutoDelete = false };
 
         // Assert
-        attribute.AutoDelete.Should().BeFalse();
+        attribute.AutoDelete.ShouldBeFalse();
     }
 
     #endregion
@@ -185,7 +185,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute();
 
         // Assert
-        attribute.DataCategory.Should().BeNull();
+        attribute.DataCategory.ShouldBeNull();
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute { DataCategory = "financial-records" };
 
         // Assert
-        attribute.DataCategory.Should().Be("financial-records");
+        attribute.DataCategory.ShouldBe("financial-records");
     }
 
     #endregion
@@ -209,7 +209,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute { Days = 180 };
 
         // Assert
-        attribute.RetentionPeriod.Should().Be(TimeSpan.FromDays(180));
+        attribute.RetentionPeriod.ShouldBe(TimeSpan.FromDays(180));
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class RetentionPeriodAttributeTests
         var attribute = new RetentionPeriodAttribute { Years = 3 };
 
         // Assert
-        attribute.RetentionPeriod.Should().Be(TimeSpan.FromDays(3 * 365));
+        attribute.RetentionPeriod.ShouldBe(TimeSpan.FromDays(3 * 365));
     }
 
     #endregion

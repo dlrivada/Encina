@@ -1,5 +1,5 @@
 using Encina.Compliance.Anonymization.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -23,7 +23,7 @@ public class AnonymizationProfileTests
         var profile = AnonymizationProfile.Create("test-profile", rules);
 
         // Assert
-        profile.Id.Should().NotBeNullOrEmpty();
+        profile.Id.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class AnonymizationProfileTests
         var profile = AnonymizationProfile.Create("test-profile", rules);
 
         // Assert
-        profile.Name.Should().Be("test-profile");
+        profile.Name.ShouldBe("test-profile");
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public class AnonymizationProfileTests
         var profile = AnonymizationProfile.Create("test-profile", rules);
 
         // Assert
-        profile.FieldRules.Should().HaveCount(2);
-        profile.FieldRules.Should().BeEquivalentTo(rules);
+        profile.FieldRules.Count.ShouldBe(2);
+        profile.FieldRules.ShouldBe(rules);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class AnonymizationProfileTests
             description: "Profile for analytics data export");
 
         // Assert
-        profile.Description.Should().Be("Profile for analytics data export");
+        profile.Description.ShouldBe("Profile for analytics data export");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class AnonymizationProfileTests
         var profile = AnonymizationProfile.Create("test-profile", rules);
 
         // Assert
-        profile.Description.Should().BeNull();
+        profile.Description.ShouldBeNull();
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public class AnonymizationProfileTests
         var after = DateTimeOffset.UtcNow;
 
         // Assert
-        profile.CreatedAtUtc.Should().BeOnOrAfter(before);
-        profile.CreatedAtUtc.Should().BeOnOrBefore(after);
+        profile.CreatedAtUtc.ShouldBeGreaterThanOrEqualTo(before);
+        profile.CreatedAtUtc.ShouldBeLessThanOrEqualTo(after);
     }
 
     #endregion

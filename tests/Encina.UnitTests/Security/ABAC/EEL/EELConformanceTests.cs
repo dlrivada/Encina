@@ -3,7 +3,7 @@ using System.Text.Json;
 
 using Encina.Security.ABAC.EEL;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -30,11 +30,11 @@ public sealed class EELConformanceTests : IDisposable
 
         var result = await _compiler.EvaluateAsync(expression, globals);
 
-        result.IsRight.Should().BeTrue(
+        result.IsRight.ShouldBeTrue(
             $"[{category}/{testName}] expression '{expression}' should compile and evaluate successfully");
 
         var actual = result.Match(Left: _ => !expected, Right: v => v);
-        actual.Should().Be(expected,
+        actual.ShouldBe(expected,
             $"[{category}/{testName}] expression '{expression}' should evaluate to {expected}");
     }
 
@@ -50,13 +50,13 @@ public sealed class EELConformanceTests : IDisposable
 
         var result = await _compiler.EvaluateAsync(expression, globals);
 
-        result.IsLeft.Should().BeTrue(
+        result.IsLeft.ShouldBeTrue(
             $"[{category}/{testName}] expression '{expression}' should produce an error");
 
         var errorCode = result.Match(
             Left: error => error.GetCode().IfNone(""),
             Right: _ => "");
-        errorCode.Should().Be(expectedError,
+        errorCode.ShouldBe(expectedError,
             $"[{category}/{testName}] expression '{expression}' should produce error code '{expectedError}'");
     }
 

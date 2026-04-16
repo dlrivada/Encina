@@ -1,7 +1,7 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -37,9 +37,9 @@ public class DefaultCrossBorderTransferValidatorTests
         var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, RegionRegistry.DE, "data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
-            Right: r => r.IsAllowed.Should().BeTrue(),
+            Right: r => r.IsAllowed.ShouldBeTrue(),
             Left: _ => { });
     }
 
@@ -50,12 +50,12 @@ public class DefaultCrossBorderTransferValidatorTests
         var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, RegionRegistry.FR, "data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: r =>
             {
-                r.IsAllowed.Should().BeTrue();
-                r.LegalBasis.Should().Be(TransferLegalBasis.AdequacyDecision);
+                r.IsAllowed.ShouldBeTrue();
+                r.LegalBasis.ShouldBe(TransferLegalBasis.AdequacyDecision);
             },
             Left: _ => { });
     }
@@ -70,12 +70,12 @@ public class DefaultCrossBorderTransferValidatorTests
         var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, RegionRegistry.JP, "data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: r =>
             {
-                r.IsAllowed.Should().BeTrue();
-                r.LegalBasis.Should().Be(TransferLegalBasis.AdequacyDecision);
+                r.IsAllowed.ShouldBeTrue();
+                r.LegalBasis.ShouldBe(TransferLegalBasis.AdequacyDecision);
             },
             Left: _ => { });
     }
@@ -92,14 +92,14 @@ public class DefaultCrossBorderTransferValidatorTests
         var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, destination, "data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: r =>
             {
-                r.IsAllowed.Should().BeTrue();
-                r.LegalBasis.Should().Be(TransferLegalBasis.StandardContractualClauses);
-                r.RequiredSafeguards.Should().NotBeEmpty();
-                r.Warnings.Should().NotBeEmpty();
+                r.IsAllowed.ShouldBeTrue();
+                r.LegalBasis.ShouldBe(TransferLegalBasis.StandardContractualClauses);
+                r.RequiredSafeguards.ShouldNotBeEmpty();
+                r.Warnings.ShouldNotBeEmpty();
             },
             Left: _ => { });
     }
@@ -116,12 +116,12 @@ public class DefaultCrossBorderTransferValidatorTests
         var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, destination, "data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             Right: r =>
             {
-                r.IsAllowed.Should().BeFalse();
-                r.DenialReason.Should().NotBeNullOrEmpty();
+                r.IsAllowed.ShouldBeFalse();
+                r.DenialReason.ShouldNotBeNullOrEmpty();
             },
             Left: _ => { });
     }
@@ -138,9 +138,9 @@ public class DefaultCrossBorderTransferValidatorTests
         var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, destination, "data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
-            Right: r => r.IsAllowed.Should().BeFalse(),
+            Right: r => r.IsAllowed.ShouldBeFalse(),
             Left: _ => { });
     }
 
@@ -151,9 +151,9 @@ public class DefaultCrossBorderTransferValidatorTests
         var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, RegionRegistry.NO, "data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
-            Right: r => r.IsAllowed.Should().BeTrue(),
+            Right: r => r.IsAllowed.ShouldBeTrue(),
             Left: _ => { });
     }
 
@@ -164,7 +164,7 @@ public class DefaultCrossBorderTransferValidatorTests
         var act = () => new DefaultCrossBorderTransferValidator(null!, _options, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("adequacyProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("adequacyProvider");
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class DefaultCrossBorderTransferValidatorTests
         var act = () => new DefaultCrossBorderTransferValidator(_adequacyProvider, null!, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -184,6 +184,6 @@ public class DefaultCrossBorderTransferValidatorTests
         var act = () => new DefaultCrossBorderTransferValidator(_adequacyProvider, _options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 }

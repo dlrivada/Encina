@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Builders;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Builders;
 
@@ -17,7 +17,7 @@ public sealed class AdviceBuilderTests
     {
         var act = () => new AdviceBuilder("notify-user");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class AdviceBuilderTests
     {
         var act = () => new AdviceBuilder(null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class AdviceBuilderTests
     {
         var act = () => new AdviceBuilder("");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -45,7 +45,7 @@ public sealed class AdviceBuilderTests
     {
         var advice = new AdviceBuilder("adv1").Build();
 
-        advice.AppliesTo.Should().Be(FulfillOn.Permit);
+        advice.AppliesTo.ShouldBe(FulfillOn.Permit);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class AdviceBuilderTests
     {
         var advice = new AdviceBuilder("my-advice").Build();
 
-        advice.Id.Should().Be("my-advice");
+        advice.Id.ShouldBe("my-advice");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class AdviceBuilderTests
     {
         var advice = new AdviceBuilder("adv1").Build();
 
-        advice.AttributeAssignments.Should().BeEmpty();
+        advice.AttributeAssignments.ShouldBeEmpty();
     }
 
     #endregion
@@ -75,7 +75,7 @@ public sealed class AdviceBuilderTests
             .OnPermit()
             .Build();
 
-        advice.AppliesTo.Should().Be(FulfillOn.Permit);
+        advice.AppliesTo.ShouldBe(FulfillOn.Permit);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class AdviceBuilderTests
             .OnDeny()
             .Build();
 
-        advice.AppliesTo.Should().Be(FulfillOn.Deny);
+        advice.AppliesTo.ShouldBe(FulfillOn.Deny);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class AdviceBuilderTests
             .OnPermit()
             .Build();
 
-        advice.AppliesTo.Should().Be(FulfillOn.Permit);
+        advice.AppliesTo.ShouldBe(FulfillOn.Permit);
     }
 
     #endregion
@@ -110,8 +110,8 @@ public sealed class AdviceBuilderTests
             .WithAttribute("message", "Contact your manager")
             .Build();
 
-        advice.AttributeAssignments.Should().ContainSingle()
-            .Which.AttributeId.Should().Be("message");
+        advice.AttributeAssignments.ShouldHaveSingleItem()
+            .Which.AttributeId.ShouldBe("message");
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class AdviceBuilderTests
             .WithAttribute("attr1", value)
             .Build();
 
-        advice.AttributeAssignments.Should().ContainSingle();
+        advice.AttributeAssignments.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class AdviceBuilderTests
             .WithAttribute("severity", "high")
             .Build();
 
-        advice.AttributeAssignments.Should().HaveCount(2);
+        advice.AttributeAssignments.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class AdviceBuilderTests
         var act = () => new AdviceBuilder("adv1")
             .WithAttribute(null!, "value");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public sealed class AdviceBuilderTests
             .WithAttribute("attr1", AttributeCategory.Environment, value)
             .Build();
 
-        advice.AttributeAssignments.Should().ContainSingle()
-            .Which.Category.Should().Be(AttributeCategory.Environment);
+        advice.AttributeAssignments.ShouldHaveSingleItem()
+            .Which.Category.ShouldBe(AttributeCategory.Environment);
     }
 
     #endregion

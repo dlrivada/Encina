@@ -1,6 +1,6 @@
 using Encina.Compliance.Retention;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -12,33 +12,33 @@ public sealed class RetentionEnforcementModeTests
     [Fact]
     public void Block_IsDefault_HasValueZero()
     {
-        RetentionEnforcementMode.Block.Should().Be((RetentionEnforcementMode)0);
+        RetentionEnforcementMode.Block.ShouldBe((RetentionEnforcementMode)0);
     }
 
     [Fact]
     public void Warn_HasValueOne()
     {
-        RetentionEnforcementMode.Warn.Should().Be((RetentionEnforcementMode)1);
+        RetentionEnforcementMode.Warn.ShouldBe((RetentionEnforcementMode)1);
     }
 
     [Fact]
     public void Disabled_HasValueTwo()
     {
-        RetentionEnforcementMode.Disabled.Should().Be((RetentionEnforcementMode)2);
+        RetentionEnforcementMode.Disabled.ShouldBe((RetentionEnforcementMode)2);
     }
 
     [Fact]
     public void IsDefined_AllValues_ReturnsTrue()
     {
-        Enum.IsDefined(RetentionEnforcementMode.Block).Should().BeTrue();
-        Enum.IsDefined(RetentionEnforcementMode.Warn).Should().BeTrue();
-        Enum.IsDefined(RetentionEnforcementMode.Disabled).Should().BeTrue();
+        Enum.IsDefined(RetentionEnforcementMode.Block).ShouldBeTrue();
+        Enum.IsDefined(RetentionEnforcementMode.Warn).ShouldBeTrue();
+        Enum.IsDefined(RetentionEnforcementMode.Disabled).ShouldBeTrue();
     }
 
     [Fact]
     public void IsDefined_InvalidValue_ReturnsFalse()
     {
-        Enum.IsDefined((RetentionEnforcementMode)99).Should().BeFalse();
+        Enum.IsDefined((RetentionEnforcementMode)99).ShouldBeFalse();
     }
 
     [Theory]
@@ -47,6 +47,6 @@ public sealed class RetentionEnforcementModeTests
     [InlineData(RetentionEnforcementMode.Disabled, "Disabled")]
     public void ToString_ReturnsExpectedName(RetentionEnforcementMode mode, string expected)
     {
-        mode.ToString().Should().Be(expected);
+        mode.ToString().ShouldBe(expected);
     }
 }

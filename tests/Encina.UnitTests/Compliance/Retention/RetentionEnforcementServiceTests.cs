@@ -3,7 +3,7 @@ using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 

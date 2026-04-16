@@ -1,5 +1,5 @@
 using Encina.Security.Secrets;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -12,7 +12,7 @@ public sealed class InjectSecretAttributeTests
     {
         var attribute = new InjectSecretAttribute("my-secret");
 
-        attribute.SecretName.Should().Be("my-secret");
+        attribute.SecretName.ShouldBe("my-secret");
     }
 
     [Fact]
@@ -20,8 +20,8 @@ public sealed class InjectSecretAttributeTests
     {
         var act = () => new InjectSecretAttribute(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("secretName");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -33,7 +33,7 @@ public sealed class InjectSecretAttributeTests
     {
         var attribute = new InjectSecretAttribute("key");
 
-        attribute.Version.Should().BeNull();
+        attribute.Version.ShouldBeNull();
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class InjectSecretAttributeTests
     {
         var attribute = new InjectSecretAttribute("key");
 
-        attribute.FailOnError.Should().BeTrue();
+        attribute.FailOnError.ShouldBeTrue();
     }
 
     #endregion
@@ -53,7 +53,7 @@ public sealed class InjectSecretAttributeTests
     {
         var attribute = new InjectSecretAttribute("key") { Version = "v2" };
 
-        attribute.Version.Should().Be("v2");
+        attribute.Version.ShouldBe("v2");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class InjectSecretAttributeTests
     {
         var attribute = new InjectSecretAttribute("key") { FailOnError = false };
 
-        attribute.FailOnError.Should().BeFalse();
+        attribute.FailOnError.ShouldBeFalse();
     }
 
     #endregion
@@ -76,7 +76,7 @@ public sealed class InjectSecretAttributeTests
             .Cast<AttributeUsageAttribute>()
             .Single();
 
-        usage.ValidOn.Should().Be(AttributeTargets.Property);
+        usage.ValidOn.ShouldBe(AttributeTargets.Property);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class InjectSecretAttributeTests
             .Cast<AttributeUsageAttribute>()
             .Single();
 
-        usage.AllowMultiple.Should().BeFalse();
+        usage.AllowMultiple.ShouldBeFalse();
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class InjectSecretAttributeTests
             .Cast<AttributeUsageAttribute>()
             .Single();
 
-        usage.Inherited.Should().BeTrue();
+        usage.Inherited.ShouldBeTrue();
     }
 
     #endregion

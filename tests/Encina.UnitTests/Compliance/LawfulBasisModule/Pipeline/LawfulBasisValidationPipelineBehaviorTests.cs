@@ -2,7 +2,7 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.LawfulBasis;
 using Encina.Compliance.LawfulBasis.Abstractions;
 using Encina.Compliance.LawfulBasis.ReadModels;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 

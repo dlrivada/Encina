@@ -2,7 +2,7 @@
 
 using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.ProcessorAgreements.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -17,42 +17,42 @@ public class ProcessorAgreementOptionsTests
     public void Defaults_EnforcementMode_ShouldBeWarn()
     {
         var options = new ProcessorAgreementOptions();
-        options.EnforcementMode.Should().Be(ProcessorAgreementEnforcementMode.Warn);
+        options.EnforcementMode.ShouldBe(ProcessorAgreementEnforcementMode.Warn);
     }
 
     [Fact]
     public void Defaults_MaxSubProcessorDepth_ShouldBe3()
     {
         var options = new ProcessorAgreementOptions();
-        options.MaxSubProcessorDepth.Should().Be(3);
+        options.MaxSubProcessorDepth.ShouldBe(3);
     }
 
     [Fact]
     public void Defaults_EnableExpirationMonitoring_ShouldBeFalse()
     {
         var options = new ProcessorAgreementOptions();
-        options.EnableExpirationMonitoring.Should().BeFalse();
+        options.EnableExpirationMonitoring.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_ExpirationCheckInterval_ShouldBeOneHour()
     {
         var options = new ProcessorAgreementOptions();
-        options.ExpirationCheckInterval.Should().Be(TimeSpan.FromHours(1));
+        options.ExpirationCheckInterval.ShouldBe(TimeSpan.FromHours(1));
     }
 
     [Fact]
     public void Defaults_ExpirationWarningDays_ShouldBe30()
     {
         var options = new ProcessorAgreementOptions();
-        options.ExpirationWarningDays.Should().Be(30);
+        options.ExpirationWarningDays.ShouldBe(30);
     }
 
     [Fact]
     public void Defaults_AddHealthCheck_ShouldBeFalse()
     {
         var options = new ProcessorAgreementOptions();
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     #endregion
@@ -64,21 +64,21 @@ public class ProcessorAgreementOptionsTests
     {
         var options = new ProcessorAgreementOptions();
         options.BlockWithoutValidDPA = true;
-        options.EnforcementMode.Should().Be(ProcessorAgreementEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(ProcessorAgreementEnforcementMode.Block);
     }
 
     [Fact]
     public void BlockWithoutValidDPA_Get_WhenBlock_ShouldReturnTrue()
     {
         var options = new ProcessorAgreementOptions { EnforcementMode = ProcessorAgreementEnforcementMode.Block };
-        options.BlockWithoutValidDPA.Should().BeTrue();
+        options.BlockWithoutValidDPA.ShouldBeTrue();
     }
 
     [Fact]
     public void BlockWithoutValidDPA_Get_WhenWarn_ShouldReturnFalse()
     {
         var options = new ProcessorAgreementOptions { EnforcementMode = ProcessorAgreementEnforcementMode.Warn };
-        options.BlockWithoutValidDPA.Should().BeFalse();
+        options.BlockWithoutValidDPA.ShouldBeFalse();
     }
 
     #endregion
@@ -91,7 +91,7 @@ public class ProcessorAgreementOptionsTests
     [InlineData(ProcessorAgreementEnforcementMode.Disabled, 2)]
     public void EnforcementMode_ShouldHaveExpectedIntValue(ProcessorAgreementEnforcementMode mode, int expected)
     {
-        ((int)mode).Should().Be(expected);
+        ((int)mode).ShouldBe(expected);
     }
 
     #endregion

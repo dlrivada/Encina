@@ -5,7 +5,7 @@ using Encina.Messaging.Encryption;
 using Encina.Messaging.Encryption.Model;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using static LanguageExt.Prelude;
 
@@ -46,10 +46,10 @@ public class DefaultMessageEncryptionProviderTests
         var result = await _provider.EncryptAsync(plaintext, context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var payload = result.Match(Right: p => p, Left: _ => null!);
-        payload.KeyId.Should().Be("explicit-key");
-        payload.Algorithm.Should().Be("AES-256-GCM");
+        payload.KeyId.ShouldBe("explicit-key");
+        payload.Algorithm.ShouldBe("AES-256-GCM");
 
         // Should NOT call GetCurrentKeyIdAsync when explicit key is provided
         await _keyProvider.DidNotReceive().GetCurrentKeyIdAsync(Arg.Any<CancellationToken>());
@@ -82,7 +82,7 @@ public class DefaultMessageEncryptionProviderTests
         var result = await _provider.EncryptAsync(plaintext, context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _keyProvider.Received(1).GetCurrentKeyIdAsync(Arg.Any<CancellationToken>());
     }
 
@@ -100,7 +100,7 @@ public class DefaultMessageEncryptionProviderTests
         var result = await _provider.EncryptAsync(new byte[] { 1 }, context);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -133,9 +133,9 @@ public class DefaultMessageEncryptionProviderTests
         var result = await _provider.DecryptAsync(payload, context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var bytes = result.Match(Right: b => b, Left: _ => default);
-        bytes.Should().Equal(99, 98, 97);
+        bytes.ShouldBe([99, 98, 97]);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class DefaultMessageEncryptionProviderTests
     {
         var act = async () => await _provider.EncryptAsync(new byte[] { 1 }, null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class DefaultMessageEncryptionProviderTests
         var context = new MessageEncryptionContext();
         var act = async () => await _provider.DecryptAsync(null!, context);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("payload");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("payload");
     }
 
     [Fact]
@@ -170,6 +170,6 @@ public class DefaultMessageEncryptionProviderTests
 
         var act = async () => await _provider.DecryptAsync(payload, null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
     }
 }

@@ -1,7 +1,7 @@
 using Encina.Compliance.DPIA.Aggregates;
 using Encina.Compliance.DPIA.Events;
 using Encina.Compliance.DPIA.Model;
-using FluentAssertions;
+using Shouldly;
 using DPIAExpiredEvent = Encina.Compliance.DPIA.Events.DPIAExpired;
 
 namespace Encina.UnitTests.Compliance.DPIA.Aggregates;
@@ -88,7 +88,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Draft);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Draft);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate(id: id);
 
         // Assert
-        aggregate.Id.Should().Be(id);
+        aggregate.Id.ShouldBe(id);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.RequestTypeName.Should().Be("MyApp.Commands.ProcessUserData");
+        aggregate.RequestTypeName.ShouldBe("MyApp.Commands.ProcessUserData");
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate(processingType: "LargeScaleProcessing");
 
         // Assert
-        aggregate.ProcessingType.Should().Be("LargeScaleProcessing");
+        aggregate.ProcessingType.ShouldBe("LargeScaleProcessing");
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate(reason: "Custom reason");
 
         // Assert
-        aggregate.Reason.Should().Be("Custom reason");
+        aggregate.Reason.ShouldBe("Custom reason");
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate(tenantId: "tenant-1");
 
         // Assert
-        aggregate.TenantId.Should().Be("tenant-1");
+        aggregate.TenantId.ShouldBe("tenant-1");
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate(moduleId: "module-1");
 
         // Assert
-        aggregate.ModuleId.Should().Be("module-1");
+        aggregate.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.Result.Should().BeNull();
+        aggregate.Result.ShouldBeNull();
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.DPOConsultation.Should().BeNull();
+        aggregate.DPOConsultation.ShouldBeNull();
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.ApprovedAtUtc.Should().BeNull();
+        aggregate.ApprovedAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.NextReviewAtUtc.Should().BeNull();
+        aggregate.NextReviewAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -199,8 +199,8 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<DPIACreated>();
+        aggregate.UncommittedEvents.ShouldHaveSingleItem()
+            .Which.ShouldBeOfType<DPIACreated>();
     }
 
     [Fact]
@@ -220,15 +220,15 @@ public class DPIAAggregateTests
             "module-1");
 
         // Assert
-        var evt = aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<DPIACreated>().Subject;
-        evt.AssessmentId.Should().Be(id);
-        evt.RequestTypeName.Should().Be("MyApp.Commands.ProcessUserData");
-        evt.ProcessingType.Should().Be("AutomatedDecisionMaking");
-        evt.Reason.Should().Be("High-risk profiling");
-        evt.OccurredAtUtc.Should().Be(Now);
-        evt.TenantId.Should().Be("tenant-1");
-        evt.ModuleId.Should().Be("module-1");
+        var evt = aggregate.UncommittedEvents.ShouldHaveSingleItem()
+            .Which.ShouldBeOfType<DPIACreated>().Subject;
+        evt.AssessmentId.ShouldBe(id);
+        evt.RequestTypeName.ShouldBe("MyApp.Commands.ProcessUserData");
+        evt.ProcessingType.ShouldBe("AutomatedDecisionMaking");
+        evt.Reason.ShouldBe("High-risk profiling");
+        evt.OccurredAtUtc.ShouldBe(Now);
+        evt.TenantId.ShouldBe("tenant-1");
+        evt.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -241,10 +241,10 @@ public class DPIAAggregateTests
             Now);
 
         // Assert
-        aggregate.ProcessingType.Should().BeNull();
-        aggregate.Reason.Should().BeNull();
-        aggregate.TenantId.Should().BeNull();
-        aggregate.ModuleId.Should().BeNull();
+        aggregate.ProcessingType.ShouldBeNull();
+        aggregate.Reason.ShouldBeNull();
+        aggregate.TenantId.ShouldBeNull();
+        aggregate.ModuleId.ShouldBeNull();
     }
 
     [Theory]
@@ -257,7 +257,7 @@ public class DPIAAggregateTests
         var act = () => DPIAAggregate.Create(DefaultId, requestTypeName!, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -267,7 +267,7 @@ public class DPIAAggregateTests
         var aggregate = CreateDraftAggregate();
 
         // Assert
-        aggregate.Version.Should().Be(1);
+        aggregate.Version.ShouldBe(1);
     }
 
     #endregion
@@ -285,7 +285,7 @@ public class DPIAAggregateTests
         aggregate.Evaluate(result, Now.AddHours(1));
 
         // Assert
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.InReview);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.InReview);
     }
 
     [Fact]
@@ -299,11 +299,11 @@ public class DPIAAggregateTests
         aggregate.Evaluate(result, Now.AddHours(1));
 
         // Assert
-        aggregate.Result.Should().NotBeNull();
-        aggregate.Result!.OverallRisk.Should().Be(RiskLevel.High);
-        aggregate.Result.IdentifiedRisks.Should().HaveCount(1);
-        aggregate.Result.ProposedMitigations.Should().HaveCount(1);
-        aggregate.Result.RequiresPriorConsultation.Should().BeFalse();
+        aggregate.Result.ShouldNotBeNull();
+        aggregate.Result!.OverallRisk.ShouldBe(RiskLevel.High);
+        aggregate.Result.IdentifiedRisks.Count.ShouldBe(1);
+        aggregate.Result.ProposedMitigations.Count.ShouldBe(1);
+        aggregate.Result.RequiresPriorConsultation.ShouldBeFalse();
     }
 
     [Fact]
@@ -317,8 +317,8 @@ public class DPIAAggregateTests
         aggregate.Evaluate(result, Now.AddHours(1));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DPIAEvaluated>();
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAEvaluated>();
     }
 
     [Fact]
@@ -334,14 +334,14 @@ public class DPIAAggregateTests
         aggregate.Evaluate(result, occurredAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<DPIAEvaluated>().Subject;
-        evt.AssessmentId.Should().Be(aggregate.Id);
-        evt.OverallRisk.Should().Be(RiskLevel.High);
-        evt.IdentifiedRisks.Should().HaveCount(1);
-        evt.ProposedMitigations.Should().HaveCount(1);
-        evt.RequiresPriorConsultation.Should().BeFalse();
-        evt.AssessedAtUtc.Should().Be(assessedAt);
-        evt.OccurredAtUtc.Should().Be(occurredAt);
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAEvaluated>().Subject;
+        evt.AssessmentId.ShouldBe(aggregate.Id);
+        evt.OverallRisk.ShouldBe(RiskLevel.High);
+        evt.IdentifiedRisks.Count.ShouldBe(1);
+        evt.ProposedMitigations.Count.ShouldBe(1);
+        evt.RequiresPriorConsultation.ShouldBeFalse();
+        evt.AssessedAtUtc.ShouldBe(assessedAt);
+        evt.OccurredAtUtc.ShouldBe(occurredAt);
     }
 
     [Fact]
@@ -355,7 +355,7 @@ public class DPIAAggregateTests
         aggregate.Evaluate(result, Now.AddHours(3));
 
         // Assert
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.InReview);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.InReview);
     }
 
     [Fact]
@@ -376,7 +376,7 @@ public class DPIAAggregateTests
         aggregate.Evaluate(newResult, Now.AddHours(3));
 
         // Assert
-        aggregate.Result!.OverallRisk.Should().Be(RiskLevel.Medium);
+        aggregate.Result!.OverallRisk.ShouldBe(RiskLevel.Medium);
     }
 
     [Fact]
@@ -390,8 +390,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Evaluate(result, Now.AddHours(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*InReview*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("InReview");
     }
 
     [Fact]
@@ -405,8 +405,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Evaluate(result, Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Approved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Approved");
     }
 
     [Fact]
@@ -420,8 +420,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Evaluate(result, Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Rejected*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Rejected");
     }
 
     [Fact]
@@ -435,8 +435,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Evaluate(result, Now.AddDays(92));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Expired*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Expired");
     }
 
     [Fact]
@@ -449,7 +449,7 @@ public class DPIAAggregateTests
         var act = () => aggregate.Evaluate(null!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -467,13 +467,13 @@ public class DPIAAggregateTests
         aggregate.RequestDPOConsultation(consultationId, "Jane Doe", "jane@company.com", Now.AddHours(2));
 
         // Assert
-        aggregate.DPOConsultation.Should().NotBeNull();
-        aggregate.DPOConsultation!.Id.Should().Be(consultationId);
-        aggregate.DPOConsultation.DPOName.Should().Be("Jane Doe");
-        aggregate.DPOConsultation.DPOEmail.Should().Be("jane@company.com");
-        aggregate.DPOConsultation.Decision.Should().Be(DPOConsultationDecision.Pending);
-        aggregate.DPOConsultation.RequestedAtUtc.Should().Be(Now.AddHours(2));
-        aggregate.DPOConsultation.RespondedAtUtc.Should().BeNull();
+        aggregate.DPOConsultation.ShouldNotBeNull();
+        aggregate.DPOConsultation!.Id.ShouldBe(consultationId);
+        aggregate.DPOConsultation.DPOName.ShouldBe("Jane Doe");
+        aggregate.DPOConsultation.DPOEmail.ShouldBe("jane@company.com");
+        aggregate.DPOConsultation.Decision.ShouldBe(DPOConsultationDecision.Pending);
+        aggregate.DPOConsultation.RequestedAtUtc.ShouldBe(Now.AddHours(2));
+        aggregate.DPOConsultation.RespondedAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -487,8 +487,8 @@ public class DPIAAggregateTests
         aggregate.RequestDPOConsultation(consultationId, "Jane Doe", "jane@company.com", Now.AddHours(2));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DPIADPOConsultationRequested>()
-            .Which.ConsultationId.Should().Be(consultationId);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIADPOConsultationRequested>()
+            .Which.ConsultationId.ShouldBe(consultationId);
     }
 
     [Fact]
@@ -501,8 +501,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.RequestDPOConsultation(Guid.NewGuid(), "Jane Doe", "jane@company.com", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Draft*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Draft");
     }
 
     [Fact]
@@ -515,8 +515,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.RequestDPOConsultation(Guid.NewGuid(), "Jane Doe", "jane@company.com", Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Approved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Approved");
     }
 
     [Fact]
@@ -529,8 +529,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.RequestDPOConsultation(Guid.NewGuid(), "Jane Doe", "jane@company.com", Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Rejected*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Rejected");
     }
 
     #endregion
@@ -549,8 +549,8 @@ public class DPIAAggregateTests
         aggregate.RecordDPOResponse(consultationId, DPOConsultationDecision.Approved, Now.AddHours(3));
 
         // Assert
-        aggregate.DPOConsultation!.Decision.Should().Be(DPOConsultationDecision.Approved);
-        aggregate.DPOConsultation.RespondedAtUtc.Should().Be(Now.AddHours(3));
+        aggregate.DPOConsultation!.Decision.ShouldBe(DPOConsultationDecision.Approved);
+        aggregate.DPOConsultation.RespondedAtUtc.ShouldBe(Now.AddHours(3));
     }
 
     [Fact]
@@ -570,9 +570,9 @@ public class DPIAAggregateTests
             conditions: "Implement AES-256 encryption before go-live");
 
         // Assert
-        aggregate.DPOConsultation!.Decision.Should().Be(DPOConsultationDecision.ConditionallyApproved);
-        aggregate.DPOConsultation.Comments.Should().Be("Needs encryption for sensitive fields");
-        aggregate.DPOConsultation.Conditions.Should().Be("Implement AES-256 encryption before go-live");
+        aggregate.DPOConsultation!.Decision.ShouldBe(DPOConsultationDecision.ConditionallyApproved);
+        aggregate.DPOConsultation.Comments.ShouldBe("Needs encryption for sensitive fields");
+        aggregate.DPOConsultation.Conditions.ShouldBe("Implement AES-256 encryption before go-live");
     }
 
     [Fact]
@@ -587,8 +587,8 @@ public class DPIAAggregateTests
         aggregate.RecordDPOResponse(consultationId, DPOConsultationDecision.Approved, Now.AddHours(3));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DPIADPOResponded>()
-            .Which.ConsultationId.Should().Be(consultationId);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIADPOResponded>()
+            .Which.ConsultationId.ShouldBe(consultationId);
     }
 
     [Fact]
@@ -604,7 +604,7 @@ public class DPIAAggregateTests
         var act = () => aggregate.RecordDPOResponse(wrongId, DPOConsultationDecision.Approved, Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
+        Should.Throw<InvalidOperationException>(act)
             .WithMessage($"*{wrongId}*");
     }
 
@@ -618,8 +618,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.RecordDPOResponse(Guid.NewGuid(), DPOConsultationDecision.Approved, Now.AddHours(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*No pending DPO consultation*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("No pending DPO consultation");
     }
 
     [Fact]
@@ -635,8 +635,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.RecordDPOResponse(consultationId, DPOConsultationDecision.Rejected, Now.AddHours(4));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*already been responded*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("already been responded");
     }
 
     #endregion
@@ -653,7 +653,7 @@ public class DPIAAggregateTests
         aggregate.Approve("admin@company.com", Now.AddHours(2));
 
         // Assert
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Approved);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Approved);
     }
 
     [Fact]
@@ -667,7 +667,7 @@ public class DPIAAggregateTests
         aggregate.Approve("admin@company.com", approvedAt);
 
         // Assert
-        aggregate.ApprovedAtUtc.Should().Be(approvedAt);
+        aggregate.ApprovedAtUtc.ShouldBe(approvedAt);
     }
 
     [Fact]
@@ -681,7 +681,7 @@ public class DPIAAggregateTests
         aggregate.Approve("admin@company.com", Now.AddHours(2), nextReview);
 
         // Assert
-        aggregate.NextReviewAtUtc.Should().Be(nextReview);
+        aggregate.NextReviewAtUtc.ShouldBe(nextReview);
     }
 
     [Fact]
@@ -694,7 +694,7 @@ public class DPIAAggregateTests
         aggregate.Approve("admin@company.com", Now.AddHours(2));
 
         // Assert
-        aggregate.NextReviewAtUtc.Should().BeNull();
+        aggregate.NextReviewAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -708,11 +708,11 @@ public class DPIAAggregateTests
         aggregate.Approve("admin@company.com", Now.AddHours(2), nextReview);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<DPIAApproved>().Subject;
-        evt.AssessmentId.Should().Be(aggregate.Id);
-        evt.ApprovedBy.Should().Be("admin@company.com");
-        evt.NextReviewAtUtc.Should().Be(nextReview);
-        evt.OccurredAtUtc.Should().Be(Now.AddHours(2));
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAApproved>().Subject;
+        evt.AssessmentId.ShouldBe(aggregate.Id);
+        evt.ApprovedBy.ShouldBe("admin@company.com");
+        evt.NextReviewAtUtc.ShouldBe(nextReview);
+        evt.OccurredAtUtc.ShouldBe(Now.AddHours(2));
     }
 
     [Fact]
@@ -725,8 +725,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Approve("admin@company.com", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Draft*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Draft");
     }
 
     [Fact]
@@ -739,8 +739,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Approve("admin@company.com", Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Approved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Approved");
     }
 
     [Fact]
@@ -753,8 +753,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Approve("admin@company.com", Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Rejected*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Rejected");
     }
 
     [Fact]
@@ -767,8 +767,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Approve("admin@company.com", Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*RequiresRevision*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("RequiresRevision");
     }
 
     #endregion
@@ -785,7 +785,7 @@ public class DPIAAggregateTests
         aggregate.Reject("admin@company.com", "Unacceptable risk level", Now.AddHours(2));
 
         // Assert
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Rejected);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Rejected);
     }
 
     [Fact]
@@ -798,11 +798,11 @@ public class DPIAAggregateTests
         aggregate.Reject("admin@company.com", "Unacceptable risk level", Now.AddHours(2));
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<DPIARejected>().Subject;
-        evt.AssessmentId.Should().Be(aggregate.Id);
-        evt.RejectedBy.Should().Be("admin@company.com");
-        evt.Reason.Should().Be("Unacceptable risk level");
-        evt.OccurredAtUtc.Should().Be(Now.AddHours(2));
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIARejected>().Subject;
+        evt.AssessmentId.ShouldBe(aggregate.Id);
+        evt.RejectedBy.ShouldBe("admin@company.com");
+        evt.Reason.ShouldBe("Unacceptable risk level");
+        evt.OccurredAtUtc.ShouldBe(Now.AddHours(2));
     }
 
     [Fact]
@@ -815,8 +815,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Reject("admin@company.com", "Reason", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Draft*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Draft");
     }
 
     [Fact]
@@ -829,8 +829,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Reject("admin@company.com", "Reason", Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Approved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Approved");
     }
 
     #endregion
@@ -847,7 +847,7 @@ public class DPIAAggregateTests
         aggregate.RequestRevision("dpo@company.com", "Insufficient mitigation detail", Now.AddHours(2));
 
         // Assert
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.RequiresRevision);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.RequiresRevision);
     }
 
     [Fact]
@@ -860,11 +860,11 @@ public class DPIAAggregateTests
         aggregate.RequestRevision("dpo@company.com", "Needs more detail", Now.AddHours(2));
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<DPIARevisionRequested>().Subject;
-        evt.AssessmentId.Should().Be(aggregate.Id);
-        evt.RequestedBy.Should().Be("dpo@company.com");
-        evt.Reason.Should().Be("Needs more detail");
-        evt.OccurredAtUtc.Should().Be(Now.AddHours(2));
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIARevisionRequested>().Subject;
+        evt.AssessmentId.ShouldBe(aggregate.Id);
+        evt.RequestedBy.ShouldBe("dpo@company.com");
+        evt.Reason.ShouldBe("Needs more detail");
+        evt.OccurredAtUtc.ShouldBe(Now.AddHours(2));
     }
 
     [Fact]
@@ -877,8 +877,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.RequestRevision("dpo@company.com", "Reason", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Draft*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Draft");
     }
 
     [Fact]
@@ -891,8 +891,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.RequestRevision("dpo@company.com", "Reason", Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Approved*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Approved");
     }
 
     #endregion
@@ -909,7 +909,7 @@ public class DPIAAggregateTests
         aggregate.Expire(Now.AddDays(91));
 
         // Assert
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Expired);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Expired);
     }
 
     [Fact]
@@ -923,9 +923,9 @@ public class DPIAAggregateTests
         aggregate.Expire(expiredAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].Should().BeOfType<DPIAExpiredEvent>().Subject;
-        evt.AssessmentId.Should().Be(aggregate.Id);
-        evt.OccurredAtUtc.Should().Be(expiredAt);
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAExpiredEvent>().Subject;
+        evt.AssessmentId.ShouldBe(aggregate.Id);
+        evt.OccurredAtUtc.ShouldBe(expiredAt);
     }
 
     [Fact]
@@ -938,8 +938,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Expire(Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Draft*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Draft");
     }
 
     [Fact]
@@ -952,8 +952,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Expire(Now.AddHours(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*InReview*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("InReview");
     }
 
     [Fact]
@@ -966,8 +966,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Expire(Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Rejected*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Rejected");
     }
 
     [Fact]
@@ -980,8 +980,8 @@ public class DPIAAggregateTests
         var act = () => aggregate.Expire(Now.AddHours(3));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*RequiresRevision*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("RequiresRevision");
     }
 
     #endregion
@@ -998,7 +998,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(Now.AddDays(365));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -1011,7 +1011,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(Now.AddDays(30));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -1024,7 +1024,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(Now.AddDays(91));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -1038,7 +1038,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(nextReview);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -1051,7 +1051,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(Now);
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -1064,7 +1064,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(Now.AddHours(2));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -1077,7 +1077,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(Now.AddHours(3));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -1090,7 +1090,7 @@ public class DPIAAggregateTests
         var result = aggregate.IsCurrent(Now.AddDays(92));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion
@@ -1110,37 +1110,37 @@ public class DPIAAggregateTests
             "High-risk profiling",
             "tenant-1",
             "module-1");
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Draft);
-        aggregate.Version.Should().Be(1);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Draft);
+        aggregate.Version.ShouldBe(1);
 
         // Evaluate
         var result = CreateDefaultResult();
         aggregate.Evaluate(result, Now.AddHours(1));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.InReview);
-        aggregate.Result.Should().NotBeNull();
-        aggregate.Version.Should().Be(2);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.InReview);
+        aggregate.Result.ShouldNotBeNull();
+        aggregate.Version.ShouldBe(2);
 
         // Approve
         var nextReview = Now.AddDays(90);
         aggregate.Approve("admin@company.com", Now.AddHours(2), nextReview);
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Approved);
-        aggregate.ApprovedAtUtc.Should().Be(Now.AddHours(2));
-        aggregate.NextReviewAtUtc.Should().Be(nextReview);
-        aggregate.IsCurrent(Now.AddDays(30)).Should().BeTrue();
-        aggregate.Version.Should().Be(3);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Approved);
+        aggregate.ApprovedAtUtc.ShouldBe(Now.AddHours(2));
+        aggregate.NextReviewAtUtc.ShouldBe(nextReview);
+        aggregate.IsCurrent(Now.AddDays(30)).ShouldBeTrue();
+        aggregate.Version.ShouldBe(3);
 
         // Expire
         aggregate.Expire(Now.AddDays(91));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Expired);
-        aggregate.IsCurrent(Now.AddDays(91)).Should().BeFalse();
-        aggregate.Version.Should().Be(4);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Expired);
+        aggregate.IsCurrent(Now.AddDays(91)).ShouldBeFalse();
+        aggregate.Version.ShouldBe(4);
 
         // Verify full event stream
-        aggregate.UncommittedEvents.Should().HaveCount(4);
-        aggregate.UncommittedEvents[0].Should().BeOfType<DPIACreated>();
-        aggregate.UncommittedEvents[1].Should().BeOfType<DPIAEvaluated>();
-        aggregate.UncommittedEvents[2].Should().BeOfType<DPIAApproved>();
-        aggregate.UncommittedEvents[3].Should().BeOfType<DPIAExpiredEvent>();
+        aggregate.UncommittedEvents.Count.ShouldBe(4);
+        aggregate.UncommittedEvents[0].ShouldBeOfType<DPIACreated>();
+        aggregate.UncommittedEvents[1].ShouldBeOfType<DPIAEvaluated>();
+        aggregate.UncommittedEvents[2].ShouldBeOfType<DPIAApproved>();
+        aggregate.UncommittedEvents[3].ShouldBeOfType<DPIAExpiredEvent>();
     }
 
     [Fact]
@@ -1148,15 +1148,15 @@ public class DPIAAggregateTests
     {
         // Create
         var aggregate = CreateDraftAggregate();
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Draft);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Draft);
 
         // Evaluate
         aggregate.Evaluate(CreateDefaultResult(), Now.AddHours(1));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.InReview);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.InReview);
 
         // Request revision
         aggregate.RequestRevision("dpo@company.com", "Needs more mitigation detail", Now.AddHours(2));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.RequiresRevision);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.RequiresRevision);
 
         // Re-evaluate after revision
         var updatedResult = new DPIAResult
@@ -1168,20 +1168,20 @@ public class DPIAAggregateTests
             AssessedAtUtc = Now.AddHours(4),
         };
         aggregate.Evaluate(updatedResult, Now.AddHours(4));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.InReview);
-        aggregate.Result!.OverallRisk.Should().Be(RiskLevel.Medium);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.InReview);
+        aggregate.Result!.OverallRisk.ShouldBe(RiskLevel.Medium);
 
         // Approve
         aggregate.Approve("admin@company.com", Now.AddHours(5));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Approved);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Approved);
 
         // Verify event stream
-        aggregate.UncommittedEvents.Should().HaveCount(5);
-        aggregate.UncommittedEvents[0].Should().BeOfType<DPIACreated>();
-        aggregate.UncommittedEvents[1].Should().BeOfType<DPIAEvaluated>();
-        aggregate.UncommittedEvents[2].Should().BeOfType<DPIARevisionRequested>();
-        aggregate.UncommittedEvents[3].Should().BeOfType<DPIAEvaluated>();
-        aggregate.UncommittedEvents[4].Should().BeOfType<DPIAApproved>();
+        aggregate.UncommittedEvents.Count.ShouldBe(5);
+        aggregate.UncommittedEvents[0].ShouldBeOfType<DPIACreated>();
+        aggregate.UncommittedEvents[1].ShouldBeOfType<DPIAEvaluated>();
+        aggregate.UncommittedEvents[2].ShouldBeOfType<DPIARevisionRequested>();
+        aggregate.UncommittedEvents[3].ShouldBeOfType<DPIAEvaluated>();
+        aggregate.UncommittedEvents[4].ShouldBeOfType<DPIAApproved>();
     }
 
     [Fact]
@@ -1193,8 +1193,8 @@ public class DPIAAggregateTests
         // Request DPO consultation
         var consultationId = Guid.NewGuid();
         aggregate.RequestDPOConsultation(consultationId, "Jane Doe", "jane@company.com", Now.AddHours(2));
-        aggregate.DPOConsultation.Should().NotBeNull();
-        aggregate.DPOConsultation!.Decision.Should().Be(DPOConsultationDecision.Pending);
+        aggregate.DPOConsultation.ShouldNotBeNull();
+        aggregate.DPOConsultation!.Decision.ShouldBe(DPOConsultationDecision.Pending);
 
         // Record DPO response
         aggregate.RecordDPOResponse(
@@ -1202,19 +1202,19 @@ public class DPIAAggregateTests
             DPOConsultationDecision.Approved,
             Now.AddHours(3),
             comments: "Assessment is thorough");
-        aggregate.DPOConsultation.Decision.Should().Be(DPOConsultationDecision.Approved);
+        aggregate.DPOConsultation.Decision.ShouldBe(DPOConsultationDecision.Approved);
 
         // Approve
         aggregate.Approve("admin@company.com", Now.AddHours(4));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Approved);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Approved);
 
         // Verify event stream
-        aggregate.UncommittedEvents.Should().HaveCount(5);
-        aggregate.UncommittedEvents[0].Should().BeOfType<DPIACreated>();
-        aggregate.UncommittedEvents[1].Should().BeOfType<DPIAEvaluated>();
-        aggregate.UncommittedEvents[2].Should().BeOfType<DPIADPOConsultationRequested>();
-        aggregate.UncommittedEvents[3].Should().BeOfType<DPIADPOResponded>();
-        aggregate.UncommittedEvents[4].Should().BeOfType<DPIAApproved>();
+        aggregate.UncommittedEvents.Count.ShouldBe(5);
+        aggregate.UncommittedEvents[0].ShouldBeOfType<DPIACreated>();
+        aggregate.UncommittedEvents[1].ShouldBeOfType<DPIAEvaluated>();
+        aggregate.UncommittedEvents[2].ShouldBeOfType<DPIADPOConsultationRequested>();
+        aggregate.UncommittedEvents[3].ShouldBeOfType<DPIADPOResponded>();
+        aggregate.UncommittedEvents[4].ShouldBeOfType<DPIAApproved>();
     }
 
     [Fact]
@@ -1225,13 +1225,13 @@ public class DPIAAggregateTests
 
         // Reject
         aggregate.Reject("admin@company.com", "Unacceptable residual risk", Now.AddHours(2));
-        aggregate.Status.Should().Be(DPIAAssessmentStatus.Rejected);
+        aggregate.Status.ShouldBe(DPIAAssessmentStatus.Rejected);
 
         // Verify event stream
-        aggregate.UncommittedEvents.Should().HaveCount(3);
-        aggregate.UncommittedEvents[0].Should().BeOfType<DPIACreated>();
-        aggregate.UncommittedEvents[1].Should().BeOfType<DPIAEvaluated>();
-        aggregate.UncommittedEvents[2].Should().BeOfType<DPIARejected>();
+        aggregate.UncommittedEvents.Count.ShouldBe(3);
+        aggregate.UncommittedEvents[0].ShouldBeOfType<DPIACreated>();
+        aggregate.UncommittedEvents[1].ShouldBeOfType<DPIAEvaluated>();
+        aggregate.UncommittedEvents[2].ShouldBeOfType<DPIARejected>();
     }
 
     #endregion

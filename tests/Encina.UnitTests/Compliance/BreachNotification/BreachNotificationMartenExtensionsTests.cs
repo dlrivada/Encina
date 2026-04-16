@@ -1,6 +1,6 @@
 using Encina.Compliance.BreachNotification;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,7 +18,7 @@ public sealed class BreachNotificationMartenExtensionsTests
 
         var result = services.AddBreachNotificationAggregates();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -29,6 +29,6 @@ public sealed class BreachNotificationMartenExtensionsTests
         services.AddBreachNotificationAggregates();
 
         // Should have registered aggregate repository and projection (2 minimum)
-        services.Count.Should().BeGreaterThan(0);
+        services.Count.ShouldBeGreaterThan(0);
     }
 }

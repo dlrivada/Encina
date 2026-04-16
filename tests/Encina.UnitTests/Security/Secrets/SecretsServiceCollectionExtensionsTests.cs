@@ -6,7 +6,7 @@ using Encina.Security.Secrets.Diagnostics;
 using Encina.Security.Secrets.Health;
 using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -28,7 +28,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
         services.AddEncinaSecrets();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretReader>().Should().NotBeNull();
+        provider.GetService<ISecretReader>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<CachingSecretReaderDecorator>();
+        reader.ShouldBeOfType<CachingSecretReaderDecorator>();
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<EnvironmentSecretProvider>();
+        reader.ShouldBeOfType<EnvironmentSecretProvider>();
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SecretsOptions>>().Value;
-        options.EnableCaching.Should().BeFalse();
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(30));
+        options.EnableCaching.ShouldBeFalse();
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(30));
     }
 
     [Fact]
@@ -87,9 +87,9 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SecretsOptions>>().Value;
-        options.EnableCaching.Should().BeTrue();
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(5));
-        options.ProviderHealthCheck.Should().BeFalse();
+        options.EnableCaching.ShouldBeTrue();
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(5));
+        options.ProviderHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var resolved = provider.GetRequiredService<ISecretReader>();
-        resolved.Should().BeOfType<ConfigurationSecretProvider>();
+        resolved.ShouldBeOfType<ConfigurationSecretProvider>();
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var result = services.AddEncinaSecrets();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
             services.AddEncinaSecrets();
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -142,8 +142,8 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var act = () => services.AddEncinaSecrets();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -162,7 +162,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<ConfigurationSecretProvider>();
+        reader.ShouldBeOfType<ConfigurationSecretProvider>();
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<CachingSecretReaderDecorator>();
+        reader.ShouldBeOfType<CachingSecretReaderDecorator>();
     }
 
     [Fact]
@@ -188,8 +188,8 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var act = () => services.AddEncinaSecrets<EnvironmentSecretProvider>();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -204,8 +204,8 @@ public sealed class SecretsServiceCollectionExtensionsTests
         services.AddSecretRotationHandler<TestRotationHandler>();
 
         var descriptor = services.First(d => d.ServiceType == typeof(ISecretRotationHandler));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Transient);
-        descriptor.ImplementationType.Should().Be(typeof(TestRotationHandler));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Transient);
+        descriptor.ImplementationType.ShouldBe(typeof(TestRotationHandler));
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var result = services.AddSecretRotationHandler<TestRotationHandler>();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     #endregion
@@ -232,7 +232,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var healthCheckOptions = provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
-        healthCheckOptions.Registrations.Should().Contain(r => r.Name == SecretsHealthCheck.DefaultName);
+        healthCheckOptions.Registrations.ShouldContain(r => r.Name == SecretsHealthCheck.DefaultName);
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
         services.AddEncinaSecrets(options => options.ProviderHealthCheck = false);
 
         var hasHealthChecks = services.Any(d => d.ServiceType == typeof(HealthCheckService));
-        hasHealthChecks.Should().BeFalse();
+        hasHealthChecks.ShouldBeFalse();
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
         services.AddEncinaSecrets();
 
         var hasHealthChecks = services.Any(d => d.ServiceType == typeof(HealthCheckService));
-        hasHealthChecks.Should().BeFalse();
+        hasHealthChecks.ShouldBeFalse();
     }
 
     #endregion
@@ -270,9 +270,9 @@ public sealed class SecretsServiceCollectionExtensionsTests
         services.AddEncinaSecrets(options => options.EnableSecretInjection = true);
 
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IPipelineBehavior<,>));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(SecretInjectionPipelineBehavior<,>));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Transient);
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(SecretInjectionPipelineBehavior<,>));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Transient);
     }
 
     [Fact]
@@ -284,7 +284,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
         services.AddEncinaSecrets(options => options.EnableSecretInjection = false);
 
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IPipelineBehavior<,>));
-        descriptor.Should().BeNull();
+        descriptor.ShouldBeNull();
     }
 
     [Fact]
@@ -297,8 +297,8 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(SecretInjectionOrchestrator));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -310,7 +310,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
         services.AddEncinaSecrets();
 
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IPipelineBehavior<,>));
-        descriptor.Should().BeNull();
+        descriptor.ShouldBeNull();
     }
 
     #endregion
@@ -327,8 +327,8 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(SecretsMetrics));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -341,7 +341,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(SecretsMetrics));
-        descriptor.Should().BeNull();
+        descriptor.ShouldBeNull();
     }
 
     [Fact]
@@ -354,7 +354,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(SecretsMetrics));
-        descriptor.Should().BeNull();
+        descriptor.ShouldBeNull();
     }
 
     [Fact]
@@ -368,7 +368,7 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var metrics = provider.GetService<SecretsMetrics>();
-        metrics.Should().NotBeNull();
+        metrics.ShouldNotBeNull();
     }
 
     #endregion

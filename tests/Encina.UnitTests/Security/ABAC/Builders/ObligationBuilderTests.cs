@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Builders;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Builders;
 
@@ -17,7 +17,7 @@ public sealed class ObligationBuilderTests
     {
         var act = () => new ObligationBuilder("log-access");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class ObligationBuilderTests
     {
         var act = () => new ObligationBuilder(null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class ObligationBuilderTests
     {
         var act = () => new ObligationBuilder("");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -45,7 +45,7 @@ public sealed class ObligationBuilderTests
     {
         var obligation = new ObligationBuilder("ob1").Build();
 
-        obligation.FulfillOn.Should().Be(FulfillOn.Permit);
+        obligation.FulfillOn.ShouldBe(FulfillOn.Permit);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class ObligationBuilderTests
     {
         var obligation = new ObligationBuilder("my-obligation").Build();
 
-        obligation.Id.Should().Be("my-obligation");
+        obligation.Id.ShouldBe("my-obligation");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class ObligationBuilderTests
     {
         var obligation = new ObligationBuilder("ob1").Build();
 
-        obligation.AttributeAssignments.Should().BeEmpty();
+        obligation.AttributeAssignments.ShouldBeEmpty();
     }
 
     #endregion
@@ -75,7 +75,7 @@ public sealed class ObligationBuilderTests
             .OnPermit()
             .Build();
 
-        obligation.FulfillOn.Should().Be(FulfillOn.Permit);
+        obligation.FulfillOn.ShouldBe(FulfillOn.Permit);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class ObligationBuilderTests
             .OnDeny()
             .Build();
 
-        obligation.FulfillOn.Should().Be(FulfillOn.Deny);
+        obligation.FulfillOn.ShouldBe(FulfillOn.Deny);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class ObligationBuilderTests
             .OnDeny()
             .Build();
 
-        obligation.FulfillOn.Should().Be(FulfillOn.Deny);
+        obligation.FulfillOn.ShouldBe(FulfillOn.Deny);
     }
 
     #endregion
@@ -110,8 +110,8 @@ public sealed class ObligationBuilderTests
             .WithAttribute("reason", "Audit trail")
             .Build();
 
-        obligation.AttributeAssignments.Should().ContainSingle()
-            .Which.AttributeId.Should().Be("reason");
+        obligation.AttributeAssignments.ShouldHaveSingleItem()
+            .Which.AttributeId.ShouldBe("reason");
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class ObligationBuilderTests
             .WithAttribute("attr1", value)
             .Build();
 
-        obligation.AttributeAssignments.Should().ContainSingle();
+        obligation.AttributeAssignments.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public sealed class ObligationBuilderTests
             .WithAttribute("attr3", "value3")
             .Build();
 
-        obligation.AttributeAssignments.Should().HaveCount(3);
+        obligation.AttributeAssignments.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class ObligationBuilderTests
         var act = () => new ObligationBuilder("ob1")
             .WithAttribute(null!, "value");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -164,8 +164,8 @@ public sealed class ObligationBuilderTests
             .WithAttribute("attr1", AttributeCategory.Subject, value)
             .Build();
 
-        obligation.AttributeAssignments.Should().ContainSingle()
-            .Which.Category.Should().Be(AttributeCategory.Subject);
+        obligation.AttributeAssignments.ShouldHaveSingleItem()
+            .Which.Category.ShouldBe(AttributeCategory.Subject);
     }
 
     #endregion

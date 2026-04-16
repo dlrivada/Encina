@@ -1,6 +1,6 @@
 using Encina.Compliance.PrivacyByDesign;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -18,7 +18,7 @@ public class PurposeBuilderTests
         var builder = new PurposeBuilder("Order Processing");
 
         // Assert
-        builder.Name.Should().Be("Order Processing");
+        builder.Name.ShouldBe("Order Processing");
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class PurposeBuilderTests
         var builder = new PurposeBuilder("Test");
 
         // Assert
-        builder.Description.Should().BeEmpty();
+        builder.Description.ShouldBeEmpty();
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class PurposeBuilderTests
         var builder = new PurposeBuilder("Test");
 
         // Assert
-        builder.LegalBasis.Should().BeEmpty();
+        builder.LegalBasis.ShouldBeEmpty();
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class PurposeBuilderTests
         var builder = new PurposeBuilder("Test");
 
         // Assert
-        builder.AllowedFields.Should().BeEmpty();
+        builder.AllowedFields.ShouldBeEmpty();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class PurposeBuilderTests
         var builder = new PurposeBuilder("Test");
 
         // Assert
-        builder.ModuleId.Should().BeNull();
+        builder.ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class PurposeBuilderTests
         var builder = new PurposeBuilder("Test");
 
         // Assert
-        builder.ExpiresAtUtc.Should().BeNull();
+        builder.ExpiresAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -88,12 +88,12 @@ public class PurposeBuilderTests
         builder.AllowedFields.AddRange(["ProductId", "Quantity", "ShippingAddress"]);
 
         // Assert
-        builder.Name.Should().Be("Order Processing");
-        builder.Description.Should().Be("Processing personal data for order fulfillment.");
-        builder.LegalBasis.Should().Be("Contract");
-        builder.ModuleId.Should().Be("orders");
-        builder.ExpiresAtUtc.Should().Be(expiresAt);
-        builder.AllowedFields.Should().BeEquivalentTo(["ProductId", "Quantity", "ShippingAddress"]);
+        builder.Name.ShouldBe("Order Processing");
+        builder.Description.ShouldBe("Processing personal data for order fulfillment.");
+        builder.LegalBasis.ShouldBe("Contract");
+        builder.ModuleId.ShouldBe("orders");
+        builder.ExpiresAtUtc.ShouldBe(expiresAt);
+        builder.AllowedFields.ShouldBe(["ProductId", "Quantity", "ShippingAddress"]);
     }
 
     [Fact]
@@ -116,13 +116,13 @@ public class PurposeBuilderTests
         var definition = builder.Build(fakeTime);
 
         // Assert
-        definition.Name.Should().Be("Order Processing");
-        definition.Description.Should().Be("Processing personal data for order fulfillment.");
-        definition.LegalBasis.Should().Be("Contract");
-        definition.ModuleId.Should().Be("orders");
-        definition.ExpiresAtUtc.Should().Be(expiresAt);
-        definition.AllowedFields.Should().BeEquivalentTo(["ProductId", "Quantity"]);
-        definition.CreatedAtUtc.Should().Be(fakeTime.GetUtcNow());
+        definition.Name.ShouldBe("Order Processing");
+        definition.Description.ShouldBe("Processing personal data for order fulfillment.");
+        definition.LegalBasis.ShouldBe("Contract");
+        definition.ModuleId.ShouldBe("orders");
+        definition.ExpiresAtUtc.ShouldBe(expiresAt);
+        definition.AllowedFields.ShouldBe(["ProductId", "Quantity"]);
+        definition.CreatedAtUtc.ShouldBe(fakeTime.GetUtcNow());
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class PurposeBuilderTests
         var definition = builder.Build(fakeTime);
 
         // Assert
-        definition.PurposeId.Should().NotBeNullOrEmpty();
+        definition.PurposeId.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class PurposeBuilderTests
         var definition2 = builder.Build(fakeTime);
 
         // Assert
-        definition1.PurposeId.Should().NotBe(definition2.PurposeId);
+        definition1.PurposeId.ShouldNotBe(definition2.PurposeId);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class PurposeBuilderTests
         var definition = builder.Build(fakeTime);
 
         // Assert
-        definition.ModuleId.Should().BeNull();
+        definition.ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class PurposeBuilderTests
         var act = () => new PurposeBuilder(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("name");
+        Should.Throw<ArgumentNullException>(act)
+            .And.ParamName.ShouldBe("name");
     }
 }

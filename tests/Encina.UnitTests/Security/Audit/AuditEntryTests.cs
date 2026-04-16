@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -50,19 +50,19 @@ public class AuditEntryTests
         };
 
         // Assert
-        entry.Id.Should().Be(id);
-        entry.CorrelationId.Should().Be(correlationId);
-        entry.UserId.Should().Be(userId);
-        entry.TenantId.Should().Be(tenantId);
-        entry.Action.Should().Be(action);
-        entry.EntityType.Should().Be(entityType);
-        entry.EntityId.Should().Be(entityId);
-        entry.Outcome.Should().Be(outcome);
-        entry.TimestampUtc.Should().Be(timestampUtc);
-        entry.IpAddress.Should().Be(ipAddress);
-        entry.UserAgent.Should().Be(userAgent);
-        entry.RequestPayloadHash.Should().Be(payloadHash);
-        entry.Metadata.Should().ContainKey("key");
+        entry.Id.ShouldBe(id);
+        entry.CorrelationId.ShouldBe(correlationId);
+        entry.UserId.ShouldBe(userId);
+        entry.TenantId.ShouldBe(tenantId);
+        entry.Action.ShouldBe(action);
+        entry.EntityType.ShouldBe(entityType);
+        entry.EntityId.ShouldBe(entityId);
+        entry.Outcome.ShouldBe(outcome);
+        entry.TimestampUtc.ShouldBe(timestampUtc);
+        entry.IpAddress.ShouldBe(ipAddress);
+        entry.UserAgent.ShouldBe(userAgent);
+        entry.RequestPayloadHash.ShouldBe(payloadHash);
+        entry.Metadata.ShouldContainKey("key");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class AuditEntryTests
         var entry = CreateEntry(metadata: metadata);
 
         // Assert - IReadOnlyDictionary prevents modification
-        entry.Metadata.Should().BeAssignableTo<IReadOnlyDictionary<string, object?>>();
+        entry.Metadata.ShouldBeAssignableTo<IReadOnlyDictionary<string, object?>>();
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class AuditEntryTests
         var entry = CreateEntry();
 
         // Assert
-        entry.Metadata.Should().NotBeNull().And.BeEmpty();
+        entry.Metadata.ShouldNotBeNull().And.BeEmpty();
     }
 
     [Theory]
@@ -97,7 +97,7 @@ public class AuditEntryTests
         var entry = CreateEntry(outcome: outcome);
 
         // Assert
-        entry.Outcome.Should().Be(outcome);
+        entry.Outcome.ShouldBe(outcome);
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public class AuditEntryTests
         var entryWithoutError = CreateEntry(errorMessage: null);
 
         // Assert
-        entryWithError.ErrorMessage.Should().Be("Something went wrong");
-        entryWithoutError.ErrorMessage.Should().BeNull();
+        entryWithError.ErrorMessage.ShouldBe("Something went wrong");
+        entryWithoutError.ErrorMessage.ShouldBeNull();
     }
 
     [Fact]
@@ -122,10 +122,10 @@ public class AuditEntryTests
         var modified = original with { Action = "Update" };
 
         // Assert
-        modified.Action.Should().Be("Update");
-        modified.Id.Should().Be(original.Id);
-        modified.CorrelationId.Should().Be(original.CorrelationId);
-        modified.EntityType.Should().Be(original.EntityType);
+        modified.Action.ShouldBe("Update");
+        modified.Id.ShouldBe(original.Id);
+        modified.CorrelationId.ShouldBe(original.CorrelationId);
+        modified.EntityType.ShouldBe(original.EntityType);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class AuditEntryTests
         };
 
         // Assert - Records should not be equal when a property differs
-        entry1.Should().NotBe(entry2);
+        entry1.ShouldNotBe(entry2);
     }
 
     [Fact]
@@ -201,8 +201,8 @@ public class AuditEntryTests
         };
 
         // Assert - When metadata is same instance, records are equal
-        entry1.Should().Be(entry2);
-        entry1.GetHashCode().Should().Be(entry2.GetHashCode());
+        entry1.ShouldBe(entry2);
+        entry1.GetHashCode().ShouldBe(entry2.GetHashCode());
     }
 
     [Fact]
@@ -212,13 +212,13 @@ public class AuditEntryTests
         var entry = CreateEntry();
 
         // Assert
-        entry.UserId.Should().BeNull();
-        entry.TenantId.Should().BeNull();
-        entry.EntityId.Should().BeNull();
-        entry.ErrorMessage.Should().BeNull();
-        entry.IpAddress.Should().BeNull();
-        entry.UserAgent.Should().BeNull();
-        entry.RequestPayloadHash.Should().BeNull();
+        entry.UserId.ShouldBeNull();
+        entry.TenantId.ShouldBeNull();
+        entry.EntityId.ShouldBeNull();
+        entry.ErrorMessage.ShouldBeNull();
+        entry.IpAddress.ShouldBeNull();
+        entry.UserAgent.ShouldBeNull();
+        entry.RequestPayloadHash.ShouldBeNull();
     }
 
     private static AuditEntry CreateEntry(

@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.Compliance.GDPR;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR.Attributes;
 
@@ -17,10 +17,10 @@ public class ProcessesPersonalDataAttributeTests
             .GetCustomAttribute<AttributeUsageAttribute>();
 
         // Assert
-        usage.Should().NotBeNull();
-        usage!.ValidOn.Should().Be(AttributeTargets.Class);
-        usage.AllowMultiple.Should().BeFalse();
-        usage.Inherited.Should().BeTrue();
+        usage.ShouldNotBeNull();
+        usage!.ValidOn.ShouldBe(AttributeTargets.Class);
+        usage.AllowMultiple.ShouldBeFalse();
+        usage.Inherited.ShouldBeTrue();
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class ProcessesPersonalDataAttributeTests
         var attr = typeof(SampleMarkerOnlyRequest).GetCustomAttribute<ProcessesPersonalDataAttribute>();
 
         // Assert
-        attr.Should().NotBeNull();
+        attr.ShouldNotBeNull();
     }
 
     [Fact]
@@ -40,6 +40,6 @@ public class ProcessesPersonalDataAttributeTests
         var attr = typeof(SampleNoAttributeRequest).GetCustomAttribute<ProcessesPersonalDataAttribute>();
 
         // Assert
-        attr.Should().BeNull();
+        attr.ShouldBeNull();
     }
 }

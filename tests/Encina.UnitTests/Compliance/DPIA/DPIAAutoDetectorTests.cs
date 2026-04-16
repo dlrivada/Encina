@@ -3,7 +3,7 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -23,7 +23,7 @@ public class DPIAAutoDetectorTests
     {
         var triggers = _sut.DetectHighRiskTriggers(typeof(SimpleCommand));
 
-        triggers.Should().BeEmpty();
+        triggers.ShouldBeEmpty();
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class DPIAAutoDetectorTests
         // Only 1 trigger — below the minimum of 2
         var triggers = _sut.DetectHighRiskTriggers(typeof(BiometricOnlyCommand));
 
-        triggers.Should().BeEmpty();
+        triggers.ShouldBeEmpty();
     }
 
     [Fact]
@@ -40,9 +40,9 @@ public class DPIAAutoDetectorTests
     {
         var triggers = _sut.DetectHighRiskTriggers(typeof(BiometricHealthCommand));
 
-        triggers.Should().HaveCountGreaterThanOrEqualTo(2);
-        triggers.Should().Contain(HighRiskTriggers.BiometricData);
-        triggers.Should().Contain(HighRiskTriggers.HealthData);
+        triggers.Count.ShouldBeGreaterThanOrEqualTo(2);
+        triggers.ShouldContain(HighRiskTriggers.BiometricData);
+        triggers.ShouldContain(HighRiskTriggers.HealthData);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class DPIAAutoDetectorTests
     {
         var triggers = _sut.DetectHighRiskTriggers(typeof(CommandWithHighRiskProperties));
 
-        triggers.Should().HaveCountGreaterThanOrEqualTo(2);
+        triggers.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class DPIAAutoDetectorTests
         // "BIOMETRIC" should match case-insensitively
         var triggers = _sut.DetectHighRiskTriggers(typeof(BiometricHealthCommand));
 
-        triggers.Should().Contain(HighRiskTriggers.BiometricData);
+        triggers.ShouldContain(HighRiskTriggers.BiometricData);
     }
 
     #endregion
@@ -69,19 +69,19 @@ public class DPIAAutoDetectorTests
     [Fact]
     public void IsHighRisk_BelowThreshold_ReturnsFalse()
     {
-        _sut.IsHighRisk(typeof(SimpleCommand)).Should().BeFalse();
+        _sut.IsHighRisk(typeof(SimpleCommand)).ShouldBeFalse();
     }
 
     [Fact]
     public void IsHighRisk_AtOrAboveThreshold_ReturnsTrue()
     {
-        _sut.IsHighRisk(typeof(BiometricHealthCommand)).Should().BeTrue();
+        _sut.IsHighRisk(typeof(BiometricHealthCommand)).ShouldBeTrue();
     }
 
     [Fact]
     public void IsHighRisk_SingleTrigger_ReturnsFalse()
     {
-        _sut.IsHighRisk(typeof(BiometricOnlyCommand)).Should().BeFalse();
+        _sut.IsHighRisk(typeof(BiometricOnlyCommand)).ShouldBeFalse();
     }
 
     #endregion

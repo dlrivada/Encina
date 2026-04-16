@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -20,14 +20,14 @@ public sealed class StringFunctionsTests
     public void StringConcatenate_TwoStrings_ReturnsJoined()
     {
         Eval(XACMLFunctionIds.StringConcatenate, "hello", " world")
-            .Should().Be("hello world");
+            .ShouldBe("hello world");
     }
 
     [Fact]
     public void StringConcatenate_EmptyStrings_ReturnsEmpty()
     {
         Eval(XACMLFunctionIds.StringConcatenate, "", "")
-            .Should().Be("");
+            .ShouldBe("");
     }
 
     #endregion
@@ -40,7 +40,7 @@ public sealed class StringFunctionsTests
     [InlineData("", "", true)]
     public void StringStartsWith_ReturnsExpected(string str, string prefix, bool expected)
     {
-        Eval(XACMLFunctionIds.StringStartsWith, prefix, str).Should().Be(expected);
+        Eval(XACMLFunctionIds.StringStartsWith, prefix, str).ShouldBe(expected);
     }
 
     #endregion
@@ -52,7 +52,7 @@ public sealed class StringFunctionsTests
     [InlineData("hello world", "hello", false)]
     public void StringEndsWith_ReturnsExpected(string str, string suffix, bool expected)
     {
-        Eval(XACMLFunctionIds.StringEndsWith, suffix, str).Should().Be(expected);
+        Eval(XACMLFunctionIds.StringEndsWith, suffix, str).ShouldBe(expected);
     }
 
     #endregion
@@ -65,7 +65,7 @@ public sealed class StringFunctionsTests
     [InlineData("hello", "", true)]
     public void StringContains_ReturnsExpected(string str, string substring, bool expected)
     {
-        Eval(XACMLFunctionIds.StringContains, substring, str).Should().Be(expected);
+        Eval(XACMLFunctionIds.StringContains, substring, str).ShouldBe(expected);
     }
 
     #endregion
@@ -78,7 +78,7 @@ public sealed class StringFunctionsTests
     [InlineData("abc", 3)]
     public void StringLength_ReturnsExpected(string str, int expected)
     {
-        Eval(XACMLFunctionIds.StringLength, str).Should().Be(expected);
+        Eval(XACMLFunctionIds.StringLength, str).ShouldBe(expected);
     }
 
     #endregion

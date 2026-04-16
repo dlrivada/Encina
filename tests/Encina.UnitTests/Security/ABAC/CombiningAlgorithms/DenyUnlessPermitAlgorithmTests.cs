@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -18,7 +18,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
     [Fact]
     public void AlgorithmId_ReturnsDenyUnlessPermit()
     {
-        _sut.AlgorithmId.Should().Be(CombiningAlgorithmId.DenyUnlessPermit);
+        _sut.AlgorithmId.ShouldBe(CombiningAlgorithmId.DenyUnlessPermit);
     }
 
     #endregion
@@ -32,7 +32,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Permit);
+        effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny);
+        effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny, "No Permit found, so default is Deny");
+        effect.ShouldBe(Effect.Deny, "No Permit found, so default is Deny");
     }
 
     #endregion
@@ -70,7 +70,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny,
+        effect.ShouldBe(Effect.Deny,
             "DenyUnlessPermit never returns NotApplicable — defaults to Deny");
     }
 
@@ -85,7 +85,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny,
+        effect.ShouldBe(Effect.Deny,
             "DenyUnlessPermit never returns Indeterminate — defaults to Deny");
     }
 
@@ -100,7 +100,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Permit);
+        effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Permit);
+        effect.ShouldBe(Effect.Permit);
     }
 
     [Theory]
@@ -131,7 +131,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny);
+        effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Permit);
+        effect.ShouldBe(Effect.Permit);
     }
 
     #endregion
@@ -165,7 +165,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Permit);
+        combined.Effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Deny);
+        combined.Effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -200,9 +200,9 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Permit);
-        combined.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("audit");
+        combined.Effect.ShouldBe(Effect.Permit);
+        combined.Obligations.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("audit");
     }
 
     #endregion

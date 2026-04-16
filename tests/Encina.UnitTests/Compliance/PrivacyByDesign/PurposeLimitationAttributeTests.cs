@@ -1,6 +1,6 @@
 using Encina.Compliance.PrivacyByDesign;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -16,7 +16,7 @@ public class PurposeLimitationAttributeTests
         var attribute = new PurposeLimitationAttribute("Order Processing");
 
         // Assert
-        attribute.Purpose.Should().Be("Order Processing");
+        attribute.Purpose.ShouldBe("Order Processing");
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class PurposeLimitationAttributeTests
         var attribute = new PurposeLimitationAttribute("Marketing Analytics");
 
         // Assert
-        attribute.Purpose.Should().Be("Marketing Analytics");
+        attribute.Purpose.ShouldBe("Marketing Analytics");
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class PurposeLimitationAttributeTests
             .Single();
 
         // Assert
-        usage.ValidOn.Should().Be(AttributeTargets.Property);
+        usage.ValidOn.ShouldBe(AttributeTargets.Property);
     }
 
     [Fact]
@@ -52,6 +52,6 @@ public class PurposeLimitationAttributeTests
             .Single();
 
         // Assert
-        usage.AllowMultiple.Should().BeFalse();
+        usage.AllowMultiple.ShouldBeFalse();
     }
 }

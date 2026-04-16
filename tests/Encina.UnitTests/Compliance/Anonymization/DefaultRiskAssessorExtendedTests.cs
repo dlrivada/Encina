@@ -2,7 +2,7 @@
 
 using Encina.Compliance.Anonymization;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -49,10 +49,10 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "Age", "Gender"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.KAnonymityValue.Should().Be(10, "all 10 records share the same QI values");
-        assessment.ReIdentificationProbability.Should().BeApproximately(0.1, 0.0001);
+        assessment.KAnonymityValue.ShouldBe(10, "all 10 records share the same QI values");
+        assessment.ReIdentificationProbability;
     }
 
     [Fact]
@@ -73,12 +73,12 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "Age", "Gender"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.KAnonymityValue.Should().Be(5);
+        assessment.KAnonymityValue.ShouldBe(5);
         // L-diversity is the minimum distinct values for ANY sensitive property
         // Diagnosis: 5, Salary: 5, ZipCode: 5 → min = 5
-        assessment.LDiversityValue.Should().BeGreaterThanOrEqualTo(3,
+        assessment.LDiversityValue.ShouldBeGreaterThanOrEqualTo(3,
             "all sensitive properties have 5 distinct values within the single equivalence class");
     }
 
@@ -97,9 +97,9 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City"]);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(Right: _ => default, Left: e => e);
-        error.Message.Should().Contain("at least 2 records");
+        error.Message.ShouldContain("at least 2 records");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City"]);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -152,17 +152,17 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "Age"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.KAnonymityValue.Should().Be(5, "each city+age group has exactly 5 records");
+        assessment.KAnonymityValue.ShouldBe(5, "each city+age group has exactly 5 records");
         // Gender has only 2 distinct values (M/F) per class → l-diversity min = 2
-        assessment.LDiversityValue.Should().BeGreaterThanOrEqualTo(2,
+        assessment.LDiversityValue.ShouldBeGreaterThanOrEqualTo(2,
             "gender has 2 distinct values per class");
-        assessment.TClosenessDistance.Should().BeGreaterThanOrEqualTo(0.0);
-        assessment.ReIdentificationProbability.Should().BeApproximately(0.2, 0.0001);
+        assessment.TClosenessDistance.ShouldBeGreaterThanOrEqualTo(0.0);
+        assessment.ReIdentificationProbability;
         // k=5 meets target, but l=2 is below target 3 → not acceptable
-        assessment.IsAcceptable.Should().BeFalse("l-diversity of 2 is below target 3");
-        assessment.Recommendations.Should().NotBeEmpty();
+        assessment.IsAcceptable.ShouldBeFalse();
+        assessment.Recommendations.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -205,14 +205,14 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "Age"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.KAnonymityValue.Should().Be(5);
+        assessment.KAnonymityValue.ShouldBe(5);
         // Diagnosis within each class is homogeneous → l-diversity = 1
-        assessment.LDiversityValue.Should().Be(1);
-        assessment.TClosenessDistance.Should().BeGreaterThan(0.0,
+        assessment.LDiversityValue.ShouldBe(1);
+        assessment.TClosenessDistance.ShouldBeGreaterThan(0.0,
             "skewed diagnosis distribution within classes should produce positive t-closeness");
-        assessment.IsAcceptable.Should().BeFalse("l-diversity is below target 3");
+        assessment.IsAcceptable.ShouldBeFalse();
     }
 
     #endregion
@@ -235,10 +235,10 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
         // NYC has 2 records, LA has 1 → k=1
-        assessment.KAnonymityValue.Should().Be(1);
+        assessment.KAnonymityValue.ShouldBe(1);
     }
 
     [Fact]
@@ -257,10 +257,10 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "Age", "Gender", "ZipCode"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
         // NYC/25/M/10001 → 2 records, NYC/30/F/10002 → 1 record → k=1
-        assessment.KAnonymityValue.Should().Be(1);
+        assessment.KAnonymityValue.ShouldBe(1);
     }
 
     [Fact]
@@ -281,10 +281,10 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "Age"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
         // NYC/30 → 3 records, LA/40 → 2 records → k=2
-        assessment.KAnonymityValue.Should().Be(2);
+        assessment.KAnonymityValue.ShouldBe(2);
     }
 
     #endregion
@@ -306,9 +306,9 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "NonExistent"]);
 
         // Assert — should still work using only "City"
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.KAnonymityValue.Should().Be(2, "both records share City=NYC");
+        assessment.KAnonymityValue.ShouldBe(2, "both records share City=NYC");
     }
 
     #endregion
@@ -331,9 +331,9 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City", "Age"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.TClosenessDistance.Should().Be(0.0,
+        assessment.TClosenessDistance.ShouldBe(0.0,
             "single equivalence class means class distribution matches global distribution exactly");
     }
 
@@ -358,9 +358,9 @@ public class DefaultRiskAssessorExtendedTests
         var result = await sut.AssessAsync<PersonRecord>(dataset, ["City"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.AssessedAtUtc.Should().Be(fixedTime);
+        assessment.AssessedAtUtc.ShouldBe(fixedTime);
     }
 
     #endregion

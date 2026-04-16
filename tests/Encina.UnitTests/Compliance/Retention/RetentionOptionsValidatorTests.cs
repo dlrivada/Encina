@@ -1,6 +1,6 @@
 using Encina.Compliance.Retention;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -15,7 +15,7 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -25,8 +25,8 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementMode");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementInterval");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("EnforcementInterval");
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementInterval");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("EnforcementInterval");
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("AlertBeforeExpirationDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("AlertBeforeExpirationDays");
     }
 
     [Fact]
@@ -69,8 +69,8 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultRetentionPeriod");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("DefaultRetentionPeriod");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
+        result.Failed.ShouldBeTrue();
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class RetentionOptionsValidatorTests
     {
         var act = () => _sut.Validate(null, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class RetentionOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().HaveCountGreaterThanOrEqualTo(4);
+        result.Failed.ShouldBeTrue();
+        result.Failures.Count.ShouldBeGreaterThanOrEqualTo(4);
     }
 }

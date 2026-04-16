@@ -1,7 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence.Xacml;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence.Xacml;
 
@@ -26,7 +26,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = category.ToXacmlUrn();
 
         // Assert
-        result.Should().Be(expectedUrn);
+        result.ShouldBe(expectedUrn);
     }
 
     [Theory]
@@ -40,7 +40,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ToAttributeCategory(urn);
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class XacmlMappingExtensionsTests
         var act = () => invalid.ToXacmlUrn();
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class XacmlMappingExtensionsTests
         var act = () => XacmlMappingExtensions.ToAttributeCategory("urn:unknown:category");
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class XacmlMappingExtensionsTests
         {
             var urn = category.ToXacmlUrn();
             var roundTripped = XacmlMappingExtensions.ToAttributeCategory(urn);
-            roundTripped.Should().Be(category);
+            roundTripped.ShouldBe(category);
         }
     }
 
@@ -97,7 +97,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = algorithm.ToXacmlUrn(isRuleCombining);
 
         // Assert
-        result.Should().Be(expectedUrn);
+        result.ShouldBe(expectedUrn);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class XacmlMappingExtensionsTests
             "urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-overrides");
 
         // Assert
-        result.Should().Be(CombiningAlgorithmId.DenyOverrides);
+        result.ShouldBe(CombiningAlgorithmId.DenyOverrides);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class XacmlMappingExtensionsTests
             "urn:oasis:names:tc:xacml:3.0:policy-combining-algorithm:permit-overrides");
 
         // Assert
-        result.Should().Be(CombiningAlgorithmId.PermitOverrides);
+        result.ShouldBe(CombiningAlgorithmId.PermitOverrides);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class XacmlMappingExtensionsTests
             "urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:unknown-algorithm");
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class XacmlMappingExtensionsTests
         var act = () => XacmlMappingExtensions.ToCombiningAlgorithmId("no-colon-at-end:");
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class XacmlMappingExtensionsTests
         {
             var urn = algorithm.ToXacmlUrn(isRuleCombining: true);
             var roundTripped = XacmlMappingExtensions.ToCombiningAlgorithmId(urn);
-            roundTripped.Should().Be(algorithm);
+            roundTripped.ShouldBe(algorithm);
         }
     }
 
@@ -163,7 +163,7 @@ public sealed class XacmlMappingExtensionsTests
         {
             var urn = algorithm.ToXacmlUrn(isRuleCombining: false);
             var roundTripped = XacmlMappingExtensions.ToCombiningAlgorithmId(urn);
-            roundTripped.Should().Be(algorithm);
+            roundTripped.ShouldBe(algorithm);
         }
     }
 
@@ -182,7 +182,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = effect.ToXacmlString();
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Theory]
@@ -194,7 +194,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ToEffect(value);
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public sealed class XacmlMappingExtensionsTests
         var act = () => Effect.NotApplicable.ToXacmlString();
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class XacmlMappingExtensionsTests
         var act = () => XacmlMappingExtensions.ToEffect("Unknown");
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -232,7 +232,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = fulfillOn.ToXacmlString();
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Theory]
@@ -244,7 +244,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ToFulfillOn(value);
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public sealed class XacmlMappingExtensionsTests
         var act = () => XacmlMappingExtensions.ToFulfillOn("Unknown");
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -272,7 +272,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.FormatXacmlValue(value, XACMLDataTypes.Boolean);
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -282,7 +282,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.FormatXacmlValue(42, XACMLDataTypes.Integer);
 
         // Assert
-        result.Should().Be("42");
+        result.ShouldBe("42");
     }
 
     [Fact]
@@ -292,7 +292,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.FormatXacmlValue(3.14, XACMLDataTypes.Double);
 
         // Assert
-        result.Should().Contain("3.14");
+        result.ShouldContain("3.14");
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.FormatXacmlValue(null, XACMLDataTypes.String);
 
         // Assert
-        result.Should().BeEmpty();
+        result.ShouldBeEmpty();
     }
 
     [Fact]
@@ -312,7 +312,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.FormatXacmlValue("hello", XACMLDataTypes.String);
 
         // Assert
-        result.Should().Be("hello");
+        result.ShouldBe("hello");
     }
 
     #endregion
@@ -332,7 +332,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue(text, XACMLDataTypes.Boolean);
 
         // Assert
-        result.Should().Be(expected);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -342,8 +342,8 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue("42", XACMLDataTypes.Integer);
 
         // Assert
-        result.Should().BeOfType<long>();
-        result.Should().Be(42L);
+        result.ShouldBeOfType<long>();
+        result.ShouldBe(42L);
     }
 
     [Fact]
@@ -353,8 +353,8 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue("3.14", XACMLDataTypes.Double);
 
         // Assert
-        result.Should().BeOfType<double>();
-        ((double)result!).Should().BeApproximately(3.14, 0.001);
+        result.ShouldBeOfType<double>();
+        ((double)result!).ShouldBeInRange(3.14 - 0.001, 3.14 + 0.001);
     }
 
     [Fact]
@@ -364,7 +364,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue("hello", XACMLDataTypes.String);
 
         // Assert
-        result.Should().Be("hello");
+        result.ShouldBe("hello");
     }
 
     [Fact]
@@ -374,7 +374,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue(null, XACMLDataTypes.String);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -384,7 +384,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue("", XACMLDataTypes.Integer);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -394,8 +394,8 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue("https://example.com", XACMLDataTypes.AnyURI);
 
         // Assert
-        result.Should().BeOfType<Uri>();
-        ((Uri)result!).ToString().Should().Be("https://example.com/");
+        result.ShouldBeOfType<Uri>();
+        ((Uri)result!).ToString().ShouldBe("https://example.com/");
     }
 
     [Fact]
@@ -405,7 +405,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlMappingExtensions.ParseXacmlValue("raw-value", "urn:custom:datatype");
 
         // Assert
-        result.Should().Be("raw-value");
+        result.ShouldBe("raw-value");
     }
 
     #endregion
@@ -425,7 +425,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.InferDataType(value);
 
         // Assert
-        result.Should().Be(expectedDataType);
+        result.ShouldBe(expectedDataType);
     }
 
     [Fact]
@@ -435,7 +435,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.InferDataType(null);
 
         // Assert
-        result.Should().Be(XACMLDataTypes.String);
+        result.ShouldBe(XACMLDataTypes.String);
     }
 
     [Fact]
@@ -445,7 +445,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.InferDataType(DateTime.UtcNow);
 
         // Assert
-        result.Should().Be(XACMLDataTypes.DateTime);
+        result.ShouldBe(XACMLDataTypes.DateTime);
     }
 
     [Fact]
@@ -455,7 +455,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.InferDataType(DateTimeOffset.UtcNow);
 
         // Assert
-        result.Should().Be(XACMLDataTypes.DateTime);
+        result.ShouldBe(XACMLDataTypes.DateTime);
     }
 
     [Fact]
@@ -465,7 +465,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.InferDataType(new Uri("https://example.com"));
 
         // Assert
-        result.Should().Be(XACMLDataTypes.AnyURI);
+        result.ShouldBe(XACMLDataTypes.AnyURI);
     }
 
     [Fact]
@@ -475,7 +475,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.InferDataType(new byte[] { 1, 2, 3 });
 
         // Assert
-        result.Should().Be(XACMLDataTypes.Base64Binary);
+        result.ShouldBe(XACMLDataTypes.Base64Binary);
     }
 
     [Fact]
@@ -485,7 +485,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.IsKnownDataType(XACMLDataTypes.String);
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -495,7 +495,7 @@ public sealed class XacmlMappingExtensionsTests
         var result = XacmlDataTypeMap.IsKnownDataType("urn:custom:unknown");
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion

@@ -3,7 +3,7 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -47,8 +47,8 @@ public class DefaultAnonymizerTests
         var act = () => new DefaultAnonymizer(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("techniques");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("techniques");
     }
 
     #endregion
@@ -81,7 +81,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.Name.Should().Be("REDACTED"),
+            Right: v => v.Name.ShouldBe("REDACTED"),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -103,7 +103,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.Name.Should().Be("Alice"),
+            Right: v => v.Name.ShouldBe("Alice"),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -124,7 +124,7 @@ public class DefaultAnonymizerTests
         var result = await anonymizer.AnonymizeAsync(person, profile);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class DefaultAnonymizerTests
         var result = await anonymizer.AnonymizeAsync(person, profile);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class DefaultAnonymizerTests
         var result = await anonymizer.AnonymizeAsync(person, profile);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class DefaultAnonymizerTests
         _ = await anonymizer.AnonymizeAsync(person, profile);
 
         // Assert
-        person.Name.Should().Be("Alice");
+        person.Name.ShouldBe("Alice");
     }
 
     [Fact]
@@ -215,8 +215,8 @@ public class DefaultAnonymizerTests
         var act = async () => await anonymizer.AnonymizeAsync<TestPerson>(null!, profile);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "data");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("data");
     }
 
     [Fact]
@@ -230,8 +230,8 @@ public class DefaultAnonymizerTests
         var act = async () => await anonymizer.AnonymizeAsync(person, null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "profile");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("profile");
     }
 
     #endregion
@@ -270,7 +270,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.AnonymizedFieldCount.Should().Be(2),
+            Right: v => v.AnonymizedFieldCount.ShouldBe(2),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -292,7 +292,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.SkippedFieldCount.Should().Be(v.OriginalFieldCount),
+            Right: v => v.SkippedFieldCount.ShouldBe(v.OriginalFieldCount),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -313,7 +313,7 @@ public class DefaultAnonymizerTests
         var result = await anonymizer.AnonymizeFieldsAsync(person, profile);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -334,7 +334,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.AnonymizedFieldCount.Should().Be(0),
+            Right: v => v.AnonymizedFieldCount.ShouldBe(0),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -364,8 +364,8 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.TechniqueApplied.Should().ContainKey("Name")
-                .WhoseValue.Should().Be(AnonymizationTechnique.Suppression),
+            Right: v => v.TechniqueApplied.ShouldContainKey("Name")
+                .WhoseValue.ShouldBe(AnonymizationTechnique.Suppression),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -380,8 +380,8 @@ public class DefaultAnonymizerTests
         var act = async () => await anonymizer.AnonymizeFieldsAsync<TestPerson>(null!, profile);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "data");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("data");
     }
 
     #endregion
@@ -400,7 +400,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.Should().BeFalse(),
+            Right: v => v.ShouldBeFalse(),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -417,7 +417,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.Should().BeTrue(),
+            Right: v => v.ShouldBeTrue(),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -434,7 +434,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.Should().BeTrue(),
+            Right: v => v.ShouldBeTrue(),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -452,7 +452,7 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.Should().BeFalse(),
+            Right: v => v.ShouldBeFalse(),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -466,8 +466,8 @@ public class DefaultAnonymizerTests
         var act = async () => await anonymizer.IsAnonymizedAsync<TestPerson>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .Where(ex => ex.ParamName == "data");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("data");
     }
 
     #endregion

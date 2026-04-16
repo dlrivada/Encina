@@ -1,7 +1,7 @@
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
 
-using FluentAssertions;
+using Shouldly;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
@@ -21,7 +21,7 @@ public class SwappingTechniqueTests
         var result = _technique.Technique;
 
         // Assert
-        result.Should().Be(AnonymizationTechnique.Swapping);
+        result.ShouldBe(AnonymizationTechnique.Swapping);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class SwappingTechniqueTests
         var result = _technique.CanApply(typeof(string));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class SwappingTechniqueTests
         var result = _technique.CanApply(typeof(int));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class SwappingTechniqueTests
         // Assert
         // Swapping produces null for reference types, but LanguageExt throws
         // ValueIsNullException when Right(null) is called, caught by try/catch -> Left
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -67,6 +67,6 @@ public class SwappingTechniqueTests
         // Assert
         // Swapping produces null for reference types, but LanguageExt throws
         // ValueIsNullException when Right(null) is called, caught by try/catch -> Left
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 }

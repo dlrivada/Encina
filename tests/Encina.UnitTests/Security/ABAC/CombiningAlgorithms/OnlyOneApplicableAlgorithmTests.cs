@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -17,7 +17,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
     [Fact]
     public void AlgorithmId_ReturnsOnlyOneApplicable()
     {
-        _sut.AlgorithmId.Should().Be(CombiningAlgorithmId.OnlyOneApplicable);
+        _sut.AlgorithmId.ShouldBe(CombiningAlgorithmId.OnlyOneApplicable);
     }
 
     #endregion
@@ -33,7 +33,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
             MakeRuleResult(Effect.Deny)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit,
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit,
             "Rule-level delegates to FirstApplicable; first non-NotApplicable wins");
     }
 
@@ -46,7 +46,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
             MakeRuleResult(Effect.Deny)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Deny);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -58,14 +58,14 @@ public sealed class OnlyOneApplicableAlgorithmTests
             MakeRuleResult(Effect.NotApplicable)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.NotApplicable);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
     public void CombineRuleResults_Empty_ReturnsNotApplicable()
     {
         _sut.CombineRuleResults(Array.Empty<RuleEvaluationResult>())
-            .Should().Be(Effect.NotApplicable);
+            .ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -83,7 +83,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.NotApplicable);
+        combined.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
     {
         var combined = _sut.CombinePolicyResults(Array.Empty<PolicyEvaluationResult>());
 
-        combined.Effect.Should().Be(Effect.NotApplicable);
+        combined.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -110,8 +110,8 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Permit);
-        combined.PolicyId.Should().Be("p2");
+        combined.Effect.ShouldBe(Effect.Permit);
+        combined.PolicyId.ShouldBe("p2");
     }
 
     [Fact]
@@ -125,8 +125,8 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Deny);
-        combined.PolicyId.Should().Be("p1");
+        combined.Effect.ShouldBe(Effect.Deny);
+        combined.PolicyId.ShouldBe("p1");
     }
 
     [Fact]
@@ -147,9 +147,9 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Permit);
-        combined.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("audit");
+        combined.Effect.ShouldBe(Effect.Permit);
+        combined.Obligations.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("audit");
     }
 
     [Fact]
@@ -170,8 +170,8 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Advice.Should().ContainSingle()
-            .Which.Id.Should().Be("notify");
+        combined.Advice.ShouldHaveSingleItem()
+            .Which.Id.ShouldBe("notify");
     }
 
     #endregion
@@ -189,7 +189,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate,
+        combined.Effect.ShouldBe(Effect.Indeterminate,
             "More than one applicable policy → Indeterminate per §C.4");
     }
 
@@ -204,7 +204,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate,
+        combined.Effect.ShouldBe(Effect.Indeterminate,
             "Two applicable policies (even with different effects) → Indeterminate");
     }
 
@@ -221,7 +221,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate);
+        combined.Effect.ShouldBe(Effect.Indeterminate);
     }
 
     [Fact]
@@ -235,8 +235,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.PolicyId.Should().BeEmpty(
-            "Multiple applicable → no single policy to attribute");
+        combined.PolicyId.ShouldBeEmpty("Multiple applicable → no single policy to attribute");
     }
 
     [Fact]
@@ -257,9 +256,8 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate);
-        combined.Obligations.Should().BeEmpty(
-            "Indeterminate from ambiguity should carry no obligations");
+        combined.Effect.ShouldBe(Effect.Indeterminate);
+        combined.Obligations.ShouldBeEmpty("Indeterminate from ambiguity should carry no obligations");
     }
 
     #endregion
@@ -277,9 +275,9 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate,
+        combined.Effect.ShouldBe(Effect.Indeterminate,
             "Any Indeterminate during evaluation → overall Indeterminate");
-        combined.PolicyId.Should().Be("p1",
+        combined.PolicyId.ShouldBe("p1",
             "Indeterminate preserves the PolicyId of the offending policy");
     }
 
@@ -295,8 +293,8 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate);
-        combined.PolicyId.Should().Be("p2");
+        combined.Effect.ShouldBe(Effect.Indeterminate);
+        combined.PolicyId.ShouldBe("p2");
     }
 
     [Fact]
@@ -309,7 +307,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate);
+        combined.Effect.ShouldBe(Effect.Indeterminate);
     }
 
     #endregion

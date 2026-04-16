@@ -1,6 +1,6 @@
 using Encina.Compliance.PrivacyByDesign;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -16,7 +16,7 @@ public class EnforceDataMinimizationAttributeTests
         var attribute = new EnforceDataMinimizationAttribute();
 
         // Assert
-        attribute.Purpose.Should().BeNull();
+        attribute.Purpose.ShouldBeNull();
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class EnforceDataMinimizationAttributeTests
         attribute.Purpose = "Order Processing";
 
         // Assert
-        attribute.Purpose.Should().Be("Order Processing");
+        attribute.Purpose.ShouldBe("Order Processing");
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class EnforceDataMinimizationAttributeTests
             .Single();
 
         // Assert
-        usage.ValidOn.Should().Be(AttributeTargets.Class);
+        usage.ValidOn.ShouldBe(AttributeTargets.Class);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class EnforceDataMinimizationAttributeTests
             .Single();
 
         // Assert
-        usage.AllowMultiple.Should().BeFalse();
+        usage.AllowMultiple.ShouldBeFalse();
     }
 
     [Fact]
@@ -68,6 +68,6 @@ public class EnforceDataMinimizationAttributeTests
             .Single();
 
         // Assert
-        usage.Inherited.Should().BeTrue();
+        usage.Inherited.ShouldBeTrue();
     }
 }

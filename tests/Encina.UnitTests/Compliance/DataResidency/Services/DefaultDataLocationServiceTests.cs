@@ -8,7 +8,7 @@ using Encina.Compliance.DataResidency.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
 
-using FluentAssertions;
+using Shouldly;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -51,8 +51,8 @@ public class DefaultDataLocationServiceTests
             "entity-1", "personal-data", "DE", StorageType.Primary,
             null, null, null, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class DefaultDataLocationServiceTests
             "entity-1", "personal-data", "DE", StorageType.Primary,
             null, null, null, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class DefaultDataLocationServiceTests
             "entity-1", "personal-data", "DE", StorageType.Primary,
             null, null, null, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -106,7 +106,7 @@ public class DefaultDataLocationServiceTests
 
         var result = await _sut.GetLocationAsync(locationId, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.DidNotReceive().LoadAsync(locationId, Arg.Any<CancellationToken>());
     }
 
@@ -135,7 +135,7 @@ public class DefaultDataLocationServiceTests
 
         var result = await _sut.GetLocationAsync(locationId, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class DefaultDataLocationServiceTests
 
         var result = await _sut.GetLocationAsync(Guid.NewGuid(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class DefaultDataLocationServiceTests
 
         var result = await _sut.GetLocationAsync(Guid.NewGuid(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
