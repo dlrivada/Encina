@@ -26,7 +26,8 @@ public class AnonymizationOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
     [Fact]
