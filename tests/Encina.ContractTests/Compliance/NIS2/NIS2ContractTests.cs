@@ -66,7 +66,7 @@ public sealed class NIS2MeasureEvaluatorContractTests
 
         var expectedMeasures = Enum.GetValues<NIS2Measure>();
 
-        measures.ShouldBe(expectedMeasures.ToHashSet(),
+        measures.SetEquals(expectedMeasures).ShouldBeTrue(
             "every NIS2Measure enum value must have a corresponding evaluator");
     }
 
