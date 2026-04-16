@@ -3,7 +3,7 @@ using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -53,17 +53,17 @@ public sealed class AnonymizationServiceIntegrationTests
         var addResult2 = await auditStore.AddEntryAsync(entry2);
 
         // Assert: additions succeed
-        addResult1.IsRight.Should().BeTrue("first audit entry should be added");
-        addResult2.IsRight.Should().BeTrue("second audit entry should be added");
+        addResult1.IsRight.ShouldBeTrue("first audit entry should be added");
+        addResult2.IsRight.ShouldBeTrue("second audit entry should be added");
 
         // Assert: retrieval by subject
         var trailResult = await auditStore.GetBySubjectIdAsync(subjectId);
-        trailResult.IsRight.Should().BeTrue("retrieval should succeed");
+        trailResult.IsRight.ShouldBeTrue("retrieval should succeed");
 
         var trail = trailResult.Match(Right: r => r, Left: _ => []);
-        trail.Should().HaveCount(2);
-        trail.Should().Contain(e => e.Operation == AnonymizationOperation.Anonymized);
-        trail.Should().Contain(e => e.Operation == AnonymizationOperation.Pseudonymized);
+        trail.Count.ShouldBe(2);
+        trail.ShouldContain(e => e.Operation == AnonymizationOperation.Anonymized);
+        trail.ShouldContain(e => e.Operation == AnonymizationOperation.Pseudonymized);
     }
 
     [Fact]
@@ -89,9 +89,9 @@ public sealed class AnonymizationServiceIntegrationTests
         var allResult = await auditStore.GetAllAsync();
 
         // Assert
-        allResult.IsRight.Should().BeTrue();
+        allResult.IsRight.ShouldBeTrue();
         var all = allResult.Match(Right: r => r, Left: _ => []);
-        all.Should().HaveCountGreaterThanOrEqualTo(2);
+        all.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -105,9 +105,9 @@ public sealed class AnonymizationServiceIntegrationTests
         var result = await auditStore.GetBySubjectIdAsync("nonexistent-subject");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var entries = result.Match(Right: r => r, Left: _ => []);
-        entries.Should().BeEmpty();
+        entries.ShouldBeEmpty();
     }
 
     #endregion
@@ -136,15 +136,15 @@ public sealed class AnonymizationServiceIntegrationTests
 
         // Assert
         var errMsg = result.Match(Right: _ => "no error", Left: e => e.Message);
-        result.IsRight.Should().BeTrue($"assessment should succeed, but got: {errMsg}");
+        result.IsRight.ShouldBeTrue($"assessment should succeed, but got: {errMsg}");
 
         var assessment = (RiskAssessmentResult)result;
-        assessment.KAnonymityValue.Should().BeGreaterThan(0, "k-anonymity should be computed");
-        assessment.LDiversityValue.Should().BeGreaterThan(0, "l-diversity should be computed");
-        assessment.TClosenessDistance.Should().BeGreaterThanOrEqualTo(0.0, "t-closeness should be non-negative");
-        assessment.ReIdentificationProbability.Should().BeInRange(0.0, 1.0, "probability should be 0-1");
-        assessment.AssessedAtUtc.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
-        assessment.Recommendations.Should().NotBeNull();
+        assessment.KAnonymityValue.ShouldBeGreaterThan(0, "k-anonymity should be computed");
+        assessment.LDiversityValue.ShouldBeGreaterThan(0, "l-diversity should be computed");
+        assessment.TClosenessDistance.ShouldBeGreaterThanOrEqualTo(0.0, "t-closeness should be non-negative");
+        assessment.ReIdentificationProbability.ShouldBeInRange(0.0, 1.0, "probability should be 0-1");
+        assessment.AssessedAtUtc.ShouldBe(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
+        assessment.Recommendations.ShouldNotBeNull();
     }
 
     [Fact]
@@ -168,9 +168,9 @@ public sealed class AnonymizationServiceIntegrationTests
         var result = await assessor.AssessAsync(dataset, quasiIdentifiers);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = (RiskAssessmentResult)result;
-        assessment.KAnonymityValue.Should().BeGreaterThanOrEqualTo(5,
+        assessment.KAnonymityValue.ShouldBeGreaterThanOrEqualTo(5,
             "with 200 records / 3 groups → k should be high");
         // Note: IsAcceptable depends on k, l, AND t thresholds combined.
         // We verify k is high; l-diversity and t-closeness may differ based on data distribution.
@@ -210,14 +210,14 @@ public sealed class AnonymizationServiceIntegrationTests
 
         // Assert
         var errMsg = result.Match(Right: _ => "no error", Left: e => e.Message);
-        result.IsRight.Should().BeTrue($"suppression of int should succeed, but got error: {errMsg}");
+        result.IsRight.ShouldBeTrue($"suppression of int should succeed, but got error: {errMsg}");
         var anonymized = result.Match(Right: v => v, Left: _ => null!);
-        anonymized.Age.Should().Be(0, "suppressed int should be 0 (default)");
-        anonymized.Name.Should().Be("Jane Doe", "non-targeted field unchanged");
-        anonymized.Email.Should().Be("jane@example.com", "non-targeted field unchanged");
+        anonymized.Age.ShouldBe(0, "suppressed int should be 0 (default)");
+        anonymized.Name.ShouldBe("Jane Doe", "non-targeted field unchanged");
+        anonymized.Email.ShouldBe("jane@example.com", "non-targeted field unchanged");
 
         // Original data not mutated
-        data.Age.Should().Be(28);
+        data.Age.ShouldBe(28);
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public sealed class AnonymizationServiceIntegrationTests
         var result = await anonymizer.AnonymizeAsync(data, profile);
 
         // Assert: Suppression of string returns Left (LanguageExt null constraint)
-        result.IsLeft.Should().BeTrue(
+        result.IsLeft.ShouldBeTrue(
             "suppression of reference types returns Left due to LanguageExt's Right(null) constraint");
     }
 
@@ -291,13 +291,13 @@ public sealed class AnonymizationServiceIntegrationTests
 
         // Assert
         var errMsg = result.Match(Right: _ => "no error", Left: e => e.Message);
-        result.IsRight.Should().BeTrue($"AnonymizeFields should succeed, but got: {errMsg}");
+        result.IsRight.ShouldBeTrue($"AnonymizeFields should succeed, but got: {errMsg}");
 
         var detailed = result.Match(Right: v => v, Left: _ => null!);
-        detailed.AnonymizedFieldCount.Should().BeGreaterThan(0,
+        detailed.AnonymizedFieldCount.ShouldBeGreaterThan(0,
             "at least one field should be anonymized");
-        detailed.TechniqueApplied.Should().ContainKey("Name");
-        detailed.TechniqueApplied["Name"].Should().Be(AnonymizationTechnique.DataMasking);
+        detailed.TechniqueApplied.ShouldContainKey("Name");
+        detailed.TechniqueApplied["Name"].ShouldBe(AnonymizationTechnique.DataMasking);
     }
 
     #endregion
@@ -313,15 +313,15 @@ public sealed class AnonymizationServiceIntegrationTests
         var options = new TokenizationOptions { Format = TokenFormat.Uuid };
 
         var tokenResult = await tokenizer.TokenizeAsync("credit-card-4111", options);
-        tokenResult.IsRight.Should().BeTrue();
+        tokenResult.IsRight.ShouldBeTrue();
         var token = (string)tokenResult;
 
         // Act
         var isTokenResult = await tokenizer.IsTokenAsync(token);
 
         // Assert
-        isTokenResult.IsRight.Should().BeTrue();
-        ((bool)isTokenResult).Should().BeTrue("known token should be recognized");
+        isTokenResult.IsRight.ShouldBeTrue();
+        ((bool)isTokenResult).ShouldBeTrue("known token should be recognized");
     }
 
     [Fact]
@@ -335,8 +335,8 @@ public sealed class AnonymizationServiceIntegrationTests
         var isTokenResult = await tokenizer.IsTokenAsync("not-a-real-token");
 
         // Assert
-        isTokenResult.IsRight.Should().BeTrue();
-        ((bool)isTokenResult).Should().BeFalse("unknown value should not be recognized as token");
+        isTokenResult.IsRight.ShouldBeTrue();
+        ((bool)isTokenResult).ShouldBeFalse("unknown value should not be recognized as token");
     }
 
     [Fact]
@@ -353,11 +353,11 @@ public sealed class AnonymizationServiceIntegrationTests
         var result2 = await tokenizer.TokenizeAsync(value, options);
 
         // Assert
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
         var token1 = (string)result1;
         var token2 = (string)result2;
-        token1.Should().Be(token2, "same value should produce the same token (deduplication)");
+        token1.ShouldBe(token2, "same value should produce the same token (deduplication)");
     }
 
     #endregion
@@ -389,7 +389,7 @@ public sealed class AnonymizationServiceIntegrationTests
         // Verify the builder was invoked by checking AddHealthChecks was called.
         var healthCheckRegistrations = services.Where(d =>
             d.ServiceType.FullName?.Contains("HealthCheck", StringComparison.Ordinal) ?? false).ToList();
-        healthCheckRegistrations.Should().NotBeEmpty(
+        healthCheckRegistrations.ShouldNotBeEmpty(
             "health check related services should be registered when AddHealthCheck = true");
     }
 
@@ -417,11 +417,11 @@ public sealed class AnonymizationServiceIntegrationTests
             value, keyId, PseudonymizationAlgorithm.HmacSha256);
 
         // Assert
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
         var hash1 = (string)result1;
         var hash2 = (string)result2;
-        hash1.Should().Be(hash2, "HMAC-SHA256 is deterministic — same input → same output");
+        hash1.ShouldBe(hash2, "HMAC-SHA256 is deterministic — same input → same output");
     }
 
     [Fact]
@@ -444,11 +444,11 @@ public sealed class AnonymizationServiceIntegrationTests
             value, keyId, PseudonymizationAlgorithm.Aes256Gcm);
 
         // Assert
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
         var cipher1 = (string)result1;
         var cipher2 = (string)result2;
-        cipher1.Should().NotBe(cipher2,
+        cipher1.ShouldNotBe(cipher2,
             "AES-256-GCM uses random nonce — same input → different output");
     }
 
@@ -534,7 +534,7 @@ public sealed class AnonymizationServiceIntegrationTests
         await Task.WhenAll(tasks);
 
         // Assert
-        errors.Should().BeEmpty(
+        errors.ShouldBeEmpty(
             $"all concurrent roundtrips should maintain data integrity. Errors: {string.Join("; ", errors.Take(5))}");
     }
 
@@ -553,9 +553,9 @@ public sealed class AnonymizationServiceIntegrationTests
         var result = await keyProvider.GetActiveKeyIdAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue("active key should be available");
+        result.IsRight.ShouldBeTrue("active key should be available");
         var keyId = (string)result;
-        keyId.Should().NotBeNullOrWhiteSpace("key ID should be a non-empty string");
+        keyId.ShouldNotBeNullOrWhiteSpace("key ID should be a non-empty string");
     }
 
     #endregion

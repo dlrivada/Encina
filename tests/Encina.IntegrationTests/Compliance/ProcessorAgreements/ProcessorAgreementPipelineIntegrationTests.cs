@@ -7,7 +7,7 @@ using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.Scheduling;
 using Encina.Compliance.ProcessorAgreements.Services;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -41,9 +41,9 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         services.AddEncinaProcessorAgreements();
 
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IProcessorService));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Scoped);
-        descriptor.ImplementationType.Should().Be(typeof(DefaultProcessorService));
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        descriptor.ImplementationType.ShouldBe(typeof(DefaultProcessorService));
     }
 
     [Fact]
@@ -54,9 +54,9 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         services.AddEncinaProcessorAgreements();
 
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDPAService));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Scoped);
-        descriptor.ImplementationType.Should().Be(typeof(DefaultDPAService));
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        descriptor.ImplementationType.ShouldBe(typeof(DefaultDPAService));
     }
 
     [Fact]
@@ -68,9 +68,9 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IPipelineBehavior<,>));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Transient);
-        descriptor.ImplementationType.Should().Be(typeof(ProcessorValidationPipelineBehavior<,>));
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Transient);
+        descriptor.ImplementationType.ShouldBe(typeof(ProcessorValidationPipelineBehavior<,>));
     }
 
     [Fact]
@@ -82,9 +82,9 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(ICommandHandler<CheckDPAExpirationCommand, Unit>));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Transient);
-        descriptor.ImplementationType.Should().Be(typeof(CheckDPAExpirationHandler));
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Transient);
+        descriptor.ImplementationType.ShouldBe(typeof(CheckDPAExpirationHandler));
     }
 
     [Fact]
@@ -95,8 +95,8 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         services.AddEncinaProcessorAgreements();
 
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(TimeProvider));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         var options = provider.GetService<IOptions<ProcessorAgreementOptions>>();
-        options.Should().NotBeNull();
-        options!.Value.Should().NotBeNull();
+        options.ShouldNotBeNull();
+        options!.Value.ShouldNotBeNull();
     }
 
     #endregion
@@ -126,14 +126,14 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var options = provider.GetRequiredService<IOptions<ProcessorAgreementOptions>>().Value;
 
-        options.EnforcementMode.Should().Be(ProcessorAgreementEnforcementMode.Warn);
-        options.BlockWithoutValidDPA.Should().BeFalse();
-        options.MaxSubProcessorDepth.Should().Be(3);
-        options.EnableExpirationMonitoring.Should().BeFalse();
-        options.ExpirationCheckInterval.Should().Be(TimeSpan.FromHours(1));
-        options.ExpirationWarningDays.Should().Be(30);
-        options.TrackAuditTrail.Should().BeTrue();
-        options.AddHealthCheck.Should().BeFalse();
+        options.EnforcementMode.ShouldBe(ProcessorAgreementEnforcementMode.Warn);
+        options.BlockWithoutValidDPA.ShouldBeFalse();
+        options.MaxSubProcessorDepth.ShouldBe(3);
+        options.EnableExpirationMonitoring.ShouldBeFalse();
+        options.ExpirationCheckInterval.ShouldBe(TimeSpan.FromHours(1));
+        options.ExpirationWarningDays.ShouldBe(30);
+        options.TrackAuditTrail.ShouldBeTrue();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -151,9 +151,9 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var options = provider.GetRequiredService<IOptions<ProcessorAgreementOptions>>().Value;
 
-        options.EnforcementMode.Should().Be(ProcessorAgreementEnforcementMode.Block);
-        options.MaxSubProcessorDepth.Should().Be(5);
-        options.ExpirationWarningDays.Should().Be(60);
+        options.EnforcementMode.ShouldBe(ProcessorAgreementEnforcementMode.Block);
+        options.MaxSubProcessorDepth.ShouldBe(5);
+        options.ExpirationWarningDays.ShouldBe(60);
     }
 
     [Fact]
@@ -169,8 +169,8 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var options = provider.GetRequiredService<IOptions<ProcessorAgreementOptions>>().Value;
 
-        options.EnforcementMode.Should().Be(ProcessorAgreementEnforcementMode.Block);
-        options.BlockWithoutValidDPA.Should().BeTrue();
+        options.EnforcementMode.ShouldBe(ProcessorAgreementEnforcementMode.Block);
+        options.BlockWithoutValidDPA.ShouldBeTrue();
     }
 
     #endregion
@@ -187,7 +187,7 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         // HealthCheckService is only added when AddHealthChecks() is called
         var healthCheckDescriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(HealthCheckService));
-        healthCheckDescriptor.Should().BeNull();
+        healthCheckDescriptor.ShouldBeNull();
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         // which registers HealthCheckService
         var healthCheckDescriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(HealthCheckService));
-        healthCheckDescriptor.Should().NotBeNull();
+        healthCheckDescriptor.ShouldNotBeNull();
     }
 
     #endregion
@@ -222,7 +222,7 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         services.AddEncinaProcessorAgreements();
 
         var descriptor = services.First(d => d.ServiceType == typeof(IDPAService));
-        descriptor.ImplementationType.Should().NotBe(typeof(DefaultDPAService));
+        descriptor.ImplementationType.ShouldNotBe(typeof(DefaultDPAService));
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
         services.AddEncinaProcessorAgreements();
 
         var descriptor = services.First(d => d.ServiceType == typeof(IProcessorService));
-        descriptor.ImplementationType.Should().NotBe(typeof(DefaultProcessorService));
+        descriptor.ImplementationType.ShouldNotBe(typeof(DefaultProcessorService));
     }
 
     #endregion
@@ -266,8 +266,8 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("success");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("success");
         await dpaService.DidNotReceive().HasValidDPAAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -295,8 +295,8 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("success");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("success");
     }
 
     [Fact]
@@ -338,8 +338,8 @@ public sealed class ProcessorAgreementPipelineIntegrationTests
 
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
-        nextCalled.Should().BeFalse();
+        result.IsLeft.ShouldBeTrue();
+        nextCalled.ShouldBeFalse();
     }
 
     #endregion

@@ -1,7 +1,7 @@
 using Encina.Compliance.GDPR;
 using Encina.MongoDB.ProcessingActivity;
 using Encina.TestInfrastructure.Fixtures;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 
 namespace Encina.IntegrationTests.Infrastructure.MongoDB.ProcessingActivity;
@@ -46,7 +46,7 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
 
         var activity = CreateActivity();
         var result = await store.RegisterActivityAsync(activity);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
 
         await store.RegisterActivityAsync(CreateActivity(typeof(string)));
         var result = await store.RegisterActivityAsync(CreateActivity(typeof(string)));
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -68,9 +68,9 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
 
         await store.RegisterActivityAsync(CreateActivity(typeof(int)));
         var result = await store.GetActivityByRequestTypeAsync(typeof(int));
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)result;
-        option.IsSome.Should().BeTrue();
+        option.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -80,9 +80,9 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
         var store = CreateStore();
 
         var result = await store.GetActivityByRequestTypeAsync(typeof(double));
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)result;
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -95,11 +95,11 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
         await store.RegisterActivityAsync(CreateActivity(typeof(short)));
 
         var result = await store.GetAllActivitiesAsync();
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var activities = result.Match(
             Right: r => r,
             Left: _ => (IReadOnlyList<global::Encina.Compliance.GDPR.ProcessingActivity>)[]);
-        activities.Should().HaveCountGreaterThanOrEqualTo(2);
+        activities.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -113,11 +113,11 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
 
         var updated = activity with { Name = "Updated Name", LastUpdatedAtUtc = DateTimeOffset.UtcNow };
         var result = await store.UpdateActivityAsync(updated);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         var retrieved = await store.GetActivityByRequestTypeAsync(typeof(long));
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)retrieved;
-        option.IfSome(a => a.Name.Should().Be("Updated Name"));
+        option.IfSome(a => a.Name.ShouldBe("Updated Name"));
     }
 
     [Fact]
@@ -128,6 +128,6 @@ public sealed class ProcessingActivityRegistryMongoDBTests : IAsyncLifetime
 
         var activity = CreateActivity(typeof(decimal));
         var result = await store.UpdateActivityAsync(activity);
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 }

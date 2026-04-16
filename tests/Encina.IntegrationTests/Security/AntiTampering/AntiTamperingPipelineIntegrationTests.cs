@@ -5,7 +5,7 @@ using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.Health;
 using Encina.Security.AntiTampering.HMAC;
 using Encina.Security.AntiTampering.Nonce;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -39,10 +39,10 @@ public sealed class AntiTamperingPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IRequestSigner>().Should().NotBeNull();
-        provider.GetService<INonceStore>().Should().NotBeNull();
-        provider.GetService<IKeyProvider>().Should().NotBeNull();
-        provider.GetService<IRequestSigningClient>().Should().NotBeNull();
+        provider.GetService<IRequestSigner>().ShouldNotBeNull();
+        provider.GetService<INonceStore>().ShouldNotBeNull();
+        provider.GetService<IKeyProvider>().ShouldNotBeNull();
+        provider.GetService<IRequestSigningClient>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class AntiTamperingPipelineIntegrationTests
 
         // Assert
         var healthCheckService = provider.GetService<HealthCheckService>();
-        healthCheckService.Should().NotBeNull();
+        healthCheckService.ShouldNotBeNull();
     }
 
     #endregion
@@ -96,16 +96,16 @@ public sealed class AntiTamperingPipelineIntegrationTests
         var signResult = await signer.SignAsync(payload.AsMemory(), context);
 
         // Assert - Signed
-        signResult.IsRight.Should().BeTrue();
+        signResult.IsRight.ShouldBeTrue();
         var signature = (string)signResult;
-        signature.Should().NotBeNullOrWhiteSpace();
+        signature.ShouldNotBeNullOrWhiteSpace();
 
         // Act - Verify
         var verifyResult = await signer.VerifyAsync(payload.AsMemory(), signature, context);
 
         // Assert - Verified
-        verifyResult.IsRight.Should().BeTrue();
-        ((bool)verifyResult).Should().BeTrue();
+        verifyResult.IsRight.ShouldBeTrue();
+        ((bool)verifyResult).ShouldBeTrue();
     }
 
     [Theory]
@@ -137,14 +137,14 @@ public sealed class AntiTamperingPipelineIntegrationTests
 
         // Act
         var signResult = await signer.SignAsync(payload.AsMemory(), context);
-        signResult.IsRight.Should().BeTrue();
+        signResult.IsRight.ShouldBeTrue();
 
         var verifyResult = await signer.VerifyAsync(
             payload.AsMemory(), (string)signResult, context);
 
         // Assert
-        verifyResult.IsRight.Should().BeTrue();
-        ((bool)verifyResult).Should().BeTrue();
+        verifyResult.IsRight.ShouldBeTrue();
+        ((bool)verifyResult).ShouldBeTrue();
     }
 
     #endregion
@@ -169,8 +169,8 @@ public sealed class AntiTamperingPipelineIntegrationTests
         var secondAdd = await nonceStore.TryAddAsync(nonce, expiry);
 
         // Assert
-        firstAdd.Should().BeTrue();
-        secondAdd.Should().BeFalse();
+        firstAdd.ShouldBeTrue();
+        secondAdd.ShouldBeFalse();
     }
 
     [Fact]
@@ -194,8 +194,8 @@ public sealed class AntiTamperingPipelineIntegrationTests
         var results = await Task.WhenAll(tasks);
 
         // Assert - exactly one should succeed
-        results.Count(r => r).Should().Be(1);
-        results.Count(r => !r).Should().Be(9);
+        results.Count(r => r).ShouldBe(1);
+        results.Count(r => !r).ShouldBe(9);
     }
 
     #endregion
@@ -227,7 +227,7 @@ public sealed class AntiTamperingPipelineIntegrationTests
 
         // Act - Client signs
         var signResult = await client.SignRequestAsync(request, "client-key");
-        signResult.IsRight.Should().BeTrue();
+        signResult.IsRight.ShouldBeTrue();
 
         var signedRequest = (HttpRequestMessage)signResult;
 
@@ -252,8 +252,8 @@ public sealed class AntiTamperingPipelineIntegrationTests
         var verifyResult = await signer.VerifyAsync(payload.AsMemory(), signature, serverContext);
 
         // Assert
-        verifyResult.IsRight.Should().BeTrue();
-        ((bool)verifyResult).Should().BeTrue();
+        verifyResult.IsRight.ShouldBeTrue();
+        ((bool)verifyResult).ShouldBeTrue();
     }
 
     #endregion
@@ -287,10 +287,10 @@ public sealed class AntiTamperingPipelineIntegrationTests
             });
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("keyProvider");
-        result.Data.Should().ContainKey("requestSigner");
-        result.Data.Should().ContainKey("nonceStore");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("keyProvider");
+        result.Data.ShouldContainKey("requestSigner");
+        result.Data.ShouldContainKey("nonceStore");
     }
 
     #endregion
@@ -314,7 +314,7 @@ public sealed class AntiTamperingPipelineIntegrationTests
 
         // Assert - should be our custom instance (TryAdd doesn't override)
         var resolved = provider.GetRequiredService<IKeyProvider>();
-        resolved.Should().BeSameAs(customKeyProvider);
+        resolved.ShouldBeSameAs(customKeyProvider);
     }
 
     #endregion

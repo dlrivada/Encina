@@ -1,7 +1,7 @@
 using Encina.ADO.SqlServer.ProcessingActivity;
 using Encina.Compliance.GDPR;
 using Encina.TestInfrastructure.Fixtures;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Data.SqlClient;
 
@@ -73,7 +73,7 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
     {
         var activity = CreateActivity();
         var result = await _store.RegisterActivityAsync(activity);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
         await _store.RegisterActivityAsync(activity1);
 
         var result = await _store.RegisterActivityAsync(activity2);
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -97,16 +97,16 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
         var result = await _store.GetActivityByRequestTypeAsync(typeof(int));
         result.Match(Right: _ => { }, Left: err => Assert.Fail($"GetActivityByRequestTypeAsync failed: {err}"));
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)result;
-        option.IsSome.Should().BeTrue();
+        option.IsSome.ShouldBeTrue();
     }
 
     [Fact]
     public async Task GetActivityByRequestTypeAsync_NotRegistered_ShouldReturnNone()
     {
         var result = await _store.GetActivityByRequestTypeAsync(typeof(double));
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)result;
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -116,11 +116,11 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
         await _store.RegisterActivityAsync(CreateActivity(typeof(short)));
 
         var result = await _store.GetAllActivitiesAsync();
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var activities = result.Match(
             Right: r => r,
             Left: _ => (IReadOnlyList<global::Encina.Compliance.GDPR.ProcessingActivity>)[]);
-        activities.Should().HaveCountGreaterThanOrEqualTo(2);
+        activities.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -131,11 +131,11 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
 
         var updated = activity with { Name = "Updated Name", LastUpdatedAtUtc = DateTimeOffset.UtcNow };
         var result = await _store.UpdateActivityAsync(updated);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         var retrieved = await _store.GetActivityByRequestTypeAsync(typeof(long));
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)retrieved;
-        option.IfSome(a => a.Name.Should().Be("Updated Name"));
+        option.IfSome(a => a.Name.ShouldBe("Updated Name"));
     }
 
     [Fact]
@@ -143,6 +143,6 @@ public sealed class ProcessingActivityRegistryADOSqlServerTests : IAsyncLifetime
     {
         var activity = CreateActivity(typeof(decimal));
         var result = await _store.UpdateActivityAsync(activity);
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 }

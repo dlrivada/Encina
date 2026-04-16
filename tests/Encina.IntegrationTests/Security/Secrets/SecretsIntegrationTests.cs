@@ -8,7 +8,7 @@ using Encina.Security.Secrets.Diagnostics;
 using Encina.Security.Secrets.Health;
 using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,8 +50,8 @@ public sealed class SecretsIntegrationTests : IDisposable
         services.AddEncinaSecrets();
         var provider = services.BuildServiceProvider();
 
-        provider.GetService<ISecretReader>().Should().NotBeNull();
-        provider.GetService<IOptions<SecretsOptions>>().Should().NotBeNull();
+        provider.GetService<ISecretReader>().ShouldNotBeNull();
+        provider.GetService<IOptions<SecretsOptions>>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class SecretsIntegrationTests : IDisposable
         var provider = services.BuildServiceProvider();
 
         var reader = provider.GetRequiredService<ISecretReader>();
-        reader.Should().BeOfType<CachingSecretReaderDecorator>();
+        reader.ShouldBeOfType<CachingSecretReaderDecorator>();
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class SecretsIntegrationTests : IDisposable
         var provider = services.BuildServiceProvider();
 
         var metrics = provider.GetService<SecretsMetrics>();
-        metrics.Should().NotBeNull();
+        metrics.ShouldNotBeNull();
     }
 
     [Fact]
@@ -92,8 +92,8 @@ public sealed class SecretsIntegrationTests : IDisposable
 
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IPipelineBehavior<,>));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(SecretInjectionPipelineBehavior<,>));
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(SecretInjectionPipelineBehavior<,>));
     }
 
     #endregion
@@ -122,8 +122,8 @@ public sealed class SecretsIntegrationTests : IDisposable
             })
             .Build();
 
-        config["api-key"].Should().Be("my-api-key-123");
-        config["db-connection"].Should().Be("Server=prod;Database=app");
+        config["api-key"].ShouldBe("my-api-key-123");
+        config["db-connection"].ShouldBe("Server=prod;Database=app");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class SecretsIntegrationTests : IDisposable
             })
             .Build();
 
-        config.GetSection("Database")["ConnectionString"].Should().Be("Server=localhost");
+        config.GetSection("Database")["ConnectionString"].ShouldBe("Server=localhost");
     }
 
     [Fact]
@@ -176,8 +176,8 @@ public sealed class SecretsIntegrationTests : IDisposable
         var dbSettings = new DatabaseSettings();
         config.GetSection("Database").Bind(dbSettings);
 
-        dbSettings.Host.Should().Be("prod-server");
-        dbSettings.Port.Should().Be("5432");
+        dbSettings.Host.ShouldBe("prod-server");
+        dbSettings.Port.ShouldBe("5432");
     }
 
     #endregion
@@ -203,8 +203,8 @@ public sealed class SecretsIntegrationTests : IDisposable
 
         var result = await failoverReader.GetSecretAsync("my-secret");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("fallback-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("fallback-value"));
     }
 
     [Fact]
@@ -227,8 +227,8 @@ public sealed class SecretsIntegrationTests : IDisposable
 
         var result = await failoverReader.GetSecretAsync("my-secret");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.FailoverExhaustedCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.FailoverExhaustedCode));
     }
 
     #endregion
@@ -248,8 +248,8 @@ public sealed class SecretsIntegrationTests : IDisposable
 
         var report = await healthCheckService.CheckHealthAsync();
 
-        report.Status.Should().Be(HealthStatus.Healthy);
-        report.Entries.Should().ContainKey(SecretsHealthCheck.DefaultName);
+        report.Status.ShouldBe(HealthStatus.Healthy);
+        report.Entries.ShouldContainKey(SecretsHealthCheck.DefaultName);
     }
 
     [Fact]
@@ -278,9 +278,9 @@ public sealed class SecretsIntegrationTests : IDisposable
 
         var result = await healthCheck.CheckHealthAsync(context);
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("probeResult");
-        result.Data["probeResult"].Should().Be("success");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("probeResult");
+        result.Data["probeResult"].ShouldBe("success");
     }
 
     #endregion
@@ -310,9 +310,9 @@ public sealed class SecretsIntegrationTests : IDisposable
         var request = new TestInjectionRequest();
         var result = await orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(count => count.Should().Be(1));
-        request.DatabasePassword.Should().Be("super-secret");
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(1));
+        request.DatabasePassword.ShouldBe("super-secret");
     }
 
     [Fact]
@@ -339,8 +339,8 @@ public sealed class SecretsIntegrationTests : IDisposable
         var request = new TestOptionalInjectionRequest();
         var result = await orchestrator.InjectAsync(request, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        request.OptionalSecret.Should().BeNull(); // Not injected
+        result.IsRight.ShouldBeTrue();
+        request.OptionalSecret.ShouldBeNull(); // Not injected
     }
 
     #endregion
@@ -392,7 +392,7 @@ public sealed class SecretsIntegrationTests : IDisposable
 
         // First call - cache miss, goes to inner via GetOrSetAsync
         var result1 = await reader.GetSecretAsync("cached-secret");
-        result1.IfRight(v => v.Should().Be("value-1"));
+        result1.IfRight(v => v.ShouldBe("value-1"));
 
         // Verify GetOrSetAsync was used for stampede protection
         await cache.Received(1).GetOrSetAsync(
@@ -405,7 +405,7 @@ public sealed class SecretsIntegrationTests : IDisposable
         cache.GetAsync<string>(Arg.Is<string>(k => k.Contains(":v:cached-secret")), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<string?>("value-1"));
         var result2 = await reader.GetSecretAsync("cached-secret");
-        result2.IfRight(v => v.Should().Be("value-1"));
+        result2.IfRight(v => v.ShouldBe("value-1"));
 
         // Invalidate cache
         await reader.InvalidateAsync("cached-secret");
@@ -421,7 +421,7 @@ public sealed class SecretsIntegrationTests : IDisposable
 
         // Third call - cache miss again (new value from inner)
         var result3 = await reader.GetSecretAsync("cached-secret");
-        result3.IfRight(v => v.Should().Be("value-2"));
+        result3.IfRight(v => v.ShouldBe("value-2"));
     }
 
     #endregion
@@ -444,8 +444,8 @@ public sealed class SecretsIntegrationTests : IDisposable
             var reader = provider.GetRequiredService<ISecretReader>();
             var result = await reader.GetSecretAsync(envVarName);
 
-            result.IsRight.Should().BeTrue();
-            result.IfRight(v => v.Should().Be("integration-test-value"));
+            result.IsRight.ShouldBeTrue();
+            result.IfRight(v => v.ShouldBe("integration-test-value"));
         }
         finally
         {
@@ -479,8 +479,8 @@ public sealed class SecretsIntegrationTests : IDisposable
         var reader = provider.GetRequiredService<ISecretReader>();
 
         var result = await reader.GetSecretAsync("api-key");
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("config-api-key"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("config-api-key"));
     }
 
     #endregion
