@@ -26,7 +26,8 @@ public class RetentionOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
     [Fact]
@@ -37,7 +38,8 @@ public class RetentionOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforcementInterval");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementInterval");
     }
 
     [Fact]
@@ -48,7 +50,8 @@ public class RetentionOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforcementInterval");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementInterval");
     }
 
     [Fact]
@@ -59,7 +62,8 @@ public class RetentionOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("AlertBeforeExpirationDays");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("AlertBeforeExpirationDays");
     }
 
     [Fact]
@@ -70,7 +74,8 @@ public class RetentionOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("DefaultRetentionPeriod");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultRetentionPeriod");
     }
 
     [Fact]

@@ -44,7 +44,8 @@ public class GDPROptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("ControllerName");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("ControllerName");
     }
 
     [Fact]
@@ -62,7 +63,8 @@ public class GDPROptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("ControllerEmail");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("ControllerEmail");
     }
 
     [Fact]
@@ -96,7 +98,8 @@ public class GDPROptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("DataProtectionOfficer.Name");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DataProtectionOfficer.Name");
     }
 
     [Fact]
@@ -114,7 +117,8 @@ public class GDPROptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("DataProtectionOfficer.Email");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DataProtectionOfficer.Email");
     }
 
     [Fact]

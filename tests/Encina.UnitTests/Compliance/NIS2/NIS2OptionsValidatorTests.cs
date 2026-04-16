@@ -56,7 +56,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
     #endregion
@@ -80,7 +81,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EntityType");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EntityType");
     }
 
     #endregion
@@ -104,7 +106,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("Sector");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Sector");
     }
 
     #endregion
@@ -130,7 +133,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("IncidentNotificationHours");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("IncidentNotificationHours");
     }
 
     #endregion
@@ -154,7 +158,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("CompetentAuthority");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("CompetentAuthority");
     }
 
     #endregion
@@ -204,7 +209,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforceEncryption");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforceEncryption");
     }
 
     [Fact]
@@ -251,7 +257,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("ExternalCallTimeout");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("ExternalCallTimeout");
     }
 
     #endregion
@@ -276,7 +283,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("test-supplier");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("test-supplier");
     }
 
     #endregion
@@ -305,7 +313,8 @@ public class NIS2OptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("RiskLevel");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("RiskLevel");
     }
 
     #endregion

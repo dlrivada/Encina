@@ -26,7 +26,8 @@ public class DataSubjectRightsOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("DefaultDeadlineDays");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultDeadlineDays");
     }
 
     [Fact]
@@ -37,7 +38,8 @@ public class DataSubjectRightsOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("DefaultDeadlineDays");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultDeadlineDays");
     }
 
     [Fact]
@@ -48,7 +50,8 @@ public class DataSubjectRightsOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("MaxExtensionDays");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MaxExtensionDays");
     }
 
     [Fact]
@@ -59,8 +62,9 @@ public class DataSubjectRightsOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("MaxExtensionDays");
-        result.FailureMessage!.ShouldContain("60");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MaxExtensionDays");
+        result.FailureMessage.ShouldContain("60");
     }
 
     [Fact]

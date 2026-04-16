@@ -57,8 +57,9 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforcementMode");
-        result.FailureMessage!.ShouldContain("99");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldContain("99");
     }
 
     [Fact]
@@ -75,8 +76,9 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("PrivacyLevel");
-        result.FailureMessage!.ShouldContain("42");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("PrivacyLevel");
+        result.FailureMessage.ShouldContain("42");
     }
 
     [Fact]
@@ -93,8 +95,9 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("MinimizationScoreThreshold");
-        result.FailureMessage!.ShouldContain("0.0 and 1.0");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MinimizationScoreThreshold");
+        result.FailureMessage.ShouldContain("0.0 and 1.0");
     }
 
     [Fact]
@@ -111,7 +114,8 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("MinimizationScoreThreshold");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MinimizationScoreThreshold");
     }
 
     [Theory]
@@ -148,8 +152,9 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("Order Processing");
-        result.FailureMessage!.ShouldContain("Description");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Order Processing");
+        result.FailureMessage.ShouldContain("Description");
     }
 
     [Fact]
@@ -167,8 +172,9 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("Order Processing");
-        result.FailureMessage!.ShouldContain("LegalBasis");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Order Processing");
+        result.FailureMessage.ShouldContain("LegalBasis");
     }
 
     [Fact]
@@ -183,8 +189,9 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("Description");
-        result.FailureMessage!.ShouldContain("LegalBasis");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Description");
+        result.FailureMessage.ShouldContain("LegalBasis");
     }
 
     [Fact]
@@ -222,9 +229,10 @@ public class PrivacyByDesignOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage!.ShouldContain("EnforcementMode");
-        result.FailureMessage!.ShouldContain("PrivacyLevel");
-        result.FailureMessage!.ShouldContain("MinimizationScoreThreshold");
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldContain("PrivacyLevel");
+        result.FailureMessage.ShouldContain("MinimizationScoreThreshold");
     }
 
     [Fact]
