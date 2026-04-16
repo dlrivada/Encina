@@ -39,9 +39,8 @@ public sealed class QuartzNotificationJob<TNotification> : IJob
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var notificationObj = context.JobDetail.JobDataMap[QuartzConstants.NotificationKey];
-
-        if (notificationObj is not TNotification notification)
+        if (!context.JobDetail.JobDataMap.TryGetValue(QuartzConstants.NotificationKey, out var notificationObj) ||
+            notificationObj is not TNotification notification)
         {
             Log.NotificationNotFoundInJobDataMap(_logger, context.JobDetail.Key);
 
