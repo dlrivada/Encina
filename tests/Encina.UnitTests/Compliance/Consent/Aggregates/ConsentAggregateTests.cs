@@ -55,7 +55,7 @@ public class ConsentAggregateTests
 
         // Assert
         aggregate.UncommittedEvents.ShouldHaveSingleItem()
-            .Which.ShouldBeOfType<ConsentGranted>();
+            .ShouldBeOfType<ConsentGranted>();
         aggregate.Version.ShouldBe(1);
     }
 

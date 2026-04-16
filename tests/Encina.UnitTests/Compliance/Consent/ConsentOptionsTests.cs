@@ -201,7 +201,7 @@ public class ConsentOptionsTests
     [Fact]
     public void ConsentEnforcementMode_ShouldHaveThreeValues()
     {
-        Enum.GetValues<ConsentEnforcementMode>().Count.ShouldBe(3);
+        Enum.GetValues<ConsentEnforcementMode>().Length.ShouldBe(3);
     }
 
     [Theory]

@@ -68,7 +68,7 @@ public sealed class ABACHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("policy sets");
+        result.Description!.ShouldContain("policy sets");
     }
 
     #endregion
@@ -104,7 +104,7 @@ public sealed class ABACHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("standalone policies");
+        result.Description!.ShouldContain("standalone policies");
     }
 
     #endregion
@@ -128,7 +128,7 @@ public sealed class ABACHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("No policies or policy sets loaded");
+        result.Description!.ShouldContain("No policies or policy sets loaded");
     }
 
     #endregion
@@ -173,7 +173,7 @@ public sealed class ABACHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("Failed to query");
+        result.Description!.ShouldContain("Failed to query");
         result.Exception.ShouldBeOfType<InvalidOperationException>();
     }
 
@@ -239,7 +239,7 @@ public sealed class ABACHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("Persistent policy store connectivity check failed");
+        result.Description!.ShouldContain("Persistent policy store connectivity check failed");
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public sealed class ABACHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("Persistent policy store connectivity check failed");
+        result.Description!.ShouldContain("Persistent policy store connectivity check failed");
     }
 
     #endregion

@@ -12,7 +12,7 @@ public class ConsentStatusTests
     public void ConsentStatus_ShouldHaveFourValues()
     {
         // Assert
-        Enum.GetValues<ConsentStatus>().Count.ShouldBe(4);
+        Enum.GetValues<ConsentStatus>().Length.ShouldBe(4);
     }
 
     [Fact]

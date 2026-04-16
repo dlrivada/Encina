@@ -83,7 +83,8 @@ public class AuditEntryTests
         var entry = CreateEntry();
 
         // Assert
-        entry.Metadata.ShouldNotBeNull().And.BeEmpty();
+        entry.Metadata.ShouldNotBeNull();
+        entry.Metadata.ShouldBeEmpty();
     }
 
     [Theory]

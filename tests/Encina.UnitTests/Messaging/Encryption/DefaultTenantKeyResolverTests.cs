@@ -73,8 +73,7 @@ public class DefaultTenantKeyResolverTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        Action act = () => new DefaultTenantKeyResolver(null!);
-
-        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
+        Should.Throw<ArgumentNullException>(() => new DefaultTenantKeyResolver(null!))
+            .ParamName.ShouldBe("options");
     }
 }

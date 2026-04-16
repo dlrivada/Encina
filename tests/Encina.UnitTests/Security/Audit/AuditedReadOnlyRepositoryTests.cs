@@ -154,7 +154,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         entry.EntityCount.ShouldBe(1);
         entry.EntityId.ShouldBe(id.ToString());
         entry.EntityType.ShouldBe(nameof(ReadOnlyAuditedTestEntity));
-        entry.Metadata.ShouldContainKey("method").WhoseValue.ShouldBe("GetById");
+        entry.Metadata.ShouldContainKey("method");
+        entry.Metadata["method"].ShouldBe("GetById");
     }
 
     [Fact]
@@ -497,9 +498,8 @@ public sealed class AuditedReadOnlyRepositoryTests
 
         var sut = h.Create();
 
-        var act = async () => await sut.GetAllAsync();
-        var result = await Should.NotThrowAsync(act);
-        result.Which.Count.ShouldBe(1);
+        var items = await sut.GetAllAsync();
+        items.Count.ShouldBe(1);
     }
 
     // ── Purpose handling ────────────────────────────────────────────────

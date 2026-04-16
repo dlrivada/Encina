@@ -17,7 +17,7 @@ public class RequireConsentAttributeTests
         var attr = new RequireConsentAttribute(ConsentPurposes.Marketing);
 
         // Assert
-        attr.Purposes.Count.ShouldBe(1);
+        attr.Purposes.Length.ShouldBe(1);
         attr.Purposes.ShouldContain(ConsentPurposes.Marketing);
     }
 
@@ -31,7 +31,7 @@ public class RequireConsentAttributeTests
             ConsentPurposes.Personalization);
 
         // Assert
-        attr.Purposes.Count.ShouldBe(3);
+        attr.Purposes.Length.ShouldBe(3);
         attr.Purposes.ShouldContain(ConsentPurposes.Marketing);
         attr.Purposes.ShouldContain(ConsentPurposes.Analytics);
         attr.Purposes.ShouldContain(ConsentPurposes.Personalization);

@@ -196,7 +196,7 @@ public class InMemoryProcessingActivityRegistryTests
     public void AutoRegisterFromAssemblies_NullAssemblies_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => _sut.AutoRegisterFromAssemblies(null!);
+        Action act = () => { _sut.AutoRegisterFromAssemblies(null!); };
 
         // Assert
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("assemblies");

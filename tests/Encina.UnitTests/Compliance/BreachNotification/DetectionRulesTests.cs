@@ -277,7 +277,7 @@ public class DetectionRulesTests
             var breach = ExtractBreach(result);
             breach.ShouldNotBeNull();
             breach!.Description.ShouldContain("my-test-source",
-                $"Rule '{rule.Name}' should include source in description");
+                customMessage: $"Rule '{rule.Name}' should include source in description");
         }
     }
 

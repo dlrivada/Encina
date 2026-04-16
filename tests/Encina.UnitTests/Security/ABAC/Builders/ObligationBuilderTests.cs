@@ -111,7 +111,7 @@ public sealed class ObligationBuilderTests
             .Build();
 
         obligation.AttributeAssignments.ShouldHaveSingleItem()
-            .Which.AttributeId.ShouldBe("reason");
+            .AttributeId.ShouldBe("reason");
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class ObligationBuilderTests
             .Build();
 
         obligation.AttributeAssignments.ShouldHaveSingleItem()
-            .Which.Category.ShouldBe(AttributeCategory.Subject);
+            .Category.ShouldBe(AttributeCategory.Subject);
     }
 
     #endregion

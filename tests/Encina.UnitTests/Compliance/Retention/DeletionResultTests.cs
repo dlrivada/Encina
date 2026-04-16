@@ -153,7 +153,7 @@ public class DeletionResultTests
     [Fact]
     public void DeletionOutcome_ShouldDefineExactlyFiveValues()
     {
-        Enum.GetValues<DeletionOutcome>().Count.ShouldBe(5);
+        Enum.GetValues<DeletionOutcome>().Length.ShouldBe(5);
     }
 
     #endregion
@@ -187,7 +187,7 @@ public class DeletionResultTests
     [Fact]
     public void RetentionStatus_ShouldDefineExactlyFourValues()
     {
-        Enum.GetValues<RetentionStatus>().Count.ShouldBe(4);
+        Enum.GetValues<RetentionStatus>().Length.ShouldBe(4);
     }
 
     #endregion

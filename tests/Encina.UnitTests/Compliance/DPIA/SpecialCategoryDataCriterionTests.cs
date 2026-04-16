@@ -117,7 +117,7 @@ public class SpecialCategoryDataCriterionTests
 
         result.ShouldNotBeNull();
         result!.Description.ShouldContain("health");
-        result.Description.ShouldContain("biometric");
+        result.Description!.ShouldContain("biometric");
     }
 
     #endregion

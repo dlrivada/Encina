@@ -75,7 +75,7 @@ public class MessageEncryptionHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IMessageEncryptionProvider");
+        result.Description!.ShouldContain("IMessageEncryptionProvider");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class MessageEncryptionHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("encrypt phase");
+        result.Description!.ShouldContain("encrypt phase");
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class MessageEncryptionHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("decrypt phase");
+        result.Description!.ShouldContain("decrypt phase");
     }
 
     [Fact]

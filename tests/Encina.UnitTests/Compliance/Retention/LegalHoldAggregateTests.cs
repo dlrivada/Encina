@@ -59,7 +59,7 @@ public class LegalHoldAggregateTests
         var hold = CreateActiveHold();
 
         // Assert
-        var evt = hold.UncommittedEvents[0].ShouldBeOfType<LegalHoldPlaced>().Subject;
+        var evt = hold.UncommittedEvents[0].ShouldBeOfType<LegalHoldPlaced>();
         evt.HoldId.ShouldBe(hold.Id);
     }
 

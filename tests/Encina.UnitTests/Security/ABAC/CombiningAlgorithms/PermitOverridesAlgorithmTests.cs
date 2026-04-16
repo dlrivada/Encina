@@ -113,7 +113,7 @@ public sealed class PermitOverridesAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
         combined.Effect.ShouldBe(Effect.Permit);
-        combined.Obligations.ShouldHaveSingleItem().Which.Id.ShouldBe("audit");
+        combined.Obligations.ShouldHaveSingleItem().Id.ShouldBe("audit");
     }
 
     #region Helpers

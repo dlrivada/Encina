@@ -200,7 +200,7 @@ public sealed class BagFunctionsTests
         result.ShouldBeOfType<AttributeBag>();
         var bag = (AttributeBag)result!;
         bag.Count.ShouldBe(3);
-        bag.Values.Select(v => v.DataType).ShouldAllBe(XACMLDataTypes.Integer);
+        bag.Values.Select(v => v.DataType).ShouldAllBe(dt => dt == XACMLDataTypes.Integer);
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public sealed class BagFunctionsTests
 
         var bag = (AttributeBag)result!;
         bag.Count.ShouldBe(2);
-        bag.Values.Select(v => v.DataType).ShouldAllBe(XACMLDataTypes.Boolean);
+        bag.Values.Select(v => v.DataType).ShouldAllBe(dt => dt == XACMLDataTypes.Boolean);
     }
 
     #endregion
@@ -258,7 +258,7 @@ public sealed class BagFunctionsTests
         result.ShouldBeOfType<AttributeBag>();
         var bag = (AttributeBag)result!;
         bag.Count.ShouldBe(2);
-        bag.Values.Select(v => v.DataType).ShouldAllBe(XACMLDataTypes.AnyURI);
+        bag.Values.Select(v => v.DataType).ShouldAllBe(dt => dt == XACMLDataTypes.AnyURI);
     }
 
     [Fact]

@@ -792,7 +792,7 @@ public sealed class TargetEvaluatorTests
     [Fact]
     public void EvaluateTarget_NullContext_Throws()
     {
-        var act = () => _sut.EvaluateTarget(null, null!);
+        Action act = () => { _sut.EvaluateTarget(null, null!); };
 
         Should.Throw<ArgumentNullException>(act);
     }

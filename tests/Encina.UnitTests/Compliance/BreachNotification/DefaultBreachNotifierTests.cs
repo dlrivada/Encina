@@ -102,7 +102,7 @@ public class DefaultBreachNotifierTests
         // Assert
         result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.Recipient.ShouldContain("supervisory-authority");
+        notification.Recipient!.ShouldContain("supervisory-authority");
     }
 
     #endregion
@@ -157,7 +157,7 @@ public class DefaultBreachNotifierTests
         // Assert
         result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.Recipient.ShouldContain("3 subjects");
+        notification.Recipient!.ShouldContain("3 subjects");
     }
 
     [Fact]

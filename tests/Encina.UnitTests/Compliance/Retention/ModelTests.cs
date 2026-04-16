@@ -63,7 +63,7 @@ public sealed class ModelTests
     [Fact]
     public void DeletionOutcome_AllValuesDefined()
     {
-        Enum.GetValues<DeletionOutcome>().Count.ShouldBe(5);
+        Enum.GetValues<DeletionOutcome>().Length.ShouldBe(5);
     }
 
     #endregion
@@ -134,7 +134,7 @@ public sealed class ModelTests
     [Fact]
     public void RetentionPolicyType_AllValuesDefined()
     {
-        Enum.GetValues<RetentionPolicyType>().Count.ShouldBe(3);
+        Enum.GetValues<RetentionPolicyType>().Length.ShouldBe(3);
     }
 
     #endregion
@@ -154,7 +154,7 @@ public sealed class ModelTests
     [Fact]
     public void RetentionStatus_AllValuesDefined()
     {
-        Enum.GetValues<RetentionStatus>().Count.ShouldBe(4);
+        Enum.GetValues<RetentionStatus>().Length.ShouldBe(4);
     }
 
     #endregion
@@ -173,7 +173,7 @@ public sealed class ModelTests
     [Fact]
     public void RetentionEnforcementMode_AllValuesDefined()
     {
-        Enum.GetValues<RetentionEnforcementMode>().Count.ShouldBe(3);
+        Enum.GetValues<RetentionEnforcementMode>().Length.ShouldBe(3);
     }
 
     #endregion

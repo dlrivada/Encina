@@ -37,7 +37,7 @@ public sealed class PIIHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("healthy");
+        result.Description!.ShouldContain("healthy");
         result.Data.ShouldContainKey("masker");
         result.Data.ShouldContainKey("strategies_resolved");
         result.Data.ShouldContainKey("strategies_total");
@@ -61,7 +61,7 @@ public sealed class PIIHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("IPIIMasker");
+        result.Description!.ShouldContain("IPIIMasker");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class PIIHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("No masking strategies");
+        result.Description!.ShouldContain("No masking strategies");
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class PIIHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("could not be resolved");
+        result.Description!.ShouldContain("could not be resolved");
         result.Data.ShouldContainKey("missing_strategies");
     }
 
@@ -163,7 +163,7 @@ public sealed class PIIHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("probe");
+        result.Description!.ShouldContain("probe");
     }
 
     [Fact]

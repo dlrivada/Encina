@@ -25,7 +25,7 @@ public sealed class SanitizationHealthCheckTests
             });
 
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("healthy");
+        result.Description!.ShouldContain("healthy");
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class SanitizationHealthCheckTests
             });
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("ISanitizer");
+        result.Description!.ShouldContain("ISanitizer");
     }
 
     [Fact]

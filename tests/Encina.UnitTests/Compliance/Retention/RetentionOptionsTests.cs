@@ -233,7 +233,7 @@ public class RetentionOptionsTests
 
         // Assert
         options.AssembliesToScan.ShouldHaveSingleItem()
-            .Which.ShouldBeSameAs(assembly);
+            .ShouldBeSameAs(assembly);
     }
 
     #endregion

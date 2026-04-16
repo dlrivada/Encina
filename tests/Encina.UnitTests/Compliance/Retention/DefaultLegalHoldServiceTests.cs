@@ -191,7 +191,7 @@ public sealed class DefaultLegalHoldServiceTests
             appliedByUserId: "legal-counsel-1");
 
         result.IsRight.ShouldBeTrue();
-        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
         await _repository.Received(1).CreateAsync(
             Arg.Any<LegalHoldAggregate>(),
             Arg.Any<CancellationToken>());

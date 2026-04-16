@@ -202,7 +202,7 @@ public sealed class DenyUnlessPermitAlgorithmTests
 
         combined.Effect.ShouldBe(Effect.Permit);
         combined.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("audit");
+            .Id.ShouldBe("audit");
     }
 
     #endregion

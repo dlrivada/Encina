@@ -157,7 +157,8 @@ public sealed class AuditedRepositoryTests
         entry.EntityId.ShouldBe(id.ToString());
         entry.EntityType.ShouldBe(nameof(AuditedTestEntity));
         entry.AccessMethod.ShouldBe(ReadAccessMethod.Repository);
-        entry.Metadata.ShouldContainKey("method").WhoseValue.ShouldBe("GetById");
+        entry.Metadata.ShouldContainKey("method");
+        entry.Metadata["method"].ShouldBe("GetById");
     }
 
     [Fact]
@@ -609,10 +610,8 @@ public sealed class AuditedRepositoryTests
 
         var sut = harness.CreateRepository();
 
-        var act = async () => await sut.GetAllAsync();
-
-        var result = await Should.NotThrowAsync(act);
-        result.Which.Count.ShouldBe(1);
+        var items = await sut.GetAllAsync();
+        items.Count.ShouldBe(1);
     }
 
     // ── RequirePurpose branch ───────────────────────────────────────────

@@ -48,6 +48,6 @@ public class NoCrossBorderTransferAttributeTests
 
         // Assert
         attributeUsage.ShouldNotBeNull();
-        attributeUsage!.ValidOn.ShouldHaveFlag(AttributeTargets.Class);
+        (attributeUsage!.ValidOn & AttributeTargets.Class).ShouldBe(AttributeTargets.Class);
     }
 }

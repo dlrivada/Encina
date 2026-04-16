@@ -67,7 +67,7 @@ public class DPIAHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("fully configured");
+        result.Description!.ShouldContain("fully configured");
     }
 
     #endregion
@@ -86,7 +86,7 @@ public class DPIAHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("DPIAOptions are not configured");
+        result.Description!.ShouldContain("DPIAOptions are not configured");
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class DPIAHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IDPIAService");
+        result.Description!.ShouldContain("IDPIAService");
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class DPIAHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IDPIAAssessmentEngine");
+        result.Description!.ShouldContain("IDPIAAssessmentEngine");
     }
 
     #endregion
@@ -153,7 +153,7 @@ public class DPIAHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("expired");
+        result.Description!.ShouldContain("expired");
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class DPIAHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("Draft");
+        result.Description!.ShouldContain("Draft");
     }
 
     #endregion

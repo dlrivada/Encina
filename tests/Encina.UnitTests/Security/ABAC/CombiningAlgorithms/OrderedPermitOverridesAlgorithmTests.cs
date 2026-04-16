@@ -105,7 +105,7 @@ public sealed class OrderedPermitOverridesAlgorithmTests
 
         combined.Effect.ShouldBe(Effect.Permit);
         combined.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("audit");
+            .Id.ShouldBe("audit");
     }
 
     [Fact]

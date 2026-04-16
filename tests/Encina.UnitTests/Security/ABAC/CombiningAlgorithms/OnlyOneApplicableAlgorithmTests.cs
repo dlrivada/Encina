@@ -149,7 +149,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
 
         combined.Effect.ShouldBe(Effect.Permit);
         combined.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("audit");
+            .Id.ShouldBe("audit");
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class OnlyOneApplicableAlgorithmTests
         var combined = _sut.CombinePolicyResults(results);
 
         combined.Advice.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("notify");
+            .Id.ShouldBe("notify");
     }
 
     #endregion

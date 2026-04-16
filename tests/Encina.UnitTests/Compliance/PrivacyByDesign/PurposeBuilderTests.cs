@@ -188,6 +188,6 @@ public class PurposeBuilderTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("name");
+            .ParamName.ShouldBe("name");
     }
 }

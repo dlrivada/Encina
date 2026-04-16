@@ -52,7 +52,7 @@ public class ApprovedTransferAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("sourceCountryCode");
+            .ParamName.ShouldBe("sourceCountryCode");
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class ApprovedTransferAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("basis");
+            .ParamName.ShouldBe("basis");
     }
 
     [Fact]

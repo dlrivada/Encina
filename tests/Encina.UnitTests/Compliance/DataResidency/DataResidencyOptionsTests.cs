@@ -78,6 +78,6 @@ public class DataResidencyOptionsTests
 
         // Assert
         options.ConfiguredPolicies.ShouldHaveSingleItem()
-            .Which.DataCategory.ShouldBe("healthcare-data");
+            .DataCategory.ShouldBe("healthcare-data");
     }
 }

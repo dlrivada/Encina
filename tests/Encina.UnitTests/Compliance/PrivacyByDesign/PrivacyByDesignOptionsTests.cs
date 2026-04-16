@@ -238,7 +238,7 @@ public class PrivacyByDesignOptionsTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("name");
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public class PrivacyByDesignOptionsTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("configure");
+            .ParamName.ShouldBe("configure");
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class PrivacyByDesignOptionsTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("name");
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public class PrivacyByDesignOptionsTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("moduleId");
+            .ParamName.ShouldBe("moduleId");
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public class PrivacyByDesignOptionsTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("configure");
+            .ParamName.ShouldBe("configure");
     }
 
     #endregion

@@ -68,7 +68,7 @@ public sealed class EncryptionAttributeTests
         var type = typeof(TestEncryptedResponseClass);
         var attrs = type.GetCustomAttributes(typeof(EncryptedResponseAttribute), true);
 
-        attrs.Count.ShouldBe(1);
+        attrs.Length.ShouldBe(1);
     }
 
     #endregion
@@ -89,7 +89,7 @@ public sealed class EncryptionAttributeTests
         var type = typeof(TestDecryptOnReceiveClass);
         var attrs = type.GetCustomAttributes(typeof(DecryptOnReceiveAttribute), true);
 
-        attrs.Count.ShouldBe(1);
+        attrs.Length.ShouldBe(1);
     }
 
     #endregion

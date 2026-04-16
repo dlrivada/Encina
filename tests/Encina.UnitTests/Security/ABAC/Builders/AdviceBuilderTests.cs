@@ -111,7 +111,7 @@ public sealed class AdviceBuilderTests
             .Build();
 
         advice.AttributeAssignments.ShouldHaveSingleItem()
-            .Which.AttributeId.ShouldBe("message");
+            .AttributeId.ShouldBe("message");
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public sealed class AdviceBuilderTests
             .Build();
 
         advice.AttributeAssignments.ShouldHaveSingleItem()
-            .Which.Category.ShouldBe(AttributeCategory.Environment);
+            .Category.ShouldBe(AttributeCategory.Environment);
     }
 
     #endregion

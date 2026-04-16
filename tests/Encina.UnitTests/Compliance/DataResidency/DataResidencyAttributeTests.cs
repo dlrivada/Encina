@@ -13,7 +13,7 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE", "FR", "IT");
 
         // Assert
-        attr.AllowedRegionCodes.Count.ShouldBe(3);
+        attr.AllowedRegionCodes.Length.ShouldBe(3);
         attr.AllowedRegionCodes.ShouldContain("DE");
         attr.AllowedRegionCodes.ShouldContain("FR");
         attr.AllowedRegionCodes.ShouldContain("IT");
@@ -26,7 +26,7 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE");
 
         // Assert
-        attr.AllowedRegionCodes.ShouldHaveSingleItem().Which.ShouldBe("DE");
+        attr.AllowedRegionCodes.ShouldHaveSingleItem().ShouldBe("DE");
     }
 
     [Fact]
@@ -80,6 +80,6 @@ public class DataResidencyAttributeTests
 
         // Assert
         attributeUsage.ShouldNotBeNull();
-        attributeUsage!.ValidOn.ShouldHaveFlag(AttributeTargets.Class);
+        (attributeUsage!.ValidOn & AttributeTargets.Class).ShouldBe(AttributeTargets.Class);
     }
 }

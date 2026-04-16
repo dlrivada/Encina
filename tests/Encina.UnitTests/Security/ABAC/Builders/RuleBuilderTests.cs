@@ -203,7 +203,7 @@ public sealed class RuleBuilderTests
             .Build();
 
         rule.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("log-access");
+            .Id.ShouldBe("log-access");
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class RuleBuilderTests
             .Build();
 
         rule.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("audit");
+            .Id.ShouldBe("audit");
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public sealed class RuleBuilderTests
             .Build();
 
         rule.Advice.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("notify");
+            .Id.ShouldBe("notify");
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public sealed class RuleBuilderTests
             .Build();
 
         rule.Advice.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("suggest");
+            .Id.ShouldBe("suggest");
     }
 
     [Fact]

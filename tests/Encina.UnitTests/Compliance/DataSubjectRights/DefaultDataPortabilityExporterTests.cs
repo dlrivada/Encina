@@ -1,5 +1,5 @@
 using Encina.Compliance.DataSubjectRights;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
@@ -37,29 +37,29 @@ public class DefaultDataPortabilityExporterTests
     [Fact]
     public void Constructor_NullLocator_ShouldThrow()
     {
-        var act = () => new DefaultDataPortabilityExporter(null!, [_jsonWriter], _timeProvider, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("locator");
+        Should.Throw<ArgumentNullException>(() => new DefaultDataPortabilityExporter(null!, [_jsonWriter], _timeProvider, _logger))
+            .ParamName.ShouldBe("locator");
     }
 
     [Fact]
     public void Constructor_NullWriters_ShouldThrow()
     {
-        var act = () => new DefaultDataPortabilityExporter(_locator, null!, _timeProvider, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("writers");
+        Should.Throw<ArgumentNullException>(() => new DefaultDataPortabilityExporter(_locator, null!, _timeProvider, _logger))
+            .ParamName.ShouldBe("writers");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_ShouldThrow()
     {
-        var act = () => new DefaultDataPortabilityExporter(_locator, [_jsonWriter], null!, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(() => new DefaultDataPortabilityExporter(_locator, [_jsonWriter], null!, _logger))
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
     public void Constructor_NullLogger_ShouldThrow()
     {
-        var act = () => new DefaultDataPortabilityExporter(_locator, [_jsonWriter], _timeProvider, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(() => new DefaultDataPortabilityExporter(_locator, [_jsonWriter], _timeProvider, null!))
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -73,10 +73,10 @@ public class DefaultDataPortabilityExporterTests
         var result = await _exporter.ExportAsync("subject-1", ExportFormat.CSV);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.LeftAsEnumerable().First();
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.FormatNotSupportedCode),
+            Some: code => code.ShouldBe(DSRErrors.FormatNotSupportedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -92,7 +92,7 @@ public class DefaultDataPortabilityExporterTests
         var result = await _exporter.ExportAsync("subject-1", ExportFormat.JSON);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _jsonWriter.Received(1).WriteAsync(Arg.Any<IReadOnlyList<PersonalDataLocation>>(), Arg.Any<CancellationToken>());
     }
 
@@ -120,9 +120,9 @@ public class DefaultDataPortabilityExporterTests
         await _exporter.ExportAsync("subject-1", ExportFormat.JSON);
 
         // Assert
-        capturedPortable.Should().NotBeNull();
-        capturedPortable!.Should().HaveCount(2);
-        capturedPortable.Should().OnlyContain(l => l.IsPortable);
+        capturedPortable.ShouldNotBeNull();
+        capturedPortable!.Count.ShouldBe(2);
+        capturedPortable.ShouldAllBe(l => l.IsPortable);
     }
 
     #endregion
@@ -141,11 +141,11 @@ public class DefaultDataPortabilityExporterTests
         var result = await _exporter.ExportAsync("subject-1", ExportFormat.JSON);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var response = (PortabilityResponse)result;
-        response.SubjectId.Should().Be("subject-1");
-        response.ExportedData.Should().NotBeNull();
-        response.GeneratedAtUtc.Should().Be(_timeProvider.GetUtcNow());
+        response.SubjectId.ShouldBe("subject-1");
+        response.ExportedData.ShouldNotBeNull();
+        response.GeneratedAtUtc.ShouldBe(_timeProvider.GetUtcNow());
     }
 
     #endregion
@@ -164,7 +164,7 @@ public class DefaultDataPortabilityExporterTests
         var result = await _exporter.ExportAsync("subject-1", ExportFormat.JSON);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -177,8 +177,8 @@ public class DefaultDataPortabilityExporterTests
     [InlineData("   ")]
     public async Task ExportAsync_InvalidSubjectId_ShouldThrow(string? subjectId)
     {
-        var act = async () => await _exporter.ExportAsync(subjectId!, ExportFormat.JSON);
-        await act.Should().ThrowAsync<ArgumentException>();
+        Func<Task> act = async () => await _exporter.ExportAsync(subjectId!, ExportFormat.JSON);
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion

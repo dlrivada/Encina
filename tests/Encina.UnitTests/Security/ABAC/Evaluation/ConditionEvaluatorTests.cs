@@ -87,7 +87,7 @@ public sealed class ConditionEvaluatorTests
         var expr = new AttributeValue { DataType = XACMLDataTypes.String, Value = null };
         var ctx = MakeContext();
 
-        var act = () => _sut.Evaluate(expr, ctx);
+        Action act = () => { _sut.Evaluate(expr, ctx); };
 
         // Null value causes LanguageExt implicit conversion to throw
         Should.Throw<ValueIsNullException>(act);
@@ -473,7 +473,7 @@ public sealed class ConditionEvaluatorTests
     {
         var ctx = MakeContext();
 
-        var act = () => _sut.Evaluate(null!, ctx);
+        Action act = () => { _sut.Evaluate(null!, ctx); };
 
         Should.Throw<ArgumentNullException>(act);
     }
@@ -483,7 +483,7 @@ public sealed class ConditionEvaluatorTests
     {
         var expr = new AttributeValue { DataType = XACMLDataTypes.String, Value = "test" };
 
-        var act = () => _sut.Evaluate(expr, null!);
+        Action act = () => { _sut.Evaluate(expr, null!); };
 
         Should.Throw<ArgumentNullException>(act);
     }

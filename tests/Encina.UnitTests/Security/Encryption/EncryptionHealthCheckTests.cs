@@ -31,7 +31,7 @@ public sealed class EncryptionHealthCheckTests
             });
 
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("healthy");
+        result.Description!.ShouldContain("healthy");
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class EncryptionHealthCheckTests
             });
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IKeyProvider");
+        result.Description!.ShouldContain("IKeyProvider");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class EncryptionHealthCheckTests
             });
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("current key");
+        result.Description!.ShouldContain("current key");
     }
 
     [Fact]

@@ -131,7 +131,7 @@ public class DefaultConsentServiceTests
         // Assert
         result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: id => id.ShouldNotBeEmpty(),
+            Right: id => id.ShouldNotBe(Guid.Empty),
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         await _repository.Received(1).CreateAsync(

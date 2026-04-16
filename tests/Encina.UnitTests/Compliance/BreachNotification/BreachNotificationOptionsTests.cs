@@ -48,9 +48,7 @@ public class BreachNotificationOptionsTests
         var options = new BreachNotificationOptions();
 
         // Assert
-        options.AlertAtHoursRemaining.ShouldBe(
-            ExpectedDefaultAlertHours,
-            opt => opt.WithStrictOrdering());
+        options.AlertAtHoursRemaining.ShouldBe(ExpectedDefaultAlertHours);
     }
 
     [Fact]
@@ -78,7 +76,7 @@ public class BreachNotificationOptionsTests
 
         // Assert
         options.DetectionRuleTypes.ShouldHaveSingleItem()
-            .Which.ShouldBe(typeof(FakeDetectionRule));
+            .ShouldBe(typeof(FakeDetectionRule));
     }
 
     [Fact]
@@ -165,9 +163,7 @@ public class BreachNotificationOptionsTests
         options.AlertAtHoursRemaining = [24, 12, 1];
 
         // Assert
-        options.AlertAtHoursRemaining.ShouldBe(
-            CustomAlertHours,
-            opt => opt.WithStrictOrdering());
+        options.AlertAtHoursRemaining.ShouldBe(CustomAlertHours);
     }
 
     #endregion

@@ -82,7 +82,7 @@ public class DefaultRiskAssessorTests
         var sut = new DefaultRiskAssessor();
 
         // Act
-        var act = () => sut.AssessAsync<TestRecord>(null!, ["City"]);
+        Action act = () => { var _ = sut.AssessAsync<TestRecord>(null!, ["City"]); };
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -101,7 +101,7 @@ public class DefaultRiskAssessorTests
         };
 
         // Act
-        var act = () => sut.AssessAsync<TestRecord>(dataset, null!);
+        Action act = () => { var _ = sut.AssessAsync<TestRecord>(dataset, null!); };
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -283,7 +283,7 @@ public class DefaultRiskAssessorTests
         // Assert
         result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.ReIdentificationProbability;
+        _ = assessment.ReIdentificationProbability;
     }
 
     #endregion

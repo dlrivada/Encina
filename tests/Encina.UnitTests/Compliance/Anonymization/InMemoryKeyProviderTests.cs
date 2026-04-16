@@ -105,7 +105,7 @@ public class InMemoryKeyProviderTests
         result.IsRight.ShouldBeTrue();
         var keyBytes = result.Match(Right: b => b, Left: _ => []);
         keyBytes.ShouldNotBeEmpty();
-        keyBytes.Count.ShouldBe(32); // 256-bit key
+        keyBytes.Length.ShouldBe(32); // 256-bit key
     }
 
     [Fact]

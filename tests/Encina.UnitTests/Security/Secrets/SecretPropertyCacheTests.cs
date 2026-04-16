@@ -6,6 +6,7 @@ namespace Encina.UnitTests.Security.Secrets;
 
 public sealed class SecretPropertyCacheTests : IDisposable
 {
+    private static readonly string[] ExpectedMultiSecretNames = ["api-key", "db-connection"];
     public void Dispose()
     {
         SecretPropertyCache.ClearCache();
@@ -68,7 +69,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(SingleSecretRequest));
 
-        properties.Count.ShouldBe(1);
+        properties.Length.ShouldBe(1);
         properties[0].Attribute.SecretName.ShouldBe("my-secret");
         properties[0].Property.Name.ShouldBe("ApiKey");
     }
@@ -78,9 +79,9 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(MultiSecretRequest));
 
-        properties.Count.ShouldBe(2);
+        properties.Length.ShouldBe(2);
         properties.Select(p => p.Attribute.SecretName)
-            .ShouldBe("api-key", "db-connection");
+            .ShouldBe(ExpectedMultiSecretNames);
     }
 
     [Fact]
@@ -147,7 +148,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(VersionedSecretRequest));
 
-        properties.Count.ShouldBe(1);
+        properties.Length.ShouldBe(1);
         properties[0].Attribute.Version.ShouldBe("v2");
     }
 

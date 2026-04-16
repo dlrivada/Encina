@@ -46,7 +46,7 @@ public sealed class RetentionHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("RetentionOptions");
+        result.Description!.ShouldContain("RetentionOptions");
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class RetentionHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IRetentionRecordService");
+        result.Description!.ShouldContain("IRetentionRecordService");
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class RetentionHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IRetentionPolicyService");
+        result.Description!.ShouldContain("IRetentionPolicyService");
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class RetentionHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("ILegalHoldService");
+        result.Description!.ShouldContain("ILegalHoldService");
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class RetentionHealthCheckTests
         var result = await sut.CheckHealthAsync(CreateContext());
 
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("fully configured");
+        result.Description!.ShouldContain("fully configured");
     }
 
     [Fact]

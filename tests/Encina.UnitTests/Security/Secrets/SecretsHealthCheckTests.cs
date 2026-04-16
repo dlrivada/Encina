@@ -36,7 +36,7 @@ public sealed class SecretsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("healthy");
+        result.Description!.ShouldContain("healthy");
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class SecretsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("ISecretReader");
+        result.Description!.ShouldContain("ISecretReader");
     }
 
     [Fact]

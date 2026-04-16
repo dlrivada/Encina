@@ -3,7 +3,7 @@ using Encina.Compliance.DataSubjectRights.Abstractions;
 using Encina.Compliance.DataSubjectRights.Health;
 using Encina.Compliance.DataSubjectRights.Projections;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -85,17 +85,17 @@ public class DataSubjectRightsHealthCheckTests
     [Fact]
     public void DefaultName_ShouldBeExpected()
     {
-        DataSubjectRightsHealthCheck.DefaultName.Should().Be("encina-dsr");
+        DataSubjectRightsHealthCheck.DefaultName.ShouldBe("encina-dsr");
     }
 
     [Fact]
     public void Tags_ShouldContainExpectedValues()
     {
-        DataSubjectRightsHealthCheck.Tags.Should().Contain("encina");
-        DataSubjectRightsHealthCheck.Tags.Should().Contain("gdpr");
-        DataSubjectRightsHealthCheck.Tags.Should().Contain("dsr");
-        DataSubjectRightsHealthCheck.Tags.Should().Contain("compliance");
-        DataSubjectRightsHealthCheck.Tags.Should().Contain("ready");
+        DataSubjectRightsHealthCheck.Tags.ShouldContain("encina");
+        DataSubjectRightsHealthCheck.Tags.ShouldContain("gdpr");
+        DataSubjectRightsHealthCheck.Tags.ShouldContain("dsr");
+        DataSubjectRightsHealthCheck.Tags.ShouldContain("compliance");
+        DataSubjectRightsHealthCheck.Tags.ShouldContain("ready");
     }
 
     #endregion
@@ -109,8 +109,8 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("not configured");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("not configured");
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IDSRService");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("IDSRService");
     }
 
     #endregion
@@ -139,8 +139,8 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("3 overdue DSR request(s)");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("3 overdue DSR request(s)");
     }
 
     [Fact]
@@ -155,8 +155,8 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("Failed to check");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("Failed to check");
     }
 
     [Fact]
@@ -169,8 +169,8 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("IPersonalDataLocator");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("IPersonalDataLocator");
     }
 
     [Fact]
@@ -183,8 +183,8 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("IDataErasureExecutor");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("IDataErasureExecutor");
     }
 
     [Fact]
@@ -197,10 +197,10 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("IPersonalDataLocator");
-        result.Description.Should().Contain("IDataErasureExecutor");
-        result.Description.Should().Contain("2 overdue DSR request(s)");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("IPersonalDataLocator");
+        result.Description!.ShouldContain("IDataErasureExecutor");
+        result.Description!.ShouldContain("2 overdue DSR request(s)");
     }
 
     #endregion
@@ -217,10 +217,10 @@ public class DataSubjectRightsHealthCheckTests
 
         var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("fully configured");
-        result.Data.Should().ContainKey("enforcementMode");
-        result.Data.Should().ContainKey("dsrServiceType");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description!.ShouldContain("fully configured");
+        result.Data.ShouldContainKey("enforcementMode");
+        result.Data.ShouldContainKey("dsrServiceType");
     }
 
     #endregion

@@ -1,5 +1,5 @@
 using Encina.Compliance.DataSubjectRights;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -33,22 +33,22 @@ public class DefaultDataErasureExecutorTests
     [Fact]
     public void Constructor_NullLocator_ShouldThrow()
     {
-        var act = () => new DefaultDataErasureExecutor(null!, _strategy, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("locator");
+        Should.Throw<ArgumentNullException>(() => new DefaultDataErasureExecutor(null!, _strategy, _logger))
+            .ParamName.ShouldBe("locator");
     }
 
     [Fact]
     public void Constructor_NullStrategy_ShouldThrow()
     {
-        var act = () => new DefaultDataErasureExecutor(_locator, null!, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("strategy");
+        Should.Throw<ArgumentNullException>(() => new DefaultDataErasureExecutor(_locator, null!, _logger))
+            .ParamName.ShouldBe("strategy");
     }
 
     [Fact]
     public void Constructor_NullLogger_ShouldThrow()
     {
-        var act = () => new DefaultDataErasureExecutor(_locator, _strategy, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(() => new DefaultDataErasureExecutor(_locator, _strategy, null!))
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -66,11 +66,11 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsErased.Should().Be(0);
-        erasureResult.FieldsRetained.Should().Be(0);
-        erasureResult.FieldsFailed.Should().Be(0);
+        erasureResult.FieldsErased.ShouldBe(0);
+        erasureResult.FieldsRetained.ShouldBe(0);
+        erasureResult.FieldsFailed.ShouldBe(0);
     }
 
     #endregion
@@ -94,11 +94,11 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsErased.Should().Be(2);
-        erasureResult.FieldsRetained.Should().Be(0);
-        erasureResult.FieldsFailed.Should().Be(0);
+        erasureResult.FieldsErased.ShouldBe(2);
+        erasureResult.FieldsRetained.ShouldBe(0);
+        erasureResult.FieldsFailed.ShouldBe(0);
     }
 
     [Fact]
@@ -119,12 +119,12 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsErased.Should().Be(2);
-        erasureResult.FieldsRetained.Should().Be(1);
-        erasureResult.RetentionReasons.Should().HaveCount(1);
-        erasureResult.RetentionReasons[0].FieldName.Should().Be("TaxId");
+        erasureResult.FieldsErased.ShouldBe(2);
+        erasureResult.FieldsRetained.ShouldBe(1);
+        erasureResult.RetentionReasons.Count.ShouldBe(1);
+        erasureResult.RetentionReasons[0].FieldName.ShouldBe("TaxId");
     }
 
     #endregion
@@ -146,12 +146,12 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsErased.Should().Be(0);
-        erasureResult.FieldsRetained.Should().Be(1);
-        erasureResult.RetentionReasons.Should().ContainSingle();
-        erasureResult.Exemptions.Should().Contain(ErasureExemption.LegalObligation);
+        erasureResult.FieldsErased.ShouldBe(0);
+        erasureResult.FieldsRetained.ShouldBe(1);
+        erasureResult.RetentionReasons.ShouldHaveSingleItem();
+        erasureResult.Exemptions.ShouldContain(ErasureExemption.LegalObligation);
     }
 
     [Fact]
@@ -169,10 +169,10 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsRetained.Should().Be(1);
-        erasureResult.RetentionReasons[0].Reason.Should().Contain("not erasable");
+        erasureResult.FieldsRetained.ShouldBe(1);
+        erasureResult.RetentionReasons[0].Reason.ShouldContain("not erasable");
     }
 
     #endregion
@@ -202,10 +202,10 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsErased.Should().Be(1);
-        erasureResult.FieldsFailed.Should().Be(1);
+        erasureResult.FieldsErased.ShouldBe(1);
+        erasureResult.FieldsFailed.ShouldBe(1);
     }
 
     #endregion
@@ -233,9 +233,9 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsErased.Should().Be(1); // Only Contact field
+        erasureResult.FieldsErased.ShouldBe(1); // Only Contact field
     }
 
     [Fact]
@@ -260,9 +260,9 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.FieldsErased.Should().Be(2); // Email and Name only
+        erasureResult.FieldsErased.ShouldBe(2); // Email and Name only
     }
 
     #endregion
@@ -283,10 +283,10 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var resultError = result.LeftAsEnumerable().First();
         resultError.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.LocatorFailedCode),
+            Some: code => code.ShouldBe(DSRErrors.LocatorFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -314,11 +314,11 @@ public class DefaultDataErasureExecutorTests
         var result = await _executor.EraseAsync("subject-1", scope);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var erasureResult = (ErasureResult)result;
-        erasureResult.Exemptions.Should().HaveCount(2);
-        erasureResult.Exemptions.Should().Contain(ErasureExemption.PublicHealth);
-        erasureResult.Exemptions.Should().Contain(ErasureExemption.LegalClaims);
+        erasureResult.Exemptions.Count.ShouldBe(2);
+        erasureResult.Exemptions.ShouldContain(ErasureExemption.PublicHealth);
+        erasureResult.Exemptions.ShouldContain(ErasureExemption.LegalClaims);
     }
 
     #endregion

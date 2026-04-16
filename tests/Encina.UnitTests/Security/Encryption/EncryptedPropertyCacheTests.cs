@@ -20,7 +20,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
     {
         var properties = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
 
-        properties.Count.ShouldBe(2);
+        properties.Length.ShouldBe(2);
         properties.Select(p => p.Property.Name).ShouldContain("Email");
         properties.Select(p => p.Property.Name).ShouldContain("SSN");
     }
@@ -50,7 +50,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         var second = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
 
         first.ShouldNotBeSameAs(second);
-        first.Count.ShouldBe(second.Length);
+        first.Length.ShouldBe(second.Length);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
     {
         var properties = EncryptedPropertyCache.GetProperties(typeof(TypeWithPurpose));
 
-        properties.Count.ShouldBe(1);
+        properties.Length.ShouldBe(1);
         properties[0].Attribute.Purpose.ShouldBe("User.Email");
     }
 
@@ -101,7 +101,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         var props1 = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
         var props2 = EncryptedPropertyCache.GetProperties(typeof(TypeWithNoEncryptedProps));
 
-        props1.Count.ShouldBe(2);
+        props1.Length.ShouldBe(2);
         props2.ShouldBeEmpty();
     }
 

@@ -132,7 +132,7 @@ public sealed class ABACOptionsTests
         options.AddFunction("custom:test", function);
 
         options.CustomFunctions.ShouldHaveSingleItem()
-            .Which.FunctionId.ShouldBe("custom:test");
+            .FunctionId.ShouldBe("custom:test");
     }
 
     [Fact]

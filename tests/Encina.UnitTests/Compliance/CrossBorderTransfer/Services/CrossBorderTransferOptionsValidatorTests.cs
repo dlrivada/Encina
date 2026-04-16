@@ -41,7 +41,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("TIARiskThreshold");
+        result.FailureMessage!.ShouldContain("TIARiskThreshold");
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("TIARiskThreshold");
+        result.FailureMessage!.ShouldContain("TIARiskThreshold");
     }
 
     [Theory]
@@ -93,7 +93,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("CacheTTLMinutes");
+        result.FailureMessage!.ShouldContain("CacheTTLMinutes");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("CacheTTLMinutes");
+        result.FailureMessage!.ShouldContain("CacheTTLMinutes");
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DefaultTIAExpirationDays");
+        result.FailureMessage!.ShouldContain("DefaultTIAExpirationDays");
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DefaultSCCExpirationDays");
+        result.FailureMessage!.ShouldContain("DefaultSCCExpirationDays");
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DefaultTransferExpirationDays");
+        result.FailureMessage!.ShouldContain("DefaultTransferExpirationDays");
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DefaultSourceCountryCode");
+        result.FailureMessage!.ShouldContain("DefaultSourceCountryCode");
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DefaultSourceCountryCode");
+        result.FailureMessage!.ShouldContain("DefaultSourceCountryCode");
     }
 
     [Fact]
@@ -241,9 +241,9 @@ public class CrossBorderTransferOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("TIARiskThreshold");
-        result.FailureMessage.ShouldContain("CacheTTLMinutes");
-        result.FailureMessage.ShouldContain("DefaultSourceCountryCode");
-        result.FailureMessage.ShouldContain("DefaultTIAExpirationDays");
+        result.FailureMessage!.ShouldContain("TIARiskThreshold");
+        result.FailureMessage!.ShouldContain("CacheTTLMinutes");
+        result.FailureMessage!.ShouldContain("DefaultSourceCountryCode");
+        result.FailureMessage!.ShouldContain("DefaultTIAExpirationDays");
     }
 }

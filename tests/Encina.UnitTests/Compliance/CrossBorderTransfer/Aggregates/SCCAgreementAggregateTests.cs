@@ -48,7 +48,7 @@ public class SCCAgreementAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("processorId");
+            .ParamName.ShouldBe("processorId");
     }
 
     [Fact]

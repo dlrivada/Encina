@@ -193,7 +193,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         // The custom registration should remain (TryAdd does not override)
         services.Where(sd => sd.ServiceType == typeof(IRetentionPolicyService))
-            .Count.ShouldBe(1);
+            .Count().ShouldBe(1);
     }
 
     [Fact]

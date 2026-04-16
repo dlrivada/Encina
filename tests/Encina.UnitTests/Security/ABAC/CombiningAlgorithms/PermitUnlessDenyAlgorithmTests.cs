@@ -101,7 +101,7 @@ public sealed class PermitUnlessDenyAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
         combined.Effect.ShouldBe(Effect.Deny);
-        combined.Obligations.ShouldHaveSingleItem().Which.Id.ShouldBe("log-denial");
+        combined.Obligations.ShouldHaveSingleItem().Id.ShouldBe("log-denial");
     }
 
     #region Helpers

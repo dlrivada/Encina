@@ -128,7 +128,7 @@ public class AnonymizationOptionsTests
 
         // Assert
         options.AssembliesToScan.ShouldHaveSingleItem()
-            .Which.ShouldBeSameAs(assembly);
+            .ShouldBeSameAs(assembly);
     }
 
     [Fact]

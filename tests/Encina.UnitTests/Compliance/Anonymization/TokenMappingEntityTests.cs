@@ -115,7 +115,7 @@ public class TokenMappingEntityTests
         entity.Id.ShouldBe("required-id");
         entity.Token.ShouldBe("required-token");
         entity.OriginalValueHash.ShouldBe("required-hash");
-        entity.EncryptedOriginalValue.ShouldBe(0xAA, 0xBB);
+        entity.EncryptedOriginalValue.ShouldBe<byte[]>([0xAA, 0xBB]);
         entity.KeyId.ShouldBe("required-key");
     }
 }

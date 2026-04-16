@@ -78,7 +78,7 @@ public class PrivacyByDesignHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
-        result.Description.ShouldContain("fully configured");
+        result.Description!.ShouldContain("fully configured");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class PrivacyByDesignHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("PrivacyByDesignOptions");
+        result.Description!.ShouldContain("PrivacyByDesignOptions");
     }
 
     #endregion
@@ -135,7 +135,7 @@ public class PrivacyByDesignHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IPrivacyByDesignValidator");
+        result.Description!.ShouldContain("IPrivacyByDesignValidator");
     }
 
     #endregion
@@ -154,7 +154,7 @@ public class PrivacyByDesignHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IPurposeRegistry");
+        result.Description!.ShouldContain("IPurposeRegistry");
     }
 
     #endregion
@@ -173,7 +173,7 @@ public class PrivacyByDesignHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("IDataMinimizationAnalyzer");
+        result.Description!.ShouldContain("IDataMinimizationAnalyzer");
     }
 
     [Fact]

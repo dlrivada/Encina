@@ -23,7 +23,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
     {
         var properties = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
 
-        properties.Count.ShouldBe(2);
+        properties.Length.ShouldBe(2);
         properties.Select(p => p.Property.Name).ShouldContain("Title");
         properties.Select(p => p.Property.Name).ShouldContain("JsonData");
     }
@@ -53,7 +53,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var second = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
 
         first.ShouldNotBeSameAs(second);
-        first.Count.ShouldBe(second.Length);
+        first.Length.ShouldBe(second.Length);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var props1 = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
         var props2 = EncodingPropertyCache.GetProperties(typeof(TypeWithNoAttributes));
 
-        props1.Count.ShouldBe(2);
+        props1.Length.ShouldBe(2);
         props2.ShouldBeEmpty();
     }
 
@@ -107,7 +107,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
     {
         var properties = EncodingPropertyCache.GetProperties(typeof(TypeWithAllContexts));
 
-        properties.Count.ShouldBe(3);
+        properties.Length.ShouldBe(3);
         properties.ShouldContain(p => p.Attribute.EncodingContext == EncodingContext.Html);
         properties.ShouldContain(p => p.Attribute.EncodingContext == EncodingContext.JavaScript);
         properties.ShouldContain(p => p.Attribute.EncodingContext == EncodingContext.Url);
@@ -122,7 +122,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
     {
         var properties = EncodingPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        properties.Count.ShouldBe(3);
+        properties.Length.ShouldBe(3);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var first = EncodingPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
         var second = EncodingPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        first.Count.ShouldBe(second.Length);
+        first.Length.ShouldBe(second.Length);
         first.Select(p => p.Name).ShouldBe(second.Select(p => p.Name));
     }
 

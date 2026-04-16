@@ -113,7 +113,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var evaluators = provider.GetServices<INIS2MeasureEvaluator>();
-        evaluators.Count.ShouldBe(10);
+        evaluators.Count().ShouldBe(10);
     }
 
     #endregion

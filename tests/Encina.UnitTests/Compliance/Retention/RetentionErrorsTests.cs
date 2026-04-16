@@ -482,7 +482,7 @@ public class RetentionErrorsTests
             RetentionErrors.EventHistoryUnavailableCode
         };
 
-        codes.Distinct().Count().ShouldBe(codes.Count);
+        codes.Distinct().Count().ShouldBe(codes.Length);
     }
 
     #endregion

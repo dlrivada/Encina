@@ -46,7 +46,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("EnforcementMode");
+        result.FailureMessage!.ShouldContain("EnforcementMode");
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("NotificationDeadlineHours");
+        result.FailureMessage!.ShouldContain("NotificationDeadlineHours");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("NotificationDeadlineHours");
+        result.FailureMessage!.ShouldContain("NotificationDeadlineHours");
     }
 
     [Fact]
@@ -97,8 +97,8 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("AlertAtHoursRemaining");
-        result.FailureMessage.ShouldContain("non-positive");
+        result.FailureMessage!.ShouldContain("AlertAtHoursRemaining");
+        result.FailureMessage!.ShouldContain("non-positive");
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("AlertAtHoursRemaining");
-        result.FailureMessage.ShouldContain("NotificationDeadlineHours");
+        result.FailureMessage!.ShouldContain("AlertAtHoursRemaining");
+        result.FailureMessage!.ShouldContain("NotificationDeadlineHours");
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DeadlineCheckInterval");
+        result.FailureMessage!.ShouldContain("DeadlineCheckInterval");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DeadlineCheckInterval");
+        result.FailureMessage!.ShouldContain("DeadlineCheckInterval");
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("SubjectNotificationSeverityThreshold");
+        result.FailureMessage!.ShouldContain("SubjectNotificationSeverityThreshold");
     }
 
     [Fact]
@@ -204,9 +204,9 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("EnforcementMode");
-        result.FailureMessage.ShouldContain("NotificationDeadlineHours");
-        result.FailureMessage.ShouldContain("DeadlineCheckInterval");
-        result.FailureMessage.ShouldContain("SubjectNotificationSeverityThreshold");
+        result.FailureMessage!.ShouldContain("EnforcementMode");
+        result.FailureMessage!.ShouldContain("NotificationDeadlineHours");
+        result.FailureMessage!.ShouldContain("DeadlineCheckInterval");
+        result.FailureMessage!.ShouldContain("SubjectNotificationSeverityThreshold");
     }
 }

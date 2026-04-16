@@ -39,7 +39,7 @@ public class AuditableAttributeTests
         // Assert
         attribute.EntityType.ShouldBe("Order");
         attribute.Action.ShouldBe("Create");
-        attribute.IncludePayload.ShouldBeTrue();
+        attribute.IncludePayload.ShouldBe(true);
         attribute.IncludePayloadValue.ShouldBeTrue();
         attribute.SensitivityLevel.ShouldBe("High");
         attribute.Skip.ShouldBeFalse();
@@ -63,7 +63,7 @@ public class AuditableAttributeTests
 
         // Assert
         attributeUsage.ShouldNotBeNull();
-        attributeUsage!.ValidOn.ShouldHaveFlag(AttributeTargets.Class);
+        attributeUsage!.ValidOn.HasFlag(AttributeTargets.Class).ShouldBeTrue();
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class AuditableAttributeTests
         var attribute = new AuditableAttribute { IncludePayloadValue = false };
 
         // Assert
-        attribute.IncludePayload.ShouldBeFalse();
+        attribute.IncludePayload.ShouldBe(false);
         attribute.IncludePayloadValue.ShouldBeFalse();
     }
 
@@ -140,7 +140,7 @@ public class AuditableAttributeTests
 
         // Assert
         attribute.ShouldNotBeNull();
-        attribute!.IncludePayload.ShouldBeFalse();
+        attribute!.IncludePayload.ShouldBe(false);
     }
 
     [Auditable(IncludePayloadValue = false)]

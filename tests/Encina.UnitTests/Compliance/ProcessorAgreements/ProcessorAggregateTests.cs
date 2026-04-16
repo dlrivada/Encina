@@ -94,7 +94,7 @@ public class ProcessorAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("name");
+            .ParamName.ShouldBe("name");
     }
 
     [Theory]
@@ -111,7 +111,7 @@ public class ProcessorAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("country");
+            .ParamName.ShouldBe("country");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class ProcessorAggregateTests
 
         // Assert
         Should.Throw<ArgumentOutOfRangeException>(act)
-            .And.ParamName.ShouldBe("depth");
+            .ParamName.ShouldBe("depth");
     }
 
     #endregion

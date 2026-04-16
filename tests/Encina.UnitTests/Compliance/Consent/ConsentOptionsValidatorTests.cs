@@ -94,7 +94,7 @@ public class ConsentOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DefaultExpirationDays");
+        result.FailureMessage!.ShouldContain("DefaultExpirationDays");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class ConsentOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("DefaultExpirationDays");
+        result.FailureMessage!.ShouldContain("DefaultExpirationDays");
     }
 
     #endregion
@@ -134,7 +134,7 @@ public class ConsentOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("PurposeDefinitions");
+        result.FailureMessage!.ShouldContain("PurposeDefinitions");
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class ConsentOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("marketing");
+        result.FailureMessage!.ShouldContain("marketing");
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public class ConsentOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("analytics");
+        result.FailureMessage!.ShouldContain("analytics");
     }
 
     [Fact]

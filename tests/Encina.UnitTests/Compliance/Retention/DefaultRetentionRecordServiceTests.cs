@@ -137,7 +137,7 @@ public sealed class DefaultRetentionRecordServiceTests
             retentionPeriod: TimeSpan.FromDays(365));
 
         result.IsRight.ShouldBeTrue();
-        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
         await _repository.Received(1).CreateAsync(
             Arg.Any<RetentionRecordAggregate>(),
             Arg.Any<CancellationToken>());

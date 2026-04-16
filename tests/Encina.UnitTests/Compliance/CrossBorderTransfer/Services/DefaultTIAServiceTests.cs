@@ -46,7 +46,7 @@ public class DefaultTIAServiceTests
         var result = await _sut.CreateTIAAsync("DE", "US", "personal-data", "admin");
 
         result.IsRight.ShouldBeTrue();
-        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
     }
 
     [Fact]

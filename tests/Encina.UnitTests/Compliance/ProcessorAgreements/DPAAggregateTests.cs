@@ -80,7 +80,7 @@ public class DPAAggregateTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("mandatoryTerms");
+            .ParamName.ShouldBe("mandatoryTerms");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class DPAAggregateTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("processingPurposes");
+            .ParamName.ShouldBe("processingPurposes");
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class DPAAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("processingPurposes");
+            .ParamName.ShouldBe("processingPurposes");
     }
 
     #endregion

@@ -44,7 +44,7 @@ public class TIAAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("sourceCountryCode");
+            .ParamName.ShouldBe("sourceCountryCode");
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class TIAAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("destinationCountryCode");
+            .ParamName.ShouldBe("destinationCountryCode");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class TIAAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("dataCategory");
+            .ParamName.ShouldBe("dataCategory");
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class TIAAggregateTests
 
         // Assert
         Should.Throw<ArgumentException>(act)
-            .And.ParamName.ShouldBe("createdBy");
+            .ParamName.ShouldBe("createdBy");
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class TIAAggregateTests
 
         // Assert
         Should.Throw<ArgumentOutOfRangeException>(act)
-            .And.ParamName.ShouldBe("riskScore");
+            .ParamName.ShouldBe("riskScore");
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class TIAAggregateTests
 
         // Assert
         Should.Throw<ArgumentOutOfRangeException>(act)
-            .And.ParamName.ShouldBe("riskScore");
+            .ParamName.ShouldBe("riskScore");
     }
 
     [Fact]

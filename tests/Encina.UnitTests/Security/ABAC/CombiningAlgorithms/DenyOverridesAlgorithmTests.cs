@@ -235,7 +235,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         combined.Effect.ShouldBe(Effect.Deny);
         combined.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("audit-log");
+            .Id.ShouldBe("audit-log");
     }
 
     [Fact]
@@ -257,7 +257,7 @@ public sealed class DenyOverridesAlgorithmTests
         var combined = _sut.CombinePolicyResults(results);
 
         combined.Advice.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("notify-user");
+            .Id.ShouldBe("notify-user");
     }
 
     [Fact]

@@ -161,7 +161,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             reason: "GDPR Article 5(1)(e)");
 
         result.IsRight.ShouldBeTrue();
-        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
         await _repository.Received(1).CreateAsync(
             Arg.Any<RetentionPolicyAggregate>(),
             Arg.Any<CancellationToken>());

@@ -435,7 +435,7 @@ public sealed class PolicyEntityMapperTests
     [Fact]
     public void ToPolicySet_NullEntity_ThrowsArgumentNullException()
     {
-        var act = () => PolicyEntityMapper.ToPolicySet(null!, _serializer);
+        Action act = () => { PolicyEntityMapper.ToPolicySet(null!, _serializer); };
 
         Should.Throw<ArgumentNullException>(act);
     }
@@ -451,7 +451,7 @@ public sealed class PolicyEntityMapperTests
             UpdatedAtUtc = DateTime.UtcNow
         };
 
-        var act = () => PolicyEntityMapper.ToPolicySet(entity, null!);
+        Action act = () => { PolicyEntityMapper.ToPolicySet(entity, null!); };
 
         Should.Throw<ArgumentNullException>(act);
     }
@@ -486,7 +486,7 @@ public sealed class PolicyEntityMapperTests
     [Fact]
     public void ToPolicy_NullEntity_ThrowsArgumentNullException()
     {
-        var act = () => PolicyEntityMapper.ToPolicy(null!, _serializer);
+        Action act = () => { PolicyEntityMapper.ToPolicy(null!, _serializer); };
 
         Should.Throw<ArgumentNullException>(act);
     }
@@ -502,7 +502,7 @@ public sealed class PolicyEntityMapperTests
             UpdatedAtUtc = DateTime.UtcNow
         };
 
-        var act = () => PolicyEntityMapper.ToPolicy(entity, null!);
+        Action act = () => { PolicyEntityMapper.ToPolicy(entity, null!); };
 
         Should.Throw<ArgumentNullException>(act);
     }

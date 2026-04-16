@@ -138,7 +138,7 @@ public sealed class DefaultBreachNotificationServiceTests
             "Data was exfiltrated via API endpoint");
 
         result.IsRight.ShouldBeTrue();
-        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
         await _repository.Received(1).CreateAsync(Arg.Any<BreachAggregate>(), Arg.Any<CancellationToken>());
     }
 

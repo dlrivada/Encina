@@ -102,7 +102,7 @@ public sealed class PolicySetBuilderTests
             .Build();
 
         policySet.Policies.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("p1");
+            .Id.ShouldBe("p1");
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class PolicySetBuilderTests
             .Build();
 
         policySet.Policies.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("p1");
+            .Id.ShouldBe("p1");
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class PolicySetBuilderTests
             .Build();
 
         policySet.PolicySets.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("nested");
+            .Id.ShouldBe("nested");
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class PolicySetBuilderTests
             .Build();
 
         policySet.PolicySets.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("nested");
+            .Id.ShouldBe("nested");
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public sealed class PolicySetBuilderTests
             .Build();
 
         policySet.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("ob1");
+            .Id.ShouldBe("ob1");
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public sealed class PolicySetBuilderTests
             .Build();
 
         policySet.Advice.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("adv1");
+            .Id.ShouldBe("adv1");
     }
 
     #endregion

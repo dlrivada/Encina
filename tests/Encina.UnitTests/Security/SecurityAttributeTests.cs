@@ -18,7 +18,7 @@ public class SecurityAttributeTests
             .GetCustomAttribute<AttributeUsageAttribute>();
 
         usage.ShouldNotBeNull();
-        usage!.ValidOn.ShouldHaveFlag(AttributeTargets.Class);
+        usage!.ValidOn.HasFlag(AttributeTargets.Class).ShouldBeTrue();
     }
 
     [Fact]

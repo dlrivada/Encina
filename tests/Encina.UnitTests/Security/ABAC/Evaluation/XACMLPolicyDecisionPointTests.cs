@@ -503,7 +503,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         decision.Effect.ShouldBe(Effect.Permit);
         decision.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("log-access");
+            .Id.ShouldBe("log-access");
     }
 
     [Fact]
@@ -577,7 +577,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         decision.Effect.ShouldBe(Effect.Permit);
         decision.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("policy-audit");
+            .Id.ShouldBe("policy-audit");
     }
 
     #endregion
@@ -622,7 +622,7 @@ public sealed class XACMLPolicyDecisionPointTests
 
         decision.Effect.ShouldBe(Effect.Permit);
         decision.Advice.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("show-disclaimer");
+            .Id.ShouldBe("show-disclaimer");
     }
 
     [Fact]

@@ -23,7 +23,7 @@ public sealed class NIS2IncidentTests
             initialAssessment: "Data exfiltration suspected");
 
         // Assert
-        incident.Id.ShouldNotBeEmpty();
+        incident.Id.ShouldNotBe(Guid.Empty);
         incident.Description.ShouldBe("Unauthorized access to critical systems");
         incident.Severity.ShouldBe(NIS2IncidentSeverity.High);
         incident.DetectedAtUtc.ShouldBe(TestDetectedAt);

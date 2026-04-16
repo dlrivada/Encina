@@ -400,7 +400,7 @@ public class DefaultPseudonymizerTests
 
         // HMAC-SHA256 produces a 32-byte hash, Base64 encoded
         var decoded = Convert.FromBase64String(hash);
-        decoded.Count.ShouldBe(32);
+        decoded.Length.ShouldBe(32);
     }
 
     [Fact]

@@ -49,7 +49,7 @@ public class DefaultSCCServiceTests
             "processor-1", SCCModule.ControllerToProcessor, "v2021", Now);
 
         result.IsRight.ShouldBeTrue();
-        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
     }
 
     [Fact]

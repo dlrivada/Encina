@@ -52,7 +52,7 @@ public class DefaultRiskAssessorExtendedTests
         result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
         assessment.KAnonymityValue.ShouldBe(10, "all 10 records share the same QI values");
-        assessment.ReIdentificationProbability;
+        _ = assessment.ReIdentificationProbability;
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class DefaultRiskAssessorExtendedTests
         assessment.LDiversityValue.ShouldBeGreaterThanOrEqualTo(2,
             "gender has 2 distinct values per class");
         assessment.TClosenessDistance.ShouldBeGreaterThanOrEqualTo(0.0);
-        assessment.ReIdentificationProbability;
+        _ = assessment.ReIdentificationProbability;
         // k=5 meets target, but l=2 is below target 3 → not acceptable
         assessment.IsAcceptable.ShouldBeFalse();
         assessment.Recommendations.ShouldNotBeEmpty();

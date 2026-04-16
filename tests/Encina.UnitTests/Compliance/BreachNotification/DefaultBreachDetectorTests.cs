@@ -180,7 +180,9 @@ public class DefaultBreachDetectorTests
         result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
         breaches.Count.ShouldBe(2);
-        breaches.Select(b => b.DetectionRuleName).ShouldContain(["Rule1", "Rule2"]);
+        var ruleNames = breaches.Select(b => b.DetectionRuleName).ToList();
+        ruleNames.ShouldContain("Rule1");
+        ruleNames.ShouldContain("Rule2");
     }
 
     [Fact]
@@ -287,7 +289,9 @@ public class DefaultBreachDetectorTests
         result.IsRight.ShouldBeTrue();
         var ruleNames = result.Match(r => r, _ => []);
         ruleNames.Count.ShouldBe(3);
-        ruleNames.ShouldContain(["RuleAlpha", "RuleBeta", "RuleGamma"]);
+        ruleNames.ShouldContain("RuleAlpha");
+        ruleNames.ShouldContain("RuleBeta");
+        ruleNames.ShouldContain("RuleGamma");
     }
 
     #endregion

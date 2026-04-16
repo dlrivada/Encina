@@ -52,7 +52,7 @@ public class DefaultDataLocationServiceTests
             null, null, null, CancellationToken.None);
 
         result.IsRight.ShouldBeTrue();
-        result.Match(id => id.ShouldNotBeEmpty(), _ => { });
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
     }
 
     [Fact]

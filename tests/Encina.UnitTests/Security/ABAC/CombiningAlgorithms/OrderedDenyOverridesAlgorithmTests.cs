@@ -105,7 +105,7 @@ public sealed class OrderedDenyOverridesAlgorithmTests
 
         combined.Effect.ShouldBe(Effect.Deny);
         combined.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("audit-log");
+            .Id.ShouldBe("audit-log");
     }
 
     [Fact]

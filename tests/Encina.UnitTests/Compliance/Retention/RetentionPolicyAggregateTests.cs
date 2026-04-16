@@ -67,7 +67,7 @@ public class RetentionPolicyAggregateTests
         var policy = CreateActivePolicy();
 
         // Assert
-        var evt = policy.UncommittedEvents[0].ShouldBeOfType<RetentionPolicyCreated>().Subject;
+        var evt = policy.UncommittedEvents[0].ShouldBeOfType<RetentionPolicyCreated>();
         evt.PolicyId.ShouldBe(policy.Id);
     }
 

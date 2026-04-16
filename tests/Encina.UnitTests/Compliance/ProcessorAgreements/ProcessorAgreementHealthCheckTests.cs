@@ -110,7 +110,7 @@ public class ProcessorAgreementHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IProcessorService");
+        result.Description!.ShouldContain("IProcessorService");
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class ProcessorAgreementHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("IDPAService");
+        result.Description!.ShouldContain("IDPAService");
     }
 
     [Fact]

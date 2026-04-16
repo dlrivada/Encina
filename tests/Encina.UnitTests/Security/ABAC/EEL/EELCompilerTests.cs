@@ -293,7 +293,7 @@ public sealed class EELCompilerTests : IDisposable
 
         var results = await Task.WhenAll(tasks);
 
-        results.ShouldAllBe(r => r.IsRight.ShouldBeTrue());
+        results.ShouldAllBe(r => r.IsRight);
     }
 
     #endregion

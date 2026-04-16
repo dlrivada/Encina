@@ -157,7 +157,7 @@ public class ReadAuditOptionsTests
         var options = new ReadAuditOptions();
 
         // Act
-        var act = () => options.IsAuditable(null!);
+        Action act = () => { options.IsAuditable(null!); };
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -207,7 +207,7 @@ public class ReadAuditOptionsTests
         var options = new ReadAuditOptions();
 
         // Act
-        var act = () => options.GetSamplingRate(null!);
+        Action act = () => { options.GetSamplingRate(null!); };
 
         // Assert
         Should.Throw<ArgumentNullException>(act)

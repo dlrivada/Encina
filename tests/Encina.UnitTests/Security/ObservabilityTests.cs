@@ -138,7 +138,7 @@ public class ObservabilityTests
 
             // Assert
             var activity = _completedActivities.ShouldHaveSingleItem();
-            activity.Events.Count.ShouldBeGreaterThanOrEqualTo(2);
+            activity.Events.Count().ShouldBeGreaterThanOrEqualTo(2);
             activity.Events.ShouldContain(e => e.Name == "DenyAnonymousAttribute.evaluated");
             activity.Events.ShouldContain(e => e.Name == "RequireRoleAttribute.evaluated");
         }
@@ -284,7 +284,7 @@ public class ObservabilityTests
             var deniedMeasurement = _counterMeasurements
                 .FirstOrDefault(m => m.Name == "security.authorization.denied");
 
-            deniedMeasurement.ShouldNotBeNull();
+            deniedMeasurement.Name.ShouldNotBeNull();
             GetTagValue(deniedMeasurement.Tags, SecurityDiagnostics.TagRequestType)
                 .ShouldBe("DenyAnonymousOnlyCommand");
             GetTagValue(deniedMeasurement.Tags, SecurityDiagnostics.TagDenialReason)
@@ -475,7 +475,7 @@ public class ObservabilityTests
 
             // Assert
             result.Status.ShouldBe(HealthStatus.Healthy);
-            result.Description.ShouldContain("All security services are registered");
+            result.Description!.ShouldContain("All security services are registered");
         }
 
         [Fact]
@@ -500,10 +500,10 @@ public class ObservabilityTests
 
             // Assert
             result.Status.ShouldBe(HealthStatus.Unhealthy);
-            result.Description.ShouldContain("Missing security services");
-            result.Description.ShouldContain(nameof(ISecurityContextAccessor));
-            result.Description.ShouldContain(nameof(IPermissionEvaluator));
-            result.Description.ShouldContain(nameof(IResourceOwnershipEvaluator));
+            result.Description!.ShouldContain("Missing security services");
+            result.Description!.ShouldContain(nameof(ISecurityContextAccessor));
+            result.Description!.ShouldContain(nameof(IPermissionEvaluator));
+            result.Description!.ShouldContain(nameof(IResourceOwnershipEvaluator));
         }
 
         [Fact]
@@ -530,9 +530,9 @@ public class ObservabilityTests
 
             // Assert
             result.Status.ShouldBe(HealthStatus.Unhealthy);
-            result.Description.ShouldContain(nameof(IPermissionEvaluator));
-            result.Description.ShouldContain(nameof(IResourceOwnershipEvaluator));
-            result.Description.ShouldNotContain(nameof(ISecurityContextAccessor));
+            result.Description!.ShouldContain(nameof(IPermissionEvaluator));
+            result.Description!.ShouldContain(nameof(IResourceOwnershipEvaluator));
+            result.Description!.ShouldNotContain(nameof(ISecurityContextAccessor));
         }
 
         [Fact]

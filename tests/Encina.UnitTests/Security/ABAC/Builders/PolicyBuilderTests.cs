@@ -205,7 +205,7 @@ public sealed class PolicyBuilderTests
             .Build();
 
         policy.Rules.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("r1");
+            .Id.ShouldBe("r1");
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public sealed class PolicyBuilderTests
             .Build();
 
         policy.Obligations.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("ob1");
+            .Id.ShouldBe("ob1");
     }
 
     [Fact]
@@ -275,7 +275,7 @@ public sealed class PolicyBuilderTests
             .Build();
 
         policy.Advice.ShouldHaveSingleItem()
-            .Which.Id.ShouldBe("adv1");
+            .Id.ShouldBe("adv1");
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public sealed class PolicyBuilderTests
             .Build();
 
         policy.VariableDefinitions.ShouldHaveSingleItem()
-            .Which.VariableId.ShouldBe("var1");
+            .VariableId.ShouldBe("var1");
     }
 
     #endregion

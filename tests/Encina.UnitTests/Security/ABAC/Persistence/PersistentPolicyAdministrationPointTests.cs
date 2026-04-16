@@ -201,7 +201,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void GetPolicySetAsync_NullId_ThrowsArgumentException()
+    public async Task GetPolicySetAsync_NullId_ThrowsArgumentException()
     {
         // Act
         var act = async () => await _sut.GetPolicySetAsync(null!);
@@ -263,7 +263,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void AddPolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
+    public async Task AddPolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.AddPolicySetAsync(null!);
 
@@ -307,7 +307,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void UpdatePolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
+    public async Task UpdatePolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.UpdatePolicySetAsync(null!);
 
@@ -349,7 +349,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void RemovePolicySetAsync_NullId_ThrowsArgumentException()
+    public async Task RemovePolicySetAsync_NullId_ThrowsArgumentException()
     {
         var act = async () => await _sut.RemovePolicySetAsync(null!);
 
@@ -475,7 +475,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void GetPolicyAsync_NullId_ThrowsArgumentException()
+    public async Task GetPolicyAsync_NullId_ThrowsArgumentException()
     {
         var act = async () => await _sut.GetPolicyAsync(null!);
 
@@ -539,7 +539,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void AddPolicyAsync_NullPolicy_ThrowsArgumentNullException()
+    public async Task AddPolicyAsync_NullPolicy_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.AddPolicyAsync(null!, null);
 
@@ -655,7 +655,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void UpdatePolicyAsync_NullPolicy_ThrowsArgumentNullException()
+    public async Task UpdatePolicyAsync_NullPolicy_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.UpdatePolicyAsync(null!);
 
@@ -723,7 +723,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     }
 
     [Fact]
-    public void RemovePolicyAsync_NullId_ThrowsArgumentException()
+    public async Task RemovePolicyAsync_NullId_ThrowsArgumentException()
     {
         var act = async () => await _sut.RemovePolicyAsync(null!);
 

@@ -73,7 +73,7 @@ public class DefaultDPIAServiceTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(id => id.ShouldNotBeEmpty());
+        result.IfRight(id => id.ShouldNotBe(Guid.Empty));
 
         await _aggregateRepository.Received(1).CreateAsync(
             Arg.Is<DPIAAggregate>(a => a.RequestTypeName == "My.Request.Type"),
@@ -278,7 +278,7 @@ public class DefaultDPIAServiceTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        result.IfRight(consultationId => consultationId.ShouldNotBeEmpty());
+        result.IfRight(consultationId => consultationId.ShouldNotBe(Guid.Empty));
 
         await _aggregateRepository.Received(1).SaveAsync(
             Arg.Any<DPIAAggregate>(), Arg.Any<CancellationToken>());

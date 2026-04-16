@@ -60,7 +60,7 @@ public sealed class XacmlMappingExtensionsTests
     public void ToAttributeCategory_UnknownUrn_ThrowsArgumentException()
     {
         // Act
-        var act = () => XacmlMappingExtensions.ToAttributeCategory("urn:unknown:category");
+        Action act = () => { XacmlMappingExtensions.ToAttributeCategory("urn:unknown:category"); };
 
         // Assert
         Should.Throw<ArgumentException>(act);
@@ -126,8 +126,8 @@ public sealed class XacmlMappingExtensionsTests
     public void ToCombiningAlgorithmId_UnknownUrn_ThrowsArgumentException()
     {
         // Act
-        var act = () => XacmlMappingExtensions.ToCombiningAlgorithmId(
-            "urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:unknown-algorithm");
+        Action act = () => { XacmlMappingExtensions.ToCombiningAlgorithmId(
+            "urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:unknown-algorithm"); };
 
         // Assert
         Should.Throw<ArgumentException>(act);
@@ -137,7 +137,7 @@ public sealed class XacmlMappingExtensionsTests
     public void ToCombiningAlgorithmId_InvalidFormat_ThrowsArgumentException()
     {
         // Act
-        var act = () => XacmlMappingExtensions.ToCombiningAlgorithmId("no-colon-at-end:");
+        Action act = () => { XacmlMappingExtensions.ToCombiningAlgorithmId("no-colon-at-end:"); };
 
         // Assert
         Should.Throw<ArgumentException>(act);
@@ -211,7 +211,7 @@ public sealed class XacmlMappingExtensionsTests
     public void ToEffect_UnknownString_ThrowsArgumentException()
     {
         // Act
-        var act = () => XacmlMappingExtensions.ToEffect("Unknown");
+        Action act = () => { XacmlMappingExtensions.ToEffect("Unknown"); };
 
         // Assert
         Should.Throw<ArgumentException>(act);
@@ -251,7 +251,7 @@ public sealed class XacmlMappingExtensionsTests
     public void ToFulfillOn_UnknownString_ThrowsArgumentException()
     {
         // Act
-        var act = () => XacmlMappingExtensions.ToFulfillOn("Unknown");
+        Action act = () => { XacmlMappingExtensions.ToFulfillOn("Unknown"); };
 
         // Assert
         Should.Throw<ArgumentException>(act);

@@ -200,7 +200,7 @@ public class DPIAAggregateTests
 
         // Assert
         aggregate.UncommittedEvents.ShouldHaveSingleItem()
-            .Which.ShouldBeOfType<DPIACreated>();
+            .ShouldBeOfType<DPIACreated>();
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public class DPIAAggregateTests
 
         // Assert
         var evt = aggregate.UncommittedEvents.ShouldHaveSingleItem()
-            .Which.ShouldBeOfType<DPIACreated>().Subject;
+            .ShouldBeOfType<DPIACreated>();
         evt.AssessmentId.ShouldBe(id);
         evt.RequestTypeName.ShouldBe("MyApp.Commands.ProcessUserData");
         evt.ProcessingType.ShouldBe("AutomatedDecisionMaking");
@@ -334,7 +334,7 @@ public class DPIAAggregateTests
         aggregate.Evaluate(result, occurredAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAEvaluated>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAEvaluated>();
         evt.AssessmentId.ShouldBe(aggregate.Id);
         evt.OverallRisk.ShouldBe(RiskLevel.High);
         evt.IdentifiedRisks.Count.ShouldBe(1);
@@ -488,7 +488,7 @@ public class DPIAAggregateTests
 
         // Assert
         aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIADPOConsultationRequested>()
-            .Which.ConsultationId.ShouldBe(consultationId);
+            .ConsultationId.ShouldBe(consultationId);
     }
 
     [Fact]
@@ -588,7 +588,7 @@ public class DPIAAggregateTests
 
         // Assert
         aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIADPOResponded>()
-            .Which.ConsultationId.ShouldBe(consultationId);
+            .ConsultationId.ShouldBe(consultationId);
     }
 
     [Fact]
@@ -605,7 +605,7 @@ public class DPIAAggregateTests
 
         // Assert
         Should.Throw<InvalidOperationException>(act)
-            .WithMessage($"*{wrongId}*");
+            .Message.ShouldContain(wrongId.ToString());
     }
 
     [Fact]
@@ -708,7 +708,7 @@ public class DPIAAggregateTests
         aggregate.Approve("admin@company.com", Now.AddHours(2), nextReview);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAApproved>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAApproved>();
         evt.AssessmentId.ShouldBe(aggregate.Id);
         evt.ApprovedBy.ShouldBe("admin@company.com");
         evt.NextReviewAtUtc.ShouldBe(nextReview);
@@ -798,7 +798,7 @@ public class DPIAAggregateTests
         aggregate.Reject("admin@company.com", "Unacceptable risk level", Now.AddHours(2));
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIARejected>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIARejected>();
         evt.AssessmentId.ShouldBe(aggregate.Id);
         evt.RejectedBy.ShouldBe("admin@company.com");
         evt.Reason.ShouldBe("Unacceptable risk level");
@@ -860,7 +860,7 @@ public class DPIAAggregateTests
         aggregate.RequestRevision("dpo@company.com", "Needs more detail", Now.AddHours(2));
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIARevisionRequested>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIARevisionRequested>();
         evt.AssessmentId.ShouldBe(aggregate.Id);
         evt.RequestedBy.ShouldBe("dpo@company.com");
         evt.Reason.ShouldBe("Needs more detail");
@@ -923,7 +923,7 @@ public class DPIAAggregateTests
         aggregate.Expire(expiredAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAExpiredEvent>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<DPIAExpiredEvent>();
         evt.AssessmentId.ShouldBe(aggregate.Id);
         evt.OccurredAtUtc.ShouldBe(expiredAt);
     }

@@ -98,8 +98,7 @@ public class PagedQuerySpecificationTests
     public void Constructor_WithNullPagination_ShouldThrowArgumentNullException()
     {
         // Act & Assert
-        Action action = () => new SimplePagedSpec(null!);
-        Should.Throw<ArgumentNullException>(action);
+        Should.Throw<ArgumentNullException>(() => new SimplePagedSpec(null!));
     }
 
     [Fact]

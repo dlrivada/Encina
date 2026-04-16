@@ -106,7 +106,7 @@ public sealed class SanitizationOrchestratorTests : IDisposable
     [Fact]
     public void Sanitize_NullRequest_ThrowsArgumentNullException()
     {
-        var act = () => _sut.Sanitize<TestHtmlRequest>(null!);
+        Action act = () => { _sut.Sanitize<TestHtmlRequest>(null!); };
 
         Should.Throw<ArgumentNullException>(act);
     }

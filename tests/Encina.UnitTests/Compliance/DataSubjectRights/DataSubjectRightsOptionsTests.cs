@@ -1,6 +1,6 @@
 using Encina.Compliance.DataSubjectRights;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights;
 
@@ -11,8 +11,8 @@ public class DataSubjectRightsOptionsTests
     {
         var options = new DataSubjectRightsOptions();
 
-        options.RestrictionEnforcementMode.Should().Be(DSREnforcementMode.Block);
-        options.AddHealthCheck.Should().BeFalse();
+        options.RestrictionEnforcementMode.ShouldBe(DSREnforcementMode.Block);
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -22,13 +22,13 @@ public class DataSubjectRightsOptionsTests
         {
             RestrictionEnforcementMode = DSREnforcementMode.Warn
         };
-        options.RestrictionEnforcementMode.Should().Be(DSREnforcementMode.Warn);
+        options.RestrictionEnforcementMode.ShouldBe(DSREnforcementMode.Warn);
 
         options.RestrictionEnforcementMode = DSREnforcementMode.Disabled;
-        options.RestrictionEnforcementMode.Should().Be(DSREnforcementMode.Disabled);
+        options.RestrictionEnforcementMode.ShouldBe(DSREnforcementMode.Disabled);
 
         options.RestrictionEnforcementMode = DSREnforcementMode.Block;
-        options.RestrictionEnforcementMode.Should().Be(DSREnforcementMode.Block);
+        options.RestrictionEnforcementMode.ShouldBe(DSREnforcementMode.Block);
     }
 
     [Fact]
@@ -36,6 +36,6 @@ public class DataSubjectRightsOptionsTests
     {
         var options = new DataSubjectRightsOptions { AddHealthCheck = true };
 
-        options.AddHealthCheck.Should().BeTrue();
+        options.AddHealthCheck.ShouldBeTrue();
     }
 }

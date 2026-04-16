@@ -56,7 +56,7 @@ public class DefaultApprovedTransferServiceTests
         // Assert
         result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: id => id.ShouldNotBeEmpty(),
+            Right: id => id.ShouldNotBe(Guid.Empty),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -92,7 +92,7 @@ public class DefaultApprovedTransferServiceTests
         result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.ShouldContain("blocked", "error should indicate a blocked transfer"));
+            Left: err => err.Message.ShouldContain("blocked", customMessage: "error should indicate a blocked transfer"));
     }
 
     #endregion
@@ -159,7 +159,7 @@ public class DefaultApprovedTransferServiceTests
         result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.ShouldContain("revoked", "error should indicate already revoked"));
+            Left: err => err.Message.ShouldContain("revoked", customMessage: "error should indicate already revoked"));
     }
 
     #endregion
@@ -213,7 +213,7 @@ public class DefaultApprovedTransferServiceTests
         result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.ShouldContain("revoked", "error should indicate already revoked"));
+            Left: err => err.Message.ShouldContain("revoked", customMessage: "error should indicate already revoked"));
     }
 
     #endregion
@@ -289,7 +289,7 @@ public class DefaultApprovedTransferServiceTests
         result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: err => err.Message.ShouldContain("No approved transfer found", "error should indicate not found"));
+            Left: err => err.Message.ShouldContain("No approved transfer found", customMessage: "error should indicate not found"));
     }
 
     #endregion

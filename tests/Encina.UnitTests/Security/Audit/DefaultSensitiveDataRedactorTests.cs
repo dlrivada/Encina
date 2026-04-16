@@ -158,7 +158,7 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        masked.Users.Count.ShouldBe(2);
+        masked.Users!.Length.ShouldBe(2);
         masked.Users![0].Name.ShouldBe("User1");
         masked.Users[0].Password.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
         masked.Users[1].Name.ShouldBe("User2");
@@ -376,7 +376,7 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request);
 
         // Assert
-        var typedResult = masked.ShouldBeOfType<SimpleRequest>().Subject;
+        var typedResult = masked.ShouldBeOfType<SimpleRequest>();
         typedResult.Email.ShouldBe("test@test.com");
         typedResult.Password.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
@@ -396,7 +396,7 @@ public class DefaultSensitiveDataRedactorTests
         var masked = _redactor.MaskForAudit(request, ["CustomSecret"]);
 
         // Assert
-        var typedResult = masked.ShouldBeOfType<CustomFieldsRequest>().Subject;
+        var typedResult = masked.ShouldBeOfType<CustomFieldsRequest>();
         typedResult.CustomSecret.ShouldBe(DefaultSensitiveDataRedactor.RedactedValue);
     }
 

@@ -148,7 +148,7 @@ public class BreachAggregateTests
 
         // Assert
         aggregate.UncommittedEvents.ShouldHaveSingleItem()
-            .Which.ShouldBeOfType<BreachDetected>();
+            .ShouldBeOfType<BreachDetected>();
         aggregate.Version.ShouldBe(1);
     }
 
@@ -170,7 +170,7 @@ public class BreachAggregateTests
 
         // Assert
         var evt = aggregate.UncommittedEvents.ShouldHaveSingleItem()
-            .Which.ShouldBeOfType<BreachDetected>().Subject;
+            .ShouldBeOfType<BreachDetected>();
 
         evt.BreachId.ShouldBe(DefaultId);
         evt.Nature.ShouldBe("Unauthorized access");
@@ -379,7 +379,7 @@ public class BreachAggregateTests
             assessedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachAssessed>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachAssessed>();
         evt.BreachId.ShouldBe(aggregate.Id);
         evt.UpdatedSeverity.ShouldBe(BreachSeverity.Critical);
         evt.UpdatedAffectedSubjects.ShouldBe(1200);
@@ -519,7 +519,7 @@ public class BreachAggregateTests
             reportedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachReportedToDPA>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachReportedToDPA>();
         evt.BreachId.ShouldBe(aggregate.Id);
         evt.AuthorityName.ShouldBe("AEPD");
         evt.AuthorityContactInfo.ShouldBe("dpo@aepd.es");
@@ -674,7 +674,7 @@ public class BreachAggregateTests
             notifiedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachNotifiedToSubjects>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachNotifiedToSubjects>();
         evt.BreachId.ShouldBe(aggregate.Id);
         evt.SubjectCount.ShouldBe(800);
         evt.CommunicationMethod.ShouldBe("public-notice");
@@ -803,7 +803,7 @@ public class BreachAggregateTests
             submittedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachPhasedReportAdded>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachPhasedReportAdded>();
         evt.BreachId.ShouldBe(aggregate.Id);
         evt.PhaseNumber.ShouldBe(1);
         evt.ReportContent.ShouldBe("Detailed phase 1 findings.");
@@ -1026,7 +1026,7 @@ public class BreachAggregateTests
             containedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachContained>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachContained>();
         evt.BreachId.ShouldBe(aggregate.Id);
         evt.ContainmentMeasures.ShouldBe("Credentials rotated.");
         evt.ContainedByUserId.ShouldBe("user-containment-1");
@@ -1150,7 +1150,7 @@ public class BreachAggregateTests
             closedAt);
 
         // Assert
-        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachClosed>().Subject;
+        var evt = aggregate.UncommittedEvents[^1].ShouldBeOfType<BreachClosed>();
         evt.BreachId.ShouldBe(aggregate.Id);
         evt.ResolutionSummary.ShouldBe("Root cause identified. All measures applied.");
         evt.ClosedByUserId.ShouldBe("user-closer-1");

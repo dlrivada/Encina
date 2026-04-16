@@ -23,7 +23,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
     {
         var properties = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
 
-        properties.Count.ShouldBe(2);
+        properties.Length.ShouldBe(2);
         properties.Select(p => p.Property.Name).ShouldContain("Title");
         properties.Select(p => p.Property.Name).ShouldContain("Content");
     }
@@ -53,7 +53,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var second = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
 
         first.ShouldNotBeSameAs(second);
-        first.Count.ShouldBe(second.Length);
+        first.Length.ShouldBe(second.Length);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var props1 = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
         var props2 = SanitizationPropertyCache.GetProperties(typeof(TypeWithNoAttributes));
 
-        props1.Count.ShouldBe(2);
+        props1.Length.ShouldBe(2);
         props2.ShouldBeEmpty();
     }
 
@@ -120,7 +120,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
     {
         var properties = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        properties.Count.ShouldBe(3); // Title, Content, Description (all strings)
+        properties.Length.ShouldBe(3); // Title, Content, Description (all strings)
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var first = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
         var second = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        first.Count.ShouldBe(second.Length);
+        first.Length.ShouldBe(second.Length);
         first.Select(p => p.Name).ShouldBe(second.Select(p => p.Name));
     }
 

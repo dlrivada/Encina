@@ -123,7 +123,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .And.ParamName.ShouldBe("services");
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]

@@ -364,8 +364,11 @@ public class DefaultAnonymizerTests
 
         // Assert
         result.Match(
-            Right: v => v.TechniqueApplied.ShouldContainKey("Name")
-                .WhoseValue.ShouldBe(AnonymizationTechnique.Suppression),
+            Right: v =>
+            {
+                v.TechniqueApplied.ShouldContainKey("Name");
+                v.TechniqueApplied["Name"].ShouldBe(AnonymizationTechnique.Suppression);
+            },
             Left: _ => Assert.Fail("Expected Right"));
     }
 

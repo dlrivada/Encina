@@ -13,7 +13,7 @@ public class AuditOutcomeTests
     public void AllValues_ShouldExist()
     {
         // Assert
-        Enum.GetValues<AuditOutcome>().Count.ShouldBe(4);
+        Enum.GetValues<AuditOutcome>().Length.ShouldBe(4);
         Enum.IsDefined(AuditOutcome.Success).ShouldBeTrue();
         Enum.IsDefined(AuditOutcome.Failure).ShouldBeTrue();
         Enum.IsDefined(AuditOutcome.Denied).ShouldBeTrue();
