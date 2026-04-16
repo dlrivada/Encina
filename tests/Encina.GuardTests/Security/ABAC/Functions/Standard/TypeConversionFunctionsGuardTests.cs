@@ -63,7 +63,10 @@ public class TypeConversionFunctionsGuardTests
 
         var act = () => fn.Evaluate(["not-a-number"]);
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot");
+        var exception = Should.Throw<InvalidOperationException>(act);
+        exception.Message.ShouldContain("cannot");
+        exception.Message.ShouldContain("integer");
+        exception.Message.ShouldContain("not-a-number");
     }
 
     [Fact]
