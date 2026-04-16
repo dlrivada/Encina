@@ -62,9 +62,7 @@ public class TypeConversionFunctionsGuardTests
         var act = () => fn.Evaluate(["not-a-number"]);
 
         var exception = Should.Throw<InvalidOperationException>(act);
-        exception.Message.ShouldContain("cannot");
-        exception.Message.ShouldContain("integer");
-        exception.Message.ShouldContain("not-a-number");
+        exception.Message.ShouldMatch(@"cannot.*'not-a-number'.*integer");
     }
 
     [Fact]
@@ -97,9 +95,7 @@ public class TypeConversionFunctionsGuardTests
         var act = () => fn.Evaluate(["abc"]);
 
         var exception = Should.Throw<InvalidOperationException>(act);
-        exception.Message.ShouldContain("cannot");
-        exception.Message.ShouldContain("double");
-        exception.Message.ShouldContain("abc");
+        exception.Message.ShouldMatch(@"cannot.*'abc'.*double");
     }
 
     #endregion
@@ -130,9 +126,7 @@ public class TypeConversionFunctionsGuardTests
         var act = () => fn.Evaluate(["yes"]);
 
         var exception = Should.Throw<InvalidOperationException>(act);
-        exception.Message.ShouldContain("cannot");
-        exception.Message.ShouldContain("boolean");
-        exception.Message.ShouldContain("yes");
+        exception.Message.ShouldMatch(@"cannot.*'yes'.*boolean");
     }
 
     #endregion
