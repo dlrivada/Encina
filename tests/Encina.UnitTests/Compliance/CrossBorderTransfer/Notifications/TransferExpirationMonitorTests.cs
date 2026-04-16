@@ -2,15 +2,12 @@
 
 using Encina.Compliance.CrossBorderTransfer;
 using Encina.Compliance.CrossBorderTransfer.Notifications;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Notifications;
 

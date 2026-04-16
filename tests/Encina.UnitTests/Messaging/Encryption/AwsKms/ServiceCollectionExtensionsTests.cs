@@ -1,9 +1,9 @@
 using Amazon.KeyManagementService;
 using Encina.Messaging.Encryption.AwsKms;
 using Encina.Security.Encryption.Abstractions;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption.AwsKms;
 

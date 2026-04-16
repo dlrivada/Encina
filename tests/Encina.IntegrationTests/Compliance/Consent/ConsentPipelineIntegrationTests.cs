@@ -1,14 +1,11 @@
 using Encina.Compliance.Consent;
 using Encina.Compliance.Consent.Abstractions;
 using Encina.Compliance.Consent.ReadModels;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Compliance.Consent;
 

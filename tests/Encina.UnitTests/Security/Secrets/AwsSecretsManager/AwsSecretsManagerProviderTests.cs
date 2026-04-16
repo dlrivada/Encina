@@ -3,10 +3,10 @@ using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.AwsSecretsManager;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.AwsSecretsManager;
 

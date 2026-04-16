@@ -1,9 +1,9 @@
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Resilience;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Polly;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Resilience;
 

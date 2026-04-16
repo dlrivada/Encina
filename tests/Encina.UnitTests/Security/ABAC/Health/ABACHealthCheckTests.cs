@@ -3,13 +3,10 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Health;
 using Encina.Security.ABAC.Persistence;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Health;
 

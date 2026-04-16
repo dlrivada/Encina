@@ -1,6 +1,6 @@
 using Encina.Security.AntiTampering.Nonce;
-using Shouldly;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.AntiTampering;
 

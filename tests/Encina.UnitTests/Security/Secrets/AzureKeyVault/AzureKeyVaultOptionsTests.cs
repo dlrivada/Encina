@@ -1,7 +1,7 @@
 using Azure.Security.KeyVault.Secrets;
 using Encina.Security.Secrets.AzureKeyVault;
-using Shouldly;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.AzureKeyVault;
 

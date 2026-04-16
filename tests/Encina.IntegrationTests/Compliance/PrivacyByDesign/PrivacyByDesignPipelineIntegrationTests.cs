@@ -3,14 +3,11 @@
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Health;
 using Encina.Compliance.PrivacyByDesign.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Compliance.PrivacyByDesign;
 

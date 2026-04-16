@@ -2,10 +2,8 @@
 
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
-
-using Shouldly;
-
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 

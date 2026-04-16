@@ -1,9 +1,9 @@
 using Encina.ADO.SqlServer.ProcessingActivity;
 using Encina.Compliance.GDPR;
 using Encina.TestInfrastructure.Fixtures;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Data.SqlClient;
+using Shouldly;
 
 namespace Encina.IntegrationTests.ADO.SqlServer.ProcessingActivity;
 

@@ -4,14 +4,11 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Health;
 using Encina.Security.ABAC.Persistence;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC;
 

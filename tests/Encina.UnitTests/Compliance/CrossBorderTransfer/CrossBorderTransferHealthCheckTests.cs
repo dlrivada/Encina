@@ -1,15 +1,12 @@
 using Encina.Compliance.CrossBorderTransfer;
 using Encina.Compliance.CrossBorderTransfer.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Health;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer;
 

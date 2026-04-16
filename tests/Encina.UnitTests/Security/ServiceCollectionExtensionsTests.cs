@@ -1,9 +1,9 @@
 using Encina.Security;
 using Encina.Security.Health;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Security;
 

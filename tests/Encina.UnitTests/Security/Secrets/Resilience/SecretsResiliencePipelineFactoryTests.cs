@@ -1,7 +1,7 @@
 using Encina.Security.Secrets.Resilience;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.Resilience;
 

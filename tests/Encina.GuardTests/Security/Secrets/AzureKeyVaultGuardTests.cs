@@ -1,8 +1,8 @@
 using Azure.Security.KeyVault.Secrets;
 using Encina.Security.Secrets.AzureKeyVault;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 

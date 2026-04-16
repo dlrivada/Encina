@@ -7,14 +7,10 @@ using Encina.Compliance.DataResidency.ReadModels;
 using Encina.Compliance.DataResidency.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-
-using Shouldly;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.DataResidency.Services;

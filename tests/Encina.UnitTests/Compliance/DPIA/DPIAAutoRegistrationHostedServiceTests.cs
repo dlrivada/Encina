@@ -1,21 +1,15 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using System.Reflection;
-
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.DPIA;

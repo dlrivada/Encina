@@ -4,17 +4,12 @@ using Encina;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Health;
 using Encina.Compliance.NIS2.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.NIS2;

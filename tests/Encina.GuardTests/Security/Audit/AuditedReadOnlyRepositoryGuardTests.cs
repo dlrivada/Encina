@@ -1,9 +1,9 @@
 using Encina.DomainModeling;
 using Encina.Security.Audit;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 

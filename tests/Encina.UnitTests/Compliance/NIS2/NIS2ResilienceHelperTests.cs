@@ -1,16 +1,12 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly (test assertions)
 
 using Encina.Compliance.NIS2;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
 using Polly;
 using Polly.Registry;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 

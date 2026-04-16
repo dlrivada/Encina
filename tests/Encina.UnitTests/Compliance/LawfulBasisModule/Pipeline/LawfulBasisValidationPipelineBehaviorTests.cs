@@ -2,12 +2,10 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.LawfulBasis;
 using Encina.Compliance.LawfulBasis.Abstractions;
 using Encina.Compliance.LawfulBasis.ReadModels;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
-
 using GDPRLawfulBasis = global::Encina.Compliance.GDPR.LawfulBasis;
 
 #pragma warning disable CA1034 // Nested types for test requests

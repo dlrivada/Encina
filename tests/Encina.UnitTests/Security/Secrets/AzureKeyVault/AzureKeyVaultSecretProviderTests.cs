@@ -5,10 +5,10 @@ using Azure;
 using Azure.Security.KeyVault.Secrets;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.AzureKeyVault;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.AzureKeyVault;
 

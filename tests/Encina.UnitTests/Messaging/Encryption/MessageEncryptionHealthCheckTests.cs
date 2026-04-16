@@ -4,11 +4,11 @@ using System.Collections.Immutable;
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.Health;
 using Encina.Messaging.Encryption.Model;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Encryption;

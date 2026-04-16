@@ -1,8 +1,6 @@
 using Encina.Compliance.Retention;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 

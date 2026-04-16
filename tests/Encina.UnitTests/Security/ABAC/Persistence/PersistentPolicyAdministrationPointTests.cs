@@ -3,13 +3,10 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence;
 

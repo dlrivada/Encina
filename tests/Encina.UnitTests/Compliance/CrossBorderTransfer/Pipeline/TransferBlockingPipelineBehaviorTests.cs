@@ -6,12 +6,12 @@ using Encina.Compliance.CrossBorderTransfer.Attributes;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.Pipeline;
 using Encina.Modules.Isolation;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Pipeline;

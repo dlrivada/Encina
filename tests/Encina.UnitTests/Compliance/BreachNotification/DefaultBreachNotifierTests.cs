@@ -2,11 +2,9 @@
 
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Model;
-
-using Shouldly;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 

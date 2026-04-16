@@ -1,8 +1,8 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Injection;
-using Shouldly;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Injection;
 

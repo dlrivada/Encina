@@ -1,9 +1,9 @@
 using Encina.Security.Secrets.GoogleCloudSecretManager;
-using Shouldly;
 using Google.Cloud.SecretManager.V1;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 

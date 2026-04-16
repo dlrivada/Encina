@@ -3,11 +3,9 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Shouldly;
 
 namespace Encina.ContractTests.Compliance.NIS2;
 

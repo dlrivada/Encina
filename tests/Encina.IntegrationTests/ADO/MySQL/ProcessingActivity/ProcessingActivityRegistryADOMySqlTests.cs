@@ -1,8 +1,8 @@
 using Encina.ADO.MySQL.ProcessingActivity;
 using Encina.Compliance.GDPR;
 using Encina.TestInfrastructure.Fixtures;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.IntegrationTests.ADO.MySQL.ProcessingActivity;
 

@@ -1,9 +1,9 @@
 using Azure.Security.KeyVault.Keys;
 using Encina.Messaging.Encryption.AzureKeyVault;
 using Encina.Security.Encryption.Abstractions;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption.AzureKeyVault;
 

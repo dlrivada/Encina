@@ -1,9 +1,9 @@
 using Amazon.SecretsManager;
 using Encina.Security.Secrets.AwsSecretsManager;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 

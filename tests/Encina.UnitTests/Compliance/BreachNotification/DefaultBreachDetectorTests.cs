@@ -3,16 +3,11 @@
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;

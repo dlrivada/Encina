@@ -5,8 +5,8 @@ using Encina.Messaging.Encryption;
 using Encina.Messaging.Encryption.Model;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Encryption;

@@ -2,13 +2,11 @@ using Encina.Compliance.Attestation;
 using Encina.Compliance.Attestation.Behaviors;
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.GuardTests.Compliance.Attestation;
 

@@ -7,11 +7,11 @@ using Encina.Messaging.Encryption.Attributes;
 using Encina.Messaging.Encryption.Model;
 using Encina.Messaging.Encryption.Serialization;
 using Encina.Messaging.Serialization;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Encryption;

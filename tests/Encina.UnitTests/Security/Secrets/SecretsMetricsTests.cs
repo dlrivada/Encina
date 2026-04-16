@@ -1,7 +1,7 @@
 using System.Diagnostics.Metrics;
 using Encina.Security.Secrets.Diagnostics;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 

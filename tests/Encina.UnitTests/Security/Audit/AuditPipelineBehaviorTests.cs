@@ -1,9 +1,9 @@
 using Encina.Security.Audit;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 

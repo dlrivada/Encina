@@ -1,14 +1,11 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Health;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 

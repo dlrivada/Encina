@@ -5,12 +5,11 @@ using Encina.Compliance.Consent.ReadModels;
 using Encina.Compliance.Consent.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly (NSubstitute Returns with ValueTask)

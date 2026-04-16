@@ -2,11 +2,8 @@
 
 using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.Anonymization.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;

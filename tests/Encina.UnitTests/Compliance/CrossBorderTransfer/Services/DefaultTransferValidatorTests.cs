@@ -6,14 +6,10 @@ using Encina.Compliance.CrossBorderTransfer.ReadModels;
 using Encina.Compliance.CrossBorderTransfer.Services;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
-
-using Shouldly;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Services;

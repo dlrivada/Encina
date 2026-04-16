@@ -3,16 +3,12 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.ReadModels;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 

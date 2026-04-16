@@ -1,7 +1,7 @@
 using Encina.Compliance.GDPR;
 using Encina.Compliance.GDPR.Export;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR;
 

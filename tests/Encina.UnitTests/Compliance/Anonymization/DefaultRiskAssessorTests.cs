@@ -2,13 +2,9 @@
 
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Time.Testing;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;

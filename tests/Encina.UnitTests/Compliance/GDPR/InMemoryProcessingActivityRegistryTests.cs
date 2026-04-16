@@ -1,7 +1,7 @@
 using Encina.Compliance.GDPR;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 using LawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 
 namespace Encina.UnitTests.Compliance.GDPR;

@@ -5,11 +5,11 @@ using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.Health;
 using Encina.Security.AntiTampering.HMAC;
 using Encina.Security.AntiTampering.Nonce;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Security.AntiTampering;
 

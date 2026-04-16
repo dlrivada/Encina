@@ -1,7 +1,7 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Profiles;
-using Shouldly;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Sanitization;
 

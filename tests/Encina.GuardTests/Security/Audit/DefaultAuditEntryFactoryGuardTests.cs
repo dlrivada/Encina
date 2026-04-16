@@ -1,7 +1,7 @@
 using Encina.Security.Audit;
-using Shouldly;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 

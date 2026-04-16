@@ -2,12 +2,10 @@ using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Health;
 using Encina.Compliance.Retention.Services;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 

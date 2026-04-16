@@ -1,15 +1,10 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly

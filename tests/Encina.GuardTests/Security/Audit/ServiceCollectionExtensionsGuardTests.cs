@@ -1,6 +1,6 @@
 using Encina.Security.Audit;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 

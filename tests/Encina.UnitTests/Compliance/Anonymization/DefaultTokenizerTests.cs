@@ -3,13 +3,9 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.Anonymization.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;

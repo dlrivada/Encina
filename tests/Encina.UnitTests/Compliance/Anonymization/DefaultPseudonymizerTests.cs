@@ -1,16 +1,11 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using System.Security.Cryptography;
-
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
-
-using Shouldly;
-
 using LanguageExt;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;

@@ -1,11 +1,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.ABAC.Persistence.Xacml;
-
-using Shouldly;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
+using Shouldly;
 using Target = Encina.Security.ABAC.Target;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence.Xacml;

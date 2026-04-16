@@ -1,14 +1,10 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Evaluation;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
+using Shouldly;
 using Target = Encina.Security.ABAC.Target;
 
 namespace Encina.UnitTests.Security.ABAC.Evaluation;

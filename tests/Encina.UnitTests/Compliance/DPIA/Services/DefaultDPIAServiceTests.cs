@@ -8,13 +8,13 @@ using Encina.Compliance.DPIA.ReadModels;
 using Encina.Compliance.DPIA.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using Shouldly;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.DPIA.Services;

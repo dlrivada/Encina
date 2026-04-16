@@ -1,8 +1,8 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Providers;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 

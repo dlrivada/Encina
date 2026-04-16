@@ -1,11 +1,10 @@
 using Encina.Compliance.Consent;
 using Encina.Compliance.Consent.Abstractions;
 using Encina.Compliance.Consent.ReadModels;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Consent;

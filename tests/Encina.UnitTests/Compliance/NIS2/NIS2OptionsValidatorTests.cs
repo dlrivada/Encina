@@ -1,9 +1,7 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Model;
-
-using Shouldly;
-
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 

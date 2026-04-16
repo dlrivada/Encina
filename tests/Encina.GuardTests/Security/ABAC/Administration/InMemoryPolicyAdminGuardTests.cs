@@ -3,10 +3,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
-
-using Shouldly;
-
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Administration;
 

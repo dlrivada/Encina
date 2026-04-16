@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC;
 

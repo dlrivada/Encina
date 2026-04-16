@@ -1,7 +1,7 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Model;
-using Shouldly;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct;
 

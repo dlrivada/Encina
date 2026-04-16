@@ -1,6 +1,6 @@
 using Encina.Messaging.ContentRouter;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 using ContentRouterClass = Encina.Messaging.ContentRouter.ContentRouter;
 
 namespace Encina.GuardTests.Messaging.ContentRouter;

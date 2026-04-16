@@ -126,8 +126,11 @@ public sealed class XacmlMappingExtensionsTests
     public void ToCombiningAlgorithmId_UnknownUrn_ThrowsArgumentException()
     {
         // Act
-        Action act = () => { XacmlMappingExtensions.ToCombiningAlgorithmId(
-            "urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:unknown-algorithm"); };
+        Action act = () =>
+        {
+            XacmlMappingExtensions.ToCombiningAlgorithmId(
+            "urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:unknown-algorithm");
+        };
 
         // Assert
         Should.Throw<ArgumentException>(act);

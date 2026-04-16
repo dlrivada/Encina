@@ -1,11 +1,8 @@
 using System.Dynamic;
 using System.Text.Json;
-
 using Encina.Security.ABAC.EEL;
-
-using Shouldly;
-
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.EEL;
 

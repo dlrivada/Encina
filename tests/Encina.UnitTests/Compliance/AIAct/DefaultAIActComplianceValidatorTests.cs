@@ -2,11 +2,10 @@ using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
 using Encina.Compliance.AIAct.Attributes;
 using Encina.Compliance.AIAct.Model;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.AIAct;

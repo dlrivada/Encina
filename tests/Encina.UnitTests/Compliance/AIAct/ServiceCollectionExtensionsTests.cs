@@ -1,8 +1,8 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct;
 

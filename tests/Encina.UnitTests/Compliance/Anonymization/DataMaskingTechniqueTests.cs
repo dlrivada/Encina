@@ -1,9 +1,7 @@
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
-
-using Shouldly;
-
 using LanguageExt;
+using Shouldly;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 

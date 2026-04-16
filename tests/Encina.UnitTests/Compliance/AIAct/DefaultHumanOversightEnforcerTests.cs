@@ -1,7 +1,7 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Model;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct;
 

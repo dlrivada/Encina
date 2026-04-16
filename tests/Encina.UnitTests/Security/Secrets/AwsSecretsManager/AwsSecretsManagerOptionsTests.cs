@@ -2,8 +2,8 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.SecretsManager;
 using Encina.Security.Secrets.AwsSecretsManager;
-using Shouldly;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.AwsSecretsManager;
 

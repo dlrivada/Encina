@@ -9,18 +9,13 @@ using Encina.Compliance.ProcessorAgreements.Notifications;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
 using Encina.Compliance.ProcessorAgreements.Scheduling;
 using Encina.Marten;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;

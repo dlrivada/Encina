@@ -6,10 +6,10 @@ using Encina.Messaging.Encryption.Model;
 using Encina.Messaging.Encryption.Serialization;
 using Encina.Messaging.Serialization;
 using Encina.Security.Encryption.Abstractions;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Encryption;
 

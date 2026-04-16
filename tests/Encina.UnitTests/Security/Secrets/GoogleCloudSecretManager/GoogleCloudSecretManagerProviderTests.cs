@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.GoogleCloudSecretManager;
-using Shouldly;
 using Google.Api.Gax.ResourceNames;
 using Google.Cloud.SecretManager.V1;
 using Google.Protobuf;
@@ -9,6 +8,7 @@ using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.GoogleCloudSecretManager;
 

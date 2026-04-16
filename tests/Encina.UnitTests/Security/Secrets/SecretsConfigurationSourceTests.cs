@@ -1,7 +1,7 @@
 using Encina.Security.Secrets.Configuration;
-using Shouldly;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 

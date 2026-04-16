@@ -1,6 +1,6 @@
 using Encina.Compliance.DataSubjectRights;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights;
 

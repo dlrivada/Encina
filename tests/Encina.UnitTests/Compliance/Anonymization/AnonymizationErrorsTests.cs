@@ -1,7 +1,7 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 

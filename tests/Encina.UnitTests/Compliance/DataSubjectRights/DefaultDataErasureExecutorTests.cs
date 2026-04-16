@@ -1,9 +1,8 @@
 using Encina.Compliance.DataSubjectRights;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly

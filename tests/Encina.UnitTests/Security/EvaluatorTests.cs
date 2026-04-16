@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Security.Claims;
 using Encina.Security;
-using Shouldly;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security;
 

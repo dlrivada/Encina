@@ -1,7 +1,7 @@
 using Encina;
 using Encina.Messaging.Scheduling;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Scheduling;
 

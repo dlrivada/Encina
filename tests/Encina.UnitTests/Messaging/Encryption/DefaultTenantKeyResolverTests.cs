@@ -1,6 +1,6 @@
 using Encina.Messaging.Encryption;
-using Shouldly;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption;
 

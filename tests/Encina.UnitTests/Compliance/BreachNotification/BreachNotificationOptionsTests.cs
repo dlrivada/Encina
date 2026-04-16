@@ -2,8 +2,8 @@
 
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Model;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;

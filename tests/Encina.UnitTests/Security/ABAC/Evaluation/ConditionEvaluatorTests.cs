@@ -1,9 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-
-using Shouldly;
-
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Evaluation;
 

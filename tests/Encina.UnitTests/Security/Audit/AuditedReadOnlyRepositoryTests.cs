@@ -3,11 +3,11 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Security.Audit;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 

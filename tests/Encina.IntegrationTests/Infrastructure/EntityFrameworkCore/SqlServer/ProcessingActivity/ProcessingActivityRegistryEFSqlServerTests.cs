@@ -2,12 +2,12 @@ using Encina.Compliance.GDPR;
 using Encina.EntityFrameworkCore.ProcessingActivity;
 using Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.ProcessingActivity;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
-using Shouldly;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.SqlServer.ProcessingActivity;
 

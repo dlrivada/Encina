@@ -1,8 +1,8 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Health;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 

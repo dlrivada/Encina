@@ -1,8 +1,6 @@
 using Encina.Compliance.NIS2;
-
-using Shouldly;
-
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 

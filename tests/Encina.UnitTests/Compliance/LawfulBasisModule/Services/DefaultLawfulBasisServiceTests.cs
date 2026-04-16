@@ -5,12 +5,11 @@ using Encina.Compliance.LawfulBasis.ReadModels;
 using Encina.Compliance.LawfulBasis.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 using GDPR = global::Encina.Compliance.GDPR;
 

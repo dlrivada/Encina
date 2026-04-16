@@ -1,6 +1,6 @@
 using Encina.Compliance.GDPR;
-using Shouldly;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR;
 

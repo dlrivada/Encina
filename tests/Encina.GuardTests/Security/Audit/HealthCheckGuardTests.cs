@@ -1,7 +1,7 @@
 using Encina.Security.Audit;
 using Encina.Security.Audit.Health;
-using Shouldly;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 

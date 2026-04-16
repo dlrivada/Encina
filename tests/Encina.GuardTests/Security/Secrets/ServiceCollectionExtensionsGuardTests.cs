@@ -1,8 +1,8 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Configuration;
-using Shouldly;
 using Microsoft.Extensions.Configuration;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 

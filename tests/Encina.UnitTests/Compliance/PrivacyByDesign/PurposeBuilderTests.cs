@@ -1,8 +1,6 @@
 using Encina.Compliance.PrivacyByDesign;
-
-using Shouldly;
-
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 

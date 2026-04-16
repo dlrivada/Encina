@@ -1,8 +1,8 @@
 using Encina.Security.Secrets.HashiCorpVault;
-using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 using VaultSharp;
 using VaultSharp.V1.AuthMethods.Token;
 

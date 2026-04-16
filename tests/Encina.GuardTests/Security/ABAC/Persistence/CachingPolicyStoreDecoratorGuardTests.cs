@@ -3,17 +3,12 @@
 using Encina.Caching;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
-
-using Shouldly;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.GuardTests.Security.ABAC.Persistence;

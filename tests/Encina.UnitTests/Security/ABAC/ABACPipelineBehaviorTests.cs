@@ -1,10 +1,10 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 using static LanguageExt.Prelude;
 using ISecurityContext = global::Encina.Security.ISecurityContext;
 using ISecurityContextAccessor = global::Encina.Security.ISecurityContextAccessor;

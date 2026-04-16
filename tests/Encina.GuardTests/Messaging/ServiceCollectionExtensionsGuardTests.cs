@@ -5,8 +5,8 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes.Factories;
 using Encina.Testing.Fakes.Stores;
-using Shouldly;
 using Microsoft.Extensions.Hosting;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging;
 

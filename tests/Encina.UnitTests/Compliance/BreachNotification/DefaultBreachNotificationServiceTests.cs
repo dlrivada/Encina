@@ -6,12 +6,12 @@ using Encina.Compliance.BreachNotification.ReadModels;
 using Encina.Compliance.BreachNotification.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;

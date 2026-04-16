@@ -1,8 +1,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.ABAC;

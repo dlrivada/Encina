@@ -8,7 +8,6 @@ using Encina.Security.Secrets.Diagnostics;
 using Encina.Security.Secrets.Health;
 using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +15,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Security.Secrets;
 

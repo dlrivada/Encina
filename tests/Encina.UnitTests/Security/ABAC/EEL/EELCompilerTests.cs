@@ -1,11 +1,8 @@
 using System.Dynamic;
-
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.EEL;
-
-using Shouldly;
-
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.EEL;
 

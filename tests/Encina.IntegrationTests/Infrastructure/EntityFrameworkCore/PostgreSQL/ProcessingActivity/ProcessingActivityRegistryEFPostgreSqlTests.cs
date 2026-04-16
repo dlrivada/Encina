@@ -2,12 +2,12 @@ using Encina.Compliance.GDPR;
 using Encina.EntityFrameworkCore.ProcessingActivity;
 using Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.ProcessingActivity;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
-using Shouldly;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 #pragma warning disable EF1001 // Internal EF Core API usage - needed for CreateTablesAsync on shared fixture
 

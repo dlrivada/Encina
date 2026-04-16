@@ -6,13 +6,13 @@ using Encina.Compliance.Retention.ReadModels;
 using Encina.Compliance.Retention.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Retention;

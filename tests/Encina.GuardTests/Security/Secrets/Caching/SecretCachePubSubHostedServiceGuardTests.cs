@@ -1,6 +1,6 @@
 using Encina.Security.Secrets.Caching;
-using Shouldly;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Caching;
 

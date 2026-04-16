@@ -1,11 +1,8 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Encina.Compliance.Anonymization;
-
-using Shouldly;
-
 using Microsoft.Extensions.Time.Testing;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;

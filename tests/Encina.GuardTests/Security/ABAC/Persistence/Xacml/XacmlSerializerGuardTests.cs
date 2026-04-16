@@ -1,8 +1,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Persistence.Xacml;
-using Shouldly;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 using Rule = Encina.Security.ABAC.Rule;
 using Target = Encina.Security.ABAC.Target;
 

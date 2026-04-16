@@ -3,15 +3,12 @@ using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Evaluators;
 using Encina.Compliance.NIS2.Health;
 using Encina.Compliance.NIS2.Model;
-
-using Shouldly;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Compliance.NIS2;
 

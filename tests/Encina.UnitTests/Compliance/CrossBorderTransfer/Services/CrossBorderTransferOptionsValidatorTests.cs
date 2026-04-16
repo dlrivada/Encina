@@ -1,11 +1,8 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.CrossBorderTransfer;
-
-using Shouldly;
-
 using Microsoft.Extensions.Options;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Services;

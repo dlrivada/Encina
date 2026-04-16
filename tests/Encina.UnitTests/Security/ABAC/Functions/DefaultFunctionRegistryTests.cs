@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
-using Shouldly;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 

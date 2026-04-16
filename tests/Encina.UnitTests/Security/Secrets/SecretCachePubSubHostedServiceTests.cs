@@ -2,11 +2,11 @@
 
 using Encina.Caching;
 using Encina.Security.Secrets.Caching;
-using Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 

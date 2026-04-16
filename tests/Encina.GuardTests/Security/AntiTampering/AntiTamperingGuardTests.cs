@@ -3,11 +3,11 @@ using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.HMAC;
 using Encina.Security.AntiTampering.Http;
 using Encina.Security.AntiTampering.Pipeline;
-using Shouldly;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.AntiTampering;
 

@@ -1,9 +1,9 @@
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.DataProtection;
-using Shouldly;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption.DataProtection;
 

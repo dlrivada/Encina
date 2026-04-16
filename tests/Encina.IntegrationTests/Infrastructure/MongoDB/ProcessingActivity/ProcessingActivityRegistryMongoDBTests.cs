@@ -1,8 +1,8 @@
 using Encina.Compliance.GDPR;
 using Encina.MongoDB.ProcessingActivity;
 using Encina.TestInfrastructure.Fixtures;
-using Shouldly;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Infrastructure.MongoDB.ProcessingActivity;
 
