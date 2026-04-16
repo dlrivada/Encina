@@ -12,6 +12,15 @@ namespace Encina.UnitTests.AspNetCore;
 /// </summary>
 public sealed class ServiceCollectionExtensionsTests
 {
+    private static readonly ServiceProviderOptions ValidatedProviderOptions = new()
+    {
+        ValidateOnBuild = true,
+        ValidateScopes = true,
+    };
+
+    private static ServiceProvider BuildValidatedProvider(IServiceCollection services) =>
+        services.BuildServiceProvider(ValidatedProviderOptions);
+
     // ── AddEncinaAspNetCore (parameterless overload) ───────────────────────
 
     [Fact]
@@ -21,7 +30,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         services.AddEncinaAspNetCore();
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
 
         var accessor = provider.GetService<IRequestContextAccessor>();
         accessor.ShouldNotBeNull();
@@ -35,7 +44,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         services.AddEncinaAspNetCore();
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
 
         var http = provider.GetService<IHttpContextAccessor>();
         http.ShouldNotBeNull();
@@ -48,7 +57,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         services.AddEncinaAspNetCore();
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
 
         var options = provider.GetRequiredService<IOptions<EncinaAspNetCoreOptions>>().Value;
         options.CorrelationIdHeader.ShouldBe("X-Correlation-ID");
@@ -94,7 +103,7 @@ public sealed class ServiceCollectionExtensionsTests
             o.UserIdClaimType = "sub";
             o.TenantIdClaimType = "tid";
         });
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
 
         var options = provider.GetRequiredService<IOptions<EncinaAspNetCoreOptions>>().Value;
         options.CorrelationIdHeader.ShouldBe("X-Custom-Correlation");
@@ -153,7 +162,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         services.AddEncinaAuthorization();
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
 
         var authOptions = provider.GetRequiredService<IOptions<AuthorizationOptions>>().Value;
         var policy = authOptions.GetPolicy(AuthorizationConfiguration.RequireAuthenticatedPolicyName);
@@ -167,7 +176,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         services.AddEncinaAuthorization();
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
 
         var http = provider.GetService<IHttpContextAccessor>();
         http.ShouldNotBeNull();
@@ -191,7 +200,7 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         services.AddEncinaAuthorization();
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
 
         var config = provider.GetRequiredService<IOptions<AuthorizationConfiguration>>().Value;
         config.AutoApplyPolicies.ShouldBeFalse();
@@ -211,7 +220,7 @@ public sealed class ServiceCollectionExtensionsTests
                 policies.AddPolicy("CustomTest", p => p.RequireAuthenticatedUser());
             });
 
-        using var provider = services.BuildServiceProvider();
+        using var provider = BuildValidatedProvider(services);
         var authOptions = provider.GetRequiredService<IOptions<AuthorizationOptions>>().Value;
         var policy = authOptions.GetPolicy("CustomTest");
         policy.ShouldNotBeNull();
