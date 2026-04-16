@@ -376,7 +376,8 @@ public class XACMLPolicyDecisionPointGuardTests
 
         // Assert
         decision.Effect.ShouldBe(Effect.Permit);
-        decision.Obligations.ShouldContain(o => o.Id == "permit-ob");
+        var obligation = decision.Obligations.ShouldHaveSingleItem();
+        obligation.Id.ShouldBe("permit-ob");
     }
 
     #endregion
