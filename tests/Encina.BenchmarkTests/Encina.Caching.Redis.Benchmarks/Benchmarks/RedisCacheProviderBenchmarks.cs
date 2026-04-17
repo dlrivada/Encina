@@ -83,8 +83,9 @@ public class RedisCacheProviderBenchmarks : IDisposable
     [Benchmark]
     public async Task SetAsync()
     {
-        var key = $"set-{Guid.NewGuid():N}";
-        await _provider.SetAsync(key, _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
+        // Reuse a fixed key (overwrite in-place) to avoid polluting the keyspace
+        // across iterations — measured op is the SET round-trip, not key churn.
+        await _provider.SetAsync("set-benchmark", _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
     }
 
     [BenchmarkCategory("DocRef:bench:caching-redis/exists-true")]
@@ -112,13 +113,21 @@ public class RedisCacheProviderBenchmarks : IDisposable
             CancellationToken.None);
     }
 
+    [IterationSetup(Target = nameof(GetOrSetAsync_CacheMiss))]
+    public void EnsureGetOrSetMissKeyAbsent()
+    {
+        // Reuse a fixed key, but clear it before each iteration so the
+        // measured op always hits the miss path.
+        _provider.RemoveAsync("getorset-miss-benchmark", CancellationToken.None)
+            .GetAwaiter().GetResult();
+    }
+
     [BenchmarkCategory("DocRef:bench:caching-redis/getorset-miss")]
     [Benchmark]
     public async Task<TestData> GetOrSetAsync_CacheMiss()
     {
-        var key = $"getorset-{Guid.NewGuid():N}";
         return await _provider.GetOrSetAsync(
-            key,
+            "getorset-miss-benchmark",
             _ => Task.FromResult(_testData),
             TimeSpan.FromMinutes(5),
             CancellationToken.None);
@@ -127,7 +136,9 @@ public class RedisCacheProviderBenchmarks : IDisposable
     [IterationSetup(Target = nameof(RemoveAsync))]
     public void SeedRemoveKey()
     {
-        _removeKey = $"remove-{Guid.NewGuid():N}";
+        // Reuse a fixed key; re-seed before each iteration so RemoveAsync
+        // always has something to delete.
+        _removeKey = "remove-benchmark";
         _provider.SetAsync(_removeKey, _testData, TimeSpan.FromMinutes(5), CancellationToken.None)
             .GetAwaiter().GetResult();
     }
@@ -142,7 +153,9 @@ public class RedisCacheProviderBenchmarks : IDisposable
     [IterationSetup(Target = nameof(RemoveByPatternAsync))]
     public void SeedPatternKeys()
     {
-        _patternPrefix = $"pattern-{Guid.NewGuid():N}";
+        // Fixed prefix; re-seed before each iteration so the SCAN+DEL has a
+        // stable 5-key dataset to operate on.
+        _patternPrefix = "pattern-benchmark";
         for (var i = 0; i < 5; i++)
         {
             _provider.SetAsync($"{_patternPrefix}-{i}", _testData, TimeSpan.FromMinutes(5), CancellationToken.None)
@@ -161,9 +174,9 @@ public class RedisCacheProviderBenchmarks : IDisposable
     [Benchmark]
     public async Task SetWithSlidingExpirationAsync()
     {
-        var key = $"sliding-{Guid.NewGuid():N}";
+        // Reuse a fixed key (overwrite in-place) — see SetAsync comment.
         await _provider.SetWithSlidingExpirationAsync(
-            key,
+            "sliding-benchmark",
             _testData,
             TimeSpan.FromMinutes(1),
             TimeSpan.FromMinutes(5),
