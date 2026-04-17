@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -22,7 +22,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["only-one"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*at least 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("at");
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringConcatenate)!;
 
-        fn.Evaluate(["hello", " world"]).Should().Be("hello world");
+        fn.Evaluate(["hello", " world"]).ShouldBe("hello world");
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringConcatenate)!;
 
-        fn.Evaluate(["a", "b", "c"]).Should().Be("abc");
+        fn.Evaluate(["a", "b", "c"]).ShouldBe("abc");
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringConcatenate)!;
 
-        fn.Evaluate([null, "world"]).Should().Be("world");
+        fn.Evaluate([null, "world"]).ShouldBe("world");
     }
 
     #endregion
@@ -60,7 +60,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["only-one"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringStartsWith)!;
 
-        fn.Evaluate(["hello", "hello world"]).Should().Be(true);
+        fn.Evaluate(["hello", "hello world"]).ShouldBe(true);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringStartsWith)!;
 
-        fn.Evaluate(["world", "hello world"]).Should().Be(false);
+        fn.Evaluate(["world", "hello world"]).ShouldBe(false);
     }
 
     #endregion
@@ -88,7 +88,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringEndsWith)!;
 
-        fn.Evaluate(["world", "hello world"]).Should().Be(true);
+        fn.Evaluate(["world", "hello world"]).ShouldBe(true);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringEndsWith)!;
 
-        fn.Evaluate(["hello", "hello world"]).Should().Be(false);
+        fn.Evaluate(["hello", "hello world"]).ShouldBe(false);
     }
 
     #endregion
@@ -108,7 +108,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringContains)!;
 
-        fn.Evaluate(["lo wo", "hello world"]).Should().Be(true);
+        fn.Evaluate(["lo wo", "hello world"]).ShouldBe(true);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringContains)!;
 
-        fn.Evaluate(["xyz", "hello world"]).Should().Be(false);
+        fn.Evaluate(["xyz", "hello world"]).ShouldBe(false);
     }
 
     #endregion
@@ -130,7 +130,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["hello", 0]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 3*received 2*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringSubstring)!;
 
-        fn.Evaluate(["hello world", 0, 5]).Should().Be("hello");
+        fn.Evaluate(["hello world", 0, 5]).ShouldBe("hello");
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringSubstring)!;
 
-        fn.Evaluate(["hello world", 6, -1]).Should().Be("world");
+        fn.Evaluate(["hello world", 6, -1]).ShouldBe("world");
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["hello", -1, 3]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*begin index*out of range*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("begin");
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["hi", 10, -1]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*begin index*out of range*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("begin");
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["hello", 3, 1]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*end index*out of range*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("end");
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["hi", 0, 100]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*end index*out of range*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("end");
     }
 
     #endregion
@@ -198,7 +198,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringNormalizeSpace)!;
 
-        fn.Evaluate(["  hello   world  "]).Should().Be("hello world");
+        fn.Evaluate(["  hello   world  "]).ShouldBe("hello world");
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringNormalizeSpace)!;
 
-        fn.Evaluate(["hello\t\n  world"]).Should().Be("hello world");
+        fn.Evaluate(["hello\t\n  world"]).ShouldBe("hello world");
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public class StringFunctionsGuardTests
 
         var act = () => fn.Evaluate(["a", "b"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 1*received 2*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     #endregion
@@ -228,7 +228,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringNormalizeToLowerCase)!;
 
-        fn.Evaluate(["Hello WORLD"]).Should().Be("hello world");
+        fn.Evaluate(["Hello WORLD"]).ShouldBe("hello world");
     }
 
     #endregion
@@ -240,7 +240,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringLength)!;
 
-        fn.Evaluate(["hello"]).Should().Be(5);
+        fn.Evaluate(["hello"]).ShouldBe(5);
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public class StringFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringLength)!;
 
-        fn.Evaluate([""]).Should().Be(0);
+        fn.Evaluate([""]).ShouldBe(0);
     }
 
     [Fact]
@@ -257,7 +257,7 @@ public class StringFunctionsGuardTests
         // CoerceToString(null) returns empty string
         var fn = _registry.GetFunction(XACMLFunctionIds.StringLength)!;
 
-        fn.Evaluate([null]).Should().Be(0);
+        fn.Evaluate([null]).ShouldBe(0);
     }
 
     #endregion

@@ -1,7 +1,7 @@
 using System.Diagnostics.Metrics;
 using Encina.Security.Secrets.Diagnostics;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.Resilience;
 
@@ -51,7 +51,7 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
     {
         var act = () => new SecretsMetrics(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -64,8 +64,8 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordRetry(1, "transient_error");
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.resilience.retry.count");
-        _counterValues["secrets.resilience.retry.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.resilience.retry.count");
+        _counterValues["secrets.resilience.retry.count"].ShouldBe(1);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordRetry(3, "timeout");
         _listener.RecordObservableInstruments();
 
-        _counterValues["secrets.resilience.retry.count"].Should().Be(3);
+        _counterValues["secrets.resilience.retry.count"].ShouldBe(3);
     }
 
     #endregion
@@ -92,8 +92,8 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordCircuitBreakerTransition(state);
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.resilience.circuit_breaker.transitions");
-        _counterValues["secrets.resilience.circuit_breaker.transitions"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.resilience.circuit_breaker.transitions");
+        _counterValues["secrets.resilience.circuit_breaker.transitions"].ShouldBe(1);
     }
 
     #endregion
@@ -106,8 +106,8 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordTimeout(30.0);
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.resilience.timeout.count");
-        _counterValues["secrets.resilience.timeout.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.resilience.timeout.count");
+        _counterValues["secrets.resilience.timeout.count"].ShouldBe(1);
     }
 
     #endregion
@@ -120,8 +120,8 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordStaleFallback("database-connection-string");
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.resilience.stale_fallback.count");
-        _counterValues["secrets.resilience.stale_fallback.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.resilience.stale_fallback.count");
+        _counterValues["secrets.resilience.stale_fallback.count"].ShouldBe(1);
     }
 
     #endregion
@@ -134,8 +134,8 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordResilienceDuration("my-secret", success: true, TimeSpan.FromMilliseconds(150));
         _listener.RecordObservableInstruments();
 
-        _histogramValues.Should().ContainKey("secrets.resilience.duration");
-        _histogramValues["secrets.resilience.duration"].Should().BeApproximately(150.0, 0.1);
+        _histogramValues.ShouldContainKey("secrets.resilience.duration");
+        _histogramValues["secrets.resilience.duration"].ShouldBeInRange(149.9, 150.1);
     }
 
     [Fact]
@@ -144,8 +144,8 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordResilienceDuration("my-secret", success: false, TimeSpan.FromMilliseconds(5000));
         _listener.RecordObservableInstruments();
 
-        _histogramValues.Should().ContainKey("secrets.resilience.duration");
-        _histogramValues["secrets.resilience.duration"].Should().BeApproximately(5000.0, 0.1);
+        _histogramValues.ShouldContainKey("secrets.resilience.duration");
+        _histogramValues["secrets.resilience.duration"].ShouldBeInRange(4999.9, 5000.1);
     }
 
     #endregion
@@ -162,11 +162,11 @@ public sealed class SecretsResilienceMetricsTests : IDisposable
         _metrics.RecordResilienceDuration("api-key", true, TimeSpan.FromMilliseconds(200));
         _listener.RecordObservableInstruments();
 
-        _counterValues["secrets.resilience.retry.count"].Should().Be(1);
-        _counterValues["secrets.resilience.circuit_breaker.transitions"].Should().Be(1);
-        _counterValues["secrets.resilience.timeout.count"].Should().Be(1);
-        _counterValues["secrets.resilience.stale_fallback.count"].Should().Be(1);
-        _histogramValues["secrets.resilience.duration"].Should().BeApproximately(200.0, 0.1);
+        _counterValues["secrets.resilience.retry.count"].ShouldBe(1);
+        _counterValues["secrets.resilience.circuit_breaker.transitions"].ShouldBe(1);
+        _counterValues["secrets.resilience.timeout.count"].ShouldBe(1);
+        _counterValues["secrets.resilience.stale_fallback.count"].ShouldBe(1);
+        _histogramValues["secrets.resilience.duration"].ShouldBeInRange(199.9, 200.1);
     }
 
     #endregion

@@ -7,7 +7,7 @@ using Encina.Compliance.DataSubjectRights.Services;
 using Encina.Compliance.GDPR;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -71,45 +71,40 @@ public class DefaultDSRServiceTests
     [Fact]
     public void Constructor_NullRepository_ShouldThrow()
     {
-        var act = () => new DefaultDSRService(
+        Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             null!, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger);
-
-        act.Should().Throw<ArgumentNullException>().WithParameterName("repository");
+            _timeProvider, _logger))
+            .ParamName.ShouldBe("repository");
     }
 
     [Fact]
     public void Constructor_NullReadModelRepository_ShouldThrow()
     {
-        var act = () => new DefaultDSRService(
+        Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             _repository, null!, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger);
-
-        act.Should().Throw<ArgumentNullException>().WithParameterName("readModelRepository");
+            _timeProvider, _logger))
+            .ParamName.ShouldBe("readModelRepository");
     }
 
     [Fact]
     public void Constructor_NullLocator_ShouldThrow()
     {
-        var act = () => new DefaultDSRService(
+        Should.Throw<ArgumentNullException>(() => new DefaultDSRService(
             _repository, _readModelRepository, null!, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger);
-
-        act.Should().Throw<ArgumentNullException>().WithParameterName("locator");
+            _timeProvider, _logger))
+            .ParamName.ShouldBe("locator");
     }
 
     [Fact]
     public void Constructor_NullEncina_ShouldNotThrow()
     {
-        var act = () => new DefaultDSRService(
+        Should.NotThrow(() => new DefaultDSRService(
             _repository, _readModelRepository, _locator, _erasureExecutor,
             _portabilityExporter, _processingActivityRegistry, _cache,
-            _timeProvider, _logger, encina: null);
-
-        act.Should().NotThrow();
+            _timeProvider, _logger, encina: null));
     }
 
     #endregion
@@ -127,8 +122,8 @@ public class DefaultDSRServiceTests
         var result = await _sut.SubmitRequestAsync("subject-1", DataSubjectRight.Access);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
     }
 
     [Fact]
@@ -143,7 +138,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.SubmitRequestAsync("subject-1", DataSubjectRight.Erasure);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -157,7 +152,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.SubmitRequestAsync("subject-1", DataSubjectRight.Access);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -182,7 +177,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.VerifyIdentityAsync(requestId, "admin-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -197,7 +192,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.VerifyIdentityAsync(requestId, "admin-1");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -220,7 +215,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.CompleteRequestAsync(requestId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -239,7 +234,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.CompleteRequestAsync(requestId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -264,7 +259,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.DenyRequestAsync(requestId, "Manifestly unfounded");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -299,12 +294,12 @@ public class DefaultDSRServiceTests
         var result = await _sut.HandleAccessAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
             response =>
             {
-                response.SubjectId.Should().Be("subject-1");
-                response.Data.Should().HaveCount(1);
+                response.SubjectId.ShouldBe("subject-1");
+                response.Data.Count.ShouldBe(1);
             },
             _ => { });
     }
@@ -323,17 +318,17 @@ public class DefaultDSRServiceTests
         var result = await _sut.HandleAccessAsync(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
     public async Task HandleAccessAsync_NullRequest_ShouldThrow()
     {
         // Act
-        var act = async () => await _sut.HandleAccessAsync(null!);
+        Func<Task> act = async () => await _sut.HandleAccessAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -363,9 +358,9 @@ public class DefaultDSRServiceTests
         var result = await _sut.HandleErasureAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
-            r => r.FieldsErased.Should().Be(5),
+            r => r.FieldsErased.ShouldBe(5),
             _ => { });
     }
 
@@ -383,7 +378,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.HandleErasureAsync(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -417,9 +412,9 @@ public class DefaultDSRServiceTests
         var result = await _sut.HandlePortabilityAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
-            r => r.SubjectId.Should().Be("subject-1"),
+            r => r.SubjectId.ShouldBe("subject-1"),
             _ => { });
     }
 
@@ -437,17 +432,17 @@ public class DefaultDSRServiceTests
         var result = await _sut.HandleObjectionAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
     public async Task HandleObjectionAsync_NullRequest_ShouldThrow()
     {
         // Act
-        var act = async () => await _sut.HandleObjectionAsync(null!);
+        Func<Task> act = async () => await _sut.HandleObjectionAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -468,7 +463,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.GetRequestAsync(requestId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _readModelRepository.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -488,7 +483,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.GetRequestAsync(requestId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -506,7 +501,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.GetRequestAsync(requestId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -524,8 +519,8 @@ public class DefaultDSRServiceTests
         var result = await _sut.HasActiveRestrictionAsync("subject-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(value => value.Should().BeTrue(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(value => value.ShouldBeTrue(), _ => { });
     }
 
     [Fact]
@@ -551,8 +546,8 @@ public class DefaultDSRServiceTests
         var result = await _sut.HasActiveRestrictionAsync("subject-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(value => value.Should().BeTrue(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(value => value.ShouldBeTrue(), _ => { });
     }
 
     [Fact]
@@ -573,8 +568,8 @@ public class DefaultDSRServiceTests
         var result = await _sut.HasActiveRestrictionAsync("subject-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.Match(value => value.Should().BeFalse(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(value => value.ShouldBeFalse(), _ => { });
     }
 
     #endregion
@@ -588,7 +583,7 @@ public class DefaultDSRServiceTests
         var result = await _sut.GetRequestHistoryAsync(Guid.NewGuid());
 
         // Assert — event history not yet implemented
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

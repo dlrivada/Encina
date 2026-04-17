@@ -1,7 +1,7 @@
 using Encina.DomainModeling.Pagination;
 using Encina.EntityFrameworkCore.Extensions;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Shouldly;
 
 namespace Encina.UnitTests.EntityFrameworkCore.Extensions;
 
@@ -62,13 +62,13 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        result.Items.Should().HaveCount(3);
-        result.Items[0].SortOrder.Should().Be(1);
-        result.Items[1].SortOrder.Should().Be(2);
-        result.Items[2].SortOrder.Should().Be(3);
-        result.HasPreviousPage.Should().BeFalse();
-        result.HasNextPage.Should().BeTrue();
-        result.NextCursor.Should().NotBeNullOrEmpty();
+        result.Items.Count.ShouldBe(3);
+        result.Items[0].SortOrder.ShouldBe(1);
+        result.Items[1].SortOrder.ShouldBe(2);
+        result.Items[2].SortOrder.ShouldBe(3);
+        result.HasPreviousPage.ShouldBeFalse();
+        result.HasNextPage.ShouldBeTrue();
+        result.NextCursor.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -90,12 +90,12 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        secondPage.Items.Should().HaveCount(3);
-        secondPage.Items[0].SortOrder.Should().Be(4);
-        secondPage.Items[1].SortOrder.Should().Be(5);
-        secondPage.Items[2].SortOrder.Should().Be(6);
-        secondPage.HasPreviousPage.Should().BeTrue();
-        secondPage.HasNextPage.Should().BeTrue();
+        secondPage.Items.Count.ShouldBe(3);
+        secondPage.Items[0].SortOrder.ShouldBe(4);
+        secondPage.Items[1].SortOrder.ShouldBe(5);
+        secondPage.Items[2].SortOrder.ShouldBe(6);
+        secondPage.HasPreviousPage.ShouldBeTrue();
+        secondPage.HasNextPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -115,9 +115,9 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        result.Items.Should().HaveCount(2); // Only items 9 and 10
-        result.HasNextPage.Should().BeFalse();
-        result.HasPreviousPage.Should().BeTrue();
+        result.Items.Count.ShouldBe(2); // Only items 9 and 10
+        result.HasNextPage.ShouldBeFalse();
+        result.HasPreviousPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -134,12 +134,12 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        result.Items.Should().BeEmpty();
-        result.IsEmpty.Should().BeTrue();
-        result.HasNextPage.Should().BeFalse();
-        result.HasPreviousPage.Should().BeFalse();
-        result.NextCursor.Should().BeNull();
-        result.PreviousCursor.Should().BeNull();
+        result.Items.ShouldBeEmpty();
+        result.IsEmpty.ShouldBeTrue();
+        result.HasNextPage.ShouldBeFalse();
+        result.HasPreviousPage.ShouldBeFalse();
+        result.NextCursor.ShouldBeNull();
+        result.PreviousCursor.ShouldBeNull();
     }
 
     #endregion
@@ -160,12 +160,12 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        result.Items.Should().HaveCount(3);
-        result.Items[0].SortOrder.Should().Be(10);
-        result.Items[1].SortOrder.Should().Be(9);
-        result.Items[2].SortOrder.Should().Be(8);
-        result.HasNextPage.Should().BeTrue();
-        result.HasPreviousPage.Should().BeFalse();
+        result.Items.Count.ShouldBe(3);
+        result.Items[0].SortOrder.ShouldBe(10);
+        result.Items[1].SortOrder.ShouldBe(9);
+        result.Items[2].SortOrder.ShouldBe(8);
+        result.HasNextPage.ShouldBeTrue();
+        result.HasPreviousPage.ShouldBeFalse();
     }
 
     [Fact]
@@ -187,10 +187,10 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        secondPage.Items.Should().HaveCount(3);
-        secondPage.Items[0].SortOrder.Should().Be(7);
-        secondPage.Items[1].SortOrder.Should().Be(6);
-        secondPage.Items[2].SortOrder.Should().Be(5);
+        secondPage.Items.Count.ShouldBe(3);
+        secondPage.Items[0].SortOrder.ShouldBe(7);
+        secondPage.Items[1].SortOrder.ShouldBe(6);
+        secondPage.Items[2].SortOrder.ShouldBe(5);
     }
 
     #endregion
@@ -211,7 +211,7 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        result.Items.Should().HaveCount(4);
+        result.Items.Count.ShouldBe(4);
     }
 
     [Fact]
@@ -247,10 +247,10 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert - Should get items before the second page
-        previousPage.Items.Should().HaveCount(3);
-        previousPage.Items[0].SortOrder.Should().Be(1);
-        previousPage.Items[1].SortOrder.Should().Be(2);
-        previousPage.Items[2].SortOrder.Should().Be(3);
+        previousPage.Items.Count.ShouldBe(3);
+        previousPage.Items[0].SortOrder.ShouldBe(1);
+        previousPage.Items[1].SortOrder.ShouldBe(2);
+        previousPage.Items[2].SortOrder.ShouldBe(3);
     }
 
     #endregion
@@ -271,10 +271,10 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        result.Items.Should().HaveCount(3);
-        result.Items[0].CreatedAtUtc.Day.Should().Be(10);
-        result.Items[1].CreatedAtUtc.Day.Should().Be(9);
-        result.Items[2].CreatedAtUtc.Day.Should().Be(8);
+        result.Items.Count.ShouldBe(3);
+        result.Items[0].CreatedAtUtc.Day.ShouldBe(10);
+        result.Items[1].CreatedAtUtc.Day.ShouldBe(9);
+        result.Items[2].CreatedAtUtc.Day.ShouldBe(8);
     }
 
     #endregion
@@ -296,10 +296,10 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             cursorEncoder: _encoder);
 
         // Assert
-        result.Items.Should().HaveCount(3);
-        result.Items[0].Should().BeOfType<CursorTestDto>();
-        result.Items[0].Id.Should().Be(1);
-        result.Items[0].Name.Should().Be("Item 01");
+        result.Items.Count.ShouldBe(3);
+        result.Items[0].ShouldBeOfType<CursorTestDto>();
+        result.Items[0].Id.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Item 01");
     }
 
     #endregion
@@ -323,8 +323,8 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
             keyDescending: [true, false]);
 
         // Assert
-        result.Items.Should().HaveCount(3);
-        result.HasNextPage.Should().BeTrue();
+        result.Items.Count.ShouldBe(3);
+        result.HasNextPage.ShouldBeTrue();
     }
 
     #endregion
@@ -338,15 +338,14 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         IQueryable<CursorTestEntity>? query = null;
 
         // Act
-        var act = async () => await query!.ToCursorPaginatedAsync(
+        Func<Task> act = async () => await query!.ToCursorPaginatedAsync(
             cursor: null,
             pageSize: 5,
             keySelector: x => x.Id,
             cursorEncoder: _encoder);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("query");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("query");
     }
 
     [Fact]
@@ -356,15 +355,14 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         var query = _context.Items.OrderBy(x => x.Id);
 
         // Act
-        var act = async () => await query.ToCursorPaginatedAsync(
+        Func<Task> act = async () => await query.ToCursorPaginatedAsync(
             cursor: null,
             pageSize: 5,
             keySelector: (System.Linq.Expressions.Expression<Func<CursorTestEntity, int>>)null!,
             cursorEncoder: _encoder);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("keySelector");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("keySelector");
     }
 
     [Fact]
@@ -374,15 +372,14 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         var query = _context.Items.OrderBy(x => x.Id);
 
         // Act
-        var act = async () => await query.ToCursorPaginatedAsync(
+        Func<Task> act = async () => await query.ToCursorPaginatedAsync(
             cursor: null,
             pageSize: 5,
             keySelector: x => x.Id,
             cursorEncoder: null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("cursorEncoder");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("cursorEncoder");
     }
 
     [Theory]
@@ -394,15 +391,14 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         var query = _context.Items.OrderBy(x => x.Id);
 
         // Act
-        var act = async () => await query.ToCursorPaginatedAsync(
+        Func<Task> act = async () => await query.ToCursorPaginatedAsync(
             cursor: null,
             pageSize: pageSize,
             keySelector: x => x.Id,
             cursorEncoder: _encoder);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
-            .WithParameterName(nameof(pageSize));
+        (await Should.ThrowAsync<ArgumentOutOfRangeException>(act)).ParamName.ShouldBe(nameof(pageSize));
     }
 
     [Fact]
@@ -412,15 +408,14 @@ public sealed class QueryableCursorExtensionsTests : IDisposable
         var query = _context.Items.OrderBy(x => x.Id);
 
         // Act
-        var act = async () => await query.ToCursorPaginatedAsync(
+        Func<Task> act = async () => await query.ToCursorPaginatedAsync(
             cursor: null,
             pageSize: CursorPaginationOptions.MaxPageSize + 1,
             keySelector: x => x.Id,
             cursorEncoder: _encoder);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
-            .WithParameterName("pageSize");
+        (await Should.ThrowAsync<ArgumentOutOfRangeException>(act)).ParamName.ShouldBe("pageSize");
     }
 
     #endregion

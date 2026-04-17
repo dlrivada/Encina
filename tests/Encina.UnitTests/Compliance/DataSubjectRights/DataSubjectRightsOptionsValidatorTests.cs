@@ -1,6 +1,6 @@
 using Encina.Compliance.DataSubjectRights;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights;
 
@@ -15,7 +15,7 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -25,8 +25,9 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultDeadlineDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultDeadlineDays");
     }
 
     [Fact]
@@ -36,8 +37,9 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultDeadlineDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultDeadlineDays");
     }
 
     [Fact]
@@ -47,8 +49,9 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("MaxExtensionDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MaxExtensionDays");
     }
 
     [Fact]
@@ -58,9 +61,10 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("MaxExtensionDays");
-        result.FailureMessage.Should().Contain("60");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MaxExtensionDays");
+        result.FailureMessage.ShouldContain("60");
     }
 
     [Fact]
@@ -70,7 +74,7 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -80,15 +84,15 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
     public void Validate_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => _sut.Validate(null, null!);
+        Action act = () => _sut.Validate(null, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -102,7 +106,7 @@ public class DataSubjectRightsOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().HaveCountGreaterThanOrEqualTo(2);
+        result.Failed.ShouldBeTrue();
+        result.Failures.Count().ShouldBeGreaterThanOrEqualTo(2);
     }
 }

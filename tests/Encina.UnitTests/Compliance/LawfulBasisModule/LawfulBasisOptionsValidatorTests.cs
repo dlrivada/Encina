@@ -28,6 +28,7 @@ public class LawfulBasisOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
@@ -40,6 +41,7 @@ public class LawfulBasisOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("DefaultBases");
     }
 

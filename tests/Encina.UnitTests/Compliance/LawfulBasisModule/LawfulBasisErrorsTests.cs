@@ -1,6 +1,6 @@
 using Encina.Compliance.LawfulBasis.Errors;
-using FluentAssertions;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.LawfulBasisModule;
 
@@ -13,8 +13,8 @@ public class LawfulBasisErrorsTests
 
         var error = LawfulBasisErrors.RegistrationNotFound(id);
 
-        error.GetCode().Match(c => c, () => "").Should().Be(LawfulBasisErrors.RegistrationNotFoundCode);
-        error.Message.Should().Contain(id.ToString());
+        error.GetCode().Match(c => c, () => "").ShouldBe(LawfulBasisErrors.RegistrationNotFoundCode);
+        error.Message.ShouldContain(id.ToString());
     }
 
     [Fact]
@@ -24,8 +24,8 @@ public class LawfulBasisErrorsTests
 
         var error = LawfulBasisErrors.RegistrationAlreadyRevoked(id);
 
-        error.GetCode().Match(c => c, () => "").Should().Be(LawfulBasisErrors.RegistrationAlreadyRevokedCode);
-        error.Message.Should().Contain(id.ToString());
+        error.GetCode().Match(c => c, () => "").ShouldBe(LawfulBasisErrors.RegistrationAlreadyRevokedCode);
+        error.Message.ShouldContain(id.ToString());
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public class LawfulBasisErrorsTests
 
         var error = LawfulBasisErrors.LIANotFound(id);
 
-        error.GetCode().Match(c => c, () => "").Should().Be(LawfulBasisErrors.LIANotFoundCode);
-        error.Message.Should().Contain(id.ToString());
+        error.GetCode().Match(c => c, () => "").ShouldBe(LawfulBasisErrors.LIANotFoundCode);
+        error.Message.ShouldContain(id.ToString());
     }
 
     [Fact]
@@ -46,8 +46,8 @@ public class LawfulBasisErrorsTests
 
         var error = LawfulBasisErrors.LIANotFoundByReference(reference);
 
-        error.GetCode().Match(c => c, () => "").Should().Be(LawfulBasisErrors.LIANotFoundByReferenceCode);
-        error.Message.Should().Contain(reference);
+        error.GetCode().Match(c => c, () => "").ShouldBe(LawfulBasisErrors.LIANotFoundByReferenceCode);
+        error.Message.ShouldContain(reference);
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class LawfulBasisErrorsTests
 
         var error = LawfulBasisErrors.LIAAlreadyDecided(id);
 
-        error.GetCode().Match(c => c, () => "").Should().Be(LawfulBasisErrors.LIAAlreadyDecidedCode);
-        error.Message.Should().Contain(id.ToString());
+        error.GetCode().Match(c => c, () => "").ShouldBe(LawfulBasisErrors.LIAAlreadyDecidedCode);
+        error.Message.ShouldContain(id.ToString());
     }
 
     [Fact]
@@ -66,9 +66,9 @@ public class LawfulBasisErrorsTests
     {
         var error = LawfulBasisErrors.InvalidStateTransition("ApproveAsync", "Already approved");
 
-        error.GetCode().Match(c => c, () => "").Should().Be(LawfulBasisErrors.InvalidStateTransitionCode);
-        error.Message.Should().Contain("ApproveAsync");
-        error.Message.Should().Contain("Already approved");
+        error.GetCode().Match(c => c, () => "").ShouldBe(LawfulBasisErrors.InvalidStateTransitionCode);
+        error.Message.ShouldContain("ApproveAsync");
+        error.Message.ShouldContain("Already approved");
     }
 
     [Fact]
@@ -78,20 +78,20 @@ public class LawfulBasisErrorsTests
 
         var error = LawfulBasisErrors.StoreError("RegisterAsync", exception);
 
-        error.GetCode().Match(c => c, () => "").Should().Be(LawfulBasisErrors.StoreErrorCode);
-        error.Message.Should().Contain("RegisterAsync");
-        error.Message.Should().Contain("Connection failed");
+        error.GetCode().Match(c => c, () => "").ShouldBe(LawfulBasisErrors.StoreErrorCode);
+        error.Message.ShouldContain("RegisterAsync");
+        error.Message.ShouldContain("Connection failed");
     }
 
     [Fact]
     public void ErrorCodes_ShouldFollowNamingConvention()
     {
-        LawfulBasisErrors.RegistrationNotFoundCode.Should().StartWith("lawfulbasis.");
-        LawfulBasisErrors.RegistrationAlreadyRevokedCode.Should().StartWith("lawfulbasis.");
-        LawfulBasisErrors.LIANotFoundCode.Should().StartWith("lawfulbasis.");
-        LawfulBasisErrors.LIANotFoundByReferenceCode.Should().StartWith("lawfulbasis.");
-        LawfulBasisErrors.LIAAlreadyDecidedCode.Should().StartWith("lawfulbasis.");
-        LawfulBasisErrors.InvalidStateTransitionCode.Should().StartWith("lawfulbasis.");
-        LawfulBasisErrors.StoreErrorCode.Should().StartWith("lawfulbasis.");
+        LawfulBasisErrors.RegistrationNotFoundCode.ShouldStartWith("lawfulbasis.");
+        LawfulBasisErrors.RegistrationAlreadyRevokedCode.ShouldStartWith("lawfulbasis.");
+        LawfulBasisErrors.LIANotFoundCode.ShouldStartWith("lawfulbasis.");
+        LawfulBasisErrors.LIANotFoundByReferenceCode.ShouldStartWith("lawfulbasis.");
+        LawfulBasisErrors.LIAAlreadyDecidedCode.ShouldStartWith("lawfulbasis.");
+        LawfulBasisErrors.InvalidStateTransitionCode.ShouldStartWith("lawfulbasis.");
+        LawfulBasisErrors.StoreErrorCode.ShouldStartWith("lawfulbasis.");
     }
 }

@@ -8,13 +8,13 @@ using Encina.Compliance.DPIA.ReadModels;
 using Encina.Compliance.DPIA.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.DPIA.Services;
@@ -72,8 +72,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.CreateAssessmentAsync("My.Request.Type");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(id => id.Should().NotBeEmpty());
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(id => id.ShouldNotBe(Guid.Empty));
 
         await _aggregateRepository.Received(1).CreateAsync(
             Arg.Is<DPIAAggregate>(a => a.RequestTypeName == "My.Request.Type"),
@@ -92,8 +92,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.CreateAssessmentAsync("My.Request.Type");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetEncinaCode().Should().Be(DPIAErrors.StoreErrorCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetEncinaCode().ShouldBe(DPIAErrors.StoreErrorCode));
     }
 
     #endregion
@@ -140,8 +140,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.EvaluateAssessmentAsync(id, context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.OverallRisk.Should().Be(RiskLevel.Medium));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.OverallRisk.ShouldBe(RiskLevel.Medium));
 
         await _aggregateRepository.Received(1).SaveAsync(
             Arg.Any<DPIAAggregate>(), Arg.Any<CancellationToken>());
@@ -168,8 +168,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.EvaluateAssessmentAsync(id, context);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetEncinaCode().Should().Be(DPIAErrors.AssessmentNotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentNotFoundCode));
     }
 
     #endregion
@@ -197,7 +197,7 @@ public class DefaultDPIAServiceTests
         var result = await _sut.ApproveAssessmentAsync(id, "admin@test.com");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         await _aggregateRepository.Received(1).SaveAsync(
             Arg.Any<DPIAAggregate>(), Arg.Any<CancellationToken>());
@@ -217,8 +217,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.ApproveAssessmentAsync(id, "admin@test.com");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetEncinaCode().Should().Be(DPIAErrors.AssessmentNotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentNotFoundCode));
     }
 
     #endregion
@@ -246,7 +246,7 @@ public class DefaultDPIAServiceTests
         var result = await _sut.RejectAssessmentAsync(id, "admin@test.com", "Risk too high");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         await _aggregateRepository.Received(1).SaveAsync(
             Arg.Any<DPIAAggregate>(), Arg.Any<CancellationToken>());
@@ -277,8 +277,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.RequestDPOConsultationAsync(id);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(consultationId => consultationId.Should().NotBeEmpty());
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(consultationId => consultationId.ShouldNotBe(Guid.Empty));
 
         await _aggregateRepository.Received(1).SaveAsync(
             Arg.Any<DPIAAggregate>(), Arg.Any<CancellationToken>());
@@ -305,8 +305,8 @@ public class DefaultDPIAServiceTests
         var result = await sut.RequestDPOConsultationAsync(id);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetEncinaCode().Should().Be(DPIAErrors.DPOConsultationRequiredCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetEncinaCode().ShouldBe(DPIAErrors.DPOConsultationRequiredCode));
 
         // Should NOT attempt to load the aggregate since DPO check happens first
         await _aggregateRepository.DidNotReceive().LoadAsync(
@@ -340,8 +340,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.GetAssessmentAsync(id);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.Id.Should().Be(id));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.Id.ShouldBe(id));
 
         await _readModelRepository.DidNotReceive().GetByIdAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -369,8 +369,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.GetAssessmentAsync(id);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.Id.Should().Be(id));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.Id.ShouldBe(id));
 
         await _readModelRepository.Received(1).GetByIdAsync(id, Arg.Any<CancellationToken>());
     }
@@ -392,8 +392,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.GetAssessmentAsync(id);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetEncinaCode().Should().Be(DPIAErrors.AssessmentNotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentNotFoundCode));
     }
 
     #endregion
@@ -430,8 +430,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.GetAssessmentByRequestTypeAsync(requestType);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.RequestTypeName.Should().Be(requestType));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.RequestTypeName.ShouldBe(requestType));
     }
 
     [Fact]
@@ -454,8 +454,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.GetAssessmentByRequestTypeAsync(requestType);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetEncinaCode().Should().Be(DPIAErrors.AssessmentNotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentNotFoundCode));
     }
 
     #endregion
@@ -489,8 +489,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.GetExpiredAssessmentsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(list => list.Should().HaveCount(1));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Count.ShouldBe(1));
     }
 
     #endregion
@@ -522,8 +522,8 @@ public class DefaultDPIAServiceTests
         var result = await _sut.GetAllAssessmentsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(list => list.Should().HaveCount(2));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(list => list.Count.ShouldBe(2));
     }
 
     #endregion

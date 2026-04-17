@@ -1,6 +1,6 @@
 using Encina.Compliance.PrivacyByDesign;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -16,7 +16,7 @@ public class PrivacyDefaultAttributeTests
         var attribute = new PrivacyDefaultAttribute(null);
 
         // Assert
-        attribute.DefaultValue.Should().BeNull();
+        attribute.DefaultValue.ShouldBeNull();
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class PrivacyDefaultAttributeTests
         var attribute = new PrivacyDefaultAttribute(false);
 
         // Assert
-        attribute.DefaultValue.Should().Be(false);
+        attribute.DefaultValue.ShouldBe(false);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class PrivacyDefaultAttributeTests
         var attribute = new PrivacyDefaultAttribute(true);
 
         // Assert
-        attribute.DefaultValue.Should().Be(true);
+        attribute.DefaultValue.ShouldBe(true);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class PrivacyDefaultAttributeTests
         var attribute = new PrivacyDefaultAttribute("default-value");
 
         // Assert
-        attribute.DefaultValue.Should().Be("default-value");
+        attribute.DefaultValue.ShouldBe("default-value");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class PrivacyDefaultAttributeTests
         var attribute = new PrivacyDefaultAttribute(30);
 
         // Assert
-        attribute.DefaultValue.Should().Be(30);
+        attribute.DefaultValue.ShouldBe(30);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class PrivacyDefaultAttributeTests
             .Single();
 
         // Assert
-        usage.ValidOn.Should().Be(AttributeTargets.Property);
+        usage.ValidOn.ShouldBe(AttributeTargets.Property);
     }
 
     [Fact]
@@ -82,6 +82,6 @@ public class PrivacyDefaultAttributeTests
             .Single();
 
         // Assert
-        usage.AllowMultiple.Should().BeFalse();
+        usage.AllowMultiple.ShouldBeFalse();
     }
 }

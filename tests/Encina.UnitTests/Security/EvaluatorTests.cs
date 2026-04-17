@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Security.Claims;
 using Encina.Security;
-using FluentAssertions;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security;
 
@@ -30,7 +30,7 @@ public class EvaluatorTests
             var result = await _evaluator.HasPermissionAsync(context, "orders:read");
 
             // Assert
-            result.Should().BeTrue();
+            result.ShouldBeTrue();
         }
 
         [Fact]
@@ -43,7 +43,7 @@ public class EvaluatorTests
             var result = await _evaluator.HasPermissionAsync(context, "orders:delete");
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -56,7 +56,7 @@ public class EvaluatorTests
             var result = await _evaluator.HasPermissionAsync(context, "orders:read");
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -70,7 +70,7 @@ public class EvaluatorTests
                 context, ReadWritePermissions);
 
             // Assert
-            result.Should().BeTrue();
+            result.ShouldBeTrue();
         }
 
         [Fact]
@@ -84,7 +84,7 @@ public class EvaluatorTests
                 context, ReadWritePermissions);
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -98,7 +98,7 @@ public class EvaluatorTests
                 context, ReadWritePermissions);
 
             // Assert
-            result.Should().BeTrue();
+            result.ShouldBeTrue();
         }
 
         [Fact]
@@ -112,7 +112,7 @@ public class EvaluatorTests
                 context, ReadWritePermissions);
 
             // Assert
-            result.Should().BeTrue();
+            result.ShouldBeTrue();
         }
 
         [Fact]
@@ -126,7 +126,7 @@ public class EvaluatorTests
                 context, ReadWritePermissions);
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -140,7 +140,7 @@ public class EvaluatorTests
                 context, ReadPermissions);
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         // -- Guard clauses --
@@ -149,7 +149,7 @@ public class EvaluatorTests
         public async Task HasPermission_NullContext_ShouldThrow()
         {
             Func<Task> act = async () => await _evaluator.HasPermissionAsync(null!, "read");
-            await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+            (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
         }
 
         [Fact]
@@ -157,7 +157,7 @@ public class EvaluatorTests
         {
             var context = CreateContext(permissions: []);
             Func<Task> act = async () => await _evaluator.HasPermissionAsync(context, null!);
-            await act.Should().ThrowAsync<ArgumentException>().WithParameterName("permission");
+            (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("permission");
         }
 
         [Fact]
@@ -165,14 +165,14 @@ public class EvaluatorTests
         {
             var context = CreateContext(permissions: []);
             Func<Task> act = async () => await _evaluator.HasPermissionAsync(context, "");
-            await act.Should().ThrowAsync<ArgumentException>().WithParameterName("permission");
+            (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("permission");
         }
 
         [Fact]
         public async Task HasAnyPermission_NullContext_ShouldThrow()
         {
             Func<Task> act = async () => await _evaluator.HasAnyPermissionAsync(null!, ["read"]);
-            await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+            (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
         }
 
         [Fact]
@@ -180,14 +180,14 @@ public class EvaluatorTests
         {
             var context = CreateContext(permissions: []);
             Func<Task> act = async () => await _evaluator.HasAnyPermissionAsync(context, null!);
-            await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("permissions");
+            (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("permissions");
         }
 
         [Fact]
         public async Task HasAllPermissions_NullContext_ShouldThrow()
         {
             Func<Task> act = async () => await _evaluator.HasAllPermissionsAsync(null!, ["read"]);
-            await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+            (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
         }
 
         [Fact]
@@ -195,7 +195,7 @@ public class EvaluatorTests
         {
             var context = CreateContext(permissions: []);
             Func<Task> act = async () => await _evaluator.HasAllPermissionsAsync(context, null!);
-            await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("permissions");
+            (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("permissions");
         }
 
         private static ISecurityContext CreateContext(string[] permissions)
@@ -225,7 +225,7 @@ public class EvaluatorTests
             var result = await _evaluator.IsOwnerAsync(context, resource, "OwnerId");
 
             // Assert
-            result.Should().BeTrue();
+            result.ShouldBeTrue();
         }
 
         [Fact]
@@ -239,7 +239,7 @@ public class EvaluatorTests
             var result = await _evaluator.IsOwnerAsync(context, resource, "OwnerId");
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -253,7 +253,7 @@ public class EvaluatorTests
             var result = await _evaluator.IsOwnerAsync(context, resource, "NonExistent");
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -267,7 +267,7 @@ public class EvaluatorTests
             var result = await _evaluator.IsOwnerAsync(context, resource, "OwnerId");
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -282,7 +282,7 @@ public class EvaluatorTests
             var result = await _evaluator.IsOwnerAsync(context, resource, "OwnerId");
 
             // Assert
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -297,7 +297,7 @@ public class EvaluatorTests
             var result = await _evaluator.IsOwnerAsync(context, resource, "OwnerId");
 
             // Assert
-            result.Should().BeTrue();
+            result.ShouldBeTrue();
         }
 
         [Fact]
@@ -311,7 +311,7 @@ public class EvaluatorTests
             var result = await _evaluator.IsOwnerAsync(context, resource, "OwnerId");
 
             // Assert — Ordinal comparison is case-sensitive
-            result.Should().BeFalse();
+            result.ShouldBeFalse();
         }
 
         [Fact]
@@ -327,8 +327,8 @@ public class EvaluatorTests
             var result2 = await _evaluator.IsOwnerAsync(context, resource2, "OwnerId");
 
             // Assert — both should succeed using cached PropertyInfo
-            result1.Should().BeTrue();
-            result2.Should().BeTrue();
+            result1.ShouldBeTrue();
+            result2.ShouldBeTrue();
         }
 
         // -- Guard clauses --
@@ -338,7 +338,7 @@ public class EvaluatorTests
         {
             var resource = new TestResource();
             Func<Task> act = async () => await _evaluator.IsOwnerAsync<TestResource>(null!, resource, "OwnerId");
-            await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+            (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
         }
 
         [Fact]
@@ -346,7 +346,7 @@ public class EvaluatorTests
         {
             var context = CreateContext("user-1");
             Func<Task> act = async () => await _evaluator.IsOwnerAsync<TestResource>(context, null!, "OwnerId");
-            await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("resource");
+            (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("resource");
         }
 
         [Fact]
@@ -355,7 +355,7 @@ public class EvaluatorTests
             var context = CreateContext("user-1");
             var resource = new TestResource();
             Func<Task> act = async () => await _evaluator.IsOwnerAsync(context, resource, null!);
-            await act.Should().ThrowAsync<ArgumentException>().WithParameterName("propertyName");
+            (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("propertyName");
         }
 
         [Fact]
@@ -364,7 +364,7 @@ public class EvaluatorTests
             var context = CreateContext("user-1");
             var resource = new TestResource();
             Func<Task> act = async () => await _evaluator.IsOwnerAsync(context, resource, "");
-            await act.Should().ThrowAsync<ArgumentException>().WithParameterName("propertyName");
+            (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("propertyName");
         }
 
         private static ISecurityContext CreateContext(string userId)

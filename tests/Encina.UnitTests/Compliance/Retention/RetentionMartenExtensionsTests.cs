@@ -1,8 +1,6 @@
 using Encina.Compliance.Retention;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -18,7 +16,7 @@ public sealed class RetentionMartenExtensionsTests
 
         var result = services.AddRetentionAggregates();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -29,6 +27,6 @@ public sealed class RetentionMartenExtensionsTests
         services.AddRetentionAggregates();
 
         // Should have registered aggregate repositories and projections (6 total minimum)
-        services.Count.Should().BeGreaterThan(0);
+        services.Count.ShouldBeGreaterThan(0);
     }
 }

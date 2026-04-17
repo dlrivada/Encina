@@ -3,7 +3,7 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -26,7 +26,7 @@ public class LargeScaleProcessingCriterionTests
     [Fact]
     public void Name_ShouldReturnExpectedValue()
     {
-        _sut.Name.Should().Be("Large-Scale Processing");
+        _sut.Name.ShouldBe("Large-Scale Processing");
     }
 
     #endregion
@@ -37,7 +37,7 @@ public class LargeScaleProcessingCriterionTests
     public async Task EvaluateAsync_NullContext_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.EvaluateAsync(null!);
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class LargeScaleProcessingCriterionTests
 
         var result = await _sut.EvaluateAsync(context);
 
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -57,9 +57,9 @@ public class LargeScaleProcessingCriterionTests
 
         var result = await _sut.EvaluateAsync(context);
 
-        result.Should().NotBeNull();
-        result!.Level.Should().Be(RiskLevel.Medium);
-        result.Category.Should().Be("Large-Scale Processing");
+        result.ShouldNotBeNull();
+        result!.Level.ShouldBe(RiskLevel.Medium);
+        result.Category.ShouldBe("Large-Scale Processing");
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class LargeScaleProcessingCriterionTests
 
         var result = await _sut.EvaluateAsync(context);
 
-        result.Should().NotBeNull();
-        result!.Level.Should().Be(RiskLevel.High);
+        result.ShouldNotBeNull();
+        result!.Level.ShouldBe(RiskLevel.High);
     }
 
     #endregion

@@ -100,7 +100,7 @@ public sealed class QuartzJobIntegrationTests
         var jobDetail = Substitute.For<IJobDetail>();
         var jobDataMap = new JobDataMap();
 
-        jobDataMap.Put(QuartzConstants.RequestKey, request);
+        jobDataMap[QuartzConstants.RequestKey] = request;
 
         jobDetail.JobDataMap.Returns(jobDataMap);
         jobDetail.Key.Returns(new JobKey("test-job"));
@@ -116,7 +116,7 @@ public sealed class QuartzJobIntegrationTests
         var jobDetail = Substitute.For<IJobDetail>();
         var jobDataMap = new JobDataMap();
 
-        jobDataMap.Put(QuartzConstants.NotificationKey, notification);
+        jobDataMap[QuartzConstants.NotificationKey] = notification;
 
         jobDetail.JobDataMap.Returns(jobDataMap);
         jobDetail.Key.Returns(new JobKey("test-job"));

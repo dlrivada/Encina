@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.Resilience;
 
@@ -12,7 +12,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.MaxRetryAttempts.Should().Be(3);
+        options.MaxRetryAttempts.ShouldBe(3);
     }
 
     [Fact]
@@ -20,7 +20,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.RetryBaseDelay.Should().Be(TimeSpan.FromSeconds(2));
+        options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.RetryMaxDelay.Should().Be(TimeSpan.FromSeconds(30));
+        options.RetryMaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.CircuitBreakerFailureRatio.Should().Be(0.5);
+        options.CircuitBreakerFailureRatio.ShouldBe(0.5);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.CircuitBreakerSamplingDuration.Should().Be(TimeSpan.FromSeconds(60));
+        options.CircuitBreakerSamplingDuration.ShouldBe(TimeSpan.FromSeconds(60));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.CircuitBreakerMinimumThroughput.Should().Be(10);
+        options.CircuitBreakerMinimumThroughput.ShouldBe(10);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.CircuitBreakerBreakDuration.Should().Be(TimeSpan.FromSeconds(30));
+        options.CircuitBreakerBreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions();
 
-        options.OperationTimeout.Should().Be(TimeSpan.FromSeconds(30));
+        options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     #endregion
@@ -80,7 +80,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions { MaxRetryAttempts = 5 };
 
-        options.MaxRetryAttempts.Should().Be(5);
+        options.MaxRetryAttempts.ShouldBe(5);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions { MaxRetryAttempts = 0 };
 
-        options.MaxRetryAttempts.Should().Be(0);
+        options.MaxRetryAttempts.ShouldBe(0);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions { RetryBaseDelay = TimeSpan.FromSeconds(5) };
 
-        options.RetryBaseDelay.Should().Be(TimeSpan.FromSeconds(5));
+        options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions { RetryMaxDelay = TimeSpan.FromMinutes(1) };
 
-        options.RetryMaxDelay.Should().Be(TimeSpan.FromMinutes(1));
+        options.RetryMaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions { CircuitBreakerFailureRatio = 0.8 };
 
-        options.CircuitBreakerFailureRatio.Should().Be(0.8);
+        options.CircuitBreakerFailureRatio.ShouldBe(0.8);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class SecretsResilienceOptionsTests
             CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(120)
         };
 
-        options.CircuitBreakerSamplingDuration.Should().Be(TimeSpan.FromSeconds(120));
+        options.CircuitBreakerSamplingDuration.ShouldBe(TimeSpan.FromSeconds(120));
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions { CircuitBreakerMinimumThroughput = 20 };
 
-        options.CircuitBreakerMinimumThroughput.Should().Be(20);
+        options.CircuitBreakerMinimumThroughput.ShouldBe(20);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class SecretsResilienceOptionsTests
             CircuitBreakerBreakDuration = TimeSpan.FromMinutes(1)
         };
 
-        options.CircuitBreakerBreakDuration.Should().Be(TimeSpan.FromMinutes(1));
+        options.CircuitBreakerBreakDuration.ShouldBe(TimeSpan.FromMinutes(1));
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class SecretsResilienceOptionsTests
     {
         var options = new SecretsResilienceOptions { OperationTimeout = TimeSpan.FromSeconds(60) };
 
-        options.OperationTimeout.Should().Be(TimeSpan.FromSeconds(60));
+        options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(60));
     }
 
     #endregion

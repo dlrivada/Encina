@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.HashiCorpVault;
-using FluentAssertions;
+using Shouldly;
 using VaultSharp.V1.AuthMethods;
 using VaultSharp.V1.AuthMethods.Token;
 
@@ -12,7 +12,7 @@ public sealed class HashiCorpVaultOptionsTests
     {
         var options = new HashiCorpVaultOptions();
 
-        options.VaultAddress.Should().BeEmpty();
+        options.VaultAddress.ShouldBeEmpty();
     }
 
     [Fact]
@@ -20,7 +20,7 @@ public sealed class HashiCorpVaultOptionsTests
     {
         var options = new HashiCorpVaultOptions();
 
-        options.AuthMethod.Should().BeNull();
+        options.AuthMethod.ShouldBeNull();
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class HashiCorpVaultOptionsTests
     {
         var options = new HashiCorpVaultOptions();
 
-        options.MountPoint.Should().Be("secret");
+        options.MountPoint.ShouldBe("secret");
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class HashiCorpVaultOptionsTests
 
         options.VaultAddress = "https://vault.example.com:8200";
 
-        options.VaultAddress.Should().Be("https://vault.example.com:8200");
+        options.VaultAddress.ShouldBe("https://vault.example.com:8200");
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class HashiCorpVaultOptionsTests
 
         options.AuthMethod = auth;
 
-        options.AuthMethod.Should().BeSameAs(auth);
+        options.AuthMethod.ShouldBeSameAs(auth);
     }
 
     [Fact]
@@ -59,6 +59,6 @@ public sealed class HashiCorpVaultOptionsTests
 
         options.MountPoint = "custom-kv";
 
-        options.MountPoint.Should().Be("custom-kv");
+        options.MountPoint.ShouldBe("custom-kv");
     }
 }

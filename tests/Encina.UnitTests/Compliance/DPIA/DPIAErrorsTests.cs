@@ -3,7 +3,7 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -17,14 +17,14 @@ public class DPIAErrorsTests
     [Fact]
     public void ErrorCodes_ShouldHaveExpectedValues()
     {
-        DPIAErrors.AssessmentRequiredCode.Should().Be("dpia.assessment_required");
-        DPIAErrors.AssessmentExpiredCode.Should().Be("dpia.assessment_expired");
-        DPIAErrors.AssessmentRejectedCode.Should().Be("dpia.assessment_rejected");
-        DPIAErrors.PriorConsultationRequiredCode.Should().Be("dpia.prior_consultation_required");
-        DPIAErrors.DPOConsultationRequiredCode.Should().Be("dpia.dpo_consultation_required");
-        DPIAErrors.RiskTooHighCode.Should().Be("dpia.risk_too_high");
-        DPIAErrors.StoreErrorCode.Should().Be("dpia.store_error");
-        DPIAErrors.TemplateNotFoundCode.Should().Be("dpia.template_not_found");
+        DPIAErrors.AssessmentRequiredCode.ShouldBe("dpia.assessment_required");
+        DPIAErrors.AssessmentExpiredCode.ShouldBe("dpia.assessment_expired");
+        DPIAErrors.AssessmentRejectedCode.ShouldBe("dpia.assessment_rejected");
+        DPIAErrors.PriorConsultationRequiredCode.ShouldBe("dpia.prior_consultation_required");
+        DPIAErrors.DPOConsultationRequiredCode.ShouldBe("dpia.dpo_consultation_required");
+        DPIAErrors.RiskTooHighCode.ShouldBe("dpia.risk_too_high");
+        DPIAErrors.StoreErrorCode.ShouldBe("dpia.store_error");
+        DPIAErrors.TemplateNotFoundCode.ShouldBe("dpia.template_not_found");
     }
 
     #endregion
@@ -36,9 +36,9 @@ public class DPIAErrorsTests
     {
         var error = DPIAErrors.AssessmentRequired("Ns.TestCommand");
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.AssessmentRequiredCode);
-        error.Message.Should().Contain("Ns.TestCommand");
-        error.Message.Should().Contain("Article 35(1)");
+        error.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentRequiredCode);
+        error.Message.ShouldContain("Ns.TestCommand");
+        error.Message.ShouldContain("Article 35(1)");
     }
 
     [Fact]
@@ -49,9 +49,9 @@ public class DPIAErrorsTests
 
         var error = DPIAErrors.AssessmentExpired(id, "Ns.TestCommand", expiredAt);
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.AssessmentExpiredCode);
-        error.Message.Should().Contain(id.ToString());
-        error.Message.Should().Contain("Article 35(11)");
+        error.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentExpiredCode);
+        error.Message.ShouldContain(id.ToString());
+        error.Message.ShouldContain("Article 35(11)");
     }
 
     [Fact]
@@ -61,8 +61,8 @@ public class DPIAErrorsTests
 
         var error = DPIAErrors.AssessmentRejected(id, "Ns.TestCommand");
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.AssessmentRejectedCode);
-        error.Message.Should().Contain(id.ToString());
+        error.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentRejectedCode);
+        error.Message.ShouldContain(id.ToString());
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class DPIAErrorsTests
 
         var error = DPIAErrors.PriorConsultationRequired(id, "Ns.TestCommand");
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.PriorConsultationRequiredCode);
-        error.Message.Should().Contain("Article 36(1)");
+        error.GetEncinaCode().ShouldBe(DPIAErrors.PriorConsultationRequiredCode);
+        error.Message.ShouldContain("Article 36(1)");
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class DPIAErrorsTests
 
         var error = DPIAErrors.DPOConsultationRequired(id);
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.DPOConsultationRequiredCode);
-        error.Message.Should().Contain("Article 35(2)");
+        error.GetEncinaCode().ShouldBe(DPIAErrors.DPOConsultationRequiredCode);
+        error.Message.ShouldContain("Article 35(2)");
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public class DPIAErrorsTests
 
         var error = DPIAErrors.RiskTooHigh(id, "Ns.TestCommand", RiskLevel.VeryHigh);
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.RiskTooHighCode);
-        error.Message.Should().Contain("VeryHigh");
+        error.GetEncinaCode().ShouldBe(DPIAErrors.RiskTooHighCode);
+        error.Message.ShouldContain("VeryHigh");
     }
 
     [Fact]
@@ -103,9 +103,9 @@ public class DPIAErrorsTests
     {
         var error = DPIAErrors.StoreError("SaveAssessment", "Connection failed");
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.StoreErrorCode);
-        error.Message.Should().Contain("SaveAssessment");
-        error.Message.Should().Contain("Connection failed");
+        error.GetEncinaCode().ShouldBe(DPIAErrors.StoreErrorCode);
+        error.Message.ShouldContain("SaveAssessment");
+        error.Message.ShouldContain("Connection failed");
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class DPIAErrorsTests
 
         var error = DPIAErrors.StoreError("GetAssessment", "Failed", ex);
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.StoreErrorCode);
+        error.GetEncinaCode().ShouldBe(DPIAErrors.StoreErrorCode);
     }
 
     [Fact]
@@ -123,8 +123,8 @@ public class DPIAErrorsTests
     {
         var error = DPIAErrors.TemplateNotFound("AutomatedDecisionMaking");
 
-        error.GetEncinaCode().Should().Be(DPIAErrors.TemplateNotFoundCode);
-        error.Message.Should().Contain("AutomatedDecisionMaking");
+        error.GetEncinaCode().ShouldBe(DPIAErrors.TemplateNotFoundCode);
+        error.Message.ShouldContain("AutomatedDecisionMaking");
     }
 
     #endregion

@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.GDPR.Export;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR.Export;
 
@@ -21,13 +21,13 @@ public class JsonRoPAExporterTests
     [Fact]
     public void ContentType_ShouldBeApplicationJson()
     {
-        _sut.ContentType.Should().Be("application/json");
+        _sut.ContentType.ShouldBe("application/json");
     }
 
     [Fact]
     public void FileExtension_ShouldBeDotJson()
     {
-        _sut.FileExtension.Should().Be(".json");
+        _sut.FileExtension.ShouldBe(".json");
     }
 
     // -- ExportAsync --
@@ -42,16 +42,16 @@ public class JsonRoPAExporterTests
         var result = await _sut.ExportAsync([], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var export = (RoPAExportResult)result;
-        export.ActivityCount.Should().Be(0);
-        export.ContentType.Should().Be("application/json");
-        export.FileExtension.Should().Be(".json");
+        export.ActivityCount.ShouldBe(0);
+        export.ContentType.ShouldBe("application/json");
+        export.FileExtension.ShouldBe(".json");
 
         var json = Encoding.UTF8.GetString(export.Content);
         var doc = JsonDocument.Parse(json);
-        doc.RootElement.GetProperty("metadata").GetProperty("activityCount").GetInt32().Should().Be(0);
-        doc.RootElement.GetProperty("activities").GetArrayLength().Should().Be(0);
+        doc.RootElement.GetProperty("metadata").GetProperty("activityCount").GetInt32().ShouldBe(0);
+        doc.RootElement.GetProperty("activities").GetArrayLength().ShouldBe(0);
     }
 
     [Fact]
@@ -65,27 +65,27 @@ public class JsonRoPAExporterTests
         var result = await _sut.ExportAsync([activity], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var export = (RoPAExportResult)result;
-        export.ActivityCount.Should().Be(1);
+        export.ActivityCount.ShouldBe(1);
 
         var json = Encoding.UTF8.GetString(export.Content);
         var doc = JsonDocument.Parse(json);
 
         // Verify metadata
         var meta = doc.RootElement.GetProperty("metadata");
-        meta.GetProperty("controllerName").GetString().Should().Be("Acme Corp");
-        meta.GetProperty("controllerEmail").GetString().Should().Be("privacy@acme.com");
-        meta.GetProperty("activityCount").GetInt32().Should().Be(1);
+        meta.GetProperty("controllerName").GetString().ShouldBe("Acme Corp");
+        meta.GetProperty("controllerEmail").GetString().ShouldBe("privacy@acme.com");
+        meta.GetProperty("activityCount").GetInt32().ShouldBe(1);
 
         // Verify activity
         var activities = doc.RootElement.GetProperty("activities");
-        activities.GetArrayLength().Should().Be(1);
+        activities.GetArrayLength().ShouldBe(1);
         var act = activities[0];
-        act.GetProperty("name").GetString().Should().Be("Order Processing");
-        act.GetProperty("purpose").GetString().Should().Be("Fulfill orders");
-        act.GetProperty("lawfulBasis").GetString().Should().Be("contract");
-        act.GetProperty("retentionDays").GetInt32().Should().Be(2555);
+        act.GetProperty("name").GetString().ShouldBe("Order Processing");
+        act.GetProperty("purpose").GetString().ShouldBe("Fulfill orders");
+        act.GetProperty("lawfulBasis").GetString().ShouldBe("contract");
+        act.GetProperty("retentionDays").GetInt32().ShouldBe(2555);
     }
 
     [Fact]
@@ -99,13 +99,13 @@ public class JsonRoPAExporterTests
         var result = await _sut.ExportAsync([CreateActivity()], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var json = Encoding.UTF8.GetString(((RoPAExportResult)result).Content);
         var doc = JsonDocument.Parse(json);
         var dpoNode = doc.RootElement.GetProperty("metadata").GetProperty("dataProtectionOfficer");
-        dpoNode.GetProperty("name").GetString().Should().Be("Jane Doe");
-        dpoNode.GetProperty("email").GetString().Should().Be("dpo@acme.com");
-        dpoNode.GetProperty("phone").GetString().Should().Be("+1-555-0100");
+        dpoNode.GetProperty("name").GetString().ShouldBe("Jane Doe");
+        dpoNode.GetProperty("email").GetString().ShouldBe("dpo@acme.com");
+        dpoNode.GetProperty("phone").GetString().ShouldBe("+1-555-0100");
     }
 
     [Fact]
@@ -118,11 +118,11 @@ public class JsonRoPAExporterTests
         var result = await _sut.ExportAsync([CreateActivity()], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var json = Encoding.UTF8.GetString(((RoPAExportResult)result).Content);
         var doc = JsonDocument.Parse(json);
         doc.RootElement.GetProperty("metadata")
-            .TryGetProperty("dataProtectionOfficer", out _).Should().BeFalse();
+            .TryGetProperty("dataProtectionOfficer", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -140,9 +140,9 @@ public class JsonRoPAExporterTests
         var result = await _sut.ExportAsync(activities, metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var export = (RoPAExportResult)result;
-        export.ActivityCount.Should().Be(2);
+        export.ActivityCount.ShouldBe(2);
     }
 
     [Fact]
@@ -152,8 +152,7 @@ public class JsonRoPAExporterTests
         var act = async () => await _sut.ExportAsync(null!, CreateMetadata());
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("activities");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("activities");
     }
 
     [Fact]
@@ -163,8 +162,7 @@ public class JsonRoPAExporterTests
         var act = async () => await _sut.ExportAsync([], null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("metadata");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("metadata");
     }
 
     [Fact]
@@ -177,8 +175,8 @@ public class JsonRoPAExporterTests
         var result = await _sut.ExportAsync([], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((RoPAExportResult)result).ExportedAtUtc.Should().Be(FixedTime);
+        result.IsRight.ShouldBeTrue();
+        ((RoPAExportResult)result).ExportedAtUtc.ShouldBe(FixedTime);
     }
 
     [Fact]
@@ -192,9 +190,9 @@ public class JsonRoPAExporterTests
         var result = await _sut.ExportAsync([activity], metadata);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var json = Encoding.UTF8.GetString(((RoPAExportResult)result).Content);
-        json.Should().Contain(typeof(JsonRoPAExporterTests).FullName!);
+        json.ShouldContain(typeof(JsonRoPAExporterTests).FullName!);
     }
 
     // -- Helpers --

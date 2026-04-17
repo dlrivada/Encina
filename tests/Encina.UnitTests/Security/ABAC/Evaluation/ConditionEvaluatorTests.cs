@@ -1,9 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-
-using FluentAssertions;
-
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Evaluation;
 
@@ -43,7 +41,7 @@ public sealed class ConditionEvaluatorTests
     /// </summary>
     private static T AssertRight<T>(Either<EncinaError, T> either, string context = "")
     {
-        either.IsRight.Should().BeTrue($"expected Right but got Left{(context.Length > 0 ? $": {context}" : "")}");
+        either.IsRight.ShouldBeTrue($"expected Right but got Left{(context.Length > 0 ? $": {context}" : "")}");
         return either.Match(Left: _ => default!, Right: v => v);
     }
 
@@ -52,7 +50,7 @@ public sealed class ConditionEvaluatorTests
     /// </summary>
     private static EncinaError AssertLeft<T>(Either<EncinaError, T> either, string context = "")
     {
-        either.IsLeft.Should().BeTrue($"expected Left but got Right{(context.Length > 0 ? $": {context}" : "")}");
+        either.IsLeft.ShouldBeTrue($"expected Left but got Right{(context.Length > 0 ? $": {context}" : "")}");
         return either.Match(Left: e => e, Right: _ => default);
     }
 
@@ -66,7 +64,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(expr, ctx);
 
-        AssertRight(result).Should().Be("hello");
+        AssertRight(result).ShouldBe("hello");
     }
 
     [Fact]
@@ -77,7 +75,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(expr, ctx);
 
-        AssertRight(result).Should().Be(42);
+        AssertRight(result).ShouldBe(42);
     }
 
     [Fact]
@@ -87,10 +85,10 @@ public sealed class ConditionEvaluatorTests
         var expr = new AttributeValue { DataType = XACMLDataTypes.String, Value = null };
         var ctx = MakeContext();
 
-        var act = () => _sut.Evaluate(expr, ctx);
+        Action act = () => { _sut.Evaluate(expr, ctx); };
 
         // Null value causes LanguageExt implicit conversion to throw
-        act.Should().Throw<ValueIsNullException>();
+        Should.Throw<ValueIsNullException>(act);
     }
 
     #endregion
@@ -110,7 +108,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(designator, ctx);
 
-        AssertRight(result).Should().Be("admin");
+        AssertRight(result).ShouldBe("admin");
     }
 
     [Fact]
@@ -126,7 +124,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(designator, ctx);
 
-        AssertRight(result).Should().Be("document");
+        AssertRight(result).ShouldBe("document");
     }
 
     [Fact]
@@ -142,7 +140,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(designator, ctx);
 
-        AssertRight(result).Should().Be("09:00");
+        AssertRight(result).ShouldBe("09:00");
     }
 
     [Fact]
@@ -158,7 +156,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(designator, ctx);
 
-        AssertRight(result).Should().Be("read");
+        AssertRight(result).ShouldBe("read");
     }
 
     [Fact]
@@ -175,7 +173,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(designator, ctx);
 
-        result.IsLeft.Should().BeTrue("missing MustBePresent attribute should produce error");
+        result.IsLeft.ShouldBeTrue("missing MustBePresent attribute should produce error");
     }
 
     [Fact]
@@ -193,7 +191,7 @@ public sealed class ConditionEvaluatorTests
         var result = _sut.Evaluate(designator, ctx);
 
         var value = AssertRight(result);
-        value.Should().Be(AttributeBag.Empty);
+        value.ShouldBe(AttributeBag.Empty);
     }
 
     [Fact]
@@ -213,8 +211,8 @@ public sealed class ConditionEvaluatorTests
         var result = _sut.Evaluate(designator, ctx);
 
         var value = AssertRight(result);
-        value.Should().BeOfType<AttributeBag>();
-        ((AttributeBag)value!).Count.Should().Be(2);
+        value.ShouldBeOfType<AttributeBag>();
+        ((AttributeBag)value!).Count.ShouldBe(2);
     }
 
     #endregion
@@ -237,7 +235,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(apply, ctx);
 
-        AssertRight(result).Should().Be(true);
+        AssertRight(result).ShouldBe(true);
     }
 
     [Fact]
@@ -256,7 +254,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(apply, ctx);
 
-        AssertRight(result).Should().Be(false);
+        AssertRight(result).ShouldBe(false);
     }
 
     [Fact]
@@ -280,7 +278,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(apply, ctx);
 
-        AssertRight(result).Should().Be(true);
+        AssertRight(result).ShouldBe(true);
     }
 
     [Fact]
@@ -328,7 +326,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(apply, ctx);
 
-        AssertRight(result).Should().Be(true);
+        AssertRight(result).ShouldBe(true);
     }
 
     [Fact]
@@ -346,7 +344,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(apply, ctx);
 
-        result.IsLeft.Should().BeTrue("unregistered function should produce error");
+        result.IsLeft.ShouldBeTrue("unregistered function should produce error");
     }
 
     [Fact]
@@ -371,7 +369,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(apply, ctx);
 
-        result.IsLeft.Should().BeTrue("error in argument should short-circuit");
+        result.IsLeft.ShouldBeTrue("error in argument should short-circuit");
     }
 
     [Fact]
@@ -390,7 +388,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(apply, ctx);
 
-        result.IsLeft.Should().BeTrue("function that throws should produce error");
+        result.IsLeft.ShouldBeTrue("function that throws should produce error");
     }
 
     #endregion
@@ -413,7 +411,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(varRef, ctx, variables);
 
-        AssertRight(result).Should().Be("resolved");
+        AssertRight(result).ShouldBe("resolved");
     }
 
     [Fact]
@@ -425,7 +423,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(varRef, ctx, variables);
 
-        result.IsLeft.Should().BeTrue("undefined variable should produce error");
+        result.IsLeft.ShouldBeTrue("undefined variable should produce error");
     }
 
     [Fact]
@@ -436,7 +434,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(varRef, ctx, variables: null);
 
-        result.IsLeft.Should().BeTrue("null variables dictionary should produce error");
+        result.IsLeft.ShouldBeTrue("null variables dictionary should produce error");
     }
 
     [Fact]
@@ -461,7 +459,7 @@ public sealed class ConditionEvaluatorTests
 
         var result = _sut.Evaluate(varRef, ctx, variables);
 
-        AssertRight(result).Should().Be("Engineering");
+        AssertRight(result).ShouldBe("Engineering");
     }
 
     #endregion
@@ -473,9 +471,9 @@ public sealed class ConditionEvaluatorTests
     {
         var ctx = MakeContext();
 
-        var act = () => _sut.Evaluate(null!, ctx);
+        Action act = () => { _sut.Evaluate(null!, ctx); };
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -483,9 +481,9 @@ public sealed class ConditionEvaluatorTests
     {
         var expr = new AttributeValue { DataType = XACMLDataTypes.String, Value = "test" };
 
-        var act = () => _sut.Evaluate(expr, null!);
+        Action act = () => { _sut.Evaluate(expr, null!); };
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -493,7 +491,7 @@ public sealed class ConditionEvaluatorTests
     {
         var act = () => new ConditionEvaluator(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion

@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -15,16 +15,16 @@ public class AuditOptionsTests
         var options = new AuditOptions();
 
         // Assert
-        options.AuditAllCommands.Should().BeTrue();
-        options.AuditAllQueries.Should().BeFalse();
-        options.IncludePayloadHash.Should().BeTrue();
-        options.IncludeRequestPayload.Should().BeFalse();
-        options.IncludeResponsePayload.Should().BeFalse();
-        options.MaxPayloadSizeBytes.Should().Be(65536); // 64 KB
-        options.GlobalSensitiveFields.Should().BeNull();
-        options.EnableAutoPurge.Should().BeFalse();
-        options.PurgeIntervalHours.Should().Be(24);
-        options.RetentionDays.Should().Be(2555); // ~7 years for SOX compliance
+        options.AuditAllCommands.ShouldBeTrue();
+        options.AuditAllQueries.ShouldBeFalse();
+        options.IncludePayloadHash.ShouldBeTrue();
+        options.IncludeRequestPayload.ShouldBeFalse();
+        options.IncludeResponsePayload.ShouldBeFalse();
+        options.MaxPayloadSizeBytes.ShouldBe(65536); // 64 KB
+        options.GlobalSensitiveFields.ShouldBeNull();
+        options.EnableAutoPurge.ShouldBeFalse();
+        options.PurgeIntervalHours.ShouldBe(24);
+        options.RetentionDays.ShouldBe(2555); // ~7 years for SOX compliance
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class AuditOptionsTests
         var options = new AuditOptions();
 
         // Assert
-        options.ExcludedTypes.Should().BeEmpty();
+        options.ExcludedTypes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class AuditOptionsTests
         var options = new AuditOptions();
 
         // Assert
-        options.IncludedQueryTypes.Should().BeEmpty();
+        options.IncludedQueryTypes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class AuditOptionsTests
         options.ExcludeType<TestCommand>();
 
         // Assert
-        options.ExcludedTypes.Should().Contain(typeof(TestCommand));
-        options.IsExcluded(typeof(TestCommand)).Should().BeTrue();
+        options.ExcludedTypes.ShouldContain(typeof(TestCommand));
+        options.IsExcluded(typeof(TestCommand)).ShouldBeTrue();
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class AuditOptionsTests
         options.ExcludeType(typeof(TestCommand));
 
         // Assert
-        options.ExcludedTypes.Should().Contain(typeof(TestCommand));
-        options.IsExcluded(typeof(TestCommand)).Should().BeTrue();
+        options.ExcludedTypes.ShouldContain(typeof(TestCommand));
+        options.IsExcluded(typeof(TestCommand)).ShouldBeTrue();
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class AuditOptionsTests
         var result = options.ExcludeType<TestCommand>();
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -97,9 +97,9 @@ public class AuditOptionsTests
             .ExcludeType<TestQuery>();
 
         // Assert
-        options.ExcludedTypes.Should().HaveCount(2);
-        options.IsExcluded(typeof(TestCommand)).Should().BeTrue();
-        options.IsExcluded(typeof(TestQuery)).Should().BeTrue();
+        options.ExcludedTypes.Count.ShouldBe(2);
+        options.IsExcluded(typeof(TestCommand)).ShouldBeTrue();
+        options.IsExcluded(typeof(TestQuery)).ShouldBeTrue();
     }
 
     [Fact]
@@ -112,8 +112,8 @@ public class AuditOptionsTests
         options.IncludeQueryType<TestQuery>();
 
         // Assert
-        options.IncludedQueryTypes.Should().Contain(typeof(TestQuery));
-        options.IsQueryIncluded(typeof(TestQuery)).Should().BeTrue();
+        options.IncludedQueryTypes.ShouldContain(typeof(TestQuery));
+        options.IsQueryIncluded(typeof(TestQuery)).ShouldBeTrue();
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public class AuditOptionsTests
         options.IncludeQueryType(typeof(TestQuery));
 
         // Assert
-        options.IncludedQueryTypes.Should().Contain(typeof(TestQuery));
-        options.IsQueryIncluded(typeof(TestQuery)).Should().BeTrue();
+        options.IncludedQueryTypes.ShouldContain(typeof(TestQuery));
+        options.IsQueryIncluded(typeof(TestQuery)).ShouldBeTrue();
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class AuditOptionsTests
         var result = options.IncludeQueryType<TestQuery>();
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class AuditOptionsTests
         var options = new AuditOptions();
 
         // Act & Assert
-        options.IsExcluded(typeof(TestCommand)).Should().BeFalse();
+        options.IsExcluded(typeof(TestCommand)).ShouldBeFalse();
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class AuditOptionsTests
         var options = new AuditOptions();
 
         // Act & Assert
-        options.IsQueryIncluded(typeof(TestQuery)).Should().BeFalse();
+        options.IsQueryIncluded(typeof(TestQuery)).ShouldBeFalse();
     }
 
     [Fact]
@@ -173,8 +173,8 @@ public class AuditOptionsTests
         var act = () => options.ExcludeType(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestType");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("requestType");
     }
 
     [Fact]
@@ -187,8 +187,8 @@ public class AuditOptionsTests
         var act = () => options.IncludeQueryType(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("queryType");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("queryType");
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class AuditOptionsTests
         options.ExcludeType<TestCommand>();
 
         // Assert - HashSet semantics prevent duplicates
-        options.ExcludedTypes.Should().HaveCount(1);
+        options.ExcludedTypes.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -218,10 +218,10 @@ public class AuditOptionsTests
         };
 
         // Assert
-        options.AuditAllCommands.Should().BeFalse();
-        options.AuditAllQueries.Should().BeTrue();
-        options.IncludePayloadHash.Should().BeFalse();
-        options.RetentionDays.Should().Be(365);
+        options.AuditAllCommands.ShouldBeFalse();
+        options.AuditAllQueries.ShouldBeTrue();
+        options.IncludePayloadHash.ShouldBeFalse();
+        options.RetentionDays.ShouldBe(365);
     }
 
     [Fact]
@@ -235,8 +235,8 @@ public class AuditOptionsTests
         };
 
         // Assert
-        options.EnableAutoPurge.Should().BeTrue();
-        options.PurgeIntervalHours.Should().Be(12);
+        options.EnableAutoPurge.ShouldBeTrue();
+        options.PurgeIntervalHours.ShouldBe(12);
     }
 
     [Fact]
@@ -251,9 +251,9 @@ public class AuditOptionsTests
         };
 
         // Assert
-        options.IncludeRequestPayload.Should().BeTrue();
-        options.IncludeResponsePayload.Should().BeTrue();
-        options.MaxPayloadSizeBytes.Should().Be(131072);
+        options.IncludeRequestPayload.ShouldBeTrue();
+        options.IncludeResponsePayload.ShouldBeTrue();
+        options.MaxPayloadSizeBytes.ShouldBe(131072);
     }
 
     [Fact]
@@ -266,11 +266,11 @@ public class AuditOptionsTests
         };
 
         // Assert
-        options.GlobalSensitiveFields.Should().NotBeNull();
-        options.GlobalSensitiveFields.Should().HaveCount(3);
-        options.GlobalSensitiveFields.Should().Contain("customField");
-        options.GlobalSensitiveFields.Should().Contain("dateOfBirth");
-        options.GlobalSensitiveFields.Should().Contain("taxId");
+        options.GlobalSensitiveFields.ShouldNotBeNull();
+        options.GlobalSensitiveFields.Count.ShouldBe(3);
+        options.GlobalSensitiveFields.ShouldContain("customField");
+        options.GlobalSensitiveFields.ShouldContain("dateOfBirth");
+        options.GlobalSensitiveFields.ShouldContain("taxId");
     }
 
     private sealed class TestCommand { }

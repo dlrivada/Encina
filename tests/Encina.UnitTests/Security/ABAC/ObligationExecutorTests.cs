@@ -1,8 +1,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Evaluation;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.ABAC;
@@ -35,7 +35,7 @@ public sealed class ObligationExecutorTests
 
         var result = await executor.ExecuteObligationsAsync([], ctx, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -55,8 +55,8 @@ public sealed class ObligationExecutorTests
 
         var result = await executor.ExecuteObligationsAsync(obligations, ctx, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        handler.Invocations.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        handler.Invocations.ShouldBe(1);
     }
 
     [Fact]
@@ -74,9 +74,9 @@ public sealed class ObligationExecutorTests
 
         var result = await executor.ExecuteObligationsAsync(obligations, ctx, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        handler1.Invocations.Should().Be(1);
-        handler2.Invocations.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        handler1.Invocations.ShouldBe(1);
+        handler2.Invocations.ShouldBe(1);
     }
 
     #endregion
@@ -95,7 +95,7 @@ public sealed class ObligationExecutorTests
 
         var result = await executor.ExecuteObligationsAsync(obligations, ctx, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("missing handler should fail per XACML §7.18");
+        result.IsLeft.ShouldBeTrue("missing handler should fail per XACML §7.18");
     }
 
     #endregion
@@ -115,8 +115,8 @@ public sealed class ObligationExecutorTests
 
         var result = await executor.ExecuteObligationsAsync(obligations, ctx, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("failed handler should deny access per XACML §7.18");
-        handler.Invocations.Should().Be(1);
+        result.IsLeft.ShouldBeTrue("failed handler should deny access per XACML §7.18");
+        handler.Invocations.ShouldBe(1);
     }
 
     [Fact]
@@ -134,9 +134,9 @@ public sealed class ObligationExecutorTests
 
         var result = await executor.ExecuteObligationsAsync(obligations, ctx, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue("second handler failure should deny");
-        handler1.Invocations.Should().Be(1, "first handler still executed");
-        handler2.Invocations.Should().Be(1, "second handler was attempted");
+        result.IsLeft.ShouldBeTrue("second handler failure should deny");
+        handler1.Invocations.ShouldBe(1, "first handler still executed");
+        handler2.Invocations.ShouldBe(1, "second handler was attempted");
     }
 
     #endregion
@@ -171,7 +171,7 @@ public sealed class ObligationExecutorTests
 
         await executor.ExecuteAdviceAsync(advice, ctx, CancellationToken.None);
 
-        handler.Invocations.Should().Be(1);
+        handler.Invocations.ShouldBe(1);
     }
 
     #endregion
@@ -217,8 +217,8 @@ public sealed class ObligationExecutorTests
         // Advice failures should not throw; second advice should still execute
         await executor.ExecuteAdviceAsync(advice, ctx, CancellationToken.None);
 
-        handler1.Invocations.Should().Be(1);
-        handler2.Invocations.Should().Be(1, "advice execution continues even after failure");
+        handler1.Invocations.ShouldBe(1);
+        handler2.Invocations.ShouldBe(1, "advice execution continues even after failure");
     }
 
     #endregion
@@ -230,7 +230,7 @@ public sealed class ObligationExecutorTests
     {
         var act = () => new ObligationExecutor(null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public sealed class ObligationExecutorTests
     {
         var act = () => new ObligationExecutor([], null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public sealed class ObligationExecutorTests
 
         var act = () => executor.ExecuteObligationsAsync(null!, ctx, CancellationToken.None).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public sealed class ObligationExecutorTests
 
         var act = () => executor.ExecuteObligationsAsync([], null!, CancellationToken.None).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public sealed class ObligationExecutorTests
 
         var act = () => executor.ExecuteAdviceAsync(null!, ctx, CancellationToken.None).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public sealed class ObligationExecutorTests
 
         var act = () => executor.ExecuteAdviceAsync([], null!, CancellationToken.None).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion

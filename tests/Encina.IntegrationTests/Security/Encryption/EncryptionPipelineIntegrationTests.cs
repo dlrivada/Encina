@@ -2,10 +2,10 @@ using System.Security.Cryptography;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Health;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Security.Encryption;
 
@@ -42,11 +42,11 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IFieldEncryptor>().Should().NotBeNull();
-        provider.GetService<IKeyProvider>().Should().NotBeNull();
+        provider.GetService<IFieldEncryptor>().ShouldNotBeNull();
+        provider.GetService<IKeyProvider>().ShouldNotBeNull();
 
         using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetService<IEncryptionOrchestrator>().Should().NotBeNull();
+        scope.ServiceProvider.GetService<IEncryptionOrchestrator>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         var provider = services.BuildServiceProvider();
 
         var keyProvider = provider.GetRequiredService<IKeyProvider>() as InMemoryKeyProvider;
-        keyProvider.Should().NotBeNull();
+        keyProvider.ShouldNotBeNull();
 
         var key = new byte[32];
         RandomNumberGenerator.Fill(key);
@@ -76,10 +76,10 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         var encryptResult = await orchestrator.EncryptAsync(command, context);
 
         // Assert - Encrypted
-        encryptResult.IsRight.Should().BeTrue();
-        command.Email.Should().StartWith("ENC:v1:");
-        command.Phone.Should().StartWith("ENC:v1:");
-        command.Name.Should().Be("John"); // Not encrypted
+        encryptResult.IsRight.ShouldBeTrue();
+        command.Email.ShouldStartWith("ENC:v1:");
+        command.Phone.ShouldStartWith("ENC:v1:");
+        command.Name.ShouldBe("John"); // Not encrypted
 
         // Capture encrypted values
         var encryptedEmail = command.Email;
@@ -89,14 +89,14 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         var decryptResult = await orchestrator.DecryptAsync(command, context);
 
         // Assert - Decrypted back to original
-        decryptResult.IsRight.Should().BeTrue();
-        command.Email.Should().Be("user@example.com");
-        command.Phone.Should().Be("+1234567890");
-        command.Name.Should().Be("John");
+        decryptResult.IsRight.ShouldBeTrue();
+        command.Email.ShouldBe("user@example.com");
+        command.Phone.ShouldBe("+1234567890");
+        command.Name.ShouldBe("John");
 
         // Verify the encrypted values were different from plaintext
-        encryptedEmail.Should().NotBe("user@example.com");
-        encryptedPhone.Should().NotBe("+1234567890");
+        encryptedEmail.ShouldNotBe("user@example.com");
+        encryptedPhone.ShouldNotBe("+1234567890");
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
 
         // Verify our custom provider is used (not a new InMemoryKeyProvider)
         var resolvedKeyProvider = provider.GetRequiredService<IKeyProvider>();
-        resolvedKeyProvider.Should().BeSameAs(customProvider);
+        resolvedKeyProvider.ShouldBeSameAs(customProvider);
 
         // Test encryption works with custom provider
         using var scope = provider.CreateScope();
@@ -129,8 +129,8 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         var command = new TestUserCommand { Email = "custom@test.com", Phone = "+9999999999" };
         var result = await orchestrator.EncryptAsync(command, context);
 
-        result.IsRight.Should().BeTrue();
-        command.Email.Should().StartWith("ENC:v1:");
+        result.IsRight.ShouldBeTrue();
+        command.Email.ShouldStartWith("ENC:v1:");
     }
 
     #endregion
@@ -159,7 +159,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         // Encrypt with key-v1
         var command = new TestUserCommand { Email = "old-data@test.com", Phone = "+1111111111", Name = "Original" };
         var encryptResult = await orchestrator.EncryptAsync(command, context);
-        encryptResult.IsRight.Should().BeTrue();
+        encryptResult.IsRight.ShouldBeTrue();
 
         var encryptedWithV1 = command.Email;
 
@@ -171,18 +171,18 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
 
         // Decrypt old data (encrypted with key-v1) — should still work
         var decryptResult = await orchestrator.DecryptAsync(command, context);
-        decryptResult.IsRight.Should().BeTrue();
-        command.Email.Should().Be("old-data@test.com");
+        decryptResult.IsRight.ShouldBeTrue();
+        command.Email.ShouldBe("old-data@test.com");
 
         // Encrypt new data with key-v2
         var newCommand = new TestUserCommand { Email = "new-data@test.com", Phone = "+2222222222", Name = "New" };
         var encryptResult2 = await orchestrator.EncryptAsync(newCommand, context);
-        encryptResult2.IsRight.Should().BeTrue();
+        encryptResult2.IsRight.ShouldBeTrue();
 
         // New data should use key-v2
         var decryptResult2 = await orchestrator.DecryptAsync(newCommand, context);
-        decryptResult2.IsRight.Should().BeTrue();
-        newCommand.Email.Should().Be("new-data@test.com");
+        decryptResult2.IsRight.ShouldBeTrue();
+        newCommand.Email.ShouldBe("new-data@test.com");
     }
 
     [Fact]
@@ -199,18 +199,18 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         var rotateResult = await keyProvider.RotateKeyAsync();
 
         // Assert
-        rotateResult.IsRight.Should().BeTrue();
+        rotateResult.IsRight.ShouldBeTrue();
         var newKeyId = rotateResult.Match(Right: id => id, Left: _ => string.Empty);
-        newKeyId.Should().NotBe("initial-key");
+        newKeyId.ShouldNotBe("initial-key");
 
         // Old key should still be retrievable
         var oldKeyResult = await keyProvider.GetKeyAsync("initial-key");
-        oldKeyResult.IsRight.Should().BeTrue();
+        oldKeyResult.IsRight.ShouldBeTrue();
 
         // New key should be current
         var currentKeyResult = await keyProvider.GetCurrentKeyIdAsync();
-        currentKeyResult.IsRight.Should().BeTrue();
-        currentKeyResult.Match(Right: id => id, Left: _ => "").Should().Be(newKeyId);
+        currentKeyResult.IsRight.ShouldBeTrue();
+        currentKeyResult.Match(Right: id => id, Left: _ => "").ShouldBe(newKeyId);
     }
 
     #endregion
@@ -246,21 +246,21 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         await orchestrator.EncryptAsync(command2, context2);
 
         // Both should be encrypted
-        command1.Email.Should().StartWith("ENC:v1:");
-        command2.Email.Should().StartWith("ENC:v1:");
+        command1.Email.ShouldStartWith("ENC:v1:");
+        command2.Email.ShouldStartWith("ENC:v1:");
 
         // Due to random nonces, encrypted values should differ even for same plaintext
-        command1.Email.Should().NotBe(command2.Email);
+        command1.Email.ShouldNotBe(command2.Email);
 
         // Each should decrypt with its own context
         var decrypt1 = await orchestrator.DecryptAsync(command1, context1);
         var decrypt2 = await orchestrator.DecryptAsync(command2, context2);
 
-        decrypt1.IsRight.Should().BeTrue();
-        decrypt2.IsRight.Should().BeTrue();
+        decrypt1.IsRight.ShouldBeTrue();
+        decrypt2.IsRight.ShouldBeTrue();
 
-        command1.Email.Should().Be("user@test.com");
-        command2.Email.Should().Be("user@test.com");
+        command1.Email.ShouldBe("user@test.com");
+        command2.Email.ShouldBe("user@test.com");
     }
 
     #endregion
@@ -292,9 +292,9 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
             });
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("currentKeyId");
-        result.Data["currentKeyId"].Should().Be("health-key");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("currentKeyId");
+        result.Data["currentKeyId"].ShouldBe("health-key");
     }
 
     [Fact]
@@ -317,7 +317,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
             });
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     #endregion
@@ -337,7 +337,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
 
         // Assert
         var keyProvider = provider.GetRequiredService<IKeyProvider>();
-        keyProvider.Should().BeOfType<InMemoryKeyProvider>();
+        keyProvider.ShouldBeOfType<InMemoryKeyProvider>();
     }
 
     #endregion
@@ -388,7 +388,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
         var results = await Task.WhenAll(tasks);
 
         // Assert - All operations should succeed
-        results.Should().AllBeEquivalentTo(true);
+        results.ShouldAllBe(r => r);
     }
 
     #endregion

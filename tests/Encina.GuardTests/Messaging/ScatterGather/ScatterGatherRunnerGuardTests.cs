@@ -1,5 +1,5 @@
 using Encina.Messaging.ScatterGather;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.ScatterGather;
 
@@ -19,28 +19,28 @@ public class ScatterGatherRunnerGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new ScatterGatherRunner(null!, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new ScatterGatherRunner(_options, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
         var act = () => new ScatterGatherRunner(_options, _logger, timeProvider: null);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
     public void Constructor_ValidParameters_CreatesInstance()
     {
         var sut = CreateSut();
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     #endregion
@@ -52,7 +52,7 @@ public class ScatterGatherRunnerGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.ExecuteAsync<TestRequest, TestResponse>(null!, new TestRequest()).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("definition");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("definition");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class ScatterGatherRunnerGuardTests
         var sut = CreateSut();
         var definition = CreateMinimalDefinition();
         var act = () => sut.ExecuteAsync(definition, (TestRequest)null!).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -71,9 +71,7 @@ public class ScatterGatherRunnerGuardTests
         var definition = CreateMinimalDefinition();
 
         // Should not throw guards - will execute the pipeline
-        var result = await sut.ExecuteAsync(definition, new TestRequest());
-        // The result depends on handler logic, but guards should not throw
-        result.Should().NotBeNull();
+        await Should.NotThrowAsync(async () => await sut.ExecuteAsync(definition, new TestRequest()));
     }
 
     #endregion

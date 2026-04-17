@@ -4,11 +4,9 @@ using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Evaluation;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.ABAC.Persistence.Xacml;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC;
 
@@ -27,8 +25,8 @@ public class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaABAC();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -47,25 +45,25 @@ public class ServiceCollectionExtensionsGuardTests
 
         // Options
         var options = sp.GetRequiredService<IOptions<ABACOptions>>();
-        options.Value.Should().NotBeNull();
+        options.Value.ShouldNotBeNull();
 
         // Function registry
-        sp.GetRequiredService<IFunctionRegistry>().Should().NotBeNull();
+        sp.GetRequiredService<IFunctionRegistry>().ShouldNotBeNull();
 
         // Combining algorithms
-        sp.GetRequiredService<CombiningAlgorithmFactory>().Should().NotBeNull();
+        sp.GetRequiredService<CombiningAlgorithmFactory>().ShouldNotBeNull();
 
         // Evaluators
-        sp.GetRequiredService<TargetEvaluator>().Should().NotBeNull();
-        sp.GetRequiredService<ConditionEvaluator>().Should().NotBeNull();
+        sp.GetRequiredService<TargetEvaluator>().ShouldNotBeNull();
+        sp.GetRequiredService<ConditionEvaluator>().ShouldNotBeNull();
 
         // Default PAP (InMemory)
         sp.GetRequiredService<IPolicyAdministrationPoint>()
-            .Should().BeOfType<InMemoryPolicyAdministrationPoint>();
+            .ShouldBeOfType<InMemoryPolicyAdministrationPoint>();
 
         // PDP
         sp.GetRequiredService<IPolicyDecisionPoint>()
-            .Should().BeOfType<XACMLPolicyDecisionPoint>();
+            .ShouldBeOfType<XACMLPolicyDecisionPoint>();
     }
 
     #endregion
@@ -88,9 +86,9 @@ public class ServiceCollectionExtensionsGuardTests
         var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<ABACOptions>>().Value;
 
-        options.EnforcementMode.Should().Be(ABACEnforcementMode.Warn);
-        options.DefaultNotApplicableEffect.Should().Be(Effect.Permit);
-        options.IncludeAdvice.Should().BeFalse();
+        options.EnforcementMode.ShouldBe(ABACEnforcementMode.Warn);
+        options.DefaultNotApplicableEffect.ShouldBe(Effect.Permit);
+        options.IncludeAdvice.ShouldBeFalse();
     }
 
     [Fact]
@@ -103,7 +101,7 @@ public class ServiceCollectionExtensionsGuardTests
 
         var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<ABACOptions>>().Value;
-        options.EnforcementMode.Should().Be(ABACEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(ABACEnforcementMode.Block);
     }
 
     #endregion
@@ -126,7 +124,7 @@ public class ServiceCollectionExtensionsGuardTests
         var registry = sp.GetRequiredService<IFunctionRegistry>();
 
         // The function should be registered
-        registry.Should().NotBeNull();
+        registry.ShouldNotBeNull();
     }
 
     #endregion
@@ -149,7 +147,7 @@ public class ServiceCollectionExtensionsGuardTests
         // Resolution should fail because no IPolicyStore is registered
         var act = () => sp.GetRequiredService<IPolicyAdministrationPoint>();
 
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -174,7 +172,7 @@ public class ServiceCollectionExtensionsGuardTests
             d.ImplementationType != null &&
             d.ImplementationType == typeof(XacmlXmlPolicySerializer));
 
-        descriptor.Should().NotBeNull();
+        descriptor.ShouldNotBeNull();
     }
 
     [Fact]
@@ -194,7 +192,7 @@ public class ServiceCollectionExtensionsGuardTests
             d.ServiceType == typeof(IPolicySerializer) &&
             d.IsKeyedService);
 
-        hasKeyedRegistration.Should().BeTrue();
+        hasKeyedRegistration.ShouldBeTrue();
     }
 
     #endregion
@@ -216,7 +214,7 @@ public class ServiceCollectionExtensionsGuardTests
         var hasHealthCheck = services.Any(d =>
             d.ServiceType.Name.Contains("HealthCheck"));
 
-        hasHealthCheck.Should().BeTrue();
+        hasHealthCheck.ShouldBeTrue();
     }
 
     #endregion
@@ -244,7 +242,7 @@ public class ServiceCollectionExtensionsGuardTests
         });
 
         // Verify hosted service registration
-        services.Should().Contain(d =>
+        services.ShouldContain(d =>
             d.ImplementationType != null &&
             d.ImplementationType.Name == "ABACPolicySeedingHostedService");
     }
@@ -269,7 +267,7 @@ public class ServiceCollectionExtensionsGuardTests
             });
         });
 
-        services.Should().Contain(d =>
+        services.ShouldContain(d =>
             d.ImplementationType != null &&
             d.ImplementationType.Name == "ABACPolicySeedingHostedService");
     }
@@ -282,7 +280,7 @@ public class ServiceCollectionExtensionsGuardTests
 
         services.AddEncinaABAC();
 
-        services.Should().NotContain(d =>
+        services.ShouldNotContain(d =>
             d.ImplementationType != null &&
             d.ImplementationType.Name == "ABACPolicySeedingHostedService");
     }
@@ -303,7 +301,7 @@ public class ServiceCollectionExtensionsGuardTests
         var descriptor = services.Last(d => d.ServiceType == typeof(IAttributeProvider));
         // TryAdd should keep the first registration
         var first = services.First(d => d.ServiceType == typeof(IAttributeProvider));
-        first.ImplementationType.Should().Be(typeof(CustomTestAttributeProvider));
+        first.ImplementationType.ShouldBe(typeof(CustomTestAttributeProvider));
     }
 
     #endregion
@@ -321,7 +319,7 @@ public class ServiceCollectionExtensionsGuardTests
 
         // Count singleton registrations for IFunctionRegistry (should be 1 due to TryAdd)
         services.Count(d => d.ServiceType == typeof(IFunctionRegistry))
-            .Should().Be(1);
+            .ShouldBe(1);
     }
 
     #endregion

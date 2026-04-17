@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -16,26 +16,26 @@ public sealed class RegexFunctionsTests
     [Fact]
     public void StringRegexpMatch_MatchFound_ReturnsTrue()
     {
-        Eval(XACMLFunctionIds.StringRegexpMatch, @"^\d+$", "12345").Should().Be(true);
+        Eval(XACMLFunctionIds.StringRegexpMatch, @"^\d+$", "12345").ShouldBe(true);
     }
 
     [Fact]
     public void StringRegexpMatch_NoMatch_ReturnsFalse()
     {
-        Eval(XACMLFunctionIds.StringRegexpMatch, @"^\d+$", "abc").Should().Be(false);
+        Eval(XACMLFunctionIds.StringRegexpMatch, @"^\d+$", "abc").ShouldBe(false);
     }
 
     [Fact]
     public void StringRegexpMatch_ComplexPattern_Works()
     {
         Eval(XACMLFunctionIds.StringRegexpMatch, @"^[a-z]+@[a-z]+\.[a-z]+$", "user@example.com")
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
     public void StringRegexpMatch_EmptyString_EmptyPattern_ReturnsTrue()
     {
-        Eval(XACMLFunctionIds.StringRegexpMatch, "", "").Should().Be(true);
+        Eval(XACMLFunctionIds.StringRegexpMatch, "", "").ShouldBe(true);
     }
 
     [Fact]
@@ -43,6 +43,6 @@ public sealed class RegexFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringRegexpMatch)!;
         var act = () => fn.Evaluate(["pattern"]);
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 }

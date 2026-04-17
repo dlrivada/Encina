@@ -2,12 +2,12 @@ using Encina.Compliance.GDPR;
 using Encina.EntityFrameworkCore.ProcessingActivity;
 using Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.ProcessingActivity;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 #pragma warning disable EF1001 // Internal EF Core API usage - needed for CreateTablesAsync on shared fixture
 
@@ -60,7 +60,7 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
 
         var activity = CreateActivity();
         var result = await store.RegisterActivityAsync(activity);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
         await using var context2 = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
         var store2 = new ProcessingActivityRegistryEF(context2);
         var result = await store2.RegisterActivityAsync(CreateActivity(typeof(string)));
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -86,9 +86,9 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
         await using var context2 = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
         var store2 = new ProcessingActivityRegistryEF(context2);
         var result = await store2.GetActivityByRequestTypeAsync(typeof(int));
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)result;
-        option.IsSome.Should().BeTrue();
+        option.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -98,9 +98,9 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
         var store = new ProcessingActivityRegistryEF(context);
 
         var result = await store.GetActivityByRequestTypeAsync(typeof(double));
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)result;
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -114,11 +114,11 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
         await using var context2 = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
         var store2 = new ProcessingActivityRegistryEF(context2);
         var result = await store2.GetAllActivitiesAsync();
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var activities = result.Match(
             Right: r => r,
             Left: _ => (IReadOnlyList<global::Encina.Compliance.GDPR.ProcessingActivity>)[]);
-        activities.Should().HaveCountGreaterThanOrEqualTo(2);
+        activities.Count.ShouldBeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -133,13 +133,13 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
         var store2 = new ProcessingActivityRegistryEF(context2);
         var updated = activity with { Name = "Updated Name", LastUpdatedAtUtc = DateTimeOffset.UtcNow };
         var result = await store2.UpdateActivityAsync(updated);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         await using var context3 = _fixture.CreateDbContext<ProcessingActivityTestDbContext>();
         var store3 = new ProcessingActivityRegistryEF(context3);
         var retrieved = await store3.GetActivityByRequestTypeAsync(typeof(long));
         var option = (Option<global::Encina.Compliance.GDPR.ProcessingActivity>)retrieved;
-        option.IfSome(a => a.Name.Should().Be("Updated Name"));
+        option.IfSome(a => a.Name.ShouldBe("Updated Name"));
     }
 
     [Fact]
@@ -150,6 +150,6 @@ public sealed class ProcessingActivityRegistryEFPostgreSqlTests : IAsyncLifetime
 
         var activity = CreateActivity(typeof(decimal));
         var result = await store.UpdateActivityAsync(activity);
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 }

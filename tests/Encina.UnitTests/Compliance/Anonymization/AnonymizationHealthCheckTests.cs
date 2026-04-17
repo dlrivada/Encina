@@ -1,14 +1,11 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Health;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -31,7 +28,7 @@ public class AnonymizationHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -44,7 +41,7 @@ public class AnonymizationHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -58,7 +55,7 @@ public class AnonymizationHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -73,7 +70,7 @@ public class AnonymizationHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -91,7 +88,7 @@ public class AnonymizationHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
@@ -109,7 +106,7 @@ public class AnonymizationHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
@@ -128,20 +125,20 @@ public class AnonymizationHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
     public void DefaultName_ShouldBeExpected()
     {
-        AnonymizationHealthCheck.DefaultName.Should().Be("encina-anonymization");
+        AnonymizationHealthCheck.DefaultName.ShouldBe("encina-anonymization");
     }
 
     [Fact]
     public void Tags_ShouldContainExpectedValues()
     {
-        AnonymizationHealthCheck.Tags.Should().Contain("encina");
-        AnonymizationHealthCheck.Tags.Should().Contain("gdpr");
-        AnonymizationHealthCheck.Tags.Should().Contain("anonymization");
+        AnonymizationHealthCheck.Tags.ShouldContain("encina");
+        AnonymizationHealthCheck.Tags.ShouldContain("gdpr");
+        AnonymizationHealthCheck.Tags.ShouldContain("anonymization");
     }
 }

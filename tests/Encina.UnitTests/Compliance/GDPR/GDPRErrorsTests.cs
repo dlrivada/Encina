@@ -1,7 +1,7 @@
 using Encina.Compliance.GDPR;
 using Encina.Compliance.GDPR.Export;
-using FluentAssertions;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR;
 
@@ -17,8 +17,8 @@ public class GDPRErrorsTests
         var error = GDPRErrors.UnregisteredActivity(typeof(string));
 
         // Assert
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("Article 30");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("Article 30");
     }
 
     [Fact]
@@ -29,9 +29,9 @@ public class GDPRErrorsTests
             typeof(string), ["Missing consent", "No lawful basis"]);
 
         // Assert
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("Missing consent");
-        error.Message.Should().Contain("No lawful basis");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("Missing consent");
+        error.Message.ShouldContain("No lawful basis");
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public class GDPRErrorsTests
         var error = GDPRErrors.RegistryLookupFailed(typeof(string), inner);
 
         // Assert
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("Database connection failed");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("Database connection failed");
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public class GDPRErrorsTests
         var error = RoPAExportErrors.SerializationFailed("JSON", "Invalid character");
 
         // Assert
-        error.Message.Should().Contain("JSON");
-        error.Message.Should().Contain("Invalid character");
+        error.Message.ShouldContain("JSON");
+        error.Message.ShouldContain("Invalid character");
     }
 
     // -- Error codes --
@@ -64,10 +64,10 @@ public class GDPRErrorsTests
     [Fact]
     public void ErrorCodes_ShouldFollowConvention()
     {
-        GDPRErrors.UnregisteredActivityCode.Should().StartWith("gdpr.");
-        GDPRErrors.ComplianceValidationFailedCode.Should().StartWith("gdpr.");
-        GDPRErrors.RegistryLookupFailedCode.Should().StartWith("gdpr.");
-        RoPAExportErrors.SerializationFailedCode.Should().StartWith("gdpr.");
+        GDPRErrors.UnregisteredActivityCode.ShouldStartWith("gdpr.");
+        GDPRErrors.ComplianceValidationFailedCode.ShouldStartWith("gdpr.");
+        GDPRErrors.RegistryLookupFailedCode.ShouldStartWith("gdpr.");
+        RoPAExportErrors.SerializationFailedCode.ShouldStartWith("gdpr.");
     }
 
     // -- Lawful Basis errors (Article 6) --
@@ -76,68 +76,68 @@ public class GDPRErrorsTests
     public void LawfulBasisNotDeclared_ShouldContainRequestTypeAndArticle()
     {
         var error = GDPRErrors.LawfulBasisNotDeclared(typeof(double));
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LawfulBasisNotDeclaredCode);
-        error.Message.Should().Contain("Double");
-        error.Message.Should().Contain("Article 6(1)");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LawfulBasisNotDeclaredCode);
+        error.Message.ShouldContain("Double");
+        error.Message.ShouldContain("Article 6(1)");
     }
 
     [Fact]
     public void ConsentNotFound_WithoutSubjectId_ShouldCreateError()
     {
         var error = GDPRErrors.ConsentNotFound(typeof(string));
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.ConsentNotFoundCode);
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("Article 6(1)(a)");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.ConsentNotFoundCode);
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("Article 6(1)(a)");
     }
 
     [Fact]
     public void ConsentNotFound_WithSubjectId_ShouldCreateError()
     {
         var error = GDPRErrors.ConsentNotFound(typeof(string), "user-123");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.ConsentNotFoundCode);
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.ConsentNotFoundCode);
     }
 
     [Fact]
     public void LIANotFound_WithType_ShouldContainRequestType()
     {
         var error = GDPRErrors.LIANotFound(typeof(int));
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LIANotFoundCode);
-        error.Message.Should().Contain("Int32");
-        error.Message.Should().Contain("Article 6(1)(f)");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LIANotFoundCode);
+        error.Message.ShouldContain("Int32");
+        error.Message.ShouldContain("Article 6(1)(f)");
     }
 
     [Fact]
     public void LIANotFound_WithReference_ShouldContainReference()
     {
         var error = GDPRErrors.LIANotFound("LIA-2024-001");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LIANotFoundCode);
-        error.Message.Should().Contain("LIA-2024-001");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LIANotFoundCode);
+        error.Message.ShouldContain("LIA-2024-001");
     }
 
     [Fact]
     public void LIANotApproved_WithType_ShouldContainReferenceAndType()
     {
         var error = GDPRErrors.LIANotApproved(typeof(string), "LIA-REF-42");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LIANotApprovedCode);
-        error.Message.Should().Contain("LIA-REF-42");
-        error.Message.Should().Contain("String");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LIANotApprovedCode);
+        error.Message.ShouldContain("LIA-REF-42");
+        error.Message.ShouldContain("String");
     }
 
     [Fact]
     public void LIANotApproved_WithOutcome_ShouldContainOutcome()
     {
         var error = GDPRErrors.LIANotApproved("LIA-2024-002", LIAOutcome.RequiresReview);
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LIANotApprovedCode);
-        error.Message.Should().Contain("LIA-2024-002");
-        error.Message.Should().Contain("RequiresReview");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LIANotApprovedCode);
+        error.Message.ShouldContain("LIA-2024-002");
+        error.Message.ShouldContain("RequiresReview");
     }
 
     [Fact]
     public void LIANotApproved_WithRejectedOutcome_ShouldIncludeOutcome()
     {
         var error = GDPRErrors.LIANotApproved("LIA-REJ", LIAOutcome.Rejected);
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LIANotApprovedCode);
-        error.Message.Should().Contain("Rejected");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LIANotApprovedCode);
+        error.Message.ShouldContain("Rejected");
     }
 
     // -- Store errors --
@@ -146,26 +146,26 @@ public class GDPRErrorsTests
     public void LawfulBasisStoreError_ShouldContainOperationAndMessage()
     {
         var error = GDPRErrors.LawfulBasisStoreError("Register", "DB down");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LawfulBasisStoreErrorCode);
-        error.Message.Should().Contain("Register");
-        error.Message.Should().Contain("DB down");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LawfulBasisStoreErrorCode);
+        error.Message.ShouldContain("Register");
+        error.Message.ShouldContain("DB down");
     }
 
     [Fact]
     public void LIAStoreError_ShouldContainOperationAndMessage()
     {
         var error = GDPRErrors.LIAStoreError("GetByReference", "Timeout");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.LIAStoreErrorCode);
-        error.Message.Should().Contain("GetByReference");
-        error.Message.Should().Contain("Timeout");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.LIAStoreErrorCode);
+        error.Message.ShouldContain("GetByReference");
+        error.Message.ShouldContain("Timeout");
     }
 
     [Fact]
     public void ConsentProviderNotRegistered_ShouldMentionIConsentStatusProvider()
     {
         var error = GDPRErrors.ConsentProviderNotRegistered(typeof(string));
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.ConsentProviderNotRegisteredCode);
-        error.Message.Should().Contain("IConsentStatusProvider");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.ConsentProviderNotRegisteredCode);
+        error.Message.ShouldContain("IConsentStatusProvider");
     }
 
     // -- Processing Activity errors --
@@ -174,24 +174,24 @@ public class GDPRErrorsTests
     public void ProcessingActivityStoreError_ShouldContainOperationAndMessage()
     {
         var error = GDPRErrors.ProcessingActivityStoreError("GetAll", "Connection refused");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.ProcessingActivityStoreErrorCode);
-        error.Message.Should().Contain("GetAll");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.ProcessingActivityStoreErrorCode);
+        error.Message.ShouldContain("GetAll");
     }
 
     [Fact]
     public void ProcessingActivityDuplicate_ShouldContainRequestTypeName()
     {
         var error = GDPRErrors.ProcessingActivityDuplicate("MyRequest");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.ProcessingActivityDuplicateCode);
-        error.Message.Should().Contain("MyRequest");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.ProcessingActivityDuplicateCode);
+        error.Message.ShouldContain("MyRequest");
     }
 
     [Fact]
     public void ProcessingActivityNotFound_ShouldContainRequestTypeName()
     {
         var error = GDPRErrors.ProcessingActivityNotFound("MissingRequest");
-        error.GetCode().IfNone("").Should().Be(GDPRErrors.ProcessingActivityNotFoundCode);
-        error.Message.Should().Contain("MissingRequest");
+        error.GetCode().IfNone("").ShouldBe(GDPRErrors.ProcessingActivityNotFoundCode);
+        error.Message.ShouldContain("MissingRequest");
     }
 
     // -- All error codes should have expected values --
@@ -199,15 +199,15 @@ public class GDPRErrorsTests
     [Fact]
     public void AllErrorCodes_ShouldHaveExpectedValues()
     {
-        GDPRErrors.LawfulBasisNotDeclaredCode.Should().Be("gdpr.lawful_basis_not_declared");
-        GDPRErrors.ConsentNotFoundCode.Should().Be("gdpr.consent_not_found");
-        GDPRErrors.LIANotFoundCode.Should().Be("gdpr.lia_not_found");
-        GDPRErrors.LIANotApprovedCode.Should().Be("gdpr.lia_not_approved");
-        GDPRErrors.ConsentProviderNotRegisteredCode.Should().Be("gdpr.consent_provider_not_registered");
-        GDPRErrors.LawfulBasisStoreErrorCode.Should().Be("gdpr.lawful_basis_store_error");
-        GDPRErrors.LIAStoreErrorCode.Should().Be("gdpr.lia_store_error");
-        GDPRErrors.ProcessingActivityStoreErrorCode.Should().Be("gdpr.processing_activity_store_error");
-        GDPRErrors.ProcessingActivityDuplicateCode.Should().Be("gdpr.processing_activity_duplicate");
-        GDPRErrors.ProcessingActivityNotFoundCode.Should().Be("gdpr.processing_activity_not_found");
+        GDPRErrors.LawfulBasisNotDeclaredCode.ShouldBe("gdpr.lawful_basis_not_declared");
+        GDPRErrors.ConsentNotFoundCode.ShouldBe("gdpr.consent_not_found");
+        GDPRErrors.LIANotFoundCode.ShouldBe("gdpr.lia_not_found");
+        GDPRErrors.LIANotApprovedCode.ShouldBe("gdpr.lia_not_approved");
+        GDPRErrors.ConsentProviderNotRegisteredCode.ShouldBe("gdpr.consent_provider_not_registered");
+        GDPRErrors.LawfulBasisStoreErrorCode.ShouldBe("gdpr.lawful_basis_store_error");
+        GDPRErrors.LIAStoreErrorCode.ShouldBe("gdpr.lia_store_error");
+        GDPRErrors.ProcessingActivityStoreErrorCode.ShouldBe("gdpr.processing_activity_store_error");
+        GDPRErrors.ProcessingActivityDuplicateCode.ShouldBe("gdpr.processing_activity_duplicate");
+        GDPRErrors.ProcessingActivityNotFoundCode.ShouldBe("gdpr.processing_activity_not_found");
     }
 }

@@ -1,6 +1,6 @@
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DataSubjectRights.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights.Projections;
 
@@ -21,7 +21,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(DSRRequestStatus.Received);
 
         // Act / Assert
-        model.IsOverdue(Now.AddDays(15)).Should().BeFalse();
+        model.IsOverdue(Now.AddDays(15)).ShouldBeFalse();
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(DSRRequestStatus.Received);
 
         // Act / Assert
-        model.IsOverdue(Now.AddDays(31)).Should().BeTrue();
+        model.IsOverdue(Now.AddDays(31)).ShouldBeTrue();
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(DSRRequestStatus.Received);
 
         // Act / Assert
-        model.IsOverdue(Deadline).Should().BeFalse();
+        model.IsOverdue(Deadline).ShouldBeFalse();
     }
 
     [Theory]
@@ -54,7 +54,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(status);
 
         // Act / Assert
-        model.IsOverdue(Now.AddDays(60)).Should().BeFalse();
+        model.IsOverdue(Now.AddDays(60)).ShouldBeFalse();
     }
 
     [Theory]
@@ -68,7 +68,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(status);
 
         // Act / Assert
-        model.IsOverdue(Now.AddDays(31)).Should().BeTrue();
+        model.IsOverdue(Now.AddDays(31)).ShouldBeTrue();
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class DSRRequestReadModelTests
         model.ExtendedDeadlineAtUtc = Deadline.AddMonths(2);
 
         // Act / Assert — past original deadline but before extended
-        model.IsOverdue(Now.AddDays(45)).Should().BeFalse();
+        model.IsOverdue(Now.AddDays(45)).ShouldBeFalse();
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class DSRRequestReadModelTests
         model.ExtendedDeadlineAtUtc = extendedDeadline;
 
         // Act / Assert
-        model.IsOverdue(extendedDeadline.AddDays(1)).Should().BeTrue();
+        model.IsOverdue(extendedDeadline.AddDays(1)).ShouldBeTrue();
     }
 
     #endregion
@@ -105,7 +105,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(DSRRequestStatus.Received, DataSubjectRight.Restriction);
 
         // Act / Assert
-        model.HasActiveRestriction.Should().BeTrue();
+        model.HasActiveRestriction.ShouldBeTrue();
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(DSRRequestStatus.IdentityVerified, DataSubjectRight.Restriction);
 
         // Act / Assert
-        model.HasActiveRestriction.Should().BeTrue();
+        model.HasActiveRestriction.ShouldBeTrue();
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(DSRRequestStatus.InProgress, DataSubjectRight.Restriction);
 
         // Act / Assert
-        model.HasActiveRestriction.Should().BeTrue();
+        model.HasActiveRestriction.ShouldBeTrue();
     }
 
     [Theory]
@@ -139,7 +139,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(status, DataSubjectRight.Restriction);
 
         // Act / Assert
-        model.HasActiveRestriction.Should().BeFalse();
+        model.HasActiveRestriction.ShouldBeFalse();
     }
 
     [Theory]
@@ -154,7 +154,7 @@ public class DSRRequestReadModelTests
         var model = CreateModel(DSRRequestStatus.Received, rightType);
 
         // Act / Assert
-        model.HasActiveRestriction.Should().BeFalse();
+        model.HasActiveRestriction.ShouldBeFalse();
     }
 
     #endregion

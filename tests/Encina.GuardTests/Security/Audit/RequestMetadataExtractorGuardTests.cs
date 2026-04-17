@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 
@@ -18,7 +18,7 @@ public class NullPiiMaskerGuardTests
 
         var result = _masker.MaskForAudit(request);
 
-        result.Should().BeSameAs(request);
+        result.ShouldBeSameAs(request);
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class NullPiiMaskerGuardTests
 
         var result = _masker.MaskForAudit(request);
 
-        result.Should().BeSameAs(request);
+        result.ShouldBeSameAs(request);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class NullPiiMaskerGuardTests
     {
         var result = _masker.MaskForAudit("sensitive data");
 
-        result.Should().Be("sensitive data");
+        result.ShouldBe("sensitive data");
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class NullPiiMaskerGuardTests
     {
         var result = _masker.MaskForAudit((object)"sensitive data");
 
-        result.Should().Be("sensitive data");
+        result.ShouldBe("sensitive data");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class NullPiiMaskerGuardTests
     {
         var result = _masker.MaskForAudit(42);
 
-        result.Should().Be(42);
+        result.ShouldBe(42);
     }
 
     public class TestRequest

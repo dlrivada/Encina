@@ -1,7 +1,7 @@
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
 
-using FluentAssertions;
+using Shouldly;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
@@ -21,7 +21,7 @@ public class SuppressionTechniqueTests
         var result = _technique.Technique;
 
         // Assert
-        result.Should().Be(AnonymizationTechnique.Suppression);
+        result.ShouldBe(AnonymizationTechnique.Suppression);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class SuppressionTechniqueTests
         var result = _technique.CanApply(typeof(string));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class SuppressionTechniqueTests
         var result = _technique.CanApply(typeof(int));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class SuppressionTechniqueTests
         // Assert
         // Suppression of reference types produces null, but LanguageExt throws
         // ValueIsNullException when Right(null) is called, caught by try/catch -> Left
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class SuppressionTechniqueTests
 
         // Assert
         result.Match(
-            Right: v => v.Should().Be(0),
+            Right: v => v.ShouldBe(0),
             Left: _ => Assert.Fail("Expected Right"));
     }
 
@@ -77,6 +77,6 @@ public class SuppressionTechniqueTests
         // Assert
         // Suppression of reference types produces null, but LanguageExt throws
         // ValueIsNullException when Right(null) is called, caught by try/catch -> Left
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 }

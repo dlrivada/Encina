@@ -1,7 +1,7 @@
 using Encina.Compliance.GDPR;
 using Encina.Compliance.LawfulBasis.Aggregates;
 using Encina.Compliance.LawfulBasis.Events;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.LawfulBasisModule.Aggregates;
 
@@ -24,25 +24,25 @@ public class LIAAggregateTests
         var aggregate = CreateDefaultLIA();
 
         // Assert
-        aggregate.Id.Should().Be(DefaultId);
-        aggregate.Reference.Should().Be("LIA-2024-FRAUD-001");
-        aggregate.Name.Should().Be("Fraud Detection LIA");
-        aggregate.Purpose.Should().Be("Fraud prevention processing");
-        aggregate.LegitimateInterest.Should().Be("Preventing financial fraud");
-        aggregate.Benefits.Should().Be("Protects customers and business from fraud losses");
-        aggregate.ConsequencesIfNotProcessed.Should().Be("Increased fraud exposure");
-        aggregate.NecessityJustification.Should().Be("No less intrusive alternative available");
-        aggregate.AlternativesConsidered.Should().BeEquivalentTo(DefaultAlternatives);
-        aggregate.DataMinimisationNotes.Should().Be("Only transaction metadata is processed");
-        aggregate.NatureOfData.Should().Be("Financial transaction data");
-        aggregate.ReasonableExpectations.Should().Be("Customers expect fraud protection");
-        aggregate.ImpactAssessment.Should().Be("Minimal impact on privacy rights");
-        aggregate.Safeguards.Should().BeEquivalentTo(DefaultSafeguards);
-        aggregate.AssessedBy.Should().Be("DPO Jane Smith");
-        aggregate.DPOInvolvement.Should().BeTrue();
-        aggregate.Conditions.Should().Be("Review annually");
-        aggregate.TenantId.Should().Be("tenant-1");
-        aggregate.ModuleId.Should().Be("module-1");
+        aggregate.Id.ShouldBe(DefaultId);
+        aggregate.Reference.ShouldBe("LIA-2024-FRAUD-001");
+        aggregate.Name.ShouldBe("Fraud Detection LIA");
+        aggregate.Purpose.ShouldBe("Fraud prevention processing");
+        aggregate.LegitimateInterest.ShouldBe("Preventing financial fraud");
+        aggregate.Benefits.ShouldBe("Protects customers and business from fraud losses");
+        aggregate.ConsequencesIfNotProcessed.ShouldBe("Increased fraud exposure");
+        aggregate.NecessityJustification.ShouldBe("No less intrusive alternative available");
+        aggregate.AlternativesConsidered.ShouldBe(DefaultAlternatives);
+        aggregate.DataMinimisationNotes.ShouldBe("Only transaction metadata is processed");
+        aggregate.NatureOfData.ShouldBe("Financial transaction data");
+        aggregate.ReasonableExpectations.ShouldBe("Customers expect fraud protection");
+        aggregate.ImpactAssessment.ShouldBe("Minimal impact on privacy rights");
+        aggregate.Safeguards.ShouldBe(DefaultSafeguards);
+        aggregate.AssessedBy.ShouldBe("DPO Jane Smith");
+        aggregate.DPOInvolvement.ShouldBeTrue();
+        aggregate.Conditions.ShouldBe("Review annually");
+        aggregate.TenantId.ShouldBe("tenant-1");
+        aggregate.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -52,9 +52,9 @@ public class LIAAggregateTests
         var aggregate = CreateDefaultLIA();
 
         // Assert
-        aggregate.Outcome.Should().Be(LIAOutcome.RequiresReview);
-        aggregate.Conclusion.Should().BeNull();
-        aggregate.NextReviewAtUtc.Should().BeNull();
+        aggregate.Outcome.ShouldBe(LIAOutcome.RequiresReview);
+        aggregate.Conclusion.ShouldBeNull();
+        aggregate.NextReviewAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -64,20 +64,16 @@ public class LIAAggregateTests
         var aggregate = CreateDefaultLIA();
 
         // Assert
-        aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<LIACreated>()
-            .Which.Should().BeEquivalentTo(new
-            {
-                LIAId = DefaultId,
-                Reference = "LIA-2024-FRAUD-001",
-                Name = "Fraud Detection LIA",
-                Purpose = "Fraud prevention processing",
-                AssessedBy = "DPO Jane Smith",
-                DPOInvolvement = true,
-                TenantId = (string?)"tenant-1",
-                ModuleId = (string?)"module-1",
-            });
-        aggregate.Version.Should().Be(1);
+        aggregate.UncommittedEvents.ShouldHaveSingleItem().ShouldBeOfType<LIACreated>().ShouldSatisfyAllConditions(
+            e => e.LIAId.ShouldBe(DefaultId),
+            e => e.Reference.ShouldBe("LIA-2024-FRAUD-001"),
+            e => e.Name.ShouldBe("Fraud Detection LIA"),
+            e => e.Purpose.ShouldBe("Fraud prevention processing"),
+            e => e.AssessedBy.ShouldBe("DPO Jane Smith"),
+            e => e.DPOInvolvement.ShouldBeTrue(),
+            e => e.TenantId.ShouldBe("tenant-1"),
+            e => e.ModuleId.ShouldBe("module-1"));
+        aggregate.Version.ShouldBe(1);
     }
 
     [Theory]
@@ -95,8 +91,7 @@ public class LIAAggregateTests
             DefaultSafeguards, "Assessor", true, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("reference");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("reference");
     }
 
     [Fact]
@@ -111,8 +106,7 @@ public class LIAAggregateTests
             DefaultSafeguards, "Assessor", true, Now);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("alternativesConsidered");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("alternativesConsidered");
     }
 
     [Fact]
@@ -127,8 +121,7 @@ public class LIAAggregateTests
             null!, "Assessor", true, Now);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("safeguards");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("safeguards");
     }
 
     #endregion
@@ -145,8 +138,8 @@ public class LIAAggregateTests
         aggregate.Approve("Legitimate interest outweighs rights", "DPO Jane Smith", Now.AddDays(7));
 
         // Assert
-        aggregate.Outcome.Should().Be(LIAOutcome.Approved);
-        aggregate.Conclusion.Should().Be("Legitimate interest outweighs rights");
+        aggregate.Outcome.ShouldBe(LIAOutcome.Approved);
+        aggregate.Conclusion.ShouldBe("Legitimate interest outweighs rights");
     }
 
     [Fact]
@@ -159,8 +152,7 @@ public class LIAAggregateTests
         var act = () => aggregate.Approve("Second approval", "Admin", Now.AddDays(14));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Approved*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("Approved");
     }
 
     [Fact]
@@ -173,8 +165,7 @@ public class LIAAggregateTests
         var act = () => aggregate.Approve("Trying to approve rejected", "Admin", Now.AddDays(14));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Rejected*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("Rejected");
     }
 
     [Fact]
@@ -187,11 +178,11 @@ public class LIAAggregateTests
         aggregate.Approve("Assessment passed", "DPO Jane Smith", Now.AddDays(7));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        var approvedEvent = aggregate.UncommittedEvents[^1].Should().BeOfType<LIAApproved>().Subject;
-        approvedEvent.LIAId.Should().Be(DefaultId);
-        approvedEvent.Conclusion.Should().Be("Assessment passed");
-        approvedEvent.ApprovedBy.Should().Be("DPO Jane Smith");
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        var approvedEvent = aggregate.UncommittedEvents[^1].ShouldBeOfType<LIAApproved>();
+        approvedEvent.LIAId.ShouldBe(DefaultId);
+        approvedEvent.Conclusion.ShouldBe("Assessment passed");
+        approvedEvent.ApprovedBy.ShouldBe("DPO Jane Smith");
     }
 
     [Theory]
@@ -207,8 +198,7 @@ public class LIAAggregateTests
         var act = () => aggregate.Approve(conclusion!, "Approver", Now.AddDays(7));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("conclusion");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("conclusion");
     }
 
     [Theory]
@@ -224,8 +214,7 @@ public class LIAAggregateTests
         var act = () => aggregate.Approve("Conclusion", approvedBy!, Now.AddDays(7));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("approvedBy");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("approvedBy");
     }
 
     #endregion
@@ -242,8 +231,8 @@ public class LIAAggregateTests
         aggregate.Reject("Rights override interest", "DPO Jane Smith", Now.AddDays(7));
 
         // Assert
-        aggregate.Outcome.Should().Be(LIAOutcome.Rejected);
-        aggregate.Conclusion.Should().Be("Rights override interest");
+        aggregate.Outcome.ShouldBe(LIAOutcome.Rejected);
+        aggregate.Conclusion.ShouldBe("Rights override interest");
     }
 
     [Fact]
@@ -256,8 +245,7 @@ public class LIAAggregateTests
         var act = () => aggregate.Reject("Second rejection", "Admin", Now.AddDays(14));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Rejected*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("Rejected");
     }
 
     [Fact]
@@ -270,8 +258,7 @@ public class LIAAggregateTests
         var act = () => aggregate.Reject("Trying to reject approved", "Admin", Now.AddDays(14));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Approved*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("Approved");
     }
 
     [Fact]
@@ -284,11 +271,11 @@ public class LIAAggregateTests
         aggregate.Reject("Balancing test failed", "DPO Jane Smith", Now.AddDays(7));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        var rejectedEvent = aggregate.UncommittedEvents[^1].Should().BeOfType<LIARejected>().Subject;
-        rejectedEvent.LIAId.Should().Be(DefaultId);
-        rejectedEvent.Conclusion.Should().Be("Balancing test failed");
-        rejectedEvent.RejectedBy.Should().Be("DPO Jane Smith");
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        var rejectedEvent = aggregate.UncommittedEvents[^1].ShouldBeOfType<LIARejected>();
+        rejectedEvent.LIAId.ShouldBe(DefaultId);
+        rejectedEvent.Conclusion.ShouldBe("Balancing test failed");
+        rejectedEvent.RejectedBy.ShouldBe("DPO Jane Smith");
     }
 
     [Theory]
@@ -304,8 +291,7 @@ public class LIAAggregateTests
         var act = () => aggregate.Reject(conclusion!, "Rejector", Now.AddDays(7));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("conclusion");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("conclusion");
     }
 
     #endregion
@@ -323,7 +309,7 @@ public class LIAAggregateTests
         aggregate.ScheduleReview(nextReview, "Governance Team", Now.AddDays(10));
 
         // Assert
-        aggregate.NextReviewAtUtc.Should().Be(nextReview);
+        aggregate.NextReviewAtUtc.ShouldBe(nextReview);
     }
 
     [Fact]
@@ -336,8 +322,7 @@ public class LIAAggregateTests
         var act = () => aggregate.ScheduleReview(Now.AddDays(365), "Admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*RequiresReview*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("RequiresReview");
     }
 
     [Fact]
@@ -350,8 +335,7 @@ public class LIAAggregateTests
         var act = () => aggregate.ScheduleReview(Now.AddDays(365), "Admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Rejected*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("Rejected");
     }
 
     [Fact]
@@ -365,11 +349,11 @@ public class LIAAggregateTests
         aggregate.ScheduleReview(nextReview, "Governance Team", Now.AddDays(10));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(3);
-        var scheduledEvent = aggregate.UncommittedEvents[^1].Should().BeOfType<LIAReviewScheduled>().Subject;
-        scheduledEvent.LIAId.Should().Be(DefaultId);
-        scheduledEvent.NextReviewAtUtc.Should().Be(nextReview);
-        scheduledEvent.ScheduledBy.Should().Be("Governance Team");
+        aggregate.UncommittedEvents.Count.ShouldBe(3);
+        var scheduledEvent = aggregate.UncommittedEvents[^1].ShouldBeOfType<LIAReviewScheduled>();
+        scheduledEvent.LIAId.ShouldBe(DefaultId);
+        scheduledEvent.NextReviewAtUtc.ShouldBe(nextReview);
+        scheduledEvent.ScheduledBy.ShouldBe("Governance Team");
     }
 
     [Theory]
@@ -385,8 +369,7 @@ public class LIAAggregateTests
         var act = () => aggregate.ScheduleReview(Now.AddDays(365), scheduledBy!, Now.AddDays(10));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("scheduledBy");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("scheduledBy");
     }
 
     #endregion
@@ -398,15 +381,15 @@ public class LIAAggregateTests
     {
         // Create
         var aggregate = CreateDefaultLIA();
-        aggregate.Version.Should().Be(1);
+        aggregate.Version.ShouldBe(1);
 
         // Approve
         aggregate.Approve("Approved", "DPO", Now.AddDays(7));
-        aggregate.Version.Should().Be(2);
+        aggregate.Version.ShouldBe(2);
 
         // Schedule review
         aggregate.ScheduleReview(Now.AddDays(365), "Governance", Now.AddDays(10));
-        aggregate.Version.Should().Be(3);
+        aggregate.Version.ShouldBe(3);
     }
 
     #endregion

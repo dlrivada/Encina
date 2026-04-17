@@ -1,5 +1,5 @@
 using Encina.Compliance.Consent;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent.Model;
 
@@ -12,7 +12,7 @@ public class ConsentStatusTests
     public void ConsentStatus_ShouldHaveFourValues()
     {
         // Assert
-        Enum.GetValues<ConsentStatus>().Should().HaveCount(4);
+        Enum.GetValues<ConsentStatus>().Length.ShouldBe(4);
     }
 
     [Fact]
@@ -22,7 +22,7 @@ public class ConsentStatusTests
         var status = default(ConsentStatus);
 
         // Assert
-        status.Should().Be(ConsentStatus.Active);
+        status.ShouldBe(ConsentStatus.Active);
     }
 
     [Theory]
@@ -33,7 +33,7 @@ public class ConsentStatusTests
     public void ConsentStatus_ShouldHaveExpectedIntValues(ConsentStatus status, int expectedValue)
     {
         // Assert
-        ((int)status).Should().Be(expectedValue);
+        ((int)status).ShouldBe(expectedValue);
     }
 
     [Theory]
@@ -44,6 +44,6 @@ public class ConsentStatusTests
     public void ConsentStatus_ToString_ShouldReturnExpectedName(ConsentStatus status, string expectedName)
     {
         // Assert
-        status.ToString().Should().Be(expectedName);
+        status.ToString().ShouldBe(expectedName);
     }
 }

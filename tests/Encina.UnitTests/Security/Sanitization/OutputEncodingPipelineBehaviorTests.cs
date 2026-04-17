@@ -3,13 +3,13 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.Sanitization;
@@ -51,9 +51,9 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, PlainResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var rightValue = result.Match(Right: r => r, Left: _ => null!);
-        rightValue.Name.Should().Be("John");
+        rightValue.Name.ShouldBe("John");
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, HtmlEncodedResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _encoder.Received(1).EncodeForHtml("<b>test</b>");
     }
 
@@ -109,7 +109,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, JavaScriptEncodedResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _encoder.Received(1).EncodeForJavaScript(Arg.Any<string>());
     }
 
@@ -127,7 +127,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, UrlEncodedResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _encoder.Received(1).EncodeForUrl(Arg.Any<string>());
     }
 
@@ -150,7 +150,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, MultiEncodedResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _encoder.Received(1).EncodeForHtml(Arg.Any<string>());
         _encoder.Received(1).EncodeForJavaScript(Arg.Any<string>());
     }
@@ -170,7 +170,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             CancellationToken.None);
 
         var rightValue = result.Match(Right: r => r, Left: _ => null!);
-        rightValue.Title.Should().Be("&lt;b&gt;test&lt;/b&gt;");
+        rightValue.Title.ShouldBe("&lt;b&gt;test&lt;/b&gt;");
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, HtmlEncodedResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _encoder.DidNotReceive().EncodeForHtml(Arg.Any<string>());
     }
 
@@ -208,7 +208,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, PlainResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _encoder.Received().EncodeForHtml(Arg.Any<string>());
     }
 
@@ -231,7 +231,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, MixedEncodedResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // EncodeForHtml called for both: HtmlField (attribute) and PlainField (auto-encode)
         _encoder.Received(2).EncodeForHtml(Arg.Any<string>());
     }
@@ -252,7 +252,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, HtmlEncodedResponse>>(Left(error)),
             CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _encoder.DidNotReceive().EncodeForHtml(Arg.Any<string>());
     }
 
@@ -273,7 +273,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             },
             CancellationToken.None);
 
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     #endregion
@@ -295,7 +295,7 @@ public sealed class OutputEncodingPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, HtmlEncodedResponse>>(Right(response)),
             CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

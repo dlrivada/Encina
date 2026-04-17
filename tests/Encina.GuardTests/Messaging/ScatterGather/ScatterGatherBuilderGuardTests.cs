@@ -1,5 +1,5 @@
 using Encina.Messaging.ScatterGather;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.ScatterGather;
 
@@ -15,28 +15,28 @@ public class ScatterGatherBuilderGuardTests
     public void Create_NullName_ThrowsArgumentException()
     {
         var act = () => ScatterGatherBuilder.Create<TestRequest, TestResponse>(null!);
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
     public void Create_EmptyName_ThrowsArgumentException()
     {
         var act = () => ScatterGatherBuilder.Create<TestRequest, TestResponse>(string.Empty);
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
     public void Create_WhitespaceName_ThrowsArgumentException()
     {
         var act = () => ScatterGatherBuilder.Create<TestRequest, TestResponse>("   ");
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
     public void Create_WithoutName_GeneratesAutoName()
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>();
-        builder.Should().NotBeNull();
+        builder.ShouldNotBeNull();
     }
 
     #endregion
@@ -48,7 +48,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.ScatterTo((string)null!);
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.ScatterTo(string.Empty);
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class ScatterGatherBuilderGuardTests
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         Func<TestRequest, CancellationToken, ValueTask<Either<EncinaError, TestResponse>>>? handler = null;
         var act = () => builder.ScatterTo(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class ScatterGatherBuilderGuardTests
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         Func<TestRequest, Either<EncinaError, TestResponse>>? handler = null;
         var act = () => builder.ScatterTo(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class ScatterGatherBuilderGuardTests
         var act = () => builder.ScatterTo(
             (string)null!,
             (req, ct) => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, TestResponse>(new TestResponse())));
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class ScatterGatherBuilderGuardTests
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         Func<TestRequest, CancellationToken, ValueTask<Either<EncinaError, TestResponse>>>? handler = null;
         var act = () => builder.ScatterTo("Handler1", handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class ScatterGatherBuilderGuardTests
         var act = () => builder.ScatterTo(
             (string)null!,
             (Func<TestRequest, Either<EncinaError, TestResponse>>)(req => LanguageExt.Prelude.Right<EncinaError, TestResponse>(new TestResponse())));
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class ScatterGatherBuilderGuardTests
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         Func<TestRequest, Either<EncinaError, TestResponse>>? handler = null;
         var act = () => builder.ScatterTo("Handler1", handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     #endregion
@@ -126,7 +126,7 @@ public class ScatterGatherBuilderGuardTests
         var scatterBuilder = builder.ScatterTo("Handler1");
         Func<TestRequest, CancellationToken, ValueTask<Either<EncinaError, TestResponse>>>? handler = null;
         var act = () => scatterBuilder.Execute(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class ScatterGatherBuilderGuardTests
         var scatterBuilder = builder.ScatterTo("Handler1");
         Func<TestRequest, Either<EncinaError, TestResponse>>? handler = null;
         var act = () => scatterBuilder.Execute(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class ScatterGatherBuilderGuardTests
         var scatterBuilder = builder.ScatterTo("Handler1");
         Func<TestRequest, CancellationToken, ValueTask<TestResponse>>? handler = null;
         var act = () => scatterBuilder.Execute(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class ScatterGatherBuilderGuardTests
         var scatterBuilder = builder.ScatterTo("Handler1");
         Func<TestRequest, TestResponse>? handler = null;
         var act = () => scatterBuilder.Execute(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     #endregion
@@ -168,7 +168,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.WithTimeout(TimeSpan.Zero);
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("timeout");
+        Should.Throw<ArgumentOutOfRangeException>(act).ParamName.ShouldBe("timeout");
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.WithTimeout(TimeSpan.FromSeconds(-1));
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("timeout");
+        Should.Throw<ArgumentOutOfRangeException>(act).ParamName.ShouldBe("timeout");
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.WithTimeout(TimeSpan.FromSeconds(10));
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -196,7 +196,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.GatherQuorum(0);
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("quorumCount");
+        Should.Throw<ArgumentOutOfRangeException>(act).ParamName.ShouldBe("quorumCount");
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.GatherQuorum(-1);
-        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("quorumCount");
+        Should.Throw<ArgumentOutOfRangeException>(act).ParamName.ShouldBe("quorumCount");
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var gatherBuilder = builder.GatherQuorum(2);
-        gatherBuilder.Should().NotBeNull();
+        gatherBuilder.ShouldNotBeNull();
     }
 
     #endregion
@@ -224,7 +224,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.ExecuteInParallel(0);
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.ExecuteInParallel(-1);
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.ExecuteInParallel(null);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -252,7 +252,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.WithMetadata(null!, "value");
-        act.Should().Throw<ArgumentException>().WithParameterName("key");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public class ScatterGatherBuilderGuardTests
     {
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var act = () => builder.WithMetadata(string.Empty, "value");
-        act.Should().Throw<ArgumentException>().WithParameterName("key");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class ScatterGatherBuilderGuardTests
         var builder = ScatterGatherBuilder.Create<TestRequest, TestResponse>("Test");
         var scatterBuilder = builder.ScatterTo("Handler1");
         var act = () => scatterBuilder.WithMetadata(null!, "value");
-        act.Should().Throw<ArgumentException>().WithParameterName("key");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("key");
     }
 
     #endregion
@@ -284,8 +284,8 @@ public class ScatterGatherBuilderGuardTests
         builder.GatherAll().TakeFirst();
 
         var act = () => builder.Build();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*scatter handler*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("scatter handler");
     }
 
     [Fact]
@@ -296,8 +296,8 @@ public class ScatterGatherBuilderGuardTests
             ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, TestResponse>(new TestResponse())));
 
         var act = () => builder.Build();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*gather handler*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("gather handler");
     }
 
     [Fact]
@@ -309,8 +309,8 @@ public class ScatterGatherBuilderGuardTests
         builder.GatherQuorum(5).TakeFirst();
 
         var act = () => builder.Build();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Quorum count*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Quorum count");
     }
 
     [Fact]
@@ -323,9 +323,9 @@ public class ScatterGatherBuilderGuardTests
             .TakeFirst()
             .Build();
 
-        definition.Should().NotBeNull();
-        definition.Name.Should().Be("Test");
-        definition.ScatterHandlers.Should().HaveCount(1);
+        definition.ShouldNotBeNull();
+        definition.Name.ShouldBe("Test");
+        definition.ScatterHandlers.Count.ShouldBe(1);
     }
 
     #endregion
@@ -339,7 +339,7 @@ public class ScatterGatherBuilderGuardTests
         var gatherBuilder = builder.GatherAll();
         Func<IReadOnlyList<ScatterExecutionResult<TestResponse>>, CancellationToken, ValueTask<Either<EncinaError, TestResponse>>>? handler = null;
         var act = () => gatherBuilder.Aggregate(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -349,7 +349,7 @@ public class ScatterGatherBuilderGuardTests
         var gatherBuilder = builder.GatherAll();
         Func<IReadOnlyList<ScatterExecutionResult<TestResponse>>, Either<EncinaError, TestResponse>>? handler = null;
         var act = () => gatherBuilder.Aggregate(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -359,7 +359,7 @@ public class ScatterGatherBuilderGuardTests
         var gatherBuilder = builder.GatherAll();
         Func<IEnumerable<TestResponse>, CancellationToken, ValueTask<Either<EncinaError, TestResponse>>>? handler = null;
         var act = () => gatherBuilder.AggregateSuccessful(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -369,7 +369,7 @@ public class ScatterGatherBuilderGuardTests
         var gatherBuilder = builder.GatherAll();
         Func<IEnumerable<TestResponse>, Either<EncinaError, TestResponse>>? handler = null;
         var act = () => gatherBuilder.AggregateSuccessful(handler!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("handler");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("handler");
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class ScatterGatherBuilderGuardTests
         var gatherBuilder = builder.GatherAll();
         Func<TestResponse, int>? selector = null;
         var act = () => gatherBuilder.TakeBest(selector!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("selector");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("selector");
     }
 
     [Fact]
@@ -389,7 +389,7 @@ public class ScatterGatherBuilderGuardTests
         var gatherBuilder = builder.GatherAll();
         Func<TestResponse, int>? selector = null;
         var act = () => gatherBuilder.TakeMax(selector!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("selector");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("selector");
     }
 
     #endregion

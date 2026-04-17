@@ -1,7 +1,7 @@
 using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -16,10 +16,10 @@ public sealed class NotificationTests
         var deletedAt = DateTimeOffset.UtcNow;
         var notification = new DataDeletedNotification("entity-1", "user-data", deletedAt, "policy-1");
 
-        notification.EntityId.Should().Be("entity-1");
-        notification.DataCategory.Should().Be("user-data");
-        notification.DeletedAtUtc.Should().Be(deletedAt);
-        notification.PolicyId.Should().Be("policy-1");
+        notification.EntityId.ShouldBe("entity-1");
+        notification.DataCategory.ShouldBe("user-data");
+        notification.DeletedAtUtc.ShouldBe(deletedAt);
+        notification.PolicyId.ShouldBe("policy-1");
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class NotificationTests
     {
         var notification = new DataDeletedNotification("e", "c", DateTimeOffset.UtcNow, null);
 
-        notification.Should().BeAssignableTo<INotification>();
+        notification.ShouldBeAssignableTo<INotification>();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class NotificationTests
     {
         var notification = new DataDeletedNotification("e", "c", DateTimeOffset.UtcNow, null);
 
-        notification.PolicyId.Should().BeNull();
+        notification.PolicyId.ShouldBeNull();
     }
 
     [Fact]
@@ -45,11 +45,11 @@ public sealed class NotificationTests
         var occurredAt = DateTimeOffset.UtcNow;
         var notification = new DataExpiringNotification("entity-2", "session-data", expiresAt, 7, occurredAt);
 
-        notification.EntityId.Should().Be("entity-2");
-        notification.DataCategory.Should().Be("session-data");
-        notification.ExpiresAtUtc.Should().Be(expiresAt);
-        notification.DaysUntilExpiration.Should().Be(7);
-        notification.OccurredAtUtc.Should().Be(occurredAt);
+        notification.EntityId.ShouldBe("entity-2");
+        notification.DataCategory.ShouldBe("session-data");
+        notification.ExpiresAtUtc.ShouldBe(expiresAt);
+        notification.DaysUntilExpiration.ShouldBe(7);
+        notification.OccurredAtUtc.ShouldBe(occurredAt);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class NotificationTests
     {
         var notification = new DataExpiringNotification("e", "c", DateTimeOffset.UtcNow, 1, DateTimeOffset.UtcNow);
 
-        notification.Should().BeAssignableTo<INotification>();
+        notification.ShouldBeAssignableTo<INotification>();
     }
 
     [Fact]
@@ -66,10 +66,10 @@ public sealed class NotificationTests
         var appliedAt = DateTimeOffset.UtcNow;
         var notification = new LegalHoldAppliedNotification("hold-1", "entity-3", "Litigation", appliedAt);
 
-        notification.HoldId.Should().Be("hold-1");
-        notification.EntityId.Should().Be("entity-3");
-        notification.Reason.Should().Be("Litigation");
-        notification.AppliedAtUtc.Should().Be(appliedAt);
+        notification.HoldId.ShouldBe("hold-1");
+        notification.EntityId.ShouldBe("entity-3");
+        notification.Reason.ShouldBe("Litigation");
+        notification.AppliedAtUtc.ShouldBe(appliedAt);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class NotificationTests
     {
         var notification = new LegalHoldAppliedNotification("h", "e", "r", DateTimeOffset.UtcNow);
 
-        notification.Should().BeAssignableTo<INotification>();
+        notification.ShouldBeAssignableTo<INotification>();
     }
 
     [Fact]
@@ -86,9 +86,9 @@ public sealed class NotificationTests
         var releasedAt = DateTimeOffset.UtcNow;
         var notification = new LegalHoldReleasedNotification("hold-2", "entity-4", releasedAt);
 
-        notification.HoldId.Should().Be("hold-2");
-        notification.EntityId.Should().Be("entity-4");
-        notification.ReleasedAtUtc.Should().Be(releasedAt);
+        notification.HoldId.ShouldBe("hold-2");
+        notification.EntityId.ShouldBe("entity-4");
+        notification.ReleasedAtUtc.ShouldBe(releasedAt);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class NotificationTests
     {
         var notification = new LegalHoldReleasedNotification("h", "e", DateTimeOffset.UtcNow);
 
-        notification.Should().BeAssignableTo<INotification>();
+        notification.ShouldBeAssignableTo<INotification>();
     }
 
     [Fact]
@@ -115,8 +115,8 @@ public sealed class NotificationTests
         var occurredAt = DateTimeOffset.UtcNow;
         var notification = new RetentionEnforcementCompletedNotification(result, occurredAt);
 
-        notification.Result.Should().Be(result);
-        notification.OccurredAtUtc.Should().Be(occurredAt);
+        notification.Result.ShouldBe(result);
+        notification.OccurredAtUtc.ShouldBe(occurredAt);
     }
 
     [Fact]
@@ -134,6 +134,6 @@ public sealed class NotificationTests
         };
         var notification = new RetentionEnforcementCompletedNotification(result, DateTimeOffset.UtcNow);
 
-        notification.Should().BeAssignableTo<INotification>();
+        notification.ShouldBeAssignableTo<INotification>();
     }
 }

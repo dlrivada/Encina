@@ -5,11 +5,11 @@ using Encina.Security.AntiTampering;
 using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.HMAC;
 using Encina.Security.AntiTampering.Http;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.AntiTampering;
@@ -54,13 +54,13 @@ public sealed class RequestSigningClientTests
         var result = await _sut.SignRequestAsync(request, "api-key-v1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var signedRequest = (HttpRequestMessage)result;
 
-        signedRequest.Headers.GetValues(_options.SignatureHeader).Should().ContainSingle("base64-signature");
-        signedRequest.Headers.GetValues(_options.TimestampHeader).Should().ContainSingle();
-        signedRequest.Headers.GetValues(_options.NonceHeader).Should().ContainSingle();
-        signedRequest.Headers.GetValues(_options.KeyIdHeader).Should().ContainSingle("api-key-v1");
+        signedRequest.Headers.GetValues(_options.SignatureHeader).ShouldHaveSingleItem().ShouldBe("base64-signature");
+        signedRequest.Headers.GetValues(_options.TimestampHeader).ShouldHaveSingleItem();
+        signedRequest.Headers.GetValues(_options.NonceHeader).ShouldHaveSingleItem();
+        signedRequest.Headers.GetValues(_options.KeyIdHeader).ShouldHaveSingleItem().ShouldBe("api-key-v1");
     }
 
     [Fact]
@@ -79,9 +79,9 @@ public sealed class RequestSigningClientTests
         var result = await _sut.SignRequestAsync(request, "test-key");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var signedRequest = (HttpRequestMessage)result;
-        signedRequest.Headers.GetValues(_options.SignatureHeader).Should().ContainSingle("sig-no-body");
+        signedRequest.Headers.GetValues(_options.SignatureHeader).ShouldHaveSingleItem().ShouldBe("sig-no-body");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class RequestSigningClientTests
         // Assert
         var nonce1 = ((HttpRequestMessage)result1).Headers.GetValues(_options.NonceHeader).First();
         var nonce2 = ((HttpRequestMessage)result2).Headers.GetValues(_options.NonceHeader).First();
-        nonce1.Should().NotBe(nonce2);
+        nonce1.ShouldNotBe(nonce2);
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public sealed class RequestSigningClientTests
 
         // Assert
         var timestamp = ((HttpRequestMessage)result).Headers.GetValues(_options.TimestampHeader).First();
-        DateTimeOffset.TryParse(timestamp, out var parsed).Should().BeTrue();
-        parsed.Should().Be(expectedTime);
+        DateTimeOffset.TryParse(timestamp, out var parsed).ShouldBeTrue();
+        parsed.ShouldBe(expectedTime);
     }
 
     #endregion
@@ -152,7 +152,7 @@ public sealed class RequestSigningClientTests
         var result = await _sut.SignRequestAsync(request, "missing-key");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

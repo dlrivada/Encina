@@ -1,7 +1,7 @@
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -27,7 +27,7 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -56,9 +56,10 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementMode");
-        result.FailureMessage.Should().Contain("99");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldContain("99");
     }
 
     [Fact]
@@ -74,9 +75,10 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("PrivacyLevel");
-        result.FailureMessage.Should().Contain("42");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("PrivacyLevel");
+        result.FailureMessage.ShouldContain("42");
     }
 
     [Fact]
@@ -92,9 +94,10 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("MinimizationScoreThreshold");
-        result.FailureMessage.Should().Contain("0.0 and 1.0");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MinimizationScoreThreshold");
+        result.FailureMessage.ShouldContain("0.0 and 1.0");
     }
 
     [Fact]
@@ -110,8 +113,9 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("MinimizationScoreThreshold");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("MinimizationScoreThreshold");
     }
 
     [Theory]
@@ -130,7 +134,7 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -147,9 +151,10 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("Order Processing");
-        result.FailureMessage.Should().Contain("Description");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Order Processing");
+        result.FailureMessage.ShouldContain("Description");
     }
 
     [Fact]
@@ -166,9 +171,10 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("Order Processing");
-        result.FailureMessage.Should().Contain("LegalBasis");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Order Processing");
+        result.FailureMessage.ShouldContain("LegalBasis");
     }
 
     [Fact]
@@ -182,9 +188,10 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("Description");
-        result.FailureMessage.Should().Contain("LegalBasis");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Description");
+        result.FailureMessage.ShouldContain("LegalBasis");
     }
 
     [Fact]
@@ -203,7 +210,7 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -221,10 +228,11 @@ public class PrivacyByDesignOptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementMode");
-        result.FailureMessage.Should().Contain("PrivacyLevel");
-        result.FailureMessage.Should().Contain("MinimizationScoreThreshold");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
+        result.FailureMessage.ShouldContain("PrivacyLevel");
+        result.FailureMessage.ShouldContain("MinimizationScoreThreshold");
     }
 
     [Fact]
@@ -234,6 +242,6 @@ public class PrivacyByDesignOptionsValidatorTests
         var act = () => _sut.Validate(null, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 }

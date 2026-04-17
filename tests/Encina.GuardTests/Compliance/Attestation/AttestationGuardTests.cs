@@ -2,13 +2,11 @@ using Encina.Compliance.Attestation;
 using Encina.Compliance.Attestation.Behaviors;
 using Encina.Compliance.Attestation.Model;
 using Encina.Compliance.Attestation.Providers;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.GuardTests.Compliance.Attestation;
 
@@ -25,7 +23,7 @@ public sealed class AttestationGuardTests
             null!,
             NullLogger<InMemoryAttestationProvider>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -35,7 +33,7 @@ public sealed class AttestationGuardTests
             new FakeTimeProvider(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -47,7 +45,7 @@ public sealed class AttestationGuardTests
 
         var act = () => sut.AttestAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("record");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("record");
     }
 
     [Fact]
@@ -59,7 +57,7 @@ public sealed class AttestationGuardTests
 
         var act = () => sut.VerifyAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("receipt");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("receipt");
     }
 
     #endregion
@@ -74,7 +72,7 @@ public sealed class AttestationGuardTests
             NullLogger<HashChainAttestationProvider>.Instance,
             Options.Create(new HashChainOptions()));
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -85,7 +83,7 @@ public sealed class AttestationGuardTests
             null!,
             Options.Create(new HashChainOptions()));
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -96,7 +94,7 @@ public sealed class AttestationGuardTests
             NullLogger<HashChainAttestationProvider>.Instance,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -109,7 +107,7 @@ public sealed class AttestationGuardTests
 
         var act = () => sut.AttestAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("record");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("record");
     }
 
     [Fact]
@@ -122,7 +120,7 @@ public sealed class AttestationGuardTests
 
         var act = () => sut.VerifyAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("receipt");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("receipt");
     }
 
     #endregion
@@ -138,7 +136,7 @@ public sealed class AttestationGuardTests
             NullLogger<HttpAttestationProvider>.Instance,
             Options.Create(new HttpAttestationOptions { AttestEndpointUrl = new Uri("https://example.com/attest") }));
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("httpClient");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("httpClient");
     }
 
     [Fact]
@@ -150,7 +148,7 @@ public sealed class AttestationGuardTests
             NullLogger<HttpAttestationProvider>.Instance,
             Options.Create(new HttpAttestationOptions { AttestEndpointUrl = new Uri("https://example.com/attest") }));
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -162,7 +160,7 @@ public sealed class AttestationGuardTests
             null!,
             Options.Create(new HttpAttestationOptions { AttestEndpointUrl = new Uri("https://example.com/attest") }));
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -174,7 +172,7 @@ public sealed class AttestationGuardTests
             NullLogger<HttpAttestationProvider>.Instance,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -188,7 +186,7 @@ public sealed class AttestationGuardTests
 
         var act = () => sut.AttestAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("record");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("record");
     }
 
     [Fact]
@@ -202,7 +200,7 @@ public sealed class AttestationGuardTests
 
         var act = () => sut.VerifyAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("receipt");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("receipt");
     }
 
     #endregion
@@ -214,7 +212,7 @@ public sealed class AttestationGuardTests
     {
         var act = () => global::Encina.Compliance.Attestation.ServiceCollectionExtensions.AddEncinaAttestation(null!, _ => { });
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -223,7 +221,7 @@ public sealed class AttestationGuardTests
         var services = new ServiceCollection();
         var act = () => services.AddEncinaAttestation(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("configure");
     }
 
     #endregion
@@ -238,7 +236,7 @@ public sealed class AttestationGuardTests
             new FakeTimeProvider(),
             NullLogger<AttestationPipelineBehavior<FakeRequest, FakeResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("provider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("provider");
     }
 
     [Fact]
@@ -251,7 +249,7 @@ public sealed class AttestationGuardTests
             null!,
             NullLogger<AttestationPipelineBehavior<FakeRequest, FakeResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -264,7 +262,7 @@ public sealed class AttestationGuardTests
             new FakeTimeProvider(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     // Minimal stubs for AttestationPipelineBehavior guard tests
@@ -280,7 +278,7 @@ public sealed class AttestationGuardTests
     {
         var act = () => AttestationOptionsExtensions.UseInMemory(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -288,7 +286,7 @@ public sealed class AttestationGuardTests
     {
         var act = () => AttestationOptionsExtensions.UseHashChain(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -296,7 +294,7 @@ public sealed class AttestationGuardTests
     {
         var act = () => AttestationOptionsExtensions.UseHttp(null!, _ => { });
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -304,7 +302,7 @@ public sealed class AttestationGuardTests
     {
         var act = () => new AttestationOptions().UseHttp(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("configure");
     }
 
     #endregion

@@ -1,7 +1,7 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -20,13 +20,13 @@ public class TokenMappingMapperTests
         var entity = TokenMappingMapper.ToEntity(mapping);
 
         // Assert
-        entity.Id.Should().Be(mapping.Id);
-        entity.Token.Should().Be(mapping.Token);
-        entity.OriginalValueHash.Should().Be(mapping.OriginalValueHash);
-        entity.EncryptedOriginalValue.Should().BeEquivalentTo(mapping.EncryptedOriginalValue);
-        entity.KeyId.Should().Be(mapping.KeyId);
-        entity.CreatedAtUtc.Should().Be(mapping.CreatedAtUtc);
-        entity.ExpiresAtUtc.Should().Be(mapping.ExpiresAtUtc);
+        entity.Id.ShouldBe(mapping.Id);
+        entity.Token.ShouldBe(mapping.Token);
+        entity.OriginalValueHash.ShouldBe(mapping.OriginalValueHash);
+        entity.EncryptedOriginalValue.ShouldBe(mapping.EncryptedOriginalValue);
+        entity.KeyId.ShouldBe(mapping.KeyId);
+        entity.CreatedAtUtc.ShouldBe(mapping.CreatedAtUtc);
+        entity.ExpiresAtUtc.ShouldBe(mapping.ExpiresAtUtc);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class TokenMappingMapperTests
         var entity = TokenMappingMapper.ToEntity(mapping);
 
         // Assert
-        entity.Id.Should().Be(mapping.Id);
+        entity.Id.ShouldBe(mapping.Id);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class TokenMappingMapperTests
         var entity = TokenMappingMapper.ToEntity(mapping);
 
         // Assert
-        entity.EncryptedOriginalValue.Should().Equal(mapping.EncryptedOriginalValue);
+        entity.EncryptedOriginalValue.ShouldBe(mapping.EncryptedOriginalValue);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class TokenMappingMapperTests
         var entity = TokenMappingMapper.ToEntity(mapping);
 
         // Assert
-        entity.ExpiresAtUtc.Should().Be(new DateTimeOffset(2028, 3, 1, 0, 0, 0, TimeSpan.Zero));
+        entity.ExpiresAtUtc.ShouldBe(new DateTimeOffset(2028, 3, 1, 0, 0, 0, TimeSpan.Zero));
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class TokenMappingMapperTests
         var entity = TokenMappingMapper.ToEntity(mapping);
 
         // Assert
-        entity.ExpiresAtUtc.Should().BeNull();
+        entity.ExpiresAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -100,13 +100,13 @@ public class TokenMappingMapperTests
         var domain = TokenMappingMapper.ToDomain(entity);
 
         // Assert
-        domain.Id.Should().Be(entity.Id);
-        domain.Token.Should().Be(entity.Token);
-        domain.OriginalValueHash.Should().Be(entity.OriginalValueHash);
-        domain.EncryptedOriginalValue.Should().BeEquivalentTo(entity.EncryptedOriginalValue);
-        domain.KeyId.Should().Be(entity.KeyId);
-        domain.CreatedAtUtc.Should().Be(entity.CreatedAtUtc);
-        domain.ExpiresAtUtc.Should().Be(entity.ExpiresAtUtc);
+        domain.Id.ShouldBe(entity.Id);
+        domain.Token.ShouldBe(entity.Token);
+        domain.OriginalValueHash.ShouldBe(entity.OriginalValueHash);
+        domain.EncryptedOriginalValue.ShouldBe(entity.EncryptedOriginalValue);
+        domain.KeyId.ShouldBe(entity.KeyId);
+        domain.CreatedAtUtc.ShouldBe(entity.CreatedAtUtc);
+        domain.ExpiresAtUtc.ShouldBe(entity.ExpiresAtUtc);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class TokenMappingMapperTests
         var domain = TokenMappingMapper.ToDomain(entity);
 
         // Assert
-        domain.EncryptedOriginalValue.Should().Equal(entity.EncryptedOriginalValue);
+        domain.EncryptedOriginalValue.ShouldBe(entity.EncryptedOriginalValue);
     }
 
     [Fact]
@@ -133,13 +133,13 @@ public class TokenMappingMapperTests
         var roundtripped = TokenMappingMapper.ToDomain(entity);
 
         // Assert
-        roundtripped.Id.Should().Be(original.Id);
-        roundtripped.Token.Should().Be(original.Token);
-        roundtripped.OriginalValueHash.Should().Be(original.OriginalValueHash);
-        roundtripped.EncryptedOriginalValue.Should().Equal(original.EncryptedOriginalValue);
-        roundtripped.KeyId.Should().Be(original.KeyId);
-        roundtripped.CreatedAtUtc.Should().Be(original.CreatedAtUtc);
-        roundtripped.ExpiresAtUtc.Should().Be(original.ExpiresAtUtc);
+        roundtripped.Id.ShouldBe(original.Id);
+        roundtripped.Token.ShouldBe(original.Token);
+        roundtripped.OriginalValueHash.ShouldBe(original.OriginalValueHash);
+        roundtripped.EncryptedOriginalValue.ShouldBe(original.EncryptedOriginalValue);
+        roundtripped.KeyId.ShouldBe(original.KeyId);
+        roundtripped.CreatedAtUtc.ShouldBe(original.CreatedAtUtc);
+        roundtripped.ExpiresAtUtc.ShouldBe(original.ExpiresAtUtc);
     }
 
     private static TokenMapping CreateMapping() =>

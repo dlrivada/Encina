@@ -3,14 +3,11 @@
 
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Health;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -45,7 +42,7 @@ public class PrivacyByDesignHealthCheckTests
     [Fact]
     public void DefaultName_ShouldBeEncinaPrivacyByDesign()
     {
-        PrivacyByDesignHealthCheck.DefaultName.Should().Be("encina-privacy-by-design");
+        PrivacyByDesignHealthCheck.DefaultName.ShouldBe("encina-privacy-by-design");
     }
 
     #endregion
@@ -55,11 +52,11 @@ public class PrivacyByDesignHealthCheckTests
     [Fact]
     public void Tags_ShouldContainExpectedValues()
     {
-        PrivacyByDesignHealthCheck.Tags.Should().Contain("encina");
-        PrivacyByDesignHealthCheck.Tags.Should().Contain("gdpr");
-        PrivacyByDesignHealthCheck.Tags.Should().Contain("privacy-by-design");
-        PrivacyByDesignHealthCheck.Tags.Should().Contain("compliance");
-        PrivacyByDesignHealthCheck.Tags.Should().Contain("ready");
+        PrivacyByDesignHealthCheck.Tags.ShouldContain("encina");
+        PrivacyByDesignHealthCheck.Tags.ShouldContain("gdpr");
+        PrivacyByDesignHealthCheck.Tags.ShouldContain("privacy-by-design");
+        PrivacyByDesignHealthCheck.Tags.ShouldContain("compliance");
+        PrivacyByDesignHealthCheck.Tags.ShouldContain("ready");
     }
 
     #endregion
@@ -77,8 +74,8 @@ public class PrivacyByDesignHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("fully configured");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description!.ShouldContain("fully configured");
     }
 
     [Fact]
@@ -92,12 +89,12 @@ public class PrivacyByDesignHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Data.Should().ContainKey("enforcementMode");
-        result.Data.Should().ContainKey("privacyLevel");
-        result.Data.Should().ContainKey("minimizationScoreThreshold");
-        result.Data.Should().ContainKey("validatorType");
-        result.Data.Should().ContainKey("purposeRegistryType");
-        result.Data.Should().ContainKey("analyzerType");
+        result.Data.ShouldContainKey("enforcementMode");
+        result.Data.ShouldContainKey("privacyLevel");
+        result.Data.ShouldContainKey("minimizationScoreThreshold");
+        result.Data.ShouldContainKey("validatorType");
+        result.Data.ShouldContainKey("purposeRegistryType");
+        result.Data.ShouldContainKey("analyzerType");
     }
 
     #endregion
@@ -115,8 +112,8 @@ public class PrivacyByDesignHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("PrivacyByDesignOptions");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("PrivacyByDesignOptions");
     }
 
     #endregion
@@ -134,8 +131,8 @@ public class PrivacyByDesignHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IPrivacyByDesignValidator");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("IPrivacyByDesignValidator");
     }
 
     #endregion
@@ -153,8 +150,8 @@ public class PrivacyByDesignHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IPurposeRegistry");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("IPurposeRegistry");
     }
 
     #endregion
@@ -172,8 +169,8 @@ public class PrivacyByDesignHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Contain("IDataMinimizationAnalyzer");
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("IDataMinimizationAnalyzer");
     }
 
     [Fact]
@@ -187,7 +184,7 @@ public class PrivacyByDesignHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         // Assert
-        result.Data.Should().ContainKey("warnings");
+        result.Data.ShouldContainKey("warnings");
     }
 
     #endregion

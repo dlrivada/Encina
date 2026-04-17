@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -16,28 +16,28 @@ public sealed class PermitUnlessDenyAlgorithmTests
     [Fact]
     public void AlgorithmId_ReturnsPermitUnlessDeny()
     {
-        _sut.AlgorithmId.Should().Be(CombiningAlgorithmId.PermitUnlessDeny);
+        _sut.AlgorithmId.ShouldBe(CombiningAlgorithmId.PermitUnlessDeny);
     }
 
     [Fact]
     public void CombineRuleResults_SinglePermit_ReturnsPermit()
     {
         var results = new[] { MakeRuleResult(Effect.Permit) };
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit);
     }
 
     [Fact]
     public void CombineRuleResults_SingleDeny_ReturnsDeny()
     {
         var results = new[] { MakeRuleResult(Effect.Deny) };
-        _sut.CombineRuleResults(results).Should().Be(Effect.Deny);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Deny);
     }
 
     [Fact]
     public void CombineRuleResults_Empty_ReturnsPermit()
     {
         _sut.CombineRuleResults(Array.Empty<RuleEvaluationResult>())
-            .Should().Be(Effect.Permit, "No Deny found, so default is Permit");
+            .ShouldBe(Effect.Permit, "No Deny found, so default is Permit");
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class PermitUnlessDenyAlgorithmTests
             MakeRuleResult(Effect.NotApplicable)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit,
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit,
             "PermitUnlessDeny never returns NotApplicable — defaults to Permit");
     }
 
@@ -62,7 +62,7 @@ public sealed class PermitUnlessDenyAlgorithmTests
             MakeRuleResult(Effect.Indeterminate)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit,
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit,
             "PermitUnlessDeny never returns Indeterminate — defaults to Permit");
     }
 
@@ -76,7 +76,7 @@ public sealed class PermitUnlessDenyAlgorithmTests
             MakeRuleResult(Effect.Deny)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Deny);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Deny);
     }
 
     [Theory]
@@ -86,7 +86,7 @@ public sealed class PermitUnlessDenyAlgorithmTests
     public void CombineRuleResults_NoDenyPresent_AlwaysReturnsPermit(Effect inputEffect)
     {
         var results = new[] { MakeRuleResult(inputEffect), MakeRuleResult(inputEffect) };
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public sealed class PermitUnlessDenyAlgorithmTests
         };
 
         var combined = _sut.CombinePolicyResults(results);
-        combined.Effect.Should().Be(Effect.Deny);
-        combined.Obligations.Should().ContainSingle().Which.Id.Should().Be("log-denial");
+        combined.Effect.ShouldBe(Effect.Deny);
+        combined.Obligations.ShouldHaveSingleItem().Id.ShouldBe("log-denial");
     }
 
     #region Helpers

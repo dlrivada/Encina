@@ -1,9 +1,7 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -21,7 +19,7 @@ public class DataResidencyOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     [Fact]
@@ -38,7 +36,7 @@ public class DataResidencyOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     [Fact]
@@ -55,7 +53,7 @@ public class DataResidencyOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
+        result.Failed.ShouldBeTrue();
     }
 
     [Fact]
@@ -72,7 +70,7 @@ public class DataResidencyOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     [Fact]
@@ -89,7 +87,7 @@ public class DataResidencyOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     [Fact]
@@ -105,6 +103,6 @@ public class DataResidencyOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
+        result.Failed.ShouldBeTrue();
     }
 }

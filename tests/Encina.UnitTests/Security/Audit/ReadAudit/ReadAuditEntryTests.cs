@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit.ReadAudit;
 
@@ -25,9 +25,9 @@ public class ReadAuditEntryTests
         };
 
         // Assert
-        entry.Should().NotBeNull();
-        entry.EntityType.Should().Be("Patient");
-        entry.EntityId.Should().Be("P-123");
+        entry.ShouldNotBeNull();
+        entry.EntityType.ShouldBe("Patient");
+        entry.EntityId.ShouldBe("P-123");
     }
 
     [Fact]
@@ -45,10 +45,10 @@ public class ReadAuditEntryTests
         };
 
         // Assert
-        entry.UserId.Should().BeNull();
-        entry.TenantId.Should().BeNull();
-        entry.CorrelationId.Should().BeNull();
-        entry.Purpose.Should().BeNull();
+        entry.UserId.ShouldBeNull();
+        entry.TenantId.ShouldBeNull();
+        entry.CorrelationId.ShouldBeNull();
+        entry.Purpose.ShouldBeNull();
     }
 
     [Fact]
@@ -66,8 +66,8 @@ public class ReadAuditEntryTests
         };
 
         // Assert
-        entry.Metadata.Should().NotBeNull();
-        entry.Metadata.Should().BeEmpty();
+        entry.Metadata.ShouldNotBeNull();
+        entry.Metadata.ShouldBeEmpty();
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public class ReadAuditEntryTests
         };
 
         // Assert
-        entry.Metadata.Should().HaveCount(2);
-        entry.Metadata["department"].Should().Be("Cardiology");
+        entry.Metadata.Count.ShouldBe(2);
+        entry.Metadata["department"].ShouldBe("Cardiology");
     }
 
     #endregion
@@ -126,8 +126,8 @@ public class ReadAuditEntryTests
         };
 
         // Assert — Record equality uses reference equality for Dictionary<string, object?>,
-        // so we use BeEquivalentTo for deep structural comparison.
-        entry1.Should().BeEquivalentTo(entry2);
+        // so we use ShouldBeEquivalentTo for deep structural comparison.
+        entry1.ShouldBeEquivalentTo(entry2);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class ReadAuditEntryTests
         };
 
         // Assert
-        entry1.Should().NotBe(entry2);
+        entry1.ShouldNotBe(entry2);
     }
 
     #endregion
@@ -172,7 +172,7 @@ public class ReadAuditEntryTests
     [InlineData(ReadAccessMethod.Custom, 4)]
     public void ReadAccessMethod_ShouldHaveExpectedValues(ReadAccessMethod method, int expectedValue)
     {
-        ((int)method).Should().Be(expectedValue);
+        ((int)method).ShouldBe(expectedValue);
     }
 
     #endregion

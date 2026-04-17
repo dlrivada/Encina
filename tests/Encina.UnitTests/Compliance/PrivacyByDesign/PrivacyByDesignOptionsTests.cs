@@ -3,7 +3,7 @@
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -21,7 +21,7 @@ public class PrivacyByDesignOptionsTests
         var options = new PrivacyByDesignOptions();
 
         // Assert
-        options.EnforcementMode.Should().Be(PrivacyByDesignEnforcementMode.Warn);
+        options.EnforcementMode.ShouldBe(PrivacyByDesignEnforcementMode.Warn);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class PrivacyByDesignOptionsTests
         var options = new PrivacyByDesignOptions();
 
         // Assert
-        options.MinimizationScoreThreshold.Should().Be(0.0);
+        options.MinimizationScoreThreshold.ShouldBe(0.0);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class PrivacyByDesignOptionsTests
         var options = new PrivacyByDesignOptions();
 
         // Assert
-        options.PrivacyLevel.Should().Be(PrivacyLevel.Standard);
+        options.PrivacyLevel.ShouldBe(PrivacyLevel.Standard);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class PrivacyByDesignOptionsTests
         var options = new PrivacyByDesignOptions();
 
         // Assert
-        options.TrackAuditTrail.Should().BeTrue();
+        options.TrackAuditTrail.ShouldBeTrue();
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class PrivacyByDesignOptionsTests
         var options = new PrivacyByDesignOptions();
 
         // Assert
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     #endregion
@@ -78,7 +78,7 @@ public class PrivacyByDesignOptionsTests
         options.BlockOnViolation = true;
 
         // Assert
-        options.EnforcementMode.Should().Be(PrivacyByDesignEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(PrivacyByDesignEnforcementMode.Block);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class PrivacyByDesignOptionsTests
         };
 
         // Assert
-        options.BlockOnViolation.Should().BeTrue();
+        options.BlockOnViolation.ShouldBeTrue();
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class PrivacyByDesignOptionsTests
         };
 
         // Assert
-        options.BlockOnViolation.Should().BeFalse();
+        options.BlockOnViolation.ShouldBeFalse();
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class PrivacyByDesignOptionsTests
         options.BlockOnViolation = false;
 
         // Assert — setting false does NOT change EnforcementMode away from Block
-        options.EnforcementMode.Should().Be(PrivacyByDesignEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(PrivacyByDesignEnforcementMode.Block);
     }
 
     #endregion
@@ -141,11 +141,11 @@ public class PrivacyByDesignOptionsTests
         });
 
         // Assert
-        options.PurposeBuilders.Should().HaveCount(1);
-        options.PurposeBuilders[0].Name.Should().Be("Order Processing");
-        options.PurposeBuilders[0].Description.Should().Be("Processing personal data for order fulfillment.");
-        options.PurposeBuilders[0].LegalBasis.Should().Be("Contract");
-        options.PurposeBuilders[0].ModuleId.Should().BeNull();
+        options.PurposeBuilders.Count.ShouldBe(1);
+        options.PurposeBuilders[0].Name.ShouldBe("Order Processing");
+        options.PurposeBuilders[0].Description.ShouldBe("Processing personal data for order fulfillment.");
+        options.PurposeBuilders[0].LegalBasis.ShouldBe("Contract");
+        options.PurposeBuilders[0].ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -162,9 +162,9 @@ public class PrivacyByDesignOptionsTests
         });
 
         // Assert
-        options.PurposeBuilders.Should().HaveCount(1);
-        options.PurposeBuilders[0].Name.Should().Be("Marketing Analytics");
-        options.PurposeBuilders[0].ModuleId.Should().Be("marketing");
+        options.PurposeBuilders.Count.ShouldBe(1);
+        options.PurposeBuilders[0].Name.ShouldBe("Marketing Analytics");
+        options.PurposeBuilders[0].ModuleId.ShouldBe("marketing");
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class PrivacyByDesignOptionsTests
         });
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class PrivacyByDesignOptionsTests
         });
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -221,10 +221,10 @@ public class PrivacyByDesignOptionsTests
             });
 
         // Assert
-        options.PurposeBuilders.Should().HaveCount(2);
-        options.PurposeBuilders[0].Name.Should().Be("Purpose 1");
-        options.PurposeBuilders[1].Name.Should().Be("Purpose 2");
-        options.PurposeBuilders[1].ModuleId.Should().Be("module-a");
+        options.PurposeBuilders.Count.ShouldBe(2);
+        options.PurposeBuilders[0].Name.ShouldBe("Purpose 1");
+        options.PurposeBuilders[1].Name.ShouldBe("Purpose 2");
+        options.PurposeBuilders[1].ModuleId.ShouldBe("module-a");
     }
 
     [Fact]
@@ -237,8 +237,8 @@ public class PrivacyByDesignOptionsTests
         var act = () => options.AddPurpose(null!, _ => { });
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("name");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -251,8 +251,8 @@ public class PrivacyByDesignOptionsTests
         var act = () => options.AddPurpose("Test", (Action<PurposeBuilder>)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("configure");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configure");
     }
 
     [Fact]
@@ -265,8 +265,8 @@ public class PrivacyByDesignOptionsTests
         var act = () => options.AddPurpose(null!, "module", _ => { });
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("name");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -279,8 +279,8 @@ public class PrivacyByDesignOptionsTests
         var act = () => options.AddPurpose("Test", null!, _ => { });
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("moduleId");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("moduleId");
     }
 
     [Fact]
@@ -293,8 +293,8 @@ public class PrivacyByDesignOptionsTests
         var act = () => options.AddPurpose("Test", "module", (Action<PurposeBuilder>)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("configure");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configure");
     }
 
     #endregion

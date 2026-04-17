@@ -73,7 +73,7 @@ public static class ServiceCollectionExtensions
             .WithIdentity(effectiveJobKey)
             .Build();
 
-        job.JobDataMap.Put(QuartzConstants.RequestKey, request!);
+        job.JobDataMap[QuartzConstants.RequestKey] = request!;
 
         await scheduler.ScheduleJob(job, trigger, cancellationToken).ConfigureAwait(false);
 
@@ -104,7 +104,7 @@ public static class ServiceCollectionExtensions
             .WithIdentity(effectiveJobKey)
             .Build();
 
-        job.JobDataMap.Put(QuartzConstants.NotificationKey, notification!);
+        job.JobDataMap[QuartzConstants.NotificationKey] = notification!;
 
         await scheduler.ScheduleJob(job, trigger, cancellationToken).ConfigureAwait(false);
 

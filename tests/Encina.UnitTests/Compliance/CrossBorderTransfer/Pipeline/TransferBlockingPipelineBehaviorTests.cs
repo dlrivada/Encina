@@ -6,12 +6,12 @@ using Encina.Compliance.CrossBorderTransfer.Attributes;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.Pipeline;
 using Encina.Modules.Isolation;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Pipeline;
@@ -61,7 +61,7 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new TransferCommand(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _validator.DidNotReceive()
             .ValidateAsync(Arg.Any<TransferRequest>(), Arg.Any<CancellationToken>());
     }
@@ -78,7 +78,7 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new PlainCommand(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _validator.DidNotReceive()
             .ValidateAsync(Arg.Any<TransferRequest>(), Arg.Any<CancellationToken>());
     }
@@ -96,8 +96,8 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new TransferCommandEmptyDestination(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class TransferBlockingPipelineBehaviorTests
 
         var result = await sut.Handle(command, _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _validator.Received(1).ValidateAsync(
             Arg.Is<TransferRequest>(r => r.DestinationCountryCode == "JP"),
             Arg.Any<CancellationToken>());
@@ -133,8 +133,8 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new TransferCommand(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -155,8 +155,8 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new TransferCommand(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -177,7 +177,7 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new TransferCommand(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -195,7 +195,7 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new TransferCommand(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class TransferBlockingPipelineBehaviorTests
         var result = await sut.Handle(
             new TransferCommand(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion

@@ -8,13 +8,13 @@ using Encina.Compliance.DPIA.ReadModels;
 using Encina.Compliance.DPIA.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.ContractTests.Compliance.DPIA;
@@ -79,8 +79,8 @@ public class IDPIAServiceContractTests
         var result = await _sut.CreateAssessmentAsync("MyApp.Commands.ProcessData");
 
         // Assert
-        result.IsRight.Should().BeTrue("CreateAssessmentAsync with valid data should return Right");
-        result.IfRight(id => id.Should().NotBeEmpty("the returned Guid should not be empty"));
+        result.IsRight.ShouldBeTrue("CreateAssessmentAsync with valid data should return Right");
+        result.IfRight(id => id.ShouldNotBe(Guid.Empty, "the returned Guid should not be empty"));
     }
 
     #endregion
@@ -100,7 +100,7 @@ public class IDPIAServiceContractTests
         var result = await _sut.GetAssessmentAsync(nonExistentId);
 
         // Assert
-        result.IsLeft.Should().BeTrue("GetAssessmentAsync with non-existent ID should return Left");
+        result.IsLeft.ShouldBeTrue("GetAssessmentAsync with non-existent ID should return Left");
     }
 
     #endregion
@@ -120,7 +120,7 @@ public class IDPIAServiceContractTests
         var result = await _sut.ApproveAssessmentAsync(nonExistentId, "admin");
 
         // Assert
-        result.IsLeft.Should().BeTrue("ApproveAssessmentAsync with non-existent ID should return Left");
+        result.IsLeft.ShouldBeTrue("ApproveAssessmentAsync with non-existent ID should return Left");
     }
 
     #endregion
@@ -142,7 +142,7 @@ public class IDPIAServiceContractTests
         var result = await _sut.GetAllAssessmentsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue("GetAllAssessmentsAsync should return Right");
+        result.IsRight.ShouldBeTrue("GetAllAssessmentsAsync should return Right");
     }
 
     #endregion
@@ -164,7 +164,7 @@ public class IDPIAServiceContractTests
         var result = await _sut.GetExpiredAssessmentsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue("GetExpiredAssessmentsAsync should return Right");
+        result.IsRight.ShouldBeTrue("GetExpiredAssessmentsAsync should return Right");
     }
 
     #endregion

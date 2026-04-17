@@ -1,7 +1,7 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -10,14 +10,14 @@ public class RegionRegistryTests
     [Fact]
     public void EUMemberStates_ShouldContain27Countries()
     {
-        RegionRegistry.EUMemberStates.Should().HaveCount(27);
+        RegionRegistry.EUMemberStates.Count.ShouldBe(27);
     }
 
     [Fact]
     public void EEACountries_ShouldContainEUPlusEFTA()
     {
         // EEA = 27 EU + 3 EFTA (IS, LI, NO) = 30
-        RegionRegistry.EEACountries.Should().HaveCount(30);
+        RegionRegistry.EEACountries.Count.ShouldBe(30);
     }
 
     [Fact]
@@ -25,22 +25,22 @@ public class RegionRegistryTests
     {
         foreach (var region in RegionRegistry.EUMemberStates)
         {
-            region.IsEU.Should().BeTrue($"{region.Code} should be EU");
-            region.IsEEA.Should().BeTrue($"{region.Code} should be EEA");
+            region.IsEU.ShouldBeTrue();
+            region.IsEEA.ShouldBeTrue();
         }
     }
 
     [Fact]
     public void EEAOnlyCountries_ShouldBeEEAButNotEU()
     {
-        RegionRegistry.NO.IsEEA.Should().BeTrue();
-        RegionRegistry.NO.IsEU.Should().BeFalse();
+        RegionRegistry.NO.IsEEA.ShouldBeTrue();
+        RegionRegistry.NO.IsEU.ShouldBeFalse();
 
-        RegionRegistry.IS.IsEEA.Should().BeTrue();
-        RegionRegistry.IS.IsEU.Should().BeFalse();
+        RegionRegistry.IS.IsEEA.ShouldBeTrue();
+        RegionRegistry.IS.IsEU.ShouldBeFalse();
 
-        RegionRegistry.LI.IsEEA.Should().BeTrue();
-        RegionRegistry.LI.IsEU.Should().BeFalse();
+        RegionRegistry.LI.IsEEA.ShouldBeTrue();
+        RegionRegistry.LI.IsEU.ShouldBeFalse();
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class RegionRegistryTests
     {
         foreach (var region in RegionRegistry.AdequacyCountries)
         {
-            region.HasAdequacyDecision.Should().BeTrue($"{region.Code} should have adequacy decision");
+            region.HasAdequacyDecision.ShouldBeTrue();
         }
     }
 
@@ -56,23 +56,23 @@ public class RegionRegistryTests
     public void GetByCode_KnownCode_ShouldReturnRegion()
     {
         var region = RegionRegistry.GetByCode("DE");
-        region.Should().NotBeNull();
-        region!.Code.Should().Be("DE");
+        region.ShouldNotBeNull();
+        region!.Code.ShouldBe("DE");
     }
 
     [Fact]
     public void GetByCode_UnknownCode_ShouldReturnNull()
     {
         var region = RegionRegistry.GetByCode("ZZZZZ");
-        region.Should().BeNull();
+        region.ShouldBeNull();
     }
 
     [Fact]
     public void GetByCode_CaseInsensitive_ShouldReturnRegion()
     {
         var region = RegionRegistry.GetByCode("de");
-        region.Should().NotBeNull();
-        region!.Code.Should().Be("DE");
+        region.ShouldNotBeNull();
+        region!.Code.ShouldBe("DE");
     }
 
     [Theory]
@@ -85,8 +85,8 @@ public class RegionRegistryTests
     public void WellKnownEURegions_ShouldExistInRegistry(string code)
     {
         var region = RegionRegistry.GetByCode(code);
-        region.Should().NotBeNull();
-        region!.IsEU.Should().BeTrue();
+        region.ShouldNotBeNull();
+        region!.IsEU.ShouldBeTrue();
     }
 
     [Theory]
@@ -98,21 +98,21 @@ public class RegionRegistryTests
     public void WellKnownAdequacyRegions_ShouldExistInRegistry(string code)
     {
         var region = RegionRegistry.GetByCode(code);
-        region.Should().NotBeNull();
-        region!.HasAdequacyDecision.Should().BeTrue();
+        region.ShouldNotBeNull();
+        region!.HasAdequacyDecision.ShouldBeTrue();
     }
 
     [Fact]
     public void DE_ShouldHaveHighProtection()
     {
-        RegionRegistry.DE.ProtectionLevel.Should().Be(DataProtectionLevel.High);
+        RegionRegistry.DE.ProtectionLevel.ShouldBe(DataProtectionLevel.High);
     }
 
     [Fact]
     public void CN_ShouldNotHaveAdequacy()
     {
-        RegionRegistry.CN.HasAdequacyDecision.Should().BeFalse();
-        RegionRegistry.CN.IsEU.Should().BeFalse();
-        RegionRegistry.CN.IsEEA.Should().BeFalse();
+        RegionRegistry.CN.HasAdequacyDecision.ShouldBeFalse();
+        RegionRegistry.CN.IsEU.ShouldBeFalse();
+        RegionRegistry.CN.IsEEA.ShouldBeFalse();
     }
 }

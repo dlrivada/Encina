@@ -1,5 +1,5 @@
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct.Model;
 
@@ -21,7 +21,7 @@ public class AIActComplianceResultTests
             EvaluatedAtUtc = DateTimeOffset.UtcNow
         };
 
-        result.Violations.Should().BeEmpty();
+        result.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -39,8 +39,8 @@ public class AIActComplianceResultTests
 
         var modified = original with { RiskLevel = AIRiskLevel.HighRisk };
 
-        modified.RiskLevel.Should().Be(AIRiskLevel.HighRisk);
-        original.RiskLevel.Should().Be(AIRiskLevel.MinimalRisk);
+        modified.RiskLevel.ShouldBe(AIRiskLevel.HighRisk);
+        original.RiskLevel.ShouldBe(AIRiskLevel.MinimalRisk);
     }
 
     [Fact]
@@ -66,6 +66,6 @@ public class AIActComplianceResultTests
             EvaluatedAtUtc = time
         };
 
-        a.Should().Be(b);
+        a.ShouldBe(b);
     }
 }

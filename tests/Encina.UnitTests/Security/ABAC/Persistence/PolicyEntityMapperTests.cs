@@ -1,7 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence;
 
@@ -60,7 +60,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Id.Should().Be("ps-test");
+        entity.Id.ShouldBe("ps-test");
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Version.Should().Be("1.2.3");
+        entity.Version.ShouldBe("1.2.3");
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Description.Should().Be("Test description");
+        entity.Description.ShouldBe("Test description");
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.IsEnabled.Should().BeFalse();
+        entity.IsEnabled.ShouldBeFalse();
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Priority.Should().Be(10);
+        entity.Priority.ShouldBe(10);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.PolicyJson.Should().NotBeNullOrWhiteSpace();
+        entity.PolicyJson.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.CreatedAtUtc.Should().Be(FixedNow.UtcDateTime);
+        entity.CreatedAtUtc.ShouldBe(FixedNow.UtcDateTime);
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.UpdatedAtUtc.Should().Be(FixedNow.UtcDateTime);
+        entity.UpdatedAtUtc.ShouldBe(FixedNow.UtcDateTime);
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public sealed class PolicyEntityMapperTests
             policySet, _serializer, CreateFixedTimeProvider(), existingEntity);
 
         // Assert
-        entity.CreatedAtUtc.Should().Be(ExistingCreated.UtcDateTime);
-        entity.UpdatedAtUtc.Should().Be(FixedNow.UtcDateTime);
+        entity.CreatedAtUtc.ShouldBe(ExistingCreated.UtcDateTime);
+        entity.UpdatedAtUtc.ShouldBe(FixedNow.UtcDateTime);
     }
 
     #endregion
@@ -201,9 +201,9 @@ public sealed class PolicyEntityMapperTests
         var result = PolicyEntityMapper.ToPolicySet(entity, _serializer);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Id.Should().Be("ps-roundtrip");
+        deserialized.Id.ShouldBe("ps-roundtrip");
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public sealed class PolicyEntityMapperTests
         var result = PolicyEntityMapper.ToPolicySet(entity, _serializer);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -241,7 +241,7 @@ public sealed class PolicyEntityMapperTests
         var result = PolicyEntityMapper.ToPolicySet(entity, _serializer);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -261,7 +261,7 @@ public sealed class PolicyEntityMapperTests
             policy, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Id.Should().Be("p-test");
+        entity.Id.ShouldBe("p-test");
     }
 
     [Fact]
@@ -275,7 +275,7 @@ public sealed class PolicyEntityMapperTests
             policy, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Version.Should().Be("3.0");
+        entity.Version.ShouldBe("3.0");
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public sealed class PolicyEntityMapperTests
             policy, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Description.Should().Be("Test policy");
+        entity.Description.ShouldBe("Test policy");
     }
 
     [Fact]
@@ -303,7 +303,7 @@ public sealed class PolicyEntityMapperTests
             policy, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.IsEnabled.Should().BeFalse();
+        entity.IsEnabled.ShouldBeFalse();
     }
 
     [Fact]
@@ -317,7 +317,7 @@ public sealed class PolicyEntityMapperTests
             policy, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.Priority.Should().Be(7);
+        entity.Priority.ShouldBe(7);
     }
 
     [Fact]
@@ -331,8 +331,8 @@ public sealed class PolicyEntityMapperTests
             policy, _serializer, CreateFixedTimeProvider());
 
         // Assert
-        entity.CreatedAtUtc.Should().Be(FixedNow.UtcDateTime);
-        entity.UpdatedAtUtc.Should().Be(FixedNow.UtcDateTime);
+        entity.CreatedAtUtc.ShouldBe(FixedNow.UtcDateTime);
+        entity.UpdatedAtUtc.ShouldBe(FixedNow.UtcDateTime);
     }
 
     [Fact]
@@ -353,8 +353,8 @@ public sealed class PolicyEntityMapperTests
             policy, _serializer, CreateFixedTimeProvider(), existingEntity);
 
         // Assert
-        entity.CreatedAtUtc.Should().Be(ExistingCreated.UtcDateTime);
-        entity.UpdatedAtUtc.Should().Be(FixedNow.UtcDateTime);
+        entity.CreatedAtUtc.ShouldBe(ExistingCreated.UtcDateTime);
+        entity.UpdatedAtUtc.ShouldBe(FixedNow.UtcDateTime);
     }
 
     #endregion
@@ -375,9 +375,9 @@ public sealed class PolicyEntityMapperTests
         var result = PolicyEntityMapper.ToPolicy(entity, _serializer);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Id.Should().Be("p-roundtrip");
+        deserialized.Id.ShouldBe("p-roundtrip");
     }
 
     [Fact]
@@ -396,7 +396,7 @@ public sealed class PolicyEntityMapperTests
         var result = PolicyEntityMapper.ToPolicy(entity, _serializer);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -411,7 +411,7 @@ public sealed class PolicyEntityMapperTests
         var act = () => PolicyEntityMapper.ToPolicySetEntity(
             null!, _serializer, CreateFixedTimeProvider());
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public sealed class PolicyEntityMapperTests
         var act = () => PolicyEntityMapper.ToPolicySetEntity(
             CreateMinimalPolicySet(), null!, CreateFixedTimeProvider());
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -429,15 +429,15 @@ public sealed class PolicyEntityMapperTests
         var act = () => PolicyEntityMapper.ToPolicySetEntity(
             CreateMinimalPolicySet(), _serializer, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
     public void ToPolicySet_NullEntity_ThrowsArgumentNullException()
     {
-        var act = () => PolicyEntityMapper.ToPolicySet(null!, _serializer);
+        Action act = () => { PolicyEntityMapper.ToPolicySet(null!, _serializer); };
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -451,9 +451,9 @@ public sealed class PolicyEntityMapperTests
             UpdatedAtUtc = DateTime.UtcNow
         };
 
-        var act = () => PolicyEntityMapper.ToPolicySet(entity, null!);
+        Action act = () => { PolicyEntityMapper.ToPolicySet(entity, null!); };
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -462,7 +462,7 @@ public sealed class PolicyEntityMapperTests
         var act = () => PolicyEntityMapper.ToPolicyEntity(
             null!, _serializer, CreateFixedTimeProvider());
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -471,7 +471,7 @@ public sealed class PolicyEntityMapperTests
         var act = () => PolicyEntityMapper.ToPolicyEntity(
             CreateMinimalPolicy(), null!, CreateFixedTimeProvider());
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -480,15 +480,15 @@ public sealed class PolicyEntityMapperTests
         var act = () => PolicyEntityMapper.ToPolicyEntity(
             CreateMinimalPolicy(), _serializer, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
     public void ToPolicy_NullEntity_ThrowsArgumentNullException()
     {
-        var act = () => PolicyEntityMapper.ToPolicy(null!, _serializer);
+        Action act = () => { PolicyEntityMapper.ToPolicy(null!, _serializer); };
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -502,9 +502,9 @@ public sealed class PolicyEntityMapperTests
             UpdatedAtUtc = DateTime.UtcNow
         };
 
-        var act = () => PolicyEntityMapper.ToPolicy(entity, null!);
+        Action act = () => { PolicyEntityMapper.ToPolicy(entity, null!); };
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion

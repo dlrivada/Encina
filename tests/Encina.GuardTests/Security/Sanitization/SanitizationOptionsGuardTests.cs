@@ -1,7 +1,7 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Profiles;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Sanitization;
 
@@ -17,8 +17,8 @@ public sealed class SanitizationOptionsGuardTests
     {
         var act = () => _sut.AddProfile(null!, SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("name");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -26,8 +26,8 @@ public sealed class SanitizationOptionsGuardTests
     {
         var act = () => _sut.AddProfile("test", (ISanitizationProfile)null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("profile");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("profile");
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class SanitizationOptionsGuardTests
     {
         var act = () => _sut.AddProfile("", SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class SanitizationOptionsGuardTests
     {
         var act = () => _sut.AddProfile("   ", SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public sealed class SanitizationOptionsGuardTests
     {
         var act = () => _sut.AddProfile(null!, _ => { });
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("name");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -60,8 +60,8 @@ public sealed class SanitizationOptionsGuardTests
     {
         var act = () => _sut.AddProfile("test", (Action<SanitizationProfileBuilder>)null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configure");
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class SanitizationOptionsGuardTests
     {
         var act = () => _sut.UseHtmlSanitizer(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configure");
     }
 }

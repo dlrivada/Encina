@@ -4,7 +4,6 @@ using System.Security.Claims;
 using Encina.Security;
 using Encina.Security.Diagnostics;
 using Encina.Security.Health;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -12,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security;
 
@@ -64,7 +64,7 @@ public class ObservabilityTests
                 Next(Unit.Default), CancellationToken.None);
 
             // Assert — No security attributes + RequireAuthenticatedByDefault=false => no activity
-            _completedActivities.Should().BeEmpty();
+            _completedActivities.ShouldBeEmpty();
         }
 
         [Fact]
@@ -80,10 +80,10 @@ public class ObservabilityTests
                 Next(Unit.Default), CancellationToken.None);
 
             // Assert
-            var activity = _completedActivities.Should().ContainSingle().Subject;
-            activity.GetTagItem(SecurityDiagnostics.TagRequestType).Should().Be("DenyAnonymousOnlyCommand");
-            activity.GetTagItem(SecurityDiagnostics.TagUserId).Should().Be("user-42");
-            activity.GetTagItem(SecurityDiagnostics.TagOutcome).Should().Be("allowed");
+            var activity = _completedActivities.ShouldHaveSingleItem();
+            activity.GetTagItem(SecurityDiagnostics.TagRequestType).ShouldBe("DenyAnonymousOnlyCommand");
+            activity.GetTagItem(SecurityDiagnostics.TagUserId).ShouldBe("user-42");
+            activity.GetTagItem(SecurityDiagnostics.TagOutcome).ShouldBe("allowed");
         }
 
         [Fact]
@@ -99,11 +99,11 @@ public class ObservabilityTests
                 Next(Unit.Default), CancellationToken.None);
 
             // Assert
-            var activity = _completedActivities.Should().ContainSingle().Subject;
-            activity.GetTagItem(SecurityDiagnostics.TagOutcome).Should().Be("denied");
+            var activity = _completedActivities.ShouldHaveSingleItem();
+            activity.GetTagItem(SecurityDiagnostics.TagOutcome).ShouldBe("denied");
             activity.GetTagItem(SecurityDiagnostics.TagDenialReason)
-                .Should().Be(SecurityErrors.UnauthenticatedCode);
-            activity.Status.Should().Be(ActivityStatusCode.Error);
+                .ShouldBe(SecurityErrors.UnauthenticatedCode);
+            activity.Status.ShouldBe(ActivityStatusCode.Error);
         }
 
         [Fact]
@@ -119,8 +119,8 @@ public class ObservabilityTests
                 Next(Unit.Default), CancellationToken.None);
 
             // Assert
-            var activity = _completedActivities.Should().ContainSingle().Subject;
-            activity.Events.Should().Contain(e =>
+            var activity = _completedActivities.ShouldHaveSingleItem();
+            activity.Events.ShouldContain(e =>
                 e.Name == "DenyAnonymousAttribute.evaluated");
         }
 
@@ -137,10 +137,10 @@ public class ObservabilityTests
                 Next(Unit.Default), CancellationToken.None);
 
             // Assert
-            var activity = _completedActivities.Should().ContainSingle().Subject;
-            activity.Events.Should().HaveCountGreaterThanOrEqualTo(2);
-            activity.Events.Should().Contain(e => e.Name == "DenyAnonymousAttribute.evaluated");
-            activity.Events.Should().Contain(e => e.Name == "RequireRoleAttribute.evaluated");
+            var activity = _completedActivities.ShouldHaveSingleItem();
+            activity.Events.Count().ShouldBeGreaterThanOrEqualTo(2);
+            activity.Events.ShouldContain(e => e.Name == "DenyAnonymousAttribute.evaluated");
+            activity.Events.ShouldContain(e => e.Name == "RequireRoleAttribute.evaluated");
         }
 
         [Fact]
@@ -156,7 +156,7 @@ public class ObservabilityTests
                 Next(Unit.Default), CancellationToken.None);
 
             // Assert — AllowAnonymous bypasses all security, no activity created
-            _completedActivities.Should().BeEmpty();
+            _completedActivities.ShouldBeEmpty();
         }
     }
 
@@ -219,9 +219,9 @@ public class ObservabilityTests
             _meterListener.RecordObservableInstruments();
 
             // Assert
-            _counterMeasurements.Should().Contain(m => m.Name == "security.authorization.total");
-            _counterMeasurements.Should().Contain(m => m.Name == "security.authorization.allowed");
-            _counterMeasurements.Should().NotContain(m => m.Name == "security.authorization.denied");
+            _counterMeasurements.ShouldContain(m => m.Name == "security.authorization.total");
+            _counterMeasurements.ShouldContain(m => m.Name == "security.authorization.allowed");
+            _counterMeasurements.ShouldNotContain(m => m.Name == "security.authorization.denied");
         }
 
         [Fact]
@@ -240,9 +240,9 @@ public class ObservabilityTests
             _meterListener.RecordObservableInstruments();
 
             // Assert
-            _counterMeasurements.Should().Contain(m => m.Name == "security.authorization.total");
-            _counterMeasurements.Should().Contain(m => m.Name == "security.authorization.denied");
-            _counterMeasurements.Should().NotContain(m => m.Name == "security.authorization.allowed");
+            _counterMeasurements.ShouldContain(m => m.Name == "security.authorization.total");
+            _counterMeasurements.ShouldContain(m => m.Name == "security.authorization.denied");
+            _counterMeasurements.ShouldNotContain(m => m.Name == "security.authorization.allowed");
         }
 
         [Fact]
@@ -261,7 +261,7 @@ public class ObservabilityTests
             _meterListener.RecordObservableInstruments();
 
             // Assert
-            _histogramMeasurements.Should().Contain(m =>
+            _histogramMeasurements.ShouldContain(m =>
                 m.Name == "security.authorization.duration" && m.Value >= 0);
         }
 
@@ -284,11 +284,11 @@ public class ObservabilityTests
             var deniedMeasurement = _counterMeasurements
                 .FirstOrDefault(m => m.Name == "security.authorization.denied");
 
-            deniedMeasurement.Should().NotBeNull();
+            deniedMeasurement.Name.ShouldNotBeNull();
             GetTagValue(deniedMeasurement.Tags, SecurityDiagnostics.TagRequestType)
-                .Should().Be("DenyAnonymousOnlyCommand");
+                .ShouldBe("DenyAnonymousOnlyCommand");
             GetTagValue(deniedMeasurement.Tags, SecurityDiagnostics.TagDenialReason)
-                .Should().Be(SecurityErrors.UnauthenticatedCode);
+                .ShouldBe(SecurityErrors.UnauthenticatedCode);
         }
 
         private static TagList ToTagList(ReadOnlySpan<KeyValuePair<string, object?>> tags)
@@ -340,7 +340,7 @@ public class ObservabilityTests
 
             // Assert — AuthorizationAllowed EventId=8001 at Information level
             var records = logger.Collector.GetSnapshot();
-            records.Should().Contain(r => r.Id.Id == 8001 && r.Level == LogLevel.Information);
+            records.ShouldContain(r => r.Id.Id == 8001 && r.Level == LogLevel.Information);
         }
 
         [Fact]
@@ -358,7 +358,7 @@ public class ObservabilityTests
 
             // Assert — AuthorizationDenied EventId=8002 at Warning level
             var records = logger.Collector.GetSnapshot();
-            records.Should().Contain(r => r.Id.Id == 8002 && r.Level == LogLevel.Warning);
+            records.ShouldContain(r => r.Id.Id == 8002 && r.Level == LogLevel.Warning);
         }
 
         [Fact]
@@ -376,7 +376,7 @@ public class ObservabilityTests
 
             // Assert — AuthorizationStarted EventId=8000 at Debug level
             var records = logger.Collector.GetSnapshot();
-            records.Should().Contain(r => r.Id.Id == 8000 && r.Level == LogLevel.Debug);
+            records.ShouldContain(r => r.Id.Id == 8000 && r.Level == LogLevel.Debug);
         }
 
         [Fact]
@@ -401,7 +401,7 @@ public class ObservabilityTests
 
             // Assert — AllowAnonymousBypass EventId=8003 at Debug level
             var records = logger.Collector.GetSnapshot();
-            records.Should().Contain(r => r.Id.Id == 8003 && r.Level == LogLevel.Debug);
+            records.ShouldContain(r => r.Id.Id == 8003 && r.Level == LogLevel.Debug);
         }
 
         [Fact]
@@ -427,7 +427,7 @@ public class ObservabilityTests
 
             // Assert — MissingSecurityContext EventId=8004 at Warning level
             var records = logger.Collector.GetSnapshot();
-            records.Should().Contain(r => r.Id.Id == 8004 && r.Level == LogLevel.Warning);
+            records.ShouldContain(r => r.Id.Id == 8004 && r.Level == LogLevel.Warning);
         }
 
         private static (SecurityPipelineBehavior<DenyAnonymousOnlyCommand, Unit> Behavior, ISecurityContextAccessor Accessor)
@@ -474,8 +474,8 @@ public class ObservabilityTests
             var result = await healthCheck.CheckHealthAsync(context);
 
             // Assert
-            result.Status.Should().Be(HealthStatus.Healthy);
-            result.Description.Should().Contain("All security services are registered");
+            result.Status.ShouldBe(HealthStatus.Healthy);
+            result.Description!.ShouldContain("All security services are registered");
         }
 
         [Fact]
@@ -499,11 +499,11 @@ public class ObservabilityTests
             var result = await healthCheck.CheckHealthAsync(context);
 
             // Assert
-            result.Status.Should().Be(HealthStatus.Unhealthy);
-            result.Description.Should().Contain("Missing security services");
-            result.Description.Should().Contain(nameof(ISecurityContextAccessor));
-            result.Description.Should().Contain(nameof(IPermissionEvaluator));
-            result.Description.Should().Contain(nameof(IResourceOwnershipEvaluator));
+            result.Status.ShouldBe(HealthStatus.Unhealthy);
+            result.Description!.ShouldContain("Missing security services");
+            result.Description!.ShouldContain(nameof(ISecurityContextAccessor));
+            result.Description!.ShouldContain(nameof(IPermissionEvaluator));
+            result.Description!.ShouldContain(nameof(IResourceOwnershipEvaluator));
         }
 
         [Fact]
@@ -529,24 +529,24 @@ public class ObservabilityTests
             var result = await healthCheck.CheckHealthAsync(context);
 
             // Assert
-            result.Status.Should().Be(HealthStatus.Unhealthy);
-            result.Description.Should().Contain(nameof(IPermissionEvaluator));
-            result.Description.Should().Contain(nameof(IResourceOwnershipEvaluator));
-            result.Description.Should().NotContain(nameof(ISecurityContextAccessor));
+            result.Status.ShouldBe(HealthStatus.Unhealthy);
+            result.Description!.ShouldContain(nameof(IPermissionEvaluator));
+            result.Description!.ShouldContain(nameof(IResourceOwnershipEvaluator));
+            result.Description!.ShouldNotContain(nameof(ISecurityContextAccessor));
         }
 
         [Fact]
         public void DefaultName_ShouldBeEncinaSecurity()
         {
-            SecurityHealthCheck.DefaultName.Should().Be("encina-security");
+            SecurityHealthCheck.DefaultName.ShouldBe("encina-security");
         }
 
         [Fact]
         public void Tags_ShouldContainExpectedValues()
         {
-            SecurityHealthCheck.Tags.Should().Contain("encina");
-            SecurityHealthCheck.Tags.Should().Contain("security");
-            SecurityHealthCheck.Tags.Should().Contain("ready");
+            SecurityHealthCheck.Tags.ShouldContain("encina");
+            SecurityHealthCheck.Tags.ShouldContain("security");
+            SecurityHealthCheck.Tags.ShouldContain("ready");
         }
     }
 

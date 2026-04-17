@@ -1,5 +1,5 @@
 using Encina.Security.Encryption;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Encryption;
 
@@ -10,7 +10,7 @@ public sealed class EncryptionOptionsTests
     {
         var options = new EncryptionOptions();
 
-        options.DefaultAlgorithm.Should().Be(EncryptionAlgorithm.Aes256Gcm);
+        options.DefaultAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
     }
 
     [Fact]
@@ -18,7 +18,7 @@ public sealed class EncryptionOptionsTests
     {
         var options = new EncryptionOptions();
 
-        options.FailOnDecryptionError.Should().BeTrue();
+        options.FailOnDecryptionError.ShouldBeTrue();
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class EncryptionOptionsTests
     {
         var options = new EncryptionOptions();
 
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class EncryptionOptionsTests
     {
         var options = new EncryptionOptions();
 
-        options.EnableTracing.Should().BeFalse();
+        options.EnableTracing.ShouldBeFalse();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class EncryptionOptionsTests
     {
         var options = new EncryptionOptions();
 
-        options.EnableMetrics.Should().BeFalse();
+        options.EnableMetrics.ShouldBeFalse();
     }
 
     [Fact]
@@ -57,10 +57,10 @@ public sealed class EncryptionOptionsTests
             EnableMetrics = true
         };
 
-        options.DefaultAlgorithm.Should().Be(EncryptionAlgorithm.Aes256Gcm);
-        options.FailOnDecryptionError.Should().BeFalse();
-        options.AddHealthCheck.Should().BeTrue();
-        options.EnableTracing.Should().BeTrue();
-        options.EnableMetrics.Should().BeTrue();
+        options.DefaultAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
+        options.FailOnDecryptionError.ShouldBeFalse();
+        options.AddHealthCheck.ShouldBeTrue();
+        options.EnableTracing.ShouldBeTrue();
+        options.EnableMetrics.ShouldBeTrue();
     }
 }

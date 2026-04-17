@@ -1,10 +1,9 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.AIAct;
@@ -36,9 +35,9 @@ public class DefaultAIActClassifierTests
         var result = await _sut.ClassifySystemAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var level = (AIRiskLevel)result;
-        level.Should().Be(AIRiskLevel.HighRisk);
+        level.ShouldBe(AIRiskLevel.HighRisk);
     }
 
     [Fact]
@@ -52,9 +51,9 @@ public class DefaultAIActClassifierTests
         var result = await _sut.ClassifySystemAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var level = (AIRiskLevel)result;
-        level.Should().Be(AIRiskLevel.Prohibited);
+        level.ShouldBe(AIRiskLevel.Prohibited);
     }
 
     [Fact]
@@ -64,7 +63,7 @@ public class DefaultAIActClassifierTests
         var result = await _sut.ClassifySystemAsync("nonexistent");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     // -- IsProhibitedAsync --
@@ -79,9 +78,9 @@ public class DefaultAIActClassifierTests
         var result = await _sut.IsProhibitedAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var prohibited = (bool)result;
-        prohibited.Should().BeTrue();
+        prohibited.ShouldBeTrue();
     }
 
     [Fact]
@@ -94,9 +93,9 @@ public class DefaultAIActClassifierTests
         var result = await _sut.IsProhibitedAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var prohibited = (bool)result;
-        prohibited.Should().BeFalse();
+        prohibited.ShouldBeFalse();
     }
 
     // -- EvaluateComplianceAsync --
@@ -111,12 +110,12 @@ public class DefaultAIActClassifierTests
         var result = await _sut.EvaluateComplianceAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.RequiresHumanOversight.Should().BeTrue();
-        compliance.RequiresTransparency.Should().BeTrue();
-        compliance.IsProhibited.Should().BeFalse();
-        compliance.Violations.Should().BeEmpty();
+        compliance.RequiresHumanOversight.ShouldBeTrue();
+        compliance.RequiresTransparency.ShouldBeTrue();
+        compliance.IsProhibited.ShouldBeFalse();
+        compliance.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -130,12 +129,12 @@ public class DefaultAIActClassifierTests
         var result = await _sut.EvaluateComplianceAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.IsProhibited.Should().BeTrue();
-        compliance.RiskLevel.Should().Be(AIRiskLevel.Prohibited);
-        compliance.Violations.Should().HaveCount(2);
-        compliance.Violations.Should().AllSatisfy(v => v.Should().Contain("Art. 5"));
+        compliance.IsProhibited.ShouldBeTrue();
+        compliance.RiskLevel.ShouldBe(AIRiskLevel.Prohibited);
+        compliance.Violations.Count.ShouldBe(2);
+        compliance.Violations.ShouldAllBe(v => v.Contains("Art. 5"));
     }
 
     [Fact]
@@ -148,10 +147,10 @@ public class DefaultAIActClassifierTests
         var result = await _sut.EvaluateComplianceAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.RequiresHumanOversight.Should().BeFalse();
-        compliance.RequiresTransparency.Should().BeFalse();
+        compliance.RequiresHumanOversight.ShouldBeFalse();
+        compliance.RequiresTransparency.ShouldBeFalse();
     }
 
     [Fact]
@@ -164,10 +163,10 @@ public class DefaultAIActClassifierTests
         var result = await _sut.EvaluateComplianceAsync("sys-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (AIActComplianceResult)result;
-        compliance.RequiresHumanOversight.Should().BeFalse();
-        compliance.RequiresTransparency.Should().BeTrue();
+        compliance.RequiresHumanOversight.ShouldBeFalse();
+        compliance.RequiresTransparency.ShouldBeTrue();
     }
 
     // -- Helper --

@@ -1,7 +1,7 @@
 using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DataSubjectRights.Aggregates;
 using Encina.Compliance.DataSubjectRights.Events;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights.Aggregates;
 
@@ -24,21 +24,21 @@ public class DSRRequestAggregateTests
             "I want my data", "tenant-1", "module-1");
 
         // Assert
-        aggregate.Id.Should().Be(DefaultId);
-        aggregate.SubjectId.Should().Be("subject-1");
-        aggregate.RightType.Should().Be(DataSubjectRight.Access);
-        aggregate.Status.Should().Be(DSRRequestStatus.Received);
-        aggregate.ReceivedAtUtc.Should().Be(Now);
-        aggregate.DeadlineAtUtc.Should().Be(Now.AddDays(30));
-        aggregate.RequestDetails.Should().Be("I want my data");
-        aggregate.TenantId.Should().Be("tenant-1");
-        aggregate.ModuleId.Should().Be("module-1");
-        aggregate.CompletedAtUtc.Should().BeNull();
-        aggregate.VerifiedAtUtc.Should().BeNull();
-        aggregate.ExtensionReason.Should().BeNull();
-        aggregate.ExtendedDeadlineAtUtc.Should().BeNull();
-        aggregate.RejectionReason.Should().BeNull();
-        aggregate.ProcessedByUserId.Should().BeNull();
+        aggregate.Id.ShouldBe(DefaultId);
+        aggregate.SubjectId.ShouldBe("subject-1");
+        aggregate.RightType.ShouldBe(DataSubjectRight.Access);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Received);
+        aggregate.ReceivedAtUtc.ShouldBe(Now);
+        aggregate.DeadlineAtUtc.ShouldBe(Now.AddDays(30));
+        aggregate.RequestDetails.ShouldBe("I want my data");
+        aggregate.TenantId.ShouldBe("tenant-1");
+        aggregate.ModuleId.ShouldBe("module-1");
+        aggregate.CompletedAtUtc.ShouldBeNull();
+        aggregate.VerifiedAtUtc.ShouldBeNull();
+        aggregate.ExtensionReason.ShouldBeNull();
+        aggregate.ExtendedDeadlineAtUtc.ShouldBeNull();
+        aggregate.RejectionReason.ShouldBeNull();
+        aggregate.ProcessedByUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -49,9 +49,8 @@ public class DSRRequestAggregateTests
             DefaultId, "subject-1", DataSubjectRight.Erasure, Now);
 
         // Assert
-        aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<DSRRequestSubmitted>();
-        aggregate.Version.Should().Be(1);
+        aggregate.UncommittedEvents.ShouldHaveSingleItem().ShouldBeOfType<DSRRequestSubmitted>();
+        aggregate.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -63,15 +62,15 @@ public class DSRRequestAggregateTests
             "export request", "tenant-1", "module-1");
 
         // Assert
-        var @event = aggregate.UncommittedEvents.Single().Should().BeOfType<DSRRequestSubmitted>().Subject;
-        @event.RequestId.Should().Be(DefaultId);
-        @event.SubjectId.Should().Be("subject-1");
-        @event.RightType.Should().Be(DataSubjectRight.Portability);
-        @event.ReceivedAtUtc.Should().Be(Now);
-        @event.DeadlineAtUtc.Should().Be(Now.AddDays(30));
-        @event.RequestDetails.Should().Be("export request");
-        @event.TenantId.Should().Be("tenant-1");
-        @event.ModuleId.Should().Be("module-1");
+        var @event = aggregate.UncommittedEvents.Single().ShouldBeOfType<DSRRequestSubmitted>();
+        @event.RequestId.ShouldBe(DefaultId);
+        @event.SubjectId.ShouldBe("subject-1");
+        @event.RightType.ShouldBe(DataSubjectRight.Portability);
+        @event.ReceivedAtUtc.ShouldBe(Now);
+        @event.DeadlineAtUtc.ShouldBe(Now.AddDays(30));
+        @event.RequestDetails.ShouldBe("export request");
+        @event.TenantId.ShouldBe("tenant-1");
+        @event.ModuleId.ShouldBe("module-1");
     }
 
     [Fact]
@@ -82,9 +81,9 @@ public class DSRRequestAggregateTests
             DefaultId, "subject-1", DataSubjectRight.Access, Now);
 
         // Assert
-        aggregate.RequestDetails.Should().BeNull();
-        aggregate.TenantId.Should().BeNull();
-        aggregate.ModuleId.Should().BeNull();
+        aggregate.RequestDetails.ShouldBeNull();
+        aggregate.TenantId.ShouldBeNull();
+        aggregate.ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -98,7 +97,7 @@ public class DSRRequestAggregateTests
             DefaultId, "subject-1", DataSubjectRight.Access, receivedAt);
 
         // Assert
-        aggregate.DeadlineAtUtc.Should().Be(receivedAt.AddDays(30));
+        aggregate.DeadlineAtUtc.ShouldBe(receivedAt.AddDays(30));
     }
 
     [Theory]
@@ -108,11 +107,11 @@ public class DSRRequestAggregateTests
     public void Submit_InvalidSubjectId_ShouldThrow(string? subjectId)
     {
         // Act
-        var act = () => DSRRequestAggregate.Submit(
+        Action act = () => DSRRequestAggregate.Submit(
             DefaultId, subjectId!, DataSubjectRight.Access, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -131,8 +130,8 @@ public class DSRRequestAggregateTests
             DefaultId, "subject-1", rightType, Now);
 
         // Assert
-        aggregate.RightType.Should().Be(rightType);
-        aggregate.Status.Should().Be(DSRRequestStatus.Received);
+        aggregate.RightType.ShouldBe(rightType);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Received);
     }
 
     #endregion
@@ -150,8 +149,8 @@ public class DSRRequestAggregateTests
         aggregate.Verify("admin-1", verifiedAt);
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.IdentityVerified);
-        aggregate.VerifiedAtUtc.Should().Be(verifiedAt);
+        aggregate.Status.ShouldBe(DSRRequestStatus.IdentityVerified);
+        aggregate.VerifiedAtUtc.ShouldBe(verifiedAt);
     }
 
     [Fact]
@@ -164,9 +163,9 @@ public class DSRRequestAggregateTests
         aggregate.Verify("admin-1", Now.AddHours(1));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DSRRequestVerified>();
-        aggregate.Version.Should().Be(2);
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestVerified>();
+        aggregate.Version.ShouldBe(2);
     }
 
     [Theory]
@@ -179,10 +178,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateReceivedAggregate();
 
         // Act
-        var act = () => aggregate.Verify(verifiedBy!, Now.AddHours(1));
+        Action act = () => aggregate.Verify(verifiedBy!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -198,11 +197,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateAggregateInStatus(invalidStatus);
 
         // Act
-        var act = () => aggregate.Verify("admin-1", Now.AddHours(1));
+        Action act = () => aggregate.Verify("admin-1", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*'{invalidStatus}'*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain($"'{invalidStatus}'");
     }
 
     #endregion
@@ -220,8 +218,8 @@ public class DSRRequestAggregateTests
         aggregate.StartProcessing("operator-1", startedAt);
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.InProgress);
-        aggregate.ProcessedByUserId.Should().Be("operator-1");
+        aggregate.Status.ShouldBe(DSRRequestStatus.InProgress);
+        aggregate.ProcessedByUserId.ShouldBe("operator-1");
     }
 
     [Fact]
@@ -234,7 +232,7 @@ public class DSRRequestAggregateTests
         aggregate.StartProcessing("operator-1", Now.AddHours(2));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.InProgress);
+        aggregate.Status.ShouldBe(DSRRequestStatus.InProgress);
     }
 
     [Fact]
@@ -247,8 +245,8 @@ public class DSRRequestAggregateTests
         aggregate.StartProcessing(null, Now.AddHours(2));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.InProgress);
-        aggregate.ProcessedByUserId.Should().BeNull();
+        aggregate.Status.ShouldBe(DSRRequestStatus.InProgress);
+        aggregate.ProcessedByUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -261,7 +259,7 @@ public class DSRRequestAggregateTests
         aggregate.StartProcessing("operator-1", Now.AddHours(2));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DSRRequestProcessing>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestProcessing>();
     }
 
     [Theory]
@@ -276,11 +274,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateAggregateInStatus(invalidStatus);
 
         // Act
-        var act = () => aggregate.StartProcessing("operator-1", Now.AddHours(2));
+        Action act = () => aggregate.StartProcessing("operator-1", Now.AddHours(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*'{invalidStatus}'*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain($"'{invalidStatus}'");
     }
 
     #endregion
@@ -298,8 +295,8 @@ public class DSRRequestAggregateTests
         aggregate.Complete(completedAt);
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Completed);
-        aggregate.CompletedAtUtc.Should().Be(completedAt);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Completed);
+        aggregate.CompletedAtUtc.ShouldBe(completedAt);
     }
 
     [Fact]
@@ -312,7 +309,7 @@ public class DSRRequestAggregateTests
         aggregate.Complete(Now.AddDays(5));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DSRRequestCompleted>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestCompleted>();
     }
 
     [Theory]
@@ -328,11 +325,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateAggregateInStatus(invalidStatus);
 
         // Act
-        var act = () => aggregate.Complete(Now.AddDays(5));
+        Action act = () => aggregate.Complete(Now.AddDays(5));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*'{invalidStatus}'*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain($"'{invalidStatus}'");
     }
 
     #endregion
@@ -350,9 +346,9 @@ public class DSRRequestAggregateTests
         aggregate.Deny("Manifestly unfounded request", deniedAt);
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Rejected);
-        aggregate.RejectionReason.Should().Be("Manifestly unfounded request");
-        aggregate.CompletedAtUtc.Should().Be(deniedAt);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
+        aggregate.RejectionReason.ShouldBe("Manifestly unfounded request");
+        aggregate.CompletedAtUtc.ShouldBe(deniedAt);
     }
 
     [Fact]
@@ -365,7 +361,7 @@ public class DSRRequestAggregateTests
         aggregate.Deny("Cannot verify identity sufficiently", Now.AddHours(2));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Rejected);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
     }
 
     [Fact]
@@ -378,7 +374,7 @@ public class DSRRequestAggregateTests
         aggregate.Deny("Exemption applies", Now.AddDays(5));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Rejected);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
     }
 
     [Fact]
@@ -391,7 +387,7 @@ public class DSRRequestAggregateTests
         aggregate.Deny("No longer applicable", Now.AddDays(35));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Rejected);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
     }
 
     [Fact]
@@ -404,7 +400,7 @@ public class DSRRequestAggregateTests
         aggregate.Deny("Reason", Now.AddHours(1));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DSRRequestDenied>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestDenied>();
     }
 
     [Theory]
@@ -417,10 +413,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateReceivedAggregate();
 
         // Act
-        var act = () => aggregate.Deny(reason!, Now.AddHours(1));
+        Action act = () => aggregate.Deny(reason!, Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -433,11 +429,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateAggregateInStatus(terminalStatus);
 
         // Act
-        var act = () => aggregate.Deny("Reason", Now.AddHours(1));
+        Action act = () => aggregate.Deny("Reason", Now.AddHours(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*'{terminalStatus}'*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain($"'{terminalStatus}'");
     }
 
     #endregion
@@ -455,9 +450,9 @@ public class DSRRequestAggregateTests
         aggregate.Extend("Complex request requiring more time", extendedAt);
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Extended);
-        aggregate.ExtensionReason.Should().Be("Complex request requiring more time");
-        aggregate.ExtendedDeadlineAtUtc.Should().Be(aggregate.DeadlineAtUtc.AddMonths(2));
+        aggregate.Status.ShouldBe(DSRRequestStatus.Extended);
+        aggregate.ExtensionReason.ShouldBe("Complex request requiring more time");
+        aggregate.ExtendedDeadlineAtUtc.ShouldBe(aggregate.DeadlineAtUtc.AddMonths(2));
     }
 
     [Fact]
@@ -470,7 +465,7 @@ public class DSRRequestAggregateTests
         aggregate.Extend("Multiple systems to query", Now.AddDays(10));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Extended);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Extended);
     }
 
     [Fact]
@@ -483,7 +478,7 @@ public class DSRRequestAggregateTests
         aggregate.Extend("Data scattered across jurisdictions", Now.AddDays(15));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Extended);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Extended);
     }
 
     [Fact]
@@ -496,7 +491,7 @@ public class DSRRequestAggregateTests
         aggregate.Extend("Reason", Now.AddDays(20));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DSRRequestExtended>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestExtended>();
     }
 
     [Theory]
@@ -509,10 +504,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateReceivedAggregate();
 
         // Act
-        var act = () => aggregate.Extend(reason!, Now.AddDays(20));
+        Action act = () => aggregate.Extend(reason!, Now.AddDays(20));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -526,11 +521,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateAggregateInStatus(invalidStatus);
 
         // Act
-        var act = () => aggregate.Extend("Reason", Now.AddDays(20));
+        Action act = () => aggregate.Extend("Reason", Now.AddDays(20));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*'{invalidStatus}'*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain($"'{invalidStatus}'");
     }
 
     #endregion
@@ -548,7 +542,7 @@ public class DSRRequestAggregateTests
         aggregate.Expire(expiredAt);
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Expired);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Expired);
     }
 
     [Fact]
@@ -561,7 +555,7 @@ public class DSRRequestAggregateTests
         aggregate.Expire(Now.AddDays(31));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Expired);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Expired);
     }
 
     [Fact]
@@ -574,7 +568,7 @@ public class DSRRequestAggregateTests
         aggregate.Expire(Now.AddDays(31));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Expired);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Expired);
     }
 
     [Fact]
@@ -587,7 +581,7 @@ public class DSRRequestAggregateTests
         aggregate.Expire(Now.AddDays(91));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Expired);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Expired);
     }
 
     [Fact]
@@ -600,7 +594,7 @@ public class DSRRequestAggregateTests
         aggregate.Expire(Now.AddDays(31));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<DSRRequestExpired>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<DSRRequestExpired>();
     }
 
     [Theory]
@@ -613,11 +607,10 @@ public class DSRRequestAggregateTests
         var aggregate = CreateAggregateInStatus(terminalStatus);
 
         // Act
-        var act = () => aggregate.Expire(Now.AddDays(31));
+        Action act = () => aggregate.Expire(Now.AddDays(31));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"*'{terminalStatus}'*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain($"'{terminalStatus}'");
     }
 
     #endregion
@@ -634,7 +627,7 @@ public class DSRRequestAggregateTests
         var deadline = aggregate.GetEffectiveDeadline();
 
         // Assert
-        deadline.Should().Be(aggregate.DeadlineAtUtc);
+        deadline.ShouldBe(aggregate.DeadlineAtUtc);
     }
 
     [Fact]
@@ -647,7 +640,7 @@ public class DSRRequestAggregateTests
         var deadline = aggregate.GetEffectiveDeadline();
 
         // Assert
-        deadline.Should().Be(aggregate.ExtendedDeadlineAtUtc!.Value);
+        deadline.ShouldBe(aggregate.ExtendedDeadlineAtUtc!.Value);
     }
 
     #endregion
@@ -661,7 +654,7 @@ public class DSRRequestAggregateTests
         var aggregate = CreateReceivedAggregate();
 
         // Act / Assert
-        aggregate.IsOverdue(Now.AddDays(15)).Should().BeFalse();
+        aggregate.IsOverdue(Now.AddDays(15)).ShouldBeFalse();
     }
 
     [Fact]
@@ -671,7 +664,7 @@ public class DSRRequestAggregateTests
         var aggregate = CreateReceivedAggregate();
 
         // Act / Assert
-        aggregate.IsOverdue(Now.AddDays(31)).Should().BeTrue();
+        aggregate.IsOverdue(Now.AddDays(31)).ShouldBeTrue();
     }
 
     [Fact]
@@ -682,7 +675,7 @@ public class DSRRequestAggregateTests
         aggregate.Complete(Now.AddDays(5));
 
         // Act / Assert
-        aggregate.IsOverdue(Now.AddDays(31)).Should().BeFalse();
+        aggregate.IsOverdue(Now.AddDays(31)).ShouldBeFalse();
     }
 
     [Fact]
@@ -693,7 +686,7 @@ public class DSRRequestAggregateTests
         aggregate.Deny("Reason", Now.AddHours(1));
 
         // Act / Assert
-        aggregate.IsOverdue(Now.AddDays(31)).Should().BeFalse();
+        aggregate.IsOverdue(Now.AddDays(31)).ShouldBeFalse();
     }
 
     [Fact]
@@ -704,7 +697,7 @@ public class DSRRequestAggregateTests
         aggregate.Expire(Now.AddDays(31));
 
         // Act / Assert
-        aggregate.IsOverdue(Now.AddDays(60)).Should().BeFalse();
+        aggregate.IsOverdue(Now.AddDays(60)).ShouldBeFalse();
     }
 
     [Fact]
@@ -714,7 +707,7 @@ public class DSRRequestAggregateTests
         var aggregate = CreateExtendedAggregate();
 
         // Act / Assert — extended deadline is original + 2 months
-        aggregate.IsOverdue(Now.AddDays(45)).Should().BeFalse();
+        aggregate.IsOverdue(Now.AddDays(45)).ShouldBeFalse();
     }
 
     [Fact]
@@ -725,7 +718,7 @@ public class DSRRequestAggregateTests
         var extendedDeadline = aggregate.ExtendedDeadlineAtUtc!.Value;
 
         // Act / Assert
-        aggregate.IsOverdue(extendedDeadline.AddDays(1)).Should().BeTrue();
+        aggregate.IsOverdue(extendedDeadline.AddDays(1)).ShouldBeTrue();
     }
 
     #endregion
@@ -745,10 +738,10 @@ public class DSRRequestAggregateTests
         aggregate.Complete(Now.AddDays(5));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Completed);
-        aggregate.UncommittedEvents.Should().HaveCount(4);
-        aggregate.Version.Should().Be(4);
-        aggregate.CompletedAtUtc.Should().Be(Now.AddDays(5));
+        aggregate.Status.ShouldBe(DSRRequestStatus.Completed);
+        aggregate.UncommittedEvents.Count.ShouldBe(4);
+        aggregate.Version.ShouldBe(4);
+        aggregate.CompletedAtUtc.ShouldBe(Now.AddDays(5));
     }
 
     [Fact]
@@ -764,9 +757,9 @@ public class DSRRequestAggregateTests
         aggregate.Complete(Now.AddDays(50));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Completed);
-        aggregate.UncommittedEvents.Should().HaveCount(5);
-        aggregate.Version.Should().Be(5);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Completed);
+        aggregate.UncommittedEvents.Count.ShouldBe(5);
+        aggregate.Version.ShouldBe(5);
     }
 
     [Fact]
@@ -779,8 +772,8 @@ public class DSRRequestAggregateTests
         aggregate.Deny("Manifestly unfounded", Now.AddHours(1));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Rejected);
-        aggregate.UncommittedEvents.Should().HaveCount(2);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Rejected);
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -793,8 +786,8 @@ public class DSRRequestAggregateTests
         aggregate.Expire(Now.AddDays(31));
 
         // Assert
-        aggregate.Status.Should().Be(DSRRequestStatus.Expired);
-        aggregate.UncommittedEvents.Should().HaveCount(2);
+        aggregate.Status.ShouldBe(DSRRequestStatus.Expired);
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
     }
 
     #endregion

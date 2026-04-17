@@ -3,18 +3,13 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.ContractTests.Compliance.NIS2;
@@ -91,9 +86,9 @@ public sealed class NIS2CompliancePipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue("the handler should be called when enforcement is disabled");
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("success"));
+        nextCalled.ShouldBeTrue("the handler should be called when enforcement is disabled");
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("success"));
     }
 
     /// <summary>
@@ -120,8 +115,8 @@ public sealed class NIS2CompliancePipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue("the handler should be called when request has no NIS2 attributes");
-        result.IsRight.Should().BeTrue();
+        nextCalled.ShouldBeTrue("the handler should be called when request has no NIS2 attributes");
+        result.IsRight.ShouldBeTrue();
     }
 
     /// <summary>
@@ -162,9 +157,9 @@ public sealed class NIS2CompliancePipelineBehaviorContractTests
         var result = await behavior.Handle(request, context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue("the handler should be called when all checks pass");
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("compliant-result"));
+        nextCalled.ShouldBeTrue("the handler should be called when all checks pass");
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("compliant-result"));
     }
 
     /// <summary>

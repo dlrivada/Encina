@@ -1,5 +1,5 @@
 using Encina.Messaging.Scheduling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Scheduling;
 
@@ -12,7 +12,7 @@ public sealed class CompiledExpressionScheduledMessageDispatcherGuardTests
     public void Constructor_NullEncina_ThrowsArgumentNullException()
     {
         var act = () => new CompiledExpressionScheduledMessageDispatcher(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("encina");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("encina");
     }
 
     [Fact]
@@ -20,6 +20,6 @@ public sealed class CompiledExpressionScheduledMessageDispatcherGuardTests
     {
         var encina = Substitute.For<IEncina>();
         var act = () => new CompiledExpressionScheduledMessageDispatcher(encina);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 }

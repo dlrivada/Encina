@@ -119,7 +119,7 @@ public sealed class DatabaseHealthMonitorBaseTests
         // Assert
         result.Status.ShouldBe(DatabaseHealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("Circuit breaker is open");
+        result.Description!.ShouldContain("Circuit breaker is open");
     }
 
     [Fact]

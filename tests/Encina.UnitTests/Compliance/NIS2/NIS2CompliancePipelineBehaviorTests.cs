@@ -2,17 +2,12 @@ using Encina;
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.NIS2;
@@ -70,7 +65,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _mfaEnforcer
             .DidNotReceive()
             .RequireMFAAsync(Arg.Any<MFARequiredRequest>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>());
@@ -93,7 +88,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _mfaEnforcer
             .DidNotReceive()
             .RequireMFAAsync(Arg.Any<PlainRequest>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>());
@@ -123,7 +118,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _mfaEnforcer
             .Received(1)
             .RequireMFAAsync(Arg.Any<MFARequiredRequest>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>());
@@ -147,9 +142,9 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone(string.Empty).Should().Be(NIS2Errors.MFARequiredCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(NIS2Errors.MFARequiredCode);
     }
 
     [Fact]
@@ -170,7 +165,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -194,7 +189,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _supplyChainValidator
             .Received(1)
             .ValidateSupplierForOperationAsync("supplier-1", Arg.Any<CancellationToken>());
@@ -217,9 +212,9 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone(string.Empty).Should().Be(NIS2Errors.PipelineBlockedCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(NIS2Errors.PipelineBlockedCode);
     }
 
     [Fact]
@@ -239,7 +234,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -259,7 +254,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -283,10 +278,10 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetCode().IfNone(string.Empty).Should().Be(NIS2Errors.PipelineBlockedCode);
-        error.Message.Should().Contain("MFA service unavailable");
+        error.GetCode().IfNone(string.Empty).ShouldBe(NIS2Errors.PipelineBlockedCode);
+        error.Message.ShouldContain("MFA service unavailable");
     }
 
     [Fact]
@@ -306,7 +301,7 @@ public class NIS2CompliancePipelineBehaviorTests
         var result = await behavior.Handle(request, RequestContext.CreateForTest(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion

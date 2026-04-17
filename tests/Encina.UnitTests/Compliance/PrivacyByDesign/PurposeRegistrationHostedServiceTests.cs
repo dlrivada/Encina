@@ -2,18 +2,13 @@
 
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
@@ -154,7 +149,7 @@ public class PurposeRegistrationHostedServiceTests
         var act = () => service.StartAsync(CancellationToken.None);
 
         // Assert — should not throw, should call RegisterPurposeAsync for both.
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
         await _registry.Received(2)
             .RegisterPurposeAsync(Arg.Any<PurposeDefinition>(), Arg.Any<CancellationToken>());
     }
@@ -189,13 +184,13 @@ public class PurposeRegistrationHostedServiceTests
         await service.StartAsync(CancellationToken.None);
 
         // Assert
-        capturedPurpose.Should().NotBeNull();
-        capturedPurpose!.Name.Should().Be("Order Processing");
-        capturedPurpose.Description.Should().Be("Fulfill orders");
-        capturedPurpose.LegalBasis.Should().Be("Contract");
-        capturedPurpose.AllowedFields.Should().BeEquivalentTo(["ProductId", "Quantity"]);
-        capturedPurpose.PurposeId.Should().NotBeNullOrWhiteSpace();
-        capturedPurpose.CreatedAtUtc.Should().Be(_timeProvider.GetUtcNow());
+        capturedPurpose.ShouldNotBeNull();
+        capturedPurpose!.Name.ShouldBe("Order Processing");
+        capturedPurpose.Description.ShouldBe("Fulfill orders");
+        capturedPurpose.LegalBasis.ShouldBe("Contract");
+        capturedPurpose.AllowedFields.ShouldBe(["ProductId", "Quantity"]);
+        capturedPurpose.PurposeId.ShouldNotBeNullOrWhiteSpace();
+        capturedPurpose.CreatedAtUtc.ShouldBe(_timeProvider.GetUtcNow());
     }
 
     #endregion
@@ -213,7 +208,7 @@ public class PurposeRegistrationHostedServiceTests
         var act = () => service.StopAsync(CancellationToken.None);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion

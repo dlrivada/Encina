@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit.ReadAudit;
 
@@ -17,14 +17,14 @@ public class ReadAuditOptionsTests
         var options = new ReadAuditOptions();
 
         // Assert
-        options.Enabled.Should().BeTrue();
-        options.ExcludeSystemAccess.Should().BeFalse();
-        options.RequirePurpose.Should().BeFalse();
-        options.BatchSize.Should().Be(1);
-        options.RetentionDays.Should().Be(365);
-        options.EnableAutoPurge.Should().BeFalse();
-        options.PurgeIntervalHours.Should().Be(24);
-        options.AuditedEntityTypes.Should().BeEmpty();
+        options.Enabled.ShouldBeTrue();
+        options.ExcludeSystemAccess.ShouldBeFalse();
+        options.RequirePurpose.ShouldBeFalse();
+        options.BatchSize.ShouldBe(1);
+        options.RetentionDays.ShouldBe(365);
+        options.EnableAutoPurge.ShouldBeFalse();
+        options.PurgeIntervalHours.ShouldBe(24);
+        options.AuditedEntityTypes.ShouldBeEmpty();
     }
 
     #endregion
@@ -41,8 +41,8 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>();
 
         // Assert
-        options.AuditedEntityTypes.Should().ContainKey(typeof(TestEntity));
-        options.AuditedEntityTypes[typeof(TestEntity)].Should().Be(1.0);
+        options.AuditedEntityTypes.ShouldContainKey(typeof(TestEntity));
+        options.AuditedEntityTypes[typeof(TestEntity)].ShouldBe(1.0);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>(0.1);
 
         // Assert
-        options.GetSamplingRate(typeof(TestEntity)).Should().Be(0.1);
+        options.GetSamplingRate(typeof(TestEntity)).ShouldBe(0.1);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>(1.5);
 
         // Assert
-        options.GetSamplingRate(typeof(TestEntity)).Should().Be(1.0);
+        options.GetSamplingRate(typeof(TestEntity)).ShouldBe(1.0);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>(-0.5);
 
         // Assert
-        options.GetSamplingRate(typeof(TestEntity)).Should().Be(0.0);
+        options.GetSamplingRate(typeof(TestEntity)).ShouldBe(0.0);
     }
 
     [Fact]
@@ -96,8 +96,8 @@ public class ReadAuditOptionsTests
             .AuditReadsFor<AnotherTestEntity>(0.5);
 
         // Assert
-        result.Should().BeSameAs(options);
-        options.AuditedEntityTypes.Should().HaveCount(2);
+        result.ShouldBeSameAs(options);
+        options.AuditedEntityTypes.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>(0.9);
 
         // Assert
-        options.GetSamplingRate(typeof(TestEntity)).Should().Be(0.9);
+        options.GetSamplingRate(typeof(TestEntity)).ShouldBe(0.9);
     }
 
     #endregion
@@ -126,7 +126,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>();
 
         // Act & Assert
-        options.IsAuditable(typeof(TestEntity)).Should().BeTrue();
+        options.IsAuditable(typeof(TestEntity)).ShouldBeTrue();
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class ReadAuditOptionsTests
         var options = new ReadAuditOptions();
 
         // Act & Assert
-        options.IsAuditable(typeof(TestEntity)).Should().BeFalse();
+        options.IsAuditable(typeof(TestEntity)).ShouldBeFalse();
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>();
 
         // Act & Assert
-        options.IsAuditable(typeof(TestEntity)).Should().BeFalse();
+        options.IsAuditable(typeof(TestEntity)).ShouldBeFalse();
     }
 
     [Fact]
@@ -157,11 +157,11 @@ public class ReadAuditOptionsTests
         var options = new ReadAuditOptions();
 
         // Act
-        var act = () => options.IsAuditable(null!);
+        Action act = () => { options.IsAuditable(null!); };
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entityType");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("entityType");
     }
 
     #endregion
@@ -176,7 +176,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>(0.25);
 
         // Act & Assert
-        options.GetSamplingRate(typeof(TestEntity)).Should().Be(0.25);
+        options.GetSamplingRate(typeof(TestEntity)).ShouldBe(0.25);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class ReadAuditOptionsTests
         var options = new ReadAuditOptions();
 
         // Act & Assert
-        options.GetSamplingRate(typeof(TestEntity)).Should().Be(0.0);
+        options.GetSamplingRate(typeof(TestEntity)).ShouldBe(0.0);
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public class ReadAuditOptionsTests
         options.AuditReadsFor<TestEntity>();
 
         // Act & Assert
-        options.GetSamplingRate(typeof(TestEntity)).Should().Be(0.0);
+        options.GetSamplingRate(typeof(TestEntity)).ShouldBe(0.0);
     }
 
     [Fact]
@@ -207,11 +207,11 @@ public class ReadAuditOptionsTests
         var options = new ReadAuditOptions();
 
         // Act
-        var act = () => options.GetSamplingRate(null!);
+        Action act = () => { options.GetSamplingRate(null!); };
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entityType");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("entityType");
     }
 
     #endregion

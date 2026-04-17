@@ -6,14 +6,10 @@ using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.ReadModels;
 using Encina.Compliance.CrossBorderTransfer.Services;
 using Encina.Marten;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Services;
@@ -45,8 +41,8 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.CreateTIAAsync("DE", "US", "personal-data", "admin");
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
     }
 
     [Fact]
@@ -58,7 +54,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.CreateTIAAsync("DE", "US", "personal-data", "admin");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -69,7 +65,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.CreateTIAAsync("DE", "US", "personal-data", "admin");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -89,7 +85,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.AssessRiskAsync(aggregate.Id, 0.5, "findings", "assessor");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -101,7 +97,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.AssessRiskAsync(Guid.NewGuid(), 0.5, null, "assessor");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -112,7 +108,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.AssessRiskAsync(Guid.NewGuid(), 0.5, null, "assessor");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -134,7 +130,7 @@ public class DefaultTIAServiceTests
         var result = await _sut.RequireSupplementaryMeasureAsync(
             aggregate.Id, SupplementaryMeasureType.Technical, "AES-256");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -147,7 +143,7 @@ public class DefaultTIAServiceTests
         var result = await _sut.RequireSupplementaryMeasureAsync(
             Guid.NewGuid(), SupplementaryMeasureType.Technical, "AES-256");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -168,7 +164,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.SubmitForDPOReviewAsync(aggregate.Id, "submitter");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -190,7 +186,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.CompleteDPOReviewAsync(aggregate.Id, approved: true, "reviewer", null);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -208,7 +204,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.CompleteDPOReviewAsync(aggregate.Id, approved: false, "reviewer", "Insufficient measures");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -235,7 +231,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.GetTIAAsync(tiaId);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.DidNotReceive().LoadAsync(tiaId, Arg.Any<CancellationToken>());
     }
 
@@ -252,7 +248,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.GetTIAAsync(aggregate.Id);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -266,7 +262,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.GetTIAAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -279,7 +275,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.GetTIAAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -305,7 +301,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.GetTIAByRouteAsync("DE", "US", "data");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -316,7 +312,7 @@ public class DefaultTIAServiceTests
 
         var result = await _sut.GetTIAByRouteAsync("DE", "US", "data");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

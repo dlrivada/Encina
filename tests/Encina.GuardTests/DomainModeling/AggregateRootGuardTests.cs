@@ -1,5 +1,5 @@
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.DomainModeling;
 
@@ -58,7 +58,7 @@ public class AggregateRootGuardTests
         var act = () => order.RaiseEvent(nullEvent);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("domainEvent");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("domainEvent");
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public class AggregateRootGuardTests
         var order = Order.Create(OrderId.New());
 
         // Assert
-        order.DomainEvents.Should().NotBeNull();
+        order.DomainEvents.ShouldNotBeNull();
     }
 
     /// <summary>
@@ -82,13 +82,13 @@ public class AggregateRootGuardTests
     {
         // Arrange
         var order = Order.Create(OrderId.New());
-        order.DomainEvents.Should().NotBeEmpty();
+        order.DomainEvents.ShouldNotBeEmpty();
 
         // Act
         order.ClearDomainEvents();
 
         // Assert
-        order.DomainEvents.Should().BeEmpty();
+        order.DomainEvents.ShouldBeEmpty();
     }
 
     #endregion
@@ -108,7 +108,7 @@ public class AggregateRootGuardTests
         order.SetCreatedBy("user@example.com");
 
         // Assert
-        order.CreatedBy.Should().Be("user@example.com");
+        order.CreatedBy.ShouldBe("user@example.com");
     }
 
     /// <summary>
@@ -124,8 +124,8 @@ public class AggregateRootGuardTests
         order.SetModifiedBy("modifier@example.com");
 
         // Assert
-        order.ModifiedBy.Should().Be("modifier@example.com");
-        order.ModifiedAtUtc.Should().NotBeNull();
+        order.ModifiedBy.ShouldBe("modifier@example.com");
+        order.ModifiedAtUtc.ShouldNotBeNull();
     }
 
     /// <summary>
@@ -140,8 +140,8 @@ public class AggregateRootGuardTests
         var after = DateTime.UtcNow;
 
         // Assert
-        order.CreatedAtUtc.Should().BeOnOrAfter(before);
-        order.CreatedAtUtc.Should().BeOnOrBefore(after);
+        order.CreatedAtUtc.ShouldBeGreaterThanOrEqualTo(before);
+        order.CreatedAtUtc.ShouldBeLessThanOrEqualTo(after);
     }
 
     #endregion
@@ -156,13 +156,13 @@ public class AggregateRootGuardTests
     {
         // Arrange
         var order = new DeletableOrder(OrderId.New());
-        order.IsDeleted.Should().BeFalse();
+        order.IsDeleted.ShouldBeFalse();
 
         // Act
         order.Delete();
 
         // Assert
-        order.IsDeleted.Should().BeTrue();
+        order.IsDeleted.ShouldBeTrue();
     }
 
     /// <summary>
@@ -178,8 +178,8 @@ public class AggregateRootGuardTests
         order.Delete(null);
 
         // Assert
-        order.IsDeleted.Should().BeTrue();
-        order.DeletedBy.Should().BeNull();
+        order.IsDeleted.ShouldBeTrue();
+        order.DeletedBy.ShouldBeNull();
     }
 
     /// <summary>
@@ -197,9 +197,9 @@ public class AggregateRootGuardTests
         var after = DateTime.UtcNow;
 
         // Assert
-        order.DeletedAtUtc.Should().NotBeNull();
-        order.DeletedAtUtc!.Value.Should().BeOnOrAfter(before);
-        order.DeletedAtUtc!.Value.Should().BeOnOrBefore(after);
+        order.DeletedAtUtc.ShouldNotBeNull();
+        order.DeletedAtUtc!.Value.ShouldBeGreaterThanOrEqualTo(before);
+        order.DeletedAtUtc!.Value.ShouldBeLessThanOrEqualTo(after);
     }
 
     /// <summary>
@@ -211,15 +211,15 @@ public class AggregateRootGuardTests
         // Arrange
         var order = new DeletableOrder(OrderId.New());
         order.Delete("admin");
-        order.IsDeleted.Should().BeTrue();
+        order.IsDeleted.ShouldBeTrue();
 
         // Act
         order.Restore();
 
         // Assert
-        order.IsDeleted.Should().BeFalse();
-        order.DeletedAtUtc.Should().BeNull();
-        order.DeletedBy.Should().BeNull();
+        order.IsDeleted.ShouldBeFalse();
+        order.DeletedAtUtc.ShouldBeNull();
+        order.DeletedBy.ShouldBeNull();
     }
 
     #endregion

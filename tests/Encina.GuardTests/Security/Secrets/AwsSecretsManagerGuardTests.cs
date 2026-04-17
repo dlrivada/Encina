@@ -1,9 +1,9 @@
 using Amazon.SecretsManager;
 using Encina.Security.Secrets.AwsSecretsManager;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 
@@ -22,8 +22,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = () => new AwsSecretsManagerProvider(null!, logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("client");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("client");
     }
 
     [Fact]
@@ -33,8 +33,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = () => new AwsSecretsManagerProvider(client, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -48,8 +48,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -70,8 +70,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -85,8 +85,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -96,8 +96,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -122,8 +122,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.SetSecretAsync(null!, "value");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -133,8 +133,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.SetSecretAsync("", "value");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -144,8 +144,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.SetSecretAsync("key", null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("value");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("value");
     }
 
     #endregion
@@ -159,8 +159,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.RotateSecretAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -170,8 +170,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.RotateSecretAsync("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = async () => await provider.RotateSecretAsync("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -196,8 +196,8 @@ public class AwsSecretsManagerGuardTests
 
         var act = () => services.AddAwsSecretsManager();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion

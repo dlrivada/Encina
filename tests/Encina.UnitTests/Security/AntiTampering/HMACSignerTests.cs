@@ -5,10 +5,10 @@ using System.Text;
 using Encina.Security.AntiTampering;
 using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.HMAC;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.AntiTampering;
@@ -61,13 +61,13 @@ public sealed class HMACSignerTests
         var result = await sut.SignAsync(payload.AsMemory(), context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var signature = (string)result;
-        signature.Should().NotBeNullOrWhiteSpace();
+        signature.ShouldNotBeNullOrWhiteSpace();
 
         // Verify it's valid Base64
         var act = () => Convert.FromBase64String(signature);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public sealed class HMACSignerTests
         var result = await sut.SignAsync(ReadOnlyMemory<byte>.Empty, context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().NotBeNullOrWhiteSpace();
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class HMACSignerTests
         var result = await sut.SignAsync(ReadOnlyMemory<byte>.Empty, context);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Theory]
@@ -125,9 +125,9 @@ public sealed class HMACSignerTests
         var result = await sut.SignAsync(payload.AsMemory(), context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var signature = (string)result;
-        Convert.FromBase64String(signature).Should().NotBeEmpty();
+        Convert.FromBase64String(signature).ShouldNotBeEmpty();
     }
 
     #endregion
@@ -147,15 +147,15 @@ public sealed class HMACSignerTests
 
         // Sign first
         var signResult = await sut.SignAsync(payload.AsMemory(), context);
-        signResult.IsRight.Should().BeTrue();
+        signResult.IsRight.ShouldBeTrue();
         var signature = (string)signResult;
 
         // Act
         var verifyResult = await sut.VerifyAsync(payload.AsMemory(), signature, context);
 
         // Assert
-        verifyResult.IsRight.Should().BeTrue();
-        ((bool)verifyResult).Should().BeTrue();
+        verifyResult.IsRight.ShouldBeTrue();
+        ((bool)verifyResult).ShouldBeTrue();
     }
 
     [Fact]
@@ -176,8 +176,8 @@ public sealed class HMACSignerTests
         var verifyResult = await sut.VerifyAsync(payload.AsMemory(), fakeSignature, context);
 
         // Assert
-        verifyResult.IsRight.Should().BeTrue();
-        ((bool)verifyResult).Should().BeFalse();
+        verifyResult.IsRight.ShouldBeTrue();
+        ((bool)verifyResult).ShouldBeFalse();
     }
 
     [Fact]
@@ -200,8 +200,8 @@ public sealed class HMACSignerTests
         var verifyResult = await sut.VerifyAsync(tamperedPayload.AsMemory(), signature, context);
 
         // Assert
-        verifyResult.IsRight.Should().BeTrue();
-        ((bool)verifyResult).Should().BeFalse();
+        verifyResult.IsRight.ShouldBeTrue();
+        ((bool)verifyResult).ShouldBeFalse();
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public sealed class HMACSignerTests
         var result = await sut.VerifyAsync(ReadOnlyMemory<byte>.Empty, fakeSignature, context);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -250,8 +250,8 @@ public sealed class HMACSignerTests
         var verifyResult = await sut.VerifyAsync(payload.AsMemory(), signature, context);
 
         // Assert
-        verifyResult.IsRight.Should().BeTrue();
-        ((bool)verifyResult).Should().BeFalse();
+        verifyResult.IsRight.ShouldBeTrue();
+        ((bool)verifyResult).ShouldBeFalse();
     }
 
     #endregion
@@ -276,7 +276,7 @@ public sealed class HMACSignerTests
         // Assert
         var sig1 = (string)result1;
         var sig2 = (string)result2;
-        sig1.Should().Be(sig2);
+        sig1.ShouldBe(sig2);
     }
 
     #endregion

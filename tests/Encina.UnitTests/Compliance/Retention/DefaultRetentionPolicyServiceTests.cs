@@ -6,13 +6,13 @@ using Encina.Compliance.Retention.ReadModels;
 using Encina.Compliance.Retention.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Retention;
@@ -65,7 +65,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("repository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("repository");
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("readModelRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readModelRepository");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             null!,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             _timeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -160,8 +160,8 @@ public sealed class DefaultRetentionPolicyServiceTests
             RetentionPolicyType.TimeBased,
             reason: "GDPR Article 5(1)(e)");
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
         await _repository.Received(1).CreateAsync(
             Arg.Any<RetentionPolicyAggregate>(),
             Arg.Any<CancellationToken>());
@@ -181,7 +181,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             autoDelete: true,
             RetentionPolicyType.TimeBased);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -212,7 +212,7 @@ public sealed class DefaultRetentionPolicyServiceTests
             reason: "Updated policy",
             legalBasis: "Tax regulation §147");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<RetentionPolicyAggregate>(),
             Arg.Any<CancellationToken>());
@@ -233,8 +233,8 @@ public sealed class DefaultRetentionPolicyServiceTests
             reason: null,
             legalBasis: null);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -260,7 +260,7 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.DeactivatePolicyAsync(policyId, "Policy superseded");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(
             Arg.Any<RetentionPolicyAggregate>(),
             Arg.Any<CancellationToken>());
@@ -276,8 +276,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.DeactivatePolicyAsync(policyId, "Superseded");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -300,8 +300,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetPolicyAsync(policyId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(policyId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(policyId), _ => { });
 
         await _readModelRepository
             .DidNotReceive()
@@ -323,8 +323,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetPolicyAsync(policyId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(policyId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(policyId), _ => { });
 
         await _cache.Received(1).SetAsync(
             $"ret:policy:{policyId}",
@@ -347,8 +347,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetPolicyAsync(policyId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -375,8 +375,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetPolicyByCategoryAsync(category);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.DataCategory.Should().Be(category), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.DataCategory.ShouldBe(category), _ => { });
     }
 
     [Fact]
@@ -393,8 +393,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetPolicyByCategoryAsync(category);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain(category));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain(category));
     }
 
     #endregion
@@ -422,8 +422,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetRetentionPeriodAsync(category);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(period => period.Should().Be(expectedPeriod), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(period => period.ShouldBe(expectedPeriod), _ => { });
     }
 
     [Fact]
@@ -449,8 +449,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await sut.GetRetentionPeriodAsync(category);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(period => period.Should().Be(defaultPeriod), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(period => period.ShouldBe(defaultPeriod), _ => { });
     }
 
     [Fact]
@@ -467,8 +467,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetRetentionPeriodAsync(category);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain(category));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain(category));
     }
 
     #endregion
@@ -486,8 +486,8 @@ public sealed class DefaultRetentionPolicyServiceTests
 
         var result = await _sut.GetPolicyHistoryAsync(policyId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not yet available"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not yet available"));
     }
 
     #endregion

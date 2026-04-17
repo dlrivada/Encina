@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -17,7 +17,7 @@ public class AuditQueryTests
         var query = new AuditQuery();
 
         // Assert
-        query.PageNumber.Should().Be(1);
+        query.PageNumber.ShouldBe(1);
     }
 
     [Fact]
@@ -27,8 +27,8 @@ public class AuditQueryTests
         var query = new AuditQuery();
 
         // Assert
-        query.PageSize.Should().Be(AuditQuery.DefaultPageSize);
-        query.PageSize.Should().Be(50);
+        query.PageSize.ShouldBe(AuditQuery.DefaultPageSize);
+        query.PageSize.ShouldBe(50);
     }
 
     [Fact]
@@ -38,32 +38,32 @@ public class AuditQueryTests
         var query = new AuditQuery();
 
         // Assert
-        query.UserId.Should().BeNull();
-        query.TenantId.Should().BeNull();
-        query.EntityType.Should().BeNull();
-        query.EntityId.Should().BeNull();
-        query.Action.Should().BeNull();
-        query.Outcome.Should().BeNull();
-        query.CorrelationId.Should().BeNull();
-        query.FromUtc.Should().BeNull();
-        query.ToUtc.Should().BeNull();
-        query.IpAddress.Should().BeNull();
-        query.MinDuration.Should().BeNull();
-        query.MaxDuration.Should().BeNull();
+        query.UserId.ShouldBeNull();
+        query.TenantId.ShouldBeNull();
+        query.EntityType.ShouldBeNull();
+        query.EntityId.ShouldBeNull();
+        query.Action.ShouldBeNull();
+        query.Outcome.ShouldBeNull();
+        query.CorrelationId.ShouldBeNull();
+        query.FromUtc.ShouldBeNull();
+        query.ToUtc.ShouldBeNull();
+        query.IpAddress.ShouldBeNull();
+        query.MinDuration.ShouldBeNull();
+        query.MaxDuration.ShouldBeNull();
     }
 
     [Fact]
     public void Constants_DefaultPageSize_ShouldBe50()
     {
         // Assert
-        AuditQuery.DefaultPageSize.Should().Be(50);
+        AuditQuery.DefaultPageSize.ShouldBe(50);
     }
 
     [Fact]
     public void Constants_MaxPageSize_ShouldBe1000()
     {
         // Assert
-        AuditQuery.MaxPageSize.Should().Be(1000);
+        AuditQuery.MaxPageSize.ShouldBe(1000);
     }
 
     #endregion
@@ -97,20 +97,20 @@ public class AuditQueryTests
         };
 
         // Assert
-        query.UserId.Should().Be("user-123");
-        query.TenantId.Should().Be("tenant-456");
-        query.EntityType.Should().Be("Order");
-        query.EntityId.Should().Be("order-789");
-        query.Action.Should().Be("Create");
-        query.Outcome.Should().Be(AuditOutcome.Success);
-        query.CorrelationId.Should().Be("corr-abc");
-        query.FromUtc.Should().Be(fromUtc);
-        query.ToUtc.Should().Be(toUtc);
-        query.IpAddress.Should().Be("192.168.1.1");
-        query.MinDuration.Should().Be(TimeSpan.FromMilliseconds(100));
-        query.MaxDuration.Should().Be(TimeSpan.FromSeconds(5));
-        query.PageNumber.Should().Be(2);
-        query.PageSize.Should().Be(25);
+        query.UserId.ShouldBe("user-123");
+        query.TenantId.ShouldBe("tenant-456");
+        query.EntityType.ShouldBe("Order");
+        query.EntityId.ShouldBe("order-789");
+        query.Action.ShouldBe("Create");
+        query.Outcome.ShouldBe(AuditOutcome.Success);
+        query.CorrelationId.ShouldBe("corr-abc");
+        query.FromUtc.ShouldBe(fromUtc);
+        query.ToUtc.ShouldBe(toUtc);
+        query.IpAddress.ShouldBe("192.168.1.1");
+        query.MinDuration.ShouldBe(TimeSpan.FromMilliseconds(100));
+        query.MaxDuration.ShouldBe(TimeSpan.FromSeconds(5));
+        query.PageNumber.ShouldBe(2);
+        query.PageSize.ShouldBe(25);
     }
 
     #endregion
@@ -124,8 +124,8 @@ public class AuditQueryTests
         var builder = AuditQuery.Builder();
 
         // Assert
-        builder.Should().NotBeNull();
-        builder.Should().BeOfType<AuditQueryBuilder>();
+        builder.ShouldNotBeNull();
+        builder.ShouldBeOfType<AuditQueryBuilder>();
     }
 
     [Fact]
@@ -135,9 +135,9 @@ public class AuditQueryTests
         var query = AuditQuery.Builder().Build();
 
         // Assert
-        query.PageNumber.Should().Be(1);
-        query.PageSize.Should().Be(AuditQuery.DefaultPageSize);
-        query.UserId.Should().BeNull();
+        query.PageNumber.ShouldBe(1);
+        query.PageSize.ShouldBe(AuditQuery.DefaultPageSize);
+        query.UserId.ShouldBeNull();
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.UserId.Should().Be("user-123");
+        query.UserId.ShouldBe("user-123");
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.TenantId.Should().Be("tenant-456");
+        query.TenantId.ShouldBe("tenant-456");
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.EntityType.Should().Be("Order");
+        query.EntityType.ShouldBe("Order");
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.EntityType.Should().Be("Order");
-        query.EntityId.Should().Be("order-123");
+        query.EntityType.ShouldBe("Order");
+        query.EntityId.ShouldBe("order-123");
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.Action.Should().Be("Create");
+        query.Action.ShouldBe("Create");
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.Outcome.Should().Be(AuditOutcome.Failure);
+        query.Outcome.ShouldBe(AuditOutcome.Failure);
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.CorrelationId.Should().Be("corr-123");
+        query.CorrelationId.ShouldBe("corr-123");
     }
 
     [Fact]
@@ -238,8 +238,8 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.FromUtc.Should().Be(from);
-        query.ToUtc.Should().Be(to);
+        query.FromUtc.ShouldBe(from);
+        query.ToUtc.ShouldBe(to);
     }
 
     [Fact]
@@ -251,8 +251,8 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.FromUtc.Should().BeNull();
-        query.ToUtc.Should().BeNull();
+        query.FromUtc.ShouldBeNull();
+        query.ToUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.IpAddress.Should().Be("192.168.1.100");
+        query.IpAddress.ShouldBe("192.168.1.100");
     }
 
     [Fact]
@@ -280,8 +280,8 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.MinDuration.Should().Be(min);
-        query.MaxDuration.Should().Be(max);
+        query.MinDuration.ShouldBe(min);
+        query.MaxDuration.ShouldBe(max);
     }
 
     [Fact]
@@ -293,7 +293,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.PageNumber.Should().Be(5);
+        query.PageNumber.ShouldBe(5);
     }
 
     [Fact]
@@ -305,7 +305,7 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.PageSize.Should().Be(100);
+        query.PageSize.ShouldBe(100);
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public class AuditQueryTests
             .WithPageSize(25);
 
         // Assert
-        builder.Should().BeOfType<AuditQueryBuilder>();
+        builder.ShouldBeOfType<AuditQueryBuilder>();
     }
 
     [Fact]
@@ -348,20 +348,20 @@ public class AuditQueryTests
             .Build();
 
         // Assert
-        query.UserId.Should().Be("user-123");
-        query.TenantId.Should().Be("tenant-456");
-        query.EntityType.Should().Be("Order");
-        query.EntityId.Should().Be("order-789");
-        query.Action.Should().Be("Update");
-        query.Outcome.Should().Be(AuditOutcome.Success);
-        query.CorrelationId.Should().Be("corr-abc");
-        query.FromUtc.Should().Be(from);
-        query.ToUtc.Should().Be(to);
-        query.IpAddress.Should().Be("10.0.0.1");
-        query.MinDuration.Should().Be(TimeSpan.FromMilliseconds(50));
-        query.MaxDuration.Should().Be(TimeSpan.FromSeconds(2));
-        query.PageNumber.Should().Be(3);
-        query.PageSize.Should().Be(75);
+        query.UserId.ShouldBe("user-123");
+        query.TenantId.ShouldBe("tenant-456");
+        query.EntityType.ShouldBe("Order");
+        query.EntityId.ShouldBe("order-789");
+        query.Action.ShouldBe("Update");
+        query.Outcome.ShouldBe(AuditOutcome.Success);
+        query.CorrelationId.ShouldBe("corr-abc");
+        query.FromUtc.ShouldBe(from);
+        query.ToUtc.ShouldBe(to);
+        query.IpAddress.ShouldBe("10.0.0.1");
+        query.MinDuration.ShouldBe(TimeSpan.FromMilliseconds(50));
+        query.MaxDuration.ShouldBe(TimeSpan.FromSeconds(2));
+        query.PageNumber.ShouldBe(3);
+        query.PageSize.ShouldBe(75);
     }
 
     #endregion

@@ -1,21 +1,15 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using System.Reflection;
-
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.DPIA;
@@ -103,7 +97,7 @@ public class DPIAAutoRegistrationHostedServiceTests
 
         var act = () => sut.StartAsync(CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion
@@ -144,7 +138,7 @@ public class DPIAAutoRegistrationHostedServiceTests
 
         var act = () => sut.StopAsync(CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion

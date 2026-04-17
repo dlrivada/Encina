@@ -1,5 +1,5 @@
 using Encina.AspNetCore;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.AspNetCore;
 
@@ -12,8 +12,8 @@ public class HttpAuditContextExtensionsTests
     public void Constants_ShouldHaveExpectedValues()
     {
         // Assert
-        HttpAuditContextExtensions.IpAddressKey.Should().Be("Encina.Audit.IpAddress");
-        HttpAuditContextExtensions.UserAgentKey.Should().Be("Encina.Audit.UserAgent");
+        HttpAuditContextExtensions.IpAddressKey.ShouldBe("Encina.Audit.IpAddress");
+        HttpAuditContextExtensions.UserAgentKey.ShouldBe("Encina.Audit.UserAgent");
     }
 
     #region GetIpAddress Tests
@@ -29,7 +29,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetIpAddress();
 
         // Assert
-        result.Should().Be("192.168.1.100");
+        result.ShouldBe("192.168.1.100");
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetIpAddress();
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetIpAddress();
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetIpAddress();
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -80,11 +80,10 @@ public class HttpAuditContextExtensionsTests
         IRequestContext context = null!;
 
         // Act
-        var act = () => context.GetIpAddress();
+        Action act = () => context.GetIpAddress();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -101,7 +100,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.WithIpAddress("10.0.0.1");
 
         // Assert
-        result.GetIpAddress().Should().Be("10.0.0.1");
+        result.GetIpAddress().ShouldBe("10.0.0.1");
     }
 
     [Fact]
@@ -114,8 +113,8 @@ public class HttpAuditContextExtensionsTests
         var result = original.WithIpAddress("10.0.0.1");
 
         // Assert
-        result.Should().NotBeSameAs(original);
-        original.GetIpAddress().Should().BeNull();
+        result.ShouldNotBeSameAs(original);
+        original.GetIpAddress().ShouldBeNull();
     }
 
     [Fact]
@@ -129,7 +128,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.WithIpAddress(null);
 
         // Assert
-        result.GetIpAddress().Should().BeNull();
+        result.GetIpAddress().ShouldBeNull();
     }
 
     [Fact]
@@ -139,11 +138,10 @@ public class HttpAuditContextExtensionsTests
         IRequestContext context = null!;
 
         // Act
-        var act = () => context.WithIpAddress("10.0.0.1");
+        Action act = () => context.WithIpAddress("10.0.0.1");
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -161,7 +159,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetUserAgent();
 
         // Assert
-        result.Should().Be("Mozilla/5.0");
+        result.ShouldBe("Mozilla/5.0");
     }
 
     [Fact]
@@ -174,7 +172,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetUserAgent();
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -188,7 +186,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetUserAgent();
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -202,7 +200,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.GetUserAgent();
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -212,11 +210,10 @@ public class HttpAuditContextExtensionsTests
         IRequestContext context = null!;
 
         // Act
-        var act = () => context.GetUserAgent();
+        Action act = () => context.GetUserAgent();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -233,7 +230,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.WithUserAgent("MyApp/1.0");
 
         // Assert
-        result.GetUserAgent().Should().Be("MyApp/1.0");
+        result.GetUserAgent().ShouldBe("MyApp/1.0");
     }
 
     [Fact]
@@ -246,8 +243,8 @@ public class HttpAuditContextExtensionsTests
         var result = original.WithUserAgent("MyApp/1.0");
 
         // Assert
-        result.Should().NotBeSameAs(original);
-        original.GetUserAgent().Should().BeNull();
+        result.ShouldNotBeSameAs(original);
+        original.GetUserAgent().ShouldBeNull();
     }
 
     [Fact]
@@ -261,7 +258,7 @@ public class HttpAuditContextExtensionsTests
         var result = context.WithUserAgent(null);
 
         // Assert
-        result.GetUserAgent().Should().BeNull();
+        result.GetUserAgent().ShouldBeNull();
     }
 
     [Fact]
@@ -271,11 +268,10 @@ public class HttpAuditContextExtensionsTests
         IRequestContext context = null!;
 
         // Act
-        var act = () => context.WithUserAgent("MyApp/1.0");
+        Action act = () => context.WithUserAgent("MyApp/1.0");
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -294,8 +290,8 @@ public class HttpAuditContextExtensionsTests
             .WithUserAgent("TestAgent/2.0");
 
         // Assert
-        result.GetIpAddress().Should().Be("192.168.1.1");
-        result.GetUserAgent().Should().Be("TestAgent/2.0");
+        result.GetIpAddress().ShouldBe("192.168.1.1");
+        result.GetUserAgent().ShouldBe("TestAgent/2.0");
     }
 
     [Fact]
@@ -311,9 +307,9 @@ public class HttpAuditContextExtensionsTests
             .WithUserAgent("TestAgent/2.0");
 
         // Assert
-        result.Metadata["CustomKey"].Should().Be("CustomValue");
-        result.GetIpAddress().Should().Be("192.168.1.1");
-        result.GetUserAgent().Should().Be("TestAgent/2.0");
+        result.Metadata["CustomKey"].ShouldBe("CustomValue");
+        result.GetIpAddress().ShouldBe("192.168.1.1");
+        result.GetUserAgent().ShouldBe("TestAgent/2.0");
     }
 
     [Fact]
@@ -331,9 +327,9 @@ public class HttpAuditContextExtensionsTests
             .WithUserAgent("TestAgent/2.0");
 
         // Assert
-        result.UserId.Should().Be("user-123");
-        result.TenantId.Should().Be("tenant-456");
-        result.CorrelationId.Should().Be("corr-789");
+        result.UserId.ShouldBe("user-123");
+        result.TenantId.ShouldBe("tenant-456");
+        result.CorrelationId.ShouldBe("corr-789");
     }
 
     #endregion

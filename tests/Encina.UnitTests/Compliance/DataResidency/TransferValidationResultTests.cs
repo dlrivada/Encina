@@ -1,6 +1,6 @@
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -13,11 +13,11 @@ public class TransferValidationResultTests
         var result = TransferValidationResult.Allow(TransferLegalBasis.AdequacyDecision);
 
         // Assert
-        result.IsAllowed.Should().BeTrue();
-        result.LegalBasis.Should().Be(TransferLegalBasis.AdequacyDecision);
-        result.DenialReason.Should().BeNull();
-        result.RequiredSafeguards.Should().BeEmpty();
-        result.Warnings.Should().BeEmpty();
+        result.IsAllowed.ShouldBeTrue();
+        result.LegalBasis.ShouldBe(TransferLegalBasis.AdequacyDecision);
+        result.DenialReason.ShouldBeNull();
+        result.RequiredSafeguards.ShouldBeEmpty();
+        result.Warnings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -34,10 +34,10 @@ public class TransferValidationResultTests
             warnings: warnings);
 
         // Assert
-        result.IsAllowed.Should().BeTrue();
-        result.LegalBasis.Should().Be(TransferLegalBasis.StandardContractualClauses);
-        result.RequiredSafeguards.Should().HaveCount(2);
-        result.Warnings.Should().HaveCount(1);
+        result.IsAllowed.ShouldBeTrue();
+        result.LegalBasis.ShouldBe(TransferLegalBasis.StandardContractualClauses);
+        result.RequiredSafeguards.Count.ShouldBe(2);
+        result.Warnings.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -47,11 +47,11 @@ public class TransferValidationResultTests
         var result = TransferValidationResult.Deny("No adequacy decision and no safeguards");
 
         // Assert
-        result.IsAllowed.Should().BeFalse();
-        result.DenialReason.Should().Be("No adequacy decision and no safeguards");
-        result.LegalBasis.Should().BeNull();
-        result.RequiredSafeguards.Should().BeEmpty();
-        result.Warnings.Should().BeEmpty();
+        result.IsAllowed.ShouldBeFalse();
+        result.DenialReason.ShouldBe("No adequacy decision and no safeguards");
+        result.LegalBasis.ShouldBeNull();
+        result.RequiredSafeguards.ShouldBeEmpty();
+        result.Warnings.ShouldBeEmpty();
     }
 
     [Theory]
@@ -69,8 +69,8 @@ public class TransferValidationResultTests
         var result = TransferValidationResult.Allow(basis);
 
         // Assert
-        result.IsAllowed.Should().BeTrue();
-        result.LegalBasis.Should().Be(basis);
+        result.IsAllowed.ShouldBeTrue();
+        result.LegalBasis.ShouldBe(basis);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class TransferValidationResultTests
             requiredSafeguards: null);
 
         // Assert
-        result.RequiredSafeguards.Should().BeEmpty();
+        result.RequiredSafeguards.ShouldBeEmpty();
     }
 
     [Fact]
@@ -94,6 +94,6 @@ public class TransferValidationResultTests
             warnings: null);
 
         // Assert
-        result.Warnings.Should().BeEmpty();
+        result.Warnings.ShouldBeEmpty();
     }
 }

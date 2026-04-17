@@ -5,8 +5,8 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Testing.Fakes.Factories;
 using Encina.Testing.Fakes.Stores;
-using FluentAssertions;
 using Microsoft.Extensions.Hosting;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging;
 
@@ -30,7 +30,7 @@ public class ServiceCollectionExtensionsGuardTests
             FakeScheduledMessageStore, StubScheduledFactory,
             StubOutboxProcessor>(config);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class ServiceCollectionExtensionsGuardTests
             FakeScheduledMessageStore, StubScheduledFactory,
             StubOutboxProcessor>(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("config");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("config");
     }
 
     #endregion
@@ -63,7 +63,7 @@ public class ServiceCollectionExtensionsGuardTests
             FakeInboxStore, StubInboxFactory,
             StubOutboxProcessor>(config);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class ServiceCollectionExtensionsGuardTests
             FakeInboxStore, StubInboxFactory,
             StubOutboxProcessor>(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("config");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("config");
     }
 
     #endregion

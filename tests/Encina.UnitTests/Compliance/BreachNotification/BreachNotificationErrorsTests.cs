@@ -1,7 +1,7 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.BreachNotification;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -20,9 +20,9 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.NotFoundCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.NotFoundCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("breach-123");
+        error.Message.ShouldContain("breach-123");
     }
 
     #endregion
@@ -37,9 +37,9 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.AlreadyExistsCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.AlreadyExistsCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("breach-456");
+        error.Message.ShouldContain("breach-456");
     }
 
     #endregion
@@ -54,9 +54,9 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.AlreadyResolvedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.AlreadyResolvedCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("breach-789");
+        error.Message.ShouldContain("breach-789");
     }
 
     #endregion
@@ -71,9 +71,9 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.DetectionFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.DetectionFailedCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("Rule engine timeout");
+        error.Message.ShouldContain("Rule engine timeout");
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.DetectionFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.DetectionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -103,10 +103,10 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.StoreErrorCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("RecordBreach");
-        error.Message.Should().Contain("Database unavailable");
+        error.Message.ShouldContain("RecordBreach");
+        error.Message.ShouldContain("Database unavailable");
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.StoreErrorCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -140,11 +140,11 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.DeadlineExpiredCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.DeadlineExpiredCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("breach-deadline-001");
-        error.Message.Should().Contain(expectedHours);
-        error.Message.Should().Contain("72-hour");
+        error.Message.ShouldContain("breach-deadline-001");
+        error.Message.ShouldContain(expectedHours);
+        error.Message.ShouldContain("72-hour");
     }
 
     #endregion
@@ -161,10 +161,10 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.BreachDetectedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.BreachDetectedCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("GetCustomerDataQuery");
-        error.Message.Should().Contain("UnauthorizedAccessRule, MassDataExfiltrationRule");
+        error.Message.ShouldContain("GetCustomerDataQuery");
+        error.Message.ShouldContain("UnauthorizedAccessRule, MassDataExfiltrationRule");
     }
 
     #endregion
@@ -179,10 +179,10 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.NotificationFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.NotificationFailedCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("breach-nf-001");
-        error.Message.Should().Contain("SMTP timeout");
+        error.Message.ShouldContain("breach-nf-001");
+        error.Message.ShouldContain("SMTP timeout");
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.AuthorityNotificationFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.AuthorityNotificationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -205,7 +205,7 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.SubjectNotificationFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.SubjectNotificationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -217,9 +217,9 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.InvalidParameterCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.InvalidParameterCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("nature");
+        error.Message.ShouldContain("nature");
     }
 
     [Fact]
@@ -230,9 +230,9 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.PhasedReportFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.PhasedReportFailedCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("breach-pr-001");
+        error.Message.ShouldContain("breach-pr-001");
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.ExemptionInvalidCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.ExemptionInvalidCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -255,9 +255,9 @@ public class BreachNotificationErrorsTests
 
         // Assert
         error.GetCode().Match(
-            Some: code => code.Should().Be(BreachNotificationErrors.RuleEvaluationFailedCode),
+            Some: code => code.ShouldBe(BreachNotificationErrors.RuleEvaluationFailedCode),
             None: () => Assert.Fail("Expected error code"));
-        error.Message.Should().Contain("UnauthorizedAccessRule");
+        error.Message.ShouldContain("UnauthorizedAccessRule");
     }
 
     #endregion
@@ -267,20 +267,20 @@ public class BreachNotificationErrorsTests
     [Fact]
     public void ErrorCodes_ShouldFollowBreachPrefix()
     {
-        BreachNotificationErrors.NotFoundCode.Should().StartWith("breach.");
-        BreachNotificationErrors.AlreadyExistsCode.Should().StartWith("breach.");
-        BreachNotificationErrors.AlreadyResolvedCode.Should().StartWith("breach.");
-        BreachNotificationErrors.DetectionFailedCode.Should().StartWith("breach.");
-        BreachNotificationErrors.StoreErrorCode.Should().StartWith("breach.");
-        BreachNotificationErrors.DeadlineExpiredCode.Should().StartWith("breach.");
-        BreachNotificationErrors.BreachDetectedCode.Should().StartWith("breach.");
-        BreachNotificationErrors.NotificationFailedCode.Should().StartWith("breach.");
-        BreachNotificationErrors.AuthorityNotificationFailedCode.Should().StartWith("breach.");
-        BreachNotificationErrors.SubjectNotificationFailedCode.Should().StartWith("breach.");
-        BreachNotificationErrors.InvalidParameterCode.Should().StartWith("breach.");
-        BreachNotificationErrors.PhasedReportFailedCode.Should().StartWith("breach.");
-        BreachNotificationErrors.ExemptionInvalidCode.Should().StartWith("breach.");
-        BreachNotificationErrors.RuleEvaluationFailedCode.Should().StartWith("breach.");
+        BreachNotificationErrors.NotFoundCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.AlreadyExistsCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.AlreadyResolvedCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.DetectionFailedCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.StoreErrorCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.DeadlineExpiredCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.BreachDetectedCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.NotificationFailedCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.AuthorityNotificationFailedCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.SubjectNotificationFailedCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.InvalidParameterCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.PhasedReportFailedCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.ExemptionInvalidCode.ShouldStartWith("breach.");
+        BreachNotificationErrors.RuleEvaluationFailedCode.ShouldStartWith("breach.");
     }
 
     [Fact]
@@ -304,7 +304,7 @@ public class BreachNotificationErrorsTests
             BreachNotificationErrors.RuleEvaluationFailedCode
         };
 
-        codes.Should().OnlyHaveUniqueItems();
+        codes.ShouldBeUnique();
     }
 
     [Theory]
@@ -321,7 +321,7 @@ public class BreachNotificationErrorsTests
             .GetField(constantName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!
             .GetValue(null) as string;
 
-        actualValue.Should().Be(expectedValue);
+        actualValue.ShouldBe(expectedValue);
     }
 
     #endregion

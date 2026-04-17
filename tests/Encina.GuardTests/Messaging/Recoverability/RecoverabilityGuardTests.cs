@@ -1,5 +1,5 @@
 using Encina.Messaging.Recoverability;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Recoverability;
 
@@ -18,7 +18,7 @@ public class RecoverabilityGuardTests
             null!,
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class RecoverabilityGuardTests
             new RecoverabilityOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class RecoverabilityGuardTests
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance,
             delayedRetryScheduler: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class RecoverabilityGuardTests
             null,
             timeProvider: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class RecoverabilityGuardTests
             new RecoverabilityOptions(),
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class RecoverabilityGuardTests
             options,
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -85,13 +85,13 @@ public class RecoverabilityGuardTests
     {
         var options = new RecoverabilityOptions();
 
-        options.ImmediateRetries.Should().BeGreaterThan(0);
-        options.ImmediateRetryDelay.Should().BeGreaterThan(TimeSpan.Zero);
-        options.DelayedRetries.Should().NotBeEmpty();
-        options.UseJitter.Should().BeTrue();
-        options.MaxJitterPercent.Should().BeGreaterThan(0);
-        options.EnableDelayedRetries.Should().BeTrue();
-        options.UseExponentialBackoffForImmediateRetries.Should().BeTrue();
+        options.ImmediateRetries.ShouldBeGreaterThan(0);
+        options.ImmediateRetryDelay.ShouldBeGreaterThan(TimeSpan.Zero);
+        options.DelayedRetries.ShouldNotBeEmpty();
+        options.UseJitter.ShouldBeTrue();
+        options.MaxJitterPercent.ShouldBeGreaterThan(0);
+        options.EnableDelayedRetries.ShouldBeTrue();
+        options.UseExponentialBackoffForImmediateRetries.ShouldBeTrue();
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class RecoverabilityGuardTests
             EnableDelayedRetries = true
         };
 
-        options.TotalRetryAttempts.Should().Be(5); // 3 immediate + 2 delayed
+        options.TotalRetryAttempts.ShouldBe(5); // 3 immediate + 2 delayed
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class RecoverabilityGuardTests
             EnableDelayedRetries = false
         };
 
-        options.TotalRetryAttempts.Should().Be(3); // Only immediate
+        options.TotalRetryAttempts.ShouldBe(3); // Only immediate
     }
 
     #endregion
@@ -132,7 +132,7 @@ public class RecoverabilityGuardTests
             new RecoverabilityOptions(),
             NullLogger<DelayedRetryProcessor>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("scopeFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class RecoverabilityGuardTests
             null!,
             NullLogger<DelayedRetryProcessor>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class RecoverabilityGuardTests
             new RecoverabilityOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class RecoverabilityGuardTests
             new RecoverabilityOptions(),
             NullLogger<DelayedRetryProcessor>.Instance);
 
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class RecoverabilityGuardTests
             new RecoverabilityOptions(),
             NullLogger<DelayedRetryProcessor>.Instance);
 
-        sut.ProcessingInterval.Should().BeGreaterThan(TimeSpan.Zero);
+        sut.ProcessingInterval.ShouldBeGreaterThan(TimeSpan.Zero);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class RecoverabilityGuardTests
             new RecoverabilityOptions(),
             NullLogger<DelayedRetryProcessor>.Instance);
 
-        sut.BatchSize.Should().BeGreaterThan(0);
+        sut.BatchSize.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class RecoverabilityGuardTests
             NullLogger<DelayedRetryProcessor>.Instance);
 
         sut.ProcessingInterval = TimeSpan.FromSeconds(10);
-        sut.ProcessingInterval.Should().Be(TimeSpan.FromSeconds(10));
+        sut.ProcessingInterval.ShouldBe(TimeSpan.FromSeconds(10));
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class RecoverabilityGuardTests
             NullLogger<DelayedRetryProcessor>.Instance);
 
         sut.BatchSize = 50;
-        sut.BatchSize.Should().Be(50);
+        sut.BatchSize.ShouldBe(50);
     }
 
     #endregion
@@ -230,7 +230,7 @@ public class RecoverabilityGuardTests
             options,
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class RecoverabilityGuardTests
             options,
             NullLogger<RecoverabilityPipelineBehavior<TestRequest, TestResponse>>.Instance);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public class RecoverabilityGuardTests
             OnPermanentFailure = (_, _) => Task.CompletedTask
         };
 
-        options.OnPermanentFailure.Should().NotBeNull();
+        options.OnPermanentFailure.ShouldNotBeNull();
     }
 
     #endregion

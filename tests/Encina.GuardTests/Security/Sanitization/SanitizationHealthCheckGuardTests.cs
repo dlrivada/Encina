@@ -1,5 +1,5 @@
 using Encina.Security.Sanitization.Health;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Sanitization;
 
@@ -13,7 +13,7 @@ public sealed class SanitizationHealthCheckGuardTests
     {
         var act = () => new SanitizationHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 }

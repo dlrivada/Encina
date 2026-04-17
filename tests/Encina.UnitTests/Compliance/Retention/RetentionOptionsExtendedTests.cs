@@ -1,6 +1,6 @@
 using Encina.Compliance.Retention;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -11,16 +11,16 @@ public class RetentionOptionsExtendedTests
     {
         var options = new RetentionOptions();
 
-        options.DefaultRetentionPeriod.Should().BeNull();
-        options.AlertBeforeExpirationDays.Should().Be(30);
-        options.PublishNotifications.Should().BeTrue();
-        options.AddHealthCheck.Should().BeFalse();
-        options.EnableAutomaticEnforcement.Should().BeTrue();
-        options.EnforcementInterval.Should().Be(TimeSpan.FromMinutes(60));
-        options.EnforcementMode.Should().Be(RetentionEnforcementMode.Warn);
-        options.AutoRegisterFromAttributes.Should().BeTrue();
-        options.AssembliesToScan.Should().BeEmpty();
-        options.ConfiguredPolicies.Should().BeEmpty();
+        options.DefaultRetentionPeriod.ShouldBeNull();
+        options.AlertBeforeExpirationDays.ShouldBe(30);
+        options.PublishNotifications.ShouldBeTrue();
+        options.AddHealthCheck.ShouldBeFalse();
+        options.EnableAutomaticEnforcement.ShouldBeTrue();
+        options.EnforcementInterval.ShouldBe(TimeSpan.FromMinutes(60));
+        options.EnforcementMode.ShouldBe(RetentionEnforcementMode.Warn);
+        options.AutoRegisterFromAttributes.ShouldBeTrue();
+        options.AssembliesToScan.ShouldBeEmpty();
+        options.ConfiguredPolicies.ShouldBeEmpty();
     }
 
     [Fact]
@@ -35,11 +35,11 @@ public class RetentionOptionsExtendedTests
             policy.WithReason("GDPR storage limitation");
         });
 
-        options.ConfiguredPolicies.Should().HaveCount(1);
-        options.ConfiguredPolicies[0].DataCategory.Should().Be("user-profiles");
-        options.ConfiguredPolicies[0].RetentionPeriod.Should().Be(TimeSpan.FromDays(365));
-        options.ConfiguredPolicies[0].AutoDelete.Should().BeTrue();
-        options.ConfiguredPolicies[0].Reason.Should().Be("GDPR storage limitation");
+        options.ConfiguredPolicies.Count.ShouldBe(1);
+        options.ConfiguredPolicies[0].DataCategory.ShouldBe("user-profiles");
+        options.ConfiguredPolicies[0].RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
+        options.ConfiguredPolicies[0].AutoDelete.ShouldBeTrue();
+        options.ConfiguredPolicies[0].Reason.ShouldBe("GDPR storage limitation");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class RetentionOptionsExtendedTests
             policy.RetainForYears(7);
         });
 
-        options.ConfiguredPolicies[0].RetentionPeriod.Should().Be(TimeSpan.FromDays(7 * 365));
+        options.ConfiguredPolicies[0].RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class RetentionOptionsExtendedTests
             policy.RetainFor(TimeSpan.FromHours(48));
         });
 
-        options.ConfiguredPolicies[0].RetentionPeriod.Should().Be(TimeSpan.FromHours(48));
+        options.ConfiguredPolicies[0].RetentionPeriod.ShouldBe(TimeSpan.FromHours(48));
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class RetentionOptionsExtendedTests
             policy.WithAutoDelete(false);
         });
 
-        options.ConfiguredPolicies[0].AutoDelete.Should().BeFalse();
+        options.ConfiguredPolicies[0].AutoDelete.ShouldBeFalse();
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class RetentionOptionsExtendedTests
             policy.WithLegalBasis("Tax law requirement");
         });
 
-        options.ConfiguredPolicies[0].LegalBasis.Should().Be("Tax law requirement");
+        options.ConfiguredPolicies[0].LegalBasis.ShouldBe("Tax law requirement");
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class RetentionOptionsExtendedTests
             .AddPolicy("data-1", p => p.RetainForDays(30))
             .AddPolicy("data-2", p => p.RetainForDays(60));
 
-        options.ConfiguredPolicies.Should().HaveCount(2);
+        options.ConfiguredPolicies.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class RetentionOptionsExtendedTests
 
         var act = () => options.AddPolicy(null!, _ => { });
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -125,6 +125,6 @@ public class RetentionOptionsExtendedTests
 
         var act = () => options.AddPolicy("test", null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 }

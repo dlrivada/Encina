@@ -40,7 +40,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.WithData("test-data").Generate();
         var expectedResponse = _responseFaker.WithSuccess().Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
@@ -61,7 +61,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.WithData("test-data").Generate();
         var error = EncinaErrors.Create("test.error", "Test error message");
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, TestResponse>(error));
 
@@ -82,11 +82,23 @@ public class QuartzRequestJobTests
     }
 
     [Fact]
+    public async Task Execute_WithWrongTypeInJobDataMap_ThrowsJobExecutionException()
+    {
+        // Arrange - Add a value of the wrong type to JobDataMap
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = "not-a-request";
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
+        exception.Message.ShouldContain("TestRequest");
+        exception.Message.ShouldContain("not found in JobDataMap");
+    }
+
+    [Fact]
     public async Task Execute_LogsExecutionStart()
     {
         // Arrange
         var request = _requestFaker.Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
 
@@ -105,7 +117,7 @@ public class QuartzRequestJobTests
     {
         // Arrange
         var request = _requestFaker.Generate();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
 
@@ -125,7 +137,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.Generate();
         var error = EncinaErrors.Create("test.error", "Test error");
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, TestResponse>(error));
 
@@ -145,7 +157,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.Generate();
         var exception = new InvalidOperationException("Test exception");
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns<Either<EncinaError, TestResponse>>(_ => throw exception);
 
@@ -166,7 +178,7 @@ public class QuartzRequestJobTests
         // Arrange
         var request = _requestFaker.Generate();
         var cts = new CancellationTokenSource();
-        _context.JobDetail.JobDataMap.Put(QuartzConstants.RequestKey, request);
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
         _context.CancellationToken.Returns(cts.Token);
         _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));

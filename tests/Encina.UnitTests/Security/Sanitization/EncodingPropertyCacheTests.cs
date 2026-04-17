@@ -1,6 +1,6 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Attributes;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -23,9 +23,9 @@ public sealed class EncodingPropertyCacheTests : IDisposable
     {
         var properties = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
 
-        properties.Should().HaveCount(2);
-        properties.Select(p => p.Property.Name).Should().Contain("Title");
-        properties.Select(p => p.Property.Name).Should().Contain("JsonData");
+        properties.Length.ShouldBe(2);
+        properties.Select(p => p.Property.Name).ShouldContain("Title");
+        properties.Select(p => p.Property.Name).ShouldContain("JsonData");
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
     {
         var properties = EncodingPropertyCache.GetProperties(typeof(TypeWithNoAttributes));
 
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var first = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
         var second = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
 
-        first.Should().BeSameAs(second);
+        first.ShouldBeSameAs(second);
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         EncodingPropertyCache.ClearCache();
         var second = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
 
-        first.Should().NotBeSameAs(second);
-        first.Should().HaveCount(second.Length);
+        first.ShouldNotBeSameAs(second);
+        first.Length.ShouldBe(second.Length);
     }
 
     [Fact]
@@ -62,10 +62,10 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var properties = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
 
         var titleProp = properties.First(p => p.Property.Name == "Title");
-        titleProp.Attribute.EncodingContext.Should().Be(EncodingContext.Html);
+        titleProp.Attribute.EncodingContext.ShouldBe(EncodingContext.Html);
 
         var jsonProp = properties.First(p => p.Property.Name == "JsonData");
-        jsonProp.Attribute.EncodingContext.Should().Be(EncodingContext.JavaScript);
+        jsonProp.Attribute.EncodingContext.ShouldBe(EncodingContext.JavaScript);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var instance = new TypeWithEncodedProps { Title = "test-value" };
         var value = titleProp.Getter(instance);
 
-        value.Should().Be("test-value");
+        value.ShouldBe("test-value");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var instance = new TypeWithEncodedProps { Title = "original" };
         titleProp.Setter(instance, "modified");
 
-        instance.Title.Should().Be("modified");
+        instance.Title.ShouldBe("modified");
     }
 
     [Fact]
@@ -98,8 +98,8 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var props1 = EncodingPropertyCache.GetProperties(typeof(TypeWithEncodedProps));
         var props2 = EncodingPropertyCache.GetProperties(typeof(TypeWithNoAttributes));
 
-        props1.Should().HaveCount(2);
-        props2.Should().BeEmpty();
+        props1.Length.ShouldBe(2);
+        props2.ShouldBeEmpty();
     }
 
     [Fact]
@@ -107,10 +107,10 @@ public sealed class EncodingPropertyCacheTests : IDisposable
     {
         var properties = EncodingPropertyCache.GetProperties(typeof(TypeWithAllContexts));
 
-        properties.Should().HaveCount(3);
-        properties.Should().Contain(p => p.Attribute.EncodingContext == EncodingContext.Html);
-        properties.Should().Contain(p => p.Attribute.EncodingContext == EncodingContext.JavaScript);
-        properties.Should().Contain(p => p.Attribute.EncodingContext == EncodingContext.Url);
+        properties.Length.ShouldBe(3);
+        properties.ShouldContain(p => p.Attribute.EncodingContext == EncodingContext.Html);
+        properties.ShouldContain(p => p.Attribute.EncodingContext == EncodingContext.JavaScript);
+        properties.ShouldContain(p => p.Attribute.EncodingContext == EncodingContext.Url);
     }
 
     #endregion
@@ -122,7 +122,7 @@ public sealed class EncodingPropertyCacheTests : IDisposable
     {
         var properties = EncodingPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        properties.Should().HaveCount(3);
+        properties.Length.ShouldBe(3);
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public sealed class EncodingPropertyCacheTests : IDisposable
         var first = EncodingPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
         var second = EncodingPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        first.Should().HaveCount(second.Length);
-        first.Select(p => p.Name).Should().BeEquivalentTo(second.Select(p => p.Name));
+        first.Length.ShouldBe(second.Length);
+        first.Select(p => p.Name).ShouldBe(second.Select(p => p.Name));
     }
 
     #endregion

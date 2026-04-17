@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC;
 
@@ -17,7 +17,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.EnforcementMode.Should().Be(ABACEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(ABACEnforcementMode.Block);
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.DefaultNotApplicableEffect.Should().Be(Effect.Deny,
+        options.DefaultNotApplicableEffect.ShouldBe(Effect.Deny,
             "Closed-world assumption: unmatched requests denied by default");
     }
 
@@ -34,7 +34,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.IncludeAdvice.Should().BeTrue();
+        options.IncludeAdvice.ShouldBeTrue();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.FailOnMissingObligationHandler.Should().BeTrue(
+        options.FailOnMissingObligationHandler.ShouldBeTrue(
             "XACML 7.18 mandates denying access if obligation cannot be fulfilled");
     }
 
@@ -51,7 +51,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.ValidateExpressionsAtStartup.Should().BeFalse();
+        options.ValidateExpressionsAtStartup.ShouldBeFalse();
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.ExpressionScanAssemblies.Should().BeEmpty();
+        options.ExpressionScanAssemblies.ShouldBeEmpty();
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.CustomFunctions.Should().BeEmpty();
+        options.CustomFunctions.ShouldBeEmpty();
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.SeedPolicySets.Should().BeEmpty();
+        options.SeedPolicySets.ShouldBeEmpty();
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions();
 
-        options.SeedPolicies.Should().BeEmpty();
+        options.SeedPolicies.ShouldBeEmpty();
     }
 
     #endregion
@@ -106,7 +106,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions { EnforcementMode = mode };
 
-        options.EnforcementMode.Should().Be(mode);
+        options.EnforcementMode.ShouldBe(mode);
     }
 
     [Theory]
@@ -116,7 +116,7 @@ public sealed class ABACOptionsTests
     {
         var options = new ABACOptions { DefaultNotApplicableEffect = effect };
 
-        options.DefaultNotApplicableEffect.Should().Be(effect);
+        options.DefaultNotApplicableEffect.ShouldBe(effect);
     }
 
     #endregion
@@ -131,8 +131,8 @@ public sealed class ABACOptionsTests
 
         options.AddFunction("custom:test", function);
 
-        options.CustomFunctions.Should().ContainSingle()
-            .Which.FunctionId.Should().Be("custom:test");
+        options.CustomFunctions.ShouldHaveSingleItem()
+            .FunctionId.ShouldBe("custom:test");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class ABACOptionsTests
 
         var result = options.AddFunction("custom:test", function);
 
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class ABACOptionsTests
             .AddFunction("custom:first", f1)
             .AddFunction("custom:second", f2);
 
-        options.CustomFunctions.Should().HaveCount(2);
+        options.CustomFunctions.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class ABACOptionsTests
 
         var act = () => options.AddFunction(null!, function);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public sealed class ABACOptionsTests
 
         var act = () => options.AddFunction("", function);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public sealed class ABACOptionsTests
 
         var act = () => options.AddFunction("   ", function);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -200,8 +200,8 @@ public sealed class ABACOptionsTests
 
         var act = () => options.AddFunction("custom:test", null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("function");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("function");
     }
 
     #endregion

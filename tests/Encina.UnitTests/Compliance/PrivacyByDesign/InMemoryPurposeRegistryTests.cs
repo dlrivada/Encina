@@ -2,12 +2,9 @@
 
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -49,7 +46,7 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.RegisterPurposeAsync(purpose);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -57,13 +54,13 @@ public class InMemoryPurposeRegistryTests
     {
         // Arrange
         var purpose = CreatePurpose();
-        _sut.Count.Should().Be(0);
+        _sut.Count.ShouldBe(0);
 
         // Act
         await _sut.RegisterPurposeAsync(purpose);
 
         // Assert
-        _sut.Count.Should().Be(1);
+        _sut.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -78,9 +75,9 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.RegisterPurposeAsync(purpose2);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(PrivacyByDesignErrors.DuplicatePurposeCode);
+        error.GetEncinaCode().ShouldBe(PrivacyByDesignErrors.DuplicatePurposeCode);
     }
 
     [Fact]
@@ -104,17 +101,17 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.RegisterPurposeAsync(updated);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        _sut.Count.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        _sut.Count.ShouldBe(1);
 
         var getResult = await _sut.GetPurposeAsync("Updated Name");
-        getResult.IsRight.Should().BeTrue();
+        getResult.IsRight.ShouldBeTrue();
         var option = (Option<PurposeDefinition>)getResult;
-        option.IsSome.Should().BeTrue();
+        option.IsSome.ShouldBeTrue();
         option.IfSome(p =>
         {
-            p.Description.Should().Be("Updated description");
-            p.LegalBasis.Should().Be("Consent");
+            p.Description.ShouldBe("Updated description");
+            p.LegalBasis.ShouldBe("Consent");
         });
     }
 
@@ -133,10 +130,10 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetPurposeAsync(purpose.Name);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<PurposeDefinition>)result;
-        option.IsSome.Should().BeTrue();
-        option.IfSome(p => p.PurposeId.Should().Be(purpose.PurposeId));
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(p => p.PurposeId.ShouldBe(purpose.PurposeId));
     }
 
     [Fact]
@@ -146,9 +143,9 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetPurposeAsync("NonExistent");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<PurposeDefinition>)result;
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -162,10 +159,10 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetPurposeAsync("Analytics", moduleId: "sales");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<PurposeDefinition>)result;
-        option.IsSome.Should().BeTrue();
-        option.IfSome(p => p.ModuleId.Should().Be("sales"));
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(p => p.ModuleId.ShouldBe("sales"));
     }
 
     [Fact]
@@ -179,10 +176,10 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetPurposeAsync("Shared Purpose", moduleId: "any-module");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<PurposeDefinition>)result;
-        option.IsSome.Should().BeTrue();
-        option.IfSome(p => p.ModuleId.Should().BeNull());
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(p => p.ModuleId.ShouldBeNull());
     }
 
     [Fact]
@@ -192,7 +189,7 @@ public class InMemoryPurposeRegistryTests
         var act = async () => await _sut.GetPurposeAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -214,11 +211,11 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetAllPurposesAsync(moduleId: null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var purposes = result.Match(r => r, _ => (IReadOnlyList<PurposeDefinition>)[]);
-        purposes.Should().HaveCount(2);
-        purposes.Should().Contain(p => p.Name == "Global 1");
-        purposes.Should().Contain(p => p.Name == "Global 2");
+        purposes.Count.ShouldBe(2);
+        purposes.ShouldContain(p => p.Name == "Global 1");
+        purposes.ShouldContain(p => p.Name == "Global 2");
     }
 
     [Fact]
@@ -236,12 +233,12 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetAllPurposesAsync(moduleId: "sales");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var purposes = result.Match(r => r, _ => (IReadOnlyList<PurposeDefinition>)[]);
-        purposes.Should().HaveCount(2);
-        purposes.Should().Contain(p => p.Name == "Global Purpose");
-        purposes.Should().Contain(p => p.Name == "Module Purpose");
-        purposes.Should().NotContain(p => p.Name == "Other Module Purpose");
+        purposes.Count.ShouldBe(2);
+        purposes.ShouldContain(p => p.Name == "Global Purpose");
+        purposes.ShouldContain(p => p.Name == "Module Purpose");
+        purposes.ShouldNotContain(p => p.Name == "Other Module Purpose");
     }
 
     [Fact]
@@ -257,12 +254,12 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetAllPurposesAsync(moduleId: "sales");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var purposes = result.Match(r => r, _ => (IReadOnlyList<PurposeDefinition>)[]);
 
         // Module overrides global for same name, so only 1 result
-        purposes.Should().HaveCount(1);
-        purposes[0].ModuleId.Should().Be("sales");
+        purposes.Count.ShouldBe(1);
+        purposes[0].ModuleId.ShouldBe("sales");
     }
 
     [Fact]
@@ -272,9 +269,9 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.GetAllPurposesAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var purposes = result.Match(r => r, _ => (IReadOnlyList<PurposeDefinition>)[]);
-        purposes.Should().BeEmpty();
+        purposes.ShouldBeEmpty();
     }
 
     #endregion
@@ -292,8 +289,8 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.RemovePurposeAsync(purpose.PurposeId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        _sut.Count.Should().Be(0);
+        result.IsRight.ShouldBeTrue();
+        _sut.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -303,9 +300,9 @@ public class InMemoryPurposeRegistryTests
         var result = await _sut.RemovePurposeAsync("non-existent-id");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(PrivacyByDesignErrors.PurposeNotFoundCode);
+        error.GetEncinaCode().ShouldBe(PrivacyByDesignErrors.PurposeNotFoundCode);
     }
 
     [Fact]
@@ -320,9 +317,9 @@ public class InMemoryPurposeRegistryTests
 
         // Assert
         var getResult = await _sut.GetPurposeAsync(purpose.Name);
-        getResult.IsRight.Should().BeTrue();
+        getResult.IsRight.ShouldBeTrue();
         var option = (Option<PurposeDefinition>)getResult;
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     #endregion

@@ -8,7 +8,7 @@ using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Sharding.ReferenceTables;
 using Encina.Sharding.TimeBased;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Health;
 
@@ -24,7 +24,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableHealthCheck(null!);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableHealthCheck("");
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableHealthCheck("   ");
 
-        act.Should().Throw<ArgumentException>().WithParameterName("name");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("name");
     }
 
     #endregion
@@ -52,7 +52,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new DatabasePoolHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("monitor");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("monitor");
     }
 
     #endregion
@@ -64,7 +64,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableDatabaseHealthCheck("test", null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connectionFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("connectionFactory");
     }
 
     #endregion
@@ -76,7 +76,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableDatabaseHealthMonitor(null!, () => Substitute.For<IDbConnection>());
 
-        act.Should().Throw<ArgumentException>().WithParameterName("providerName");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("providerName");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableDatabaseHealthMonitor("", () => Substitute.For<IDbConnection>());
 
-        act.Should().Throw<ArgumentException>().WithParameterName("providerName");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("providerName");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableDatabaseHealthMonitor("   ", () => Substitute.For<IDbConnection>());
 
-        act.Should().Throw<ArgumentException>().WithParameterName("providerName");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("providerName");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TestableDatabaseHealthMonitor("test-provider", null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connectionFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("connectionFactory");
     }
 
     #endregion
@@ -112,7 +112,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new TierTransitionHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("tierStore");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("tierStore");
     }
 
     #endregion
@@ -126,7 +126,7 @@ public class HealthChecksGuardTests
             null!,
             Substitute.For<IReferenceTableStateStore>());
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("registry");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("registry");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class HealthChecksGuardTests
             Substitute.For<IReferenceTableRegistry>(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("stateStore");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("stateStore");
     }
 
     #endregion
@@ -148,7 +148,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new DeadLetterHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     #endregion
@@ -160,7 +160,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new ShardCreationHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("tierStore");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("tierStore");
     }
 
     #endregion
@@ -172,7 +172,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new SchedulingHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     #endregion
@@ -184,7 +184,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new SagaHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     #endregion
@@ -196,7 +196,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new OutboxHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     #endregion
@@ -208,7 +208,7 @@ public class HealthChecksGuardTests
     {
         var act = () => new InboxHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     #endregion

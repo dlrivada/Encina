@@ -1,7 +1,7 @@
 using Encina.Compliance.GDPR;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 using LawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 
 namespace Encina.UnitTests.Compliance.GDPR;
@@ -41,7 +41,7 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.RegisterActivityAsync(activity);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -56,9 +56,9 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.RegisterActivityAsync(activity2);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("already registered");
+        error.Message.ShouldContain("already registered");
     }
 
     [Fact]
@@ -68,8 +68,7 @@ public class InMemoryProcessingActivityRegistryTests
         var act = async () => await _sut.RegisterActivityAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("activity");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("activity");
     }
 
     // -- GetAllActivitiesAsync --
@@ -81,9 +80,9 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.GetAllActivitiesAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var activities = result.Match(Right: a => a, Left: _ => (IReadOnlyList<ProcessingActivity>)[]);
-        activities.Should().BeEmpty();
+        activities.ShouldBeEmpty();
     }
 
     [Fact]
@@ -97,9 +96,9 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.GetAllActivitiesAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var activities = result.Match(Right: a => a, Left: _ => (IReadOnlyList<ProcessingActivity>)[]);
-        activities.Should().HaveCount(2);
+        activities.Count.ShouldBe(2);
     }
 
     // -- GetActivityByRequestTypeAsync --
@@ -115,10 +114,10 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.GetActivityByRequestTypeAsync(typeof(string));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<ProcessingActivity>)result;
-        option.IsSome.Should().BeTrue();
-        option.IfSome(found => found.Name.Should().Be("Test Activity"));
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(found => found.Name.ShouldBe("Test Activity"));
     }
 
     [Fact]
@@ -128,9 +127,9 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.GetActivityByRequestTypeAsync(typeof(string));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = (Option<ProcessingActivity>)result;
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -140,8 +139,7 @@ public class InMemoryProcessingActivityRegistryTests
         var act = async () => await _sut.GetActivityByRequestTypeAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("requestType");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("requestType");
     }
 
     // -- UpdateActivityAsync --
@@ -159,12 +157,12 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.UpdateActivityAsync(updated);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         var retrieved = await _sut.GetActivityByRequestTypeAsync(typeof(string));
         var option = (Option<ProcessingActivity>)retrieved;
-        option.IsSome.Should().BeTrue();
-        option.IfSome(found => found.Purpose.Should().Be("Updated purpose"));
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(found => found.Purpose.ShouldBe("Updated purpose"));
     }
 
     [Fact]
@@ -177,9 +175,9 @@ public class InMemoryProcessingActivityRegistryTests
         var result = await _sut.UpdateActivityAsync(activity);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("No processing activity is registered");
+        error.Message.ShouldContain("No processing activity is registered");
     }
 
     [Fact]
@@ -189,8 +187,7 @@ public class InMemoryProcessingActivityRegistryTests
         var act = async () => await _sut.UpdateActivityAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("activity");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("activity");
     }
 
     // -- AutoRegisterFromAssemblies --
@@ -199,11 +196,10 @@ public class InMemoryProcessingActivityRegistryTests
     public void AutoRegisterFromAssemblies_NullAssemblies_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => _sut.AutoRegisterFromAssemblies(null!);
+        Action act = () => { _sut.AutoRegisterFromAssemblies(null!); };
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("assemblies");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("assemblies");
     }
 
     [Fact]
@@ -217,7 +213,7 @@ public class InMemoryProcessingActivityRegistryTests
         var count = _sut.AutoRegisterFromAssemblies(assemblies, timeProvider);
 
         // Assert
-        count.Should().BeGreaterThan(0);
+        count.ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -231,8 +227,8 @@ public class InMemoryProcessingActivityRegistryTests
         var second = _sut.AutoRegisterFromAssemblies(assemblies);
 
         // Assert
-        first.Should().BeGreaterThan(0);
-        second.Should().Be(0);
+        first.ShouldBeGreaterThan(0);
+        second.ShouldBe(0);
     }
 
     [Fact]
@@ -242,7 +238,7 @@ public class InMemoryProcessingActivityRegistryTests
         var count = _sut.AutoRegisterFromAssemblies([]);
 
         // Assert
-        count.Should().Be(0);
+        count.ShouldBe(0);
     }
 
     [Fact]
@@ -259,8 +255,8 @@ public class InMemoryProcessingActivityRegistryTests
         // Assert
         var result = _sut.GetActivityByRequestTypeAsync(typeof(SampleDecoratedRequest)).AsTask().Result;
         var option = (Option<ProcessingActivity>)result;
-        option.IsSome.Should().BeTrue();
-        option.IfSome(activity => activity.CreatedAtUtc.Should().Be(fixedTime));
+        option.IsSome.ShouldBeTrue();
+        option.IfSome(activity => activity.CreatedAtUtc.ShouldBe(fixedTime));
     }
 }
 

@@ -1,8 +1,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Persistence.Xacml;
-using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 using Rule = Encina.Security.ABAC.Rule;
 using Target = Encina.Security.ABAC.Target;
 
@@ -22,8 +22,8 @@ public class XacmlSerializerGuardTests
     {
         var act = () => new XacmlXmlPolicySerializer(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class XacmlSerializerGuardTests
     {
         var act = () => CreateSerializer();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -45,8 +45,8 @@ public class XacmlSerializerGuardTests
 
         var act = () => sut.Serialize((PolicySet)null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("policySet");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("policySet");
     }
 
     [Fact]
@@ -57,9 +57,9 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(ps);
 
-        xml.Should().NotBeNullOrWhiteSpace();
-        xml.Should().Contain("PolicySet");
-        xml.Should().Contain("ps-1");
+        xml.ShouldNotBeNullOrWhiteSpace();
+        xml.ShouldContain("PolicySet");
+        xml.ShouldContain("ps-1");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(ps);
 
-        xml.Should().Contain("Test policy set");
+        xml.ShouldContain("Test policy set");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(ps);
 
-        xml.Should().Contain("pol-1");
+        xml.ShouldContain("pol-1");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(ps);
 
-        xml.Should().Contain("nested-ps");
+        xml.ShouldContain("nested-ps");
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(ps);
 
-        xml.Should().Contain("ob-1");
+        xml.ShouldContain("ob-1");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(ps);
 
-        xml.Should().Contain("advice-1");
+        xml.ShouldContain("advice-1");
     }
 
     #endregion
@@ -157,8 +157,8 @@ public class XacmlSerializerGuardTests
 
         var act = () => sut.Serialize((Policy)null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("policy");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("policy");
     }
 
     [Fact]
@@ -169,9 +169,9 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(policy);
 
-        xml.Should().NotBeNullOrWhiteSpace();
-        xml.Should().Contain("Policy");
-        xml.Should().Contain("pol-1");
+        xml.ShouldNotBeNullOrWhiteSpace();
+        xml.ShouldContain("Policy");
+        xml.ShouldContain("pol-1");
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(policy);
 
-        xml.Should().Contain("rule-1");
+        xml.ShouldContain("rule-1");
     }
 
     [Fact]
@@ -241,8 +241,8 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(policy);
 
-        xml.Should().Contain("Condition");
-        xml.Should().Contain("Apply");
+        xml.ShouldContain("Condition");
+        xml.ShouldContain("Apply");
     }
 
     [Fact]
@@ -267,7 +267,7 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(policy);
 
-        xml.Should().Contain("threshold");
+        xml.ShouldContain("threshold");
     }
 
     [Fact]
@@ -314,10 +314,10 @@ public class XacmlSerializerGuardTests
 
         var xml = sut.Serialize(policy);
 
-        xml.Should().Contain("Target");
-        xml.Should().Contain("AnyOf");
-        xml.Should().Contain("AllOf");
-        xml.Should().Contain("Match");
+        xml.ShouldContain("Target");
+        xml.ShouldContain("AnyOf");
+        xml.ShouldContain("AllOf");
+        xml.ShouldContain("Match");
     }
 
     #endregion
@@ -331,7 +331,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicySet(null!);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -341,7 +341,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicySet("");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -351,7 +351,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicySet("   ");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -361,7 +361,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicySet("<not-valid-xml");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -371,7 +371,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicySet("<Policy xmlns=\"urn:oasis:names:tc:xacml:3.0:core:schema:wd-17\" />");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -385,7 +385,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicy(null!);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -395,7 +395,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicy("");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -405,7 +405,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicy("   ");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -415,7 +415,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicy("<broken xml>>");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -425,7 +425,7 @@ public class XacmlSerializerGuardTests
 
         var result = sut.DeserializePolicy("<PolicySet xmlns=\"urn:oasis:names:tc:xacml:3.0:core:schema:wd-17\" />");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -441,13 +441,13 @@ public class XacmlSerializerGuardTests
         var xml = sut.Serialize(original);
         var result = sut.DeserializePolicySet(xml);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
             Right: ps =>
             {
-                ps.Id.Should().Be(original.Id);
-                ps.IsEnabled.Should().Be(original.IsEnabled);
+                ps.Id.ShouldBe(original.Id);
+                ps.IsEnabled.ShouldBe(original.IsEnabled);
                 return 0;
             });
     }
@@ -461,13 +461,13 @@ public class XacmlSerializerGuardTests
         var xml = sut.Serialize(original);
         var result = sut.DeserializePolicy(xml);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
             Right: pol =>
             {
-                pol.Id.Should().Be(original.Id);
-                pol.IsEnabled.Should().Be(original.IsEnabled);
+                pol.Id.ShouldBe(original.Id);
+                pol.IsEnabled.ShouldBe(original.IsEnabled);
                 return 0;
             });
     }
@@ -483,7 +483,7 @@ public class XacmlSerializerGuardTests
 
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
-            Right: ps => { ps.IsEnabled.Should().BeFalse(); return 0; });
+            Right: ps => { ps.IsEnabled.ShouldBeFalse(); return 0; });
     }
 
     [Fact]
@@ -497,7 +497,7 @@ public class XacmlSerializerGuardTests
 
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
-            Right: ps => { ps.Priority.Should().Be(42); return 0; });
+            Right: ps => { ps.Priority.ShouldBe(42); return 0; });
     }
 
     [Fact]
@@ -541,15 +541,15 @@ public class XacmlSerializerGuardTests
         var xml = sut.Serialize(original);
         var result = sut.DeserializePolicy(xml);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
             Right: pol =>
             {
-                pol.Rules.Should().HaveCount(1);
-                pol.Rules[0].Id.Should().Be("rule-rt");
-                pol.Rules[0].Effect.Should().Be(Effect.Deny);
-                pol.Rules[0].Condition.Should().NotBeNull();
+                pol.Rules.Count.ShouldBe(1);
+                pol.Rules[0].Id.ShouldBe("rule-rt");
+                pol.Rules[0].Effect.ShouldBe(Effect.Deny);
+                pol.Rules[0].Condition.ShouldNotBeNull();
                 return 0;
             });
     }
@@ -595,16 +595,16 @@ public class XacmlSerializerGuardTests
         var xml = sut.Serialize(original);
         var result = sut.DeserializePolicy(xml);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
             Right: pol =>
             {
-                pol.Obligations.Should().HaveCount(1);
-                pol.Obligations[0].Id.Should().Be("ob-rt");
-                pol.Obligations[0].AttributeAssignments.Should().HaveCount(1);
-                pol.Advice.Should().HaveCount(1);
-                pol.Advice[0].Id.Should().Be("adv-rt");
+                pol.Obligations.Count.ShouldBe(1);
+                pol.Obligations[0].Id.ShouldBe("ob-rt");
+                pol.Obligations[0].AttributeAssignments.Count.ShouldBe(1);
+                pol.Advice.Count.ShouldBe(1);
+                pol.Advice[0].Id.ShouldBe("adv-rt");
                 return 0;
             });
     }
@@ -632,13 +632,13 @@ public class XacmlSerializerGuardTests
         var xml = sut.Serialize(original);
         var result = sut.DeserializePolicy(xml);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
             Right: pol =>
             {
-                pol.VariableDefinitions.Should().HaveCount(1);
-                pol.VariableDefinitions[0].VariableId.Should().Be("maxRetries");
+                pol.VariableDefinitions.Count.ShouldBe(1);
+                pol.VariableDefinitions[0].VariableId.ShouldBe("maxRetries");
                 return 0;
             });
     }

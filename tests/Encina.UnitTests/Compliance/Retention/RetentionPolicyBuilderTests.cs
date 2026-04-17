@@ -1,6 +1,6 @@
 using Encina.Compliance.Retention;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -16,8 +16,8 @@ public sealed class RetentionPolicyBuilderTests
 
         options.AddPolicy("test", p => p.RetainForDays(90));
 
-        options.ConfiguredPolicies.Should().HaveCount(1);
-        options.ConfiguredPolicies[0].RetentionPeriod.Should().Be(TimeSpan.FromDays(90));
+        options.ConfiguredPolicies.Count.ShouldBe(1);
+        options.ConfiguredPolicies[0].RetentionPeriod.ShouldBe(TimeSpan.FromDays(90));
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class RetentionPolicyBuilderTests
 
         options.AddPolicy("test", p => p.RetainForYears(7));
 
-        options.ConfiguredPolicies[0].RetentionPeriod.Should().Be(TimeSpan.FromDays(7 * 365));
+        options.ConfiguredPolicies[0].RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class RetentionPolicyBuilderTests
 
         options.AddPolicy("test", p => p.RetainFor(customPeriod));
 
-        options.ConfiguredPolicies[0].RetentionPeriod.Should().Be(customPeriod);
+        options.ConfiguredPolicies[0].RetentionPeriod.ShouldBe(customPeriod);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class RetentionPolicyBuilderTests
             p.WithAutoDelete();
         });
 
-        options.ConfiguredPolicies[0].AutoDelete.Should().BeTrue();
+        options.ConfiguredPolicies[0].AutoDelete.ShouldBeTrue();
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class RetentionPolicyBuilderTests
             p.WithAutoDelete(false);
         });
 
-        options.ConfiguredPolicies[0].AutoDelete.Should().BeFalse();
+        options.ConfiguredPolicies[0].AutoDelete.ShouldBeFalse();
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class RetentionPolicyBuilderTests
             p.WithReason("GDPR compliance");
         });
 
-        options.ConfiguredPolicies[0].Reason.Should().Be("GDPR compliance");
+        options.ConfiguredPolicies[0].Reason.ShouldBe("GDPR compliance");
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class RetentionPolicyBuilderTests
             p.WithLegalBasis("Article 5(1)(e)");
         });
 
-        options.ConfiguredPolicies[0].LegalBasis.Should().Be("Article 5(1)(e)");
+        options.ConfiguredPolicies[0].LegalBasis.ShouldBe("Article 5(1)(e)");
     }
 
     [Fact]
@@ -111,11 +111,11 @@ public sealed class RetentionPolicyBuilderTests
         });
 
         var descriptor = options.ConfiguredPolicies[0];
-        descriptor.DataCategory.Should().Be("financial");
-        descriptor.RetentionPeriod.Should().Be(TimeSpan.FromDays(3650));
-        descriptor.AutoDelete.Should().BeTrue();
-        descriptor.Reason.Should().Be("Tax law requirement");
-        descriptor.LegalBasis.Should().Be("German AO section 147");
+        descriptor.DataCategory.ShouldBe("financial");
+        descriptor.RetentionPeriod.ShouldBe(TimeSpan.FromDays(3650));
+        descriptor.AutoDelete.ShouldBeTrue();
+        descriptor.Reason.ShouldBe("Tax law requirement");
+        descriptor.LegalBasis.ShouldBe("German AO section 147");
     }
 
     [Fact]
@@ -127,8 +127,8 @@ public sealed class RetentionPolicyBuilderTests
             .AddPolicy("cat1", p => p.RetainForDays(30))
             .AddPolicy("cat2", p => p.RetainForDays(60));
 
-        result.Should().BeSameAs(options);
-        options.ConfiguredPolicies.Should().HaveCount(2);
+        result.ShouldBeSameAs(options);
+        options.ConfiguredPolicies.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -139,9 +139,9 @@ public sealed class RetentionPolicyBuilderTests
         options.AddPolicy("test", _ => { });
 
         var descriptor = options.ConfiguredPolicies[0];
-        descriptor.RetentionPeriod.Should().Be(TimeSpan.FromDays(365));
-        descriptor.AutoDelete.Should().BeTrue();
-        descriptor.Reason.Should().BeNull();
-        descriptor.LegalBasis.Should().BeNull();
+        descriptor.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
+        descriptor.AutoDelete.ShouldBeTrue();
+        descriptor.Reason.ShouldBeNull();
+        descriptor.LegalBasis.ShouldBeNull();
     }
 }

@@ -1,6 +1,6 @@
 using System.Globalization;
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -21,10 +21,10 @@ public class PagedResultTests
         var result = new PagedResult<string>(items, PageNumber: 2, PageSize: 10, TotalCount: 50);
 
         // Assert
-        result.Items.Should().BeEquivalentTo(items);
-        result.PageNumber.Should().Be(2);
-        result.PageSize.Should().Be(10);
-        result.TotalCount.Should().Be(50);
+        result.Items.ShouldBe(items);
+        result.PageNumber.ShouldBe(2);
+        result.PageSize.ShouldBe(10);
+        result.TotalCount.ShouldBe(50);
     }
 
     [Fact]
@@ -34,8 +34,8 @@ public class PagedResultTests
         var result = new PagedResult<string>([], PageNumber: 1, PageSize: 10, TotalCount: 0);
 
         // Assert
-        result.Items.Should().BeEmpty();
-        result.TotalCount.Should().Be(0);
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
     }
 
     #endregion
@@ -59,7 +59,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, pageSize, totalCount);
 
         // Assert
-        result.TotalPages.Should().Be(expectedPages);
+        result.TotalPages.ShouldBe(expectedPages);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 0, 100);
 
         // Assert - Division by zero protection
-        result.TotalPages.Should().Be(0);
+        result.TotalPages.ShouldBe(0);
     }
 
     #endregion
@@ -87,7 +87,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], pageNumber, 10, 1000);
 
         // Assert
-        result.HasPreviousPage.Should().Be(expected);
+        result.HasPreviousPage.ShouldBe(expected);
     }
 
     #endregion
@@ -101,7 +101,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 10, 100);
 
         // Assert
-        result.HasNextPage.Should().BeTrue();
+        result.HasNextPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 10, 10, 100);
 
         // Assert
-        result.HasNextPage.Should().BeFalse();
+        result.HasNextPage.ShouldBeFalse();
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 5, 10, 100);
 
         // Assert
-        result.HasNextPage.Should().BeTrue();
+        result.HasNextPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 10, 5);
 
         // Assert
-        result.HasNextPage.Should().BeFalse();
+        result.HasNextPage.ShouldBeFalse();
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 10, 0);
 
         // Assert
-        result.HasNextPage.Should().BeFalse();
+        result.HasNextPage.ShouldBeFalse();
     }
 
     #endregion
@@ -155,7 +155,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 10, 0);
 
         // Assert
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class PagedResultTests
         var result = new PagedResult<string>(["item"], 1, 10, 1);
 
         // Assert
-        result.IsEmpty.Should().BeFalse();
+        result.IsEmpty.ShouldBeFalse();
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 20, 10, 100);
 
         // Assert - Based on current page items count
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     #endregion
@@ -197,7 +197,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], pageNumber, pageSize, totalCount);
 
         // Assert
-        result.FirstItemIndex.Should().Be(expectedIndex);
+        result.FirstItemIndex.ShouldBe(expectedIndex);
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 10, 0);
 
         // Assert
-        result.FirstItemIndex.Should().Be(0);
+        result.FirstItemIndex.ShouldBe(0);
     }
 
     [Fact]
@@ -217,8 +217,8 @@ public class PagedResultTests
         var result = new PagedResult<string>(["item"], 5, 20, 100);
 
         // Act & Assert
-        result.FirstItemIndex.Should().Be((5 - 1) * 20 + 1);
-        result.FirstItemIndex.Should().Be(81);
+        result.FirstItemIndex.ShouldBe((5 - 1) * 20 + 1);
+        result.FirstItemIndex.ShouldBe(81);
     }
 
     #endregion
@@ -239,7 +239,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], pageNumber, pageSize, totalCount);
 
         // Assert
-        result.LastItemIndex.Should().Be(expectedIndex);
+        result.LastItemIndex.ShouldBe(expectedIndex);
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 10, 0);
 
         // Assert
-        result.LastItemIndex.Should().Be(0);
+        result.LastItemIndex.ShouldBe(0);
     }
 
     [Fact]
@@ -260,8 +260,8 @@ public class PagedResultTests
 
         // Act & Assert
         // Page 5 would normally show items 81-100, but total is only 92
-        result.LastItemIndex.Should().Be(92);
-        result.LastItemIndex.Should().BeLessThanOrEqualTo(result.TotalCount);
+        result.LastItemIndex.ShouldBe(92);
+        result.LastItemIndex.ShouldBeLessThanOrEqualTo(result.TotalCount);
     }
 
     #endregion
@@ -275,9 +275,9 @@ public class PagedResultTests
         var result = PagedResult<string>.Empty();
 
         // Assert
-        result.Items.Should().BeEmpty();
-        result.TotalCount.Should().Be(0);
-        result.IsEmpty.Should().BeTrue();
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
+        result.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -287,8 +287,8 @@ public class PagedResultTests
         var result = PagedResult<string>.Empty();
 
         // Assert
-        result.PageNumber.Should().Be(1);
-        result.PageSize.Should().Be(10);
+        result.PageNumber.ShouldBe(1);
+        result.PageSize.ShouldBe(10);
     }
 
     [Fact]
@@ -298,7 +298,7 @@ public class PagedResultTests
         var result = PagedResult<string>.Empty(pageNumber: 5);
 
         // Assert
-        result.PageNumber.Should().Be(5);
+        result.PageNumber.ShouldBe(5);
     }
 
     [Fact]
@@ -308,7 +308,7 @@ public class PagedResultTests
         var result = PagedResult<string>.Empty(pageSize: 100);
 
         // Assert
-        result.PageSize.Should().Be(100);
+        result.PageSize.ShouldBe(100);
     }
 
     [Fact]
@@ -318,8 +318,8 @@ public class PagedResultTests
         var result = PagedResult<string>.Empty(pageNumber: 3, pageSize: 25);
 
         // Assert
-        result.PageNumber.Should().Be(3);
-        result.PageSize.Should().Be(25);
+        result.PageNumber.ShouldBe(3);
+        result.PageSize.ShouldBe(25);
     }
 
     #endregion
@@ -337,7 +337,7 @@ public class PagedResultTests
         var mapped = result.Map(x => x * 2);
 
         // Assert
-        mapped.Items.Should().BeEquivalentTo([2, 4, 6]);
+        mapped.Items.ShouldBe([2, 4, 6]);
     }
 
     [Fact]
@@ -350,10 +350,10 @@ public class PagedResultTests
         var mapped = result.Map(x => x.ToString(CultureInfo.InvariantCulture));
 
         // Assert
-        mapped.PageNumber.Should().Be(2);
-        mapped.PageSize.Should().Be(10);
-        mapped.TotalCount.Should().Be(50);
-        mapped.TotalPages.Should().Be(5);
+        mapped.PageNumber.ShouldBe(2);
+        mapped.PageSize.ShouldBe(10);
+        mapped.TotalCount.ShouldBe(50);
+        mapped.TotalPages.ShouldBe(5);
     }
 
     [Fact]
@@ -366,8 +366,8 @@ public class PagedResultTests
         var mapped = result.Map(x => x.ToString(CultureInfo.InvariantCulture));
 
         // Assert
-        mapped.Items.Should().BeEmpty();
-        mapped.IsEmpty.Should().BeTrue();
+        mapped.Items.ShouldBeEmpty();
+        mapped.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -377,8 +377,8 @@ public class PagedResultTests
         var result = new PagedResult<int>([1], 1, 10, 1);
 
         // Act & Assert
-        var action = () => result.Map<string>(null!);
-        action.Should().Throw<ArgumentNullException>();
+        Action action = () => result.Map<string>(null!);
+        Should.Throw<ArgumentNullException>(action);
     }
 
     [Fact]
@@ -392,9 +392,9 @@ public class PagedResultTests
         var mapped = result.Map(x => new { Id = x, Name = $"Item-{x}" });
 
         // Assert
-        mapped.Items.Should().HaveCount(3);
-        mapped.Items[0].Id.Should().Be(1);
-        mapped.Items[0].Name.Should().Be("Item-1");
+        mapped.Items.Count.ShouldBe(3);
+        mapped.Items[0].Id.ShouldBe(1);
+        mapped.Items[0].Name.ShouldBe("Item-1");
     }
 
     #endregion
@@ -409,11 +409,11 @@ public class PagedResultTests
         var result = new PagedResult<string>(items, 1, 10, 95);
 
         // Assert
-        result.TotalPages.Should().Be(10);
-        result.HasPreviousPage.Should().BeFalse();
-        result.HasNextPage.Should().BeTrue();
-        result.FirstItemIndex.Should().Be(1);
-        result.LastItemIndex.Should().Be(10);
+        result.TotalPages.ShouldBe(10);
+        result.HasPreviousPage.ShouldBeFalse();
+        result.HasNextPage.ShouldBeTrue();
+        result.FirstItemIndex.ShouldBe(1);
+        result.LastItemIndex.ShouldBe(10);
     }
 
     [Fact]
@@ -424,11 +424,11 @@ public class PagedResultTests
         var result = new PagedResult<string>(items, 5, 10, 95);
 
         // Assert
-        result.TotalPages.Should().Be(10);
-        result.HasPreviousPage.Should().BeTrue();
-        result.HasNextPage.Should().BeTrue();
-        result.FirstItemIndex.Should().Be(41);
-        result.LastItemIndex.Should().Be(50);
+        result.TotalPages.ShouldBe(10);
+        result.HasPreviousPage.ShouldBeTrue();
+        result.HasNextPage.ShouldBeTrue();
+        result.FirstItemIndex.ShouldBe(41);
+        result.LastItemIndex.ShouldBe(50);
     }
 
     [Fact]
@@ -439,11 +439,11 @@ public class PagedResultTests
         var result = new PagedResult<string>(items, 10, 10, 95);
 
         // Assert
-        result.TotalPages.Should().Be(10);
-        result.HasPreviousPage.Should().BeTrue();
-        result.HasNextPage.Should().BeFalse();
-        result.FirstItemIndex.Should().Be(91);
-        result.LastItemIndex.Should().Be(95);
+        result.TotalPages.ShouldBe(10);
+        result.HasPreviousPage.ShouldBeTrue();
+        result.HasNextPage.ShouldBeFalse();
+        result.FirstItemIndex.ShouldBe(91);
+        result.LastItemIndex.ShouldBe(95);
     }
 
     [Fact]
@@ -454,11 +454,11 @@ public class PagedResultTests
         var result = new PagedResult<string>(items, 1, 10, 7);
 
         // Assert
-        result.TotalPages.Should().Be(1);
-        result.HasPreviousPage.Should().BeFalse();
-        result.HasNextPage.Should().BeFalse();
-        result.FirstItemIndex.Should().Be(1);
-        result.LastItemIndex.Should().Be(7);
+        result.TotalPages.ShouldBe(1);
+        result.HasPreviousPage.ShouldBeFalse();
+        result.HasNextPage.ShouldBeFalse();
+        result.FirstItemIndex.ShouldBe(1);
+        result.LastItemIndex.ShouldBe(7);
     }
 
     [Fact]
@@ -472,7 +472,7 @@ public class PagedResultTests
         var displayText = $"Showing {result.FirstItemIndex}-{result.LastItemIndex} of {result.TotalCount}";
 
         // Assert
-        displayText.Should().Be("Showing 11-20 of 45");
+        displayText.ShouldBe("Showing 11-20 of 45");
     }
 
     #endregion
@@ -488,8 +488,8 @@ public class PagedResultTests
         var result2 = new PagedResult<int>(items, 1, 10, 100);
 
         // Assert - Same Items reference means records are equal
-        result1.Should().Be(result2);
-        (result1 == result2).Should().BeTrue();
+        result1.ShouldBe(result2);
+        (result1 == result2).ShouldBeTrue();
     }
 
     [Fact]
@@ -501,7 +501,7 @@ public class PagedResultTests
         var result2 = new PagedResult<int>([1, 2, 3], 1, 10, 100);
 
         // Assert - Different Items reference means records are not equal
-        result1.Should().NotBe(result2);
+        result1.ShouldNotBe(result2);
     }
 
     [Fact]
@@ -512,18 +512,18 @@ public class PagedResultTests
         var result2 = new PagedResult<int>([4, 5, 6], 1, 10, 100);
 
         // Assert
-        result1.Should().NotBe(result2);
+        result1.ShouldNotBe(result2);
     }
 
     [Fact]
     public void BeEquivalentTo_SameValues_ShouldSucceed()
     {
-        // Arrange - For structural comparison, use BeEquivalentTo
+        // Arrange - For structural comparison, use ShouldBeEquivalentTo
         var result1 = new PagedResult<int>([1, 2, 3], 1, 10, 100);
         var result2 = new PagedResult<int>([1, 2, 3], 1, 10, 100);
 
-        // Assert - Structural equality comparison
-        result1.Should().BeEquivalentTo(result2);
+        // Assert - Structural equality comparison (ShouldBe fails due to ReadOnlyArray reference equality)
+        result1.ShouldBeEquivalentTo(result2);
     }
 
     #endregion
@@ -537,8 +537,8 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 1, 100, 1_000_000);
 
         // Assert
-        result.TotalPages.Should().Be(10_000);
-        result.HasNextPage.Should().BeTrue();
+        result.TotalPages.ShouldBe(10_000);
+        result.HasNextPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -548,10 +548,10 @@ public class PagedResultTests
         var result = new PagedResult<string>([], 20, 10, 95);
 
         // Assert
-        result.Items.Should().BeEmpty();
-        result.TotalPages.Should().Be(10);
-        result.HasPreviousPage.Should().BeTrue();
-        result.HasNextPage.Should().BeFalse(); // Page 20 > TotalPages (10)
+        result.Items.ShouldBeEmpty();
+        result.TotalPages.ShouldBe(10);
+        result.HasPreviousPage.ShouldBeTrue();
+        result.HasNextPage.ShouldBeFalse(); // Page 20 > TotalPages (10)
     }
 
     #endregion

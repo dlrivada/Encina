@@ -2,7 +2,7 @@ using Encina.Compliance.Consent;
 using Encina.Compliance.Consent.Events;
 using Encina.Compliance.Consent.ReadModels;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent.ReadModels;
 
@@ -62,7 +62,7 @@ public class ConsentProjectionTests
         var name = _sut.ProjectionName;
 
         // Assert
-        name.Should().Be("ConsentProjection");
+        name.ShouldBe("ConsentProjection");
     }
 
     #endregion
@@ -97,19 +97,19 @@ public class ConsentProjectionTests
         var result = _sut.Create(granted, _context);
 
         // Assert
-        result.Id.Should().Be(consentId);
-        result.DataSubjectId.Should().Be("subject-456");
-        result.Purpose.Should().Be("analytics");
-        result.ConsentVersionId.Should().Be("v2.1");
-        result.Source.Should().Be("mobile-app");
-        result.IpAddress.Should().Be("10.0.0.1");
-        result.ProofOfConsent.Should().Be("hash-xyz");
-        result.Metadata.Should().BeEquivalentTo(metadata);
-        result.ExpiresAtUtc.Should().Be(expiresAt);
-        result.GivenAtUtc.Should().Be(occurredAt);
-        result.TenantId.Should().Be("tenant-A");
-        result.ModuleId.Should().Be("module-B");
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
+        result.Id.ShouldBe(consentId);
+        result.DataSubjectId.ShouldBe("subject-456");
+        result.Purpose.ShouldBe("analytics");
+        result.ConsentVersionId.ShouldBe("v2.1");
+        result.Source.ShouldBe("mobile-app");
+        result.IpAddress.ShouldBe("10.0.0.1");
+        result.ProofOfConsent.ShouldBe("hash-xyz");
+        result.Metadata.ShouldBe(metadata);
+        result.ExpiresAtUtc.ShouldBe(expiresAt);
+        result.GivenAtUtc.ShouldBe(occurredAt);
+        result.TenantId.ShouldBe("tenant-A");
+        result.ModuleId.ShouldBe("module-B");
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class ConsentProjectionTests
         var result = _sut.Create(granted, _context);
 
         // Assert
-        result.Status.Should().Be(ConsentStatus.Active);
+        result.Status.ShouldBe(ConsentStatus.Active);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class ConsentProjectionTests
         var result = _sut.Create(granted, _context);
 
         // Assert
-        result.Version.Should().Be(1);
+        result.Version.ShouldBe(1);
     }
 
     #endregion
@@ -160,9 +160,9 @@ public class ConsentProjectionTests
         var result = _sut.Apply(withdrawn, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(ConsentStatus.Withdrawn);
-        result.WithdrawnAtUtc.Should().Be(withdrawnAt);
-        result.LastModifiedAtUtc.Should().Be(withdrawnAt);
+        result.Status.ShouldBe(ConsentStatus.Withdrawn);
+        result.WithdrawnAtUtc.ShouldBe(withdrawnAt);
+        result.LastModifiedAtUtc.ShouldBe(withdrawnAt);
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public class ConsentProjectionTests
         var result = _sut.Apply(withdrawn, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(4);
+        result.Version.ShouldBe(4);
     }
 
     #endregion
@@ -206,8 +206,8 @@ public class ConsentProjectionTests
         var result = _sut.Apply(expired, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(ConsentStatus.Expired);
-        result.LastModifiedAtUtc.Should().Be(expiredAt);
+        result.Status.ShouldBe(ConsentStatus.Expired);
+        result.LastModifiedAtUtc.ShouldBe(expiredAt);
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class ConsentProjectionTests
         var result = _sut.Apply(expired, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(3);
+        result.Version.ShouldBe(3);
     }
 
     #endregion
@@ -254,10 +254,10 @@ public class ConsentProjectionTests
         var result = _sut.Apply(renewed, readModel, _context);
 
         // Assert
-        result.ConsentVersionId.Should().Be("v2.0");
-        result.ExpiresAtUtc.Should().Be(newExpiry);
-        result.Source.Should().Be("api");
-        result.LastModifiedAtUtc.Should().Be(renewedAt);
+        result.ConsentVersionId.ShouldBe("v2.0");
+        result.ExpiresAtUtc.ShouldBe(newExpiry);
+        result.Source.ShouldBe("api");
+        result.LastModifiedAtUtc.ShouldBe(renewedAt);
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public class ConsentProjectionTests
         var result = _sut.Apply(renewed, readModel, _context);
 
         // Assert
-        result.Source.Should().Be(originalSource);
+        result.Source.ShouldBe(originalSource);
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public class ConsentProjectionTests
         var result = _sut.Apply(renewed, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(6);
+        result.Version.ShouldBe(6);
     }
 
     #endregion
@@ -330,9 +330,9 @@ public class ConsentProjectionTests
         var result = _sut.Apply(versionChanged, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(ConsentStatus.RequiresReconsent);
-        result.ConsentVersionId.Should().Be("v2.0");
-        result.LastModifiedAtUtc.Should().Be(changedAt);
+        result.Status.ShouldBe(ConsentStatus.RequiresReconsent);
+        result.ConsentVersionId.ShouldBe("v2.0");
+        result.LastModifiedAtUtc.ShouldBe(changedAt);
     }
 
     [Fact]
@@ -355,8 +355,8 @@ public class ConsentProjectionTests
         var result = _sut.Apply(versionChanged, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(ConsentStatus.Active);
-        result.ConsentVersionId.Should().Be("v1.1");
+        result.Status.ShouldBe(ConsentStatus.Active);
+        result.ConsentVersionId.ShouldBe("v1.1");
     }
 
     #endregion
@@ -392,15 +392,15 @@ public class ConsentProjectionTests
         var result = _sut.Apply(reconsent, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(ConsentStatus.Active);
-        result.ConsentVersionId.Should().Be("v2.0");
-        result.Source.Should().Be("api");
-        result.IpAddress.Should().Be("10.0.0.99");
-        result.ProofOfConsent.Should().Be("new-hash-def");
-        result.Metadata.Should().BeEquivalentTo(newMetadata);
-        result.ExpiresAtUtc.Should().Be(newExpiry);
-        result.WithdrawnAtUtc.Should().BeNull();
-        result.LastModifiedAtUtc.Should().Be(reconsentAt);
+        result.Status.ShouldBe(ConsentStatus.Active);
+        result.ConsentVersionId.ShouldBe("v2.0");
+        result.Source.ShouldBe("api");
+        result.IpAddress.ShouldBe("10.0.0.99");
+        result.ProofOfConsent.ShouldBe("new-hash-def");
+        result.Metadata.ShouldBe(newMetadata);
+        result.ExpiresAtUtc.ShouldBe(newExpiry);
+        result.WithdrawnAtUtc.ShouldBeNull();
+        result.LastModifiedAtUtc.ShouldBe(reconsentAt);
     }
 
     [Fact]
@@ -427,7 +427,7 @@ public class ConsentProjectionTests
         var result = _sut.Apply(reconsent, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(5);
+        result.Version.ShouldBe(5);
     }
 
     #endregion
@@ -451,8 +451,8 @@ public class ConsentProjectionTests
             occurredAtUtc: t0);
 
         var readModel = _sut.Create(granted, _context);
-        readModel.Status.Should().Be(ConsentStatus.Active);
-        readModel.Version.Should().Be(1);
+        readModel.Status.ShouldBe(ConsentStatus.Active);
+        readModel.Version.ShouldBe(1);
 
         // Step 2: Version change requiring reconsent
         var t1 = t0.AddDays(30);
@@ -468,9 +468,9 @@ public class ConsentProjectionTests
             OccurredAtUtc: t1);
 
         readModel = _sut.Apply(versionChanged, readModel, _context);
-        readModel.Status.Should().Be(ConsentStatus.RequiresReconsent);
-        readModel.ConsentVersionId.Should().Be("v2.0");
-        readModel.Version.Should().Be(2);
+        readModel.Status.ShouldBe(ConsentStatus.RequiresReconsent);
+        readModel.ConsentVersionId.ShouldBe("v2.0");
+        readModel.Version.ShouldBe(2);
 
         // Step 3: Data subject provides reconsent
         var t2 = t1.AddDays(5);
@@ -488,10 +488,10 @@ public class ConsentProjectionTests
             OccurredAtUtc: t2);
 
         readModel = _sut.Apply(reconsent, readModel, _context);
-        readModel.Status.Should().Be(ConsentStatus.Active);
-        readModel.Source.Should().Be("mobile-app");
-        readModel.WithdrawnAtUtc.Should().BeNull();
-        readModel.Version.Should().Be(3);
+        readModel.Status.ShouldBe(ConsentStatus.Active);
+        readModel.Source.ShouldBe("mobile-app");
+        readModel.WithdrawnAtUtc.ShouldBeNull();
+        readModel.Version.ShouldBe(3);
 
         // Step 4: Data subject withdraws consent
         var t3 = t2.AddDays(60);
@@ -504,10 +504,10 @@ public class ConsentProjectionTests
             OccurredAtUtc: t3);
 
         readModel = _sut.Apply(withdrawn, readModel, _context);
-        readModel.Status.Should().Be(ConsentStatus.Withdrawn);
-        readModel.WithdrawnAtUtc.Should().Be(t3);
-        readModel.LastModifiedAtUtc.Should().Be(t3);
-        readModel.Version.Should().Be(4);
+        readModel.Status.ShouldBe(ConsentStatus.Withdrawn);
+        readModel.WithdrawnAtUtc.ShouldBe(t3);
+        readModel.LastModifiedAtUtc.ShouldBe(t3);
+        readModel.Version.ShouldBe(4);
     }
 
     #endregion

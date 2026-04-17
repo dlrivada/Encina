@@ -4,19 +4,14 @@ using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.DPIA;
@@ -76,8 +71,8 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
         await _service.DidNotReceive().GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -93,8 +88,8 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithoutDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
         await _service.DidNotReceive().GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -112,9 +107,9 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(DPIAErrors.AssessmentRequiredCode);
+        error.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentRequiredCode);
     }
 
     #endregion
@@ -136,7 +131,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -150,9 +145,9 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(DPIAErrors.AssessmentRejectedCode);
+        error.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentRejectedCode);
     }
 
     #endregion
@@ -170,9 +165,9 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(DPIAErrors.AssessmentExpiredCode);
+        error.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentExpiredCode);
     }
 
     [Fact]
@@ -186,9 +181,9 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(DPIAErrors.AssessmentExpiredCode);
+        error.GetEncinaCode().ShouldBe(DPIAErrors.AssessmentExpiredCode);
     }
 
     #endregion
@@ -206,8 +201,8 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
     }
 
     [Fact]
@@ -221,7 +216,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -238,8 +233,8 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
     }
 
     [Fact]
@@ -253,7 +248,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -267,7 +262,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -285,7 +280,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -299,7 +294,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -316,9 +311,9 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, FailNext(), CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(DPIAErrors.StoreErrorCode);
+        error.GetEncinaCode().ShouldBe(DPIAErrors.StoreErrorCode);
     }
 
     [Fact]
@@ -331,7 +326,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -350,7 +345,7 @@ public class DPIARequiredPipelineBehaviorTests
         var result = await sut.Handle(
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -369,7 +364,7 @@ public class DPIARequiredPipelineBehaviorTests
             new TestCommandWithDPIA(), _context, SuccessNext(), CancellationToken.None);
 
         // Warn mode lets the request through even without assessment
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion

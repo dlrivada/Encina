@@ -1,12 +1,9 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
@@ -30,9 +27,9 @@ public class DefaultRegionContextProviderTests
         var result = await sut.GetCurrentRegionAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var region = result.Match(Right: r => r, Left: _ => default!);
-        region.Should().Be(RegionRegistry.DE);
+        region.ShouldBe(RegionRegistry.DE);
     }
 
     [Fact]
@@ -49,7 +46,7 @@ public class DefaultRegionContextProviderTests
         var result = await sut.GetCurrentRegionAsync();
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -59,7 +56,7 @@ public class DefaultRegionContextProviderTests
         var act = () => new DefaultRegionContextProvider(null!, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -70,6 +67,6 @@ public class DefaultRegionContextProviderTests
             Substitute.For<IOptions<DataResidencyOptions>>(), null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 }

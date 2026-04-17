@@ -2,13 +2,9 @@
 
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Time.Testing;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
@@ -44,9 +40,9 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.AssessedAtUtc.Should().NotBe(default);
+        assessment.AssessedAtUtc.ShouldNotBe(default);
     }
 
     [Fact]
@@ -66,9 +62,9 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.AssessedAtUtc.Should().Be(fixedTime);
+        assessment.AssessedAtUtc.ShouldBe(fixedTime);
     }
 
     #endregion
@@ -76,21 +72,19 @@ public class DefaultRiskAssessorTests
     #region Validation Tests
 
     [Fact]
-    public void AssessAsync_NullDataset_ThrowsArgumentNullException()
+    public async Task AssessAsync_NullDataset_ThrowsArgumentNullException()
     {
         // Arrange
         var sut = new DefaultRiskAssessor();
 
-        // Act
-        var act = () => sut.AssessAsync<TestRecord>(null!, ["City"]);
-
-        // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("dataset");
+        // Act & Assert
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
+            async () => await sut.AssessAsync<TestRecord>(null!, ["City"]).ConfigureAwait(false));
+        ex.ParamName.ShouldBe("dataset");
     }
 
     [Fact]
-    public void AssessAsync_NullQuasiIdentifiers_ThrowsArgumentNullException()
+    public async Task AssessAsync_NullQuasiIdentifiers_ThrowsArgumentNullException()
     {
         // Arrange
         var sut = new DefaultRiskAssessor();
@@ -100,12 +94,10 @@ public class DefaultRiskAssessorTests
             new() { City = "LA", Age = 25, Gender = "F", Diagnosis = "Cold", Salary = 60000 },
         };
 
-        // Act
-        var act = () => sut.AssessAsync<TestRecord>(dataset, null!);
-
-        // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("quasiIdentifiers");
+        // Act & Assert
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
+            async () => await sut.AssessAsync<TestRecord>(dataset, null!).ConfigureAwait(false));
+        ex.ParamName.ShouldBe("quasiIdentifiers");
     }
 
     [Theory]
@@ -123,7 +115,7 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City"]);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -141,7 +133,7 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, []);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -159,7 +151,7 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["NonExistentProperty", "AnotherFake"]);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -184,9 +176,9 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City", "Age", "Gender"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.KAnonymityValue.Should().Be(5);
+        assessment.KAnonymityValue.ShouldBe(5);
     }
 
     [Fact]
@@ -205,10 +197,10 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City", "Age", "Gender"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.KAnonymityValue.Should().Be(1);
-        assessment.IsAcceptable.Should().BeFalse();
+        assessment.KAnonymityValue.ShouldBe(1);
+        assessment.IsAcceptable.ShouldBeFalse();
     }
 
     [Fact]
@@ -229,9 +221,9 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City", "Age", "Gender"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.Recommendations.Should().NotBeEmpty();
+        assessment.Recommendations.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -256,10 +248,10 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City", "Age", "Gender"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.IsAcceptable.Should().BeTrue();
-        assessment.Recommendations.Should().BeEmpty();
+        assessment.IsAcceptable.ShouldBeTrue();
+        assessment.Recommendations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -281,9 +273,9 @@ public class DefaultRiskAssessorTests
         var result = await sut.AssessAsync<TestRecord>(dataset, ["City", "Age", "Gender"]);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: r => r, Left: _ => null!);
-        assessment.ReIdentificationProbability.Should().BeApproximately(1.0 / 5.0, 0.0001);
+        assessment.ReIdentificationProbability.ShouldBe(1.0 / 5.0, 0.0001);
     }
 
     #endregion

@@ -1,6 +1,6 @@
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 
@@ -24,10 +24,10 @@ public sealed class NIS2ComplianceResultTests
             NIS2EntityType.Essential, NIS2Sector.Energy, results, DateTimeOffset.UtcNow);
 
         // Assert
-        result.IsCompliant.Should().BeTrue();
-        result.MissingCount.Should().Be(0);
-        result.MissingMeasures.Should().BeEmpty();
-        result.CompliancePercentage.Should().Be(100);
+        result.IsCompliant.ShouldBeTrue();
+        result.MissingCount.ShouldBe(0);
+        result.MissingMeasures.ShouldBeEmpty();
+        result.CompliancePercentage.ShouldBe(100);
     }
 
     [Fact]
@@ -46,10 +46,10 @@ public sealed class NIS2ComplianceResultTests
             NIS2EntityType.Important, NIS2Sector.Health, results, DateTimeOffset.UtcNow);
 
         // Assert
-        result.IsCompliant.Should().BeFalse();
-        result.MissingCount.Should().Be(1);
-        result.MissingMeasures.Should().Contain(NIS2Measure.IncidentHandling);
-        result.CompliancePercentage.Should().Be(66); // 2/3 * 100 = 66 (integer division)
+        result.IsCompliant.ShouldBeFalse();
+        result.MissingCount.ShouldBe(1);
+        result.MissingMeasures.ShouldContain(NIS2Measure.IncidentHandling);
+        result.CompliancePercentage.ShouldBe(66); // 2/3 * 100 = 66 (integer division)
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public sealed class NIS2ComplianceResultTests
             NIS2EntityType.Essential, NIS2Sector.Transport, results, DateTimeOffset.UtcNow);
 
         // Assert
-        result.IsCompliant.Should().BeFalse();
-        result.MissingCount.Should().Be(2);
-        result.CompliancePercentage.Should().Be(0);
+        result.IsCompliant.ShouldBeFalse();
+        result.MissingCount.ShouldBe(2);
+        result.CompliancePercentage.ShouldBe(0);
     }
 
     [Fact]
@@ -80,9 +80,9 @@ public sealed class NIS2ComplianceResultTests
             NIS2EntityType.Essential, NIS2Sector.Energy, [], DateTimeOffset.UtcNow);
 
         // Assert — no measures evaluated: IsCompliant is true (no missing), but percentage is 0 (no results)
-        result.IsCompliant.Should().BeTrue();
-        result.MissingCount.Should().Be(0);
-        result.CompliancePercentage.Should().Be(0);
+        result.IsCompliant.ShouldBeTrue();
+        result.MissingCount.ShouldBe(0);
+        result.CompliancePercentage.ShouldBe(0);
     }
 
     [Fact]
@@ -94,9 +94,9 @@ public sealed class NIS2ComplianceResultTests
             NIS2EntityType.Important, NIS2Sector.Banking, [], now);
 
         // Assert
-        result.EntityType.Should().Be(NIS2EntityType.Important);
-        result.Sector.Should().Be(NIS2Sector.Banking);
-        result.EvaluatedAtUtc.Should().Be(now);
+        result.EntityType.ShouldBe(NIS2EntityType.Important);
+        result.Sector.ShouldBe(NIS2Sector.Banking);
+        result.EvaluatedAtUtc.ShouldBe(now);
     }
 
     #endregion
@@ -118,7 +118,7 @@ public sealed class NIS2ComplianceResultTests
             NIS2EntityType.Essential, NIS2Sector.Energy, results, DateTimeOffset.UtcNow);
 
         // Assert
-        result.CompliancePercentage.Should().Be(10); // 1/10 = 10%
+        result.CompliancePercentage.ShouldBe(10); // 1/10 = 10%
     }
 
     #endregion

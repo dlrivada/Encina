@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -34,7 +34,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "admin", "user");
 
         Eval(XACMLFunctionIds.AnyOfFunc, XACMLFunctionIds.StringEqual, "admin", bag)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -44,14 +44,14 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "admin", "user");
 
         Eval(XACMLFunctionIds.AnyOfFunc, XACMLFunctionIds.StringEqual, "manager", bag)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
     public void AnyOf_EmptyBag_ReturnsFalse()
     {
         Eval(XACMLFunctionIds.AnyOfFunc, XACMLFunctionIds.StringEqual, "admin", AttributeBag.Empty)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
@@ -60,8 +60,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "a");
         var fn = _registry.GetFunction(XACMLFunctionIds.AnyOfFunc)!;
         var act = () => fn.Evaluate(["nonexistent-function", "a", bag]);
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*nonexistent-function*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("nonexistent-function");
     }
 
     [Fact]
@@ -69,7 +68,7 @@ public sealed class HigherOrderFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.AnyOfFunc)!;
         var act = () => fn.Evaluate(["string-equal", "a"]);
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -83,7 +82,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.Integer, 1, 2, 3);
 
         Eval(XACMLFunctionIds.AllOfFunc, XACMLFunctionIds.IntegerGreaterThan, 10, bag)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -93,7 +92,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "admin", "user");
 
         Eval(XACMLFunctionIds.AllOfFunc, XACMLFunctionIds.StringEqual, "admin", bag)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
@@ -101,7 +100,7 @@ public sealed class HigherOrderFunctionsTests
     {
         // Vacuous truth: all elements match when there are no elements
         Eval(XACMLFunctionIds.AllOfFunc, XACMLFunctionIds.StringEqual, "admin", AttributeBag.Empty)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -110,7 +109,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "admin");
 
         Eval(XACMLFunctionIds.AllOfFunc, XACMLFunctionIds.StringEqual, "admin", bag)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     #endregion
@@ -125,7 +124,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.String, "b", "c");
 
         Eval(XACMLFunctionIds.AnyOfAny, XACMLFunctionIds.StringEqual, bag1, bag2)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -135,7 +134,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.String, "c", "d");
 
         Eval(XACMLFunctionIds.AnyOfAny, XACMLFunctionIds.StringEqual, bag1, bag2)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
@@ -144,14 +143,14 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.String, "a");
 
         Eval(XACMLFunctionIds.AnyOfAny, XACMLFunctionIds.StringEqual, AttributeBag.Empty, bag2)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
     public void AnyOfAny_BothEmpty_ReturnsFalse()
     {
         Eval(XACMLFunctionIds.AnyOfAny, XACMLFunctionIds.StringEqual, AttributeBag.Empty, AttributeBag.Empty)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     #endregion
@@ -167,7 +166,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "b", "c");
 
         Eval(XACMLFunctionIds.AllOfAny, XACMLFunctionIds.StringEqual, bag1, bag2)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -179,7 +178,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "b");
 
         Eval(XACMLFunctionIds.AllOfAny, XACMLFunctionIds.StringEqual, bag1, bag2)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
@@ -189,7 +188,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.String, "a");
 
         Eval(XACMLFunctionIds.AllOfAny, XACMLFunctionIds.StringEqual, AttributeBag.Empty, bag2)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -198,7 +197,7 @@ public sealed class HigherOrderFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a");
 
         Eval(XACMLFunctionIds.AllOfAny, XACMLFunctionIds.StringEqual, bag1, AttributeBag.Empty)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     #endregion
@@ -214,7 +213,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.Integer, 1, 2, 3);
 
         Eval(XACMLFunctionIds.AllOfAll, XACMLFunctionIds.IntegerGreaterThan, bag1, bag2)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -226,7 +225,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.Integer, 1, 5);
 
         Eval(XACMLFunctionIds.AllOfAll, XACMLFunctionIds.IntegerGreaterThan, bag1, bag2)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
@@ -235,7 +234,7 @@ public sealed class HigherOrderFunctionsTests
         var bag2 = MakeBag(XACMLDataTypes.Integer, 1, 2);
 
         Eval(XACMLFunctionIds.AllOfAll, XACMLFunctionIds.IntegerGreaterThan, AttributeBag.Empty, bag2)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -244,14 +243,14 @@ public sealed class HigherOrderFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.Integer, 1, 2);
 
         Eval(XACMLFunctionIds.AllOfAll, XACMLFunctionIds.IntegerGreaterThan, bag1, AttributeBag.Empty)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
     public void AllOfAll_BothEmpty_ReturnsTrue()
     {
         Eval(XACMLFunctionIds.AllOfAll, XACMLFunctionIds.IntegerGreaterThan, AttributeBag.Empty, AttributeBag.Empty)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     #endregion
@@ -266,10 +265,10 @@ public sealed class HigherOrderFunctionsTests
 
         var result = (AttributeBag)Eval(XACMLFunctionIds.Map, XACMLFunctionIds.StringFromInteger, bag)!;
 
-        result.Count.Should().Be(3);
-        result.Values[0].Value.Should().Be("1");
-        result.Values[1].Value.Should().Be("2");
-        result.Values[2].Value.Should().Be("3");
+        result.Count.ShouldBe(3);
+        result.Values[0].Value.ShouldBe("1");
+        result.Values[1].Value.ShouldBe("2");
+        result.Values[2].Value.ShouldBe("3");
     }
 
     [Fact]
@@ -277,7 +276,7 @@ public sealed class HigherOrderFunctionsTests
     {
         var result = (AttributeBag)Eval(XACMLFunctionIds.Map, XACMLFunctionIds.StringFromInteger, AttributeBag.Empty)!;
 
-        result.Count.Should().Be(0);
+        result.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -287,7 +286,7 @@ public sealed class HigherOrderFunctionsTests
 
         var result = (AttributeBag)Eval(XACMLFunctionIds.Map, XACMLFunctionIds.StringFromInteger, bag)!;
 
-        result.Values[0].DataType.Should().Be(XACMLDataTypes.String);
+        result.Values[0].DataType.ShouldBe(XACMLDataTypes.String);
     }
 
     [Fact]
@@ -296,8 +295,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "a");
         var fn = _registry.GetFunction(XACMLFunctionIds.Map)!;
         var act = () => fn.Evaluate(["nonexistent-function", bag]);
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*nonexistent-function*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("nonexistent-function");
     }
 
     [Fact]
@@ -305,7 +303,7 @@ public sealed class HigherOrderFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.Map)!;
         var act = () => fn.Evaluate(["string-from-integer"]);
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion

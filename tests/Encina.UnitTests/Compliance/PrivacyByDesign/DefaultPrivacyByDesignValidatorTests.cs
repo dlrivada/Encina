@@ -2,17 +2,12 @@
 
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
@@ -103,10 +98,10 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (PrivacyValidationResult)result;
-        validation.IsCompliant.Should().BeTrue();
-        validation.Violations.Should().BeEmpty();
+        validation.IsCompliant.ShouldBeTrue();
+        validation.Violations.ShouldBeEmpty();
     }
 
     #endregion
@@ -158,10 +153,10 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (PrivacyValidationResult)result;
-        validation.IsCompliant.Should().BeFalse();
-        validation.Violations.Should().Contain(v =>
+        validation.IsCompliant.ShouldBeFalse();
+        validation.Violations.ShouldContain(v =>
             v.ViolationType == PrivacyViolationType.DataMinimization
             && v.FieldName == "ReferralSource");
     }
@@ -186,9 +181,9 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidateAsync(request, moduleId: "sales-module");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (PrivacyValidationResult)result;
-        validation.ModuleId.Should().Be("sales-module");
+        validation.ModuleId.ShouldBe("sales-module");
         await _purposeRegistry.Received(1).GetPurposeAsync("Order Processing", "sales-module", Arg.Any<CancellationToken>());
     }
 
@@ -209,10 +204,10 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.GetEncinaCode().Should().Be(PrivacyByDesignErrors.StoreErrorCode);
-        error.Message.Should().Contain("Analyzer failed");
+        error.GetEncinaCode().ShouldBe(PrivacyByDesignErrors.StoreErrorCode);
+        error.Message.ShouldContain("Analyzer failed");
     }
 
     #endregion
@@ -235,9 +230,9 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (PrivacyValidationResult)result;
-        validation.ValidatedAtUtc.Should().Be(_timeProvider.GetUtcNow());
+        validation.ValidatedAtUtc.ShouldBe(_timeProvider.GetUtcNow());
     }
 
     #endregion
@@ -260,9 +255,9 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidateAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (PrivacyValidationResult)result;
-        validation.ModuleId.Should().BeNull();
+        validation.ModuleId.ShouldBeNull();
     }
 
     #endregion
@@ -280,7 +275,7 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.AnalyzeMinimizationAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _analyzer.Received(1).AnalyzeAsync(request, Arg.Any<CancellationToken>());
     }
 
@@ -291,8 +286,7 @@ public class DefaultPrivacyByDesignValidatorTests
         Func<Task> act = async () => await _sut.AnalyzeMinimizationAsync<OrderCommand>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     #endregion
@@ -326,12 +320,12 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidatePurposeLimitationAsync(request, "Order Processing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var purposeResult = (PurposeValidationResult)result;
-        purposeResult.ViolatingFields.Should().Contain("CampaignCode");
-        purposeResult.AllowedFields.Should().Contain("ProductId");
-        purposeResult.AllowedFields.Should().Contain("Quantity");
-        purposeResult.IsValid.Should().BeFalse();
+        purposeResult.ViolatingFields.ShouldContain("CampaignCode");
+        purposeResult.AllowedFields.ShouldContain("ProductId");
+        purposeResult.AllowedFields.ShouldContain("Quantity");
+        purposeResult.IsValid.ShouldBeFalse();
     }
 
     #endregion
@@ -356,12 +350,12 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidatePurposeLimitationAsync(request, "Order Processing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var purposeResult = (PurposeValidationResult)result;
         // CampaignCode has [PurposeLimitation("Marketing")] which != "Order Processing"
         // and it has a non-null value, so it is a violating field.
-        purposeResult.ViolatingFields.Should().Contain("CampaignCode");
-        purposeResult.IsValid.Should().BeFalse();
+        purposeResult.ViolatingFields.ShouldContain("CampaignCode");
+        purposeResult.IsValid.ShouldBeFalse();
     }
 
     #endregion
@@ -375,8 +369,7 @@ public class DefaultPrivacyByDesignValidatorTests
         Func<Task> act = async () => await _sut.ValidatePurposeLimitationAsync<OrderCommand>(null!, "Order Processing");
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -389,8 +382,7 @@ public class DefaultPrivacyByDesignValidatorTests
         Func<Task> act = async () => await _sut.ValidatePurposeLimitationAsync(request, null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("purpose");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("purpose");
     }
 
     #endregion
@@ -408,7 +400,7 @@ public class DefaultPrivacyByDesignValidatorTests
         var result = await _sut.ValidateDefaultsAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _analyzer.Received(1).InspectDefaultsAsync(request, Arg.Any<CancellationToken>());
     }
 

@@ -1,5 +1,5 @@
 using Encina.Messaging.RoutingSlip;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.RoutingSlip;
 
@@ -20,35 +20,35 @@ public class RoutingSlipRunnerGuardTests
     public void Constructor_NullRequestContext_ThrowsArgumentNullException()
     {
         var act = () => new RoutingSlipRunner(null!, _options, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new RoutingSlipRunner(_requestContext, null!, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new RoutingSlipRunner(_requestContext, _options, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
         var act = () => new RoutingSlipRunner(_requestContext, _options, _logger, timeProvider: null);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
     public void Constructor_ValidParameters_CreatesInstance()
     {
         var sut = CreateSut();
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     #endregion
@@ -60,7 +60,7 @@ public class RoutingSlipRunnerGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.RunAsync<TestSlipData>(null!, new TestSlipData()).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("definition");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("definition");
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class RoutingSlipRunnerGuardTests
         var sut = CreateSut();
         var definition = CreateMinimalDefinition();
         var act = () => sut.RunAsync(definition, (TestSlipData)null!).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("initialData");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("initialData");
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class RoutingSlipRunnerGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.RunAsync<TestSlipData>((BuiltRoutingSlipDefinition<TestSlipData>)null!).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("definition");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("definition");
     }
 
     [Fact]
@@ -88,15 +88,15 @@ public class RoutingSlipRunnerGuardTests
 
         var result = await sut.RunAsync(definition, new TestSlipData());
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
     public void Build_EmptyStepList_ThrowsInvalidOperationException()
     {
         var act = () => RoutingSlipBuilder.Create<TestSlipData>("EmptySlip").Build();
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*at least one step*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("at least one step");
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class RoutingSlipRunnerGuardTests
 
         var result = await sut.RunAsync(definition, new TestSlipData());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -122,21 +122,21 @@ public class RoutingSlipRunnerGuardTests
     public void RoutingSlipOptions_DefaultTimeout_IsPositive()
     {
         var options = new RoutingSlipOptions();
-        options.DefaultTimeout.Should().BeGreaterThan(TimeSpan.Zero);
+        options.DefaultTimeout.ShouldBeGreaterThan(TimeSpan.Zero);
     }
 
     [Fact]
     public void RoutingSlipOptions_DefaultBatchSize_IsPositive()
     {
         var options = new RoutingSlipOptions();
-        options.BatchSize.Should().BeGreaterThan(0);
+        options.BatchSize.ShouldBeGreaterThan(0);
     }
 
     [Fact]
     public void RoutingSlipOptions_ContinueCompensationOnFailure_DefaultTrue()
     {
         var options = new RoutingSlipOptions();
-        options.ContinueCompensationOnFailure.Should().BeTrue();
+        options.ContinueCompensationOnFailure.ShouldBeTrue();
     }
 
     #endregion
