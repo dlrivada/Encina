@@ -58,6 +58,18 @@ public class QuartzNotificationJobTests
     }
 
     [Fact]
+    public async Task Execute_WithWrongTypeInJobDataMap_ThrowsJobExecutionException()
+    {
+        // Arrange - Add a value of the wrong type to JobDataMap
+        _context.JobDetail.JobDataMap[QuartzConstants.NotificationKey] = "not-a-notification";
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
+        exception.Message.ShouldContain("TestNotification");
+        exception.Message.ShouldContain("not found in JobDataMap");
+    }
+
+    [Fact]
     public async Task Execute_LogsPublishingStart()
     {
         // Arrange
