@@ -7,7 +7,7 @@
 
 This baseline measures `RedisCacheProvider` over a Testcontainers-managed Redis 7 instance. **All means are in milliseconds** because each call crosses the Docker loopback bridge — unlike the Memory (ns) and Hybrid (ns with in-memory L2) providers.
 
-> **Why so noisy?** Docker Desktop on Windows routes loopback traffic through a VM-to-host bridge that fluctuates between 200 µs and 2 ms per round-trip. This inflates per-benchmark CoV to 30-50% even at N=20. The numbers are meaningful as orders of magnitude (microseconds vs. the nanosecond paths of Memory/Hybrid) but not precise enough for stable regression detection — every method is listed in `stabilityOverrides`.
+> **Why so noisy?** Docker Desktop on Windows routes loopback traffic through a VM-to-host bridge that fluctuates between 200 µs and 2 ms per round-trip. This inflates per-benchmark CoV to 30-50% even at N=20. The numbers are meaningful as orders of magnitude (milliseconds vs. the nanosecond paths of Memory/Hybrid) but not precise enough for stable regression detection — every method is listed in `stabilityOverrides`.
 
 ## Benchmark Environment
 
