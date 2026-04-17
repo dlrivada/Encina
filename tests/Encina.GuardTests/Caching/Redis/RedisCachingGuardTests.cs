@@ -137,8 +137,10 @@ public sealed class RedisCachingGuardTests
     [Fact]
     public void AddEncinaRedisCache_String_EmptyConnectionString_Throws()
     {
-        Should.Throw<ArgumentException>(() =>
+        var ex = Should.Throw<ArgumentException>(() =>
             new ServiceCollection().AddEncinaRedisCache(string.Empty));
+        ex.ShouldNotBeOfType<ArgumentNullException>();
+        ex.GetType().ShouldBe(typeof(ArgumentException));
     }
 
     // ─── ServiceCollectionExtensions overload 2: (services, connectionString, configure, configureLock) ───
