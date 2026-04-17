@@ -189,6 +189,156 @@ public sealed class SequentialMigrationStrategyTests
                 cts.Token));
     }
 
+    // ── Mutation-killing tests ──────────────────────────────────────────
+    // Each test below targets a specific surviving mutant family.
+
+    [Fact]
+    public async Task ExecuteAsync_StopOnFirstFailure_ProgressTrackerCalledForPendingShards()
+    {
+        // Kills: Statement mutation removing progressTracker() call for pending shards (L36)
+        // Kills: LogicalNotExpression mutation on !results.ContainsKey (L32)
+        var shards = CreateShards("a", "b", "c");
+        var options = new MigrationOptions { StopOnFirstFailure = true, PerShardTimeout = TimeSpan.FromSeconds(30) };
+        var progress = new List<(string Id, MigrationOutcome Outcome)>();
+
+        await _sut.ExecuteAsync(
+            shards,
+            (s, _) => s.ShardId == "a"
+                ? Task.FromResult<Either<EncinaError, Unit>>(EncinaError.New("fail"))
+                : Task.FromResult<Either<EncinaError, Unit>>(unit),
+            options,
+            (id, status) => progress.Add((id, status.Outcome)),
+            CancellationToken.None);
+
+        // Both b and c should be reported as Pending via progressTracker
+        progress.ShouldContain(p => p.Id == "b" && p.Outcome == MigrationOutcome.Pending);
+        progress.ShouldContain(p => p.Id == "c" && p.Outcome == MigrationOutcome.Pending);
+        progress.Count.ShouldBe(3); // a=Failed, b=Pending, c=Pending
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FailureWithoutStop_DoesNotMarkAnyPending()
+    {
+        // Kills: Equality mutation status.Outcome != Failed (L29)
+        // Kills: Negate expression on the failure check (L29)
+        var shards = CreateShards("a", "b");
+        var options = new MigrationOptions { StopOnFirstFailure = false, PerShardTimeout = TimeSpan.FromSeconds(30) };
+
+        var results = await _sut.ExecuteAsync(
+            shards,
+            (s, _) => s.ShardId == "a"
+                ? Task.FromResult<Either<EncinaError, Unit>>(EncinaError.New("fail"))
+                : Task.FromResult<Either<EncinaError, Unit>>(unit),
+            options,
+            (_, _) => { },
+            CancellationToken.None);
+
+        results["a"].Outcome.ShouldBe(MigrationOutcome.Failed);
+        results["b"].Outcome.ShouldBe(MigrationOutcome.Succeeded);
+        results.Values.ShouldNotContain(s => s.Outcome == MigrationOutcome.Pending);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SuccessWithStopOnFirstFailure_DoesNotStop()
+    {
+        // Kills: Equality mutation == -> != on Failed check (L29)
+        var shards = CreateShards("a", "b", "c");
+        var options = new MigrationOptions { StopOnFirstFailure = true, PerShardTimeout = TimeSpan.FromSeconds(30) };
+        var callCount = 0;
+
+        var results = await _sut.ExecuteAsync(
+            shards,
+            (_, _) => { callCount++; return Task.FromResult<Either<EncinaError, Unit>>(unit); },
+            options,
+            (_, _) => { },
+            CancellationToken.None);
+
+        callCount.ShouldBe(3); // All shards executed despite StopOnFirstFailure being true
+        results.Values.ShouldAllBe(s => s.Outcome == MigrationOutcome.Succeeded);
+    }
+
+    [Fact]
+    public async Task ExecuteOnShardAsync_Timeout_ErrorMessageContainsShardId()
+    {
+        // Kills: String mutation on shard ID in error message (L71)
+        var shard = new ShardInfo("my-special-shard", "conn");
+
+        var status = await SequentialMigrationStrategy.ExecuteOnShardAsync(
+            shard,
+            async (_, ct) => { await Task.Delay(TimeSpan.FromSeconds(10), ct); return (Either<EncinaError, Unit>)unit; },
+            TimeSpan.FromMilliseconds(10),
+            CancellationToken.None);
+
+        status.Outcome.ShouldBe(MigrationOutcome.Failed);
+        status.Error!.Value.Message.ShouldContain("my-special-shard");
+    }
+
+    [Fact]
+    public async Task ExecuteOnShardAsync_Exception_ErrorMessageContainsShardId()
+    {
+        // Kills: String mutation on shard ID in error message (L83)
+        var shard = new ShardInfo("err-shard", "conn");
+
+        var status = await SequentialMigrationStrategy.ExecuteOnShardAsync(
+            shard,
+            (_, _) => throw new InvalidOperationException("kaboom"),
+            TimeSpan.FromSeconds(30),
+            CancellationToken.None);
+
+        status.Error!.Value.Message.ShouldContain("err-shard");
+        status.Error!.Value.Message.ShouldContain("kaboom");
+    }
+
+    [Fact]
+    public async Task ExecuteOnShardAsync_Success_ReturnsElapsedGreaterThanZero()
+    {
+        // Kills: Statement mutation removing elapsed measurement
+        var shard = new ShardInfo("shard-1", "conn");
+
+        var status = await SequentialMigrationStrategy.ExecuteOnShardAsync(
+            shard,
+            async (_, _) => { await Task.Delay(5); return (Either<EncinaError, Unit>)unit; },
+            TimeSpan.FromSeconds(30),
+            CancellationToken.None);
+
+        status.Outcome.ShouldBe(MigrationOutcome.Succeeded);
+        status.Elapsed.ShouldBeGreaterThan(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task ExecuteOnShardAsync_CallerCancellation_PropagatesNotTimeout()
+    {
+        // Kills: Logical mutation on timeoutCts.IsCancellationRequested || !cancellationToken... (L66)
+        var shard = new ShardInfo("shard-1", "conn");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            SequentialMigrationStrategy.ExecuteOnShardAsync(
+                shard,
+                async (_, ct) => { await Task.Delay(TimeSpan.FromSeconds(10), ct); return (Either<EncinaError, Unit>)unit; },
+                TimeSpan.FromSeconds(30),
+                cts.Token));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SingleShard_StopOnFirstFailure_NoRemaining()
+    {
+        // Kills: boundary condition on !results.ContainsKey when there are no remaining shards
+        var shards = CreateShards("only");
+        var options = new MigrationOptions { StopOnFirstFailure = true, PerShardTimeout = TimeSpan.FromSeconds(30) };
+
+        var results = await _sut.ExecuteAsync(
+            shards,
+            (_, _) => Task.FromResult<Either<EncinaError, Unit>>(EncinaError.New("fail")),
+            options,
+            (_, _) => { },
+            CancellationToken.None);
+
+        results.Count.ShouldBe(1);
+        results["only"].Outcome.ShouldBe(MigrationOutcome.Failed);
+    }
+
     private static List<ShardInfo> CreateShards(params string[] ids)
     {
         return ids.Select(id => new ShardInfo(id, $"conn-{id}")).ToList();
