@@ -313,7 +313,9 @@ public sealed class SequentialMigrationStrategyTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+        // TaskCanceledException derives from OperationCanceledException; Task.Delay
+        // throws the derived type, so we must catch the base class.
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             SequentialMigrationStrategy.ExecuteOnShardAsync(
                 shard,
                 async (_, ct) => { await Task.Delay(TimeSpan.FromSeconds(10), ct); return (Either<EncinaError, Unit>)unit; },
