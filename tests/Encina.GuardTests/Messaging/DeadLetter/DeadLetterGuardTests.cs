@@ -1,5 +1,5 @@
 using Encina.Messaging.DeadLetter;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.DeadLetter;
 
@@ -19,7 +19,7 @@ public class DeadLetterGuardTests
             new DeadLetterOptions(),
             NullLogger<DeadLetterOrchestrator>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class DeadLetterGuardTests
             new DeadLetterOptions(),
             NullLogger<DeadLetterOrchestrator>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("messageFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageFactory");
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class DeadLetterGuardTests
             null!,
             NullLogger<DeadLetterOrchestrator>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class DeadLetterGuardTests
             new DeadLetterOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -71,7 +71,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await orchestrator.AddAsync<string>(null!, context);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await orchestrator.AddAsync("request", null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await orchestrator.AddAsync("request", context);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("context.SourcePattern");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("context.SourcePattern");
     }
 
     #endregion
@@ -107,7 +107,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await orchestrator.AddFromFailedMessageAsync(null!, "Outbox");
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("failedMessage");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("failedMessage");
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await orchestrator.AddFromFailedMessageAsync(failedMessage, null!);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("sourcePattern");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("sourcePattern");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await orchestrator.AddFromFailedMessageAsync(failedMessage, "");
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("sourcePattern");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("sourcePattern");
     }
 
     #endregion
@@ -167,7 +167,7 @@ public class DeadLetterGuardTests
             Substitute.For<IServiceProvider>(),
             NullLogger<DeadLetterManager>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class DeadLetterGuardTests
             Substitute.For<IServiceProvider>(),
             NullLogger<DeadLetterManager>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("orchestrator");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("orchestrator");
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public class DeadLetterGuardTests
             null!,
             NullLogger<DeadLetterManager>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class DeadLetterGuardTests
             Substitute.For<IServiceProvider>(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -217,7 +217,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await manager.ReplayAllAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("filter");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("filter");
     }
 
     #endregion
@@ -231,7 +231,7 @@ public class DeadLetterGuardTests
 
         var act = async () => await manager.DeleteAllAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("filter");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("filter");
     }
 
     #endregion
@@ -246,7 +246,7 @@ public class DeadLetterGuardTests
             new DeadLetterOptions(),
             NullLogger<DeadLetterCleanupProcessor>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("scopeFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -257,7 +257,7 @@ public class DeadLetterGuardTests
             null!,
             NullLogger<DeadLetterCleanupProcessor>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public class DeadLetterGuardTests
             new DeadLetterOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion

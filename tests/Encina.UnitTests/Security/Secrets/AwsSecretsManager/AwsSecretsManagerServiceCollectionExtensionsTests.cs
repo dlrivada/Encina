@@ -6,10 +6,10 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.AwsSecretsManager;
 using Encina.Security.Secrets.Caching;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.AwsSecretsManager;
 
@@ -39,7 +39,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
         services.AddAwsSecretsManager();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretReader>().Should().NotBeNull();
+        provider.GetService<ISecretReader>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
         services.AddAwsSecretsManager();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretWriter>().Should().NotBeNull();
+        provider.GetService<ISecretWriter>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
         services.AddAwsSecretsManager();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretRotator>().Should().NotBeNull();
+        provider.GetService<ISecretRotator>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
         services.AddAwsSecretsManager();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<AwsSecretsManagerProvider>().Should().NotBeNull();
+        provider.GetService<AwsSecretsManagerProvider>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
 
         // Writer is wrapped by CachingSecretWriterDecorator when caching is enabled (default).
         // Verify the writer is wrapped by the caching invalidation decorator.
-        writer.Should().BeOfType<CachingSecretWriterDecorator>();
-        rotator.Should().BeSameAs(underlying);
+        writer.ShouldBeOfType<CachingSecretWriterDecorator>();
+        rotator.ShouldBeSameAs(underlying);
     }
 
     #endregion
@@ -106,7 +106,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AwsSecretsManagerOptions>>().Value;
-        options.Region.Should().Be(RegionEndpoint.USEast1);
+        options.Region.ShouldBe(RegionEndpoint.USEast1);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AwsSecretsManagerOptions>>().Value;
-        options.Credentials.Should().BeSameAs(credentials);
+        options.Credentials.ShouldBeSameAs(credentials);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AwsSecretsManagerOptions>>().Value;
-        options.ClientConfig.Should().BeSameAs(config);
+        options.ClientConfig.ShouldBeSameAs(config);
     }
 
     [Fact]
@@ -149,8 +149,8 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SecretsOptions>>().Value;
-        options.EnableCaching.Should().BeFalse();
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(30));
+        options.EnableCaching.ShouldBeFalse();
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(30));
     }
 
     #endregion
@@ -164,7 +164,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
 
         var result = services.AddAwsSecretsManager();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
             services.AddAwsSecretsManager();
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -192,8 +192,8 @@ public sealed class AwsSecretsManagerServiceCollectionExtensionsTests
 
         var act = () => services.AddAwsSecretsManager();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion

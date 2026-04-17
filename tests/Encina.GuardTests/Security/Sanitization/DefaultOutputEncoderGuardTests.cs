@@ -1,5 +1,5 @@
 using Encina.Security.Sanitization.Encoders;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Sanitization;
 
@@ -15,8 +15,8 @@ public sealed class DefaultOutputEncoderGuardTests
     {
         var act = () => _sut.EncodeForHtml(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -24,8 +24,8 @@ public sealed class DefaultOutputEncoderGuardTests
     {
         var act = () => _sut.EncodeForHtmlAttribute(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -33,8 +33,8 @@ public sealed class DefaultOutputEncoderGuardTests
     {
         var act = () => _sut.EncodeForJavaScript(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -42,8 +42,8 @@ public sealed class DefaultOutputEncoderGuardTests
     {
         var act = () => _sut.EncodeForUrl(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class DefaultOutputEncoderGuardTests
     {
         var act = () => _sut.EncodeForCss(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 }

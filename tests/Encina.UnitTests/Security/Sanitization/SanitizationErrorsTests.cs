@@ -1,5 +1,5 @@
 using Encina.Security.Sanitization;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -10,13 +10,13 @@ public sealed class SanitizationErrorsTests
     [Fact]
     public void ProfileNotFoundCode_HasExpectedValue()
     {
-        SanitizationErrors.ProfileNotFoundCode.Should().Be("sanitization.profile_not_found");
+        SanitizationErrors.ProfileNotFoundCode.ShouldBe("sanitization.profile_not_found");
     }
 
     [Fact]
     public void PropertyErrorCode_HasExpectedValue()
     {
-        SanitizationErrors.PropertyErrorCode.Should().Be("sanitization.property_error");
+        SanitizationErrors.PropertyErrorCode.ShouldBe("sanitization.property_error");
     }
 
     #endregion
@@ -28,7 +28,7 @@ public sealed class SanitizationErrorsTests
     {
         var error = SanitizationErrors.ProfileNotFound("BlogPost");
 
-        error.GetCode().IfNone(string.Empty).Should().Be(SanitizationErrors.ProfileNotFoundCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(SanitizationErrors.ProfileNotFoundCode);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class SanitizationErrorsTests
     {
         var error = SanitizationErrors.ProfileNotFound("BlogPost");
 
-        error.Message.Should().Contain("BlogPost");
+        error.Message.ShouldContain("BlogPost");
     }
 
     [Fact]
@@ -45,10 +45,10 @@ public sealed class SanitizationErrorsTests
         var error = SanitizationErrors.ProfileNotFound("CustomProfile");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("profileName");
-        details["profileName"].Should().Be("CustomProfile");
-        details.Should().ContainKey("stage");
-        details["stage"].Should().Be("sanitization");
+        details.ShouldContainKey("profileName");
+        details["profileName"].ShouldBe("CustomProfile");
+        details.ShouldContainKey("stage");
+        details["stage"].ShouldBe("sanitization");
     }
 
     #endregion
@@ -60,7 +60,7 @@ public sealed class SanitizationErrorsTests
     {
         var error = SanitizationErrors.PropertyError("Title");
 
-        error.GetCode().IfNone(string.Empty).Should().Be(SanitizationErrors.PropertyErrorCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(SanitizationErrors.PropertyErrorCode);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class SanitizationErrorsTests
     {
         var error = SanitizationErrors.PropertyError("Title");
 
-        error.Message.Should().Contain("Title");
+        error.Message.ShouldContain("Title");
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class SanitizationErrorsTests
 
         var error = SanitizationErrors.PropertyError("Title", ex);
 
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class SanitizationErrorsTests
 
         // EncinaErrors.Create always wraps in an EncinaException,
         // so Exception is always Some. Verify the inner exception is null.
-        error.Exception.IfNone(() => null!).InnerException.Should().BeNull();
+        error.Exception.IfNone(() => null!).InnerException.ShouldBeNull();
     }
 
     [Fact]
@@ -97,10 +97,10 @@ public sealed class SanitizationErrorsTests
         var error = SanitizationErrors.PropertyError("Content");
         var details = error.GetDetails();
 
-        details.Should().ContainKey("propertyName");
-        details["propertyName"].Should().Be("Content");
-        details.Should().ContainKey("stage");
-        details["stage"].Should().Be("sanitization");
+        details.ShouldContainKey("propertyName");
+        details["propertyName"].ShouldBe("Content");
+        details.ShouldContainKey("stage");
+        details["stage"].ShouldBe("sanitization");
     }
 
     #endregion

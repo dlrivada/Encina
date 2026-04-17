@@ -1,5 +1,5 @@
 using Encina.Compliance.Consent;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent.Model;
 
@@ -17,10 +17,10 @@ public class ConsentValidationResultTests
         var result = ConsentValidationResult.Valid();
 
         // Assert
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-        result.Warnings.Should().BeEmpty();
-        result.MissingPurposes.Should().BeEmpty();
+        result.IsValid.ShouldBeTrue();
+        result.Errors.ShouldBeEmpty();
+        result.Warnings.ShouldBeEmpty();
+        result.MissingPurposes.ShouldBeEmpty();
     }
 
     #endregion
@@ -34,12 +34,12 @@ public class ConsentValidationResultTests
         var result = ConsentValidationResult.ValidWithWarnings("Consent expiring soon", "Version outdated");
 
         // Assert
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-        result.Warnings.Should().HaveCount(2);
-        result.Warnings.Should().Contain("Consent expiring soon");
-        result.Warnings.Should().Contain("Version outdated");
-        result.MissingPurposes.Should().BeEmpty();
+        result.IsValid.ShouldBeTrue();
+        result.Errors.ShouldBeEmpty();
+        result.Warnings.Count.ShouldBe(2);
+        result.Warnings.ShouldContain("Consent expiring soon");
+        result.Warnings.ShouldContain("Version outdated");
+        result.MissingPurposes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public class ConsentValidationResultTests
         var result = ConsentValidationResult.ValidWithWarnings();
 
         // Assert
-        result.IsValid.Should().BeTrue();
-        result.Warnings.Should().BeEmpty();
+        result.IsValid.ShouldBeTrue();
+        result.Warnings.ShouldBeEmpty();
     }
 
     #endregion
@@ -68,12 +68,12 @@ public class ConsentValidationResultTests
         var result = ConsentValidationResult.Invalid(errors, missingPurposes);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().HaveCount(1);
-        result.Errors.Should().Contain("Missing consent for marketing");
-        result.Warnings.Should().BeEmpty();
-        result.MissingPurposes.Should().HaveCount(1);
-        result.MissingPurposes.Should().Contain(ConsentPurposes.Marketing);
+        result.IsValid.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(1);
+        result.Errors.ShouldContain("Missing consent for marketing");
+        result.Warnings.ShouldBeEmpty();
+        result.MissingPurposes.Count.ShouldBe(1);
+        result.MissingPurposes.ShouldContain(ConsentPurposes.Marketing);
     }
 
     [Fact]
@@ -87,9 +87,9 @@ public class ConsentValidationResultTests
         var result = ConsentValidationResult.Invalid(errors, missingPurposes);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().HaveCount(3);
-        result.MissingPurposes.Should().HaveCount(2);
+        result.IsValid.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(3);
+        result.MissingPurposes.Count.ShouldBe(2);
     }
 
     #endregion
@@ -108,11 +108,11 @@ public class ConsentValidationResultTests
         var result = ConsentValidationResult.Invalid(errors, warnings, missingPurposes);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().HaveCount(1);
-        result.Warnings.Should().HaveCount(1);
-        result.Warnings.Should().Contain("Version nearing end-of-life");
-        result.MissingPurposes.Should().HaveCount(1);
+        result.IsValid.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(1);
+        result.Warnings.Count.ShouldBe(1);
+        result.Warnings.ShouldContain("Version nearing end-of-life");
+        result.MissingPurposes.Count.ShouldBe(1);
     }
 
     #endregion

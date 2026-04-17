@@ -1,5 +1,5 @@
 using Encina.Messaging.Sagas;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Sagas;
 
@@ -21,42 +21,42 @@ public class SagaOrchestratorGuardTests
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
         var act = () => new SagaOrchestrator(null!, _options, _logger, _stateFactory);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new SagaOrchestrator(_store, null!, _logger, _stateFactory);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new SagaOrchestrator(_store, _options, null!, _stateFactory);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullStateFactory_ThrowsArgumentNullException()
     {
         var act = () => new SagaOrchestrator(_store, _options, _logger, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("stateFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("stateFactory");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
         var act = () => new SagaOrchestrator(_store, _options, _logger, _stateFactory, timeProvider: null);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
     public void Constructor_ValidParameters_CreatesInstance()
     {
         var sut = CreateSut();
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     #endregion
@@ -68,7 +68,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartAsync<TestSagaData>(null!, new TestSagaData());
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("sagaType");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("sagaType");
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartAsync<TestSagaData>(string.Empty, new TestSagaData());
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("sagaType");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("sagaType");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartAsync<TestSagaData>("   ", new TestSagaData());
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("sagaType");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("sagaType");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartAsync<TestSagaData>("TestSaga", (TestSagaData)null!);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("data");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("data");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartAsync<TestSagaData>(null!, new TestSagaData(), TimeSpan.FromMinutes(5));
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("sagaType");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("sagaType");
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartAsync<TestSagaData>("TestSaga", null!, TimeSpan.FromMinutes(5));
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("data");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("data");
     }
 
     #endregion
@@ -120,7 +120,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartCompensationAsync(Guid.NewGuid(), null!);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("errorMessage");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorMessage");
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartCompensationAsync(Guid.NewGuid(), string.Empty);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("errorMessage");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorMessage");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class SagaOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.StartCompensationAsync(Guid.NewGuid(), "   ");
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("errorMessage");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorMessage");
     }
 
     #endregion
@@ -157,7 +157,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.StartAsync("TestSaga", new TestSagaData());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.StartAsync("TestSaga", new TestSagaData());
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -189,7 +189,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.AdvanceAsync<TestSagaData>(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.AdvanceAsync<TestSagaData>(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.AdvanceAsync<TestSagaData>(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -235,7 +235,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.CompleteAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.CompleteAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -267,7 +267,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.CompensateStepAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.CompensateStepAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -299,7 +299,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.TimeoutAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -315,7 +315,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.TimeoutAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -331,7 +331,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.TimeoutAsync(Guid.NewGuid());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -351,7 +351,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.StartCompensationAsync(Guid.NewGuid(), "test error");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -370,7 +370,7 @@ public class SagaOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.StartCompensationAsync(Guid.NewGuid(), "test error");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion

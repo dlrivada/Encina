@@ -1,5 +1,5 @@
 using Encina.Security.Secrets;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -10,7 +10,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.EnableCaching.Should().BeTrue();
+        options.EnableCaching.ShouldBeTrue();
     }
 
     [Fact]
@@ -18,7 +18,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(5));
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(5));
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.EnableAutoRotation.Should().BeFalse();
+        options.EnableAutoRotation.ShouldBeFalse();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.RotationCheckInterval.Should().BeNull();
+        options.RotationCheckInterval.ShouldBeNull();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.KeyPrefix.Should().BeNull();
+        options.KeyPrefix.ShouldBeNull();
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.ProviderHealthCheck.Should().BeFalse();
+        options.ProviderHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.EnableAccessAuditing.Should().BeFalse();
+        options.EnableAccessAuditing.ShouldBeFalse();
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.EnableFailover.Should().BeFalse();
+        options.EnableFailover.ShouldBeFalse();
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.EnableTracing.Should().BeFalse();
+        options.EnableTracing.ShouldBeFalse();
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.EnableMetrics.Should().BeFalse();
+        options.EnableMetrics.ShouldBeFalse();
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.EnableSecretInjection.Should().BeFalse();
+        options.EnableSecretInjection.ShouldBeFalse();
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class SecretsOptionsTests
     {
         var options = new SecretsOptions();
 
-        options.HealthCheckSecretName.Should().BeNull();
+        options.HealthCheckSecretName.ShouldBeNull();
     }
 
     [Fact]
@@ -120,17 +120,17 @@ public sealed class SecretsOptionsTests
             HealthCheckSecretName = "health-probe"
         };
 
-        options.EnableCaching.Should().BeFalse();
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(30));
-        options.EnableAutoRotation.Should().BeTrue();
-        options.RotationCheckInterval.Should().Be(TimeSpan.FromHours(1));
-        options.KeyPrefix.Should().Be("production/");
-        options.ProviderHealthCheck.Should().BeTrue();
-        options.EnableAccessAuditing.Should().BeTrue();
-        options.EnableFailover.Should().BeTrue();
-        options.EnableTracing.Should().BeTrue();
-        options.EnableMetrics.Should().BeTrue();
-        options.EnableSecretInjection.Should().BeTrue();
-        options.HealthCheckSecretName.Should().Be("health-probe");
+        options.EnableCaching.ShouldBeFalse();
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(30));
+        options.EnableAutoRotation.ShouldBeTrue();
+        options.RotationCheckInterval.ShouldBe(TimeSpan.FromHours(1));
+        options.KeyPrefix.ShouldBe("production/");
+        options.ProviderHealthCheck.ShouldBeTrue();
+        options.EnableAccessAuditing.ShouldBeTrue();
+        options.EnableFailover.ShouldBeTrue();
+        options.EnableTracing.ShouldBeTrue();
+        options.EnableMetrics.ShouldBeTrue();
+        options.EnableSecretInjection.ShouldBeTrue();
+        options.HealthCheckSecretName.ShouldBe("health-probe");
     }
 }

@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Builders;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Builders;
 
@@ -17,8 +17,7 @@ public sealed class TargetBuilderTests
     {
         var target = new TargetBuilder().Build();
 
-        target.AnyOfElements.Should().BeEmpty(
-            "Empty target matches all requests per XACML §7.6");
+        target.AnyOfElements.ShouldBeEmpty("Empty target matches all requests per XACML §7.6");
     }
 
     [Fact]
@@ -31,7 +30,7 @@ public sealed class TargetBuilderTests
                         ConditionOperator.Equals, "admin")))
             .Build();
 
-        target.AnyOfElements.Should().HaveCount(1);
+        target.AnyOfElements.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -48,7 +47,7 @@ public sealed class TargetBuilderTests
                         ConditionOperator.Equals, "Report")))
             .Build();
 
-        target.AnyOfElements.Should().HaveCount(2,
+        target.AnyOfElements.Count.ShouldBe(2,
             "Multiple AnyOf elements are combined with AND logic");
     }
 
@@ -57,7 +56,7 @@ public sealed class TargetBuilderTests
     {
         var act = () => new TargetBuilder().AnyOf(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -74,7 +73,7 @@ public sealed class TargetBuilderTests
                         ConditionOperator.Equals, "admin")))
             .Build();
 
-        target.AnyOfElements[0].AllOfElements.Should().HaveCount(1);
+        target.AnyOfElements[0].AllOfElements.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -90,7 +89,7 @@ public sealed class TargetBuilderTests
                         ConditionOperator.Equals, "manager")))
             .Build();
 
-        target.AnyOfElements[0].AllOfElements.Should().HaveCount(2,
+        target.AnyOfElements[0].AllOfElements.Count.ShouldBe(2,
             "Multiple AllOf elements within AnyOf are combined with OR logic");
     }
 
@@ -109,8 +108,8 @@ public sealed class TargetBuilderTests
             .Build();
 
         var match = target.AnyOfElements[0].AllOfElements[0].Matches[0];
-        match.AttributeDesignator.Category.Should().Be(AttributeCategory.Subject);
-        match.AttributeDesignator.AttributeId.Should().Be("department");
+        match.AttributeDesignator.Category.ShouldBe(AttributeCategory.Subject);
+        match.AttributeDesignator.AttributeId.ShouldBe("department");
     }
 
     [Fact]
@@ -125,7 +124,7 @@ public sealed class TargetBuilderTests
                         ConditionOperator.Equals, "read")))
             .Build();
 
-        target.AnyOfElements[0].AllOfElements[0].Matches.Should().HaveCount(2,
+        target.AnyOfElements[0].AllOfElements[0].Matches.Count.ShouldBe(2,
             "Multiple matches within AllOf are combined with AND logic");
     }
 
@@ -138,7 +137,7 @@ public sealed class TargetBuilderTests
                     .MatchAttribute(AttributeCategory.Subject, null!,
                         ConditionOperator.Equals, "admin")));
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -160,8 +159,8 @@ public sealed class TargetBuilderTests
             .Build();
 
         var match = target.AnyOfElements[0].AllOfElements[0].Matches[0];
-        match.FunctionId.Should().NotBeNullOrEmpty();
-        match.AttributeValue.Value.Should().Be("Secret");
+        match.FunctionId.ShouldNotBeNullOrEmpty();
+        match.AttributeValue.Value.ShouldBe("Secret");
     }
 
     [Fact]
@@ -186,9 +185,9 @@ public sealed class TargetBuilderTests
             .Build();
 
         var match = target.AnyOfElements[0].AllOfElements[0].Matches[0];
-        match.FunctionId.Should().Be("integer-greater-than-or-equal");
-        match.AttributeDesignator.Should().BeSameAs(designator);
-        match.AttributeValue.Should().BeSameAs(value);
+        match.FunctionId.ShouldBe("integer-greater-than-or-equal");
+        match.AttributeDesignator.ShouldBeSameAs(designator);
+        match.AttributeValue.ShouldBeSameAs(value);
     }
 
     #endregion
@@ -214,7 +213,7 @@ public sealed class TargetBuilderTests
                         ConditionOperator.Equals, "read")))
             .Build();
 
-        target.AnyOfElements.Should().HaveCount(3);
+        target.AnyOfElements.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -231,8 +230,8 @@ public sealed class TargetBuilderTests
                         ConditionOperator.Equals, "Engineering")))
             .Build();
 
-        target.AnyOfElements.Should().HaveCount(1);
-        target.AnyOfElements[0].AllOfElements.Should().HaveCount(2);
+        target.AnyOfElements.Count.ShouldBe(1);
+        target.AnyOfElements[0].AllOfElements.Count.ShouldBe(2);
     }
 
     #endregion

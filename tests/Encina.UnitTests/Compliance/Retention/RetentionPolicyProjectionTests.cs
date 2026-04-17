@@ -2,7 +2,7 @@ using Encina.Compliance.Retention.Events;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -60,7 +60,7 @@ public class RetentionPolicyProjectionTests
         var name = _sut.ProjectionName;
 
         // Assert
-        name.Should().Be("RetentionPolicyProjection");
+        name.ShouldBe("RetentionPolicyProjection");
     }
 
     #endregion
@@ -91,17 +91,17 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Create(created, _context);
 
         // Assert
-        result.Id.Should().Be(policyId);
-        result.DataCategory.Should().Be("financial-records");
-        result.RetentionPeriod.Should().Be(period);
-        result.AutoDelete.Should().BeTrue();
-        result.PolicyType.Should().Be(RetentionPolicyType.EventBased);
-        result.Reason.Should().Be("Legal requirement: 7 years after contract end");
-        result.LegalBasis.Should().Be("Tax Code §147");
-        result.TenantId.Should().Be("tenant-A");
-        result.ModuleId.Should().Be("module-B");
-        result.CreatedAtUtc.Should().Be(occurredAt);
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
+        result.Id.ShouldBe(policyId);
+        result.DataCategory.ShouldBe("financial-records");
+        result.RetentionPeriod.ShouldBe(period);
+        result.AutoDelete.ShouldBeTrue();
+        result.PolicyType.ShouldBe(RetentionPolicyType.EventBased);
+        result.Reason.ShouldBe("Legal requirement: 7 years after contract end");
+        result.LegalBasis.ShouldBe("Tax Code §147");
+        result.TenantId.ShouldBe("tenant-A");
+        result.ModuleId.ShouldBe("module-B");
+        result.CreatedAtUtc.ShouldBe(occurredAt);
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Create(created, _context);
 
         // Assert
-        result.IsActive.Should().BeTrue();
+        result.IsActive.ShouldBeTrue();
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Create(created, _context);
 
         // Assert
-        result.Version.Should().Be(1);
+        result.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Create(created, _context);
 
         // Assert
-        result.DeactivationReason.Should().BeNull();
+        result.DeactivationReason.ShouldBeNull();
     }
 
     [Fact]
@@ -157,10 +157,10 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Create(created, _context);
 
         // Assert
-        result.Reason.Should().BeNull();
-        result.LegalBasis.Should().BeNull();
-        result.TenantId.Should().BeNull();
-        result.ModuleId.Should().BeNull();
+        result.Reason.ShouldBeNull();
+        result.LegalBasis.ShouldBeNull();
+        result.TenantId.ShouldBeNull();
+        result.ModuleId.ShouldBeNull();
     }
 
     #endregion
@@ -187,11 +187,11 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Apply(updated, readModel, _context);
 
         // Assert
-        result.RetentionPeriod.Should().Be(newPeriod);
-        result.AutoDelete.Should().BeFalse();
-        result.Reason.Should().Be("Revised legal requirement: 10 years");
-        result.LegalBasis.Should().Be("Regulation (EU) 2022/1234");
-        result.LastModifiedAtUtc.Should().Be(updatedAt);
+        result.RetentionPeriod.ShouldBe(newPeriod);
+        result.AutoDelete.ShouldBeFalse();
+        result.Reason.ShouldBe("Revised legal requirement: 10 years");
+        result.LegalBasis.ShouldBe("Regulation (EU) 2022/1234");
+        result.LastModifiedAtUtc.ShouldBe(updatedAt);
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Apply(updated, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(2);
+        result.Version.ShouldBe(2);
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Apply(updated, readModel, _context);
 
         // Assert
-        result.IsActive.Should().BeTrue();
+        result.IsActive.ShouldBeTrue();
     }
 
     [Fact]
@@ -251,8 +251,8 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Apply(updated, readModel, _context);
 
         // Assert
-        result.Reason.Should().BeNull();
-        result.LegalBasis.Should().BeNull();
+        result.Reason.ShouldBeNull();
+        result.LegalBasis.ShouldBeNull();
     }
 
     #endregion
@@ -275,9 +275,9 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Apply(deactivated, readModel, _context);
 
         // Assert
-        result.IsActive.Should().BeFalse();
-        result.DeactivationReason.Should().Be("Policy superseded by updated regulatory guidance");
-        result.LastModifiedAtUtc.Should().Be(deactivatedAt);
+        result.IsActive.ShouldBeFalse();
+        result.DeactivationReason.ShouldBe("Policy superseded by updated regulatory guidance");
+        result.LastModifiedAtUtc.ShouldBe(deactivatedAt);
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Apply(deactivated, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(3);
+        result.Version.ShouldBe(3);
     }
 
     [Fact]
@@ -318,10 +318,10 @@ public class RetentionPolicyProjectionTests
         var result = _sut.Apply(deactivated, readModel, _context);
 
         // Assert
-        result.Id.Should().Be(policyId);
-        result.DataCategory.Should().Be("marketing-data");
-        result.TenantId.Should().Be("tenant-X");
-        result.ModuleId.Should().Be("module-Y");
+        result.Id.ShouldBe(policyId);
+        result.DataCategory.ShouldBe("marketing-data");
+        result.TenantId.ShouldBe("tenant-X");
+        result.ModuleId.ShouldBe("module-Y");
     }
 
     #endregion

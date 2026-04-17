@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 
@@ -14,8 +14,8 @@ public class ReadAuditEntryMapperGuardTests
     {
         var act = () => ReadAuditEntryMapper.MapToEntity(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entry");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("entry");
     }
 
     [Fact]
@@ -23,8 +23,8 @@ public class ReadAuditEntryMapperGuardTests
     {
         var act = () => ReadAuditEntryMapper.MapToRecord(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entity");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("entity");
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class ReadAuditEntryMapperGuardTests
 
         var act = () => ReadAuditEntryMapper.MapToEntity(entry);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -59,6 +59,6 @@ public class ReadAuditEntryMapperGuardTests
 
         var act = () => ReadAuditEntryMapper.MapToRecord(entity);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 }

@@ -1,5 +1,5 @@
 using Encina.Security.Secrets;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 
@@ -15,67 +15,67 @@ public sealed class SecretsErrorsGuardTests
     [Fact]
     public void NotFoundCode_IsNotEmpty()
     {
-        SecretsErrors.NotFoundCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.NotFoundCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void AccessDeniedCode_IsNotEmpty()
     {
-        SecretsErrors.AccessDeniedCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.AccessDeniedCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void RotationFailedCode_IsNotEmpty()
     {
-        SecretsErrors.RotationFailedCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.RotationFailedCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void CacheFailureCode_IsNotEmpty()
     {
-        SecretsErrors.CacheFailureCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.CacheFailureCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void DeserializationFailedCode_IsNotEmpty()
     {
-        SecretsErrors.DeserializationFailedCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.DeserializationFailedCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void ProviderUnavailableCode_IsNotEmpty()
     {
-        SecretsErrors.ProviderUnavailableCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.ProviderUnavailableCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void InjectionFailedCode_IsNotEmpty()
     {
-        SecretsErrors.InjectionFailedCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.InjectionFailedCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void FailoverExhaustedCode_IsNotEmpty()
     {
-        SecretsErrors.FailoverExhaustedCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.FailoverExhaustedCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void CircuitBreakerOpenCode_IsNotEmpty()
     {
-        SecretsErrors.CircuitBreakerOpenCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.CircuitBreakerOpenCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void ResilienceTimeoutCode_IsNotEmpty()
     {
-        SecretsErrors.ResilienceTimeoutCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.ResilienceTimeoutCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public void AuditFailedCode_IsNotEmpty()
     {
-        SecretsErrors.AuditFailedCode.Should().NotBeNullOrWhiteSpace();
+        SecretsErrors.AuditFailedCode.ShouldNotBeNullOrWhiteSpace();
     }
 
     #endregion
@@ -88,7 +88,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.NotFound("test-secret");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.NotFoundCode);
+        code.ShouldBe(SecretsErrors.NotFoundCode);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.AccessDenied("test-secret");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.AccessDeniedCode);
+        code.ShouldBe(SecretsErrors.AccessDeniedCode);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.RotationFailed("test-secret");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.RotationFailedCode);
+        code.ShouldBe(SecretsErrors.RotationFailedCode);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.CacheFailure("test-secret");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.CacheFailureCode);
+        code.ShouldBe(SecretsErrors.CacheFailureCode);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.ProviderUnavailable("env");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.ProviderUnavailableCode);
+        code.ShouldBe(SecretsErrors.ProviderUnavailableCode);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.InjectionFailed("my-secret", "MyProp");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.InjectionFailedCode);
+        code.ShouldBe(SecretsErrors.InjectionFailedCode);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.FailoverExhausted("test-secret", 3);
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.FailoverExhaustedCode);
+        code.ShouldBe(SecretsErrors.FailoverExhaustedCode);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.CircuitBreakerOpen("secrets");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.CircuitBreakerOpenCode);
+        code.ShouldBe(SecretsErrors.CircuitBreakerOpenCode);
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.ResilienceTimeout("test-secret", TimeSpan.FromSeconds(30));
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.ResilienceTimeoutCode);
+        code.ShouldBe(SecretsErrors.ResilienceTimeoutCode);
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.DeserializationFailed("test-secret", typeof(string));
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.DeserializationFailedCode);
+        code.ShouldBe(SecretsErrors.DeserializationFailedCode);
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public sealed class SecretsErrorsGuardTests
         var error = SecretsErrors.AuditFailed("test-secret");
 
         var code = error.GetCode().IfNone(string.Empty);
-        code.Should().Be(SecretsErrors.AuditFailedCode);
+        code.ShouldBe(SecretsErrors.AuditFailedCode);
     }
 
     #endregion
@@ -203,7 +203,7 @@ public sealed class SecretsErrorsGuardTests
             SecretsErrors.AuditFailedCode
         };
 
-        codes.Should().OnlyHaveUniqueItems("each error code must be unique");
+        codes.Distinct().Count().ShouldBe(codes.Length);
     }
 
     #endregion

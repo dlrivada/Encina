@@ -6,16 +6,12 @@ using Encina.Compliance.ProcessorAgreements.Health;
 using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.Scheduling;
 using Encina.Compliance.ProcessorAgreements.Services;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -37,9 +33,9 @@ public class ServiceCollectionExtensionsTests
         // Assert — check descriptor because DefaultProcessorService has Marten dependencies
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IProcessorService));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(DefaultProcessorService));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(DefaultProcessorService));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -55,9 +51,9 @@ public class ServiceCollectionExtensionsTests
         // Assert — check descriptor because DefaultDPAService has Marten dependencies
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IDPAService));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().Be(typeof(DefaultDPAService));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBe(typeof(DefaultDPAService));
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -75,8 +71,8 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IPipelineBehavior<,>) &&
             d.ImplementationType == typeof(ProcessorValidationPipelineBehavior<,>));
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Transient);
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Transient);
     }
 
     [Fact]
@@ -93,7 +89,7 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(ICommandHandler<CheckDPAExpirationCommand, Unit>) &&
             d.ImplementationType == typeof(CheckDPAExpirationHandler));
-        descriptor.Should().NotBeNull();
+        descriptor.ShouldNotBeNull();
     }
 
     [Fact]
@@ -109,7 +105,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var timeProvider = provider.GetService<TimeProvider>();
-        timeProvider.Should().NotBeNull();
+        timeProvider.ShouldNotBeNull();
     }
 
     [Fact]
@@ -122,8 +118,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaProcessorAgreements();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -143,8 +139,8 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<ProcessorAgreementOptions>>().Value;
-        options.EnforcementMode.Should().Be(ProcessorAgreementEnforcementMode.Block);
-        options.MaxSubProcessorDepth.Should().Be(5);
+        options.EnforcementMode.ShouldBe(ProcessorAgreementEnforcementMode.Block);
+        options.MaxSubProcessorDepth.ShouldBe(5);
     }
 
     [Fact]
@@ -165,7 +161,7 @@ public class ServiceCollectionExtensionsTests
         // which uses IConfigureOptions<HealthCheckServiceOptions>.
         var healthCheckOptionDescriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IConfigureOptions<HealthCheckServiceOptions>));
-        healthCheckOptionDescriptor.Should().NotBeNull();
+        healthCheckOptionDescriptor.ShouldNotBeNull();
     }
 
     [Fact]
@@ -184,7 +180,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var healthCheckOptionDescriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IConfigureOptions<HealthCheckServiceOptions>));
-        healthCheckOptionDescriptor.Should().BeNull();
+        healthCheckOptionDescriptor.ShouldBeNull();
     }
 
     [Fact]
@@ -201,9 +197,9 @@ public class ServiceCollectionExtensionsTests
         // Assert — TryAdd should NOT overwrite the custom registration
         var descriptor = services.FirstOrDefault(d =>
             d.ServiceType == typeof(IDPAService));
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationType.Should().BeNull("factory-based registration has no ImplementationType");
-        descriptor.ImplementationFactory.Should().NotBeNull();
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationType.ShouldBeNull();
+        descriptor.ImplementationFactory.ShouldNotBeNull();
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 }

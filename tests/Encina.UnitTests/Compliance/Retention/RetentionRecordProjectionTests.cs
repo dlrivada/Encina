@@ -2,7 +2,7 @@ using Encina.Compliance.Retention.Events;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -66,7 +66,7 @@ public class RetentionRecordProjectionTests
         var name = _sut.ProjectionName;
 
         // Assert
-        name.Should().Be("RetentionRecordProjection");
+        name.ShouldBe("RetentionRecordProjection");
     }
 
     #endregion
@@ -98,16 +98,16 @@ public class RetentionRecordProjectionTests
         var result = _sut.Create(tracked, _context);
 
         // Assert
-        result.Id.Should().Be(recordId);
-        result.EntityId.Should().Be("order-9876");
-        result.DataCategory.Should().Be("financial-records");
-        result.PolicyId.Should().Be(policyId);
-        result.RetentionPeriod.Should().Be(period);
-        result.ExpiresAtUtc.Should().Be(expiresAt);
-        result.TenantId.Should().Be("tenant-A");
-        result.ModuleId.Should().Be("module-B");
-        result.CreatedAtUtc.Should().Be(occurredAt);
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
+        result.Id.ShouldBe(recordId);
+        result.EntityId.ShouldBe("order-9876");
+        result.DataCategory.ShouldBe("financial-records");
+        result.PolicyId.ShouldBe(policyId);
+        result.RetentionPeriod.ShouldBe(period);
+        result.ExpiresAtUtc.ShouldBe(expiresAt);
+        result.TenantId.ShouldBe("tenant-A");
+        result.ModuleId.ShouldBe("module-B");
+        result.CreatedAtUtc.ShouldBe(occurredAt);
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Create(tracked, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.Active);
+        result.Status.ShouldBe(RetentionStatus.Active);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Create(tracked, _context);
 
         // Assert
-        result.Version.Should().Be(1);
+        result.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -146,9 +146,9 @@ public class RetentionRecordProjectionTests
         var result = _sut.Create(tracked, _context);
 
         // Assert
-        result.LegalHoldId.Should().BeNull();
-        result.DeletedAtUtc.Should().BeNull();
-        result.AnonymizedAtUtc.Should().BeNull();
+        result.LegalHoldId.ShouldBeNull();
+        result.DeletedAtUtc.ShouldBeNull();
+        result.AnonymizedAtUtc.ShouldBeNull();
     }
 
     #endregion
@@ -172,8 +172,8 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(expired, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.Expired);
-        result.LastModifiedAtUtc.Should().Be(expiredAt);
+        result.Status.ShouldBe(RetentionStatus.Expired);
+        result.LastModifiedAtUtc.ShouldBe(expiredAt);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(expired, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(2);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -216,9 +216,9 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(held, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.UnderLegalHold);
-        result.LegalHoldId.Should().Be(holdId);
-        result.LastModifiedAtUtc.Should().Be(heldAt);
+        result.Status.ShouldBe(RetentionStatus.UnderLegalHold);
+        result.LegalHoldId.ShouldBe(holdId);
+        result.LastModifiedAtUtc.ShouldBe(heldAt);
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(held, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(2);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -264,9 +264,9 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(released, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.Expired);
-        result.LegalHoldId.Should().BeNull();
-        result.LastModifiedAtUtc.Should().Be(releasedAt);
+        result.Status.ShouldBe(RetentionStatus.Expired);
+        result.LegalHoldId.ShouldBeNull();
+        result.LastModifiedAtUtc.ShouldBe(releasedAt);
     }
 
     [Fact]
@@ -290,9 +290,9 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(released, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.Active);
-        result.LegalHoldId.Should().BeNull();
-        result.LastModifiedAtUtc.Should().Be(releasedAt);
+        result.Status.ShouldBe(RetentionStatus.Active);
+        result.LegalHoldId.ShouldBeNull();
+        result.LastModifiedAtUtc.ShouldBe(releasedAt);
     }
 
     [Fact]
@@ -314,7 +314,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(released, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.Expired);
+        result.Status.ShouldBe(RetentionStatus.Expired);
     }
 
     [Fact]
@@ -335,7 +335,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(released, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(3);
+        result.Version.ShouldBe(3);
     }
 
     #endregion
@@ -361,9 +361,9 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(deleted, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.Deleted);
-        result.DeletedAtUtc.Should().Be(deletedAt);
-        result.LastModifiedAtUtc.Should().Be(deletedAt);
+        result.Status.ShouldBe(RetentionStatus.Deleted);
+        result.DeletedAtUtc.ShouldBe(deletedAt);
+        result.LastModifiedAtUtc.ShouldBe(deletedAt);
     }
 
     [Fact]
@@ -382,7 +382,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(deleted, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(3);
+        result.Version.ShouldBe(3);
     }
 
     [Fact]
@@ -401,7 +401,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(deleted, readModel, _context);
 
         // Assert
-        result.AnonymizedAtUtc.Should().BeNull();
+        result.AnonymizedAtUtc.ShouldBeNull();
     }
 
     #endregion
@@ -427,9 +427,9 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(anonymized, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(RetentionStatus.Deleted);
-        result.AnonymizedAtUtc.Should().Be(anonymizedAt);
-        result.LastModifiedAtUtc.Should().Be(anonymizedAt);
+        result.Status.ShouldBe(RetentionStatus.Deleted);
+        result.AnonymizedAtUtc.ShouldBe(anonymizedAt);
+        result.LastModifiedAtUtc.ShouldBe(anonymizedAt);
     }
 
     [Fact]
@@ -448,7 +448,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(anonymized, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(4);
+        result.Version.ShouldBe(4);
     }
 
     [Fact]
@@ -467,7 +467,7 @@ public class RetentionRecordProjectionTests
         var result = _sut.Apply(anonymized, readModel, _context);
 
         // Assert
-        result.DeletedAtUtc.Should().BeNull();
+        result.DeletedAtUtc.ShouldBeNull();
     }
 
     #endregion

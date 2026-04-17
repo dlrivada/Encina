@@ -1,10 +1,9 @@
 using Encina.Compliance.Consent;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Consent;
@@ -48,7 +47,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 #pragma warning disable CA2012
         await _validator.DidNotReceive()
             .ValidateAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
@@ -71,7 +70,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 #pragma warning disable CA2012
         await _validator.DidNotReceive()
             .ValidateAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
@@ -95,7 +94,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // The SampleConsentRequest does NOT specify SubjectIdProperty,
         // so it should fall back to context.UserId
 #pragma warning disable CA2012
@@ -117,7 +116,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // SampleCustomSubjectRequest has SubjectIdProperty = "CustomerId"
 #pragma warning disable CA2012
         await _validator.Received(1)
@@ -138,7 +137,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -158,7 +157,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -186,9 +185,9 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("user-1");
+        error.Message.ShouldContain("user-1");
     }
 
     [Fact]
@@ -211,7 +210,7 @@ public class ConsentRequiredPipelineBehaviorTests
             new SampleCustomErrorRequest("user-1"), context, NextCustomError(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -239,7 +238,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -265,9 +264,9 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("Validator unavailable");
+        error.Message.ShouldContain("Validator unavailable");
     }
 
     #endregion
@@ -293,7 +292,7 @@ public class ConsentRequiredPipelineBehaviorTests
             request, context, Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -311,8 +310,8 @@ public class ConsentRequiredPipelineBehaviorTests
             null!, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     #endregion

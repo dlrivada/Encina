@@ -3,13 +3,10 @@
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Detection.Rules;
 using Encina.Compliance.BreachNotification.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -61,11 +58,11 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().NotBeNull();
-        breach!.DetectionRuleName.Should().Be("UnauthorizedAccess");
-        breach.Severity.Should().Be(BreachSeverity.High);
+        breach.ShouldNotBeNull();
+        breach!.DetectionRuleName.ShouldBe("UnauthorizedAccess");
+        breach.Severity.ShouldBe(BreachSeverity.High);
     }
 
     [Fact]
@@ -81,9 +78,9 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().BeNull();
+        breach.ShouldBeNull();
     }
 
     [Fact]
@@ -99,10 +96,10 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().NotBeNull();
-        breach!.RecommendedActions.Should().NotBeEmpty();
+        breach.ShouldNotBeNull();
+        breach!.RecommendedActions.ShouldNotBeEmpty();
     }
 
     #endregion
@@ -122,11 +119,11 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().NotBeNull();
-        breach!.DetectionRuleName.Should().Be("MassDataExfiltration");
-        breach.Severity.Should().Be(BreachSeverity.Critical);
+        breach.ShouldNotBeNull();
+        breach!.DetectionRuleName.ShouldBe("MassDataExfiltration");
+        breach.Severity.ShouldBe(BreachSeverity.Critical);
     }
 
     [Fact]
@@ -142,9 +139,9 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().BeNull();
+        breach.ShouldBeNull();
     }
 
     #endregion
@@ -163,11 +160,11 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().NotBeNull();
-        breach!.DetectionRuleName.Should().Be("PrivilegeEscalation");
-        breach.Severity.Should().Be(BreachSeverity.High);
+        breach.ShouldNotBeNull();
+        breach!.DetectionRuleName.ShouldBe("PrivilegeEscalation");
+        breach.Severity.ShouldBe(BreachSeverity.High);
     }
 
     [Fact]
@@ -182,9 +179,9 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().BeNull();
+        breach.ShouldBeNull();
     }
 
     #endregion
@@ -204,11 +201,11 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().NotBeNull();
-        breach!.DetectionRuleName.Should().Be("AnomalousQueryPattern");
-        breach.Severity.Should().Be(BreachSeverity.Medium);
+        breach.ShouldNotBeNull();
+        breach!.DetectionRuleName.ShouldBe("AnomalousQueryPattern");
+        breach.Severity.ShouldBe(BreachSeverity.Medium);
     }
 
     [Fact]
@@ -224,9 +221,9 @@ public class DetectionRulesTests
         var result = await rule.EvaluateAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breach = ExtractBreach(result);
-        breach.Should().BeNull();
+        breach.ShouldBeNull();
     }
 
     #endregion
@@ -249,8 +246,8 @@ public class DetectionRulesTests
         var names = rules.Select(r => r.Name).ToList();
 
         // Assert
-        names.Should().OnlyHaveUniqueItems();
-        names.Should().HaveCount(4);
+        names.ShouldBeUnique();
+        names.Count.ShouldBe(4);
     }
 
     [Fact]
@@ -273,11 +270,11 @@ public class DetectionRulesTests
             var result = await rule.EvaluateAsync(securityEvent);
 
             // Assert
-            result.IsRight.Should().BeTrue();
+            result.IsRight.ShouldBeTrue();
             var breach = ExtractBreach(result);
-            breach.Should().NotBeNull($"Rule '{rule.Name}' should match event type {matchType}");
-            breach!.Description.Should().Contain("my-test-source",
-                $"Rule '{rule.Name}' should include source in description");
+            breach.ShouldNotBeNull();
+            breach!.Description.ShouldContain("my-test-source",
+                customMessage: $"Rule '{rule.Name}' should include source in description");
         }
     }
 

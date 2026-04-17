@@ -1,5 +1,5 @@
 using Encina.Security.Sanitization.Profiles;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -10,31 +10,31 @@ public sealed class SanitizationProfilesTests
     [Fact]
     public void None_HasNoAllowedTags()
     {
-        SanitizationProfiles.None.AllowedTags.Should().BeEmpty();
+        SanitizationProfiles.None.AllowedTags.ShouldBeEmpty();
     }
 
     [Fact]
     public void None_HasNoAllowedAttributes()
     {
-        SanitizationProfiles.None.AllowedAttributes.Should().BeEmpty();
+        SanitizationProfiles.None.AllowedAttributes.ShouldBeEmpty();
     }
 
     [Fact]
     public void None_HasNoAllowedProtocols()
     {
-        SanitizationProfiles.None.AllowedProtocols.Should().BeEmpty();
+        SanitizationProfiles.None.AllowedProtocols.ShouldBeEmpty();
     }
 
     [Fact]
     public void None_DoesNotStripComments()
     {
-        SanitizationProfiles.None.StripComments.Should().BeFalse();
+        SanitizationProfiles.None.StripComments.ShouldBeFalse();
     }
 
     [Fact]
     public void None_DoesNotStripScripts()
     {
-        SanitizationProfiles.None.StripScripts.Should().BeFalse();
+        SanitizationProfiles.None.StripScripts.ShouldBeFalse();
     }
 
     #endregion
@@ -44,19 +44,19 @@ public sealed class SanitizationProfilesTests
     [Fact]
     public void StrictText_HasNoAllowedTags()
     {
-        SanitizationProfiles.StrictText.AllowedTags.Should().BeEmpty();
+        SanitizationProfiles.StrictText.AllowedTags.ShouldBeEmpty();
     }
 
     [Fact]
     public void StrictText_StripsComments()
     {
-        SanitizationProfiles.StrictText.StripComments.Should().BeTrue();
+        SanitizationProfiles.StrictText.StripComments.ShouldBeTrue();
     }
 
     [Fact]
     public void StrictText_StripsScripts()
     {
-        SanitizationProfiles.StrictText.StripScripts.Should().BeTrue();
+        SanitizationProfiles.StrictText.StripScripts.ShouldBeTrue();
     }
 
     #endregion
@@ -68,26 +68,26 @@ public sealed class SanitizationProfilesTests
     {
         var tags = SanitizationProfiles.BasicFormatting.AllowedTags;
 
-        tags.Should().Contain("b");
-        tags.Should().Contain("i");
-        tags.Should().Contain("u");
-        tags.Should().Contain("em");
-        tags.Should().Contain("strong");
-        tags.Should().Contain("br");
-        tags.Should().Contain("p");
-        tags.Should().Contain("span");
+        tags.ShouldContain("b");
+        tags.ShouldContain("i");
+        tags.ShouldContain("u");
+        tags.ShouldContain("em");
+        tags.ShouldContain("strong");
+        tags.ShouldContain("br");
+        tags.ShouldContain("p");
+        tags.ShouldContain("span");
     }
 
     [Fact]
     public void BasicFormatting_HasNoAllowedAttributes()
     {
-        SanitizationProfiles.BasicFormatting.AllowedAttributes.Should().BeEmpty();
+        SanitizationProfiles.BasicFormatting.AllowedAttributes.ShouldBeEmpty();
     }
 
     [Fact]
     public void BasicFormatting_StripsScripts()
     {
-        SanitizationProfiles.BasicFormatting.StripScripts.Should().BeTrue();
+        SanitizationProfiles.BasicFormatting.StripScripts.ShouldBeTrue();
     }
 
     #endregion
@@ -99,12 +99,12 @@ public sealed class SanitizationProfilesTests
     {
         var tags = SanitizationProfiles.RichText.AllowedTags;
 
-        tags.Should().Contain("h1");
-        tags.Should().Contain("h2");
-        tags.Should().Contain("h3");
-        tags.Should().Contain("h4");
-        tags.Should().Contain("h5");
-        tags.Should().Contain("h6");
+        tags.ShouldContain("h1");
+        tags.ShouldContain("h2");
+        tags.ShouldContain("h3");
+        tags.ShouldContain("h4");
+        tags.ShouldContain("h5");
+        tags.ShouldContain("h6");
     }
 
     [Fact]
@@ -112,9 +112,9 @@ public sealed class SanitizationProfilesTests
     {
         var tags = SanitizationProfiles.RichText.AllowedTags;
 
-        tags.Should().Contain("ul");
-        tags.Should().Contain("ol");
-        tags.Should().Contain("li");
+        tags.ShouldContain("ul");
+        tags.ShouldContain("ol");
+        tags.ShouldContain("li");
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public sealed class SanitizationProfilesTests
     {
         var tags = SanitizationProfiles.RichText.AllowedTags;
 
-        tags.Should().Contain("a");
-        tags.Should().Contain("img");
+        tags.ShouldContain("a");
+        tags.ShouldContain("img");
     }
 
     [Fact]
@@ -131,12 +131,12 @@ public sealed class SanitizationProfilesTests
     {
         var tags = SanitizationProfiles.RichText.AllowedTags;
 
-        tags.Should().Contain("table");
-        tags.Should().Contain("thead");
-        tags.Should().Contain("tbody");
-        tags.Should().Contain("tr");
-        tags.Should().Contain("th");
-        tags.Should().Contain("td");
+        tags.ShouldContain("table");
+        tags.ShouldContain("thead");
+        tags.ShouldContain("tbody");
+        tags.ShouldContain("tr");
+        tags.ShouldContain("th");
+        tags.ShouldContain("td");
     }
 
     [Fact]
@@ -144,11 +144,11 @@ public sealed class SanitizationProfilesTests
     {
         var attrs = SanitizationProfiles.RichText.AllowedAttributes;
 
-        attrs.Should().Contain("href");
-        attrs.Should().Contain("src");
-        attrs.Should().Contain("alt");
-        attrs.Should().Contain("title");
-        attrs.Should().Contain("class");
+        attrs.ShouldContain("href");
+        attrs.ShouldContain("src");
+        attrs.ShouldContain("alt");
+        attrs.ShouldContain("title");
+        attrs.ShouldContain("class");
     }
 
     [Fact]
@@ -156,15 +156,15 @@ public sealed class SanitizationProfilesTests
     {
         var protocols = SanitizationProfiles.RichText.AllowedProtocols;
 
-        protocols.Should().Contain("https");
-        protocols.Should().Contain("mailto");
-        protocols.Should().HaveCount(2);
+        protocols.ShouldContain("https");
+        protocols.ShouldContain("mailto");
+        protocols.Count.ShouldBe(2);
     }
 
     [Fact]
     public void RichText_StripsScripts()
     {
-        SanitizationProfiles.RichText.StripScripts.Should().BeTrue();
+        SanitizationProfiles.RichText.StripScripts.ShouldBeTrue();
     }
 
     #endregion
@@ -179,7 +179,7 @@ public sealed class SanitizationProfilesTests
 
         foreach (var tag in richTextTags)
         {
-            markdownTags.Should().Contain(tag);
+            markdownTags.ShouldContain(tag);
         }
     }
 
@@ -188,9 +188,9 @@ public sealed class SanitizationProfilesTests
     {
         var tags = SanitizationProfiles.Markdown.AllowedTags;
 
-        tags.Should().Contain("dl");
-        tags.Should().Contain("dt");
-        tags.Should().Contain("dd");
+        tags.ShouldContain("dl");
+        tags.ShouldContain("dt");
+        tags.ShouldContain("dd");
     }
 
     [Fact]
@@ -198,20 +198,20 @@ public sealed class SanitizationProfilesTests
     {
         var tags = SanitizationProfiles.Markdown.AllowedTags;
 
-        tags.Should().Contain("details");
-        tags.Should().Contain("summary");
+        tags.ShouldContain("details");
+        tags.ShouldContain("summary");
     }
 
     [Fact]
     public void Markdown_AllowsIdAttribute()
     {
-        SanitizationProfiles.Markdown.AllowedAttributes.Should().Contain("id");
+        SanitizationProfiles.Markdown.AllowedAttributes.ShouldContain("id");
     }
 
     [Fact]
     public void Markdown_AllowsTargetAttribute()
     {
-        SanitizationProfiles.Markdown.AllowedAttributes.Should().Contain("target");
+        SanitizationProfiles.Markdown.AllowedAttributes.ShouldContain("target");
     }
 
     #endregion
@@ -223,11 +223,11 @@ public sealed class SanitizationProfilesTests
     {
         var profile = new SanitizationProfileBuilder().Build();
 
-        profile.AllowedTags.Should().BeEmpty();
-        profile.AllowedAttributes.Should().BeEmpty();
-        profile.AllowedProtocols.Should().BeEmpty();
-        profile.StripComments.Should().BeTrue();
-        profile.StripScripts.Should().BeTrue();
+        profile.AllowedTags.ShouldBeEmpty();
+        profile.AllowedAttributes.ShouldBeEmpty();
+        profile.AllowedProtocols.ShouldBeEmpty();
+        profile.StripComments.ShouldBeTrue();
+        profile.StripScripts.ShouldBeTrue();
     }
 
     [Fact]
@@ -237,10 +237,10 @@ public sealed class SanitizationProfilesTests
             .AllowTags("p", "b", "i")
             .Build();
 
-        profile.AllowedTags.Should().HaveCount(3);
-        profile.AllowedTags.Should().Contain("p");
-        profile.AllowedTags.Should().Contain("b");
-        profile.AllowedTags.Should().Contain("i");
+        profile.AllowedTags.Count.ShouldBe(3);
+        profile.AllowedTags.ShouldContain("p");
+        profile.AllowedTags.ShouldContain("b");
+        profile.AllowedTags.ShouldContain("i");
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public sealed class SanitizationProfilesTests
             .AllowAttributes("href", "src")
             .Build();
 
-        profile.AllowedAttributes.Should().HaveCount(2);
+        profile.AllowedAttributes.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public sealed class SanitizationProfilesTests
             .AllowProtocols("https", "mailto")
             .Build();
 
-        profile.AllowedProtocols.Should().HaveCount(2);
+        profile.AllowedProtocols.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public sealed class SanitizationProfilesTests
             .WithStripComments(true)
             .Build();
 
-        profile.StripComments.Should().BeTrue();
+        profile.StripComments.ShouldBeTrue();
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public sealed class SanitizationProfilesTests
             .WithStripScripts(true)
             .Build();
 
-        profile.StripScripts.Should().BeTrue();
+        profile.StripScripts.ShouldBeTrue();
     }
 
     [Fact]
@@ -294,11 +294,11 @@ public sealed class SanitizationProfilesTests
             .WithStripScripts(true)
             .Build();
 
-        profile.AllowedTags.Should().HaveCount(2);
-        profile.AllowedAttributes.Should().HaveCount(1);
-        profile.AllowedProtocols.Should().HaveCount(1);
-        profile.StripComments.Should().BeTrue();
-        profile.StripScripts.Should().BeTrue();
+        profile.AllowedTags.Count.ShouldBe(2);
+        profile.AllowedAttributes.Count.ShouldBe(1);
+        profile.AllowedProtocols.Count.ShouldBe(1);
+        profile.StripComments.ShouldBeTrue();
+        profile.StripScripts.ShouldBeTrue();
     }
 
     #endregion

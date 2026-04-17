@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -27,8 +27,8 @@ public class InMemoryAuditStoreTests
         var result = await _store.RecordAsync(entry);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        _store.Count.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        _store.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class InMemoryAuditStoreTests
         var result = await _store.RecordAsync(entry);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public class InMemoryAuditStoreTests
         var act = async () => await _store.RecordAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("entry");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+                .ParamName.ShouldBe("entry");
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class InMemoryAuditStoreTests
         await _store.RecordAsync(entry3);
 
         // Assert
-        _store.Count.Should().Be(3);
+        _store.Count.ShouldBe(3);
     }
 
     #endregion
@@ -92,12 +92,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByEntityAsync("Order", null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(2);
-                entries.All(e => e.EntityType == "Order").Should().BeTrue();
+                entries.Count.ShouldBe(2);
+                entries.All(e => e.EntityType == "Order").ShouldBeTrue();
                 return true;
             },
             Left: _ => false);
@@ -117,12 +117,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByEntityAsync("Order", "order-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(1);
-                entries[0].EntityId.Should().Be("order-1");
+                entries.Count.ShouldBe(1);
+                entries[0].EntityId.ShouldBe("order-1");
                 return true;
             },
             Left: _ => false);
@@ -139,11 +139,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByEntityAsync("Customer", null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().BeEmpty();
+                entries.ShouldBeEmpty();
                 return true;
             },
             Left: _ => false);
@@ -156,7 +156,7 @@ public class InMemoryAuditStoreTests
         var act = async () => await _store.GetByEntityAsync(null!, null);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -179,12 +179,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByUserAsync("user-1", null, null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(2);
-                entries.All(e => e.UserId == "user-1").Should().BeTrue();
+                entries.Count.ShouldBe(2);
+                entries.All(e => e.UserId == "user-1").ShouldBeTrue();
                 return true;
             },
             Left: _ => false);
@@ -207,11 +207,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByUserAsync("user-1", baseTime.AddDays(-1), baseTime.AddDays(1));
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(1);
+                entries.Count.ShouldBe(1);
                 return true;
             },
             Left: _ => false);
@@ -232,11 +232,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByUserAsync("user-1", baseTime.AddDays(-1), null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(1);
+                entries.Count.ShouldBe(1);
                 return true;
             },
             Left: _ => false);
@@ -253,11 +253,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByUserAsync("user-999", null, null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().BeEmpty();
+                entries.ShouldBeEmpty();
                 return true;
             },
             Left: _ => false);
@@ -270,7 +270,7 @@ public class InMemoryAuditStoreTests
         var act = async () => await _store.GetByUserAsync(null!, null, null);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -293,12 +293,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByCorrelationIdAsync("corr-1");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().HaveCount(2);
-                entries.All(e => e.CorrelationId == "corr-1").Should().BeTrue();
+                entries.Count.ShouldBe(2);
+                entries.All(e => e.CorrelationId == "corr-1").ShouldBeTrue();
                 return true;
             },
             Left: _ => false);
@@ -315,11 +315,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.GetByCorrelationIdAsync("corr-999");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: entries =>
             {
-                entries.Should().BeEmpty();
+                entries.ShouldBeEmpty();
                 return true;
             },
             Left: _ => false);
@@ -332,7 +332,7 @@ public class InMemoryAuditStoreTests
         var act = async () => await _store.GetByCorrelationIdAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -354,14 +354,14 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(25);
-                paged.Items.Should().HaveCount(10);
-                paged.PageNumber.Should().Be(1);
-                paged.TotalPages.Should().Be(3);
+                paged.TotalCount.ShouldBe(25);
+                paged.Items.Count.ShouldBe(10);
+                paged.PageNumber.ShouldBe(1);
+                paged.TotalPages.ShouldBe(3);
                 return true;
             },
             Left: _ => false);
@@ -381,12 +381,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(2);
-                paged.Items.All(e => e.UserId == "user-1").Should().BeTrue();
+                paged.TotalCount.ShouldBe(2);
+                paged.Items.All(e => e.UserId == "user-1").ShouldBeTrue();
                 return true;
             },
             Left: _ => false);
@@ -406,11 +406,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(2);
+                paged.TotalCount.ShouldBe(2);
                 return true;
             },
             Left: _ => false);
@@ -430,12 +430,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(2);
-                paged.Items.All(e => e.Outcome == AuditOutcome.Failure).Should().BeTrue();
+                paged.TotalCount.ShouldBe(2);
+                paged.Items.All(e => e.Outcome == AuditOutcome.Failure).ShouldBeTrue();
                 return true;
             },
             Left: _ => false);
@@ -460,11 +460,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(1);
+                paged.TotalCount.ShouldBe(1);
                 return true;
             },
             Left: _ => false);
@@ -485,15 +485,15 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(25);
-                paged.Items.Should().HaveCount(10);
-                paged.PageNumber.Should().Be(2);
-                paged.HasPreviousPage.Should().BeTrue();
-                paged.HasNextPage.Should().BeTrue();
+                paged.TotalCount.ShouldBe(25);
+                paged.Items.Count.ShouldBe(10);
+                paged.PageNumber.ShouldBe(2);
+                paged.HasPreviousPage.ShouldBeTrue();
+                paged.HasNextPage.ShouldBeTrue();
                 return true;
             },
             Left: _ => false);
@@ -530,11 +530,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(1); // Only the 200ms entry
+                paged.TotalCount.ShouldBe(1); // Only the 200ms entry
                 return true;
             },
             Left: _ => false);
@@ -547,8 +547,8 @@ public class InMemoryAuditStoreTests
         var act = async () => await _store.QueryAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("query");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+                .ParamName.ShouldBe("query");
     }
 
     [Fact]
@@ -571,11 +571,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.QueryAsync(query);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: paged =>
             {
-                paged.TotalCount.Should().Be(1);
+                paged.TotalCount.ShouldBe(1);
                 return true;
             },
             Left: _ => false);
@@ -598,12 +598,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.PurgeEntriesAsync(cutoffDate);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: count =>
             {
-                count.Should().Be(2); // 2 entries older than cutoff
-                _store.Count.Should().Be(1); // 1 entry remains
+                count.ShouldBe(2); // 2 entries older than cutoff
+                _store.Count.ShouldBe(1); // 1 entry remains
                 return true;
             },
             Left: _ => false);
@@ -620,12 +620,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.PurgeEntriesAsync(cutoffDate);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: count =>
             {
-                count.Should().Be(0);
-                _store.Count.Should().Be(1);
+                count.ShouldBe(0);
+                _store.Count.ShouldBe(1);
                 return true;
             },
             Left: _ => false);
@@ -644,12 +644,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.PurgeEntriesAsync(cutoffDate);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: count =>
             {
-                count.Should().Be(3);
-                _store.Count.Should().Be(0);
+                count.ShouldBe(3);
+                _store.Count.ShouldBe(0);
                 return true;
             },
             Left: _ => false);
@@ -662,11 +662,11 @@ public class InMemoryAuditStoreTests
         var result = await _store.PurgeEntriesAsync(DateTime.UtcNow);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: count =>
             {
-                count.Should().Be(0);
+                count.ShouldBe(0);
                 return true;
             },
             Left: _ => false);
@@ -685,12 +685,12 @@ public class InMemoryAuditStoreTests
         var result = await _store.PurgeEntriesAsync(cutoffDate);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: count =>
             {
-                count.Should().Be(1); // Only entry before cutoff
-                _store.Count.Should().Be(2); // Cutoff and after remain
+                count.ShouldBe(1); // Only entry before cutoff
+                _store.Count.ShouldBe(2); // Cutoff and after remain
                 return true;
             },
             Left: _ => false);
@@ -712,7 +712,7 @@ public class InMemoryAuditStoreTests
         await Task.WhenAll(tasks);
 
         // Assert
-        _store.Count.Should().Be(100);
+        _store.Count.ShouldBe(100);
     }
 
     [Fact]
@@ -732,7 +732,7 @@ public class InMemoryAuditStoreTests
         await Task.WhenAll(allTasks);
 
         // Assert - Store should contain all written entries
-        _store.Count.Should().Be(50);
+        _store.Count.ShouldBe(50);
     }
 
     #endregion
@@ -743,7 +743,7 @@ public class InMemoryAuditStoreTests
     public void Count_ShouldReturnNumberOfEntries()
     {
         // Arrange & Act - Empty store
-        _store.Count.Should().Be(0);
+        _store.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -759,7 +759,7 @@ public class InMemoryAuditStoreTests
         var entries = _store.GetAllEntries();
 
         // Assert
-        entries.Should().HaveCount(2);
+        entries.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -773,8 +773,8 @@ public class InMemoryAuditStoreTests
         _store.Clear();
 
         // Assert
-        _store.Count.Should().Be(0);
-        _store.GetAllEntries().Should().BeEmpty();
+        _store.Count.ShouldBe(0);
+        _store.GetAllEntries().ShouldBeEmpty();
     }
 
     #endregion

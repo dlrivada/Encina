@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -78,8 +78,8 @@ public class RequestMetadataExtractorTests
         var (entityType, action) = ExtractFromTypeName(requestType);
 
         // Assert
-        entityType.Should().Be(expectedEntity);
-        action.Should().Be(expectedAction);
+        entityType.ShouldBe(expectedEntity);
+        action.ShouldBe(expectedAction);
     }
 
     [Theory]
@@ -92,8 +92,8 @@ public class RequestMetadataExtractorTests
         var (entityType, action) = ExtractFromTypeName(requestType);
 
         // Assert
-        entityType.Should().Be(expectedEntity);
-        action.Should().Be(expectedAction);
+        entityType.ShouldBe(expectedEntity);
+        action.ShouldBe(expectedAction);
     }
 
     [Fact]
@@ -103,8 +103,8 @@ public class RequestMetadataExtractorTests
         var (entityType, action) = ExtractFromTypeName(typeof(CustomRequest));
 
         // Assert
-        entityType.Should().Be("CustomRequest");
-        action.Should().Be("Unknown");
+        entityType.ShouldBe("CustomRequest");
+        action.ShouldBe("Unknown");
     }
 
     [Fact]
@@ -114,8 +114,7 @@ public class RequestMetadataExtractorTests
         var act = () => ExtractFromTypeNameMethod.Invoke(null, [null]);
 
         // Assert
-        act.Should().Throw<TargetInvocationException>()
-            .WithInnerException<ArgumentNullException>();
+        Should.Throw<TargetInvocationException>(act).InnerException.ShouldBeOfType<ArgumentNullException>();
     }
 
     #endregion
@@ -132,7 +131,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(request);
 
         // Assert
-        result.Should().Be(request.Id.ToString());
+        result.ShouldBe(request.Id.ToString());
     }
 
     [Fact]
@@ -145,7 +144,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(request);
 
         // Assert
-        result.Should().Be("entity-123");
+        result.ShouldBe("entity-123");
     }
 
     [Fact]
@@ -158,7 +157,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(request);
 
         // Assert
-        result.Should().Be("12345");
+        result.ShouldBe("12345");
     }
 
     [Fact]
@@ -171,7 +170,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(request);
 
         // Assert
-        result.Should().Be("primary-id");
+        result.ShouldBe("primary-id");
     }
 
     [Fact]
@@ -184,7 +183,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(request);
 
         // Assert
-        result.Should().Be("entity-id");
+        result.ShouldBe("entity-id");
     }
 
     [Fact]
@@ -194,7 +193,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(null!);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -207,7 +206,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(request);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -220,7 +219,7 @@ public class RequestMetadataExtractorTests
         var result = TryExtractEntityId(request);
 
         // Assert
-        result.Should().BeNull();
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -235,8 +234,8 @@ public class RequestMetadataExtractorTests
         var result2 = TryExtractEntityId(request2);
 
         // Assert - Both should work (cache should not cause issues)
-        result1.Should().Be(request1.Id.ToString());
-        result2.Should().Be(request2.Id.ToString());
+        result1.ShouldBe(request1.Id.ToString());
+        result2.ShouldBe(request2.Id.ToString());
     }
 
     #endregion

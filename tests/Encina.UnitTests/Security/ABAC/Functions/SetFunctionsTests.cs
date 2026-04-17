@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -39,9 +39,9 @@ public sealed class SetFunctionsTests
         var result = (AttributeBag)Eval(XACMLFunctionIds.StringIntersection, bag1, bag2)!;
 
         var values = ExtractValues(result);
-        values.Should().HaveCount(2);
-        values.Should().Contain("b");
-        values.Should().Contain("c");
+        values.Count.ShouldBe(2);
+        values.ShouldContain("b");
+        values.ShouldContain("c");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class SetFunctionsTests
 
         var result = (AttributeBag)Eval(XACMLFunctionIds.StringIntersection, bag1, bag2)!;
 
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class SetFunctionsTests
 
         var result = (AttributeBag)Eval(XACMLFunctionIds.StringIntersection, bag1, AttributeBag.Empty)!;
 
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -74,9 +74,9 @@ public sealed class SetFunctionsTests
         var result = (AttributeBag)Eval(XACMLFunctionIds.IntegerIntersection, bag1, bag2)!;
 
         var values = ExtractValues(result);
-        values.Should().HaveCount(2);
-        values.Should().Contain(1);
-        values.Should().Contain(2);
+        values.Count.ShouldBe(2);
+        values.ShouldContain(1);
+        values.ShouldContain(2);
     }
 
     #endregion
@@ -92,11 +92,11 @@ public sealed class SetFunctionsTests
         var result = (AttributeBag)Eval(XACMLFunctionIds.StringUnion, bag1, bag2)!;
 
         var values = ExtractValues(result);
-        values.Should().HaveCount(4);
-        values.Should().Contain("a");
-        values.Should().Contain("b");
-        values.Should().Contain("c");
-        values.Should().Contain("d");
+        values.Count.ShouldBe(4);
+        values.ShouldContain("a");
+        values.ShouldContain("b");
+        values.ShouldContain("c");
+        values.ShouldContain("d");
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class SetFunctionsTests
         var result = (AttributeBag)Eval(XACMLFunctionIds.StringUnion, bag1, bag2)!;
 
         var values = ExtractValues(result);
-        values.Should().HaveCount(4);
+        values.Count.ShouldBe(4);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class SetFunctionsTests
 
         var result = (AttributeBag)Eval(XACMLFunctionIds.IntegerUnion, bag1, bag2)!;
 
-        ExtractValues(result).Should().HaveCount(3);
+        ExtractValues(result).Count.ShouldBe(3);
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class SetFunctionsTests
     {
         var result = (AttributeBag)Eval(XACMLFunctionIds.StringUnion, AttributeBag.Empty, AttributeBag.Empty)!;
 
-        result.IsEmpty.Should().BeTrue();
+        result.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class SetFunctionsTests
 
         var result = (AttributeBag)Eval(XACMLFunctionIds.DoubleUnion, bag1, bag2)!;
 
-        ExtractValues(result).Should().HaveCount(3);
+        ExtractValues(result).Count.ShouldBe(3);
     }
 
     #endregion
@@ -151,7 +151,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b");
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "b", "c");
 
-        Eval(XACMLFunctionIds.StringSubset, bag1, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.StringSubset, bag1, bag2).ShouldBe(true);
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b");
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "b");
 
-        Eval(XACMLFunctionIds.StringSubset, bag1, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.StringSubset, bag1, bag2).ShouldBe(true);
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b", "x");
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "b", "c");
 
-        Eval(XACMLFunctionIds.StringSubset, bag1, bag2).Should().Be(false);
+        Eval(XACMLFunctionIds.StringSubset, bag1, bag2).ShouldBe(false);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class SetFunctionsTests
     {
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "b");
 
-        Eval(XACMLFunctionIds.StringSubset, AttributeBag.Empty, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.StringSubset, AttributeBag.Empty, bag2).ShouldBe(true);
     }
 
     [Fact]
@@ -185,14 +185,14 @@ public sealed class SetFunctionsTests
     {
         var bag1 = MakeBag(XACMLDataTypes.Integer, 1);
 
-        Eval(XACMLFunctionIds.IntegerSubset, bag1, AttributeBag.Empty).Should().Be(false);
+        Eval(XACMLFunctionIds.IntegerSubset, bag1, AttributeBag.Empty).ShouldBe(false);
     }
 
     [Fact]
     public void IntegerSubset_BothEmpty_ReturnsTrue()
     {
         Eval(XACMLFunctionIds.IntegerSubset, AttributeBag.Empty, AttributeBag.Empty)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     #endregion
@@ -205,7 +205,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b");
         var bag2 = MakeBag(XACMLDataTypes.String, "b", "c");
 
-        Eval(XACMLFunctionIds.StringAtLeastOneMemberOf, bag1, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.StringAtLeastOneMemberOf, bag1, bag2).ShouldBe(true);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b");
         var bag2 = MakeBag(XACMLDataTypes.String, "c", "d");
 
-        Eval(XACMLFunctionIds.StringAtLeastOneMemberOf, bag1, bag2).Should().Be(false);
+        Eval(XACMLFunctionIds.StringAtLeastOneMemberOf, bag1, bag2).ShouldBe(false);
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.Integer, 1, 2);
 
         Eval(XACMLFunctionIds.IntegerAtLeastOneMemberOf, bag1, AttributeBag.Empty)
-            .Should().Be(false);
+            .ShouldBe(false);
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.Double, 1.0, 2.0);
         var bag2 = MakeBag(XACMLDataTypes.Double, 1.0, 2.0, 3.0);
 
-        Eval(XACMLFunctionIds.DoubleAtLeastOneMemberOf, bag1, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.DoubleAtLeastOneMemberOf, bag1, bag2).ShouldBe(true);
     }
 
     #endregion
@@ -245,7 +245,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b", "c");
         var bag2 = MakeBag(XACMLDataTypes.String, "c", "b", "a");
 
-        Eval(XACMLFunctionIds.StringSetEquals, bag1, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.StringSetEquals, bag1, bag2).ShouldBe(true);
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b");
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "c");
 
-        Eval(XACMLFunctionIds.StringSetEquals, bag1, bag2).Should().Be(false);
+        Eval(XACMLFunctionIds.StringSetEquals, bag1, bag2).ShouldBe(false);
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.String, "a", "b");
         var bag2 = MakeBag(XACMLDataTypes.String, "a", "b", "c");
 
-        Eval(XACMLFunctionIds.StringSetEquals, bag1, bag2).Should().Be(false);
+        Eval(XACMLFunctionIds.StringSetEquals, bag1, bag2).ShouldBe(false);
     }
 
     [Fact]
@@ -272,14 +272,14 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.Integer, 1, 1, 2);
         var bag2 = MakeBag(XACMLDataTypes.Integer, 1, 2, 2);
 
-        Eval(XACMLFunctionIds.IntegerSetEquals, bag1, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.IntegerSetEquals, bag1, bag2).ShouldBe(true);
     }
 
     [Fact]
     public void StringSetEquals_BothEmpty_ReturnsTrue()
     {
         Eval(XACMLFunctionIds.StringSetEquals, AttributeBag.Empty, AttributeBag.Empty)
-            .Should().Be(true);
+            .ShouldBe(true);
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public sealed class SetFunctionsTests
         var bag1 = MakeBag(XACMLDataTypes.Double, 1.5, 2.5);
         var bag2 = MakeBag(XACMLDataTypes.Double, 2.5, 1.5);
 
-        Eval(XACMLFunctionIds.DoubleSetEquals, bag1, bag2).Should().Be(true);
+        Eval(XACMLFunctionIds.DoubleSetEquals, bag1, bag2).ShouldBe(true);
     }
 
     #endregion

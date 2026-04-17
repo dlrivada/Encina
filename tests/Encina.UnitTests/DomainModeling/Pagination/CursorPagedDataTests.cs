@@ -1,5 +1,5 @@
 using Encina.DomainModeling.Pagination;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -31,9 +31,9 @@ public class CursorPagedDataTests
         var pagedData = new CursorPagedData<string>(items, pageInfo, TotalCount: 100);
 
         // Assert
-        pagedData.Items.Should().HaveCount(3);
-        pagedData.PageInfo.Should().Be(pageInfo);
-        pagedData.TotalCount.Should().Be(100);
+        pagedData.Items.Count.ShouldBe(3);
+        pagedData.PageInfo.ShouldBe(pageInfo);
+        pagedData.TotalCount.ShouldBe(100);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class CursorPagedDataTests
         var pagedData = new CursorPagedData<string>(items, pageInfo);
 
         // Assert
-        pagedData.TotalCount.Should().BeNull();
+        pagedData.TotalCount.ShouldBeNull();
     }
 
     [Fact]
@@ -57,12 +57,12 @@ public class CursorPagedDataTests
         var empty = CursorPagedData<string>.Empty();
 
         // Assert
-        empty.Items.Should().BeEmpty();
-        empty.PageInfo.HasPreviousPage.Should().BeFalse();
-        empty.PageInfo.HasNextPage.Should().BeFalse();
-        empty.PageInfo.StartCursor.Should().BeNull();
-        empty.PageInfo.EndCursor.Should().BeNull();
-        empty.TotalCount.Should().Be(0);
+        empty.Items.ShouldBeEmpty();
+        empty.PageInfo.HasPreviousPage.ShouldBeFalse();
+        empty.PageInfo.HasNextPage.ShouldBeFalse();
+        empty.PageInfo.StartCursor.ShouldBeNull();
+        empty.PageInfo.EndCursor.ShouldBeNull();
+        empty.TotalCount.ShouldBe(0);
     }
 
     #endregion
@@ -76,8 +76,8 @@ public class CursorPagedDataTests
         var item = new CursorItem<int>(42, "cursor-42");
 
         // Assert
-        item.Item.Should().Be(42);
-        item.Cursor.Should().Be("cursor-42");
+        item.Item.ShouldBe(42);
+        item.Cursor.ShouldBe("cursor-42");
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public class CursorPagedDataTests
         var item = new CursorItem<TestOrder>(order, "order-cursor");
 
         // Assert
-        item.Item.Should().Be(order);
-        item.Cursor.Should().Be("order-cursor");
+        item.Item.ShouldBe(order);
+        item.Cursor.ShouldBe("order-cursor");
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class CursorPagedDataTests
         var item2 = new CursorItem<string>("value", "cursor");
 
         // Assert
-        item1.Should().Be(item2);
+        item1.ShouldBe(item2);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class CursorPagedDataTests
         var item2 = new CursorItem<string>("value", "cursor2");
 
         // Assert
-        item1.Should().NotBe(item2);
+        item1.ShouldNotBe(item2);
     }
 
     #endregion
@@ -131,10 +131,10 @@ public class CursorPagedDataTests
             EndCursor: "end");
 
         // Assert
-        pageInfo.HasPreviousPage.Should().BeTrue();
-        pageInfo.HasNextPage.Should().BeTrue();
-        pageInfo.StartCursor.Should().Be("start");
-        pageInfo.EndCursor.Should().Be("end");
+        pageInfo.HasPreviousPage.ShouldBeTrue();
+        pageInfo.HasNextPage.ShouldBeTrue();
+        pageInfo.StartCursor.ShouldBe("start");
+        pageInfo.EndCursor.ShouldBe("end");
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public class CursorPagedDataTests
             EndCursor: "end");
 
         // Assert
-        pageInfo.HasPreviousPage.Should().BeFalse();
-        pageInfo.HasNextPage.Should().BeTrue();
+        pageInfo.HasPreviousPage.ShouldBeFalse();
+        pageInfo.HasNextPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public class CursorPagedDataTests
             EndCursor: "end");
 
         // Assert
-        pageInfo.HasPreviousPage.Should().BeTrue();
-        pageInfo.HasNextPage.Should().BeFalse();
+        pageInfo.HasPreviousPage.ShouldBeTrue();
+        pageInfo.HasNextPage.ShouldBeFalse();
     }
 
     [Fact]
@@ -178,8 +178,8 @@ public class CursorPagedDataTests
             EndCursor: null);
 
         // Assert
-        pageInfo.StartCursor.Should().BeNull();
-        pageInfo.EndCursor.Should().BeNull();
+        pageInfo.StartCursor.ShouldBeNull();
+        pageInfo.EndCursor.ShouldBeNull();
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class CursorPagedDataTests
         var info2 = new CursorPageInfo(true, true, "start", "end");
 
         // Assert
-        info1.Should().Be(info2);
+        info1.ShouldBe(info2);
     }
 
     #endregion
@@ -218,12 +218,12 @@ public class CursorPagedDataTests
         var result = CursorPaginatedResult<string>.FromPagedData(pagedData);
 
         // Assert
-        result.Items.Should().BeEquivalentTo(["item1", "item2", "item3"]);
-        result.PreviousCursor.Should().Be("cursor1"); // StartCursor -> PreviousCursor
-        result.NextCursor.Should().Be("cursor3"); // EndCursor -> NextCursor
-        result.HasPreviousPage.Should().BeTrue();
-        result.HasNextPage.Should().BeTrue();
-        result.TotalCount.Should().Be(100);
+        result.Items.ShouldBe(["item1", "item2", "item3"]);
+        result.PreviousCursor.ShouldBe("cursor1"); // StartCursor -> PreviousCursor
+        result.NextCursor.ShouldBe("cursor3"); // EndCursor -> NextCursor
+        result.HasPreviousPage.ShouldBeTrue();
+        result.HasNextPage.ShouldBeTrue();
+        result.TotalCount.ShouldBe(100);
     }
 
     [Fact]
@@ -236,12 +236,12 @@ public class CursorPagedDataTests
         var result = CursorPaginatedResult<string>.FromPagedData(pagedData);
 
         // Assert
-        result.Items.Should().BeEmpty();
-        result.PreviousCursor.Should().BeNull();
-        result.NextCursor.Should().BeNull();
-        result.HasPreviousPage.Should().BeFalse();
-        result.HasNextPage.Should().BeFalse();
-        result.TotalCount.Should().Be(0);
+        result.Items.ShouldBeEmpty();
+        result.PreviousCursor.ShouldBeNull();
+        result.NextCursor.ShouldBeNull();
+        result.HasPreviousPage.ShouldBeFalse();
+        result.HasNextPage.ShouldBeFalse();
+        result.TotalCount.ShouldBe(0);
     }
 
     [Fact]
@@ -262,12 +262,12 @@ public class CursorPagedDataTests
         var pagedData = new CursorPagedData<int>(items, pageInfo);
 
         // Assert - Each item should have its own cursor
-        pagedData.Items.Should().HaveCount(5);
-        pagedData.Items[0].Cursor.Should().Be("cursor-1");
-        pagedData.Items[1].Cursor.Should().Be("cursor-2");
-        pagedData.Items[2].Cursor.Should().Be("cursor-3");
-        pagedData.Items[3].Cursor.Should().Be("cursor-4");
-        pagedData.Items[4].Cursor.Should().Be("cursor-5");
+        pagedData.Items.Count.ShouldBe(5);
+        pagedData.Items[0].Cursor.ShouldBe("cursor-1");
+        pagedData.Items[1].Cursor.ShouldBe("cursor-2");
+        pagedData.Items[2].Cursor.ShouldBe("cursor-3");
+        pagedData.Items[3].Cursor.ShouldBe("cursor-4");
+        pagedData.Items[4].Cursor.ShouldBe("cursor-5");
     }
 
     #endregion
@@ -285,8 +285,8 @@ public class CursorPagedDataTests
         // Assert - Properties match GraphQL Edge structure
         // edge.node -> CursorItem.Item
         // edge.cursor -> CursorItem.Cursor
-        item.Item.Should().NotBeNull();
-        item.Cursor.Should().NotBeNullOrEmpty();
+        item.Item.ShouldNotBeNull();
+        item.Cursor.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -300,10 +300,10 @@ public class CursorPagedDataTests
             EndCursor: "endXYZ");
 
         // Assert - Properties match GraphQL PageInfo
-        pageInfo.HasPreviousPage.Should().BeTrue();
-        pageInfo.HasNextPage.Should().BeTrue();
-        pageInfo.StartCursor.Should().Be("startABC");
-        pageInfo.EndCursor.Should().Be("endXYZ");
+        pageInfo.HasPreviousPage.ShouldBeTrue();
+        pageInfo.HasNextPage.ShouldBeTrue();
+        pageInfo.StartCursor.ShouldBe("startABC");
+        pageInfo.EndCursor.ShouldBe("endXYZ");
     }
 
     #endregion

@@ -1,6 +1,6 @@
 using System.Diagnostics.Metrics;
 using Encina.Security.Secrets.Diagnostics;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Diagnostics;
 
@@ -17,8 +17,8 @@ public sealed class SecretsMetricsGuardTests
     {
         var act = () => new SecretsMetrics(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("meterFactory");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("meterFactory");
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class SecretsMetricsGuardTests
 
         var act = () => new SecretsMetrics(factory);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

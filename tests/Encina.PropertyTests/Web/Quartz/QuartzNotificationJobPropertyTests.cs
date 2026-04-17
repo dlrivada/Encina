@@ -146,7 +146,7 @@ public sealed class QuartzNotificationJobPropertyTests
 
         if (notification is not null)
         {
-            jobDataMap.Put(QuartzConstants.NotificationKey, notification);
+            jobDataMap[QuartzConstants.NotificationKey] = notification;
         }
 
         jobDetail.JobDataMap.Returns(jobDataMap);

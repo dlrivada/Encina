@@ -1,7 +1,7 @@
 using Encina.Compliance.Retention.Aggregates;
 using Encina.Compliance.Retention.Events;
 using Encina.Compliance.Retention.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -35,18 +35,18 @@ public class RetentionPolicyAggregateTests
             reason, legalBasis, Now, tenantId, moduleId);
 
         // Assert
-        policy.Id.Should().Be(id);
-        policy.DataCategory.Should().Be(dataCategory);
-        policy.RetentionPeriod.Should().Be(retentionPeriod);
-        policy.AutoDelete.Should().BeTrue();
-        policy.PolicyType.Should().Be(policyType);
-        policy.Reason.Should().Be(reason);
-        policy.LegalBasis.Should().Be(legalBasis);
-        policy.IsActive.Should().BeTrue();
-        policy.TenantId.Should().Be(tenantId);
-        policy.ModuleId.Should().Be(moduleId);
-        policy.CreatedAtUtc.Should().Be(Now);
-        policy.LastUpdatedAtUtc.Should().Be(Now);
+        policy.Id.ShouldBe(id);
+        policy.DataCategory.ShouldBe(dataCategory);
+        policy.RetentionPeriod.ShouldBe(retentionPeriod);
+        policy.AutoDelete.ShouldBeTrue();
+        policy.PolicyType.ShouldBe(policyType);
+        policy.Reason.ShouldBe(reason);
+        policy.LegalBasis.ShouldBe(legalBasis);
+        policy.IsActive.ShouldBeTrue();
+        policy.TenantId.ShouldBe(tenantId);
+        policy.ModuleId.ShouldBe(moduleId);
+        policy.CreatedAtUtc.ShouldBe(Now);
+        policy.LastUpdatedAtUtc.ShouldBe(Now);
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public class RetentionPolicyAggregateTests
         var policy = CreateActivePolicy();
 
         // Assert
-        policy.UncommittedEvents.Should().HaveCount(1);
-        policy.UncommittedEvents[0].Should().BeOfType<RetentionPolicyCreated>();
+        policy.UncommittedEvents.Count.ShouldBe(1);
+        policy.UncommittedEvents[0].ShouldBeOfType<RetentionPolicyCreated>();
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public class RetentionPolicyAggregateTests
         var policy = CreateActivePolicy();
 
         // Assert
-        var evt = policy.UncommittedEvents[0].Should().BeOfType<RetentionPolicyCreated>().Subject;
-        evt.PolicyId.Should().Be(policy.Id);
+        var evt = policy.UncommittedEvents[0].ShouldBeOfType<RetentionPolicyCreated>();
+        evt.PolicyId.ShouldBe(policy.Id);
     }
 
     [Theory]
@@ -83,7 +83,7 @@ public class RetentionPolicyAggregateTests
             RetentionPolicyType.TimeBased, "reason", "basis", Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -98,7 +98,7 @@ public class RetentionPolicyAggregateTests
             RetentionPolicyType.TimeBased, "reason", "basis", Now);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     #endregion
@@ -119,11 +119,11 @@ public class RetentionPolicyAggregateTests
         policy.Update(newPeriod, false, newReason, newLegalBasis, updateTime);
 
         // Assert
-        policy.RetentionPeriod.Should().Be(newPeriod);
-        policy.AutoDelete.Should().BeFalse();
-        policy.Reason.Should().Be(newReason);
-        policy.LegalBasis.Should().Be(newLegalBasis);
-        policy.LastUpdatedAtUtc.Should().Be(updateTime);
+        policy.RetentionPeriod.ShouldBe(newPeriod);
+        policy.AutoDelete.ShouldBeFalse();
+        policy.Reason.ShouldBe(newReason);
+        policy.LegalBasis.ShouldBe(newLegalBasis);
+        policy.LastUpdatedAtUtc.ShouldBe(updateTime);
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public class RetentionPolicyAggregateTests
         policy.Update(TimeSpan.FromDays(730), false, "Updated reason", "New basis", Now.AddDays(30));
 
         // Assert
-        policy.UncommittedEvents.Should().HaveCount(2);
-        policy.UncommittedEvents[1].Should().BeOfType<RetentionPolicyUpdated>();
+        policy.UncommittedEvents.Count.ShouldBe(2);
+        policy.UncommittedEvents[1].ShouldBeOfType<RetentionPolicyUpdated>();
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class RetentionPolicyAggregateTests
         var act = () => policy.Update(TimeSpan.FromDays(730), false, "reason", "basis", Now.AddDays(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Theory]
@@ -165,7 +165,7 @@ public class RetentionPolicyAggregateTests
         var act = () => policy.Update(TimeSpan.FromDays(days), true, "reason", "basis", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     #endregion
@@ -183,7 +183,7 @@ public class RetentionPolicyAggregateTests
         policy.Deactivate("No longer needed", deactivateTime);
 
         // Assert
-        policy.IsActive.Should().BeFalse();
+        policy.IsActive.ShouldBeFalse();
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public class RetentionPolicyAggregateTests
         policy.Deactivate("No longer needed", deactivateTime);
 
         // Assert
-        policy.LastUpdatedAtUtc.Should().Be(deactivateTime);
+        policy.LastUpdatedAtUtc.ShouldBe(deactivateTime);
     }
 
     [Fact]
@@ -210,8 +210,8 @@ public class RetentionPolicyAggregateTests
         policy.Deactivate("No longer needed", Now.AddDays(1));
 
         // Assert
-        policy.UncommittedEvents.Should().HaveCount(2);
-        policy.UncommittedEvents[1].Should().BeOfType<RetentionPolicyDeactivated>();
+        policy.UncommittedEvents.Count.ShouldBe(2);
+        policy.UncommittedEvents[1].ShouldBeOfType<RetentionPolicyDeactivated>();
     }
 
     [Fact]
@@ -224,7 +224,7 @@ public class RetentionPolicyAggregateTests
         var act = () => policy.Deactivate("Again", Now.AddDays(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Theory]
@@ -240,7 +240,7 @@ public class RetentionPolicyAggregateTests
         var act = () => policy.Deactivate(reason!, Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion

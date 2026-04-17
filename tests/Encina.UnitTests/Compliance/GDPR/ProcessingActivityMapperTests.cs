@@ -1,5 +1,5 @@
 using Encina.Compliance.GDPR;
-using FluentAssertions;
+using Shouldly;
 using LawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 
 namespace Encina.UnitTests.Compliance.GDPR;
@@ -42,17 +42,17 @@ public class ProcessingActivityMapperTests
         var entity = ProcessingActivityMapper.ToEntity(activity);
 
         // Assert
-        entity.Id.Should().Be("11111111-2222-3333-4444-555555555555");
-        entity.RequestTypeName.Should().Be(typeof(ProcessingActivityMapperTests).AssemblyQualifiedName);
-        entity.Name.Should().Be("Order Processing");
-        entity.Purpose.Should().Be("Fulfil customer orders");
-        entity.LawfulBasisValue.Should().Be((int)LawfulBasis.Contract);
-        entity.ThirdCountryTransfers.Should().Be("US data center");
-        entity.Safeguards.Should().Be("Standard contractual clauses");
-        entity.RetentionPeriodTicks.Should().Be(TimeSpan.FromDays(730).Ticks);
-        entity.SecurityMeasures.Should().Be("Encryption at rest and in transit");
-        entity.CreatedAtUtc.Should().Be(FixedTime);
-        entity.LastUpdatedAtUtc.Should().Be(FixedTime.AddHours(1));
+        entity.Id.ShouldBe("11111111-2222-3333-4444-555555555555");
+        entity.RequestTypeName.ShouldBe(typeof(ProcessingActivityMapperTests).AssemblyQualifiedName);
+        entity.Name.ShouldBe("Order Processing");
+        entity.Purpose.ShouldBe("Fulfil customer orders");
+        entity.LawfulBasisValue.ShouldBe((int)LawfulBasis.Contract);
+        entity.ThirdCountryTransfers.ShouldBe("US data center");
+        entity.Safeguards.ShouldBe("Standard contractual clauses");
+        entity.RetentionPeriodTicks.ShouldBe(TimeSpan.FromDays(730).Ticks);
+        entity.SecurityMeasures.ShouldBe("Encryption at rest and in transit");
+        entity.CreatedAtUtc.ShouldBe(FixedTime);
+        entity.LastUpdatedAtUtc.ShouldBe(FixedTime.AddHours(1));
     }
 
     [Fact]
@@ -65,13 +65,13 @@ public class ProcessingActivityMapperTests
         var entity = ProcessingActivityMapper.ToEntity(activity);
 
         // Assert
-        entity.CategoriesOfDataSubjectsJson.Should().Contain("Customers");
-        entity.CategoriesOfDataSubjectsJson.Should().Contain("Suppliers");
-        entity.CategoriesOfPersonalDataJson.Should().Contain("Name");
-        entity.CategoriesOfPersonalDataJson.Should().Contain("Email");
-        entity.CategoriesOfPersonalDataJson.Should().Contain("Address");
-        entity.RecipientsJson.Should().Contain("Shipping Provider");
-        entity.RecipientsJson.Should().Contain("Payment Gateway");
+        entity.CategoriesOfDataSubjectsJson.ShouldContain("Customers");
+        entity.CategoriesOfDataSubjectsJson.ShouldContain("Suppliers");
+        entity.CategoriesOfPersonalDataJson.ShouldContain("Name");
+        entity.CategoriesOfPersonalDataJson.ShouldContain("Email");
+        entity.CategoriesOfPersonalDataJson.ShouldContain("Address");
+        entity.RecipientsJson.ShouldContain("Shipping Provider");
+        entity.RecipientsJson.ShouldContain("Payment Gateway");
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public class ProcessingActivityMapperTests
         var entity = ProcessingActivityMapper.ToEntity(activity);
 
         // Assert
-        entity.ThirdCountryTransfers.Should().BeNull();
-        entity.Safeguards.Should().BeNull();
+        entity.ThirdCountryTransfers.ShouldBeNull();
+        entity.Safeguards.ShouldBeNull();
     }
 
     [Fact]
@@ -99,8 +99,7 @@ public class ProcessingActivityMapperTests
         var act = () => ProcessingActivityMapper.ToEntity(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("activity");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("activity");
     }
 
     // -- ToDomain --
@@ -116,18 +115,18 @@ public class ProcessingActivityMapperTests
         var domain = ProcessingActivityMapper.ToDomain(entity);
 
         // Assert
-        domain.Should().NotBeNull();
-        domain!.Id.Should().Be(activity.Id);
-        domain.RequestType.Should().Be(typeof(ProcessingActivityMapperTests));
-        domain.Name.Should().Be("Order Processing");
-        domain.Purpose.Should().Be("Fulfil customer orders");
-        domain.LawfulBasis.Should().Be(LawfulBasis.Contract);
-        domain.ThirdCountryTransfers.Should().Be("US data center");
-        domain.Safeguards.Should().Be("Standard contractual clauses");
-        domain.RetentionPeriod.Should().Be(TimeSpan.FromDays(730));
-        domain.SecurityMeasures.Should().Be("Encryption at rest and in transit");
-        domain.CreatedAtUtc.Should().Be(FixedTime);
-        domain.LastUpdatedAtUtc.Should().Be(FixedTime.AddHours(1));
+        domain.ShouldNotBeNull();
+        domain!.Id.ShouldBe(activity.Id);
+        domain.RequestType.ShouldBe(typeof(ProcessingActivityMapperTests));
+        domain.Name.ShouldBe("Order Processing");
+        domain.Purpose.ShouldBe("Fulfil customer orders");
+        domain.LawfulBasis.ShouldBe(LawfulBasis.Contract);
+        domain.ThirdCountryTransfers.ShouldBe("US data center");
+        domain.Safeguards.ShouldBe("Standard contractual clauses");
+        domain.RetentionPeriod.ShouldBe(TimeSpan.FromDays(730));
+        domain.SecurityMeasures.ShouldBe("Encryption at rest and in transit");
+        domain.CreatedAtUtc.ShouldBe(FixedTime);
+        domain.LastUpdatedAtUtc.ShouldBe(FixedTime.AddHours(1));
     }
 
     [Fact]
@@ -141,10 +140,10 @@ public class ProcessingActivityMapperTests
         var domain = ProcessingActivityMapper.ToDomain(entity);
 
         // Assert
-        domain.Should().NotBeNull();
-        domain!.CategoriesOfDataSubjects.Should().BeEquivalentTo(["Customers", "Suppliers"]);
-        domain.CategoriesOfPersonalData.Should().BeEquivalentTo(["Name", "Email", "Address"]);
-        domain.Recipients.Should().BeEquivalentTo(["Shipping Provider", "Payment Gateway"]);
+        domain.ShouldNotBeNull();
+        domain!.CategoriesOfDataSubjects.ShouldBe(["Customers", "Suppliers"]);
+        domain.CategoriesOfPersonalData.ShouldBe(["Name", "Email", "Address"]);
+        domain.Recipients.ShouldBe(["Shipping Provider", "Payment Gateway"]);
     }
 
     [Fact]
@@ -171,7 +170,7 @@ public class ProcessingActivityMapperTests
         var domain = ProcessingActivityMapper.ToDomain(entity);
 
         // Assert
-        domain.Should().BeNull();
+        domain.ShouldBeNull();
     }
 
     [Fact]
@@ -181,8 +180,7 @@ public class ProcessingActivityMapperTests
         var act = () => ProcessingActivityMapper.ToDomain(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entity");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("entity");
     }
 
     // -- Round-trip --
@@ -198,19 +196,19 @@ public class ProcessingActivityMapperTests
         var restored = ProcessingActivityMapper.ToDomain(entity);
 
         // Assert
-        restored.Should().NotBeNull();
-        restored!.Id.Should().Be(original.Id);
-        restored.Name.Should().Be(original.Name);
-        restored.Purpose.Should().Be(original.Purpose);
-        restored.LawfulBasis.Should().Be(original.LawfulBasis);
-        restored.CategoriesOfDataSubjects.Should().BeEquivalentTo(original.CategoriesOfDataSubjects);
-        restored.CategoriesOfPersonalData.Should().BeEquivalentTo(original.CategoriesOfPersonalData);
-        restored.Recipients.Should().BeEquivalentTo(original.Recipients);
-        restored.ThirdCountryTransfers.Should().Be(original.ThirdCountryTransfers);
-        restored.Safeguards.Should().Be(original.Safeguards);
-        restored.RetentionPeriod.Should().Be(original.RetentionPeriod);
-        restored.SecurityMeasures.Should().Be(original.SecurityMeasures);
-        restored.RequestType.Should().Be(original.RequestType);
+        restored.ShouldNotBeNull();
+        restored!.Id.ShouldBe(original.Id);
+        restored.Name.ShouldBe(original.Name);
+        restored.Purpose.ShouldBe(original.Purpose);
+        restored.LawfulBasis.ShouldBe(original.LawfulBasis);
+        restored.CategoriesOfDataSubjects.ShouldBe(original.CategoriesOfDataSubjects);
+        restored.CategoriesOfPersonalData.ShouldBe(original.CategoriesOfPersonalData);
+        restored.Recipients.ShouldBe(original.Recipients);
+        restored.ThirdCountryTransfers.ShouldBe(original.ThirdCountryTransfers);
+        restored.Safeguards.ShouldBe(original.Safeguards);
+        restored.RetentionPeriod.ShouldBe(original.RetentionPeriod);
+        restored.SecurityMeasures.ShouldBe(original.SecurityMeasures);
+        restored.RequestType.ShouldBe(original.RequestType);
     }
 
     [Fact]
@@ -229,10 +227,10 @@ public class ProcessingActivityMapperTests
         var restored = ProcessingActivityMapper.ToDomain(entity);
 
         // Assert
-        restored.Should().NotBeNull();
-        restored!.CategoriesOfDataSubjects.Should().BeEmpty();
-        restored.CategoriesOfPersonalData.Should().BeEmpty();
-        restored.Recipients.Should().BeEmpty();
+        restored.ShouldNotBeNull();
+        restored!.CategoriesOfDataSubjects.ShouldBeEmpty();
+        restored.CategoriesOfPersonalData.ShouldBeEmpty();
+        restored.Recipients.ShouldBeEmpty();
     }
 
     // -- LawfulBasis enum values --
@@ -254,7 +252,7 @@ public class ProcessingActivityMapperTests
         var restored = ProcessingActivityMapper.ToDomain(entity);
 
         // Assert
-        restored.Should().NotBeNull();
-        restored!.LawfulBasis.Should().Be(basis);
+        restored.ShouldNotBeNull();
+        restored!.LawfulBasis.ShouldBe(basis);
     }
 }

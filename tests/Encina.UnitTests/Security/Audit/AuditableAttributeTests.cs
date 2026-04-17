@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -16,11 +16,11 @@ public class AuditableAttributeTests
         var attribute = new AuditableAttribute();
 
         // Assert
-        attribute.EntityType.Should().BeNull();
-        attribute.Action.Should().BeNull();
-        attribute.IncludePayload.Should().BeNull();
-        attribute.SensitivityLevel.Should().BeNull();
-        attribute.Skip.Should().BeFalse();
+        attribute.EntityType.ShouldBeNull();
+        attribute.Action.ShouldBeNull();
+        attribute.IncludePayload.ShouldBeNull();
+        attribute.SensitivityLevel.ShouldBeNull();
+        attribute.Skip.ShouldBeFalse();
     }
 
     [Fact]
@@ -37,12 +37,12 @@ public class AuditableAttributeTests
         };
 
         // Assert
-        attribute.EntityType.Should().Be("Order");
-        attribute.Action.Should().Be("Create");
-        attribute.IncludePayload.Should().BeTrue();
-        attribute.IncludePayloadValue.Should().BeTrue();
-        attribute.SensitivityLevel.Should().Be("High");
-        attribute.Skip.Should().BeFalse();
+        attribute.EntityType.ShouldBe("Order");
+        attribute.Action.ShouldBe("Create");
+        attribute.IncludePayload.ShouldBe(true);
+        attribute.IncludePayloadValue.ShouldBeTrue();
+        attribute.SensitivityLevel.ShouldBe("High");
+        attribute.Skip.ShouldBeFalse();
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class AuditableAttributeTests
         var attribute = new AuditableAttribute { Skip = true };
 
         // Assert
-        attribute.Skip.Should().BeTrue();
+        attribute.Skip.ShouldBeTrue();
     }
 
     [Fact]
@@ -62,8 +62,8 @@ public class AuditableAttributeTests
         var attributeUsage = typeof(AuditableAttribute).GetCustomAttribute<AttributeUsageAttribute>();
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().HaveFlag(AttributeTargets.Class);
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.ValidOn.HasFlag(AttributeTargets.Class).ShouldBeTrue();
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public class AuditableAttributeTests
         var attributeUsage = typeof(AuditableAttribute).GetCustomAttribute<AttributeUsageAttribute>();
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.AllowMultiple.Should().BeFalse();
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.AllowMultiple.ShouldBeFalse();
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public class AuditableAttributeTests
         var attributeUsage = typeof(AuditableAttribute).GetCustomAttribute<AttributeUsageAttribute>();
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.Inherited.Should().BeFalse();
+        attributeUsage.ShouldNotBeNull();
+        attributeUsage!.Inherited.ShouldBeFalse();
     }
 
     [Fact]
@@ -95,9 +95,9 @@ public class AuditableAttributeTests
         var attribute = typeof(TestAuditableCommand).GetCustomAttribute<AuditableAttribute>();
 
         // Assert
-        attribute.Should().NotBeNull();
-        attribute!.EntityType.Should().Be("TestEntity");
-        attribute.Action.Should().Be("TestAction");
+        attribute.ShouldNotBeNull();
+        attribute!.EntityType.ShouldBe("TestEntity");
+        attribute.Action.ShouldBe("TestAction");
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public class AuditableAttributeTests
         var attribute = typeof(SkippedAuditCommand).GetCustomAttribute<AuditableAttribute>();
 
         // Assert
-        attribute.Should().NotBeNull();
-        attribute!.Skip.Should().BeTrue();
+        attribute.ShouldNotBeNull();
+        attribute!.Skip.ShouldBeTrue();
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class AuditableAttributeTests
         var attribute = new AuditableAttribute();
 
         // Assert - null means "use the default from AuditOptions"
-        attribute.IncludePayload.Should().BeNull();
+        attribute.IncludePayload.ShouldBeNull();
     }
 
     [Fact]
@@ -128,8 +128,8 @@ public class AuditableAttributeTests
         var attribute = new AuditableAttribute { IncludePayloadValue = false };
 
         // Assert
-        attribute.IncludePayload.Should().BeFalse();
-        attribute.IncludePayloadValue.Should().BeFalse();
+        attribute.IncludePayload.ShouldBe(false);
+        attribute.IncludePayloadValue.ShouldBeFalse();
     }
 
     [Fact]
@@ -139,8 +139,8 @@ public class AuditableAttributeTests
         var attribute = typeof(NoPayloadCommand).GetCustomAttribute<AuditableAttribute>();
 
         // Assert
-        attribute.Should().NotBeNull();
-        attribute!.IncludePayload.Should().BeFalse();
+        attribute.ShouldNotBeNull();
+        attribute!.IncludePayload.ShouldBe(false);
     }
 
     [Auditable(IncludePayloadValue = false)]

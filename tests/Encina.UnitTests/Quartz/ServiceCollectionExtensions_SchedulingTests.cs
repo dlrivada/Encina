@@ -28,7 +28,8 @@ public class ServiceCollectionExtensionsSchedulingTests
         // Assert
         triggerKey.ShouldBe(trigger.Key);
         await scheduler.Received(1).ScheduleJob(
-            Arg.Is<IJobDetail>(j => j.Key == jobKey),
+            Arg.Is<IJobDetail>(j => j.Key == jobKey
+                && j.JobDataMap[QuartzConstants.RequestKey] == (object)request),
             Arg.Is<ITrigger>(t => t.Key == trigger.Key),
             Arg.Any<CancellationToken>());
     }
@@ -75,7 +76,8 @@ public class ServiceCollectionExtensionsSchedulingTests
         // Assert
         triggerKey.ShouldBe(trigger.Key);
         await scheduler.Received(1).ScheduleJob(
-            Arg.Is<IJobDetail>(j => j.Key == jobKey),
+            Arg.Is<IJobDetail>(j => j.Key == jobKey
+                && j.JobDataMap[QuartzConstants.NotificationKey] == (object)notification),
             Arg.Any<ITrigger>(),
             Arg.Any<CancellationToken>());
     }

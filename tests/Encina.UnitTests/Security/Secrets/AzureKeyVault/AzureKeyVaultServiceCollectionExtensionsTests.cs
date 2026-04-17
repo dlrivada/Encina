@@ -5,10 +5,10 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.AzureKeyVault;
 using Encina.Security.Secrets.Caching;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.AzureKeyVault;
 
@@ -40,7 +40,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
         services.AddAzureKeyVaultSecrets(VaultUri);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretReader>().Should().NotBeNull();
+        provider.GetService<ISecretReader>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
         services.AddAzureKeyVaultSecrets(VaultUri);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretWriter>().Should().NotBeNull();
+        provider.GetService<ISecretWriter>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
         services.AddAzureKeyVaultSecrets(VaultUri);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISecretRotator>().Should().NotBeNull();
+        provider.GetService<ISecretRotator>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
         services.AddAzureKeyVaultSecrets(VaultUri);
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<AzureKeyVaultSecretProvider>().Should().NotBeNull();
+        provider.GetService<AzureKeyVaultSecretProvider>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
         var writer = provider.GetRequiredService<ISecretWriter>();
         var rotator = provider.GetRequiredService<ISecretRotator>();
 
-        writer.Should().BeOfType<CachingSecretWriterDecorator>();
-        rotator.Should().BeSameAs(underlying);
+        writer.ShouldBeOfType<CachingSecretWriterDecorator>();
+        rotator.ShouldBeSameAs(underlying);
     }
 
     #endregion
@@ -105,7 +105,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
-        options.VaultUri.Should().Be(VaultUri);
+        options.VaultUri.ShouldBe(VaultUri);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
-        options.Credential.Should().BeSameAs(credential);
+        options.Credential.ShouldBeSameAs(credential);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
-        options.ClientOptions.Should().BeSameAs(clientOptions);
+        options.ClientOptions.ShouldBeSameAs(clientOptions);
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SecretsOptions>>().Value;
-        options.EnableCaching.Should().BeFalse();
-        options.DefaultCacheDuration.Should().Be(TimeSpan.FromMinutes(30));
+        options.EnableCaching.ShouldBeFalse();
+        options.DefaultCacheDuration.ShouldBe(TimeSpan.FromMinutes(30));
     }
 
     #endregion
@@ -163,7 +163,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
 
         var result = services.AddAzureKeyVaultSecrets(VaultUri);
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
             services.AddAzureKeyVaultSecrets(VaultUri);
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -191,8 +191,8 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
 
         var act = () => services.AddAzureKeyVaultSecrets(VaultUri);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsTests
 
         var act = () => services.AddAzureKeyVaultSecrets(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("vaultUri");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("vaultUri");
     }
 
     #endregion

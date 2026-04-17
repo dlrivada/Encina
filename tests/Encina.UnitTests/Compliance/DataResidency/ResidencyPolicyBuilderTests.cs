@@ -1,7 +1,7 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -17,9 +17,9 @@ public class ResidencyPolicyBuilderTests
             builder.AllowRegions(RegionRegistry.DE, RegionRegistry.FR);
         });
 
-        options.ConfiguredPolicies.Should().HaveCount(1);
-        options.ConfiguredPolicies[0].DataCategory.Should().Be("healthcare-data");
-        options.ConfiguredPolicies[0].AllowedRegions.Should().HaveCount(2);
+        options.ConfiguredPolicies.Count.ShouldBe(1);
+        options.ConfiguredPolicies[0].DataCategory.ShouldBe("healthcare-data");
+        options.ConfiguredPolicies[0].AllowedRegions.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class ResidencyPolicyBuilderTests
             builder.AllowEU();
         });
 
-        options.ConfiguredPolicies[0].AllowedRegions.Should().NotBeEmpty();
+        options.ConfiguredPolicies[0].AllowedRegions.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class ResidencyPolicyBuilderTests
             builder.AllowEEA();
         });
 
-        options.ConfiguredPolicies[0].AllowedRegions.Should().NotBeEmpty();
+        options.ConfiguredPolicies[0].AllowedRegions.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class ResidencyPolicyBuilderTests
             builder.AllowAdequate();
         });
 
-        options.ConfiguredPolicies[0].AllowedRegions.Should().NotBeEmpty();
+        options.ConfiguredPolicies[0].AllowedRegions.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class ResidencyPolicyBuilderTests
             builder.RequireAdequacyDecision();
         });
 
-        options.ConfiguredPolicies[0].RequireAdequacyDecision.Should().BeTrue();
+        options.ConfiguredPolicies[0].RequireAdequacyDecision.ShouldBeTrue();
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class ResidencyPolicyBuilderTests
                 TransferLegalBasis.BindingCorporateRules);
         });
 
-        options.ConfiguredPolicies[0].AllowedTransferBases.Should().HaveCount(2);
+        options.ConfiguredPolicies[0].AllowedTransferBases.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class ResidencyPolicyBuilderTests
             .AddPolicy("data-1", b => b.AllowEU())
             .AddPolicy("data-2", b => b.AllowRegions(RegionRegistry.US));
 
-        options.ConfiguredPolicies.Should().HaveCount(2);
+        options.ConfiguredPolicies.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class ResidencyPolicyBuilderTests
             builder.AllowRegions(RegionRegistry.DE, RegionRegistry.DE, RegionRegistry.FR);
         });
 
-        options.ConfiguredPolicies[0].AllowedRegions.Should().OnlyHaveUniqueItems();
+        options.ConfiguredPolicies[0].AllowedRegions.ShouldBeUnique();
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class ResidencyPolicyBuilderTests
 
         var act = () => options.AddPolicy(null!, _ => { });
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class ResidencyPolicyBuilderTests
 
         var act = () => options.AddPolicy("test", null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class ResidencyPolicyBuilderTests
             builder.AllowRegions(null!);
         });
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -159,6 +159,6 @@ public class ResidencyPolicyBuilderTests
             builder.AllowTransferBasis(null!);
         });
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 }

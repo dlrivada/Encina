@@ -1,7 +1,7 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Profiles;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -14,7 +14,7 @@ public sealed class SanitizationOptionsTests
     {
         var options = new SanitizationOptions();
 
-        options.SanitizeAllStringInputs.Should().BeFalse();
+        options.SanitizeAllStringInputs.ShouldBeFalse();
     }
 
     [Fact]
@@ -22,7 +22,7 @@ public sealed class SanitizationOptionsTests
     {
         var options = new SanitizationOptions();
 
-        options.EncodeAllOutputs.Should().BeFalse();
+        options.EncodeAllOutputs.ShouldBeFalse();
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class SanitizationOptionsTests
     {
         var options = new SanitizationOptions();
 
-        options.DefaultProfile.Should().BeNull();
+        options.DefaultProfile.ShouldBeNull();
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class SanitizationOptionsTests
     {
         var options = new SanitizationOptions();
 
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public sealed class SanitizationOptionsTests
     {
         var options = new SanitizationOptions();
 
-        options.EnableTracing.Should().BeFalse();
+        options.EnableTracing.ShouldBeFalse();
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class SanitizationOptionsTests
     {
         var options = new SanitizationOptions();
 
-        options.EnableMetrics.Should().BeFalse();
+        options.EnableMetrics.ShouldBeFalse();
     }
 
     #endregion
@@ -66,7 +66,7 @@ public sealed class SanitizationOptionsTests
     {
         var options = new SanitizationOptions { SanitizeAllStringInputs = true };
 
-        options.SanitizeAllStringInputs.Should().BeTrue();
+        options.SanitizeAllStringInputs.ShouldBeTrue();
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class SanitizationOptionsTests
             DefaultProfile = SanitizationProfiles.RichText
         };
 
-        options.DefaultProfile.Should().BeSameAs(SanitizationProfiles.RichText);
+        options.DefaultProfile.ShouldBeSameAs(SanitizationProfiles.RichText);
     }
 
     #endregion
@@ -92,8 +92,8 @@ public sealed class SanitizationOptionsTests
 
         options.AddProfile("test", profile);
 
-        options.TryGetProfile("test", out var retrieved).Should().BeTrue();
-        retrieved.Should().BeSameAs(profile);
+        options.TryGetProfile("test", out var retrieved).ShouldBeTrue();
+        retrieved.ShouldBeSameAs(profile);
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public sealed class SanitizationOptionsTests
         var options = new SanitizationOptions();
         options.AddProfile("MyProfile", SanitizationProfiles.RichText);
 
-        options.TryGetProfile("myprofile", out var retrieved).Should().BeTrue();
-        retrieved.Should().BeSameAs(SanitizationProfiles.RichText);
+        options.TryGetProfile("myprofile", out var retrieved).ShouldBeTrue();
+        retrieved.ShouldBeSameAs(SanitizationProfiles.RichText);
     }
 
     [Fact]
@@ -113,8 +113,8 @@ public sealed class SanitizationOptionsTests
         options.AddProfile("test", SanitizationProfiles.BasicFormatting);
         options.AddProfile("test", SanitizationProfiles.RichText);
 
-        options.TryGetProfile("test", out var retrieved).Should().BeTrue();
-        retrieved.Should().BeSameAs(SanitizationProfiles.RichText);
+        options.TryGetProfile("test", out var retrieved).ShouldBeTrue();
+        retrieved.ShouldBeSameAs(SanitizationProfiles.RichText);
     }
 
     [Fact]
@@ -124,8 +124,8 @@ public sealed class SanitizationOptionsTests
 
         var act = () => options.AddProfile(null!, SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("name");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -135,8 +135,8 @@ public sealed class SanitizationOptionsTests
 
         var act = () => options.AddProfile("test", (ISanitizationProfile)null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("profile");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("profile");
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class SanitizationOptionsTests
 
         var act = () => options.AddProfile("", SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public sealed class SanitizationOptionsTests
 
         var act = () => options.AddProfile("   ", SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -177,13 +177,13 @@ public sealed class SanitizationOptionsTests
             builder.WithStripComments(true);
         });
 
-        options.TryGetProfile("custom", out var profile).Should().BeTrue();
-        profile!.AllowedTags.Should().Contain("p");
-        profile.AllowedTags.Should().Contain("a");
-        profile.AllowedAttributes.Should().Contain("href");
-        profile.AllowedProtocols.Should().Contain("https");
-        profile.StripScripts.Should().BeTrue();
-        profile.StripComments.Should().BeTrue();
+        options.TryGetProfile("custom", out var profile).ShouldBeTrue();
+        profile!.AllowedTags.ShouldContain("p");
+        profile.AllowedTags.ShouldContain("a");
+        profile.AllowedAttributes.ShouldContain("href");
+        profile.AllowedProtocols.ShouldContain("https");
+        profile.StripScripts.ShouldBeTrue();
+        profile.StripComments.ShouldBeTrue();
     }
 
     [Fact]
@@ -193,8 +193,8 @@ public sealed class SanitizationOptionsTests
 
         var act = () => options.AddProfile(null!, _ => { });
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("name");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("name");
     }
 
     [Fact]
@@ -204,8 +204,8 @@ public sealed class SanitizationOptionsTests
 
         var act = () => options.AddProfile("test", (Action<SanitizationProfileBuilder>)null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configure");
     }
 
     #endregion
@@ -219,8 +219,8 @@ public sealed class SanitizationOptionsTests
 
         var found = options.TryGetProfile("nonexistent", out var profile);
 
-        found.Should().BeFalse();
-        profile.Should().BeNull();
+        found.ShouldBeFalse();
+        profile.ShouldBeNull();
     }
 
     #endregion
@@ -236,7 +236,7 @@ public sealed class SanitizationOptionsTests
         options.UseHtmlSanitizer(configurator);
 
         // Verify via internal property (testing internal state is acceptable for options)
-        options.Should().NotBeNull();
+        options.ShouldNotBeNull();
     }
 
     [Fact]
@@ -246,8 +246,8 @@ public sealed class SanitizationOptionsTests
 
         var act = () => options.UseHtmlSanitizer(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configure");
     }
 
     #endregion

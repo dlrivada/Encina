@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Builders;
-using FluentAssertions;
+using Shouldly;
 using Target = Encina.Security.ABAC.Target;
 
 namespace Encina.UnitTests.Security.ABAC.Builders;
@@ -18,7 +18,7 @@ public sealed class PolicyBuilderTests
     {
         var act = () => new PolicyBuilder("test-policy");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class PolicyBuilderTests
     {
         var act = () => new PolicyBuilder(null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class PolicyBuilderTests
     {
         var act = () => new PolicyBuilder("");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -48,8 +48,7 @@ public sealed class PolicyBuilderTests
 
         var act = () => builder.Build();
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*must contain at least one rule*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must contain at least one rule");
     }
 
     #endregion
@@ -61,7 +60,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Id.Should().Be("my-policy");
+        policy.Id.ShouldBe("my-policy");
     }
 
     [Fact]
@@ -69,7 +68,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Algorithm.Should().Be(CombiningAlgorithmId.DenyOverrides);
+        policy.Algorithm.ShouldBe(CombiningAlgorithmId.DenyOverrides);
     }
 
     [Fact]
@@ -77,7 +76,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.IsEnabled.Should().BeTrue();
+        policy.IsEnabled.ShouldBeTrue();
     }
 
     [Fact]
@@ -85,7 +84,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Priority.Should().Be(0);
+        policy.Priority.ShouldBe(0);
     }
 
     [Fact]
@@ -93,7 +92,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Version.Should().BeNull();
+        policy.Version.ShouldBeNull();
     }
 
     [Fact]
@@ -101,7 +100,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Description.Should().BeNull();
+        policy.Description.ShouldBeNull();
     }
 
     [Fact]
@@ -109,7 +108,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Target.Should().BeNull();
+        policy.Target.ShouldBeNull();
     }
 
     [Fact]
@@ -117,7 +116,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Obligations.Should().BeEmpty();
+        policy.Obligations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -125,7 +124,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.Advice.Should().BeEmpty();
+        policy.Advice.ShouldBeEmpty();
     }
 
     [Fact]
@@ -133,7 +132,7 @@ public sealed class PolicyBuilderTests
     {
         var policy = CreateMinimalPolicy("my-policy");
 
-        policy.VariableDefinitions.Should().BeEmpty();
+        policy.VariableDefinitions.ShouldBeEmpty();
     }
 
     #endregion
@@ -148,7 +147,7 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Version.Should().Be("2.0");
+        policy.Version.ShouldBe("2.0");
     }
 
     [Fact]
@@ -159,7 +158,7 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Description.Should().Be("Test policy description");
+        policy.Description.ShouldBe("Test policy description");
     }
 
     [Fact]
@@ -170,7 +169,7 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Algorithm.Should().Be(CombiningAlgorithmId.PermitOverrides);
+        policy.Algorithm.ShouldBe(CombiningAlgorithmId.PermitOverrides);
     }
 
     [Fact]
@@ -182,7 +181,7 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Target.Should().NotBeNull();
+        policy.Target.ShouldNotBeNull();
     }
 
     [Fact]
@@ -193,8 +192,8 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Target.Should().NotBeNull();
-        policy.Target!.AnyOfElements.Should().HaveCount(1);
+        policy.Target.ShouldNotBeNull();
+        policy.Target!.AnyOfElements.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -205,8 +204,8 @@ public sealed class PolicyBuilderTests
             .AddRule(rule)
             .Build();
 
-        policy.Rules.Should().ContainSingle()
-            .Which.Id.Should().Be("r1");
+        policy.Rules.ShouldHaveSingleItem()
+            .Id.ShouldBe("r1");
     }
 
     [Fact]
@@ -217,8 +216,8 @@ public sealed class PolicyBuilderTests
                 .WithDescription("deny rule"))
             .Build();
 
-        policy.Rules.Should().ContainSingle();
-        policy.Rules[0].Effect.Should().Be(Effect.Deny);
+        policy.Rules.ShouldHaveSingleItem();
+        policy.Rules[0].Effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -230,7 +229,7 @@ public sealed class PolicyBuilderTests
             .AddRule("r3", Effect.Permit, _ => { })
             .Build();
 
-        policy.Rules.Should().HaveCount(3);
+        policy.Rules.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -241,7 +240,7 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Priority.Should().Be(10);
+        policy.Priority.ShouldBe(10);
     }
 
     [Fact]
@@ -252,7 +251,7 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.IsEnabled.Should().BeFalse();
+        policy.IsEnabled.ShouldBeFalse();
     }
 
     [Fact]
@@ -263,8 +262,8 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("ob1");
+        policy.Obligations.ShouldHaveSingleItem()
+            .Id.ShouldBe("ob1");
     }
 
     [Fact]
@@ -275,8 +274,8 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.Advice.Should().ContainSingle()
-            .Which.Id.Should().Be("adv1");
+        policy.Advice.ShouldHaveSingleItem()
+            .Id.ShouldBe("adv1");
     }
 
     [Fact]
@@ -288,8 +287,8 @@ public sealed class PolicyBuilderTests
             .AddRule("r1", Effect.Permit, _ => { })
             .Build();
 
-        policy.VariableDefinitions.Should().ContainSingle()
-            .Which.VariableId.Should().Be("var1");
+        policy.VariableDefinitions.ShouldHaveSingleItem()
+            .VariableId.ShouldBe("var1");
     }
 
     #endregion

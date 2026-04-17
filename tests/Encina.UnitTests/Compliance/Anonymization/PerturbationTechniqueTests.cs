@@ -1,9 +1,7 @@
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
-
-using FluentAssertions;
-
 using LanguageExt;
+using Shouldly;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
@@ -23,7 +21,7 @@ public class PerturbationTechniqueTests
         var result = _technique.Technique;
 
         // Assert
-        result.Should().Be(AnonymizationTechnique.Perturbation);
+        result.ShouldBe(AnonymizationTechnique.Perturbation);
     }
 
     [Fact]
@@ -33,7 +31,7 @@ public class PerturbationTechniqueTests
         var result = _technique.CanApply(typeof(int));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -43,7 +41,7 @@ public class PerturbationTechniqueTests
         var result = _technique.CanApply(typeof(string));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -61,7 +59,7 @@ public class PerturbationTechniqueTests
             Right: v =>
             {
                 var val = (int)v!;
-                val.Should().BeInRange(90, 110);
+                val.ShouldBeInRange(90, 110);
             },
             Left: _ => Assert.Fail("Expected Right"));
     }
@@ -76,7 +74,7 @@ public class PerturbationTechniqueTests
         // Assert
         // LanguageExt throws ValueIsNullException when Right(null) is called
         // and the null check is before the try/catch block
-        await act.Should().ThrowAsync<ValueIsNullException>();
+        await Should.ThrowAsync<ValueIsNullException>(act);
     }
 
     [Fact]
@@ -94,7 +92,7 @@ public class PerturbationTechniqueTests
             Right: v =>
             {
                 var val = (int)v!;
-                val.Should().BeInRange(190, 210);
+                val.ShouldBeInRange(190, 210);
             },
             Left: _ => Assert.Fail("Expected Right"));
     }

@@ -4,10 +4,10 @@ using Encina.Security.Audit;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -42,8 +42,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var act = () => new AuditedSecretReaderDecorator(null!, _auditStore, _requestContext, options, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var act = () => new AuditedSecretReaderDecorator(_innerReader, null!, _requestContext, options, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("auditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
@@ -64,8 +64,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var act = () => new AuditedSecretReaderDecorator(_innerReader, _auditStore, null!, options, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public sealed class AuditedSecretReaderDecoratorTests
     {
         var act = () => new AuditedSecretReaderDecorator(_innerReader, _auditStore, _requestContext, null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var act = () => new AuditedSecretReaderDecorator(_innerReader, _auditStore, _requestContext, options, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -101,8 +101,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("value"));
         await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
     }
 
@@ -137,8 +137,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("expected"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("expected"));
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("missing-key");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         await _auditStore.Received(1).RecordAsync(
             Arg.Is<AuditEntry>(e =>
                 e.Outcome == AuditOutcome.Failure &&
@@ -192,8 +192,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("value"));
     }
 
     [Fact]
@@ -208,8 +208,8 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync("key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("value"));
     }
 
     #endregion
@@ -226,7 +226,7 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         var result = await decorator.GetSecretAsync<TestConfig>("config");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
     }
 

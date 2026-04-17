@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -29,8 +29,8 @@ public sealed class CombiningAlgorithmFactoryTests
     {
         var algorithm = _sut.GetAlgorithm(algorithmId);
 
-        algorithm.Should().NotBeNull();
-        algorithm.Should().BeOfType(expectedType);
+        algorithm.ShouldNotBeNull();
+        algorithm.ShouldBeOfType(expectedType);
     }
 
     [Theory]
@@ -47,7 +47,7 @@ public sealed class CombiningAlgorithmFactoryTests
     {
         var algorithm = _sut.GetAlgorithm(algorithmId);
 
-        algorithm.AlgorithmId.Should().Be(algorithmId);
+        algorithm.AlgorithmId.ShouldBe(algorithmId);
     }
 
     #endregion
@@ -63,7 +63,7 @@ public sealed class CombiningAlgorithmFactoryTests
         var first = _sut.GetAlgorithm(algorithmId);
         var second = _sut.GetAlgorithm(algorithmId);
 
-        first.Should().BeSameAs(second,
+        first.ShouldBeSameAs(second,
             "Factory pre-registers instances; same reference should be returned");
     }
 
@@ -78,8 +78,8 @@ public sealed class CombiningAlgorithmFactoryTests
 
         var act = () => _sut.GetAlgorithm(invalidId);
 
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithParameterName("algorithmId");
+        Should.Throw<ArgumentOutOfRangeException>(act)
+                .ParamName.ShouldBe("algorithmId");
     }
 
     #endregion
@@ -95,8 +95,7 @@ public sealed class CombiningAlgorithmFactoryTests
         {
             var act = () => _sut.GetAlgorithm(id);
 
-            act.Should().NotThrow(
-                $"CombiningAlgorithmId.{id} should be registered in the factory");
+            Should.NotThrow(act);
         }
     }
 
@@ -105,7 +104,7 @@ public sealed class CombiningAlgorithmFactoryTests
     {
         var count = Enum.GetValues<CombiningAlgorithmId>().Length;
 
-        count.Should().Be(8,
+        count.ShouldBe(8,
             "XACML 3.0 defines exactly 8 combining algorithms");
     }
 

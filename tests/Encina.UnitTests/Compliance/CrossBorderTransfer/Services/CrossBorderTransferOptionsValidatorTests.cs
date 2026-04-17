@@ -1,11 +1,8 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.CrossBorderTransfer;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Options;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Services;
@@ -24,7 +21,7 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -40,8 +37,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("TIARiskThreshold");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("TIARiskThreshold");
     }
 
     [Fact]
@@ -57,8 +55,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("TIARiskThreshold");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("TIARiskThreshold");
     }
 
     [Theory]
@@ -76,7 +75,7 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -92,8 +91,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("CacheTTLMinutes");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("CacheTTLMinutes");
     }
 
     [Fact]
@@ -109,8 +109,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("CacheTTLMinutes");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("CacheTTLMinutes");
     }
 
     [Fact]
@@ -126,8 +127,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultTIAExpirationDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultTIAExpirationDays");
     }
 
     [Fact]
@@ -143,7 +145,7 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -159,8 +161,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultSCCExpirationDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultSCCExpirationDays");
     }
 
     [Fact]
@@ -176,8 +179,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultTransferExpirationDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultTransferExpirationDays");
     }
 
     [Fact]
@@ -193,8 +197,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultSourceCountryCode");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultSourceCountryCode");
     }
 
     [Fact]
@@ -210,8 +215,9 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("DefaultSourceCountryCode");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("DefaultSourceCountryCode");
     }
 
     [Fact]
@@ -221,7 +227,7 @@ public class CrossBorderTransferOptionsValidatorTests
         var act = () => _validator.Validate(null, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -240,10 +246,11 @@ public class CrossBorderTransferOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("TIARiskThreshold");
-        result.FailureMessage.Should().Contain("CacheTTLMinutes");
-        result.FailureMessage.Should().Contain("DefaultSourceCountryCode");
-        result.FailureMessage.Should().Contain("DefaultTIAExpirationDays");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("TIARiskThreshold");
+        result.FailureMessage.ShouldContain("CacheTTLMinutes");
+        result.FailureMessage.ShouldContain("DefaultSourceCountryCode");
+        result.FailureMessage.ShouldContain("DefaultTIAExpirationDays");
     }
 }

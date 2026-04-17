@@ -2,7 +2,7 @@ using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DataSubjectRights.Events;
 using Encina.Compliance.DataSubjectRights.Projections;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights.Projections;
 
@@ -23,7 +23,7 @@ public class DSRRequestProjectionTests
     [Fact]
     public void ProjectionName_ShouldReturnExpectedName()
     {
-        _projection.ProjectionName.Should().Be("DSRRequestProjection");
+        _projection.ProjectionName.ShouldBe("DSRRequestProjection");
     }
 
     #endregion
@@ -42,17 +42,17 @@ public class DSRRequestProjectionTests
         var model = _projection.Create(@event, DefaultContext);
 
         // Assert
-        model.Id.Should().Be(DefaultId);
-        model.SubjectId.Should().Be("subject-1");
-        model.RightType.Should().Be(DataSubjectRight.Access);
-        model.Status.Should().Be(DSRRequestStatus.Received);
-        model.ReceivedAtUtc.Should().Be(Now);
-        model.DeadlineAtUtc.Should().Be(Deadline);
-        model.RequestDetails.Should().Be("I want my data");
-        model.TenantId.Should().Be("tenant-1");
-        model.ModuleId.Should().Be("module-1");
-        model.LastModifiedAtUtc.Should().Be(Now);
-        model.Version.Should().Be(1);
+        model.Id.ShouldBe(DefaultId);
+        model.SubjectId.ShouldBe("subject-1");
+        model.RightType.ShouldBe(DataSubjectRight.Access);
+        model.Status.ShouldBe(DSRRequestStatus.Received);
+        model.ReceivedAtUtc.ShouldBe(Now);
+        model.DeadlineAtUtc.ShouldBe(Deadline);
+        model.RequestDetails.ShouldBe("I want my data");
+        model.TenantId.ShouldBe("tenant-1");
+        model.ModuleId.ShouldBe("module-1");
+        model.LastModifiedAtUtc.ShouldBe(Now);
+        model.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public class DSRRequestProjectionTests
         var model = _projection.Create(@event, DefaultContext);
 
         // Assert
-        model.RequestDetails.Should().BeNull();
-        model.TenantId.Should().BeNull();
-        model.ModuleId.Should().BeNull();
+        model.RequestDetails.ShouldBeNull();
+        model.TenantId.ShouldBeNull();
+        model.ModuleId.ShouldBeNull();
     }
 
     #endregion
@@ -88,10 +88,10 @@ public class DSRRequestProjectionTests
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DSRRequestStatus.IdentityVerified);
-        result.VerifiedAtUtc.Should().Be(verifiedAt);
-        result.LastModifiedAtUtc.Should().Be(verifiedAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DSRRequestStatus.IdentityVerified);
+        result.VerifiedAtUtc.ShouldBe(verifiedAt);
+        result.LastModifiedAtUtc.ShouldBe(verifiedAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -112,10 +112,10 @@ public class DSRRequestProjectionTests
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DSRRequestStatus.InProgress);
-        result.ProcessedByUserId.Should().Be("operator-1");
-        result.LastModifiedAtUtc.Should().Be(startedAt);
-        result.Version.Should().Be(3);
+        result.Status.ShouldBe(DSRRequestStatus.InProgress);
+        result.ProcessedByUserId.ShouldBe("operator-1");
+        result.LastModifiedAtUtc.ShouldBe(startedAt);
+        result.Version.ShouldBe(3);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class DSRRequestProjectionTests
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
-        result.ProcessedByUserId.Should().BeNull();
+        result.ProcessedByUserId.ShouldBeNull();
     }
 
     #endregion
@@ -150,10 +150,10 @@ public class DSRRequestProjectionTests
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DSRRequestStatus.Completed);
-        result.CompletedAtUtc.Should().Be(completedAt);
-        result.LastModifiedAtUtc.Should().Be(completedAt);
-        result.Version.Should().Be(4);
+        result.Status.ShouldBe(DSRRequestStatus.Completed);
+        result.CompletedAtUtc.ShouldBe(completedAt);
+        result.LastModifiedAtUtc.ShouldBe(completedAt);
+        result.Version.ShouldBe(4);
     }
 
     #endregion
@@ -172,11 +172,11 @@ public class DSRRequestProjectionTests
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DSRRequestStatus.Rejected);
-        result.RejectionReason.Should().Be("Manifestly unfounded");
-        result.CompletedAtUtc.Should().Be(deniedAt);
-        result.LastModifiedAtUtc.Should().Be(deniedAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DSRRequestStatus.Rejected);
+        result.RejectionReason.ShouldBe("Manifestly unfounded");
+        result.CompletedAtUtc.ShouldBe(deniedAt);
+        result.LastModifiedAtUtc.ShouldBe(deniedAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -196,11 +196,11 @@ public class DSRRequestProjectionTests
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DSRRequestStatus.Extended);
-        result.ExtensionReason.Should().Be("Complex case");
-        result.ExtendedDeadlineAtUtc.Should().Be(extendedDeadline);
-        result.LastModifiedAtUtc.Should().Be(extendedAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DSRRequestStatus.Extended);
+        result.ExtensionReason.ShouldBe("Complex case");
+        result.ExtendedDeadlineAtUtc.ShouldBe(extendedDeadline);
+        result.LastModifiedAtUtc.ShouldBe(extendedAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -219,9 +219,9 @@ public class DSRRequestProjectionTests
         var result = _projection.Apply(@event, model, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DSRRequestStatus.Expired);
-        result.LastModifiedAtUtc.Should().Be(expiredAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DSRRequestStatus.Expired);
+        result.LastModifiedAtUtc.ShouldBe(expiredAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -245,8 +245,8 @@ public class DSRRequestProjectionTests
         model = _projection.Apply(completed, model, DefaultContext);
 
         // Assert
-        model.Version.Should().Be(4);
-        model.Status.Should().Be(DSRRequestStatus.Completed);
+        model.Version.ShouldBe(4);
+        model.Status.ShouldBe(DSRRequestStatus.Completed);
     }
 
     #endregion

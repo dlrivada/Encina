@@ -1,5 +1,5 @@
 using Encina.Security.Encryption;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Encryption;
 
@@ -10,8 +10,8 @@ public sealed class EncryptionErrorsTests
     {
         var error = EncryptionErrors.KeyNotFound("key-123");
 
-        error.GetCode().IfNone("").Should().Be(EncryptionErrors.KeyNotFoundCode);
-        error.Message.Should().Contain("key-123");
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.KeyNotFoundCode);
+        error.Message.ShouldContain("key-123");
     }
 
     [Fact]
@@ -20,8 +20,8 @@ public sealed class EncryptionErrorsTests
         var error = EncryptionErrors.KeyNotFound("key-456");
 
         var details = error.GetDetails();
-        details.Should().ContainKey("keyId");
-        details["keyId"].Should().Be("key-456");
+        details.ShouldContainKey("keyId");
+        details["keyId"].ShouldBe("key-456");
     }
 
     [Fact]
@@ -29,9 +29,9 @@ public sealed class EncryptionErrorsTests
     {
         var error = EncryptionErrors.DecryptionFailed("key-1", propertyName: "Email");
 
-        error.GetCode().IfNone("").Should().Be(EncryptionErrors.DecryptionFailedCode);
-        error.Message.Should().Contain("Email");
-        error.Message.Should().Contain("key-1");
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.DecryptionFailedCode);
+        error.Message.ShouldContain("Email");
+        error.Message.ShouldContain("key-1");
     }
 
     [Fact]
@@ -39,8 +39,8 @@ public sealed class EncryptionErrorsTests
     {
         var error = EncryptionErrors.DecryptionFailed("key-1");
 
-        error.GetCode().IfNone("").Should().Be(EncryptionErrors.DecryptionFailedCode);
-        error.Message.Should().Contain("key-1");
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.DecryptionFailedCode);
+        error.Message.ShouldContain("key-1");
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class EncryptionErrorsTests
         var ex = new InvalidOperationException("test error");
         var error = EncryptionErrors.DecryptionFailed("key-1", exception: ex);
 
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public sealed class EncryptionErrorsTests
     {
         var error = EncryptionErrors.InvalidCiphertext(propertyName: "SSN");
 
-        error.GetCode().IfNone("").Should().Be(EncryptionErrors.InvalidCiphertextCode);
-        error.Message.Should().Contain("SSN");
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.InvalidCiphertextCode);
+        error.Message.ShouldContain("SSN");
     }
 
     [Fact]
@@ -66,8 +66,8 @@ public sealed class EncryptionErrorsTests
     {
         var error = EncryptionErrors.InvalidCiphertext();
 
-        error.GetCode().IfNone("").Should().Be(EncryptionErrors.InvalidCiphertextCode);
-        error.Message.Should().Contain("Invalid");
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.InvalidCiphertextCode);
+        error.Message.ShouldContain("Invalid");
     }
 
     [Fact]
@@ -75,8 +75,8 @@ public sealed class EncryptionErrorsTests
     {
         var error = EncryptionErrors.AlgorithmNotSupported((EncryptionAlgorithm)99);
 
-        error.GetCode().IfNone("").Should().Be(EncryptionErrors.AlgorithmNotSupportedCode);
-        error.Message.Should().Contain("99");
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.AlgorithmNotSupportedCode);
+        error.Message.ShouldContain("99");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class EncryptionErrorsTests
     {
         var error = EncryptionErrors.KeyRotationFailed();
 
-        error.GetCode().IfNone("").Should().Be(EncryptionErrors.KeyRotationFailedCode);
+        error.GetCode().IfNone("").ShouldBe(EncryptionErrors.KeyRotationFailedCode);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class EncryptionErrorsTests
         var ex = new InvalidOperationException("rotation error");
         var error = EncryptionErrors.KeyRotationFailed(ex);
 
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     [Theory]
@@ -104,7 +104,7 @@ public sealed class EncryptionErrorsTests
     [InlineData(EncryptionErrors.KeyRotationFailedCode)]
     public void AllErrorCodes_StartWithEncryptionPrefix(string code)
     {
-        code.Should().StartWith("encryption.");
+        code.ShouldStartWith("encryption.");
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public sealed class EncryptionErrorsTests
         foreach (var error in errors)
         {
             var details = error.GetDetails();
-            details.Should().ContainKey("stage");
-            details["stage"].Should().Be("encryption");
+            details.ShouldContainKey("stage");
+            details["stage"].ShouldBe("encryption");
         }
     }
 }

@@ -66,8 +66,8 @@ public sealed class KafkaGuardTests
             NullLogger<KafkaMessagePublisher>.Instance,
             Options.Create(new EncinaKafkaOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ProduceAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            async () => await sut.ProduceAsync<object>(null!));
     }
 
     [Fact]
@@ -77,8 +77,8 @@ public sealed class KafkaGuardTests
             NullLogger<KafkaMessagePublisher>.Instance,
             Options.Create(new EncinaKafkaOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ProduceBatchAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ProduceBatchAsync<object>(null!).AsTask());
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public sealed class KafkaGuardTests
             NullLogger<KafkaMessagePublisher>.Instance,
             Options.Create(new EncinaKafkaOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ProduceWithHeadersAsync<object>(null!, new Dictionary<string, byte[]>()));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ProduceWithHeadersAsync<object>(null!, new Dictionary<string, byte[]>()).AsTask());
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public sealed class KafkaGuardTests
             NullLogger<KafkaMessagePublisher>.Instance,
             Options.Create(new EncinaKafkaOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.ProduceWithHeadersAsync(new { Id = 1 }, (IDictionary<string, byte[]>)null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.ProduceWithHeadersAsync(new { Id = 1 }, (IDictionary<string, byte[]>)null!).AsTask());
     }
 
     // ─── KafkaHealthCheck ───
@@ -108,7 +108,7 @@ public sealed class KafkaGuardTests
     [Fact]
     public void KafkaHealthCheck_Constructs()
     {
-        var sp = new ServiceCollection().BuildServiceProvider();
+        using var sp = new ServiceCollection().BuildServiceProvider();
         var sut = new KafkaHealthCheck(sp, null);
         sut.ShouldNotBeNull();
     }
@@ -123,14 +123,29 @@ public sealed class KafkaGuardTests
     }
 
     [Fact]
-    public void AddEncinaKafka_ValidServices_Registers()
+    public void AddEncinaKafka_ValidServices_RegistersExpectedServices()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         var result = services.AddEncinaKafka(o =>
             o.BootstrapServers = "localhost:9092");
+
         result.ShouldNotBeNull();
+
+        ServiceDescriptor? publisherRegistration = null;
+        foreach (var service in services)
+        {
+            if (service.ServiceType == typeof(IKafkaMessagePublisher))
+            {
+                publisherRegistration = service;
+                break;
+            }
+        }
+
+        publisherRegistration.ShouldNotBeNull();
+        publisherRegistration!.ImplementationType.ShouldBe(typeof(KafkaMessagePublisher));
+        publisherRegistration.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     // ─── EncinaKafkaOptions ───
@@ -139,7 +154,17 @@ public sealed class KafkaGuardTests
     public void EncinaKafkaOptions_Defaults()
     {
         var options = new EncinaKafkaOptions();
+
         options.ShouldNotBeNull();
+        options.BootstrapServers.ShouldBe("localhost:9092");
+        options.GroupId.ShouldBe("encina-consumer");
+        options.DefaultCommandTopic.ShouldBe("encina-commands");
+        options.DefaultEventTopic.ShouldBe("encina-events");
+        options.AutoOffsetReset.ShouldBe("earliest");
+        options.EnableAutoCommit.ShouldBeFalse();
+        options.Acks.ShouldBe("all");
+        options.EnableIdempotence.ShouldBeTrue();
+        options.MessageTimeoutMs.ShouldBe(30000);
     }
 
     // ─── KafkaDeliveryResult record ───

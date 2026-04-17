@@ -1,7 +1,7 @@
 using Encina.Security.Audit;
 using Encina.Security.Audit.Health;
-using FluentAssertions;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 
@@ -16,8 +16,8 @@ public class HealthCheckGuardTests
     {
         var act = () => new AuditStoreHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("auditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class HealthCheckGuardTests
 
         var act = () => new AuditStoreHealthCheck(store);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public class HealthCheckGuardTests
     {
         var act = () => new ReadAuditStoreHealthCheck(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("readAuditStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("readAuditStore");
     }
 
     [Fact]
@@ -46,6 +46,6 @@ public class HealthCheckGuardTests
 
         var act = () => new ReadAuditStoreHealthCheck(store);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 }

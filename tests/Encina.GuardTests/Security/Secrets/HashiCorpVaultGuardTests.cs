@@ -1,8 +1,8 @@
 using Encina.Security.Secrets.HashiCorpVault;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 using VaultSharp;
 using VaultSharp.V1.AuthMethods.Token;
 
@@ -24,8 +24,8 @@ public class HashiCorpVaultGuardTests
 
         var act = () => new HashiCorpVaultSecretProvider(null!, options, logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("client");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("client");
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public class HashiCorpVaultGuardTests
 
         var act = () => new HashiCorpVaultSecretProvider(client, null!, logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -48,8 +48,8 @@ public class HashiCorpVaultGuardTests
 
         var act = () => new HashiCorpVaultSecretProvider(client, options, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -63,8 +63,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.GetSecretAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.GetSecretAsync("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.GetSecretAsync("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -100,8 +100,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.GetSecretAsync<TestConfig>("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -137,8 +137,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.SetSecretAsync(null!, "value");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.SetSecretAsync("", "value");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -159,8 +159,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.SetSecretAsync("key", null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("value");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("value");
     }
 
     #endregion
@@ -174,8 +174,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.RotateSecretAsync(null!);
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.RotateSecretAsync("");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     [Fact]
@@ -196,8 +196,8 @@ public class HashiCorpVaultGuardTests
 
         var act = async () => await provider.RotateSecretAsync("   ");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName("secretName");
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe("secretName");
     }
 
     #endregion
@@ -215,8 +215,8 @@ public class HashiCorpVaultGuardTests
             vault.AuthMethod = new TokenAuthMethodInfo("hvs.test");
         });
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -226,8 +226,8 @@ public class HashiCorpVaultGuardTests
 
         var act = () => services.AddHashiCorpVaultSecrets(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configureVault");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configureVault");
     }
 
     #endregion

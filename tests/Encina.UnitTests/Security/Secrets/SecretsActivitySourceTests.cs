@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Encina.Security.Secrets.Diagnostics;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -34,19 +34,19 @@ public sealed class SecretsActivitySourceTests : IDisposable
     [Fact]
     public void SourceName_IsCorrect()
     {
-        SecretsActivitySource.SourceName.Should().Be("Encina.Security.Secrets");
+        SecretsActivitySource.SourceName.ShouldBe("Encina.Security.Secrets");
     }
 
     [Fact]
     public void SourceVersion_IsCorrect()
     {
-        SecretsActivitySource.SourceVersion.Should().Be("1.0.0");
+        SecretsActivitySource.SourceVersion.ShouldBe("1.0.0");
     }
 
     [Fact]
     public void Source_IsNotNull()
     {
-        SecretsActivitySource.Source.Should().NotBeNull();
+        SecretsActivitySource.Source.ShouldNotBeNull();
     }
 
     #endregion
@@ -56,12 +56,12 @@ public sealed class SecretsActivitySourceTests : IDisposable
     [Fact]
     public void ActivityNameConstants_AreCorrect()
     {
-        SecretsActivitySource.GetSecretActivity.Should().Be("Secrets.GetSecret");
-        SecretsActivitySource.SetSecretActivity.Should().Be("Secrets.SetSecret");
-        SecretsActivitySource.RotateSecretActivity.Should().Be("Secrets.RotateSecret");
-        SecretsActivitySource.InjectSecretsActivity.Should().Be("Secrets.InjectSecrets");
-        SecretsActivitySource.CacheHitEvent.Should().Be("Secrets.CacheHit");
-        SecretsActivitySource.CacheMissEvent.Should().Be("Secrets.CacheMiss");
+        SecretsActivitySource.GetSecretActivity.ShouldBe("Secrets.GetSecret");
+        SecretsActivitySource.SetSecretActivity.ShouldBe("Secrets.SetSecret");
+        SecretsActivitySource.RotateSecretActivity.ShouldBe("Secrets.RotateSecret");
+        SecretsActivitySource.InjectSecretsActivity.ShouldBe("Secrets.InjectSecrets");
+        SecretsActivitySource.CacheHitEvent.ShouldBe("Secrets.CacheHit");
+        SecretsActivitySource.CacheMissEvent.ShouldBe("Secrets.CacheMiss");
     }
 
     #endregion
@@ -71,13 +71,13 @@ public sealed class SecretsActivitySourceTests : IDisposable
     [Fact]
     public void TagConstants_AreCorrect()
     {
-        SecretsActivitySource.TagSecretName.Should().Be("secrets.name");
-        SecretsActivitySource.TagCacheHit.Should().Be("secrets.cache_hit");
-        SecretsActivitySource.TagProviderType.Should().Be("secrets.provider_type");
-        SecretsActivitySource.TagErrorCode.Should().Be("secrets.error_code");
-        SecretsActivitySource.TagRequestType.Should().Be("secrets.request_type");
-        SecretsActivitySource.TagOperation.Should().Be("secrets.operation");
-        SecretsActivitySource.TagOutcome.Should().Be("secrets.outcome");
+        SecretsActivitySource.TagSecretName.ShouldBe("secrets.name");
+        SecretsActivitySource.TagCacheHit.ShouldBe("secrets.cache_hit");
+        SecretsActivitySource.TagProviderType.ShouldBe("secrets.provider_type");
+        SecretsActivitySource.TagErrorCode.ShouldBe("secrets.error_code");
+        SecretsActivitySource.TagRequestType.ShouldBe("secrets.request_type");
+        SecretsActivitySource.TagOperation.ShouldBe("secrets.operation");
+        SecretsActivitySource.TagOutcome.ShouldBe("secrets.outcome");
     }
 
     #endregion
@@ -89,9 +89,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartGetSecretActivity("my-secret");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("Secrets.GetSecret");
-        activity.Kind.Should().Be(ActivityKind.Client);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("Secrets.GetSecret");
+        activity.Kind.ShouldBe(ActivityKind.Client);
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartGetSecretActivity("my-secret");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.name").Should().Be("my-secret");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.name").ShouldBe("my-secret");
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartGetSecretActivity("my-secret");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.operation").Should().Be("get");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.operation").ShouldBe("get");
     }
 
     #endregion
@@ -121,9 +121,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartSetSecretActivity("my-secret");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("Secrets.SetSecret");
-        activity.Kind.Should().Be(ActivityKind.Client);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("Secrets.SetSecret");
+        activity.Kind.ShouldBe(ActivityKind.Client);
     }
 
     [Fact]
@@ -131,9 +131,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartSetSecretActivity("write-secret");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.name").Should().Be("write-secret");
-        activity.GetTagItem("secrets.operation").Should().Be("set");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.name").ShouldBe("write-secret");
+        activity.GetTagItem("secrets.operation").ShouldBe("set");
     }
 
     #endregion
@@ -145,9 +145,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartRotateSecretActivity("rotate-secret");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("Secrets.RotateSecret");
-        activity.Kind.Should().Be(ActivityKind.Client);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("Secrets.RotateSecret");
+        activity.Kind.ShouldBe(ActivityKind.Client);
     }
 
     [Fact]
@@ -155,9 +155,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartRotateSecretActivity("rotate-secret");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.name").Should().Be("rotate-secret");
-        activity.GetTagItem("secrets.operation").Should().Be("rotate");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.name").ShouldBe("rotate-secret");
+        activity.GetTagItem("secrets.operation").ShouldBe("rotate");
     }
 
     #endregion
@@ -169,9 +169,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartInjectSecretsActivity("MyRequest");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("Secrets.InjectSecrets");
-        activity.Kind.Should().Be(ActivityKind.Internal);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("Secrets.InjectSecrets");
+        activity.Kind.ShouldBe(ActivityKind.Internal);
     }
 
     [Fact]
@@ -179,9 +179,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartInjectSecretsActivity("MyRequest");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.request_type").Should().Be("MyRequest");
-        activity.GetTagItem("secrets.operation").Should().Be("inject");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.request_type").ShouldBe("MyRequest");
+        activity.GetTagItem("secrets.operation").ShouldBe("inject");
     }
 
     [Fact]
@@ -189,8 +189,8 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         using var activity = SecretsActivitySource.StartInjectSecretsActivity(typeof(string));
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.request_type").Should().Be("String");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.request_type").ShouldBe("String");
     }
 
     #endregion
@@ -204,9 +204,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
 
         SecretsActivitySource.RecordCacheHit(activity, "cached-secret");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.cache_hit").Should().Be(true);
-        activity.Events.Should().Contain(e => e.Name == "Secrets.CacheHit");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.cache_hit").ShouldBe(true);
+        activity.Events.ShouldContain(e => e.Name == "Secrets.CacheHit");
     }
 
     [Fact]
@@ -216,9 +216,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
 
         SecretsActivitySource.RecordCacheMiss(activity, "missed-secret");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.cache_hit").Should().Be(false);
-        activity.Events.Should().Contain(e => e.Name == "Secrets.CacheMiss");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.cache_hit").ShouldBe(false);
+        activity.Events.ShouldContain(e => e.Name == "Secrets.CacheMiss");
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         var act = () => SecretsActivitySource.RecordCacheHit(null, "secret");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         var act = () => SecretsActivitySource.RecordCacheMiss(null, "secret");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -248,9 +248,9 @@ public sealed class SecretsActivitySourceTests : IDisposable
 
         SecretsActivitySource.RecordSuccess(activity);
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.outcome").Should().Be("success");
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.outcome").ShouldBe("success");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     [Fact]
@@ -260,11 +260,11 @@ public sealed class SecretsActivitySourceTests : IDisposable
 
         SecretsActivitySource.RecordFailure(activity, "not_found", "Secret not found");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem("secrets.outcome").Should().Be("failure");
-        activity.GetTagItem("secrets.error_code").Should().Be("not_found");
-        activity.Status.Should().Be(ActivityStatusCode.Error);
-        activity.StatusDescription.Should().Be("Secret not found");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem("secrets.outcome").ShouldBe("failure");
+        activity.GetTagItem("secrets.error_code").ShouldBe("not_found");
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
+        activity.StatusDescription.ShouldBe("Secret not found");
     }
 
     [Fact]
@@ -274,8 +274,8 @@ public sealed class SecretsActivitySourceTests : IDisposable
 
         SecretsActivitySource.RecordFailure(activity, "provider_unavailable");
 
-        activity.Should().NotBeNull();
-        activity!.StatusDescription.Should().Be("provider_unavailable");
+        activity.ShouldNotBeNull();
+        activity!.StatusDescription.ShouldBe("provider_unavailable");
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         var act = () => SecretsActivitySource.RecordSuccess(null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -291,7 +291,7 @@ public sealed class SecretsActivitySourceTests : IDisposable
     {
         var act = () => SecretsActivitySource.RecordFailure(null, "error");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -317,7 +317,7 @@ public sealed class SecretsActivitySourceTests : IDisposable
         SecretsActivitySource.RecordCacheMiss(null, "secret");
 
         // All should not throw
-        true.Should().BeTrue();
+        true.ShouldBeTrue();
     }
 
     #endregion

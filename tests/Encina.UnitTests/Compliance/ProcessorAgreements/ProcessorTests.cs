@@ -2,7 +2,7 @@
 
 using Encina.Compliance.ProcessorAgreements.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -29,13 +29,13 @@ public class ProcessorTests
             LastUpdatedAtUtc = Now
         };
 
-        processor.Id.Should().Be("proc-001");
-        processor.Name.Should().Be("Stripe");
-        processor.Country.Should().Be("US");
-        processor.Depth.Should().Be(0);
-        processor.SubProcessorAuthorizationType.Should().Be(SubProcessorAuthorizationType.General);
-        processor.CreatedAtUtc.Should().Be(Now);
-        processor.LastUpdatedAtUtc.Should().Be(Now);
+        processor.Id.ShouldBe("proc-001");
+        processor.Name.ShouldBe("Stripe");
+        processor.Country.ShouldBe("US");
+        processor.Depth.ShouldBe(0);
+        processor.SubProcessorAuthorizationType.ShouldBe(SubProcessorAuthorizationType.General);
+        processor.CreatedAtUtc.ShouldBe(Now);
+        processor.LastUpdatedAtUtc.ShouldBe(Now);
     }
 
     #endregion
@@ -47,10 +47,10 @@ public class ProcessorTests
     {
         var processor = CreateTopLevelProcessor();
 
-        processor.ContactEmail.Should().BeNull();
-        processor.ParentProcessorId.Should().BeNull();
-        processor.TenantId.Should().BeNull();
-        processor.ModuleId.Should().BeNull();
+        processor.ContactEmail.ShouldBeNull();
+        processor.ParentProcessorId.ShouldBeNull();
+        processor.TenantId.ShouldBeNull();
+        processor.ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -70,9 +70,9 @@ public class ProcessorTests
             LastUpdatedAtUtc = Now
         };
 
-        processor.ContactEmail.Should().Be("dpo@aws.example.com");
-        processor.TenantId.Should().Be("tenant-abc");
-        processor.ModuleId.Should().Be("module-billing");
+        processor.ContactEmail.ShouldBe("dpo@aws.example.com");
+        processor.TenantId.ShouldBe("tenant-abc");
+        processor.ModuleId.ShouldBe("module-billing");
     }
 
     #endregion
@@ -84,8 +84,8 @@ public class ProcessorTests
     {
         var processor = CreateTopLevelProcessor();
 
-        processor.ParentProcessorId.Should().BeNull();
-        processor.Depth.Should().Be(0);
+        processor.ParentProcessorId.ShouldBeNull();
+        processor.Depth.ShouldBe(0);
     }
 
     #endregion
@@ -107,8 +107,8 @@ public class ProcessorTests
             LastUpdatedAtUtc = Now
         };
 
-        processor.ParentProcessorId.Should().Be("proc-001");
-        processor.Depth.Should().Be(1);
+        processor.ParentProcessorId.ShouldBe("proc-001");
+        processor.Depth.ShouldBe(1);
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public class ProcessorTests
             LastUpdatedAtUtc = Now
         };
 
-        processor.Depth.Should().Be(2);
-        processor.ParentProcessorId.Should().Be("sub-proc-001");
+        processor.Depth.ShouldBe(2);
+        processor.ParentProcessorId.ShouldBe("sub-proc-001");
     }
 
     #endregion
@@ -137,8 +137,8 @@ public class ProcessorTests
     [Fact]
     public void SubProcessorAuthorizationType_ShouldHaveExpectedValues()
     {
-        ((int)SubProcessorAuthorizationType.Specific).Should().Be(0);
-        ((int)SubProcessorAuthorizationType.General).Should().Be(1);
+        ((int)SubProcessorAuthorizationType.Specific).ShouldBe(0);
+        ((int)SubProcessorAuthorizationType.General).ShouldBe(1);
     }
 
     #endregion
@@ -151,7 +151,7 @@ public class ProcessorTests
         var processor1 = CreateTopLevelProcessor();
         var processor2 = CreateTopLevelProcessor();
 
-        processor1.Should().Be(processor2);
+        processor1.ShouldBe(processor2);
     }
 
     [Fact]
@@ -160,10 +160,10 @@ public class ProcessorTests
         var original = CreateTopLevelProcessor();
         var modified = original with { Name = "Modified Processor" };
 
-        modified.Should().NotBeSameAs(original);
-        modified.Name.Should().Be("Modified Processor");
-        modified.Id.Should().Be(original.Id);
-        modified.Country.Should().Be(original.Country);
+        modified.ShouldNotBeSameAs(original);
+        modified.Name.ShouldBe("Modified Processor");
+        modified.Id.ShouldBe(original.Id);
+        modified.Country.ShouldBe(original.Country);
     }
 
     #endregion

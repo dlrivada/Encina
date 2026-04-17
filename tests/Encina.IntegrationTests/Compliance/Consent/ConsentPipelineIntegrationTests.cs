@@ -1,14 +1,11 @@
 using Encina.Compliance.Consent;
 using Encina.Compliance.Consent.Abstractions;
 using Encina.Compliance.Consent.ReadModels;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Compliance.Consent;
 
@@ -47,7 +44,7 @@ public sealed class ConsentPipelineIntegrationTests
 
         // Assert — IConsentValidator is registered via TryAdd (descriptor check only;
         // actual resolution requires Marten dependencies which are out of scope here)
-        services.Should().Contain(sd => sd.ServiceType == typeof(IConsentValidator));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IConsentValidator));
     }
 
     [Fact]
@@ -65,7 +62,7 @@ public sealed class ConsentPipelineIntegrationTests
 
         // Assert — IConsentService is registered via TryAdd (descriptor check only;
         // actual resolution requires Marten dependencies which are out of scope here)
-        services.Should().Contain(sd => sd.ServiceType == typeof(IConsentService));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IConsentService));
     }
 
     [Fact]
@@ -85,7 +82,7 @@ public sealed class ConsentPipelineIntegrationTests
 
         // Assert
         var healthCheckService = provider.GetService<HealthCheckService>();
-        healthCheckService.Should().NotBeNull();
+        healthCheckService.ShouldNotBeNull();
     }
 
     [Fact]
@@ -111,9 +108,9 @@ public sealed class ConsentPipelineIntegrationTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<ConsentOptions>>().Value;
-        options.EnforcementMode.Should().Be(ConsentEnforcementMode.Warn);
-        options.DefaultExpirationDays.Should().Be(365);
-        options.PurposeDefinitions.Should().Contain("marketing");
+        options.EnforcementMode.ShouldBe(ConsentEnforcementMode.Warn);
+        options.DefaultExpirationDays.ShouldBe(365);
+        options.PurposeDefinitions.ShouldContain("marketing");
     }
 
     [Fact]
@@ -135,7 +132,7 @@ public sealed class ConsentPipelineIntegrationTests
         // Assert — pre-registered service should be preserved (TryAdd)
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IConsentService>();
-        service.Should().BeSameAs(mockService);
+        service.ShouldBeSameAs(mockService);
     }
 
     [Fact]
@@ -157,7 +154,7 @@ public sealed class ConsentPipelineIntegrationTests
         // Assert — pre-registered validator should be preserved (TryAdd)
         using var scope = provider.CreateScope();
         var validator = scope.ServiceProvider.GetRequiredService<IConsentValidator>();
-        validator.Should().BeSameAs(mockValidator);
+        validator.ShouldBeSameAs(mockValidator);
     }
 
     #endregion
@@ -180,8 +177,8 @@ public sealed class ConsentPipelineIntegrationTests
 
         // Act & Assert
         var act = () => provider.GetRequiredService<IOptions<ConsentOptions>>().Value;
-        act.Should().Throw<OptionsValidationException>()
-            .Which.Message.Should().Contain("PurposeDefinitions");
+        Should.Throw<OptionsValidationException>(act)
+            .Message.ShouldContain("PurposeDefinitions");
     }
 
     [Fact]
@@ -199,7 +196,7 @@ public sealed class ConsentPipelineIntegrationTests
 
         // Act & Assert — Warn mode allows no purposes
         var options = provider.GetRequiredService<IOptions<ConsentOptions>>().Value;
-        options.EnforcementMode.Should().Be(ConsentEnforcementMode.Warn);
+        options.EnforcementMode.ShouldBe(ConsentEnforcementMode.Warn);
     }
 
     #endregion

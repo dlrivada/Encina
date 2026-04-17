@@ -1,5 +1,5 @@
 using Encina.Compliance.AIAct.Attributes;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct.Attributes;
 
@@ -12,14 +12,14 @@ public class RequireHumanOversightAttributeTests
     public void Reason_ShouldBeSettable()
     {
         var attr = new RequireHumanOversightAttribute { Reason = "Loan approval" };
-        attr.Reason.Should().Be("Loan approval");
+        attr.Reason.ShouldBe("Loan approval");
     }
 
     [Fact]
     public void SystemId_ShouldDefaultToNull()
     {
         var attr = new RequireHumanOversightAttribute { Reason = "Test" };
-        attr.SystemId.Should().BeNull();
+        attr.SystemId.ShouldBeNull();
     }
 
     [Fact]
@@ -30,6 +30,6 @@ public class RequireHumanOversightAttributeTests
             Reason = "Test",
             SystemId = "loan-system"
         };
-        attr.SystemId.Should().Be("loan-system");
+        attr.SystemId.ShouldBe("loan-system");
     }
 }

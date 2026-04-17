@@ -1,5 +1,5 @@
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -17,10 +17,10 @@ public class SortedPaginationOptionsTests
         var options = new SortedPaginationOptions();
 
         // Assert
-        options.PageNumber.Should().Be(1);
-        options.PageSize.Should().Be(20);
-        options.SortBy.Should().BeNull();
-        options.SortDescending.Should().BeFalse();
+        options.PageNumber.ShouldBe(1);
+        options.PageSize.ShouldBe(20);
+        options.SortBy.ShouldBeNull();
+        options.SortDescending.ShouldBeFalse();
     }
 
     [Fact]
@@ -34,10 +34,10 @@ public class SortedPaginationOptionsTests
             SortDescending: true);
 
         // Assert
-        options.PageNumber.Should().Be(3);
-        options.PageSize.Should().Be(50);
-        options.SortBy.Should().Be("CreatedAtUtc");
-        options.SortDescending.Should().BeTrue();
+        options.PageNumber.ShouldBe(3);
+        options.PageSize.ShouldBe(50);
+        options.SortBy.ShouldBe("CreatedAtUtc");
+        options.SortDescending.ShouldBeTrue();
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public class SortedPaginationOptionsTests
         var options = new SortedPaginationOptions(SortBy: "Name");
 
         // Assert
-        options.SortBy.Should().Be("Name");
-        options.SortDescending.Should().BeFalse();
+        options.SortBy.ShouldBe("Name");
+        options.SortDescending.ShouldBeFalse();
     }
 
     #endregion
@@ -62,7 +62,7 @@ public class SortedPaginationOptionsTests
         var options = new SortedPaginationOptions(5, 25, "Name", true);
 
         // Assert
-        options.Should().BeAssignableTo<PaginationOptions>();
+        options.ShouldBeAssignableTo<PaginationOptions>();
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class SortedPaginationOptionsTests
         var options = new SortedPaginationOptions(PageNumber: 3, PageSize: 20);
 
         // Assert
-        options.Skip.Should().Be(40); // (3-1) * 20
+        options.Skip.ShouldBe(40); // (3-1) * 20
     }
 
     #endregion
@@ -86,10 +86,10 @@ public class SortedPaginationOptionsTests
         var options = SortedPaginationOptions.Default;
 
         // Assert
-        options.PageNumber.Should().Be(1);
-        options.PageSize.Should().Be(20);
-        options.SortBy.Should().BeNull();
-        options.SortDescending.Should().BeFalse();
+        options.PageNumber.ShouldBe(1);
+        options.PageSize.ShouldBe(20);
+        options.SortBy.ShouldBeNull();
+        options.SortDescending.ShouldBeFalse();
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class SortedPaginationOptionsTests
         var options2 = SortedPaginationOptions.Default;
 
         // Assert
-        options1.Should().BeSameAs(options2);
+        options1.ShouldBeSameAs(options2);
     }
 
     #endregion
@@ -121,8 +121,8 @@ public class SortedPaginationOptionsTests
         var result = original.WithSort(sortBy);
 
         // Assert
-        result.SortBy.Should().Be(sortBy);
-        result.SortDescending.Should().BeFalse();
+        result.SortBy.ShouldBe(sortBy);
+        result.SortDescending.ShouldBeFalse();
     }
 
     [Fact]
@@ -135,8 +135,8 @@ public class SortedPaginationOptionsTests
         var result = original.WithSort("Name", descending: true);
 
         // Assert
-        result.SortBy.Should().Be("Name");
-        result.SortDescending.Should().BeTrue();
+        result.SortBy.ShouldBe("Name");
+        result.SortDescending.ShouldBeTrue();
     }
 
     [Fact]
@@ -149,8 +149,8 @@ public class SortedPaginationOptionsTests
         var result = original.WithSort("Name", descending: false);
 
         // Assert
-        result.SortBy.Should().Be("Name");
-        result.SortDescending.Should().BeFalse();
+        result.SortBy.ShouldBe("Name");
+        result.SortDescending.ShouldBeFalse();
     }
 
     [Fact]
@@ -163,10 +163,10 @@ public class SortedPaginationOptionsTests
         var result = original.WithSort("Name", true);
 
         // Assert
-        result.PageNumber.Should().Be(5);
-        result.PageSize.Should().Be(50);
-        result.SortBy.Should().Be("Name");
-        result.SortDescending.Should().BeTrue();
+        result.PageNumber.ShouldBe(5);
+        result.PageSize.ShouldBe(50);
+        result.SortBy.ShouldBe("Name");
+        result.SortDescending.ShouldBeTrue();
     }
 
     [Fact]
@@ -176,8 +176,8 @@ public class SortedPaginationOptionsTests
         var options = SortedPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSort(null!);
-        action.Should().Throw<ArgumentException>();
+        Action action = () => options.WithSort(null!);
+        Should.Throw<ArgumentException>(action);
     }
 
     [Fact]
@@ -187,8 +187,8 @@ public class SortedPaginationOptionsTests
         var options = SortedPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSort(string.Empty);
-        action.Should().Throw<ArgumentException>();
+        Action action = () => options.WithSort(string.Empty);
+        Should.Throw<ArgumentException>(action);
     }
 
     [Fact]
@@ -198,8 +198,8 @@ public class SortedPaginationOptionsTests
         var options = SortedPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSort("   ");
-        action.Should().Throw<ArgumentException>();
+        Action action = () => options.WithSort("   ");
+        Should.Throw<ArgumentException>(action);
     }
 
     #endregion
@@ -223,10 +223,10 @@ public class SortedPaginationOptionsTests
         var result = original.WithPage(pageNumber);
 
         // Assert
-        result.Should().BeOfType<SortedPaginationOptions>();
-        result.PageNumber.Should().Be(pageNumber);
-        result.SortBy.Should().Be("Name");
-        result.SortDescending.Should().BeTrue();
+        result.ShouldBeOfType<SortedPaginationOptions>();
+        result.PageNumber.ShouldBe(pageNumber);
+        result.SortBy.ShouldBe("Name");
+        result.SortDescending.ShouldBeTrue();
     }
 
     [Fact]
@@ -243,8 +243,8 @@ public class SortedPaginationOptionsTests
         var result = original.WithPage(5);
 
         // Assert
-        result.SortBy.Should().Be("CreatedAtUtc");
-        result.SortDescending.Should().BeTrue();
+        result.SortBy.ShouldBe("CreatedAtUtc");
+        result.SortDescending.ShouldBeTrue();
     }
 
     [Theory]
@@ -256,8 +256,8 @@ public class SortedPaginationOptionsTests
         var options = SortedPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithPage(pageNumber);
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Action action = () => options.WithPage(pageNumber);
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     #endregion
@@ -281,9 +281,9 @@ public class SortedPaginationOptionsTests
         var result = original.WithSize(pageSize);
 
         // Assert
-        result.Should().BeOfType<SortedPaginationOptions>();
-        result.PageSize.Should().Be(pageSize);
-        result.SortBy.Should().Be("Id");
+        result.ShouldBeOfType<SortedPaginationOptions>();
+        result.PageSize.ShouldBe(pageSize);
+        result.SortBy.ShouldBe("Id");
     }
 
     [Fact]
@@ -300,9 +300,9 @@ public class SortedPaginationOptionsTests
         var result = original.WithSize(100);
 
         // Assert
-        result.PageNumber.Should().Be(2);
-        result.SortBy.Should().Be("UpdatedAtUtc");
-        result.SortDescending.Should().BeTrue();
+        result.PageNumber.ShouldBe(2);
+        result.SortBy.ShouldBe("UpdatedAtUtc");
+        result.SortDescending.ShouldBeTrue();
     }
 
     [Theory]
@@ -314,8 +314,8 @@ public class SortedPaginationOptionsTests
         var options = SortedPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSize(pageSize);
-        action.Should().Throw<ArgumentOutOfRangeException>();
+        Action action = () => options.WithSize(pageSize);
+        Should.Throw<ArgumentOutOfRangeException>(action);
     }
 
     #endregion
@@ -332,11 +332,11 @@ public class SortedPaginationOptionsTests
             .WithSort("CreatedAtUtc", descending: true);
 
         // Assert
-        options.PageNumber.Should().Be(3);
-        options.PageSize.Should().Be(50);
-        options.SortBy.Should().Be("CreatedAtUtc");
-        options.SortDescending.Should().BeTrue();
-        options.Skip.Should().Be(100); // (3-1) * 50
+        options.PageNumber.ShouldBe(3);
+        options.PageSize.ShouldBe(50);
+        options.SortBy.ShouldBe("CreatedAtUtc");
+        options.SortDescending.ShouldBeTrue();
+        options.Skip.ShouldBe(100); // (3-1) * 50
     }
 
     [Fact]
@@ -349,9 +349,9 @@ public class SortedPaginationOptionsTests
             .WithSize(25);
 
         // Assert
-        options.SortBy.Should().Be("Name");
-        options.PageNumber.Should().Be(2);
-        options.PageSize.Should().Be(25);
+        options.SortBy.ShouldBe("Name");
+        options.PageNumber.ShouldBe(2);
+        options.PageSize.ShouldBe(25);
     }
 
     [Fact]
@@ -364,8 +364,8 @@ public class SortedPaginationOptionsTests
             .WithSort("Id", descending: false);
 
         // Assert
-        options.SortBy.Should().Be("Id");
-        options.SortDescending.Should().BeFalse();
+        options.SortBy.ShouldBe("Id");
+        options.SortDescending.ShouldBeFalse();
     }
 
     #endregion
@@ -380,7 +380,7 @@ public class SortedPaginationOptionsTests
         var options2 = new SortedPaginationOptions(3, 50, "Name", true);
 
         // Assert
-        options1.Should().Be(options2);
+        options1.ShouldBe(options2);
     }
 
     [Fact]
@@ -391,7 +391,7 @@ public class SortedPaginationOptionsTests
         var options2 = new SortedPaginationOptions(3, 50, "Id", true);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     [Fact]
@@ -402,7 +402,7 @@ public class SortedPaginationOptionsTests
         var options2 = new SortedPaginationOptions(3, 50, "Name", false);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     [Fact]
@@ -413,7 +413,7 @@ public class SortedPaginationOptionsTests
         var options2 = new SortedPaginationOptions(3, 50, "Name", false);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     #endregion
@@ -430,11 +430,11 @@ public class SortedPaginationOptionsTests
         var modified = original with { SortBy = "Id", SortDescending = true };
 
         // Assert
-        modified.SortBy.Should().Be("Id");
-        modified.SortDescending.Should().BeTrue();
-        modified.PageNumber.Should().Be(1);
-        modified.PageSize.Should().Be(20);
-        original.SortBy.Should().Be("Name"); // Original unchanged
+        modified.SortBy.ShouldBe("Id");
+        modified.SortDescending.ShouldBeTrue();
+        modified.PageNumber.ShouldBe(1);
+        modified.PageSize.ShouldBe(20);
+        original.SortBy.ShouldBe("Name"); // Original unchanged
     }
 
     #endregion
@@ -450,9 +450,9 @@ public class SortedPaginationOptionsTests
             .WithSize(10);
 
         // Assert
-        options.SortBy.Should().Be("Price");
-        options.SortDescending.Should().BeTrue();
-        options.PageSize.Should().Be(10);
+        options.SortBy.ShouldBe("Price");
+        options.SortDescending.ShouldBeTrue();
+        options.PageSize.ShouldBe(10);
     }
 
     [Fact]
@@ -466,9 +466,9 @@ public class SortedPaginationOptionsTests
             SortDescending: true);
 
         // Assert
-        options.SortBy.Should().Be("TimestampUtc");
-        options.SortDescending.Should().BeTrue();
-        options.PageSize.Should().Be(100);
+        options.SortBy.ShouldBe("TimestampUtc");
+        options.SortDescending.ShouldBeTrue();
+        options.PageSize.ShouldBe(100);
     }
 
     [Fact]
@@ -481,8 +481,8 @@ public class SortedPaginationOptionsTests
             .WithSize(25);
 
         // Assert
-        options.SortBy.Should().Be("LastName");
-        options.SortDescending.Should().BeFalse(); // Ascending for A-Z
+        options.SortBy.ShouldBe("LastName");
+        options.SortDescending.ShouldBeFalse(); // Ascending for A-Z
     }
 
     #endregion

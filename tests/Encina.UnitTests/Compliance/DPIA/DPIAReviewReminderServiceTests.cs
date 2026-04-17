@@ -3,16 +3,12 @@
 using Encina.Compliance.DPIA;
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.ReadModels;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -118,7 +114,7 @@ public class DPIAReviewReminderServiceTests
         await Task.Delay(200, CancellationToken.None);
 
         var act = () => sut.StopAsync(CancellationToken.None);
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     [Fact]
@@ -149,7 +145,7 @@ public class DPIAReviewReminderServiceTests
         await Task.Delay(200, CancellationToken.None);
 
         var act = () => sut.StopAsync(CancellationToken.None);
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion
@@ -164,8 +160,8 @@ public class DPIAReviewReminderServiceTests
             Options.Create(new DPIAOptions()),
             new NullLogger<DPIAReviewReminderService>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("scopeFactory");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -178,8 +174,8 @@ public class DPIAReviewReminderServiceTests
             null!,
             new NullLogger<DPIAReviewReminderService>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -192,8 +188,8 @@ public class DPIAReviewReminderServiceTests
             Options.Create(new DPIAOptions()),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion

@@ -2,13 +2,10 @@ using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.Anonymization.Model;
 using Encina.Compliance.Anonymization.Techniques;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Compliance.Anonymization;
 
@@ -35,8 +32,8 @@ public sealed class AnonymizationPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IAnonymizer>().Should().NotBeNull();
-        provider.GetService<IAnonymizer>().Should().BeOfType<DefaultAnonymizer>();
+        provider.GetService<IAnonymizer>().ShouldNotBeNull();
+        provider.GetService<IAnonymizer>().ShouldBeOfType<DefaultAnonymizer>();
     }
 
     [Fact]
@@ -51,8 +48,8 @@ public sealed class AnonymizationPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IPseudonymizer>().Should().NotBeNull();
-        provider.GetService<IPseudonymizer>().Should().BeOfType<DefaultPseudonymizer>();
+        provider.GetService<IPseudonymizer>().ShouldNotBeNull();
+        provider.GetService<IPseudonymizer>().ShouldBeOfType<DefaultPseudonymizer>();
     }
 
     [Fact]
@@ -67,8 +64,8 @@ public sealed class AnonymizationPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<ITokenizer>().Should().NotBeNull();
-        provider.GetService<ITokenizer>().Should().BeOfType<DefaultTokenizer>();
+        provider.GetService<ITokenizer>().ShouldNotBeNull();
+        provider.GetService<ITokenizer>().ShouldBeOfType<DefaultTokenizer>();
     }
 
     [Fact]
@@ -83,8 +80,8 @@ public sealed class AnonymizationPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IRiskAssessor>().Should().NotBeNull();
-        provider.GetService<IRiskAssessor>().Should().BeOfType<DefaultRiskAssessor>();
+        provider.GetService<IRiskAssessor>().ShouldNotBeNull();
+        provider.GetService<IRiskAssessor>().ShouldBeOfType<DefaultRiskAssessor>();
     }
 
     #endregion
@@ -104,9 +101,9 @@ public sealed class AnonymizationPipelineIntegrationTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<AnonymizationOptions>>().Value;
-        options.EnforcementMode.Should().Be(AnonymizationEnforcementMode.Block);
-        options.TrackAuditTrail.Should().BeTrue();
-        options.AddHealthCheck.Should().BeFalse();
+        options.EnforcementMode.ShouldBe(AnonymizationEnforcementMode.Block);
+        options.TrackAuditTrail.ShouldBeTrue();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -128,9 +125,9 @@ public sealed class AnonymizationPipelineIntegrationTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<AnonymizationOptions>>().Value;
-        options.EnforcementMode.Should().Be(AnonymizationEnforcementMode.Warn);
-        options.TrackAuditTrail.Should().BeFalse();
-        options.AutoRegisterFromAttributes.Should().BeFalse();
+        options.EnforcementMode.ShouldBe(AnonymizationEnforcementMode.Warn);
+        options.TrackAuditTrail.ShouldBeFalse();
+        options.AutoRegisterFromAttributes.ShouldBeFalse();
     }
 
     [Fact]
@@ -153,8 +150,8 @@ public sealed class AnonymizationPipelineIntegrationTests
         var options = provider.GetRequiredService<IOptions<AnonymizationOptions>>().Value;
 
         // Assert
-        callbackInvoked.Should().BeTrue();
-        options.EnforcementMode.Should().Be(AnonymizationEnforcementMode.Disabled);
+        callbackInvoked.ShouldBeTrue();
+        options.EnforcementMode.ShouldBe(AnonymizationEnforcementMode.Disabled);
     }
 
     #endregion
@@ -179,20 +176,20 @@ public sealed class AnonymizationPipelineIntegrationTests
 
         // Act: Tokenize
         var tokenResult = await tokenizer.TokenizeAsync(originalValue, options);
-        tokenResult.IsRight.Should().BeTrue("tokenization should succeed");
+        tokenResult.IsRight.ShouldBeTrue("tokenization should succeed");
 
         var token = (string)tokenResult;
-        token.Should().NotBeNullOrWhiteSpace();
-        token.Should().NotBe(originalValue, "token must differ from original value");
+        token.ShouldNotBeNullOrWhiteSpace();
+        token.ShouldNotBe(originalValue, "token must differ from original value");
 
         // Act: Detokenize
         var detokenizeResult = await tokenizer.DetokenizeAsync(token);
-        detokenizeResult.IsRight.Should().BeTrue("detokenization should succeed");
+        detokenizeResult.IsRight.ShouldBeTrue("detokenization should succeed");
 
         var recovered = (string)detokenizeResult;
 
         // Assert: Roundtrip produces the original value
-        recovered.Should().Be(originalValue);
+        recovered.ShouldBe(originalValue);
     }
 
     [Fact]
@@ -209,7 +206,7 @@ public sealed class AnonymizationPipelineIntegrationTests
 
         // Get the active key ID generated at startup by InMemoryKeyProvider
         var activeKeyResult = await keyProvider.GetActiveKeyIdAsync();
-        activeKeyResult.IsRight.Should().BeTrue("active key should exist");
+        activeKeyResult.IsRight.ShouldBeTrue("active key should exist");
         var keyId = (string)activeKeyResult;
 
         var originalValue = "john.doe@example.com";
@@ -219,20 +216,20 @@ public sealed class AnonymizationPipelineIntegrationTests
             originalValue,
             keyId,
             PseudonymizationAlgorithm.Aes256Gcm);
-        pseudonymResult.IsRight.Should().BeTrue("pseudonymization should succeed");
+        pseudonymResult.IsRight.ShouldBeTrue("pseudonymization should succeed");
 
         var pseudonym = (string)pseudonymResult;
-        pseudonym.Should().NotBeNullOrWhiteSpace();
-        pseudonym.Should().NotBe(originalValue, "pseudonym must differ from original value");
+        pseudonym.ShouldNotBeNullOrWhiteSpace();
+        pseudonym.ShouldNotBe(originalValue, "pseudonym must differ from original value");
 
         // Act: Depseudonymize
         var depseudonymizeResult = await pseudonymizer.DepseudonymizeValueAsync(pseudonym, keyId);
-        depseudonymizeResult.IsRight.Should().BeTrue("depseudonymization should succeed");
+        depseudonymizeResult.IsRight.ShouldBeTrue("depseudonymization should succeed");
 
         var recovered = (string)depseudonymizeResult;
 
         // Assert: Roundtrip produces the original value
-        recovered.Should().Be(originalValue);
+        recovered.ShouldBe(originalValue);
     }
 
     [Fact]
@@ -282,24 +279,24 @@ public sealed class AnonymizationPipelineIntegrationTests
         // Act
         var result = await anonymizer.AnonymizeAsync(data, profile);
         var errorMsg = result.Match(Right: _ => "no error", Left: e => e.Message);
-        result.IsRight.Should().BeTrue($"anonymization should succeed, but got error: {errorMsg}");
+        result.IsRight.ShouldBeTrue($"anonymization should succeed, but got error: {errorMsg}");
 
         var anonymized = (TestPersonRecord)result;
 
         // Assert: Masked fields differ from originals
-        anonymized.Name.Should().NotBe("John Doe", "Name should be masked");
-        anonymized.Name.Should().StartWith("J", "first character should be preserved");
-        anonymized.Name.Should().Contain("*", "masked portion should contain asterisks");
+        anonymized.Name.ShouldNotBe("John Doe", "Name should be masked");
+        anonymized.Name.ShouldStartWith("J", customMessage: "first character should be preserved");
+        anonymized.Name.ShouldContain("*", customMessage: "masked portion should contain asterisks");
 
-        anonymized.Email.Should().NotBe("john@example.com", "Email should be masked");
-        anonymized.Email.Should().Contain("@example.com", "domain should be preserved");
+        anonymized.Email.ShouldNotBe("john@example.com", "Email should be masked");
+        anonymized.Email!.ShouldContain("@example.com", customMessage: "domain should be preserved");
 
         // Assert: Non-targeted field is unchanged
-        anonymized.Age.Should().Be(30, "Age has no rule and should be preserved");
+        anonymized.Age.ShouldBe(30, "Age has no rule and should be preserved");
 
         // Assert: Original data is not mutated
-        data.Name.Should().Be("John Doe");
-        data.Email.Should().Be("john@example.com");
+        data.Name.ShouldBe("John Doe");
+        data.Email.ShouldBe("john@example.com");
     }
 
     #endregion
@@ -330,20 +327,19 @@ public sealed class AnonymizationPipelineIntegrationTests
         var results = await Task.WhenAll(tasks);
 
         // Assert: All tokenizations succeeded
-        results.Should().AllSatisfy(r =>
-            r.TokenResult.IsRight.Should().BeTrue("all tokenizations should succeed"));
+        results.ShouldAllBe(r => r.TokenResult.IsRight);
 
         // Assert: All tokens are unique (no collisions)
         var tokens = results.Select(r => (string)r.TokenResult).ToList();
-        tokens.Should().OnlyHaveUniqueItems("each value should produce a unique token");
+        tokens.ShouldBeUnique("each value should produce a unique token");
 
         // Assert: All tokens can be detokenized back
         foreach (var result in results)
         {
             var token = (string)result.TokenResult;
             var detokenizeResult = await tokenizer.DetokenizeAsync(token);
-            detokenizeResult.IsRight.Should().BeTrue();
-            ((string)detokenizeResult).Should().Be(result.Value);
+            detokenizeResult.IsRight.ShouldBeTrue();
+            ((string)detokenizeResult).ShouldBe(result.Value);
         }
     }
 
@@ -360,7 +356,7 @@ public sealed class AnonymizationPipelineIntegrationTests
         var keyProvider = provider.GetRequiredService<IKeyProvider>();
 
         var activeKeyResult = await keyProvider.GetActiveKeyIdAsync();
-        activeKeyResult.IsRight.Should().BeTrue();
+        activeKeyResult.IsRight.ShouldBeTrue();
         var keyId = (string)activeKeyResult;
 
         var valueCount = 50;
@@ -379,16 +375,15 @@ public sealed class AnonymizationPipelineIntegrationTests
         var results = await Task.WhenAll(tasks);
 
         // Assert: All pseudonymizations succeeded
-        results.Should().AllSatisfy(r =>
-            r.PseudonymResult.IsRight.Should().BeTrue("all pseudonymizations should succeed"));
+        results.ShouldAllBe(r => r.PseudonymResult.IsRight);
 
         // Assert: All pseudonyms can be depseudonymized back to original values
         foreach (var result in results)
         {
             var pseudonym = (string)result.PseudonymResult;
             var depseudonymizeResult = await pseudonymizer.DepseudonymizeValueAsync(pseudonym, keyId);
-            depseudonymizeResult.IsRight.Should().BeTrue();
-            ((string)depseudonymizeResult).Should().Be(result.Value);
+            depseudonymizeResult.IsRight.ShouldBeTrue();
+            ((string)depseudonymizeResult).ShouldBe(result.Value);
         }
     }
 

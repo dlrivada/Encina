@@ -1,15 +1,12 @@
 using Encina.Compliance.CrossBorderTransfer;
 using Encina.Compliance.CrossBorderTransfer.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Health;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer;
 
@@ -32,7 +29,7 @@ public class CrossBorderTransferHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
@@ -45,7 +42,7 @@ public class CrossBorderTransferHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -59,7 +56,7 @@ public class CrossBorderTransferHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     [Fact]
@@ -75,20 +72,20 @@ public class CrossBorderTransferHealthCheckTests
 
         var result = await sut.CheckHealthAsync(new HealthCheckContext());
 
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     [Fact]
     public void DefaultName_ShouldBeExpected()
     {
-        CrossBorderTransferHealthCheck.DefaultName.Should().Be("encina-cross-border-transfer");
+        CrossBorderTransferHealthCheck.DefaultName.ShouldBe("encina-cross-border-transfer");
     }
 
     [Fact]
     public void Tags_ShouldContainExpectedValues()
     {
-        CrossBorderTransferHealthCheck.Tags.Should().Contain("encina");
-        CrossBorderTransferHealthCheck.Tags.Should().Contain("gdpr");
-        CrossBorderTransferHealthCheck.Tags.Should().Contain("compliance");
+        CrossBorderTransferHealthCheck.Tags.ShouldContain("encina");
+        CrossBorderTransferHealthCheck.Tags.ShouldContain("gdpr");
+        CrossBorderTransferHealthCheck.Tags.ShouldContain("compliance");
     }
 }

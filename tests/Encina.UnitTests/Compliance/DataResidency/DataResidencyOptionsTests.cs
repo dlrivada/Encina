@@ -1,7 +1,7 @@
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -14,14 +14,14 @@ public class DataResidencyOptionsTests
         var options = new DataResidencyOptions();
 
         // Assert
-        options.DefaultRegion.Should().BeNull();
-        options.EnforcementMode.Should().Be(DataResidencyEnforcementMode.Warn);
-        options.TrackDataLocations.Should().BeTrue();
-        options.BlockNonCompliantTransfers.Should().BeTrue();
-        options.AddHealthCheck.Should().BeFalse();
-        options.AutoRegisterFromAttributes.Should().BeTrue();
-        options.AssembliesToScan.Should().BeEmpty();
-        options.AdditionalAdequateRegions.Should().BeEmpty();
+        options.DefaultRegion.ShouldBeNull();
+        options.EnforcementMode.ShouldBe(DataResidencyEnforcementMode.Warn);
+        options.TrackDataLocations.ShouldBeTrue();
+        options.BlockNonCompliantTransfers.ShouldBeTrue();
+        options.AddHealthCheck.ShouldBeFalse();
+        options.AutoRegisterFromAttributes.ShouldBeTrue();
+        options.AssembliesToScan.ShouldBeEmpty();
+        options.AdditionalAdequateRegions.ShouldBeEmpty();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class DataResidencyOptionsTests
         options.DefaultRegion = RegionRegistry.DE;
 
         // Assert
-        options.DefaultRegion.Should().Be(RegionRegistry.DE);
+        options.DefaultRegion.ShouldBe(RegionRegistry.DE);
     }
 
     [Theory]
@@ -50,7 +50,7 @@ public class DataResidencyOptionsTests
         options.EnforcementMode = mode;
 
         // Assert
-        options.EnforcementMode.Should().Be(mode);
+        options.EnforcementMode.ShouldBe(mode);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class DataResidencyOptionsTests
         options.AdditionalAdequateRegions.Add(customRegion);
 
         // Assert
-        options.AdditionalAdequateRegions.Should().ContainSingle();
+        options.AdditionalAdequateRegions.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class DataResidencyOptionsTests
         options.AddPolicy("healthcare-data", p => p.AllowEU().RequireAdequacyDecision());
 
         // Assert
-        options.ConfiguredPolicies.Should().ContainSingle()
-            .Which.DataCategory.Should().Be("healthcare-data");
+        options.ConfiguredPolicies.ShouldHaveSingleItem()
+            .DataCategory.ShouldBe("healthcare-data");
     }
 }

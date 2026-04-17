@@ -1,9 +1,9 @@
 using Encina.Security;
 using Encina.Security.Health;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Security;
 
@@ -24,10 +24,10 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<ISecurityContextAccessor>().Should().NotBeNull();
-        provider.GetService<IPermissionEvaluator>().Should().NotBeNull();
-        provider.GetService<IResourceOwnershipEvaluator>().Should().NotBeNull();
-        provider.GetService<IOptions<SecurityOptions>>().Should().NotBeNull();
+        provider.GetService<ISecurityContextAccessor>().ShouldNotBeNull();
+        provider.GetService<IPermissionEvaluator>().ShouldNotBeNull();
+        provider.GetService<IResourceOwnershipEvaluator>().ShouldNotBeNull();
+        provider.GetService<IOptions<SecurityOptions>>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -43,9 +43,9 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         provider.GetRequiredService<IPermissionEvaluator>()
-            .Should().BeOfType<DefaultPermissionEvaluator>();
+            .ShouldBeOfType<DefaultPermissionEvaluator>();
         provider.GetRequiredService<IResourceOwnershipEvaluator>()
-            .Should().BeOfType<DefaultResourceOwnershipEvaluator>();
+            .ShouldBeOfType<DefaultResourceOwnershipEvaluator>();
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public class ServiceCollectionExtensionsTests
         var options = provider.GetRequiredService<IOptions<SecurityOptions>>().Value;
 
         // Assert
-        options.RequireAuthenticatedByDefault.Should().BeTrue();
-        options.UserIdClaimType.Should().Be("custom_uid");
-        options.ThrowOnMissingSecurityContext.Should().BeTrue();
+        options.RequireAuthenticatedByDefault.ShouldBeTrue();
+        options.UserIdClaimType.ShouldBe("custom_uid");
+        options.ThrowOnMissingSecurityContext.ShouldBeTrue();
     }
 
     [Fact]
@@ -85,13 +85,13 @@ public class ServiceCollectionExtensionsTests
         var options = provider.GetRequiredService<IOptions<SecurityOptions>>().Value;
 
         // Assert
-        options.RequireAuthenticatedByDefault.Should().BeFalse();
-        options.ThrowOnMissingSecurityContext.Should().BeFalse();
-        options.UserIdClaimType.Should().Be("sub");
-        options.RoleClaimType.Should().Be("role");
-        options.PermissionClaimType.Should().Be("permission");
-        options.TenantIdClaimType.Should().Be("tenant_id");
-        options.AddHealthCheck.Should().BeFalse();
+        options.RequireAuthenticatedByDefault.ShouldBeFalse();
+        options.ThrowOnMissingSecurityContext.ShouldBeFalse();
+        options.UserIdClaimType.ShouldBe("sub");
+        options.RoleClaimType.ShouldBe("role");
+        options.PermissionClaimType.ShouldBe("permission");
+        options.TenantIdClaimType.ShouldBe("tenant_id");
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert - Custom evaluator should be used (TryAdd doesn't override)
         provider.GetRequiredService<IPermissionEvaluator>()
-            .Should().BeOfType<CustomPermissionEvaluator>();
+            .ShouldBeOfType<CustomPermissionEvaluator>();
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         provider.GetRequiredService<IResourceOwnershipEvaluator>()
-            .Should().BeOfType<CustomOwnershipEvaluator>();
+            .ShouldBeOfType<CustomOwnershipEvaluator>();
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(ISecurityContextAccessor));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IPermissionEvaluator));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IResourceOwnershipEvaluator));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IPipelineBehavior<,>));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Transient);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Transient);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaSecurity();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -211,8 +211,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaSecurity();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public class ServiceCollectionExtensionsTests
         };
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -246,9 +246,9 @@ public class ServiceCollectionExtensionsTests
         // Assert — verify via the IOptions pattern that health checks are configured
         var provider = services.BuildServiceProvider();
         var healthCheckOptions = provider.GetService<IOptions<HealthCheckServiceOptions>>();
-        healthCheckOptions.Should().NotBeNull();
+        healthCheckOptions.ShouldNotBeNull();
         healthCheckOptions!.Value.Registrations
-            .Should().Contain(r => r.Name == SecurityHealthCheck.DefaultName);
+            .ShouldContain(r => r.Name == SecurityHealthCheck.DefaultName);
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class ServiceCollectionExtensionsTests
         if (healthCheckOptions is not null)
         {
             healthCheckOptions.Value.Registrations
-                .Should().NotContain(r => r.Name == SecurityHealthCheck.DefaultName);
+                .ShouldNotContain(r => r.Name == SecurityHealthCheck.DefaultName);
         }
     }
 
@@ -290,7 +290,7 @@ public class ServiceCollectionExtensionsTests
         if (healthCheckOptions is not null)
         {
             healthCheckOptions.Value.Registrations
-                .Should().NotContain(r => r.Name == SecurityHealthCheck.DefaultName);
+                .ShouldNotContain(r => r.Name == SecurityHealthCheck.DefaultName);
         }
     }
 

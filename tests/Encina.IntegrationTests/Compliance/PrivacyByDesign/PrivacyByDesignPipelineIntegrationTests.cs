@@ -3,14 +3,11 @@
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Health;
 using Encina.Compliance.PrivacyByDesign.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.IntegrationTests.Compliance.PrivacyByDesign;
 
@@ -34,8 +31,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         var analyzer = provider.GetService<IDataMinimizationAnalyzer>();
-        analyzer.Should().NotBeNull();
-        analyzer.Should().BeOfType<DefaultDataMinimizationAnalyzer>();
+        analyzer.ShouldNotBeNull();
+        analyzer.ShouldBeOfType<DefaultDataMinimizationAnalyzer>();
     }
 
     [Fact]
@@ -47,8 +44,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         var registry = provider.GetService<IPurposeRegistry>();
-        registry.Should().NotBeNull();
-        registry.Should().BeOfType<InMemoryPurposeRegistry>();
+        registry.ShouldNotBeNull();
+        registry.ShouldBeOfType<InMemoryPurposeRegistry>();
     }
 
     [Fact]
@@ -61,8 +58,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
 
         using var scope = provider.CreateScope();
         var validator = scope.ServiceProvider.GetService<IPrivacyByDesignValidator>();
-        validator.Should().NotBeNull();
-        validator.Should().BeOfType<DefaultPrivacyByDesignValidator>();
+        validator.ShouldNotBeNull();
+        validator.ShouldBeOfType<DefaultPrivacyByDesignValidator>();
     }
 
     [Fact]
@@ -74,8 +71,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         var optionsValidator = provider.GetService<IValidateOptions<PrivacyByDesignOptions>>();
-        optionsValidator.Should().NotBeNull();
-        optionsValidator.Should().BeOfType<PrivacyByDesignOptionsValidator>();
+        optionsValidator.ShouldNotBeNull();
+        optionsValidator.ShouldBeOfType<PrivacyByDesignOptionsValidator>();
     }
 
     [Fact]
@@ -92,9 +89,9 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         var options = provider.GetRequiredService<IOptions<PrivacyByDesignOptions>>().Value;
-        options.EnforcementMode.Should().Be(PrivacyByDesignEnforcementMode.Block);
-        options.MinimizationScoreThreshold.Should().Be(0.7);
-        options.PrivacyLevel.Should().Be(PrivacyLevel.Maximum);
+        options.EnforcementMode.ShouldBe(PrivacyByDesignEnforcementMode.Block);
+        options.MinimizationScoreThreshold.ShouldBe(0.7);
+        options.PrivacyLevel.ShouldBe(PrivacyLevel.Maximum);
     }
 
     [Fact]
@@ -112,7 +109,7 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         var registry = provider.GetRequiredService<IPurposeRegistry>();
-        registry.Should().BeSameAs(customRegistry, "TryAdd should not override existing registration");
+        registry.ShouldBeSameAs(customRegistry);
     }
 
     #endregion
@@ -131,7 +128,7 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var provider = services.BuildServiceProvider();
 
         var healthCheckService = provider.GetService<HealthCheckService>();
-        healthCheckService.Should().NotBeNull();
+        healthCheckService.ShouldNotBeNull();
     }
 
     [Fact]
@@ -165,11 +162,11 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         };
 
         var result = await healthCheck.CheckHealthAsync(context);
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("enforcementMode");
-        result.Data.Should().ContainKey("privacyLevel");
-        result.Data.Should().ContainKey("validatorType");
-        result.Data.Should().ContainKey("purposeRegistryType");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("enforcementMode");
+        result.Data.ShouldContainKey("privacyLevel");
+        result.Data.ShouldContainKey("validatorType");
+        result.Data.ShouldContainKey("purposeRegistryType");
     }
 
     #endregion
@@ -186,10 +183,10 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var request = new CompliantRequest { ProductId = "P001", Quantity = 5 };
         var result = await validator.ValidateAsync(request);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (PrivacyValidationResult)result;
-        validation.IsCompliant.Should().BeTrue();
-        validation.Violations.Should().BeEmpty();
+        validation.IsCompliant.ShouldBeTrue();
+        validation.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -208,12 +205,12 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
 
         var result = await validator.ValidateAsync(request);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var validation = (PrivacyValidationResult)result;
-        validation.IsCompliant.Should().BeFalse();
-        validation.Violations.Should().NotBeEmpty();
-        validation.MinimizationReport.Should().NotBeNull();
-        validation.MinimizationReport!.MinimizationScore.Should().BeLessThan(1.0);
+        validation.IsCompliant.ShouldBeFalse();
+        validation.Violations.ShouldNotBeEmpty();
+        validation.MinimizationReport.ShouldNotBeNull();
+        validation.MinimizationReport!.MinimizationScore.ShouldBeLessThan(1.0);
     }
 
     [Fact]
@@ -225,12 +222,12 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var request = new NonCompliantRequest { ProductId = "P001" };
         var result = await analyzer.AnalyzeAsync(request);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var report = (MinimizationReport)result;
         // 1 necessary (ProductId) out of 3 total = 1/3
-        report.MinimizationScore.Should().BeApproximately(1.0 / 3.0, 0.01);
-        report.NecessaryFields.Should().HaveCount(1);
-        report.UnnecessaryFields.Should().HaveCount(2);
+        report.MinimizationScore.ShouldBeInRange(1.0 / 3.0 - 0.01, 1.0 / 3.0 + 0.01);
+        report.NecessaryFields.Count.ShouldBe(1);
+        report.UnnecessaryFields.Count.ShouldBe(2);
     }
 
     #endregion
@@ -254,13 +251,13 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         };
 
         var registerResult = await registry.RegisterPurposeAsync(purpose);
-        registerResult.IsRight.Should().BeTrue();
+        registerResult.IsRight.ShouldBeTrue();
 
         var getResult = await registry.GetPurposeAsync("Integration Test Purpose");
-        getResult.IsRight.Should().BeTrue();
+        getResult.IsRight.ShouldBeTrue();
 
         var option = getResult.Match(o => o, _ => LanguageExt.Option<PurposeDefinition>.None);
-        option.IsSome.Should().BeTrue();
+        option.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -283,9 +280,9 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
 
         // Lookup with moduleId should fall back to global
         var result = await registry.GetPurposeAsync("Global Purpose", "orders-module");
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = result.Match(o => o, _ => LanguageExt.Option<PurposeDefinition>.None);
-        option.IsSome.Should().BeTrue("Global purpose should be found via module fallback");
+        option.IsSome.ShouldBeTrue();
     }
 
     #endregion
@@ -307,7 +304,7 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         });
 
         var results = await Task.WhenAll(tasks);
-        results.Should().AllSatisfy(r => r.Should().BeTrue());
+        results.ShouldAllBe(r => r);
     }
 
     [Fact]
@@ -332,7 +329,7 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         });
 
         var results = await Task.WhenAll(tasks);
-        results.Should().AllSatisfy(r => r.Should().BeTrue());
+        results.ShouldAllBe(r => r);
     }
 
     #endregion
@@ -353,11 +350,11 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         };
 
         var result = await validator.ValidateDefaultsAsync(request);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         var defaults = result.Match(d => d, _ => (IReadOnlyList<DefaultPrivacyFieldInfo>)[]);
-        defaults.Should().NotBeEmpty();
-        defaults.Should().Contain(d => !d.MatchesDefault);
+        defaults.ShouldNotBeEmpty();
+        defaults.ShouldContain(d => !d.MatchesDefault);
     }
 
     #endregion
@@ -418,8 +415,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var command = new PipelineCompliantCommand { ProductId = "P001", Quantity = 5 };
         var result = await encina.Send(command);
 
-        result.IsRight.Should().BeTrue("compliant request should pass through Block mode");
-        result.IfRight(v => v.Should().Be(42));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe(42));
     }
 
     [Fact]
@@ -437,7 +434,7 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         };
         var result = await encina.Send(command);
 
-        result.IsLeft.Should().BeTrue("non-compliant request should be blocked in Block mode");
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -455,8 +452,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         };
         var result = await encina.Send(command);
 
-        result.IsRight.Should().BeTrue("Warn mode should allow non-compliant requests through");
-        result.IfRight(v => v.Should().Be(42));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe(42));
     }
 
     [Fact]
@@ -474,8 +471,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         };
         var result = await encina.Send(command);
 
-        result.IsRight.Should().BeTrue("Disabled mode should skip validation entirely");
-        result.IfRight(v => v.Should().Be(42));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe(42));
     }
 
     [Fact]
@@ -488,8 +485,8 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         var command = new NoAttributeCommand("test-data");
         var result = await encina.Send(command);
 
-        result.IsRight.Should().BeTrue("request without attribute should skip validation");
-        result.IfRight(v => v.Should().Be(99));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe(99));
     }
 
     [Fact]
@@ -525,9 +522,9 @@ public sealed class PrivacyByDesignPipelineIntegrationTests
         foreach (var (expected, actual) in results)
         {
             if (expected)
-                actual.Should().BeTrue("compliant requests should pass");
+                actual.ShouldBeTrue();
             else
-                actual.Should().BeFalse("non-compliant requests should be blocked");
+                actual.ShouldBeFalse();
         }
     }
 

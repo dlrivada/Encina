@@ -1,5 +1,5 @@
 using Encina.Compliance.Retention;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -15,7 +15,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.PolicyNotFound("policy-001");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.PolicyNotFoundCode),
+            Some: code => code.ShouldBe(RetentionErrors.PolicyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -23,7 +23,7 @@ public class RetentionErrorsTests
     public void PolicyNotFound_ShouldIncludePolicyIdInMessage()
     {
         var error = RetentionErrors.PolicyNotFound("policy-001");
-        error.Message.Should().Contain("policy-001");
+        error.Message.ShouldContain("policy-001");
     }
 
     #endregion
@@ -35,7 +35,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.PolicyAlreadyExists("financial-records");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.PolicyAlreadyExistsCode),
+            Some: code => code.ShouldBe(RetentionErrors.PolicyAlreadyExistsCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -43,7 +43,7 @@ public class RetentionErrorsTests
     public void PolicyAlreadyExists_ShouldIncludeDataCategoryInMessage()
     {
         var error = RetentionErrors.PolicyAlreadyExists("financial-records");
-        error.Message.Should().Contain("financial-records");
+        error.Message.ShouldContain("financial-records");
     }
 
     #endregion
@@ -55,7 +55,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.RecordNotFound("record-001");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.RecordNotFoundCode),
+            Some: code => code.ShouldBe(RetentionErrors.RecordNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -63,7 +63,7 @@ public class RetentionErrorsTests
     public void RecordNotFound_ShouldIncludeRecordIdInMessage()
     {
         var error = RetentionErrors.RecordNotFound("record-001");
-        error.Message.Should().Contain("record-001");
+        error.Message.ShouldContain("record-001");
     }
 
     #endregion
@@ -75,7 +75,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.RecordAlreadyExists("record-002");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.RecordAlreadyExistsCode),
+            Some: code => code.ShouldBe(RetentionErrors.RecordAlreadyExistsCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -83,7 +83,7 @@ public class RetentionErrorsTests
     public void RecordAlreadyExists_ShouldIncludeRecordIdInMessage()
     {
         var error = RetentionErrors.RecordAlreadyExists("record-002");
-        error.Message.Should().Contain("record-002");
+        error.Message.ShouldContain("record-002");
     }
 
     #endregion
@@ -95,7 +95,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.HoldNotFound("hold-001");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.HoldNotFoundCode),
+            Some: code => code.ShouldBe(RetentionErrors.HoldNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -103,7 +103,7 @@ public class RetentionErrorsTests
     public void HoldNotFound_ShouldIncludeHoldIdInMessage()
     {
         var error = RetentionErrors.HoldNotFound("hold-001");
-        error.Message.Should().Contain("hold-001");
+        error.Message.ShouldContain("hold-001");
     }
 
     #endregion
@@ -115,7 +115,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.HoldAlreadyActive("entity-123");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.HoldAlreadyActiveCode),
+            Some: code => code.ShouldBe(RetentionErrors.HoldAlreadyActiveCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -123,7 +123,7 @@ public class RetentionErrorsTests
     public void HoldAlreadyActive_ShouldIncludeEntityIdInMessage()
     {
         var error = RetentionErrors.HoldAlreadyActive("entity-123");
-        error.Message.Should().Contain("entity-123");
+        error.Message.ShouldContain("entity-123");
     }
 
     #endregion
@@ -135,7 +135,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.HoldAlreadyReleased("hold-002");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.HoldAlreadyReleasedCode),
+            Some: code => code.ShouldBe(RetentionErrors.HoldAlreadyReleasedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -143,7 +143,7 @@ public class RetentionErrorsTests
     public void HoldAlreadyReleased_ShouldIncludeHoldIdInMessage()
     {
         var error = RetentionErrors.HoldAlreadyReleased("hold-002");
-        error.Message.Should().Contain("hold-002");
+        error.Message.ShouldContain("hold-002");
     }
 
     #endregion
@@ -155,7 +155,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.EnforcementFailed("Store unreachable");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.EnforcementFailedCode),
+            Some: code => code.ShouldBe(RetentionErrors.EnforcementFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -163,7 +163,7 @@ public class RetentionErrorsTests
     public void EnforcementFailed_ShouldIncludeReasonInMessage()
     {
         var error = RetentionErrors.EnforcementFailed("Store unreachable");
-        error.Message.Should().Contain("Store unreachable");
+        error.Message.ShouldContain("Store unreachable");
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class RetentionErrorsTests
         var innerException = new InvalidOperationException("Connection timeout");
         var error = RetentionErrors.EnforcementFailed("Store unreachable", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.EnforcementFailedCode),
+            Some: code => code.ShouldBe(RetentionErrors.EnforcementFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -185,7 +185,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.DeletionFailed("entity-456", "Foreign key constraint");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.DeletionFailedCode),
+            Some: code => code.ShouldBe(RetentionErrors.DeletionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -193,14 +193,14 @@ public class RetentionErrorsTests
     public void DeletionFailed_ShouldIncludeEntityIdInMessage()
     {
         var error = RetentionErrors.DeletionFailed("entity-456", "Foreign key constraint");
-        error.Message.Should().Contain("entity-456");
+        error.Message.ShouldContain("entity-456");
     }
 
     [Fact]
     public void DeletionFailed_ShouldIncludeReasonInMessage()
     {
         var error = RetentionErrors.DeletionFailed("entity-456", "Foreign key constraint");
-        error.Message.Should().Contain("Foreign key constraint");
+        error.Message.ShouldContain("Foreign key constraint");
     }
 
     #endregion
@@ -212,7 +212,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.StoreError("Create", "Connection timeout");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.StoreErrorCode),
+            Some: code => code.ShouldBe(RetentionErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -220,7 +220,7 @@ public class RetentionErrorsTests
     public void StoreError_ShouldIncludeOperationInMessage()
     {
         var error = RetentionErrors.StoreError("Create", "Connection timeout");
-        error.Message.Should().Contain("Create");
+        error.Message.ShouldContain("Create");
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public class RetentionErrorsTests
         var innerException = new InvalidOperationException("Deadlock");
         var error = RetentionErrors.StoreError("Create", "Connection timeout", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.StoreErrorCode),
+            Some: code => code.ShouldBe(RetentionErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -242,7 +242,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.InvalidParameter("retentionPeriod", "Must be greater than zero");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.InvalidParameterCode),
+            Some: code => code.ShouldBe(RetentionErrors.InvalidParameterCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -250,7 +250,7 @@ public class RetentionErrorsTests
     public void InvalidParameter_ShouldIncludeParameterNameInMessage()
     {
         var error = RetentionErrors.InvalidParameter("retentionPeriod", "Must be greater than zero");
-        error.Message.Should().Contain("retentionPeriod");
+        error.Message.ShouldContain("retentionPeriod");
     }
 
     #endregion
@@ -262,7 +262,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.NoPolicyForCategory("session-logs");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.NoPolicyForCategoryCode),
+            Some: code => code.ShouldBe(RetentionErrors.NoPolicyForCategoryCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -270,7 +270,7 @@ public class RetentionErrorsTests
     public void NoPolicyForCategory_ShouldIncludeDataCategoryInMessage()
     {
         var error = RetentionErrors.NoPolicyForCategory("session-logs");
-        error.Message.Should().Contain("session-logs");
+        error.Message.ShouldContain("session-logs");
     }
 
     #endregion
@@ -282,7 +282,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.PipelineRecordCreationFailed("marketing-consent", "Store write failed");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.PipelineRecordCreationFailedCode),
+            Some: code => code.ShouldBe(RetentionErrors.PipelineRecordCreationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -290,7 +290,7 @@ public class RetentionErrorsTests
     public void PipelineRecordCreationFailed_ShouldIncludeDataCategoryInMessage()
     {
         var error = RetentionErrors.PipelineRecordCreationFailed("marketing-consent", "Store write failed");
-        error.Message.Should().Contain("marketing-consent");
+        error.Message.ShouldContain("marketing-consent");
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public class RetentionErrorsTests
         var innerException = new InvalidOperationException("Database unavailable");
         var error = RetentionErrors.PipelineRecordCreationFailed("marketing-consent", "Store write failed", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.PipelineRecordCreationFailedCode),
+            Some: code => code.ShouldBe(RetentionErrors.PipelineRecordCreationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -312,7 +312,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.PipelineEntityIdNotFound("CreateOrderResponse");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.PipelineEntityIdNotFoundCode),
+            Some: code => code.ShouldBe(RetentionErrors.PipelineEntityIdNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -320,7 +320,7 @@ public class RetentionErrorsTests
     public void PipelineEntityIdNotFound_ShouldIncludeResponseTypeInMessage()
     {
         var error = RetentionErrors.PipelineEntityIdNotFound("CreateOrderResponse");
-        error.Message.Should().Contain("CreateOrderResponse");
+        error.Message.ShouldContain("CreateOrderResponse");
     }
 
     #endregion
@@ -333,7 +333,7 @@ public class RetentionErrorsTests
         var aggregateId = Guid.NewGuid();
         var error = RetentionErrors.InvalidStateTransition(aggregateId, "Deactivate");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.InvalidStateTransitionCode),
+            Some: code => code.ShouldBe(RetentionErrors.InvalidStateTransitionCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -342,7 +342,7 @@ public class RetentionErrorsTests
     {
         var aggregateId = Guid.NewGuid();
         var error = RetentionErrors.InvalidStateTransition(aggregateId, "Deactivate");
-        error.Message.Should().Contain(aggregateId.ToString());
+        error.Message.ShouldContain(aggregateId.ToString());
     }
 
     [Fact]
@@ -350,7 +350,7 @@ public class RetentionErrorsTests
     {
         var aggregateId = Guid.NewGuid();
         var error = RetentionErrors.InvalidStateTransition(aggregateId, "Deactivate");
-        error.Message.Should().Contain("Deactivate");
+        error.Message.ShouldContain("Deactivate");
     }
 
     #endregion
@@ -362,7 +362,7 @@ public class RetentionErrorsTests
     {
         var error = RetentionErrors.ServiceError("CreatePolicy");
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.ServiceErrorCode),
+            Some: code => code.ShouldBe(RetentionErrors.ServiceErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -370,7 +370,7 @@ public class RetentionErrorsTests
     public void ServiceError_ShouldIncludeOperationInMessage()
     {
         var error = RetentionErrors.ServiceError("CreatePolicy");
-        error.Message.Should().Contain("CreatePolicy");
+        error.Message.ShouldContain("CreatePolicy");
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class RetentionErrorsTests
         var innerException = new InvalidOperationException("Unexpected failure");
         var error = RetentionErrors.ServiceError("CreatePolicy", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.ServiceErrorCode),
+            Some: code => code.ShouldBe(RetentionErrors.ServiceErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -393,7 +393,7 @@ public class RetentionErrorsTests
         var aggregateId = Guid.NewGuid();
         var error = RetentionErrors.EventHistoryUnavailable(aggregateId);
         error.GetCode().Match(
-            Some: code => code.Should().Be(RetentionErrors.EventHistoryUnavailableCode),
+            Some: code => code.ShouldBe(RetentionErrors.EventHistoryUnavailableCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -402,7 +402,7 @@ public class RetentionErrorsTests
     {
         var aggregateId = Guid.NewGuid();
         var error = RetentionErrors.EventHistoryUnavailable(aggregateId);
-        error.Message.Should().Contain(aggregateId.ToString());
+        error.Message.ShouldContain(aggregateId.ToString());
     }
 
     #endregion
@@ -433,29 +433,29 @@ public class RetentionErrorsTests
             .GetField(constantName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!
             .GetValue(null) as string;
 
-        actualValue.Should().Be(expectedValue);
+        actualValue.ShouldBe(expectedValue);
     }
 
     [Fact]
     public void ErrorCodes_ShouldFollowRetentionConvention()
     {
-        RetentionErrors.PolicyNotFoundCode.Should().StartWith("retention.");
-        RetentionErrors.PolicyAlreadyExistsCode.Should().StartWith("retention.");
-        RetentionErrors.RecordNotFoundCode.Should().StartWith("retention.");
-        RetentionErrors.RecordAlreadyExistsCode.Should().StartWith("retention.");
-        RetentionErrors.HoldNotFoundCode.Should().StartWith("retention.");
-        RetentionErrors.HoldAlreadyActiveCode.Should().StartWith("retention.");
-        RetentionErrors.HoldAlreadyReleasedCode.Should().StartWith("retention.");
-        RetentionErrors.EnforcementFailedCode.Should().StartWith("retention.");
-        RetentionErrors.DeletionFailedCode.Should().StartWith("retention.");
-        RetentionErrors.StoreErrorCode.Should().StartWith("retention.");
-        RetentionErrors.InvalidParameterCode.Should().StartWith("retention.");
-        RetentionErrors.NoPolicyForCategoryCode.Should().StartWith("retention.");
-        RetentionErrors.PipelineRecordCreationFailedCode.Should().StartWith("retention.");
-        RetentionErrors.PipelineEntityIdNotFoundCode.Should().StartWith("retention.");
-        RetentionErrors.InvalidStateTransitionCode.Should().StartWith("retention.");
-        RetentionErrors.ServiceErrorCode.Should().StartWith("retention.");
-        RetentionErrors.EventHistoryUnavailableCode.Should().StartWith("retention.");
+        RetentionErrors.PolicyNotFoundCode.ShouldStartWith("retention.");
+        RetentionErrors.PolicyAlreadyExistsCode.ShouldStartWith("retention.");
+        RetentionErrors.RecordNotFoundCode.ShouldStartWith("retention.");
+        RetentionErrors.RecordAlreadyExistsCode.ShouldStartWith("retention.");
+        RetentionErrors.HoldNotFoundCode.ShouldStartWith("retention.");
+        RetentionErrors.HoldAlreadyActiveCode.ShouldStartWith("retention.");
+        RetentionErrors.HoldAlreadyReleasedCode.ShouldStartWith("retention.");
+        RetentionErrors.EnforcementFailedCode.ShouldStartWith("retention.");
+        RetentionErrors.DeletionFailedCode.ShouldStartWith("retention.");
+        RetentionErrors.StoreErrorCode.ShouldStartWith("retention.");
+        RetentionErrors.InvalidParameterCode.ShouldStartWith("retention.");
+        RetentionErrors.NoPolicyForCategoryCode.ShouldStartWith("retention.");
+        RetentionErrors.PipelineRecordCreationFailedCode.ShouldStartWith("retention.");
+        RetentionErrors.PipelineEntityIdNotFoundCode.ShouldStartWith("retention.");
+        RetentionErrors.InvalidStateTransitionCode.ShouldStartWith("retention.");
+        RetentionErrors.ServiceErrorCode.ShouldStartWith("retention.");
+        RetentionErrors.EventHistoryUnavailableCode.ShouldStartWith("retention.");
     }
 
     [Fact]
@@ -482,7 +482,7 @@ public class RetentionErrorsTests
             RetentionErrors.EventHistoryUnavailableCode
         };
 
-        codes.Should().OnlyHaveUniqueItems();
+        codes.Distinct().Count().ShouldBe(codes.Length);
     }
 
     #endregion

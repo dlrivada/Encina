@@ -1,11 +1,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.ABAC.Persistence.Xacml;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
+using Shouldly;
 using Target = Encina.Security.ABAC.Target;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence.Xacml;
@@ -222,12 +219,12 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Id.Should().Be(policySet.Id);
-        deserialized.Algorithm.Should().Be(policySet.Algorithm);
-        deserialized.Policies.Should().BeEmpty();
-        deserialized.PolicySets.Should().BeEmpty();
+        deserialized.Id.ShouldBe(policySet.Id);
+        deserialized.Algorithm.ShouldBe(policySet.Algorithm);
+        deserialized.Policies.ShouldBeEmpty();
+        deserialized.PolicySets.ShouldBeEmpty();
     }
 
     [Fact]
@@ -241,14 +238,14 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Id.Should().Be("ps-full");
-        deserialized.Version.Should().Be("2.1.0");
-        deserialized.Description.Should().Be("Full policy set with metadata");
-        deserialized.Algorithm.Should().Be(CombiningAlgorithmId.PermitOverrides);
-        deserialized.IsEnabled.Should().BeFalse();
-        deserialized.Priority.Should().Be(5);
+        deserialized.Id.ShouldBe("ps-full");
+        deserialized.Version.ShouldBe("2.1.0");
+        deserialized.Description.ShouldBe("Full policy set with metadata");
+        deserialized.Algorithm.ShouldBe(CombiningAlgorithmId.PermitOverrides);
+        deserialized.IsEnabled.ShouldBeFalse();
+        deserialized.Priority.ShouldBe(5);
     }
 
     [Fact]
@@ -262,15 +259,15 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Id.Should().Be("ps-root");
-        deserialized.Policies.Should().HaveCount(1);
-        deserialized.Policies[0].Id.Should().Be("nested-p-1");
-        deserialized.PolicySets.Should().HaveCount(1);
-        deserialized.PolicySets[0].Id.Should().Be("ps-child");
-        deserialized.PolicySets[0].Policies.Should().HaveCount(1);
-        deserialized.PolicySets[0].Policies[0].Id.Should().Be("nested-p-2");
+        deserialized.Id.ShouldBe("ps-root");
+        deserialized.Policies.Count.ShouldBe(1);
+        deserialized.Policies[0].Id.ShouldBe("nested-p-1");
+        deserialized.PolicySets.Count.ShouldBe(1);
+        deserialized.PolicySets[0].Id.ShouldBe("ps-child");
+        deserialized.PolicySets[0].Policies.Count.ShouldBe(1);
+        deserialized.PolicySets[0].Policies[0].Id.ShouldBe("nested-p-2");
     }
 
     #endregion
@@ -290,11 +287,11 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Id.Should().Be(policy.Id);
-        deserialized.Algorithm.Should().Be(policy.Algorithm);
-        deserialized.Rules.Should().BeEmpty();
+        deserialized.Id.ShouldBe(policy.Id);
+        deserialized.Algorithm.ShouldBe(policy.Algorithm);
+        deserialized.Rules.ShouldBeEmpty();
     }
 
     [Fact]
@@ -308,20 +305,20 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Id.Should().Be("p-rules");
-        deserialized.Version.Should().Be("1.0");
-        deserialized.Description.Should().Be("Policy with rules and targets");
-        deserialized.Rules.Should().HaveCount(1);
-        deserialized.Rules[0].Id.Should().Be("rule-1");
-        deserialized.Rules[0].Effect.Should().Be(Effect.Permit);
-        deserialized.Obligations.Should().HaveCount(1);
-        deserialized.Obligations[0].Id.Should().Be("obligation-audit");
-        deserialized.Advice.Should().HaveCount(1);
-        deserialized.Advice[0].Id.Should().Be("advice-log");
-        deserialized.VariableDefinitions.Should().HaveCount(1);
-        deserialized.VariableDefinitions[0].VariableId.Should().Be("is-admin");
+        deserialized.Id.ShouldBe("p-rules");
+        deserialized.Version.ShouldBe("1.0");
+        deserialized.Description.ShouldBe("Policy with rules and targets");
+        deserialized.Rules.Count.ShouldBe(1);
+        deserialized.Rules[0].Id.ShouldBe("rule-1");
+        deserialized.Rules[0].Effect.ShouldBe(Effect.Permit);
+        deserialized.Obligations.Count.ShouldBe(1);
+        deserialized.Obligations[0].Id.ShouldBe("obligation-audit");
+        deserialized.Advice.Count.ShouldBe(1);
+        deserialized.Advice[0].Id.ShouldBe("advice-log");
+        deserialized.VariableDefinitions.Count.ShouldBe(1);
+        deserialized.VariableDefinitions[0].VariableId.ShouldBe("is-admin");
     }
 
     [Fact]
@@ -335,15 +332,15 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
         var condition = deserialized.Rules[0].Condition;
-        condition.Should().NotBeNull();
-        condition.Should().BeOfType<Apply>();
-        condition!.FunctionId.Should().Contain("string-equal");
-        condition.Arguments.Should().HaveCount(2);
-        condition.Arguments[0].Should().BeOfType<AttributeDesignator>();
-        condition.Arguments[1].Should().BeOfType<AttributeValue>();
+        condition.ShouldNotBeNull();
+        condition.ShouldBeOfType<Apply>();
+        condition!.FunctionId.ShouldContain("string-equal");
+        condition.Arguments.Count.ShouldBe(2);
+        condition.Arguments[0].ShouldBeOfType<AttributeDesignator>();
+        condition.Arguments[1].ShouldBeOfType<AttributeValue>();
     }
 
     [Fact]
@@ -378,13 +375,13 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.VariableDefinitions.Should().HaveCount(2);
-        deserialized.VariableDefinitions[0].Expression.Should().BeOfType<AttributeValue>();
-        deserialized.VariableDefinitions[1].Expression.Should().BeOfType<VariableReference>();
+        deserialized.VariableDefinitions.Count.ShouldBe(2);
+        deserialized.VariableDefinitions[0].Expression.ShouldBeOfType<AttributeValue>();
+        deserialized.VariableDefinitions[1].Expression.ShouldBeOfType<VariableReference>();
         var varRef = (VariableReference)deserialized.VariableDefinitions[1].Expression;
-        varRef.VariableId.Should().Be("is-admin");
+        varRef.VariableId.ShouldBe("is-admin");
     }
 
     #endregion
@@ -410,9 +407,9 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Algorithm.Should().Be(algorithm);
+        deserialized.Algorithm.ShouldBe(algorithm);
     }
 
     [Theory]
@@ -446,9 +443,9 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Rules[0].Effect.Should().Be(effect);
+        deserialized.Rules[0].Effect.ShouldBe(effect);
     }
 
     #endregion
@@ -467,7 +464,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert
-        xml.Should().StartWith("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+        xml.ShouldStartWith("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
     }
 
     [Fact]
@@ -480,7 +477,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert
-        xml.Should().Contain("urn:oasis:names:tc:xacml:3.0:core:schema:wd-17");
+        xml.ShouldContain("urn:oasis:names:tc:xacml:3.0:core:schema:wd-17");
     }
 
     [Fact]
@@ -493,7 +490,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert
-        xml.Should().Contain("urn:encina:xacml:extensions:1.0");
+        xml.ShouldContain("urn:encina:xacml:extensions:1.0");
     }
 
     [Fact]
@@ -506,8 +503,8 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert
-        xml.Should().Contain("<PolicySet ");
-        xml.Should().Contain("PolicySetId=\"ps-1\"");
+        xml.ShouldContain("<PolicySet ");
+        xml.ShouldContain("PolicySetId=\"ps-1\"");
     }
 
     [Fact]
@@ -520,8 +517,8 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policy);
 
         // Assert
-        xml.Should().Contain("<Policy ");
-        xml.Should().Contain("PolicyId=\"p-1\"");
+        xml.ShouldContain("<Policy ");
+        xml.ShouldContain("PolicyId=\"p-1\"");
     }
 
     [Fact]
@@ -534,7 +531,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert
-        xml.Should().Contain("PolicyCombiningAlgId=\"urn:oasis:names:tc:xacml:3.0:policy-combining-algorithm:deny-overrides\"");
+        xml.ShouldContain("PolicyCombiningAlgId=\"urn:oasis:names:tc:xacml:3.0:policy-combining-algorithm:deny-overrides\"");
     }
 
     [Fact]
@@ -547,7 +544,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policy);
 
         // Assert
-        xml.Should().Contain("RuleCombiningAlgId=\"urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-overrides\"");
+        xml.ShouldContain("RuleCombiningAlgId=\"urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-overrides\"");
     }
 
     #endregion
@@ -567,16 +564,16 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Target.Should().NotBeNull();
-        deserialized.Target!.AnyOfElements.Should().HaveCount(1);
-        deserialized.Target.AnyOfElements[0].AllOfElements.Should().HaveCount(1);
-        deserialized.Target.AnyOfElements[0].AllOfElements[0].Matches.Should().HaveCount(1);
+        deserialized.Target.ShouldNotBeNull();
+        deserialized.Target!.AnyOfElements.Count.ShouldBe(1);
+        deserialized.Target.AnyOfElements[0].AllOfElements.Count.ShouldBe(1);
+        deserialized.Target.AnyOfElements[0].AllOfElements[0].Matches.Count.ShouldBe(1);
 
         var match = deserialized.Target.AnyOfElements[0].AllOfElements[0].Matches[0];
-        match.AttributeDesignator.Category.Should().Be(AttributeCategory.Action);
-        match.AttributeDesignator.AttributeId.Should().Be("action-id");
+        match.AttributeDesignator.Category.ShouldBe(AttributeCategory.Action);
+        match.AttributeDesignator.AttributeId.ShouldBe("action-id");
     }
 
     [Fact]
@@ -589,7 +586,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert — Null target is omitted; XACML allows absent Target (matches everything)
-        xml.Should().NotContain("<Target");
+        xml.ShouldNotContain("<Target");
     }
 
     #endregion
@@ -609,14 +606,14 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Obligations.Should().HaveCount(1);
+        deserialized.Obligations.Count.ShouldBe(1);
         var obligation = deserialized.Obligations[0];
-        obligation.Id.Should().Be("obligation-audit");
-        obligation.FulfillOn.Should().Be(FulfillOn.Permit);
-        obligation.AttributeAssignments.Should().HaveCount(1);
-        obligation.AttributeAssignments[0].AttributeId.Should().Be("audit-action");
+        obligation.Id.ShouldBe("obligation-audit");
+        obligation.FulfillOn.ShouldBe(FulfillOn.Permit);
+        obligation.AttributeAssignments.Count.ShouldBe(1);
+        obligation.AttributeAssignments[0].AttributeId.ShouldBe("audit-action");
     }
 
     [Fact]
@@ -630,14 +627,14 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Advice.Should().HaveCount(1);
+        deserialized.Advice.Count.ShouldBe(1);
         var advice = deserialized.Advice[0];
-        advice.Id.Should().Be("advice-log");
-        advice.AppliesTo.Should().Be(FulfillOn.Permit);
-        advice.AttributeAssignments.Should().HaveCount(1);
-        advice.AttributeAssignments[0].AttributeId.Should().Be("log-message");
+        advice.Id.ShouldBe("advice-log");
+        advice.AppliesTo.ShouldBe(FulfillOn.Permit);
+        advice.AttributeAssignments.Count.ShouldBe(1);
+        advice.AttributeAssignments[0].AttributeId.ShouldBe("log-message");
     }
 
     [Theory]
@@ -670,9 +667,9 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Obligations[0].FulfillOn.Should().Be(fulfillOn);
+        deserialized.Obligations[0].FulfillOn.ShouldBe(fulfillOn);
     }
 
     #endregion
@@ -691,7 +688,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert
-        xml.Should().Contain("encina:IsEnabled=\"false\"");
+        xml.ShouldContain("encina:IsEnabled=\"false\"");
     }
 
     [Fact]
@@ -704,7 +701,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policySet);
 
         // Assert
-        xml.Should().Contain("encina:Priority=\"42\"");
+        xml.ShouldContain("encina:Priority=\"42\"");
     }
 
     [Fact]
@@ -725,10 +722,10 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.IsEnabled.Should().BeTrue("Default IsEnabled should be true");
-        deserialized.Priority.Should().Be(0, "Default Priority should be 0");
+        deserialized.IsEnabled.ShouldBeTrue("Default IsEnabled should be true");
+        deserialized.Priority.ShouldBe(0, "Default Priority should be 0");
     }
 
     [Fact]
@@ -749,10 +746,10 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.IsEnabled.Should().BeTrue("Default IsEnabled should be true");
-        deserialized.Priority.Should().Be(0, "Default Priority should be 0");
+        deserialized.IsEnabled.ShouldBeTrue("Default IsEnabled should be true");
+        deserialized.Priority.ShouldBe(0, "Default Priority should be 0");
     }
 
     #endregion
@@ -775,10 +772,10 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
         var av = GetFirstAttributeValue(deserialized);
-        av.Value?.ToString().Should().Be(value);
+        av.Value?.ToString().ShouldBe(value);
     }
 
     [Fact]
@@ -792,10 +789,10 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
         var av = GetFirstAttributeValue(deserialized);
-        av.Value.Should().Be(true);
+        av.Value.ShouldBe(true);
     }
 
     [Fact]
@@ -809,10 +806,10 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
         var av = GetFirstAttributeValue(deserialized);
-        Convert.ToInt64(av.Value, System.Globalization.CultureInfo.InvariantCulture).Should().Be(42);
+        Convert.ToInt64(av.Value, System.Globalization.CultureInfo.InvariantCulture).ShouldBe(42);
     }
 
     #endregion
@@ -828,7 +825,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet(null!);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -838,7 +835,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet("");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -848,7 +845,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet("   ");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -858,7 +855,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet("<not valid xml>");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -868,7 +865,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(null!);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -878,7 +875,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy("");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -888,7 +885,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy("   ");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -898,7 +895,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy("<not valid xml>");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -919,7 +916,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicySet(xml);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -940,7 +937,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -956,7 +953,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var act = () => _sut.Serialize((PolicySet)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -966,7 +963,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var act = () => _sut.Serialize((Policy)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -985,7 +982,7 @@ public sealed class XacmlXmlPolicySerializerTests
         var xml = _sut.Serialize(policy);
 
         // Assert — Short IDs are expanded to full URNs in XML
-        xml.Should().Contain("urn:oasis:names:tc:xacml:1.0:function:string-equal");
+        xml.ShouldContain("urn:oasis:names:tc:xacml:1.0:function:string-equal");
     }
 
     [Fact]
@@ -999,11 +996,11 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert — Full URNs are normalized back to short IDs
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
         var condition = deserialized.Rules[0].Condition as Apply;
-        condition.Should().NotBeNull();
-        condition!.FunctionId.Should().Be("string-equal");
+        condition.ShouldNotBeNull();
+        condition!.FunctionId.ShouldBe("string-equal");
     }
 
     #endregion
@@ -1065,10 +1062,10 @@ public sealed class XacmlXmlPolicySerializerTests
         var result = _sut.DeserializePolicy(xml);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
         var designator = deserialized.Target!.AnyOfElements[0].AllOfElements[0].Matches[0].AttributeDesignator;
-        designator.Category.Should().Be(category);
+        designator.Category.ShouldBe(category);
     }
 
     #endregion

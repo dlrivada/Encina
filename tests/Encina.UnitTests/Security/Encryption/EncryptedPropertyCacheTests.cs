@@ -1,5 +1,5 @@
 using Encina.Security.Encryption;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Encryption;
 
@@ -20,9 +20,9 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
     {
         var properties = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
 
-        properties.Should().HaveCount(2);
-        properties.Select(p => p.Property.Name).Should().Contain("Email");
-        properties.Select(p => p.Property.Name).Should().Contain("SSN");
+        properties.Length.ShouldBe(2);
+        properties.Select(p => p.Property.Name).ShouldContain("Email");
+        properties.Select(p => p.Property.Name).ShouldContain("SSN");
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
     {
         var properties = EncryptedPropertyCache.GetProperties(typeof(TypeWithNoEncryptedProps));
 
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         var first = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
         var second = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
 
-        first.Should().BeSameAs(second);
+        first.ShouldBeSameAs(second);
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         EncryptedPropertyCache.ClearCache();
         var second = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
 
-        first.Should().NotBeSameAs(second);
-        first.Should().HaveCount(second.Length);
+        first.ShouldNotBeSameAs(second);
+        first.Length.ShouldBe(second.Length);
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
     {
         var properties = EncryptedPropertyCache.GetProperties(typeof(TypeWithPurpose));
 
-        properties.Should().HaveCount(1);
-        properties[0].Attribute.Purpose.Should().Be("User.Email");
+        properties.Length.ShouldBe(1);
+        properties[0].Attribute.Purpose.ShouldBe("User.Email");
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         var instance = new TypeWithEncryptedProps { Email = "original" };
         emailProp.SetValue(instance, "modified");
 
-        instance.Email.Should().Be("modified");
+        instance.Email.ShouldBe("modified");
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         var instance = new TypeWithEncryptedProps { Email = "test-value" };
         var value = emailProp.GetValue(instance);
 
-        value.Should().Be("test-value");
+        value.ShouldBe("test-value");
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         var properties = EncryptedPropertyCache.GetProperties(typeof(TypeWithReadOnlyEncrypt));
 
         // ReadOnly property should be skipped (no setter)
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -101,8 +101,8 @@ public sealed class EncryptedPropertyCacheTests : IDisposable
         var props1 = EncryptedPropertyCache.GetProperties(typeof(TypeWithEncryptedProps));
         var props2 = EncryptedPropertyCache.GetProperties(typeof(TypeWithNoEncryptedProps));
 
-        props1.Should().HaveCount(2);
-        props2.Should().BeEmpty();
+        props1.Length.ShouldBe(2);
+        props2.ShouldBeEmpty();
     }
 
     #region Test Types

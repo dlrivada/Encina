@@ -1,8 +1,8 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Configuration;
-using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets;
 
@@ -21,8 +21,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaSecrets();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -32,8 +32,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaSecrets(opts => opts.EnableCaching = true);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -47,8 +47,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddEncinaSecrets<FakeSecretReader>();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
         var act = () => services.AddEncinaSecrets<FakeSecretReader>(
             opts => opts.EnableCaching = false);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -74,8 +74,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
 
         var act = () => services.AddSecretRotationHandler<FakeRotationHandler>();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -90,8 +90,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
 
         var act = () => builder.AddEncinaSecrets(sp);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("builder");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("builder");
     }
 
     [Fact]
@@ -101,8 +101,8 @@ public sealed class ServiceCollectionExtensionsGuardTests
 
         var act = () => builder.AddEncinaSecrets(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     #endregion

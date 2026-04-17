@@ -2,10 +2,10 @@ using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Encoders;
 using Encina.Security.Sanitization.Health;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -22,8 +22,8 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<ISanitizer>().Should().NotBeNull();
-        provider.GetService<ISanitizer>().Should().BeOfType<DefaultSanitizer>();
+        provider.GetService<ISanitizer>().ShouldNotBeNull();
+        provider.GetService<ISanitizer>().ShouldBeOfType<DefaultSanitizer>();
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization();
 
         var provider = services.BuildServiceProvider();
-        provider.GetService<IOutputEncoder>().Should().NotBeNull();
-        provider.GetService<IOutputEncoder>().Should().BeOfType<DefaultOutputEncoder>();
+        provider.GetService<IOutputEncoder>().ShouldNotBeNull();
+        provider.GetService<IOutputEncoder>().ShouldBeOfType<DefaultOutputEncoder>();
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization();
 
         var descriptor = services.First(d => d.ServiceType == typeof(ISanitizer));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization();
 
         var descriptor = services.First(d => d.ServiceType == typeof(IOutputEncoder));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization();
 
         var descriptor = services.First(d => d.ServiceType == typeof(SanitizationOrchestrator));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization();
 
         var behaviors = services.Where(d => d.ServiceType == typeof(IPipelineBehavior<,>)).ToList();
-        behaviors.Should().HaveCountGreaterThanOrEqualTo(2);
-        behaviors.Should().OnlyContain(d => d.Lifetime == ServiceLifetime.Transient);
+        behaviors.Count.ShouldBeGreaterThanOrEqualTo(2);
+        behaviors.ShouldAllBe(d => d.Lifetime == ServiceLifetime.Transient);
     }
 
     #endregion
@@ -103,10 +103,10 @@ public sealed class SanitizationServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SanitizationOptions>>().Value;
-        options.SanitizeAllStringInputs.Should().BeTrue();
-        options.EncodeAllOutputs.Should().BeTrue();
-        options.EnableTracing.Should().BeTrue();
-        options.EnableMetrics.Should().BeTrue();
+        options.SanitizeAllStringInputs.ShouldBeTrue();
+        options.EncodeAllOutputs.ShouldBeTrue();
+        options.EnableTracing.ShouldBeTrue();
+        options.EnableMetrics.ShouldBeTrue();
     }
 
     [Fact]
@@ -118,11 +118,11 @@ public sealed class SanitizationServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SanitizationOptions>>().Value;
-        options.SanitizeAllStringInputs.Should().BeFalse();
-        options.EncodeAllOutputs.Should().BeFalse();
-        options.AddHealthCheck.Should().BeFalse();
-        options.EnableTracing.Should().BeFalse();
-        options.EnableMetrics.Should().BeFalse();
+        options.SanitizeAllStringInputs.ShouldBeFalse();
+        options.EncodeAllOutputs.ShouldBeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
+        options.EnableTracing.ShouldBeFalse();
+        options.EnableMetrics.ShouldBeFalse();
     }
 
     #endregion
@@ -141,7 +141,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var resolved = provider.GetRequiredService<ISanitizer>();
-        resolved.Should().BeSameAs(customSanitizer);
+        resolved.ShouldBeSameAs(customSanitizer);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var resolved = provider.GetRequiredService<IOutputEncoder>();
-        resolved.Should().BeSameAs(customEncoder);
+        resolved.ShouldBeSameAs(customEncoder);
     }
 
     #endregion
@@ -169,7 +169,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
 
         var result = services.AddEncinaSanitization();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
             services.AddEncinaSanitization();
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -193,8 +193,8 @@ public sealed class SanitizationServiceCollectionExtensionsTests
 
         var act = () => services.AddEncinaSanitization();
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -210,7 +210,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
 
         var provider = services.BuildServiceProvider();
         var healthCheckOptions = provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
-        healthCheckOptions.Registrations.Should().Contain(r => r.Name == SanitizationHealthCheck.DefaultName);
+        healthCheckOptions.Registrations.ShouldContain(r => r.Name == SanitizationHealthCheck.DefaultName);
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization(options => options.AddHealthCheck = false);
 
         var hasHealthChecks = services.Any(d => d.ServiceType == typeof(HealthCheckService));
-        hasHealthChecks.Should().BeFalse();
+        hasHealthChecks.ShouldBeFalse();
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public sealed class SanitizationServiceCollectionExtensionsTests
         services.AddEncinaSanitization();
 
         var hasHealthChecks = services.Any(d => d.ServiceType == typeof(HealthCheckService));
-        hasHealthChecks.Should().BeFalse();
+        hasHealthChecks.ShouldBeFalse();
     }
 
     #endregion

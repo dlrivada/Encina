@@ -3,7 +3,7 @@ using System.Diagnostics.Metrics;
 
 using Encina.Compliance.Retention.Diagnostics;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -34,15 +34,15 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     [Fact]
     public void ActivitySource_HasCorrectNameAndVersion()
     {
-        RetentionDiagnostics.ActivitySource.Name.Should().Be("Encina.Compliance.Retention");
-        RetentionDiagnostics.ActivitySource.Version.Should().Be("1.0");
+        RetentionDiagnostics.ActivitySource.Name.ShouldBe("Encina.Compliance.Retention");
+        RetentionDiagnostics.ActivitySource.Version.ShouldBe("1.0");
     }
 
     [Fact]
     public void Meter_HasCorrectNameAndVersion()
     {
-        RetentionDiagnostics.Meter.Name.Should().Be("Encina.Compliance.Retention");
-        RetentionDiagnostics.Meter.Version.Should().Be("1.0");
+        RetentionDiagnostics.Meter.Name.ShouldBe("Encina.Compliance.Retention");
+        RetentionDiagnostics.Meter.Version.ShouldBe("1.0");
     }
 
     #endregion
@@ -54,9 +54,9 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartPipelineExecution("CreateOrder", "OrderResponse");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(RetentionDiagnostics.TagRequestType).Should().Be("CreateOrder");
-        activity.GetTagItem(RetentionDiagnostics.TagResponseType).Should().Be("OrderResponse");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(RetentionDiagnostics.TagRequestType).ShouldBe("CreateOrder");
+        activity.GetTagItem(RetentionDiagnostics.TagResponseType).ShouldBe("OrderResponse");
     }
 
     [Fact]
@@ -64,8 +64,8 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartPipelineExecution("Req", "Resp");
 
-        activity.Should().NotBeNull();
-        activity!.Kind.Should().Be(ActivityKind.Internal);
+        activity.ShouldNotBeNull();
+        activity!.Kind.ShouldBe(ActivityKind.Internal);
     }
 
     #endregion
@@ -77,9 +77,9 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartEnforcementCycle();
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("Retention.Enforcement");
-        activity.Kind.Should().Be(ActivityKind.Internal);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("Retention.Enforcement");
+        activity.Kind.ShouldBe(ActivityKind.Internal);
     }
 
     #endregion
@@ -91,10 +91,10 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartRecordDeletion("entity-1", "financial-records");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(RetentionDiagnostics.TagEntityId).Should().Be("entity-1");
-        activity.GetTagItem(RetentionDiagnostics.TagDataCategory).Should().Be("financial-records");
-        activity.OperationName.Should().Be("Retention.Deletion");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(RetentionDiagnostics.TagEntityId).ShouldBe("entity-1");
+        activity.GetTagItem(RetentionDiagnostics.TagDataCategory).ShouldBe("financial-records");
+        activity.OperationName.ShouldBe("Retention.Deletion");
     }
 
     #endregion
@@ -106,10 +106,10 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartLegalHoldOperation("hold-42", "entity-99");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(RetentionDiagnostics.TagHoldId).Should().Be("hold-42");
-        activity.GetTagItem(RetentionDiagnostics.TagEntityId).Should().Be("entity-99");
-        activity.OperationName.Should().Be("Retention.LegalHold");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(RetentionDiagnostics.TagHoldId).ShouldBe("hold-42");
+        activity.GetTagItem(RetentionDiagnostics.TagEntityId).ShouldBe("entity-99");
+        activity.OperationName.ShouldBe("Retention.LegalHold");
     }
 
     #endregion
@@ -121,9 +121,9 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartPolicyResolution("user-profiles");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(RetentionDiagnostics.TagDataCategory).Should().Be("user-profiles");
-        activity.OperationName.Should().Be("Retention.PolicyResolution");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(RetentionDiagnostics.TagDataCategory).ShouldBe("user-profiles");
+        activity.OperationName.ShouldBe("Retention.PolicyResolution");
     }
 
     #endregion
@@ -135,9 +135,9 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartAuditRecording("delete_entity");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(RetentionDiagnostics.TagAction).Should().Be("delete_entity");
-        activity.OperationName.Should().Be("Retention.Audit");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(RetentionDiagnostics.TagAction).ShouldBe("delete_entity");
+        activity.OperationName.ShouldBe("Retention.Audit");
     }
 
     #endregion
@@ -149,9 +149,9 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     {
         using var activity = RetentionDiagnostics.StartServiceOperation("TrackRecord");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(RetentionDiagnostics.TagAction).Should().Be("TrackRecord");
-        activity.OperationName.Should().Be("Retention.Service.TrackRecord");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(RetentionDiagnostics.TagAction).ShouldBe("TrackRecord");
+        activity.OperationName.ShouldBe("Retention.Service.TrackRecord");
     }
 
     [Fact]
@@ -160,8 +160,8 @@ public sealed class RetentionDiagnosticsTests : IDisposable
         using var createActivity = RetentionDiagnostics.StartServiceOperation("CreatePolicy");
         using var updateActivity = RetentionDiagnostics.StartServiceOperation("UpdatePolicy");
 
-        createActivity!.OperationName.Should().Be("Retention.Service.CreatePolicy");
-        updateActivity!.OperationName.Should().Be("Retention.Service.UpdatePolicy");
+        createActivity!.OperationName.ShouldBe("Retention.Service.CreatePolicy");
+        updateActivity!.OperationName.ShouldBe("Retention.Service.UpdatePolicy");
     }
 
     #endregion
@@ -175,8 +175,8 @@ public sealed class RetentionDiagnosticsTests : IDisposable
 
         RetentionDiagnostics.RecordCompleted(activity);
 
-        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).Should().Be("completed");
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).ShouldBe("completed");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     #endregion
@@ -190,9 +190,9 @@ public sealed class RetentionDiagnosticsTests : IDisposable
 
         RetentionDiagnostics.RecordCompleted(activity, 15);
 
-        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).Should().Be("completed");
-        activity.GetTagItem("retention.records_processed").Should().Be(15);
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).ShouldBe("completed");
+        activity.GetTagItem("retention.records_processed").ShouldBe(15);
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public sealed class RetentionDiagnosticsTests : IDisposable
 
         RetentionDiagnostics.RecordCompleted(activity, 0);
 
-        activity!.GetTagItem("retention.records_processed").Should().Be(0);
+        activity!.GetTagItem("retention.records_processed").ShouldBe(0);
     }
 
     #endregion
@@ -216,10 +216,10 @@ public sealed class RetentionDiagnosticsTests : IDisposable
 
         RetentionDiagnostics.RecordFailed(activity, "database_timeout");
 
-        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).Should().Be("failed");
-        activity.GetTagItem(RetentionDiagnostics.TagFailureReason).Should().Be("database_timeout");
-        activity.Status.Should().Be(ActivityStatusCode.Error);
-        activity.StatusDescription.Should().Be("database_timeout");
+        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).ShouldBe("failed");
+        activity.GetTagItem(RetentionDiagnostics.TagFailureReason).ShouldBe("database_timeout");
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
+        activity.StatusDescription.ShouldBe("database_timeout");
     }
 
     #endregion
@@ -233,8 +233,8 @@ public sealed class RetentionDiagnosticsTests : IDisposable
 
         RetentionDiagnostics.RecordSkipped(activity);
 
-        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).Should().Be("skipped");
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).ShouldBe("skipped");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     #endregion
@@ -248,10 +248,10 @@ public sealed class RetentionDiagnosticsTests : IDisposable
 
         RetentionDiagnostics.RecordHeld(activity, "ent-1");
 
-        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).Should().Be("held");
+        activity!.GetTagItem(RetentionDiagnostics.TagOutcome).ShouldBe("held");
         // Note: EntityId is set both by StartRecordDeletion and RecordHeld
-        activity.GetTagItem(RetentionDiagnostics.TagEntityId).Should().Be("ent-1");
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity.GetTagItem(RetentionDiagnostics.TagEntityId).ShouldBe("ent-1");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     #endregion
@@ -287,7 +287,7 @@ public sealed class RetentionDiagnosticsTests : IDisposable
             RetentionDiagnostics.TagDeletionOutcome
         };
 
-        allTags.Should().Contain(expectedTag);
+        allTags.ShouldContain(expectedTag);
     }
 
     #endregion
@@ -298,34 +298,34 @@ public sealed class RetentionDiagnosticsTests : IDisposable
     public void AllCounters_AreInitialized()
     {
         // Verify all counters are non-null and can be invoked without error
-        RetentionDiagnostics.PipelineExecutionsTotal.Should().NotBeNull();
-        RetentionDiagnostics.EnforcementCyclesTotal.Should().NotBeNull();
-        RetentionDiagnostics.RecordsCreatedTotal.Should().NotBeNull();
-        RetentionDiagnostics.RecordsDeletedTotal.Should().NotBeNull();
-        RetentionDiagnostics.RecordsHeldTotal.Should().NotBeNull();
-        RetentionDiagnostics.RecordsFailedTotal.Should().NotBeNull();
-        RetentionDiagnostics.LegalHoldsAppliedTotal.Should().NotBeNull();
-        RetentionDiagnostics.LegalHoldsReleasedTotal.Should().NotBeNull();
-        RetentionDiagnostics.PolicyResolutionsTotal.Should().NotBeNull();
-        RetentionDiagnostics.AuditEntriesTotal.Should().NotBeNull();
-        RetentionDiagnostics.PoliciesCreatedTotal.Should().NotBeNull();
-        RetentionDiagnostics.PoliciesUpdatedTotal.Should().NotBeNull();
-        RetentionDiagnostics.PoliciesDeactivatedTotal.Should().NotBeNull();
-        RetentionDiagnostics.RecordsTrackedTotal.Should().NotBeNull();
-        RetentionDiagnostics.RecordsExpiredTotal.Should().NotBeNull();
-        RetentionDiagnostics.RecordsAnonymizedTotal.Should().NotBeNull();
-        RetentionDiagnostics.HoldsPlacedTotal.Should().NotBeNull();
-        RetentionDiagnostics.HoldsLiftedTotal.Should().NotBeNull();
-        RetentionDiagnostics.CacheHitsTotal.Should().NotBeNull();
-        RetentionDiagnostics.CacheMissesTotal.Should().NotBeNull();
+        RetentionDiagnostics.PipelineExecutionsTotal.ShouldNotBeNull();
+        RetentionDiagnostics.EnforcementCyclesTotal.ShouldNotBeNull();
+        RetentionDiagnostics.RecordsCreatedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.RecordsDeletedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.RecordsHeldTotal.ShouldNotBeNull();
+        RetentionDiagnostics.RecordsFailedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.LegalHoldsAppliedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.LegalHoldsReleasedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.PolicyResolutionsTotal.ShouldNotBeNull();
+        RetentionDiagnostics.AuditEntriesTotal.ShouldNotBeNull();
+        RetentionDiagnostics.PoliciesCreatedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.PoliciesUpdatedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.PoliciesDeactivatedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.RecordsTrackedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.RecordsExpiredTotal.ShouldNotBeNull();
+        RetentionDiagnostics.RecordsAnonymizedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.HoldsPlacedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.HoldsLiftedTotal.ShouldNotBeNull();
+        RetentionDiagnostics.CacheHitsTotal.ShouldNotBeNull();
+        RetentionDiagnostics.CacheMissesTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void AllHistograms_AreInitialized()
     {
-        RetentionDiagnostics.EnforcementDuration.Should().NotBeNull();
-        RetentionDiagnostics.PipelineDuration.Should().NotBeNull();
-        RetentionDiagnostics.DeletionDuration.Should().NotBeNull();
+        RetentionDiagnostics.EnforcementDuration.ShouldNotBeNull();
+        RetentionDiagnostics.PipelineDuration.ShouldNotBeNull();
+        RetentionDiagnostics.DeletionDuration.ShouldNotBeNull();
     }
 
     [Fact]
@@ -342,7 +342,7 @@ public sealed class RetentionDiagnosticsTests : IDisposable
             RetentionDiagnostics.CacheHitsTotal.Add(1);
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -355,7 +355,7 @@ public sealed class RetentionDiagnosticsTests : IDisposable
             RetentionDiagnostics.DeletionDuration.Record(0.5);
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

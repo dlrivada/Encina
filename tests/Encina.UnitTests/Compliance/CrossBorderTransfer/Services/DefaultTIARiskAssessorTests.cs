@@ -4,14 +4,10 @@ using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.Services;
 using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Model;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Services;
@@ -40,10 +36,10 @@ public class DefaultTIARiskAssessorTests
         var result = await _sut.AssessRiskAsync("JP", "personal-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: a => a, Left: _ => throw new InvalidOperationException("Expected Right"));
-        assessment.Score.Should().BeApproximately(0.1, 0.01);
-        assessment.Factors.Should().NotBeEmpty();
+        assessment.Score.ShouldBeInRange(0.1 - 0.01, 0.1 + 0.01);
+        assessment.Factors.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -56,11 +52,11 @@ public class DefaultTIARiskAssessorTests
         var result = await _sut.AssessRiskAsync("CN", "personal-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: a => a, Left: _ => throw new InvalidOperationException("Expected Right"));
         // Base 0.4 + High surveillance 0.4 = 0.8
-        assessment.Score.Should().BeApproximately(0.8, 0.01);
-        assessment.Factors.Should().Contain(f => f.Contains("surveillance"));
+        assessment.Score.ShouldBeInRange(0.8 - 0.01, 0.8 + 0.01);
+        assessment.Factors.ShouldContain(f => f.Contains("surveillance"));
     }
 
     [Fact]
@@ -73,11 +69,11 @@ public class DefaultTIARiskAssessorTests
         var result = await _sut.AssessRiskAsync("US", "personal-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: a => a, Left: _ => throw new InvalidOperationException("Expected Right"));
         // Base 0.4 + Five Eyes 0.2 = 0.6
-        assessment.Score.Should().BeApproximately(0.6, 0.01);
-        assessment.Factors.Should().Contain(f => f.Contains("Five Eyes"));
+        assessment.Score.ShouldBeInRange(0.6 - 0.01, 0.6 + 0.01);
+        assessment.Factors.ShouldContain(f => f.Contains("Five Eyes"));
     }
 
     [Fact]
@@ -90,11 +86,11 @@ public class DefaultTIARiskAssessorTests
         var result = await _sut.AssessRiskAsync("FR", "personal-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: a => a, Left: _ => throw new InvalidOperationException("Expected Right"));
         // Base 0.4 + Nine Eyes 0.15 = 0.55
-        assessment.Score.Should().BeApproximately(0.55, 0.01);
-        assessment.Factors.Should().Contain(f => f.Contains("Nine Eyes"));
+        assessment.Score.ShouldBeInRange(0.55 - 0.01, 0.55 + 0.01);
+        assessment.Factors.ShouldContain(f => f.Contains("Nine Eyes"));
     }
 
     [Fact]
@@ -107,11 +103,11 @@ public class DefaultTIARiskAssessorTests
         var result = await _sut.AssessRiskAsync("DE", "personal-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: a => a, Left: _ => throw new InvalidOperationException("Expected Right"));
         // Base 0.4 + Fourteen Eyes 0.1 = 0.5
-        assessment.Score.Should().BeApproximately(0.5, 0.01);
-        assessment.Factors.Should().Contain(f => f.Contains("Fourteen Eyes"));
+        assessment.Score.ShouldBeInRange(0.5 - 0.01, 0.5 + 0.01);
+        assessment.Factors.ShouldContain(f => f.Contains("Fourteen Eyes"));
     }
 
     [Fact]
@@ -124,11 +120,11 @@ public class DefaultTIARiskAssessorTests
         var result = await _sut.AssessRiskAsync("BR", "health-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: a => a, Left: _ => throw new InvalidOperationException("Expected Right"));
         // Base 0.4 + sensitive 0.1 = 0.5
-        assessment.Score.Should().BeApproximately(0.5, 0.01);
-        assessment.Factors.Should().Contain(f => f.Contains("sensitive"));
+        assessment.Score.ShouldBeInRange(0.5 - 0.01, 0.5 + 0.01);
+        assessment.Factors.ShouldContain(f => f.Contains("sensitive"));
     }
 
     [Fact]
@@ -141,11 +137,11 @@ public class DefaultTIARiskAssessorTests
         var result = await _sut.AssessRiskAsync("CN", "health-data");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var assessment = result.Match(Right: a => a, Left: _ => throw new InvalidOperationException("Expected Right"));
-        assessment.Score.Should().BeLessThanOrEqualTo(1.0);
+        assessment.Score.ShouldBeLessThanOrEqualTo(1.0);
         // 0.4 + 0.4 + 0.1 = 0.9, still under cap
-        assessment.Score.Should().BeApproximately(0.9, 0.01);
+        assessment.Score.ShouldBeInRange(0.9 - 0.01, 0.9 + 0.01);
     }
 
     [Fact]
@@ -155,7 +151,7 @@ public class DefaultTIARiskAssessorTests
         var act = async () => await _sut.AssessRiskAsync(null!, "personal-data");
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -165,6 +161,6 @@ public class DefaultTIARiskAssessorTests
         var act = async () => await _sut.AssessRiskAsync("US", null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 }

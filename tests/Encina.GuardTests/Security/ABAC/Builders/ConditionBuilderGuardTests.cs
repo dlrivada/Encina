@@ -1,7 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Builders;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Builders;
 
@@ -19,7 +19,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Function(null!, ConditionBuilder.StringValue("x"));
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Function("", ConditionBuilder.StringValue("x"));
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Function("   ", ConditionBuilder.StringValue("x"));
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Function("string-equal", null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -53,9 +53,9 @@ public class ConditionBuilderGuardTests
             ConditionBuilder.StringValue("a"),
             ConditionBuilder.StringValue("b"));
 
-        result.Should().NotBeNull();
-        result.FunctionId.Should().Be("string-equal");
-        result.Arguments.Should().HaveCount(2);
+        result.ShouldNotBeNull();
+        result.FunctionId.ShouldBe("string-equal");
+        result.Arguments.Count.ShouldBe(2);
     }
 
     #endregion
@@ -68,7 +68,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.Attribute(
             AttributeCategory.Subject, null!, XACMLDataTypes.String);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.Attribute(
             AttributeCategory.Subject, "", XACMLDataTypes.String);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.Attribute(
             AttributeCategory.Subject, "   ", XACMLDataTypes.String);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.Attribute(
             AttributeCategory.Subject, "department", null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.Attribute(
             AttributeCategory.Subject, "department", "");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -113,10 +113,10 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.Attribute(
             AttributeCategory.Subject, "department", XACMLDataTypes.String, mustBePresent: true);
 
-        result.Category.Should().Be(AttributeCategory.Subject);
-        result.AttributeId.Should().Be("department");
-        result.DataType.Should().Be(XACMLDataTypes.String);
-        result.MustBePresent.Should().BeTrue();
+        result.Category.ShouldBe(AttributeCategory.Subject);
+        result.AttributeId.ShouldBe("department");
+        result.DataType.ShouldBe(XACMLDataTypes.String);
+        result.MustBePresent.ShouldBeTrue();
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.Attribute(
             AttributeCategory.Resource, "id", XACMLDataTypes.String);
 
-        result.MustBePresent.Should().BeFalse();
+        result.MustBePresent.ShouldBeFalse();
     }
 
     #endregion
@@ -137,7 +137,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Value(null!, "test");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Value("", "test");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class ConditionBuilderGuardTests
         // XACML spec allows null values
         var act = () => ConditionBuilder.Value(XACMLDataTypes.String, null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -162,8 +162,8 @@ public class ConditionBuilderGuardTests
     {
         var result = ConditionBuilder.Value(XACMLDataTypes.Integer, 42);
 
-        result.DataType.Should().Be(XACMLDataTypes.Integer);
-        result.Value.Should().Be(42);
+        result.DataType.ShouldBe(XACMLDataTypes.Integer);
+        result.Value.ShouldBe(42);
     }
 
     #endregion
@@ -175,7 +175,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Variable(null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Variable("");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Variable("   ");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class ConditionBuilderGuardTests
     {
         var result = ConditionBuilder.Variable("myVar");
 
-        result.VariableId.Should().Be("myVar");
+        result.VariableId.ShouldBe("myVar");
     }
 
     #endregion
@@ -211,8 +211,8 @@ public class ConditionBuilderGuardTests
     {
         var result = ConditionBuilder.StringValue("hello");
 
-        result.DataType.Should().Be(XACMLDataTypes.String);
-        result.Value.Should().Be("hello");
+        result.DataType.ShouldBe(XACMLDataTypes.String);
+        result.Value.ShouldBe("hello");
     }
 
     [Fact]
@@ -220,8 +220,8 @@ public class ConditionBuilderGuardTests
     {
         var result = ConditionBuilder.IntValue(42);
 
-        result.DataType.Should().Be(XACMLDataTypes.Integer);
-        result.Value.Should().Be(42);
+        result.DataType.ShouldBe(XACMLDataTypes.Integer);
+        result.Value.ShouldBe(42);
     }
 
     [Fact]
@@ -229,8 +229,8 @@ public class ConditionBuilderGuardTests
     {
         var result = ConditionBuilder.DoubleValue(3.14);
 
-        result.DataType.Should().Be(XACMLDataTypes.Double);
-        result.Value.Should().Be(3.14);
+        result.DataType.ShouldBe(XACMLDataTypes.Double);
+        result.Value.ShouldBe(3.14);
     }
 
     [Fact]
@@ -238,8 +238,8 @@ public class ConditionBuilderGuardTests
     {
         var result = ConditionBuilder.BoolValue(true);
 
-        result.DataType.Should().Be(XACMLDataTypes.Boolean);
-        result.Value.Should().Be(true);
+        result.DataType.ShouldBe(XACMLDataTypes.Boolean);
+        result.Value.ShouldBe(true);
     }
 
     [Fact]
@@ -248,8 +248,8 @@ public class ConditionBuilderGuardTests
         var now = DateTime.UtcNow;
         var result = ConditionBuilder.DateTimeValue(now);
 
-        result.DataType.Should().Be(XACMLDataTypes.DateTime);
-        result.Value.Should().Be(now);
+        result.DataType.ShouldBe(XACMLDataTypes.DateTime);
+        result.Value.ShouldBe(now);
     }
 
     [Fact]
@@ -258,8 +258,8 @@ public class ConditionBuilderGuardTests
         var date = new DateOnly(2026, 4, 3);
         var result = ConditionBuilder.DateValue(date);
 
-        result.DataType.Should().Be(XACMLDataTypes.Date);
-        result.Value.Should().Be(date);
+        result.DataType.ShouldBe(XACMLDataTypes.Date);
+        result.Value.ShouldBe(date);
     }
 
     [Fact]
@@ -268,8 +268,8 @@ public class ConditionBuilderGuardTests
         var time = new TimeOnly(14, 30);
         var result = ConditionBuilder.TimeValue(time);
 
-        result.DataType.Should().Be(XACMLDataTypes.Time);
-        result.Value.Should().Be(time);
+        result.DataType.ShouldBe(XACMLDataTypes.Time);
+        result.Value.ShouldBe(time);
     }
 
     #endregion
@@ -281,7 +281,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.And(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.And([]);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -301,8 +301,8 @@ public class ConditionBuilderGuardTests
 
         var result = ConditionBuilder.And(condition);
 
-        result.FunctionId.Should().Be(XACMLFunctionIds.And);
-        result.Arguments.Should().HaveCount(1);
+        result.FunctionId.ShouldBe(XACMLFunctionIds.And);
+        result.Arguments.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -313,8 +313,8 @@ public class ConditionBuilderGuardTests
 
         var result = ConditionBuilder.And(c1, c2);
 
-        result.FunctionId.Should().Be(XACMLFunctionIds.And);
-        result.Arguments.Should().HaveCount(2);
+        result.FunctionId.ShouldBe(XACMLFunctionIds.And);
+        result.Arguments.Count.ShouldBe(2);
     }
 
     #endregion
@@ -326,7 +326,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Or(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -334,7 +334,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Or([]);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -346,7 +346,7 @@ public class ConditionBuilderGuardTests
 
         var result = ConditionBuilder.Or(condition);
 
-        result.FunctionId.Should().Be(XACMLFunctionIds.Or);
+        result.FunctionId.ShouldBe(XACMLFunctionIds.Or);
     }
 
     #endregion
@@ -358,7 +358,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Not(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -370,8 +370,8 @@ public class ConditionBuilderGuardTests
 
         var result = ConditionBuilder.Not(condition);
 
-        result.FunctionId.Should().Be(XACMLFunctionIds.Not);
-        result.Arguments.Should().HaveCount(1);
+        result.FunctionId.ShouldBe(XACMLFunctionIds.Not);
+        result.Arguments.Count.ShouldBe(1);
     }
 
     #endregion
@@ -383,7 +383,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Equal(null!, ConditionBuilder.StringValue("b"));
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -391,7 +391,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.Equal(ConditionBuilder.StringValue("a"), null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -401,7 +401,7 @@ public class ConditionBuilderGuardTests
             ConditionBuilder.StringValue("a"),
             ConditionBuilder.StringValue("b"));
 
-        result.FunctionId.Should().Contain("equal");
+        result.FunctionId.ShouldContain("equal");
     }
 
     [Fact]
@@ -411,7 +411,7 @@ public class ConditionBuilderGuardTests
             ConditionBuilder.IntValue(1),
             ConditionBuilder.IntValue(2));
 
-        result.FunctionId.Should().Contain("equal");
+        result.FunctionId.ShouldContain("equal");
     }
 
     #endregion
@@ -423,7 +423,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.GreaterThan(null!, ConditionBuilder.IntValue(1));
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -431,7 +431,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.GreaterThan(ConditionBuilder.IntValue(1), null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -441,7 +441,7 @@ public class ConditionBuilderGuardTests
             ConditionBuilder.IntValue(10),
             ConditionBuilder.IntValue(5));
 
-        result.FunctionId.Should().Contain("greater-than");
+        result.FunctionId.ShouldContain("greater-than");
     }
 
     #endregion
@@ -453,7 +453,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.LessThan(null!, ConditionBuilder.IntValue(1));
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -461,7 +461,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.LessThan(ConditionBuilder.IntValue(1), null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -473,7 +473,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.GreaterThanOrEqual(null!, ConditionBuilder.IntValue(1));
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -481,7 +481,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.GreaterThanOrEqual(ConditionBuilder.IntValue(1), null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -493,7 +493,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.LessThanOrEqual(null!, ConditionBuilder.IntValue(1));
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -501,7 +501,7 @@ public class ConditionBuilderGuardTests
     {
         var act = () => ConditionBuilder.LessThanOrEqual(ConditionBuilder.IntValue(1), null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -514,7 +514,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.Exists, XACMLDataTypes.String);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -523,7 +523,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.DoesNotExist, XACMLDataTypes.String);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -532,7 +532,7 @@ public class ConditionBuilderGuardTests
         var act = () => ConditionBuilder.MapOperatorToFunctionId(
             (ConditionOperator)999, XACMLDataTypes.String);
 
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
     [Fact]
@@ -541,7 +541,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.Equals, XACMLDataTypes.String);
 
-        result.Should().Be("string-equal");
+        result.ShouldBe("string-equal");
     }
 
     [Fact]
@@ -550,7 +550,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.Contains, XACMLDataTypes.String);
 
-        result.Should().Be(XACMLFunctionIds.StringContains);
+        result.ShouldBe(XACMLFunctionIds.StringContains);
     }
 
     [Fact]
@@ -559,7 +559,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.StartsWith, XACMLDataTypes.String);
 
-        result.Should().Be(XACMLFunctionIds.StringStartsWith);
+        result.ShouldBe(XACMLFunctionIds.StringStartsWith);
     }
 
     [Fact]
@@ -568,7 +568,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.EndsWith, XACMLDataTypes.String);
 
-        result.Should().Be(XACMLFunctionIds.StringEndsWith);
+        result.ShouldBe(XACMLFunctionIds.StringEndsWith);
     }
 
     [Fact]
@@ -577,7 +577,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.RegexMatch, XACMLDataTypes.String);
 
-        result.Should().Be(XACMLFunctionIds.StringRegexpMatch);
+        result.ShouldBe(XACMLFunctionIds.StringRegexpMatch);
     }
 
     [Fact]
@@ -586,7 +586,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.In, XACMLDataTypes.Integer);
 
-        result.Should().Be("integer-is-in");
+        result.ShouldBe("integer-is-in");
     }
 
     [Fact]
@@ -595,7 +595,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.GreaterThan, XACMLDataTypes.Integer);
 
-        result.Should().Be("integer-greater-than");
+        result.ShouldBe("integer-greater-than");
     }
 
     [Fact]
@@ -604,7 +604,7 @@ public class ConditionBuilderGuardTests
         var result = ConditionBuilder.MapOperatorToFunctionId(
             ConditionOperator.LessThanOrEqual, XACMLDataTypes.Double);
 
-        result.Should().Be("double-less-than-or-equal");
+        result.ShouldBe("double-less-than-or-equal");
     }
 
     #endregion
@@ -614,55 +614,55 @@ public class ConditionBuilderGuardTests
     [Fact]
     public void InferDataType_String_ReturnsStringType()
     {
-        ConditionBuilder.InferDataType("hello").Should().Be(XACMLDataTypes.String);
+        ConditionBuilder.InferDataType("hello").ShouldBe(XACMLDataTypes.String);
     }
 
     [Fact]
     public void InferDataType_Int_ReturnsIntegerType()
     {
-        ConditionBuilder.InferDataType(42).Should().Be(XACMLDataTypes.Integer);
+        ConditionBuilder.InferDataType(42).ShouldBe(XACMLDataTypes.Integer);
     }
 
     [Fact]
     public void InferDataType_Double_ReturnsDoubleType()
     {
-        ConditionBuilder.InferDataType(3.14).Should().Be(XACMLDataTypes.Double);
+        ConditionBuilder.InferDataType(3.14).ShouldBe(XACMLDataTypes.Double);
     }
 
     [Fact]
     public void InferDataType_Bool_ReturnsBooleanType()
     {
-        ConditionBuilder.InferDataType(true).Should().Be(XACMLDataTypes.Boolean);
+        ConditionBuilder.InferDataType(true).ShouldBe(XACMLDataTypes.Boolean);
     }
 
     [Fact]
     public void InferDataType_DateTime_ReturnsDateTimeType()
     {
-        ConditionBuilder.InferDataType(DateTime.UtcNow).Should().Be(XACMLDataTypes.DateTime);
+        ConditionBuilder.InferDataType(DateTime.UtcNow).ShouldBe(XACMLDataTypes.DateTime);
     }
 
     [Fact]
     public void InferDataType_DateOnly_ReturnsDateType()
     {
-        ConditionBuilder.InferDataType(DateOnly.FromDateTime(DateTime.UtcNow)).Should().Be(XACMLDataTypes.Date);
+        ConditionBuilder.InferDataType(DateOnly.FromDateTime(DateTime.UtcNow)).ShouldBe(XACMLDataTypes.Date);
     }
 
     [Fact]
     public void InferDataType_TimeOnly_ReturnsTimeType()
     {
-        ConditionBuilder.InferDataType(TimeOnly.FromDateTime(DateTime.UtcNow)).Should().Be(XACMLDataTypes.Time);
+        ConditionBuilder.InferDataType(TimeOnly.FromDateTime(DateTime.UtcNow)).ShouldBe(XACMLDataTypes.Time);
     }
 
     [Fact]
     public void InferDataType_Null_ReturnsStringDefault()
     {
-        ConditionBuilder.InferDataType(null).Should().Be(XACMLDataTypes.String);
+        ConditionBuilder.InferDataType(null).ShouldBe(XACMLDataTypes.String);
     }
 
     [Fact]
     public void InferDataType_UnknownType_ReturnsStringDefault()
     {
-        ConditionBuilder.InferDataType(Guid.NewGuid()).Should().Be(XACMLDataTypes.String);
+        ConditionBuilder.InferDataType(Guid.NewGuid()).ShouldBe(XACMLDataTypes.String);
     }
 
     #endregion
@@ -676,7 +676,7 @@ public class ConditionBuilderGuardTests
             AttributeCategory.Subject, "role", XACMLDataTypes.String);
 
         ConditionBuilder.InferDataTypeFromExpression(designator)
-            .Should().Be(XACMLDataTypes.String);
+            .ShouldBe(XACMLDataTypes.String);
     }
 
     [Fact]
@@ -685,7 +685,7 @@ public class ConditionBuilderGuardTests
         var value = ConditionBuilder.IntValue(42);
 
         ConditionBuilder.InferDataTypeFromExpression(value)
-            .Should().Be(XACMLDataTypes.Integer);
+            .ShouldBe(XACMLDataTypes.Integer);
     }
 
     [Fact]
@@ -696,7 +696,7 @@ public class ConditionBuilderGuardTests
             ConditionBuilder.StringValue("b"));
 
         ConditionBuilder.InferDataTypeFromExpression(apply)
-            .Should().BeNull();
+            .ShouldBeNull();
     }
 
     [Fact]
@@ -705,7 +705,7 @@ public class ConditionBuilderGuardTests
         var varRef = ConditionBuilder.Variable("myVar");
 
         ConditionBuilder.InferDataTypeFromExpression(varRef)
-            .Should().BeNull();
+            .ShouldBeNull();
     }
 
     #endregion

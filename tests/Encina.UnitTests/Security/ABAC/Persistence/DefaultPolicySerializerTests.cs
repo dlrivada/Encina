@@ -1,7 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
 
-using FluentAssertions;
+using Shouldly;
 
 using Target = Encina.Security.ABAC.Target;
 
@@ -218,12 +218,12 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Id.Should().Be(policySet.Id);
-        deserialized.Algorithm.Should().Be(policySet.Algorithm);
-        deserialized.Policies.Should().BeEmpty();
-        deserialized.PolicySets.Should().BeEmpty();
+        deserialized.Id.ShouldBe(policySet.Id);
+        deserialized.Algorithm.ShouldBe(policySet.Algorithm);
+        deserialized.Policies.ShouldBeEmpty();
+        deserialized.PolicySets.ShouldBeEmpty();
     }
 
     [Fact]
@@ -237,14 +237,14 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Id.Should().Be("ps-full");
-        deserialized.Version.Should().Be("2.1.0");
-        deserialized.Description.Should().Be("Full policy set with metadata");
-        deserialized.Algorithm.Should().Be(CombiningAlgorithmId.PermitOverrides);
-        deserialized.IsEnabled.Should().BeFalse();
-        deserialized.Priority.Should().Be(5);
+        deserialized.Id.ShouldBe("ps-full");
+        deserialized.Version.ShouldBe("2.1.0");
+        deserialized.Description.ShouldBe("Full policy set with metadata");
+        deserialized.Algorithm.ShouldBe(CombiningAlgorithmId.PermitOverrides);
+        deserialized.IsEnabled.ShouldBeFalse();
+        deserialized.Priority.ShouldBe(5);
     }
 
     [Fact]
@@ -258,15 +258,15 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Id.Should().Be("ps-root");
-        deserialized.Policies.Should().HaveCount(1);
-        deserialized.Policies[0].Id.Should().Be("nested-p-1");
-        deserialized.PolicySets.Should().HaveCount(1);
-        deserialized.PolicySets[0].Id.Should().Be("ps-child");
-        deserialized.PolicySets[0].Policies.Should().HaveCount(1);
-        deserialized.PolicySets[0].Policies[0].Id.Should().Be("nested-p-2");
+        deserialized.Id.ShouldBe("ps-root");
+        deserialized.Policies.Count.ShouldBe(1);
+        deserialized.Policies[0].Id.ShouldBe("nested-p-1");
+        deserialized.PolicySets.Count.ShouldBe(1);
+        deserialized.PolicySets[0].Id.ShouldBe("ps-child");
+        deserialized.PolicySets[0].Policies.Count.ShouldBe(1);
+        deserialized.PolicySets[0].Policies[0].Id.ShouldBe("nested-p-2");
     }
 
     #endregion
@@ -286,11 +286,11 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Id.Should().Be(policy.Id);
-        deserialized.Algorithm.Should().Be(policy.Algorithm);
-        deserialized.Rules.Should().BeEmpty();
+        deserialized.Id.ShouldBe(policy.Id);
+        deserialized.Algorithm.ShouldBe(policy.Algorithm);
+        deserialized.Rules.ShouldBeEmpty();
     }
 
     [Fact]
@@ -304,20 +304,20 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Id.Should().Be("p-rules");
-        deserialized.Version.Should().Be("1.0");
-        deserialized.Description.Should().Be("Policy with rules and targets");
-        deserialized.Rules.Should().HaveCount(1);
-        deserialized.Rules[0].Id.Should().Be("rule-1");
-        deserialized.Rules[0].Effect.Should().Be(Effect.Permit);
-        deserialized.Obligations.Should().HaveCount(1);
-        deserialized.Obligations[0].Id.Should().Be("obligation-audit");
-        deserialized.Advice.Should().HaveCount(1);
-        deserialized.Advice[0].Id.Should().Be("advice-log");
-        deserialized.VariableDefinitions.Should().HaveCount(1);
-        deserialized.VariableDefinitions[0].VariableId.Should().Be("is-admin");
+        deserialized.Id.ShouldBe("p-rules");
+        deserialized.Version.ShouldBe("1.0");
+        deserialized.Description.ShouldBe("Policy with rules and targets");
+        deserialized.Rules.Count.ShouldBe(1);
+        deserialized.Rules[0].Id.ShouldBe("rule-1");
+        deserialized.Rules[0].Effect.ShouldBe(Effect.Permit);
+        deserialized.Obligations.Count.ShouldBe(1);
+        deserialized.Obligations[0].Id.ShouldBe("obligation-audit");
+        deserialized.Advice.Count.ShouldBe(1);
+        deserialized.Advice[0].Id.ShouldBe("advice-log");
+        deserialized.VariableDefinitions.Count.ShouldBe(1);
+        deserialized.VariableDefinitions[0].VariableId.ShouldBe("is-admin");
     }
 
     [Fact]
@@ -331,15 +331,15 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
         var condition = deserialized.Rules[0].Condition;
-        condition.Should().NotBeNull();
-        condition.Should().BeOfType<Apply>();
-        condition!.FunctionId.Should().Be("urn:oasis:names:tc:xacml:1.0:function:string-equal");
-        condition.Arguments.Should().HaveCount(2);
-        condition.Arguments[0].Should().BeOfType<AttributeDesignator>();
-        condition.Arguments[1].Should().BeOfType<AttributeValue>();
+        condition.ShouldNotBeNull();
+        condition.ShouldBeOfType<Apply>();
+        condition!.FunctionId.ShouldBe("urn:oasis:names:tc:xacml:1.0:function:string-equal");
+        condition.Arguments.Count.ShouldBe(2);
+        condition.Arguments[0].ShouldBeOfType<AttributeDesignator>();
+        condition.Arguments[1].ShouldBeOfType<AttributeValue>();
     }
 
     [Fact]
@@ -374,13 +374,13 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.VariableDefinitions.Should().HaveCount(2);
-        deserialized.VariableDefinitions[0].Expression.Should().BeOfType<AttributeValue>();
-        deserialized.VariableDefinitions[1].Expression.Should().BeOfType<VariableReference>();
+        deserialized.VariableDefinitions.Count.ShouldBe(2);
+        deserialized.VariableDefinitions[0].Expression.ShouldBeOfType<AttributeValue>();
+        deserialized.VariableDefinitions[1].Expression.ShouldBeOfType<VariableReference>();
         var varRef = (VariableReference)deserialized.VariableDefinitions[1].Expression;
-        varRef.VariableId.Should().Be("is-admin");
+        varRef.VariableId.ShouldBe("is-admin");
     }
 
     #endregion
@@ -406,9 +406,9 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: ps => ps, Left: _ => null!);
-        deserialized.Algorithm.Should().Be(algorithm);
+        deserialized.Algorithm.ShouldBe(algorithm);
     }
 
     [Theory]
@@ -442,9 +442,9 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy(json);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var deserialized = result.Match(Right: p => p, Left: _ => null!);
-        deserialized.Rules[0].Effect.Should().Be(effect);
+        deserialized.Rules[0].Effect.ShouldBe(effect);
     }
 
     #endregion
@@ -463,8 +463,8 @@ public sealed class DefaultPolicySerializerTests
         var json = _sut.Serialize(policySet);
 
         // Assert — WriteIndented = false → no newlines or indentation
-        json.Should().NotContain("\n");
-        json.Should().NotContain("  ");
+        json.ShouldNotContain("\n");
+        json.ShouldNotContain("  ");
     }
 
     [Fact]
@@ -477,9 +477,9 @@ public sealed class DefaultPolicySerializerTests
         var json = _sut.Serialize(policySet);
 
         // Assert
-        json.Should().Contain("\"id\":");
-        json.Should().Contain("\"algorithm\":");
-        json.Should().NotContain("\"Id\":");
+        json.ShouldContain("\"id\":");
+        json.ShouldContain("\"algorithm\":");
+        json.ShouldNotContain("\"Id\":", Case.Sensitive);
     }
 
     [Fact]
@@ -492,7 +492,7 @@ public sealed class DefaultPolicySerializerTests
         var json = _sut.Serialize(policySet);
 
         // Assert — Target is null, should be omitted
-        json.Should().NotContain("\"target\":");
+        json.ShouldNotContain("\"target\":");
     }
 
     #endregion
@@ -508,7 +508,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet(null!);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -518,7 +518,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet("");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -528,7 +528,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet("   ");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -538,7 +538,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicySet("{not valid json}");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -548,7 +548,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy(null!);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -558,7 +558,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy("");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -568,7 +568,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy("   ");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -578,7 +578,7 @@ public sealed class DefaultPolicySerializerTests
         var result = _sut.DeserializePolicy("{not valid json}");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -594,7 +594,7 @@ public sealed class DefaultPolicySerializerTests
         var act = () => _sut.Serialize((PolicySet)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -604,7 +604,7 @@ public sealed class DefaultPolicySerializerTests
         var act = () => _sut.Serialize((Policy)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -620,7 +620,7 @@ public sealed class DefaultPolicySerializerTests
         var options = DefaultPolicySerializer.CreateSerializerOptions();
 
         // Assert
-        options.PropertyNamingPolicy.Should().Be(System.Text.Json.JsonNamingPolicy.CamelCase);
+        options.PropertyNamingPolicy.ShouldBe(System.Text.Json.JsonNamingPolicy.CamelCase);
     }
 
     [Fact]
@@ -630,7 +630,7 @@ public sealed class DefaultPolicySerializerTests
         var options = DefaultPolicySerializer.CreateSerializerOptions();
 
         // Assert
-        options.PropertyNameCaseInsensitive.Should().BeTrue();
+        options.PropertyNameCaseInsensitive.ShouldBeTrue();
     }
 
     [Fact]
@@ -640,7 +640,7 @@ public sealed class DefaultPolicySerializerTests
         var options = DefaultPolicySerializer.CreateSerializerOptions();
 
         // Assert
-        options.WriteIndented.Should().BeFalse();
+        options.WriteIndented.ShouldBeFalse();
     }
 
     [Fact]
@@ -650,7 +650,7 @@ public sealed class DefaultPolicySerializerTests
         var options = DefaultPolicySerializer.CreateSerializerOptions();
 
         // Assert
-        options.DefaultIgnoreCondition.Should().Be(
+        options.DefaultIgnoreCondition.ShouldBe(
             System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull);
     }
 
@@ -661,7 +661,7 @@ public sealed class DefaultPolicySerializerTests
         var options = DefaultPolicySerializer.CreateSerializerOptions();
 
         // Assert
-        options.Converters.Should().Contain(c => c is ExpressionJsonConverter);
+        options.Converters.ShouldContain(c => c is ExpressionJsonConverter);
     }
 
     [Fact]
@@ -671,7 +671,7 @@ public sealed class DefaultPolicySerializerTests
         var options = DefaultPolicySerializer.CreateSerializerOptions();
 
         // Assert
-        options.Converters.Should().Contain(
+        options.Converters.ShouldContain(
             c => c is System.Text.Json.Serialization.JsonStringEnumConverter);
     }
 

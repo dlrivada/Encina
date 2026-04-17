@@ -270,7 +270,7 @@ public sealed class SequenceTests : IAsyncLifetime
 
         // Verify actual calls made match our attempts
         var logEntries = _fixture.Server.LogEntries
-            .Where(e => e.RequestMessage.Path == "/api/status")
+            .Where(e => e.RequestMessage?.Path is "/api/status")
             .ToList();
         logEntries.Count.ShouldBe(actualAttempts);
         logEntries.Count.ShouldBeLessThanOrEqualTo(maxAttempts);
@@ -308,7 +308,7 @@ public sealed class SequenceTests : IAsyncLifetime
         actualAttempts.ShouldBe(1); // Should stop on first attempt
 
         var logEntries = _fixture.Server.LogEntries
-            .Where(e => e.RequestMessage.Path == "/api/status/quick")
+            .Where(e => e.RequestMessage?.Path is "/api/status/quick")
             .ToList();
         logEntries.Count.ShouldBe(actualAttempts);
     }

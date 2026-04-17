@@ -1,6 +1,6 @@
 using Encina.Compliance.Retention.Aggregates;
 using Encina.Compliance.Retention.Events;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -29,16 +29,16 @@ public class LegalHoldAggregateTests
             DefaultId, entityId, reason, appliedByUserId, Now, tenantId, moduleId);
 
         // Assert
-        hold.Id.Should().Be(DefaultId);
-        hold.EntityId.Should().Be(entityId);
-        hold.Reason.Should().Be(reason);
-        hold.AppliedByUserId.Should().Be(appliedByUserId);
-        hold.IsActive.Should().BeTrue();
-        hold.AppliedAtUtc.Should().Be(Now);
-        hold.TenantId.Should().Be(tenantId);
-        hold.ModuleId.Should().Be(moduleId);
-        hold.ReleasedByUserId.Should().BeNull();
-        hold.ReleasedAtUtc.Should().BeNull();
+        hold.Id.ShouldBe(DefaultId);
+        hold.EntityId.ShouldBe(entityId);
+        hold.Reason.ShouldBe(reason);
+        hold.AppliedByUserId.ShouldBe(appliedByUserId);
+        hold.IsActive.ShouldBeTrue();
+        hold.AppliedAtUtc.ShouldBe(Now);
+        hold.TenantId.ShouldBe(tenantId);
+        hold.ModuleId.ShouldBe(moduleId);
+        hold.ReleasedByUserId.ShouldBeNull();
+        hold.ReleasedAtUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -48,8 +48,8 @@ public class LegalHoldAggregateTests
         var hold = CreateActiveHold();
 
         // Assert
-        hold.UncommittedEvents.Should().HaveCount(1);
-        hold.UncommittedEvents[0].Should().BeOfType<LegalHoldPlaced>();
+        hold.UncommittedEvents.Count.ShouldBe(1);
+        hold.UncommittedEvents[0].ShouldBeOfType<LegalHoldPlaced>();
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public class LegalHoldAggregateTests
         var hold = CreateActiveHold();
 
         // Assert
-        var evt = hold.UncommittedEvents[0].Should().BeOfType<LegalHoldPlaced>().Subject;
-        evt.HoldId.Should().Be(hold.Id);
+        var evt = hold.UncommittedEvents[0].ShouldBeOfType<LegalHoldPlaced>();
+        evt.HoldId.ShouldBe(hold.Id);
     }
 
     [Theory]
@@ -74,7 +74,7 @@ public class LegalHoldAggregateTests
             DefaultId, entityId!, "litigation reason", "user-1", Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -88,7 +88,7 @@ public class LegalHoldAggregateTests
             DefaultId, "customer-42", reason!, "user-1", Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -102,7 +102,7 @@ public class LegalHoldAggregateTests
             DefaultId, "customer-42", "litigation reason", appliedByUserId!, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -119,7 +119,7 @@ public class LegalHoldAggregateTests
         hold.Lift("legal-counsel-2", Now.AddDays(30));
 
         // Assert
-        hold.IsActive.Should().BeFalse();
+        hold.IsActive.ShouldBeFalse();
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class LegalHoldAggregateTests
         hold.Lift(releasedBy, Now.AddDays(30));
 
         // Assert
-        hold.ReleasedByUserId.Should().Be(releasedBy);
+        hold.ReleasedByUserId.ShouldBe(releasedBy);
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class LegalHoldAggregateTests
         hold.Lift("legal-counsel-2", releaseTime);
 
         // Assert
-        hold.ReleasedAtUtc.Should().Be(releaseTime);
+        hold.ReleasedAtUtc.ShouldBe(releaseTime);
     }
 
     [Fact]
@@ -160,8 +160,8 @@ public class LegalHoldAggregateTests
         hold.Lift("legal-counsel-2", Now.AddDays(30));
 
         // Assert
-        hold.UncommittedEvents.Should().HaveCount(2);
-        hold.UncommittedEvents[1].Should().BeOfType<LegalHoldLifted>();
+        hold.UncommittedEvents.Count.ShouldBe(2);
+        hold.UncommittedEvents[1].ShouldBeOfType<LegalHoldLifted>();
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class LegalHoldAggregateTests
         var act = () => hold.Lift("another-user", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Theory]
@@ -190,7 +190,7 @@ public class LegalHoldAggregateTests
         var act = () => hold.Lift(releasedByUserId!, Now.AddDays(30));
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion

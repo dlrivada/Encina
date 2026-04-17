@@ -1,7 +1,7 @@
 using Encina;
 using Encina.Messaging.Scheduling;
-using FluentAssertions;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Scheduling;
 
@@ -31,56 +31,56 @@ public class SchedulerOrchestratorGuardTests
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
         var act = () => new SchedulerOrchestrator(null!, _options, _logger, _messageFactory, _retryPolicy);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new SchedulerOrchestrator(_store, null!, _logger, _messageFactory, _retryPolicy);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new SchedulerOrchestrator(_store, _options, null!, _messageFactory, _retryPolicy);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullMessageFactory_ThrowsArgumentNullException()
     {
         var act = () => new SchedulerOrchestrator(_store, _options, _logger, null!, _retryPolicy);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("messageFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageFactory");
     }
 
     [Fact]
     public void Constructor_NullRetryPolicy_ThrowsArgumentNullException()
     {
         var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("retryPolicy");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("retryPolicy");
     }
 
     [Fact]
     public void Constructor_NullCronParser_Succeeds()
     {
         var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, _retryPolicy, cronParser: null);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
         var act = () => new SchedulerOrchestrator(_store, _options, _logger, _messageFactory, _retryPolicy, _cronParser, timeProvider: null);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
     public void Constructor_ValidParameters_CreatesInstance()
     {
         var sut = CreateSut(_cronParser);
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     #endregion
@@ -92,7 +92,7 @@ public class SchedulerOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.ScheduleAsync<TestScheduledRequest>(null!, DateTime.UtcNow.AddHours(1));
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class SchedulerOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ScheduleAsync(new TestScheduledRequest(), DateTime.UtcNow.AddHours(-1));
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class SchedulerOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ScheduleAsync(new TestScheduledRequest(), futureTime);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -134,7 +134,7 @@ public class SchedulerOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ScheduleAsync(new TestScheduledRequest(), TimeSpan.Zero);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class SchedulerOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ScheduleAsync(new TestScheduledRequest(), TimeSpan.FromSeconds(-5));
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -155,7 +155,7 @@ public class SchedulerOrchestratorGuardTests
     {
         var sut = CreateSut(_cronParser);
         var act = () => sut.ScheduleRecurringAsync<TestScheduledRequest>(null!, "* * * * *");
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class SchedulerOrchestratorGuardTests
     {
         var sut = CreateSut(_cronParser);
         var act = () => sut.ScheduleRecurringAsync(new TestScheduledRequest(), null!);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("cronExpression");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("cronExpression");
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public class SchedulerOrchestratorGuardTests
     {
         var sut = CreateSut(_cronParser);
         var act = () => sut.ScheduleRecurringAsync(new TestScheduledRequest(), string.Empty);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("cronExpression");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("cronExpression");
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class SchedulerOrchestratorGuardTests
     {
         var sut = CreateSut(_cronParser);
         var act = () => sut.ScheduleRecurringAsync(new TestScheduledRequest(), "   ");
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("cronExpression");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("cronExpression");
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class SchedulerOrchestratorGuardTests
 
         var result = await sut.ScheduleRecurringAsync(new TestScheduledRequest(), "* * * * *");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class SchedulerOrchestratorGuardTests
 
         var result = await sut.ScheduleRecurringAsync(new TestScheduledRequest(), "* * * * *");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -212,7 +212,7 @@ public class SchedulerOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.ProcessDueMessagesAsync(null!);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("executeCallback");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("executeCallback");
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public class SchedulerOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ProcessDueMessagesAsync((_, _, _, _) => new ValueTask<Either<EncinaError, LanguageExt.Unit>>(Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Unit.Default)));
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -238,8 +238,8 @@ public class SchedulerOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ProcessDueMessagesAsync((_, _, _, _) => new ValueTask<Either<EncinaError, LanguageExt.Unit>>(Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Unit.Default)));
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: count => count, Left: _ => -1).Should().Be(0);
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: count => count, Left: _ => -1).ShouldBe(0);
     }
 
     #endregion

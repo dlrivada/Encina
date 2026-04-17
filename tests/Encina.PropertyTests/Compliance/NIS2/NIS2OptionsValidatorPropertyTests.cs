@@ -45,7 +45,7 @@ public sealed class NIS2OptionsValidatorPropertyTests
         // If it fails, the failure should NOT be about IncidentNotificationHours
         if (!result.Succeeded)
         {
-            return !result.FailureMessage!.Contains("IncidentNotificationHours");
+            return result.FailureMessage?.Contains("IncidentNotificationHours") != true;
         }
 
         return true;
@@ -62,7 +62,7 @@ public sealed class NIS2OptionsValidatorPropertyTests
         var result = _validator.Validate(null, options);
 
         return !result.Succeeded
-            && result.FailureMessage!.Contains("IncidentNotificationHours");
+            && result.FailureMessage?.Contains("IncidentNotificationHours") == true;
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public sealed class NIS2OptionsValidatorPropertyTests
 
         if (!result.Succeeded)
         {
-            return !result.FailureMessage!.Contains("EnforceEncryption");
+            return result.FailureMessage?.Contains("EnforceEncryption") != true;
         }
 
         return true;

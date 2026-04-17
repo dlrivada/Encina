@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -22,7 +22,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(-1, 1, 0)]
     public void IntegerAdd_ReturnsExpected(int a, int b, int expected)
     {
-        Eval(XACMLFunctionIds.IntegerAdd, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerAdd, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -31,7 +31,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(0, 1, -1)]
     public void IntegerSubtract_ReturnsExpected(int a, int b, int expected)
     {
-        Eval(XACMLFunctionIds.IntegerSubtract, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerSubtract, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -40,7 +40,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(-2, 3, -6)]
     public void IntegerMultiply_ReturnsExpected(int a, int b, int expected)
     {
-        Eval(XACMLFunctionIds.IntegerMultiply, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerMultiply, a, b).ShouldBe(expected);
     }
 
     [Theory]
@@ -49,7 +49,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(-10, 3, -3)]
     public void IntegerDivide_ReturnsExpected(int a, int b, int expected)
     {
-        Eval(XACMLFunctionIds.IntegerDivide, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerDivide, a, b).ShouldBe(expected);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ArithmeticFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerDivide)!;
         var act = () => fn.Evaluate([10, 0]);
-        act.Should().Throw<Exception>();
+        Should.Throw<Exception>(act);
     }
 
     [Theory]
@@ -66,7 +66,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(7, 2, 1)]
     public void IntegerMod_ReturnsExpected(int a, int b, int expected)
     {
-        Eval(XACMLFunctionIds.IntegerMod, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerMod, a, b).ShouldBe(expected);
     }
 
     #endregion
@@ -78,7 +78,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(0.0, 0.0, 0.0)]
     public void DoubleAdd_ReturnsExpected(double a, double b, double expected)
     {
-        ((double)Eval(XACMLFunctionIds.DoubleAdd, a, b)!).Should().BeApproximately(expected, 0.001);
+        ((double)Eval(XACMLFunctionIds.DoubleAdd, a, b)!).ShouldBeInRange(expected - 0.001, expected + 0.001);
     }
 
     [Theory]
@@ -86,7 +86,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(1.0, 1.0, 0.0)]
     public void DoubleSubtract_ReturnsExpected(double a, double b, double expected)
     {
-        ((double)Eval(XACMLFunctionIds.DoubleSubtract, a, b)!).Should().BeApproximately(expected, 0.001);
+        ((double)Eval(XACMLFunctionIds.DoubleSubtract, a, b)!).ShouldBeInRange(expected - 0.001, expected + 0.001);
     }
 
     [Theory]
@@ -94,7 +94,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(0.0, 100.0, 0.0)]
     public void DoubleMultiply_ReturnsExpected(double a, double b, double expected)
     {
-        ((double)Eval(XACMLFunctionIds.DoubleMultiply, a, b)!).Should().BeApproximately(expected, 0.001);
+        ((double)Eval(XACMLFunctionIds.DoubleMultiply, a, b)!).ShouldBeInRange(expected - 0.001, expected + 0.001);
     }
 
     [Theory]
@@ -102,7 +102,7 @@ public sealed class ArithmeticFunctionsTests
     [InlineData(1.0, 3.0, 0.333)]
     public void DoubleDivide_ReturnsExpected(double a, double b, double expected)
     {
-        ((double)Eval(XACMLFunctionIds.DoubleDivide, a, b)!).Should().BeApproximately(expected, 0.01);
+        ((double)Eval(XACMLFunctionIds.DoubleDivide, a, b)!).ShouldBeInRange(expected - 0.01, expected + 0.01);
     }
 
     #endregion
@@ -114,7 +114,7 @@ public sealed class ArithmeticFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerAdd)!;
         var act = () => fn.Evaluate([1, 2, 3]);
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion

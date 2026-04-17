@@ -1,16 +1,12 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly (test assertions)
 
 using Encina.Compliance.NIS2;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
 using Polly;
 using Polly.Registry;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 
@@ -42,7 +38,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert
-        result.Should().Be(42);
+        result.ShouldBe(42);
     }
 
     [Fact]
@@ -64,7 +60,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert — succeeded via timeout path
-        result.Should().Be("from-timeout-path");
+        result.ShouldBe("from-timeout-path");
     }
 
     [Fact]
@@ -85,7 +81,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert
-        result.Should().Be("safe-value");
+        result.ShouldBe("safe-value");
     }
 
     #endregion
@@ -107,7 +103,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert
-        result.Should().Be(99);
+        result.ShouldBe(99);
     }
 
     [Fact]
@@ -125,7 +121,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert
-        result.Should().Be("fallback-value");
+        result.ShouldBe("fallback-value");
     }
 
     [Fact]
@@ -147,7 +143,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert
-        result.Should().Be("timed-out");
+        result.ShouldBe("timed-out");
     }
 
     #endregion
@@ -172,7 +168,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert
-        executed.Should().BeTrue();
+        executed.ShouldBeTrue();
     }
 
     [Fact]
@@ -192,7 +188,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None).AsTask();
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion
@@ -214,7 +210,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None);
 
         // Assert
-        executed.Should().BeTrue();
+        executed.ShouldBeTrue();
     }
 
     [Fact]
@@ -231,7 +227,7 @@ public class NIS2ResilienceHelperTests
             CancellationToken.None).AsTask();
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await Should.NotThrowAsync(act);
     }
 
     #endregion
@@ -241,7 +237,7 @@ public class NIS2ResilienceHelperTests
     [Fact]
     public void PipelineKey_ShouldBeNis2External()
     {
-        NIS2ResilienceHelper.PipelineKey.Should().Be("nis2-external");
+        NIS2ResilienceHelper.PipelineKey.ShouldBe("nis2-external");
     }
 
     #endregion

@@ -73,7 +73,7 @@ public sealed class DatabasePoolHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("Circuit breaker is open");
+        result.Description!.ShouldContain("Circuit breaker is open");
     }
 
     #endregion
@@ -118,7 +118,7 @@ public sealed class DatabasePoolHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("healthy");
+        result.Description!.ShouldContain("healthy");
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public sealed class DatabasePoolHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("degraded");
+        result.Description!.ShouldContain("degraded");
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class DatabasePoolHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("unhealthy");
+        result.Description!.ShouldContain("unhealthy");
     }
 
     [Fact]

@@ -2,7 +2,7 @@
 
 using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -31,16 +31,16 @@ public class ProcessorAggregateTests
             parentProcessorId: null, depth: 0, authorizationType, FixedNow);
 
         // Assert
-        aggregate.Id.Should().Be(id);
-        aggregate.Name.Should().Be(name);
-        aggregate.Country.Should().Be(country);
-        aggregate.ContactEmail.Should().Be(contactEmail);
-        aggregate.ParentProcessorId.Should().BeNull();
-        aggregate.Depth.Should().Be(0);
-        aggregate.AuthorizationType.Should().Be(authorizationType);
-        aggregate.IsRemoved.Should().BeFalse();
-        aggregate.CreatedAtUtc.Should().Be(FixedNow);
-        aggregate.LastUpdatedAtUtc.Should().Be(FixedNow);
+        aggregate.Id.ShouldBe(id);
+        aggregate.Name.ShouldBe(name);
+        aggregate.Country.ShouldBe(country);
+        aggregate.ContactEmail.ShouldBe(contactEmail);
+        aggregate.ParentProcessorId.ShouldBeNull();
+        aggregate.Depth.ShouldBe(0);
+        aggregate.AuthorizationType.ShouldBe(authorizationType);
+        aggregate.IsRemoved.ShouldBeFalse();
+        aggregate.CreatedAtUtc.ShouldBe(FixedNow);
+        aggregate.LastUpdatedAtUtc.ShouldBe(FixedNow);
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class ProcessorAggregateTests
             SubProcessorAuthorizationType.Specific, FixedNow);
 
         // Assert
-        aggregate.ParentProcessorId.Should().Be(parentId);
-        aggregate.Depth.Should().Be(1);
+        aggregate.ParentProcessorId.ShouldBe(parentId);
+        aggregate.Depth.ShouldBe(1);
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public class ProcessorAggregateTests
             tenantId: tenantId, moduleId: moduleId);
 
         // Assert
-        aggregate.TenantId.Should().Be(tenantId);
-        aggregate.ModuleId.Should().Be(moduleId);
+        aggregate.TenantId.ShouldBe(tenantId);
+        aggregate.ModuleId.ShouldBe(moduleId);
     }
 
     [Theory]
@@ -93,8 +93,8 @@ public class ProcessorAggregateTests
             SubProcessorAuthorizationType.General, FixedNow);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("name");
+        Should.Throw<ArgumentException>(act)
+            .ParamName.ShouldBe("name");
     }
 
     [Theory]
@@ -110,8 +110,8 @@ public class ProcessorAggregateTests
             SubProcessorAuthorizationType.General, FixedNow);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("country");
+        Should.Throw<ArgumentException>(act)
+            .ParamName.ShouldBe("country");
     }
 
     [Fact]
@@ -124,8 +124,8 @@ public class ProcessorAggregateTests
             SubProcessorAuthorizationType.General, FixedNow);
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("depth");
+        Should.Throw<ArgumentOutOfRangeException>(act)
+            .ParamName.ShouldBe("depth");
     }
 
     #endregion
@@ -144,11 +144,11 @@ public class ProcessorAggregateTests
             SubProcessorAuthorizationType.Specific, updatedAt);
 
         // Assert
-        aggregate.Name.Should().Be("Updated Name");
-        aggregate.Country.Should().Be("DE");
-        aggregate.ContactEmail.Should().Be("new@email.com");
-        aggregate.AuthorizationType.Should().Be(SubProcessorAuthorizationType.Specific);
-        aggregate.LastUpdatedAtUtc.Should().Be(updatedAt);
+        aggregate.Name.ShouldBe("Updated Name");
+        aggregate.Country.ShouldBe("DE");
+        aggregate.ContactEmail.ShouldBe("new@email.com");
+        aggregate.AuthorizationType.ShouldBe(SubProcessorAuthorizationType.Specific);
+        aggregate.LastUpdatedAtUtc.ShouldBe(updatedAt);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class ProcessorAggregateTests
             SubProcessorAuthorizationType.General, FixedNow.AddDays(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -181,8 +181,8 @@ public class ProcessorAggregateTests
         aggregate.Remove("Contract terminated", removedAt);
 
         // Assert
-        aggregate.IsRemoved.Should().BeTrue();
-        aggregate.LastUpdatedAtUtc.Should().Be(removedAt);
+        aggregate.IsRemoved.ShouldBeTrue();
+        aggregate.LastUpdatedAtUtc.ShouldBe(removedAt);
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public class ProcessorAggregateTests
         var act = () => aggregate.Remove("Second removal", FixedNow.AddDays(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -214,7 +214,7 @@ public class ProcessorAggregateTests
         aggregate.AddSubProcessor(Guid.NewGuid(), "Sub-Processor A", depth: 1, addedAt);
 
         // Assert
-        aggregate.LastUpdatedAtUtc.Should().Be(addedAt);
+        aggregate.LastUpdatedAtUtc.ShouldBe(addedAt);
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public class ProcessorAggregateTests
             Guid.NewGuid(), "Sub-Processor A", depth: 1, FixedNow.AddDays(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -248,7 +248,7 @@ public class ProcessorAggregateTests
             Guid.NewGuid(), "No longer needed", FixedNow.AddDays(2));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion

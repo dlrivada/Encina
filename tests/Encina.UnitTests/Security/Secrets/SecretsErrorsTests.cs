@@ -1,5 +1,5 @@
 using Encina.Security.Secrets;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -12,8 +12,8 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.NotFound("my-secret");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode);
-        error.Message.Should().Contain("my-secret");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode);
+        error.Message.ShouldContain("my-secret");
     }
 
     [Fact]
@@ -22,8 +22,8 @@ public sealed class SecretsErrorsTests
         var error = SecretsErrors.NotFound("db-conn");
 
         var details = error.GetDetails();
-        details.Should().ContainKey("secretName");
-        details["secretName"].Should().Be("db-conn");
+        details.ShouldContainKey("secretName");
+        details["secretName"].ShouldBe("db-conn");
     }
 
     #endregion
@@ -35,9 +35,9 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.AccessDenied("api-key", "insufficient permissions");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.AccessDeniedCode);
-        error.Message.Should().Contain("api-key");
-        error.Message.Should().Contain("insufficient permissions");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.AccessDeniedCode);
+        error.Message.ShouldContain("api-key");
+        error.Message.ShouldContain("insufficient permissions");
     }
 
     [Fact]
@@ -45,8 +45,8 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.AccessDenied("api-key");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.AccessDeniedCode);
-        error.Message.Should().Contain("api-key");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.AccessDeniedCode);
+        error.Message.ShouldContain("api-key");
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public sealed class SecretsErrorsTests
         var error = SecretsErrors.AccessDenied("api-key", "forbidden");
 
         var details = error.GetDetails();
-        details.Should().ContainKey("reason");
-        details["reason"].Should().Be("forbidden");
+        details.ShouldContainKey("reason");
+        details["reason"].ShouldBe("forbidden");
     }
 
     #endregion
@@ -68,8 +68,8 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.RotationFailed("db-password");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.RotationFailedCode);
-        error.Message.Should().Contain("db-password");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.RotationFailedCode);
+        error.Message.ShouldContain("db-password");
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class SecretsErrorsTests
         var ex = new InvalidOperationException("rotation error");
         var error = SecretsErrors.RotationFailed("db-password", exception: ex);
 
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.RotationFailed("db-password", "timeout");
 
-        error.Message.Should().Contain("timeout");
+        error.Message.ShouldContain("timeout");
     }
 
     #endregion
@@ -98,8 +98,8 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.CacheFailure("my-secret");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.CacheFailureCode);
-        error.Message.Should().Contain("my-secret");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.CacheFailureCode);
+        error.Message.ShouldContain("my-secret");
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class SecretsErrorsTests
         var ex = new InvalidOperationException("cache error");
         var error = SecretsErrors.CacheFailure("my-secret", ex);
 
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     #endregion
@@ -120,9 +120,9 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.DeserializationFailed("config", typeof(string));
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.DeserializationFailedCode);
-        error.Message.Should().Contain("config");
-        error.Message.Should().Contain("String");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.DeserializationFailedCode);
+        error.Message.ShouldContain("config");
+        error.Message.ShouldContain("String");
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public sealed class SecretsErrorsTests
         var error = SecretsErrors.DeserializationFailed("config", typeof(int));
 
         var details = error.GetDetails();
-        details.Should().ContainKey("targetType");
-        details["targetType"].Should().Be(typeof(int).FullName);
+        details.ShouldContainKey("targetType");
+        details["targetType"].ShouldBe(typeof(int).FullName);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class SecretsErrorsTests
         var ex = new System.Text.Json.JsonException("bad json");
         var error = SecretsErrors.DeserializationFailed("config", typeof(string), ex);
 
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     #endregion
@@ -153,8 +153,8 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.ProviderUnavailable("AzureKeyVault");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.ProviderUnavailableCode);
-        error.Message.Should().Contain("AzureKeyVault");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.ProviderUnavailableCode);
+        error.Message.ShouldContain("AzureKeyVault");
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public sealed class SecretsErrorsTests
         var error = SecretsErrors.ProviderUnavailable("AWSSecretsManager");
 
         var details = error.GetDetails();
-        details.Should().ContainKey("providerName");
-        details["providerName"].Should().Be("AWSSecretsManager");
+        details.ShouldContainKey("providerName");
+        details["providerName"].ShouldBe("AWSSecretsManager");
     }
 
     #endregion
@@ -176,9 +176,9 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.InjectionFailed("api-key", "ApiKey");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.InjectionFailedCode);
-        error.Message.Should().Contain("api-key");
-        error.Message.Should().Contain("ApiKey");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.InjectionFailedCode);
+        error.Message.ShouldContain("api-key");
+        error.Message.ShouldContain("ApiKey");
     }
 
     [Fact]
@@ -187,8 +187,8 @@ public sealed class SecretsErrorsTests
         var error = SecretsErrors.InjectionFailed("api-key", "ApiKey");
 
         var details = error.GetDetails();
-        details.Should().ContainKey("propertyName");
-        details["propertyName"].Should().Be("ApiKey");
+        details.ShouldContainKey("propertyName");
+        details["propertyName"].ShouldBe("ApiKey");
     }
 
     #endregion
@@ -200,9 +200,9 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.FailoverExhausted("my-secret", 3);
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.FailoverExhaustedCode);
-        error.Message.Should().Contain("3");
-        error.Message.Should().Contain("my-secret");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.FailoverExhaustedCode);
+        error.Message.ShouldContain("3");
+        error.Message.ShouldContain("my-secret");
     }
 
     [Fact]
@@ -211,8 +211,8 @@ public sealed class SecretsErrorsTests
         var error = SecretsErrors.FailoverExhausted("my-secret", 5);
 
         var details = error.GetDetails();
-        details.Should().ContainKey("providerCount");
-        details["providerCount"].Should().Be(5);
+        details.ShouldContainKey("providerCount");
+        details["providerCount"].ShouldBe(5);
     }
 
     #endregion
@@ -224,8 +224,8 @@ public sealed class SecretsErrorsTests
     {
         var error = SecretsErrors.AuditFailed("api-key");
 
-        error.GetCode().IfNone("").Should().Be(SecretsErrors.AuditFailedCode);
-        error.Message.Should().Contain("api-key");
+        error.GetCode().IfNone("").ShouldBe(SecretsErrors.AuditFailedCode);
+        error.Message.ShouldContain("api-key");
     }
 
     #endregion
@@ -244,7 +244,7 @@ public sealed class SecretsErrorsTests
     [InlineData(SecretsErrors.AuditFailedCode)]
     public void AllErrorCodes_StartWithSecretsPrefix(string code)
     {
-        code.Should().StartWith("secrets.");
+        code.ShouldStartWith("secrets.");
     }
 
     [Fact]
@@ -266,8 +266,8 @@ public sealed class SecretsErrorsTests
         foreach (var error in errors)
         {
             var details = error.GetDetails();
-            details.Should().ContainKey("stage");
-            details["stage"].Should().Be("secrets");
+            details.ShouldContainKey("stage");
+            details["stage"].ShouldBe("secrets");
         }
     }
 

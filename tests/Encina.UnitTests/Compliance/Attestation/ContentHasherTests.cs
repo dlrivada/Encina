@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 using Encina.Compliance.Attestation;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Attestation;
 
@@ -14,8 +14,8 @@ public class ContentHasherTests
         var hash1 = ContentHasher.ComputeSha256("hello world");
         var hash2 = ContentHasher.ComputeSha256("hello world");
 
-        hash1.Should().Be(hash2);
-        hash1.Should().NotBeNullOrEmpty();
+        hash1.ShouldBe(hash2);
+        hash1.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public class ContentHasherTests
         var hash1 = ContentHasher.ComputeSha256("hello world");
         var hash2 = ContentHasher.ComputeSha256("goodbye world");
 
-        hash1.Should().NotBe(hash2);
+        hash1.ShouldNotBe(hash2);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class ContentHasherTests
     {
         var act = () => ContentHasher.ComputeSha256(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -40,8 +40,8 @@ public class ContentHasherTests
     {
         var hash = ContentHasher.ComputeSha256("test");
 
-        hash.Should().MatchRegex("^[0-9a-f]+$");
-        hash.Should().HaveLength(64); // SHA-256 = 32 bytes = 64 hex chars
+        hash.ShouldMatch("^[0-9a-f]+$");
+        hash.Length.ShouldBe(64); // SHA-256 = 32 bytes = 64 hex chars
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class ContentHasherTests
         var hash1 = ContentHasher.ComputeSha256("test data");
         var hash2 = ContentHasher.ComputeHash("test data", HashAlgorithmName.SHA256);
 
-        hash1.Should().Be(hash2);
+        hash1.ShouldBe(hash2);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class ContentHasherTests
     {
         var hash = ContentHasher.ComputeHash("test data", HashAlgorithmName.SHA384);
 
-        hash.Should().HaveLength(96); // SHA-384 = 48 bytes = 96 hex chars
+        hash.Length.ShouldBe(96); // SHA-384 = 48 bytes = 96 hex chars
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class ContentHasherTests
     {
         var hash = ContentHasher.ComputeHash("test data", HashAlgorithmName.SHA512);
 
-        hash.Should().HaveLength(128); // SHA-512 = 64 bytes = 128 hex chars
+        hash.Length.ShouldBe(128); // SHA-512 = 64 bytes = 128 hex chars
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class ContentHasherTests
     {
         var act = () => ContentHasher.ComputeHash("test", HashAlgorithmName.MD5);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class ContentHasherTests
     {
         var act = () => ContentHasher.ComputeHash(null!, HashAlgorithmName.SHA256);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class ContentHasherTests
         var key = new byte[32];
         using var hmac = ContentHasher.CreateHmac(key, HashAlgorithmName.SHA256);
 
-        hmac.Should().BeOfType<HMACSHA256>();
+        hmac.ShouldBeOfType<HMACSHA256>();
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class ContentHasherTests
         var key = new byte[48];
         using var hmac = ContentHasher.CreateHmac(key, HashAlgorithmName.SHA384);
 
-        hmac.Should().BeOfType<HMACSHA384>();
+        hmac.ShouldBeOfType<HMACSHA384>();
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class ContentHasherTests
         var key = new byte[64];
         using var hmac = ContentHasher.CreateHmac(key, HashAlgorithmName.SHA512);
 
-        hmac.Should().BeOfType<HMACSHA512>();
+        hmac.ShouldBeOfType<HMACSHA512>();
     }
 
     [Fact]
@@ -118,30 +118,30 @@ public class ContentHasherTests
         var key = new byte[32];
         var act = () => ContentHasher.CreateHmac(key, HashAlgorithmName.MD5);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
     public void GetRecommendedKeySize_SHA256_Returns32()
     {
-        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.SHA256).Should().Be(32);
+        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.SHA256).ShouldBe(32);
     }
 
     [Fact]
     public void GetRecommendedKeySize_SHA384_Returns48()
     {
-        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.SHA384).Should().Be(48);
+        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.SHA384).ShouldBe(48);
     }
 
     [Fact]
     public void GetRecommendedKeySize_SHA512_Returns64()
     {
-        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.SHA512).Should().Be(64);
+        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.SHA512).ShouldBe(64);
     }
 
     [Fact]
     public void GetRecommendedKeySize_Unknown_ReturnsFallback32()
     {
-        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.MD5).Should().Be(32);
+        ContentHasher.GetRecommendedKeySize(HashAlgorithmName.MD5).ShouldBe(32);
     }
 }

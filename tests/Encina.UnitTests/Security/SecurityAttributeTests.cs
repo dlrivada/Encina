@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.Security;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security;
 
@@ -17,8 +17,8 @@ public class SecurityAttributeTests
         var usage = typeof(AllowAnonymousAttribute)
             .GetCustomAttribute<AttributeUsageAttribute>();
 
-        usage.Should().NotBeNull();
-        usage!.ValidOn.Should().HaveFlag(AttributeTargets.Class);
+        usage.ShouldNotBeNull();
+        usage!.ValidOn.HasFlag(AttributeTargets.Class).ShouldBeTrue();
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class SecurityAttributeTests
         var usage = typeof(AllowAnonymousAttribute)
             .GetCustomAttribute<AttributeUsageAttribute>();
 
-        usage!.AllowMultiple.Should().BeFalse();
+        usage!.AllowMultiple.ShouldBeFalse();
     }
 
     // -- DenyAnonymousAttribute --
@@ -36,14 +36,14 @@ public class SecurityAttributeTests
     public void DenyAnonymous_ShouldInheritFromSecurityAttribute()
     {
         var attr = new DenyAnonymousAttribute();
-        attr.Should().BeAssignableTo<SecurityAttribute>();
+        attr.ShouldBeAssignableTo<SecurityAttribute>();
     }
 
     [Fact]
     public void DenyAnonymous_Order_ShouldDefaultToZero()
     {
         var attr = new DenyAnonymousAttribute();
-        attr.Order.Should().Be(0);
+        attr.Order.ShouldBe(0);
     }
 
     // -- RequireRoleAttribute --
@@ -52,21 +52,21 @@ public class SecurityAttributeTests
     public void RequireRole_ShouldStoreRoles()
     {
         var attr = new RequireRoleAttribute("Admin", "Manager");
-        attr.Roles.Should().BeEquivalentTo(["Admin", "Manager"]);
+        attr.Roles.ShouldBe(["Admin", "Manager"]);
     }
 
     [Fact]
     public void RequireRole_WithEmptyRoles_ShouldStoreEmpty()
     {
         var attr = new RequireRoleAttribute();
-        attr.Roles.Should().BeEmpty();
+        attr.Roles.ShouldBeEmpty();
     }
 
     [Fact]
     public void RequireRole_ShouldInheritFromSecurityAttribute()
     {
         var attr = new RequireRoleAttribute("Admin");
-        attr.Should().BeAssignableTo<SecurityAttribute>();
+        attr.ShouldBeAssignableTo<SecurityAttribute>();
     }
 
     // -- RequireAllRolesAttribute --
@@ -75,14 +75,14 @@ public class SecurityAttributeTests
     public void RequireAllRoles_ShouldStoreRoles()
     {
         var attr = new RequireAllRolesAttribute("Admin", "Manager");
-        attr.Roles.Should().BeEquivalentTo(["Admin", "Manager"]);
+        attr.Roles.ShouldBe(["Admin", "Manager"]);
     }
 
     [Fact]
     public void RequireAllRoles_ShouldInheritFromSecurityAttribute()
     {
         var attr = new RequireAllRolesAttribute("Admin");
-        attr.Should().BeAssignableTo<SecurityAttribute>();
+        attr.ShouldBeAssignableTo<SecurityAttribute>();
     }
 
     // -- RequirePermissionAttribute --
@@ -91,21 +91,21 @@ public class SecurityAttributeTests
     public void RequirePermission_ShouldStorePermissions()
     {
         var attr = new RequirePermissionAttribute("orders:read", "orders:write");
-        attr.Permissions.Should().BeEquivalentTo(["orders:read", "orders:write"]);
+        attr.Permissions.ShouldBe(["orders:read", "orders:write"]);
     }
 
     [Fact]
     public void RequirePermission_RequireAll_ShouldDefaultToFalse()
     {
         var attr = new RequirePermissionAttribute("orders:read");
-        attr.RequireAll.Should().BeFalse();
+        attr.RequireAll.ShouldBeFalse();
     }
 
     [Fact]
     public void RequirePermission_RequireAll_ShouldBeSettable()
     {
         var attr = new RequirePermissionAttribute("orders:read") { RequireAll = true };
-        attr.RequireAll.Should().BeTrue();
+        attr.RequireAll.ShouldBeTrue();
     }
 
     // -- RequireClaimAttribute --
@@ -114,16 +114,16 @@ public class SecurityAttributeTests
     public void RequireClaim_TypeOnly_ShouldStoreClaimType()
     {
         var attr = new RequireClaimAttribute("department");
-        attr.ClaimType.Should().Be("department");
-        attr.ClaimValue.Should().BeNull();
+        attr.ClaimType.ShouldBe("department");
+        attr.ClaimValue.ShouldBeNull();
     }
 
     [Fact]
     public void RequireClaim_TypeAndValue_ShouldStoreBoth()
     {
         var attr = new RequireClaimAttribute("department", "engineering");
-        attr.ClaimType.Should().Be("department");
-        attr.ClaimValue.Should().Be("engineering");
+        attr.ClaimType.ShouldBe("department");
+        attr.ClaimValue.ShouldBe("engineering");
     }
 
     // -- RequireOwnershipAttribute --
@@ -132,7 +132,7 @@ public class SecurityAttributeTests
     public void RequireOwnership_ShouldStorePropertyName()
     {
         var attr = new RequireOwnershipAttribute("OwnerId");
-        attr.OwnerProperty.Should().Be("OwnerId");
+        attr.OwnerProperty.ShouldBe("OwnerId");
     }
 
     // -- SecurityAttribute.Order --
@@ -141,7 +141,7 @@ public class SecurityAttributeTests
     public void Order_ShouldBeSettable()
     {
         var attr = new DenyAnonymousAttribute { Order = 5 };
-        attr.Order.Should().Be(5);
+        attr.Order.ShouldBe(5);
     }
 
     // -- Multiple attributes on same type --
@@ -152,7 +152,7 @@ public class SecurityAttributeTests
         var usage = typeof(SecurityAttribute)
             .GetCustomAttribute<AttributeUsageAttribute>();
 
-        usage!.AllowMultiple.Should().BeTrue();
+        usage!.AllowMultiple.ShouldBeTrue();
     }
 
     [Fact]
@@ -163,9 +163,9 @@ public class SecurityAttributeTests
             .Cast<SecurityAttribute>()
             .ToList();
 
-        attributes.Should().HaveCount(2);
-        attributes.Should().ContainSingle(a => a is DenyAnonymousAttribute);
-        attributes.Should().ContainSingle(a => a is RequireRoleAttribute);
+        attributes.Count.ShouldBe(2);
+        attributes.ShouldContain(a => a is DenyAnonymousAttribute);
+        attributes.ShouldContain(a => a is RequireRoleAttribute);
     }
 
     [Fact]
@@ -177,10 +177,10 @@ public class SecurityAttributeTests
             .OrderBy(a => a.Order)
             .ToList();
 
-        attributes[0].Should().BeOfType<RequireRoleAttribute>();
-        attributes[0].Order.Should().Be(1);
-        attributes[1].Should().BeOfType<DenyAnonymousAttribute>();
-        attributes[1].Order.Should().Be(2);
+        attributes[0].ShouldBeOfType<RequireRoleAttribute>();
+        attributes[0].Order.ShouldBe(1);
+        attributes[1].ShouldBeOfType<DenyAnonymousAttribute>();
+        attributes[1].Order.ShouldBe(2);
     }
 
     #region Test Types

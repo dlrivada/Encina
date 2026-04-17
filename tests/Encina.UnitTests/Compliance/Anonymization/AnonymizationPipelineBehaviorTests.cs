@@ -2,17 +2,12 @@
 
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
@@ -149,11 +144,11 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var actual = (DecoratedResponse)result;
-        actual.FullName.Should().Be("John Doe", "no transformation should occur in Disabled mode");
-        actual.Email.Should().Be("john@example.com");
-        actual.CreditCard.Should().Be("4111111111111111");
+        actual.FullName.ShouldBe("John Doe", "no transformation should occur in Disabled mode");
+        actual.Email.ShouldBe("john@example.com");
+        actual.CreditCard.ShouldBe("4111111111111111");
     }
 
     // ================================================================
@@ -175,8 +170,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((PlainResponse)result).Name.Should().Be("hello");
+        result.IsRight.ShouldBeTrue();
+        ((PlainResponse)result).Name.ShouldBe("hello");
     }
 
     // ================================================================
@@ -198,8 +193,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        ((EncinaError)result).Message.Should().Contain("handler failed");
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).Message.ShouldContain("handler failed");
     }
 
     // ================================================================
@@ -221,8 +216,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((AnonymizeOnlyResponse)result).Name.Should().Be("***masked***");
+        result.IsRight.ShouldBeTrue();
+        ((AnonymizeOnlyResponse)result).Name.ShouldBe("***masked***");
         await _dataMaskingTechnique.Received(1)
             .ApplyAsync("John Doe", typeof(string), Arg.Any<IReadOnlyDictionary<string, object>?>(), Arg.Any<CancellationToken>());
     }
@@ -246,8 +241,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((DecoratedResponse)result).Email.Should().Be("pseudo-value");
+        result.IsRight.ShouldBeTrue();
+        ((DecoratedResponse)result).Email.ShouldBe("pseudo-value");
         await _pseudonymizer.Received(1)
             .PseudonymizeValueAsync("jane@example.com", "test-key", PseudonymizationAlgorithm.Aes256Gcm, Arg.Any<CancellationToken>());
     }
@@ -271,8 +266,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((DecoratedResponse)result).CreditCard.Should().Be("tok_abc123");
+        result.IsRight.ShouldBeTrue();
+        ((DecoratedResponse)result).CreditCard.ShouldBe("tok_abc123");
         await _tokenizer.Received(1)
             .TokenizeAsync("4111111111111111", Arg.Any<TokenizationOptions>(), Arg.Any<CancellationToken>());
     }
@@ -306,8 +301,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        ((EncinaError)result).Message.Should().Contain("Anonymization failed");
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).Message.ShouldContain("Anonymization failed");
     }
 
     // ================================================================
@@ -339,8 +334,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert — should succeed but original value untouched
-        result.IsRight.Should().BeTrue();
-        ((AnonymizeOnlyResponse)result).Name.Should().Be("John Doe", "Warn mode should not modify the field on failure");
+        result.IsRight.ShouldBeTrue();
+        ((AnonymizeOnlyResponse)result).Name.ShouldBe("John Doe", "Warn mode should not modify the field on failure");
     }
 
     // ================================================================
@@ -362,11 +357,11 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var actual = (DecoratedResponse)result;
-        actual.FullName.Should().Be("***masked***", "Anonymize should apply DataMasking");
-        actual.Email.Should().Be("pseudo-value", "Pseudonymize should apply");
-        actual.CreditCard.Should().Be("tok_abc123", "Tokenize should apply");
+        actual.FullName.ShouldBe("***masked***", "Anonymize should apply DataMasking");
+        actual.Email.ShouldBe("pseudo-value", "Pseudonymize should apply");
+        actual.CreditCard.ShouldBe("tok_abc123", "Tokenize should apply");
     }
 
     // ================================================================
@@ -395,8 +390,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        ((EncinaError)result).Message.Should().Contain("Anonymization failed");
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).Message.ShouldContain("Anonymization failed");
     }
 
     // ================================================================
@@ -420,8 +415,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        ((EncinaError)result).Message.Should().Contain("No implementation registered for anonymization technique");
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).Message.ShouldContain("No implementation registered for anonymization technique");
     }
 
     // ================================================================
@@ -449,8 +444,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        ((EncinaError)result).Message.Should().Contain("cannot be applied to field");
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).Message.ShouldContain("cannot be applied to field");
     }
 
     // ================================================================
@@ -472,8 +467,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((PseudonymizeNoKeyResponse)result).Secret.Should().Be("pseudo-value");
+        result.IsRight.ShouldBeTrue();
+        ((PseudonymizeNoKeyResponse)result).Secret.ShouldBe("pseudo-value");
         await _keyProvider.Received(1).GetActiveKeyIdAsync(Arg.Any<CancellationToken>());
         await _pseudonymizer.Received(1)
             .PseudonymizeValueAsync("my-secret", "active-key-1", PseudonymizationAlgorithm.HmacSha256, Arg.Any<CancellationToken>());
@@ -505,9 +500,9 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         // The error surfaces through the pipeline's exception handler wrapping
-        ((EncinaError)result).Message.Should().NotBeNullOrEmpty();
+        ((EncinaError)result).Message.ShouldNotBeNullOrEmpty();
     }
 
     // ================================================================
@@ -530,8 +525,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        ((EncinaError)result).Message.Should().Contain("Pseudonymization failed");
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).Message.ShouldContain("Pseudonymization failed");
     }
 
     // ================================================================
@@ -554,8 +549,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        ((EncinaError)result).Message.Should().Contain("Tokenization failed");
+        result.IsLeft.ShouldBeTrue();
+        ((EncinaError)result).Message.ShouldContain("Tokenization failed");
     }
 
     // ================================================================
@@ -577,8 +572,8 @@ public class AnonymizationPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        ((AnonymizeOnlyResponse)result).Name.Should().BeNull();
+        result.IsRight.ShouldBeTrue();
+        ((AnonymizeOnlyResponse)result).Name.ShouldBeNull();
         await _dataMaskingTechnique.DidNotReceive()
             .ApplyAsync(Arg.Any<object?>(), Arg.Any<Type>(), Arg.Any<IReadOnlyDictionary<string, object>?>(), Arg.Any<CancellationToken>());
     }
@@ -599,8 +594,8 @@ public class AnonymizationPipelineBehaviorTests
             null!, RequestContext.CreateForTest(), Next(response), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     // ================================================================

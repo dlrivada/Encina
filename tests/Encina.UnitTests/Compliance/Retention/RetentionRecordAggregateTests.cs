@@ -1,7 +1,7 @@
 using Encina.Compliance.Retention.Aggregates;
 using Encina.Compliance.Retention.Events;
 using Encina.Compliance.Retention.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -34,16 +34,16 @@ public class RetentionRecordAggregateTests
             DefaultRetentionPeriod, expiresAt, Now, tenantId, moduleId);
 
         // Assert
-        record.Id.Should().Be(DefaultId);
-        record.EntityId.Should().Be(entityId);
-        record.DataCategory.Should().Be(dataCategory);
-        record.PolicyId.Should().Be(DefaultPolicyId);
-        record.RetentionPeriod.Should().Be(DefaultRetentionPeriod);
-        record.Status.Should().Be(RetentionStatus.Active);
-        record.ExpiresAtUtc.Should().Be(expiresAt);
-        record.TenantId.Should().Be(tenantId);
-        record.ModuleId.Should().Be(moduleId);
-        record.LegalHoldId.Should().BeNull();
+        record.Id.ShouldBe(DefaultId);
+        record.EntityId.ShouldBe(entityId);
+        record.DataCategory.ShouldBe(dataCategory);
+        record.PolicyId.ShouldBe(DefaultPolicyId);
+        record.RetentionPeriod.ShouldBe(DefaultRetentionPeriod);
+        record.Status.ShouldBe(RetentionStatus.Active);
+        record.ExpiresAtUtc.ShouldBe(expiresAt);
+        record.TenantId.ShouldBe(tenantId);
+        record.ModuleId.ShouldBe(moduleId);
+        record.LegalHoldId.ShouldBeNull();
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public class RetentionRecordAggregateTests
         var record = CreateTrackedRecord();
 
         // Assert
-        record.UncommittedEvents.Should().HaveCount(1);
-        record.UncommittedEvents[0].Should().BeOfType<RetentionRecordTracked>();
+        record.UncommittedEvents.Count.ShouldBe(1);
+        record.UncommittedEvents[0].ShouldBeOfType<RetentionRecordTracked>();
     }
 
     [Theory]
@@ -69,7 +69,7 @@ public class RetentionRecordAggregateTests
             DefaultRetentionPeriod, Now.Add(DefaultRetentionPeriod), Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -84,7 +84,7 @@ public class RetentionRecordAggregateTests
             DefaultRetentionPeriod, Now.Add(DefaultRetentionPeriod), Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Theory]
@@ -100,7 +100,7 @@ public class RetentionRecordAggregateTests
             TimeSpan.FromDays(days), Now.AddDays(-1), Now);
 
         // No guard on retentionPeriod in Track; assertion matches actual source behavior.
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -117,7 +117,7 @@ public class RetentionRecordAggregateTests
         record.MarkExpired(Now.AddDays(366));
 
         // Assert
-        record.Status.Should().Be(RetentionStatus.Expired);
+        record.Status.ShouldBe(RetentionStatus.Expired);
     }
 
     [Fact]
@@ -130,8 +130,8 @@ public class RetentionRecordAggregateTests
         record.MarkExpired(Now.AddDays(366));
 
         // Assert
-        record.UncommittedEvents.Should().HaveCount(2);
-        record.UncommittedEvents[1].Should().BeOfType<RetentionRecordExpired>();
+        record.UncommittedEvents.Count.ShouldBe(2);
+        record.UncommittedEvents[1].ShouldBeOfType<RetentionRecordExpired>();
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.MarkExpired(Now.AddDays(367));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.MarkExpired(Now.AddDays(400));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -174,7 +174,7 @@ public class RetentionRecordAggregateTests
         record.Hold(DefaultHoldId, Now.AddDays(10));
 
         // Assert
-        record.Status.Should().Be(RetentionStatus.UnderLegalHold);
+        record.Status.ShouldBe(RetentionStatus.UnderLegalHold);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class RetentionRecordAggregateTests
         record.Hold(DefaultHoldId, Now.AddDays(10));
 
         // Assert
-        record.LegalHoldId.Should().Be(DefaultHoldId);
+        record.LegalHoldId.ShouldBe(DefaultHoldId);
     }
 
     [Fact]
@@ -200,8 +200,8 @@ public class RetentionRecordAggregateTests
         record.Hold(DefaultHoldId, Now.AddDays(10));
 
         // Assert
-        record.UncommittedEvents.Should().HaveCount(2);
-        record.UncommittedEvents[1].Should().BeOfType<RetentionRecordHeld>();
+        record.UncommittedEvents.Count.ShouldBe(2);
+        record.UncommittedEvents[1].ShouldBeOfType<RetentionRecordHeld>();
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class RetentionRecordAggregateTests
         record.Hold(DefaultHoldId, Now.AddDays(370));
 
         // Assert
-        record.Status.Should().Be(RetentionStatus.UnderLegalHold);
+        record.Status.ShouldBe(RetentionStatus.UnderLegalHold);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.Hold(DefaultHoldId, Now.AddDays(400));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -249,7 +249,7 @@ public class RetentionRecordAggregateTests
         record.Release(DefaultHoldId, Now.AddDays(20));
 
         // Assert
-        record.Status.Should().Be(RetentionStatus.Active);
+        record.Status.ShouldBe(RetentionStatus.Active);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public class RetentionRecordAggregateTests
         record.Release(DefaultHoldId, Now.AddDays(380));
 
         // Assert
-        record.LegalHoldId.Should().BeNull();
+        record.LegalHoldId.ShouldBeNull();
     }
 
     [Fact]
@@ -277,8 +277,8 @@ public class RetentionRecordAggregateTests
         // Assert
         var releasedEvent = record.UncommittedEvents
             .OfType<RetentionRecordReleased>()
-            .Should().ContainSingle().Subject;
-        releasedEvent.LegalHoldId.Should().Be(DefaultHoldId);
+            .ShouldHaveSingleItem();
+        releasedEvent.LegalHoldId.ShouldBe(DefaultHoldId);
     }
 
     [Fact]
@@ -291,7 +291,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.Release(DefaultHoldId, Now.AddDays(370));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -304,7 +304,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.Release(DefaultHoldId, Now.AddDays(5));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -321,7 +321,7 @@ public class RetentionRecordAggregateTests
         record.MarkDeleted(Now.AddDays(367));
 
         // Assert
-        record.Status.Should().Be(RetentionStatus.Deleted);
+        record.Status.ShouldBe(RetentionStatus.Deleted);
     }
 
     [Fact]
@@ -334,7 +334,7 @@ public class RetentionRecordAggregateTests
         record.MarkDeleted(Now.AddDays(367));
 
         // Assert
-        record.UncommittedEvents.OfType<DataDeleted>().Should().ContainSingle();
+        record.UncommittedEvents.OfType<DataDeleted>().ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.MarkDeleted(Now.AddDays(5));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -360,7 +360,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.MarkDeleted(Now.AddDays(400));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -377,7 +377,7 @@ public class RetentionRecordAggregateTests
         record.MarkAnonymized(Now.AddDays(367));
 
         // Assert
-        record.Status.Should().Be(RetentionStatus.Deleted);
+        record.Status.ShouldBe(RetentionStatus.Deleted);
     }
 
     [Fact]
@@ -390,7 +390,7 @@ public class RetentionRecordAggregateTests
         record.MarkAnonymized(Now.AddDays(367));
 
         // Assert
-        record.UncommittedEvents.OfType<DataAnonymized>().Should().ContainSingle();
+        record.UncommittedEvents.OfType<DataAnonymized>().ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -403,7 +403,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.MarkAnonymized(Now.AddDays(5));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -416,7 +416,7 @@ public class RetentionRecordAggregateTests
         var act = () => record.MarkAnonymized(Now.AddDays(400));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion

@@ -5,7 +5,7 @@ using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
 using Encina.Marten.Projections;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -27,7 +27,7 @@ public class DPAProjectionTests
         var name = _sut.ProjectionName;
 
         // Assert
-        name.Should().Be("DPAProjection");
+        name.ShouldBe("DPAProjection");
     }
 
     #endregion
@@ -61,17 +61,17 @@ public class DPAProjectionTests
         var result = _sut.Create(executed, _context);
 
         // Assert
-        result.Id.Should().Be(dpaId);
-        result.ProcessorId.Should().Be(processorId);
-        result.MandatoryTerms.Should().Be(terms);
-        result.HasSCCs.Should().BeTrue();
-        result.ProcessingPurposes.Should().BeEquivalentTo(purposes);
-        result.SignedAtUtc.Should().Be(signedAt);
-        result.ExpiresAtUtc.Should().Be(expiresAt);
-        result.TenantId.Should().Be("tenant-1");
-        result.ModuleId.Should().Be("module-compliance");
-        result.CreatedAtUtc.Should().Be(Now);
-        result.LastModifiedAtUtc.Should().Be(Now);
+        result.Id.ShouldBe(dpaId);
+        result.ProcessorId.ShouldBe(processorId);
+        result.MandatoryTerms.ShouldBe(terms);
+        result.HasSCCs.ShouldBeTrue();
+        result.ProcessingPurposes.ShouldBe(purposes);
+        result.SignedAtUtc.ShouldBe(signedAt);
+        result.ExpiresAtUtc.ShouldBe(expiresAt);
+        result.TenantId.ShouldBe("tenant-1");
+        result.ModuleId.ShouldBe("module-compliance");
+        result.CreatedAtUtc.ShouldBe(Now);
+        result.LastModifiedAtUtc.ShouldBe(Now);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class DPAProjectionTests
         var result = _sut.Create(executed, _context);
 
         // Assert
-        result.Status.Should().Be(DPAStatus.Active);
+        result.Status.ShouldBe(DPAStatus.Active);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class DPAProjectionTests
         var result = _sut.Create(executed, _context);
 
         // Assert
-        result.Version.Should().Be(1);
+        result.Version.ShouldBe(1);
     }
 
     #endregion
@@ -124,10 +124,10 @@ public class DPAProjectionTests
         var result = _sut.Apply(amended, current, _context);
 
         // Assert
-        result.MandatoryTerms.Should().Be(newTerms);
-        result.HasSCCs.Should().BeFalse();
-        result.ProcessingPurposes.Should().BeEquivalentTo(newPurposes);
-        result.LastModifiedAtUtc.Should().Be(Now.AddHours(1));
+        result.MandatoryTerms.ShouldBe(newTerms);
+        result.HasSCCs.ShouldBeFalse();
+        result.ProcessingPurposes.ShouldBe(newPurposes);
+        result.LastModifiedAtUtc.ShouldBe(Now.AddHours(1));
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class DPAProjectionTests
         _sut.Apply(amended, current, _context);
 
         // Assert
-        current.Version.Should().Be(initialVersion + 1);
+        current.Version.ShouldBe(initialVersion + 1);
     }
 
     #endregion
@@ -173,11 +173,11 @@ public class DPAProjectionTests
         _sut.Apply(audited, current, _context);
 
         // Assert
-        current.AuditHistory.Should().HaveCount(1);
-        current.AuditHistory[0].AuditorId.Should().Be("auditor-42");
-        current.AuditHistory[0].AuditFindings.Should().Be("All terms compliant");
-        current.AuditHistory[0].AuditedAtUtc.Should().Be(auditTime);
-        current.LastModifiedAtUtc.Should().Be(auditTime);
+        current.AuditHistory.Count.ShouldBe(1);
+        current.AuditHistory[0].AuditorId.ShouldBe("auditor-42");
+        current.AuditHistory[0].AuditFindings.ShouldBe("All terms compliant");
+        current.AuditHistory[0].AuditedAtUtc.ShouldBe(auditTime);
+        current.LastModifiedAtUtc.ShouldBe(auditTime);
     }
 
     #endregion
@@ -201,9 +201,9 @@ public class DPAProjectionTests
         var result = _sut.Apply(renewed, current, _context);
 
         // Assert
-        result.Status.Should().Be(DPAStatus.Active);
-        result.ExpiresAtUtc.Should().Be(newExpiry);
-        result.LastModifiedAtUtc.Should().Be(Now.AddHours(1));
+        result.Status.ShouldBe(DPAStatus.Active);
+        result.ExpiresAtUtc.ShouldBe(newExpiry);
+        result.LastModifiedAtUtc.ShouldBe(Now.AddHours(1));
     }
 
     #endregion
@@ -226,10 +226,10 @@ public class DPAProjectionTests
         var result = _sut.Apply(terminated, current, _context);
 
         // Assert
-        result.Status.Should().Be(DPAStatus.Terminated);
-        result.TerminationReason.Should().Be("Breach of contract");
-        result.TerminatedAtUtc.Should().Be(terminationTime);
-        result.LastModifiedAtUtc.Should().Be(terminationTime);
+        result.Status.ShouldBe(DPAStatus.Terminated);
+        result.TerminationReason.ShouldBe("Breach of contract");
+        result.TerminatedAtUtc.ShouldBe(terminationTime);
+        result.LastModifiedAtUtc.ShouldBe(terminationTime);
     }
 
     #endregion
@@ -251,8 +251,8 @@ public class DPAProjectionTests
         var result = _sut.Apply(expired, current, _context);
 
         // Assert
-        result.Status.Should().Be(DPAStatus.Expired);
-        result.LastModifiedAtUtc.Should().Be(expiredTime);
+        result.Status.ShouldBe(DPAStatus.Expired);
+        result.LastModifiedAtUtc.ShouldBe(expiredTime);
     }
 
     #endregion
@@ -274,8 +274,8 @@ public class DPAProjectionTests
         var result = _sut.Apply(pending, current, _context);
 
         // Assert
-        result.Status.Should().Be(DPAStatus.PendingRenewal);
-        result.LastModifiedAtUtc.Should().Be(pendingTime);
+        result.Status.ShouldBe(DPAStatus.PendingRenewal);
+        result.LastModifiedAtUtc.ShouldBe(pendingTime);
     }
 
     #endregion
@@ -322,19 +322,19 @@ public class DPAProjectionTests
         _sut.Apply(new DPATerminated(dpaId, "Service discontinued", Now.AddMonths(18)), model, _context);
 
         // Assert — Final state
-        model.Id.Should().Be(dpaId);
-        model.ProcessorId.Should().Be(processorId);
-        model.Status.Should().Be(DPAStatus.Terminated);
-        model.MandatoryTerms.Should().Be(amendedTerms);
-        model.HasSCCs.Should().BeTrue();
-        model.ProcessingPurposes.Should().BeEquivalentTo(["Analytics", "Billing"]);
-        model.ExpiresAtUtc.Should().Be(newExpiry);
-        model.TerminationReason.Should().Be("Service discontinued");
-        model.TerminatedAtUtc.Should().Be(Now.AddMonths(18));
-        model.AuditHistory.Should().HaveCount(2);
-        model.TenantId.Should().Be("tenant-1");
-        model.Version.Should().Be(7); // 1 (create) + 6 (apply events)
-        model.LastModifiedAtUtc.Should().Be(Now.AddMonths(18));
+        model.Id.ShouldBe(dpaId);
+        model.ProcessorId.ShouldBe(processorId);
+        model.Status.ShouldBe(DPAStatus.Terminated);
+        model.MandatoryTerms.ShouldBe(amendedTerms);
+        model.HasSCCs.ShouldBeTrue();
+        model.ProcessingPurposes.ShouldBe(["Analytics", "Billing"]);
+        model.ExpiresAtUtc.ShouldBe(newExpiry);
+        model.TerminationReason.ShouldBe("Service discontinued");
+        model.TerminatedAtUtc.ShouldBe(Now.AddMonths(18));
+        model.AuditHistory.Count.ShouldBe(2);
+        model.TenantId.ShouldBe("tenant-1");
+        model.Version.ShouldBe(7); // 1 (create) + 6 (apply events)
+        model.LastModifiedAtUtc.ShouldBe(Now.AddMonths(18));
     }
 
     #endregion

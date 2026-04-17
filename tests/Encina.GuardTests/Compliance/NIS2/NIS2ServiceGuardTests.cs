@@ -1,13 +1,11 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.GuardTests.Compliance.NIS2;
 
@@ -30,7 +28,7 @@ public sealed class DefaultMFAEnforcerGuardTests
         var provider = services.BuildServiceProvider();
         var enforcer = provider.GetRequiredService<IMFAEnforcer>();
 
-        enforcer.Should().NotBeNull();
+        enforcer.ShouldNotBeNull();
     }
 
     [Fact]
@@ -45,8 +43,8 @@ public sealed class DefaultMFAEnforcerGuardTests
 
         var result = await enforcer.IsMFAEnabledAsync("test-user");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().BeTrue());
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBeTrue());
     }
 }
 
@@ -66,8 +64,8 @@ public sealed class NIS2OptionsAddSupplierGuardTests
 
         var act = () => options.AddSupplier(null!, _ => { });
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("supplierId");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("supplierId");
     }
 
     [Fact]
@@ -77,8 +75,8 @@ public sealed class NIS2OptionsAddSupplierGuardTests
 
         var act = () => options.AddSupplier("test", null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configure");
     }
 
     [Fact]
@@ -92,7 +90,7 @@ public sealed class NIS2OptionsAddSupplierGuardTests
             s.RiskLevel = SupplierRiskLevel.Low;
         });
 
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 }
 
@@ -111,8 +109,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.ComplianceCheckFailed(5);
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("compliance check failed");
+        error.Message.ShouldContain("compliance check failed");
     }
 
     [Fact]
@@ -120,8 +117,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.MeasureNotSatisfied(NIS2Measure.RiskAnalysisAndSecurityPolicies, "Missing");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("RiskAnalysisAndSecurityPolicies");
+        error.Message.ShouldContain("RiskAnalysisAndSecurityPolicies");
     }
 
     [Fact]
@@ -129,8 +125,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.MFARequired("TestRequest");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("TestRequest");
+        error.Message.ShouldContain("TestRequest");
     }
 
     [Fact]
@@ -138,8 +133,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.MFARequired("TestRequest", "user-1");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("user-1");
+        error.Message.ShouldContain("user-1");
     }
 
     [Fact]
@@ -147,8 +141,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.EncryptionRequired("PII", "at-rest");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("PII");
+        error.Message.ShouldContain("PII");
     }
 
     [Fact]
@@ -156,8 +149,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.SupplierRiskHigh("supplier-1", SupplierRiskLevel.Critical);
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("supplier-1");
+        error.Message.ShouldContain("supplier-1");
     }
 
     [Fact]
@@ -165,8 +157,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.SupplyChainCheckFailed("supplier-1", "failed");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("supplier-1");
+        error.Message.ShouldContain("supplier-1");
     }
 
     [Fact]
@@ -174,8 +165,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.SupplierNotFound("unknown-supplier");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("unknown-supplier");
+        error.Message.ShouldContain("unknown-supplier");
     }
 
     [Fact]
@@ -183,8 +173,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.DeadlineExceeded(NIS2NotificationPhase.EarlyWarning, 2.5);
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("EarlyWarning");
+        error.Message.ShouldContain("EarlyWarning");
     }
 
     [Fact]
@@ -192,8 +181,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.IncidentReportFailed(Guid.NewGuid(), "failed");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("failed");
+        error.Message.ShouldContain("failed");
     }
 
     [Fact]
@@ -201,8 +189,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.AllPhasesComplete(Guid.NewGuid());
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("completed");
+        error.Message.ShouldContain("completed");
     }
 
     [Fact]
@@ -210,8 +197,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.ManagementAccountabilityMissing();
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("management accountability");
+        error.Message.ShouldContain("management accountability");
     }
 
     [Fact]
@@ -219,8 +205,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.PipelineBlocked("TestRequest", "reason");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("TestRequest");
+        error.Message.ShouldContain("TestRequest");
     }
 
     [Fact]
@@ -228,8 +213,7 @@ public sealed class NIS2ErrorsGuardTests
     {
         var error = NIS2Errors.MeasureEvaluationFailed(NIS2Measure.IncidentHandling, "failed");
 
-        error.Should().NotBeNull();
-        error.Message.Should().Contain("IncidentHandling");
+        error.Message.ShouldContain("IncidentHandling");
     }
 }
 
@@ -247,10 +231,10 @@ public sealed class NIS2AttributeInfoGuardTests
     {
         var info = NIS2AttributeInfo.FromType(typeof(PlainRequest));
 
-        info.IsNIS2Critical.Should().BeFalse();
-        info.RequiresMFA.Should().BeFalse();
-        info.SupplyChainChecks.Should().BeEmpty();
-        info.HasAnyAttribute.Should().BeFalse();
+        info.IsNIS2Critical.ShouldBeFalse();
+        info.RequiresMFA.ShouldBeFalse();
+        info.SupplyChainChecks.ShouldBeEmpty();
+        info.HasAnyAttribute.ShouldBeFalse();
     }
 
     [Fact]
@@ -258,9 +242,9 @@ public sealed class NIS2AttributeInfoGuardTests
     {
         var info = NIS2AttributeInfo.FromType(typeof(CriticalRequest));
 
-        info.IsNIS2Critical.Should().BeTrue();
-        info.CriticalDescription.Should().Be("Critical operation");
-        info.HasAnyAttribute.Should().BeTrue();
+        info.IsNIS2Critical.ShouldBeTrue();
+        info.CriticalDescription.ShouldBe("Critical operation");
+        info.HasAnyAttribute.ShouldBeTrue();
     }
 
     [Fact]
@@ -268,9 +252,9 @@ public sealed class NIS2AttributeInfoGuardTests
     {
         var info = NIS2AttributeInfo.FromType(typeof(MFARequest));
 
-        info.RequiresMFA.Should().BeTrue();
-        info.MFAReason.Should().Be("Admin operation");
-        info.HasAnyAttribute.Should().BeTrue();
+        info.RequiresMFA.ShouldBeTrue();
+        info.MFAReason.ShouldBe("Admin operation");
+        info.HasAnyAttribute.ShouldBeTrue();
     }
 
     [Fact]
@@ -278,8 +262,9 @@ public sealed class NIS2AttributeInfoGuardTests
     {
         var info = NIS2AttributeInfo.FromType(typeof(SupplyChainRequest));
 
-        info.SupplyChainChecks.Should().ContainSingle("payment-provider");
-        info.HasAnyAttribute.Should().BeTrue();
+        info.SupplyChainChecks.ShouldContain("payment-provider");
+        info.SupplyChainChecks.Count.ShouldBe(1);
+        info.HasAnyAttribute.ShouldBeTrue();
     }
 
     private sealed record PlainRequest;
@@ -308,8 +293,8 @@ public sealed class NIS2SupplyChainCheckAttributeGuardTests
     {
         var act = () => new NIS2SupplyChainCheckAttribute(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("supplierId");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("supplierId");
     }
 
     [Fact]
@@ -317,8 +302,8 @@ public sealed class NIS2SupplyChainCheckAttributeGuardTests
     {
         var attr = new NIS2SupplyChainCheckAttribute("supplier-1");
 
-        attr.SupplierId.Should().Be("supplier-1");
-        attr.MinimumRiskLevel.Should().Be(SupplierRiskLevel.Medium);
+        attr.SupplierId.ShouldBe("supplier-1");
+        attr.MinimumRiskLevel.ShouldBe(SupplierRiskLevel.Medium);
     }
 }
 

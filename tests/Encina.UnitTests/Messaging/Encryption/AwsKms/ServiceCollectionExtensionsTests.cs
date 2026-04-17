@@ -1,9 +1,9 @@
 using Amazon.KeyManagementService;
 using Encina.Messaging.Encryption.AwsKms;
 using Encina.Security.Encryption.Abstractions;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption.AwsKms;
 
@@ -14,9 +14,9 @@ public class ServiceCollectionExtensionsTests
     {
         IServiceCollection services = null!;
 
-        var act = () => services.AddEncinaMessageEncryptionAwsKms(o => { o.KeyId = "k"; });
+        Action act = () => services.AddEncinaMessageEncryptionAwsKms(o => { o.KeyId = "k"; });
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -24,9 +24,9 @@ public class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
 
-        var act = () => services.AddEncinaMessageEncryptionAwsKms(null!);
+        Action act = () => services.AddEncinaMessageEncryptionAwsKms(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("configure");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("configure");
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class ServiceCollectionExtensionsTests
 
         var result = services.AddEncinaMessageEncryptionAwsKms(o => { o.KeyId = "k"; });
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
-        options.KeyId.Should().Be("arn:aws:kms:us-east-1:123:key/abc");
-        options.Region.Should().Be("us-east-1");
+        options.KeyId.ShouldBe("arn:aws:kms:us-east-1:123:key/abc");
+        options.Region.ShouldBe("us-east-1");
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IAmazonKeyManagementService));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -81,9 +81,9 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IKeyProvider));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
-        descriptor.ImplementationType.Should().Be(typeof(AwsKmsKeyProvider));
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        descriptor.ImplementationType.ShouldBe(typeof(AwsKmsKeyProvider));
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var resolved = sp.GetRequiredService<IAmazonKeyManagementService>();
 
-        resolved.Should().BeSameAs(existingClient);
+        resolved.ShouldBeSameAs(existingClient);
     }
 
     [Fact]
@@ -118,8 +118,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var encOptions = sp.GetRequiredService<IOptions<global::Encina.Messaging.Encryption.MessageEncryptionOptions>>().Value;
 
-        encOptions.EncryptAllMessages.Should().BeTrue();
-        encOptions.DefaultKeyId.Should().Be("custom-key");
+        encOptions.EncryptAllMessages.ShouldBeTrue();
+        encOptions.DefaultKeyId.ShouldBe("custom-key");
     }
 
     [Fact]
@@ -137,8 +137,8 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IAmazonKeyManagementService));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationFactory.Should().NotBeNull();
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationFactory.ShouldNotBeNull();
     }
 
     [Fact]
@@ -159,8 +159,8 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IAmazonKeyManagementService));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationFactory.Should().NotBeNull();
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationFactory.ShouldNotBeNull();
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IAmazonKeyManagementService));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.ImplementationFactory.Should().NotBeNull();
+        descriptor.ShouldNotBeNull();
+        descriptor!.ImplementationFactory.ShouldNotBeNull();
     }
 }

@@ -5,7 +5,7 @@ using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
 using Encina.Marten.Projections;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -27,7 +27,7 @@ public class ProcessorProjectionTests
         var name = _sut.ProjectionName;
 
         // Assert
-        name.Should().Be("ProcessorProjection");
+        name.ShouldBe("ProcessorProjection");
     }
 
     #endregion
@@ -56,17 +56,17 @@ public class ProcessorProjectionTests
         var result = _sut.Create(registered, _context);
 
         // Assert
-        result.Id.Should().Be(processorId);
-        result.Name.Should().Be("Stripe");
-        result.Country.Should().Be("US");
-        result.ContactEmail.Should().Be("dpo@stripe.com");
-        result.ParentProcessorId.Should().Be(parentId);
-        result.Depth.Should().Be(1);
-        result.AuthorizationType.Should().Be(SubProcessorAuthorizationType.Specific);
-        result.TenantId.Should().Be("tenant-1");
-        result.ModuleId.Should().Be("module-billing");
-        result.CreatedAtUtc.Should().Be(Now);
-        result.LastModifiedAtUtc.Should().Be(Now);
+        result.Id.ShouldBe(processorId);
+        result.Name.ShouldBe("Stripe");
+        result.Country.ShouldBe("US");
+        result.ContactEmail.ShouldBe("dpo@stripe.com");
+        result.ParentProcessorId.ShouldBe(parentId);
+        result.Depth.ShouldBe(1);
+        result.AuthorizationType.ShouldBe(SubProcessorAuthorizationType.Specific);
+        result.TenantId.ShouldBe("tenant-1");
+        result.ModuleId.ShouldBe("module-billing");
+        result.CreatedAtUtc.ShouldBe(Now);
+        result.LastModifiedAtUtc.ShouldBe(Now);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class ProcessorProjectionTests
         var result = _sut.Create(registered, _context);
 
         // Assert
-        result.Version.Should().Be(1);
+        result.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class ProcessorProjectionTests
         var result = _sut.Create(registered, _context);
 
         // Assert
-        result.IsRemoved.Should().BeFalse();
+        result.IsRemoved.ShouldBeFalse();
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class ProcessorProjectionTests
         var result = _sut.Create(registered, _context);
 
         // Assert
-        result.SubProcessorCount.Should().Be(0);
+        result.SubProcessorCount.ShouldBe(0);
     }
 
     #endregion
@@ -129,11 +129,11 @@ public class ProcessorProjectionTests
         var result = _sut.Apply(updated, current, _context);
 
         // Assert
-        result.Name.Should().Be("Updated Name");
-        result.Country.Should().Be("FR");
-        result.ContactEmail.Should().Be("new@example.com");
-        result.AuthorizationType.Should().Be(SubProcessorAuthorizationType.Specific);
-        result.LastModifiedAtUtc.Should().Be(Now.AddHours(1));
+        result.Name.ShouldBe("Updated Name");
+        result.Country.ShouldBe("FR");
+        result.ContactEmail.ShouldBe("new@example.com");
+        result.AuthorizationType.ShouldBe(SubProcessorAuthorizationType.Specific);
+        result.LastModifiedAtUtc.ShouldBe(Now.AddHours(1));
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class ProcessorProjectionTests
         _sut.Apply(updated, current, _context);
 
         // Assert
-        current.Version.Should().Be(initialVersion + 1);
+        current.Version.ShouldBe(initialVersion + 1);
     }
 
     #endregion
@@ -175,8 +175,8 @@ public class ProcessorProjectionTests
         var result = _sut.Apply(removed, current, _context);
 
         // Assert
-        result.IsRemoved.Should().BeTrue();
-        result.LastModifiedAtUtc.Should().Be(Now.AddHours(2));
+        result.IsRemoved.ShouldBeTrue();
+        result.LastModifiedAtUtc.ShouldBe(Now.AddHours(2));
     }
 
     #endregion
@@ -200,7 +200,7 @@ public class ProcessorProjectionTests
         _sut.Apply(added, current, _context);
 
         // Assert
-        current.SubProcessorCount.Should().Be(initialCount + 1);
+        current.SubProcessorCount.ShouldBe(initialCount + 1);
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class ProcessorProjectionTests
         _sut.Apply(removed, current, _context);
 
         // Assert
-        current.SubProcessorCount.Should().Be(2);
+        current.SubProcessorCount.ShouldBe(2);
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class ProcessorProjectionTests
         }
 
         // Assert
-        current.SubProcessorCount.Should().Be(5);
+        current.SubProcessorCount.ShouldBe(5);
     }
 
     #endregion

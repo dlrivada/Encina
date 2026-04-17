@@ -3,10 +3,8 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Administration;
 
@@ -23,8 +21,8 @@ public class InMemoryPolicyAdminGuardTests
     {
         var act = () => new InMemoryPolicyAdministrationPoint(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -32,7 +30,7 @@ public class InMemoryPolicyAdminGuardTests
     {
         var act = () => CreatePAP();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -46,7 +44,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.GetPolicySetAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -56,7 +54,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.GetPolicySetAsync("");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -66,7 +64,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.GetPolicySetAsync("   ");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -76,10 +74,10 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.GetPolicySetAsync("non-existent");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
-            Right: opt => { opt.IsNone.Should().BeTrue(); return 0; });
+            Right: opt => { opt.IsNone.ShouldBeTrue(); return 0; });
     }
 
     #endregion
@@ -93,7 +91,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.AddPolicySetAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -105,7 +103,7 @@ public class InMemoryPolicyAdminGuardTests
         await sut.AddPolicySetAsync(ps);
         var result = await sut.AddPolicySetAsync(ps);
 
-        result.IsLeft.Should().BeTrue("duplicate policy set ID should be rejected");
+        result.IsLeft.ShouldBeTrue("duplicate policy set ID should be rejected");
     }
 
     [Fact]
@@ -116,8 +114,8 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.AddPolicySetAsync(ps);
 
-        result.IsRight.Should().BeTrue();
-        sut.PolicySetCount.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        sut.PolicySetCount.ShouldBe(1);
     }
 
     #endregion
@@ -131,7 +129,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.UpdatePolicySetAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -142,7 +140,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.UpdatePolicySetAsync(ps);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -155,7 +153,7 @@ public class InMemoryPolicyAdminGuardTests
         var updated = ps with { Description = "Updated" };
         var result = await sut.UpdatePolicySetAsync(updated);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -169,7 +167,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.RemovePolicySetAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -179,7 +177,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.RemovePolicySetAsync("");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -189,7 +187,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.RemovePolicySetAsync("   ");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -199,7 +197,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.RemovePolicySetAsync("non-existent");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -210,8 +208,8 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.RemovePolicySetAsync("rm-ps");
 
-        result.IsRight.Should().BeTrue();
-        sut.PolicySetCount.Should().Be(0);
+        result.IsRight.ShouldBeTrue();
+        sut.PolicySetCount.ShouldBe(0);
     }
 
     #endregion
@@ -225,7 +223,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.GetPolicyAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -235,7 +233,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.GetPolicyAsync("");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -245,7 +243,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.GetPolicyAsync("  ");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -255,10 +253,10 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.GetPolicyAsync("non-existent");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
-            Right: opt => { opt.IsNone.Should().BeTrue(); return 0; });
+            Right: opt => { opt.IsNone.ShouldBeTrue(); return 0; });
     }
 
     #endregion
@@ -272,7 +270,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.AddPolicyAsync(null!, null);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -284,7 +282,7 @@ public class InMemoryPolicyAdminGuardTests
         await sut.AddPolicyAsync(policy, null);
         var result = await sut.AddPolicyAsync(policy, null);
 
-        result.IsLeft.Should().BeTrue("duplicate policy ID should be rejected");
+        result.IsLeft.ShouldBeTrue("duplicate policy ID should be rejected");
     }
 
     [Fact]
@@ -295,8 +293,8 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.AddPolicyAsync(policy, null);
 
-        result.IsRight.Should().BeTrue();
-        sut.StandalonePolicyCount.Should().Be(1);
+        result.IsRight.ShouldBeTrue();
+        sut.StandalonePolicyCount.ShouldBe(1);
     }
 
     [Fact]
@@ -307,7 +305,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.AddPolicyAsync(policy, "non-existent-ps");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -319,7 +317,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.AddPolicyAsync(policy, "parent-ps");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -333,7 +331,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.UpdatePolicyAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -344,7 +342,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.UpdatePolicyAsync(policy);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -357,7 +355,7 @@ public class InMemoryPolicyAdminGuardTests
         var updated = policy with { Description = "Updated" };
         var result = await sut.UpdatePolicyAsync(updated);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -371,7 +369,7 @@ public class InMemoryPolicyAdminGuardTests
         var updated = policy with { Description = "Updated nested" };
         var result = await sut.UpdatePolicyAsync(updated);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -385,7 +383,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.RemovePolicyAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -395,7 +393,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.RemovePolicyAsync("");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -405,7 +403,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var act = async () => await sut.RemovePolicyAsync("   ");
 
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -415,7 +413,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.RemovePolicyAsync("non-existent");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -426,8 +424,8 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.RemovePolicyAsync("rm-pol");
 
-        result.IsRight.Should().BeTrue();
-        sut.StandalonePolicyCount.Should().Be(0);
+        result.IsRight.ShouldBeTrue();
+        sut.StandalonePolicyCount.ShouldBe(0);
     }
 
     [Fact]
@@ -439,7 +437,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.RemovePolicyAsync("nested-rm");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -454,10 +452,10 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.GetPoliciesAsync(null);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Left: _ => throw new InvalidOperationException(),
-            Right: policies => { policies.Should().HaveCount(1); return 0; });
+            Right: policies => { policies.Count.ShouldBe(1); return 0; });
     }
 
     [Fact]
@@ -467,7 +465,7 @@ public class InMemoryPolicyAdminGuardTests
 
         var result = await sut.GetPoliciesAsync("non-existent");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -483,8 +481,8 @@ public class InMemoryPolicyAdminGuardTests
 
         sut.Clear();
 
-        sut.PolicySetCount.Should().Be(0);
-        sut.StandalonePolicyCount.Should().Be(0);
+        sut.PolicySetCount.ShouldBe(0);
+        sut.StandalonePolicyCount.ShouldBe(0);
     }
 
     #endregion

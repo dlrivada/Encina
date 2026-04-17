@@ -1,7 +1,7 @@
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -17,7 +17,7 @@ public class NotStrictlyNecessaryAttributeTests
         var attribute = new NotStrictlyNecessaryAttribute { Reason = "Test reason" };
 
         // Assert
-        attribute.Severity.Should().Be(MinimizationSeverity.Warning);
+        attribute.Severity.ShouldBe(MinimizationSeverity.Warning);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class NotStrictlyNecessaryAttributeTests
         var attribute = new NotStrictlyNecessaryAttribute { Reason = "Analytics only" };
 
         // Assert
-        attribute.Reason.Should().Be("Analytics only");
+        attribute.Reason.ShouldBe("Analytics only");
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class NotStrictlyNecessaryAttributeTests
         };
 
         // Assert
-        attribute.Severity.Should().Be(MinimizationSeverity.Violation);
+        attribute.Severity.ShouldBe(MinimizationSeverity.Violation);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class NotStrictlyNecessaryAttributeTests
         };
 
         // Assert
-        attribute.Severity.Should().Be(MinimizationSeverity.Info);
+        attribute.Severity.ShouldBe(MinimizationSeverity.Info);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class NotStrictlyNecessaryAttributeTests
             .Single();
 
         // Assert
-        usage.ValidOn.Should().Be(AttributeTargets.Property);
+        usage.ValidOn.ShouldBe(AttributeTargets.Property);
     }
 
     [Fact]
@@ -81,6 +81,6 @@ public class NotStrictlyNecessaryAttributeTests
             .Single();
 
         // Assert
-        usage.AllowMultiple.Should().BeFalse();
+        usage.AllowMultiple.ShouldBeFalse();
     }
 }

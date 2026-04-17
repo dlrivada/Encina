@@ -77,8 +77,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.PublishAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.PublishAsync<object>(null!).AsTask());
     }
 
     [Fact]
@@ -88,8 +88,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.RequestAsync<object, string>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.RequestAsync<object, string>(null!).AsTask());
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public sealed class NATSGuardTests
             NullLogger<NATSMessagePublisher>.Instance,
             Options.Create(new EncinaNATSOptions()));
 
-        await Should.ThrowAsync<ArgumentNullException>(async () =>
-            await sut.JetStreamPublishAsync<object>(null!));
+        await Should.ThrowAsync<ArgumentNullException>(
+            () => sut.JetStreamPublishAsync<object>(null!).AsTask());
     }
 
     // ─── NATSHealthCheck ───
@@ -108,7 +108,7 @@ public sealed class NATSGuardTests
     [Fact]
     public void NATSHealthCheck_Constructs()
     {
-        var sp = new ServiceCollection().BuildServiceProvider();
+        using var sp = new ServiceCollection().BuildServiceProvider();
         var sut = new NATSHealthCheck(sp, null);
         sut.ShouldNotBeNull();
     }
@@ -123,14 +123,32 @@ public sealed class NATSGuardTests
     }
 
     [Fact]
-    public void AddEncinaNATS_ValidServices_Registers()
+    public void AddEncinaNATS_ValidServices_RegistersPublisher()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         var result = services.AddEncinaNATS(o =>
             o.Url = "nats://localhost:4222");
+
         result.ShouldNotBeNull();
+
+        var publisherDescriptors = services
+            .Where(sd => sd.ServiceType == typeof(INATSMessagePublisher))
+            .ToList();
+        publisherDescriptors.Count.ShouldBe(1);
+        publisherDescriptors[0].ImplementationType.ShouldBe(typeof(NATSMessagePublisher));
+        publisherDescriptors[0].Lifetime.ShouldBe(ServiceLifetime.Scoped);
+
+        var connectionDescriptors = services
+            .Where(sd => sd.ServiceType == typeof(INatsConnection))
+            .ToList();
+        connectionDescriptors.Count.ShouldBe(1);
+        connectionDescriptors[0].Lifetime.ShouldBe(ServiceLifetime.Singleton);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<EncinaNATSOptions>>();
+        options.Value.Url.ShouldBe("nats://localhost:4222");
     }
 
     // ─── EncinaNATSOptions ───
@@ -139,7 +157,15 @@ public sealed class NATSGuardTests
     public void EncinaNATSOptions_Defaults()
     {
         var options = new EncinaNATSOptions();
-        options.ShouldNotBeNull();
+
+        options.Url.ShouldBe("nats://localhost:4222");
+        options.SubjectPrefix.ShouldBe("encina");
+        options.UseJetStream.ShouldBeFalse();
+        options.StreamName.ShouldBe("ENCINA");
+        options.ConsumerName.ShouldBe("encina-consumer");
+        options.UseDurableConsumer.ShouldBeTrue();
+        options.AckWait.ShouldBe(TimeSpan.FromSeconds(30));
+        options.MaxDeliver.ShouldBe(5);
     }
 
     // ─── NATSPublishAck record ───

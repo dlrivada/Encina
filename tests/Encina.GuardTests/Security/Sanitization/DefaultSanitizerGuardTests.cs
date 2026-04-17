@@ -1,7 +1,7 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Profiles;
-using FluentAssertions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Sanitization;
 
@@ -22,8 +22,8 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => new DefaultSanitizer(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -31,8 +31,8 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => _sut.SanitizeHtml(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -40,8 +40,8 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => _sut.SanitizeForSql(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => _sut.SanitizeForShell(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => _sut.SanitizeForJson(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => _sut.SanitizeForXml(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => _sut.Custom(null!, SanitizationProfiles.StrictText);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("input");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("input");
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class DefaultSanitizerGuardTests
     {
         var act = () => _sut.Custom("test", null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("profile");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("profile");
     }
 }

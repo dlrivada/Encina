@@ -5,12 +5,11 @@ using Encina.Compliance.LawfulBasis.ReadModels;
 using Encina.Compliance.LawfulBasis.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 using GDPR = global::Encina.Compliance.GDPR;
 
@@ -66,7 +65,7 @@ public class DefaultLawfulBasisServiceTests
             _timeProvider,
             NullLogger<DefaultLawfulBasisService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("registrationRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("registrationRepository");
     }
 
     [Fact]
@@ -81,7 +80,7 @@ public class DefaultLawfulBasisServiceTests
             _timeProvider,
             NullLogger<DefaultLawfulBasisService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("liaRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("liaRepository");
     }
 
     [Fact]
@@ -96,7 +95,7 @@ public class DefaultLawfulBasisServiceTests
             _timeProvider,
             NullLogger<DefaultLawfulBasisService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("registrationReadModels");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("registrationReadModels");
     }
 
     [Fact]
@@ -111,7 +110,7 @@ public class DefaultLawfulBasisServiceTests
             _timeProvider,
             NullLogger<DefaultLawfulBasisService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("liaReadModels");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("liaReadModels");
     }
 
     [Fact]
@@ -126,7 +125,7 @@ public class DefaultLawfulBasisServiceTests
             _timeProvider,
             NullLogger<DefaultLawfulBasisService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -141,7 +140,7 @@ public class DefaultLawfulBasisServiceTests
             null!,
             NullLogger<DefaultLawfulBasisService>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -156,7 +155,7 @@ public class DefaultLawfulBasisServiceTests
             _timeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -178,9 +177,9 @@ public class DefaultLawfulBasisServiceTests
             legalReference: null, contractReference: "contract-001");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: returnedId => returnedId.Should().Be(id),
+            Right: returnedId => returnedId.ShouldBe(id),
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         await _registrationRepository.Received(1).CreateAsync(
@@ -205,7 +204,7 @@ public class DefaultLawfulBasisServiceTests
             purpose: null, liaReference: null, legalReference: null, contractReference: null);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -231,7 +230,7 @@ public class DefaultLawfulBasisServiceTests
             legalReference: null, contractReference: null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _registrationRepository.Received(1).SaveAsync(
             Arg.Any<LawfulBasisAggregate>(), Arg.Any<CancellationToken>());
     }
@@ -250,10 +249,10 @@ public class DefaultLawfulBasisServiceTests
             purpose: null, liaReference: null, legalReference: null, contractReference: null);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(registrationId.ToString()));
+            Left: error => error.Message.ShouldContain(registrationId.ToString()));
     }
 
     #endregion
@@ -276,7 +275,7 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.RevokeAsync(registrationId, "No longer needed");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _registrationRepository.Received(1).SaveAsync(
             Arg.Any<LawfulBasisAggregate>(), Arg.Any<CancellationToken>());
     }
@@ -293,10 +292,10 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.RevokeAsync(registrationId, "No longer needed");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(registrationId.ToString()));
+            Left: error => error.Message.ShouldContain(registrationId.ToString()));
     }
 
     #endregion
@@ -331,9 +330,9 @@ public class DefaultLawfulBasisServiceTests
             dpoInvolvement: true);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: returnedId => returnedId.Should().Be(id),
+            Right: returnedId => returnedId.ShouldBe(id),
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         await _liaRepository.Received(1).CreateAsync(
@@ -364,7 +363,7 @@ public class DefaultLawfulBasisServiceTests
             liaId, "Balancing test favors controller", "dpo@example.com");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _liaRepository.Received(1).SaveAsync(
             Arg.Any<LIAAggregate>(), Arg.Any<CancellationToken>());
     }
@@ -382,10 +381,10 @@ public class DefaultLawfulBasisServiceTests
             liaId, "Balancing test favors controller", "dpo@example.com");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(liaId.ToString()));
+            Left: error => error.Message.ShouldContain(liaId.ToString()));
     }
 
     #endregion
@@ -409,7 +408,7 @@ public class DefaultLawfulBasisServiceTests
             liaId, "Data subject rights override", "dpo@example.com");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _liaRepository.Received(1).SaveAsync(
             Arg.Any<LIAAggregate>(), Arg.Any<CancellationToken>());
     }
@@ -427,10 +426,10 @@ public class DefaultLawfulBasisServiceTests
             liaId, "Data subject rights override", "dpo@example.com");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(liaId.ToString()));
+            Left: error => error.Message.ShouldContain(liaId.ToString()));
     }
 
     #endregion
@@ -451,9 +450,9 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.GetRegistrationAsync(registrationId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: model => model.Id.Should().Be(registrationId),
+            Right: model => model.Id.ShouldBe(registrationId),
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         // Should NOT hit the read model repository
@@ -477,7 +476,7 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.GetRegistrationAsync(registrationId);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _cache.Received(1).SetAsync(
             $"lb:reg:{registrationId}",
             Arg.Any<LawfulBasisReadModel>(),
@@ -499,10 +498,10 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.GetRegistrationAsync(registrationId);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         _ = result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: error => error.Message.Should().Contain(registrationId.ToString()));
+            Left: error => error.Message.ShouldContain(registrationId.ToString()));
     }
 
     #endregion
@@ -528,9 +527,9 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.HasApprovedLIAAsync(liaReference);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: approved => approved.Should().BeTrue(),
+            Right: approved => approved.ShouldBeTrue(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -553,9 +552,9 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.HasApprovedLIAAsync(liaReference);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: approved => approved.Should().BeFalse(),
+            Right: approved => approved.ShouldBeFalse(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -577,9 +576,9 @@ public class DefaultLawfulBasisServiceTests
         var result = await _sut.HasApprovedLIAAsync(liaReference);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: approved => approved.Should().BeFalse(),
+            Right: approved => approved.ShouldBeFalse(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 

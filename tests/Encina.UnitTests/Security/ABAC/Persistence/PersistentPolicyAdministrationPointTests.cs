@@ -3,13 +3,10 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence;
 
@@ -144,10 +141,10 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPolicySetsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var sets = result.Match(Right: s => s, Left: _ => []);
-        sets.Should().HaveCount(1);
-        sets[0].Id.Should().Be("ps-1");
+        sets.Count.ShouldBe(1);
+        sets[0].Id.ShouldBe("ps-1");
     }
 
     [Fact]
@@ -162,7 +159,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPolicySetsAsync();
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -182,7 +179,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPolicySetAsync("ps-found");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -195,19 +192,19 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPolicySetAsync("ps-missing");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = result.Match(Right: o => o, Left: _ => Option<PolicySet>.None);
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
-    public void GetPolicySetAsync_NullId_ThrowsArgumentException()
+    public async Task GetPolicySetAsync_NullId_ThrowsArgumentException()
     {
         // Act
         var act = async () => await _sut.GetPolicySetAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -228,7 +225,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicySetAsync(ps);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).SavePolicySetAsync(ps, Arg.Any<CancellationToken>());
     }
 
@@ -243,7 +240,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicySetAsync(ps);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -259,15 +256,15 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicySetAsync(ps);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
-    public void AddPolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
+    public async Task AddPolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.AddPolicySetAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -288,7 +285,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.UpdatePolicySetAsync(ps);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).SavePolicySetAsync(ps, Arg.Any<CancellationToken>());
     }
 
@@ -303,15 +300,15 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.UpdatePolicySetAsync(ps);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
-    public void UpdatePolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
+    public async Task UpdatePolicySetAsync_NullPolicySet_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.UpdatePolicySetAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -331,7 +328,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.RemovePolicySetAsync("ps-del");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).DeletePolicySetAsync("ps-del", Arg.Any<CancellationToken>());
     }
 
@@ -345,15 +342,15 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.RemovePolicySetAsync("ps-missing");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
-    public void RemovePolicySetAsync_NullId_ThrowsArgumentException()
+    public async Task RemovePolicySetAsync_NullId_ThrowsArgumentException()
     {
         var act = async () => await _sut.RemovePolicySetAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -376,10 +373,10 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPoliciesAsync(null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var policies = result.Match(Right: p => p, Left: _ => []);
-        policies.Should().HaveCount(1);
-        policies[0].Id.Should().Be("standalone-p");
+        policies.Count.ShouldBe(1);
+        policies[0].Id.ShouldBe("standalone-p");
     }
 
     [Fact]
@@ -397,10 +394,10 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPoliciesAsync("ps-parent");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var policies = result.Match(Right: p => p, Left: _ => []);
-        policies.Should().HaveCount(1);
-        policies[0].Id.Should().Be("nested-p");
+        policies.Count.ShouldBe(1);
+        policies[0].Id.ShouldBe("nested-p");
     }
 
     [Fact]
@@ -413,7 +410,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPoliciesAsync("ps-nope");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -433,9 +430,9 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPolicyAsync("p-standalone");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = result.Match(Right: o => o, Left: _ => Option<Policy>.None);
-        option.IsSome.Should().BeTrue();
+        option.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -453,9 +450,9 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPolicyAsync("p-nested");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = result.Match(Right: o => o, Left: _ => Option<Policy>.None);
-        option.IsSome.Should().BeTrue();
+        option.IsSome.ShouldBeTrue();
     }
 
     [Fact]
@@ -469,17 +466,17 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.GetPolicyAsync("p-ghost");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var option = result.Match(Right: o => o, Left: _ => Option<Policy>.None);
-        option.IsNone.Should().BeTrue();
+        option.IsNone.ShouldBeTrue();
     }
 
     [Fact]
-    public void GetPolicyAsync_NullId_ThrowsArgumentException()
+    public async Task GetPolicyAsync_NullId_ThrowsArgumentException()
     {
         var act = async () => await _sut.GetPolicyAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -501,7 +498,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicyAsync(policy, parentPolicySetId: null);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).SavePolicyAsync(policy, Arg.Any<CancellationToken>());
     }
 
@@ -516,7 +513,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicyAsync(policy, parentPolicySetId: null);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -535,15 +532,15 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicyAsync(policy, parentPolicySetId: null);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
-    public void AddPolicyAsync_NullPolicy_ThrowsArgumentNullException()
+    public async Task AddPolicyAsync_NullPolicy_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.AddPolicyAsync(null!, null);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -568,7 +565,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicyAsync(policy, parentPolicySetId: "ps-parent");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).SavePolicySetAsync(
             Arg.Is<PolicySet>(ps =>
                 ps.Id == "ps-parent" &&
@@ -590,7 +587,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.AddPolicyAsync(policy, parentPolicySetId: "ps-missing");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -611,7 +608,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.UpdatePolicyAsync(policy);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).SavePolicyAsync(policy, Arg.Any<CancellationToken>());
     }
 
@@ -631,7 +628,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.UpdatePolicyAsync(policy);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).SavePolicySetAsync(
             Arg.Is<PolicySet>(saved =>
                 saved.Id == "ps-parent" &&
@@ -651,15 +648,15 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.UpdatePolicyAsync(policy);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
-    public void UpdatePolicyAsync_NullPolicy_ThrowsArgumentNullException()
+    public async Task UpdatePolicyAsync_NullPolicy_ThrowsArgumentNullException()
     {
         var act = async () => await _sut.UpdatePolicyAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -679,7 +676,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.RemovePolicyAsync("p-del");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).DeletePolicyAsync("p-del", Arg.Any<CancellationToken>());
     }
 
@@ -699,7 +696,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.RemovePolicyAsync("p-nested-del");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _store.Received(1).SavePolicySetAsync(
             Arg.Is<PolicySet>(saved =>
                 saved.Id == "ps-parent" &&
@@ -719,15 +716,15 @@ public sealed class PersistentPolicyAdministrationPointTests
         var result = await _sut.RemovePolicyAsync("p-ghost");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
-    public void RemovePolicyAsync_NullId_ThrowsArgumentException()
+    public async Task RemovePolicyAsync_NullId_ThrowsArgumentException()
     {
         var act = async () => await _sut.RemovePolicyAsync(null!);
 
-        act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -743,7 +740,7 @@ public sealed class PersistentPolicyAdministrationPointTests
             null!,
             NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>());
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     [Fact]
@@ -752,7 +749,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         var store = Substitute.For<IPolicyStore>();
         var act = () => new PersistentPolicyAdministrationPoint(store, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion

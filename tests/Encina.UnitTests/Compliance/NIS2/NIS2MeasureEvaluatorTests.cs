@@ -5,16 +5,11 @@ using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Evaluators;
 using Encina.Compliance.NIS2.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.NIS2;
@@ -41,8 +36,8 @@ public class NIS2MeasureEvaluatorTests
     private static async Task AssertSatisfied(INIS2MeasureEvaluator evaluator, NIS2MeasureContext context)
     {
         var result = await evaluator.EvaluateAsync(context);
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.IsSatisfied.Should().BeTrue());
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.IsSatisfied.ShouldBeTrue());
     }
 
     private static List<ProcessingActivity> CreateDummyActivities(int count) =>
@@ -65,8 +60,8 @@ public class NIS2MeasureEvaluatorTests
     private static async Task AssertNotSatisfied(INIS2MeasureEvaluator evaluator, NIS2MeasureContext context)
     {
         var result = await evaluator.EvaluateAsync(context);
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.IsSatisfied.Should().BeFalse());
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.IsSatisfied.ShouldBeFalse());
     }
 
     #endregion
@@ -117,12 +112,12 @@ public class NIS2MeasureEvaluatorTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(r =>
         {
-            r.IsSatisfied.Should().BeTrue();
-            r.Details.Should().Contain("3 activities");
-            r.Details.Should().Contain("Art. 35");
+            r.IsSatisfied.ShouldBeTrue();
+            r.Details.ShouldContain("3 activities");
+            r.Details.ShouldContain("Art. 35");
         });
     }
 
@@ -148,11 +143,11 @@ public class NIS2MeasureEvaluatorTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(r =>
         {
-            r.IsSatisfied.Should().BeTrue();
-            r.Details.Should().Contain("empty");
+            r.IsSatisfied.ShouldBeTrue();
+            r.Details.ShouldContain("empty");
         });
     }
 
@@ -172,11 +167,11 @@ public class NIS2MeasureEvaluatorTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(r =>
         {
-            r.IsSatisfied.Should().BeTrue();
-            r.Details.Should().Contain("GDPR compliance validator");
+            r.IsSatisfied.ShouldBeTrue();
+            r.Details.ShouldContain("GDPR compliance validator");
         });
     }
 
@@ -198,8 +193,8 @@ public class NIS2MeasureEvaluatorTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert — still returns a result (satisfied based on policy flag)
-        result.IsRight.Should().BeTrue();
-        result.IfRight(r => r.IsSatisfied.Should().BeTrue());
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(r => r.IsSatisfied.ShouldBeTrue());
     }
 
     [Fact]
@@ -213,12 +208,12 @@ public class NIS2MeasureEvaluatorTests
         var result = await evaluator.EvaluateAsync(context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(r =>
         {
-            r.IsSatisfied.Should().BeFalse();
-            r.Recommendations.Should().Contain(rec => rec.Contains("GDPR"));
-            r.Recommendations.Should().Contain(rec => rec.Contains("IProcessingActivityRegistry"));
+            r.IsSatisfied.ShouldBeFalse();
+            r.Recommendations.ShouldContain(rec => rec.Contains("GDPR"));
+            r.Recommendations.ShouldContain(rec => rec.Contains("IProcessingActivityRegistry"));
         });
     }
 

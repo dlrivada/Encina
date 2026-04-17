@@ -378,9 +378,10 @@ public sealed class EncinaWireMockFixture : IAsyncLifetime
     public IReadOnlyList<ReceivedRequest> GetReceivedRequests()
     {
         return Server.LogEntries
+            .Where(e => e.RequestMessage is { Path: not null, Method: not null })
             .Select(e => new ReceivedRequest(
-                e.RequestMessage.Path,
-                e.RequestMessage.Method,
+                e.RequestMessage!.Path!,
+                e.RequestMessage.Method!,
                 e.RequestMessage.Headers?.ToDictionary(
                     h => h.Key,
                     h => (IReadOnlyList<string>)h.Value.ToList().AsReadOnly())

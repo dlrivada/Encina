@@ -1,6 +1,6 @@
 using Encina.Compliance.DataSubjectRights;
-using FluentAssertions;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataSubjectRights;
 
@@ -16,7 +16,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.RequestNotFound("req-001");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.RequestNotFoundCode),
+            Some: code => code.ShouldBe(DSRErrors.RequestNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -24,7 +24,7 @@ public class DSRErrorsTests
     public void RequestNotFound_ShouldIncludeRequestIdInMessage()
     {
         var error = DSRErrors.RequestNotFound("req-001");
-        error.Message.Should().Contain("req-001");
+        error.Message.ShouldContain("req-001");
     }
 
     #endregion
@@ -36,7 +36,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.RequestAlreadyCompleted("req-001");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.RequestAlreadyCompletedCode),
+            Some: code => code.ShouldBe(DSRErrors.RequestAlreadyCompletedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -44,7 +44,7 @@ public class DSRErrorsTests
     public void RequestAlreadyCompleted_ShouldIncludeRequestIdInMessage()
     {
         var error = DSRErrors.RequestAlreadyCompleted("req-001");
-        error.Message.Should().Contain("req-001");
+        error.Message.ShouldContain("req-001");
     }
 
     #endregion
@@ -56,7 +56,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.IdentityNotVerified("req-001");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.IdentityNotVerifiedCode),
+            Some: code => code.ShouldBe(DSRErrors.IdentityNotVerifiedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -69,7 +69,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.RestrictionActive("subject-1");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.RestrictionActiveCode),
+            Some: code => code.ShouldBe(DSRErrors.RestrictionActiveCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -77,7 +77,7 @@ public class DSRErrorsTests
     public void RestrictionActive_ShouldIncludeSubjectIdInMessage()
     {
         var error = DSRErrors.RestrictionActive("subject-1");
-        error.Message.Should().Contain("subject-1");
+        error.Message.ShouldContain("subject-1");
     }
 
     #endregion
@@ -89,7 +89,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.ErasureFailed("subject-1", "Database error");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.ErasureFailedCode),
+            Some: code => code.ShouldBe(DSRErrors.ErasureFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -97,8 +97,8 @@ public class DSRErrorsTests
     public void ErasureFailed_ShouldIncludeSubjectIdAndMessageInMessage()
     {
         var error = DSRErrors.ErasureFailed("subject-1", "Database error");
-        error.Message.Should().Contain("subject-1");
-        error.Message.Should().Contain("Database error");
+        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldContain("Database error");
     }
 
     #endregion
@@ -110,7 +110,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.ExportFailed("subject-1", ExportFormat.JSON, "Serialization error");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.ExportFailedCode),
+            Some: code => code.ShouldBe(DSRErrors.ExportFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -123,7 +123,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.FormatNotSupported(ExportFormat.XML);
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.FormatNotSupportedCode),
+            Some: code => code.ShouldBe(DSRErrors.FormatNotSupportedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -131,7 +131,7 @@ public class DSRErrorsTests
     public void FormatNotSupported_ShouldIncludeFormatInMessage()
     {
         var error = DSRErrors.FormatNotSupported(ExportFormat.XML);
-        error.Message.Should().Contain("XML");
+        error.Message.ShouldContain("XML");
     }
 
     #endregion
@@ -144,7 +144,7 @@ public class DSRErrorsTests
         var deadline = new DateTimeOffset(2026, 3, 29, 12, 0, 0, TimeSpan.Zero);
         var error = DSRErrors.DeadlineExpired("req-001", deadline);
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.DeadlineExpiredCode),
+            Some: code => code.ShouldBe(DSRErrors.DeadlineExpiredCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -157,7 +157,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.ExemptionApplies("subject-1", ErasureExemption.LegalObligation, "Tax records");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.ExemptionAppliesCode),
+            Some: code => code.ShouldBe(DSRErrors.ExemptionAppliesCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -170,7 +170,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.SubjectNotFound("subject-1");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.SubjectNotFoundCode),
+            Some: code => code.ShouldBe(DSRErrors.SubjectNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -183,7 +183,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.LocatorFailed("subject-1", "Connection timeout");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.LocatorFailedCode),
+            Some: code => code.ShouldBe(DSRErrors.LocatorFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -196,7 +196,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.StoreError("Create", "Duplicate key");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.StoreErrorCode),
+            Some: code => code.ShouldBe(DSRErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -204,7 +204,7 @@ public class DSRErrorsTests
     public void StoreError_ShouldIncludeOperationInMessage()
     {
         var error = DSRErrors.StoreError("Create", "Duplicate key");
-        error.Message.Should().Contain("Create");
+        error.Message.ShouldContain("Create");
     }
 
     #endregion
@@ -216,7 +216,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.RectificationFailed("subject-1", "Email", "Field not found");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.RectificationFailedCode),
+            Some: code => code.ShouldBe(DSRErrors.RectificationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -229,7 +229,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.ObjectionRejected("subject-1", "DirectMarketing", "Legitimate interest");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.ObjectionRejectedCode),
+            Some: code => code.ShouldBe(DSRErrors.ObjectionRejectedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -242,7 +242,7 @@ public class DSRErrorsTests
     {
         var error = DSRErrors.InvalidRequest("Missing subject ID");
         error.GetCode().Match(
-            Some: code => code.Should().Be(DSRErrors.InvalidRequestCode),
+            Some: code => code.ShouldBe(DSRErrors.InvalidRequestCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -254,21 +254,21 @@ public class DSRErrorsTests
     public void ErrorCodes_ShouldFollowDSRConvention()
     {
         // All DSR error codes should start with "dsr."
-        DSRErrors.RequestNotFoundCode.Should().StartWith("dsr.");
-        DSRErrors.RequestAlreadyCompletedCode.Should().StartWith("dsr.");
-        DSRErrors.IdentityNotVerifiedCode.Should().StartWith("dsr.");
-        DSRErrors.RestrictionActiveCode.Should().StartWith("dsr.");
-        DSRErrors.ErasureFailedCode.Should().StartWith("dsr.");
-        DSRErrors.ExportFailedCode.Should().StartWith("dsr.");
-        DSRErrors.FormatNotSupportedCode.Should().StartWith("dsr.");
-        DSRErrors.DeadlineExpiredCode.Should().StartWith("dsr.");
-        DSRErrors.ExemptionAppliesCode.Should().StartWith("dsr.");
-        DSRErrors.SubjectNotFoundCode.Should().StartWith("dsr.");
-        DSRErrors.LocatorFailedCode.Should().StartWith("dsr.");
-        DSRErrors.StoreErrorCode.Should().StartWith("dsr.");
-        DSRErrors.RectificationFailedCode.Should().StartWith("dsr.");
-        DSRErrors.ObjectionRejectedCode.Should().StartWith("dsr.");
-        DSRErrors.InvalidRequestCode.Should().StartWith("dsr.");
+        DSRErrors.RequestNotFoundCode.ShouldStartWith("dsr.");
+        DSRErrors.RequestAlreadyCompletedCode.ShouldStartWith("dsr.");
+        DSRErrors.IdentityNotVerifiedCode.ShouldStartWith("dsr.");
+        DSRErrors.RestrictionActiveCode.ShouldStartWith("dsr.");
+        DSRErrors.ErasureFailedCode.ShouldStartWith("dsr.");
+        DSRErrors.ExportFailedCode.ShouldStartWith("dsr.");
+        DSRErrors.FormatNotSupportedCode.ShouldStartWith("dsr.");
+        DSRErrors.DeadlineExpiredCode.ShouldStartWith("dsr.");
+        DSRErrors.ExemptionAppliesCode.ShouldStartWith("dsr.");
+        DSRErrors.SubjectNotFoundCode.ShouldStartWith("dsr.");
+        DSRErrors.LocatorFailedCode.ShouldStartWith("dsr.");
+        DSRErrors.StoreErrorCode.ShouldStartWith("dsr.");
+        DSRErrors.RectificationFailedCode.ShouldStartWith("dsr.");
+        DSRErrors.ObjectionRejectedCode.ShouldStartWith("dsr.");
+        DSRErrors.InvalidRequestCode.ShouldStartWith("dsr.");
     }
 
     [Fact]
@@ -293,7 +293,7 @@ public class DSRErrorsTests
             DSRErrors.InvalidRequestCode
         };
 
-        codes.Should().OnlyHaveUniqueItems();
+        codes.ShouldBeUnique();
     }
 
     #endregion

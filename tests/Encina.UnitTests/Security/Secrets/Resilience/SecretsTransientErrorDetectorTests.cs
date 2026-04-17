@@ -3,7 +3,7 @@
 using System.Net.Sockets;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.Resilience;
 
@@ -18,7 +18,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransient(error);
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransient(error);
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransient(error);
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransient(error);
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransient(error);
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion
@@ -72,7 +72,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class SecretsTransientErrorDetectorTests
 
         var result = SecretsTransientErrorDetector.IsTransientException(exception);
 
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion

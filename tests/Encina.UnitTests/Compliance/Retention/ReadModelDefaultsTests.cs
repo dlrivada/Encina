@@ -1,7 +1,7 @@
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -18,16 +18,16 @@ public sealed class ReadModelDefaultsTests
     {
         var model = new LegalHoldReadModel();
 
-        model.Id.Should().Be(Guid.Empty);
-        model.EntityId.Should().Be(string.Empty);
-        model.Reason.Should().Be(string.Empty);
-        model.AppliedByUserId.Should().Be(string.Empty);
-        model.IsActive.Should().BeFalse();
-        model.ReleasedByUserId.Should().BeNull();
-        model.ReleasedAtUtc.Should().BeNull();
-        model.TenantId.Should().BeNull();
-        model.ModuleId.Should().BeNull();
-        model.Version.Should().Be(0);
+        model.Id.ShouldBe(Guid.Empty);
+        model.EntityId.ShouldBe(string.Empty);
+        model.Reason.ShouldBe(string.Empty);
+        model.AppliedByUserId.ShouldBe(string.Empty);
+        model.IsActive.ShouldBeFalse();
+        model.ReleasedByUserId.ShouldBeNull();
+        model.ReleasedAtUtc.ShouldBeNull();
+        model.TenantId.ShouldBeNull();
+        model.ModuleId.ShouldBeNull();
+        model.Version.ShouldBe(0);
     }
 
     [Fact]
@@ -50,11 +50,11 @@ public sealed class ReadModelDefaultsTests
             Version = 1
         };
 
-        model.Id.Should().Be(id);
-        model.EntityId.Should().Be("cust-123");
-        model.IsActive.Should().BeTrue();
-        model.TenantId.Should().Be("tenant-1");
-        model.ModuleId.Should().Be("mod-a");
+        model.Id.ShouldBe(id);
+        model.EntityId.ShouldBe("cust-123");
+        model.IsActive.ShouldBeTrue();
+        model.TenantId.ShouldBe("tenant-1");
+        model.ModuleId.ShouldBe("mod-a");
     }
 
     #endregion
@@ -66,18 +66,18 @@ public sealed class ReadModelDefaultsTests
     {
         var model = new RetentionPolicyReadModel();
 
-        model.Id.Should().Be(Guid.Empty);
-        model.DataCategory.Should().Be(string.Empty);
-        model.RetentionPeriod.Should().Be(TimeSpan.Zero);
-        model.AutoDelete.Should().BeFalse();
-        model.PolicyType.Should().Be(RetentionPolicyType.TimeBased);
-        model.Reason.Should().BeNull();
-        model.LegalBasis.Should().BeNull();
-        model.IsActive.Should().BeFalse();
-        model.DeactivationReason.Should().BeNull();
-        model.TenantId.Should().BeNull();
-        model.ModuleId.Should().BeNull();
-        model.Version.Should().Be(0);
+        model.Id.ShouldBe(Guid.Empty);
+        model.DataCategory.ShouldBe(string.Empty);
+        model.RetentionPeriod.ShouldBe(TimeSpan.Zero);
+        model.AutoDelete.ShouldBeFalse();
+        model.PolicyType.ShouldBe(RetentionPolicyType.TimeBased);
+        model.Reason.ShouldBeNull();
+        model.LegalBasis.ShouldBeNull();
+        model.IsActive.ShouldBeFalse();
+        model.DeactivationReason.ShouldBeNull();
+        model.TenantId.ShouldBeNull();
+        model.ModuleId.ShouldBeNull();
+        model.Version.ShouldBe(0);
     }
 
     [Fact]
@@ -103,11 +103,11 @@ public sealed class ReadModelDefaultsTests
             Version = 3
         };
 
-        model.DataCategory.Should().Be("financial-records");
-        model.AutoDelete.Should().BeTrue();
-        model.PolicyType.Should().Be(RetentionPolicyType.EventBased);
-        model.LegalBasis.Should().Be("Tax Code section 147");
-        model.Version.Should().Be(3);
+        model.DataCategory.ShouldBe("financial-records");
+        model.AutoDelete.ShouldBeTrue();
+        model.PolicyType.ShouldBe(RetentionPolicyType.EventBased);
+        model.LegalBasis.ShouldBe("Tax Code section 147");
+        model.Version.ShouldBe(3);
     }
 
     #endregion
@@ -125,7 +125,7 @@ public sealed class ReadModelDefaultsTests
             Status = RetentionStatus.UnderLegalHold
         };
 
-        model.IsExpired(DateTimeOffset.UtcNow).Should().BeTrue();
+        model.IsExpired(DateTimeOffset.UtcNow).ShouldBeTrue();
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class ReadModelDefaultsTests
             Status = RetentionStatus.Expired
         };
 
-        model.IsExpired(DateTimeOffset.UtcNow).Should().BeTrue();
+        model.IsExpired(DateTimeOffset.UtcNow).ShouldBeTrue();
     }
 
     #endregion

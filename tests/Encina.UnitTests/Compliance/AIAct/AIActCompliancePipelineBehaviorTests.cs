@@ -1,12 +1,11 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.AIAct;
@@ -36,7 +35,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleHighRiskRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- No attributes (passthrough) --
@@ -52,7 +51,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleNoAttributeRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- Prohibited use (always blocked) --
@@ -69,7 +68,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleHighRiskRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -84,7 +83,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleHighRiskRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     // -- Violations in Block mode --
@@ -101,7 +100,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleHighRiskRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     // -- Violations in Warn mode --
@@ -118,7 +117,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleHighRiskRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- No violations --
@@ -135,7 +134,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleHighRiskRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- Validator error --
@@ -157,7 +156,7 @@ public class AIActCompliancePipelineBehaviorTests
             new SampleHighRiskRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     // -- Null request --
@@ -173,8 +172,8 @@ public class AIActCompliancePipelineBehaviorTests
             null!, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     // -- Helpers --

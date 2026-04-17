@@ -1,6 +1,6 @@
 using Encina.Security.Audit;
-using FluentAssertions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 
@@ -23,8 +23,8 @@ public class DefaultSensitiveDataRedactorGuardTests
     {
         var act = () => _redactor.MaskForAudit<TestRequest>(null!, (IEnumerable<string>?)null);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("request");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -32,8 +32,8 @@ public class DefaultSensitiveDataRedactorGuardTests
     {
         var act = () => _redactor.MaskForAudit((object)null!, (IEnumerable<string>?)null);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("request");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class DefaultSensitiveDataRedactorGuardTests
 
         var act = () => _redactor.MaskForAudit(request, AdditionalFields);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class DefaultSensitiveDataRedactorGuardTests
 
         var act = () => _redactor.MaskForAudit((object)request, AdditionalFields);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class DefaultSensitiveDataRedactorGuardTests
     {
         var act = () => _redactor.RedactJsonString(null!);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class DefaultSensitiveDataRedactorGuardTests
     {
         var act = () => _redactor.RedactJsonString(string.Empty);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class DefaultSensitiveDataRedactorGuardTests
     {
         var act = () => _redactor.RedactJsonString("   ");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class DefaultSensitiveDataRedactorGuardTests
     {
         var act = () => _redactor.RedactJsonString("{\"name\":\"test\",\"password\":\"secret\"}");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -93,8 +93,8 @@ public class DefaultSensitiveDataRedactorGuardTests
     {
         var act = () => new DefaultSensitiveDataRedactor(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     public class TestRequest

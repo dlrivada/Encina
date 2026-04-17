@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit.ReadAudit;
 
@@ -17,7 +17,7 @@ public class ReadAuditContextTests
         var context = new ReadAuditContext();
 
         // Assert
-        context.Purpose.Should().BeNull();
+        context.Purpose.ShouldBeNull();
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class ReadAuditContextTests
         context.WithPurpose("Patient care review");
 
         // Assert
-        context.Purpose.Should().Be("Patient care review");
+        context.Purpose.ShouldBe("Patient care review");
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class ReadAuditContextTests
         var result = context.WithPurpose("Some purpose");
 
         // Assert
-        result.Should().BeSameAs(context);
+        result.ShouldBeSameAs(context);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class ReadAuditContextTests
         context.WithPurpose("Second purpose");
 
         // Assert
-        context.Purpose.Should().Be("Second purpose");
+        context.Purpose.ShouldBe("Second purpose");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class ReadAuditContextTests
         var act = () => context.WithPurpose(null!);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class ReadAuditContextTests
         var act = () => context.WithPurpose(string.Empty);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class ReadAuditContextTests
         var act = () => context.WithPurpose("   ");
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion

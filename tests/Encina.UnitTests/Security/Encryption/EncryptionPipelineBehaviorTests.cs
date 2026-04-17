@@ -4,11 +4,11 @@ using System.Security.Cryptography;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Algorithms;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.Encryption;
@@ -52,7 +52,7 @@ public sealed class EncryptionPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _orchestrator.DidNotReceive().EncryptAsync(
             Arg.Any<TestPlainCommand>(),
             Arg.Any<IRequestContext>(),
@@ -77,7 +77,7 @@ public sealed class EncryptionPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _orchestrator.Received(1).EncryptAsync(
             Arg.Any<TestCommand>(),
             Arg.Any<IRequestContext>(),
@@ -99,7 +99,7 @@ public sealed class EncryptionPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -123,7 +123,7 @@ public sealed class EncryptionPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _orchestrator.Received(1).DecryptAsync(
             Arg.Any<TestDecryptOnReceiveCommand>(),
             Arg.Any<IRequestContext>(),
@@ -146,7 +146,7 @@ public sealed class EncryptionPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -170,7 +170,7 @@ public sealed class EncryptionPipelineBehaviorTests : IDisposable
             },
             CancellationToken.None);
 
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     #endregion

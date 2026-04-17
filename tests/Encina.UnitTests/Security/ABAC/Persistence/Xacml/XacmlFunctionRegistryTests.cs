@@ -1,7 +1,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence.Xacml;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence.Xacml;
 
@@ -29,7 +29,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.ToUrn(shortId);
 
         // Assert
-        result.Should().Be(expectedUrn);
+        result.ShouldBe(expectedUrn);
     }
 
     [Theory]
@@ -45,7 +45,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.ToUrn(shortId);
 
         // Assert
-        result.Should().Be(expectedUrn);
+        result.ShouldBe(expectedUrn);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.ToUrn(urn);
 
         // Assert
-        result.Should().Be(urn);
+        result.ShouldBe(urn);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.ToUrn(unknown);
 
         // Assert
-        result.Should().Be(unknown);
+        result.ShouldBe(unknown);
     }
 
     #endregion
@@ -90,7 +90,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.ToShortId(urn);
 
         // Assert
-        result.Should().Be(expectedShortId);
+        result.ShouldBe(expectedShortId);
     }
 
     [Theory]
@@ -103,7 +103,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.ToShortId(urn);
 
         // Assert
-        result.Should().Be(expectedShortId);
+        result.ShouldBe(expectedShortId);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.ToShortId(unknown);
 
         // Assert
-        result.Should().Be(unknown);
+        result.ShouldBe(unknown);
     }
 
     #endregion
@@ -132,7 +132,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.IsKnownUrn("urn:oasis:names:tc:xacml:1.0:function:string-equal");
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.IsKnownUrn("urn:oasis:names:tc:xacml:3.0:function:string-starts-with");
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public sealed class XacmlFunctionRegistryTests
         var result = XacmlFunctionRegistry.IsKnownUrn("urn:custom:unknown");
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion
@@ -166,7 +166,7 @@ public sealed class XacmlFunctionRegistryTests
     {
         // Assert — Both dictionaries must have the same number of entries
         XacmlFunctionRegistry.ShortIdToUrn.Count
-            .Should().Be(XacmlFunctionRegistry.UrnToShortId.Count);
+            .ShouldBe(XacmlFunctionRegistry.UrnToShortId.Count);
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public sealed class XacmlFunctionRegistryTests
         foreach (var (shortId, urn) in XacmlFunctionRegistry.ShortIdToUrn)
         {
             var roundTripped = XacmlFunctionRegistry.ToShortId(urn);
-            roundTripped.Should().Be(shortId, $"Round-trip failed for short ID '{shortId}'");
+            roundTripped.ShouldBe(shortId, $"Round-trip failed for short ID '{shortId}'");
         }
     }
 
@@ -187,7 +187,7 @@ public sealed class XacmlFunctionRegistryTests
         foreach (var (urn, shortId) in XacmlFunctionRegistry.UrnToShortId)
         {
             var roundTripped = XacmlFunctionRegistry.ToUrn(shortId);
-            roundTripped.Should().Be(urn, $"Round-trip failed for URN '{urn}'");
+            roundTripped.ShouldBe(urn, $"Round-trip failed for URN '{urn}'");
         }
     }
 
