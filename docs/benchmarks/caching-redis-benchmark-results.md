@@ -42,10 +42,10 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2/2025Update/HudsonValle
 
 **Key observations**:
 
-- **~1-2 ms per round-trip** is the Windows Docker Desktop floor. On Linux CI runners with native Docker, expect 2-3x faster (~400-700 µs/op) and tighter variance.
-- **Cache-miss GetOrSet takes ~4x a plain Set** (5.5 ms vs. 1.3 ms) because the client issues `GET` then `SET` sequentially instead of pipelining; the factory call itself is negligible (~2 µs in Memory benchmarks).
-- **`RemoveByPatternAsync` is the heaviest single operation** at 16 ms for a 5-key cleanup — dominated by `SCAN` cursor iteration. Expect linear scaling with matched-key count; avoid for hot paths.
-- **Allocation is consistent with JSON serialization costs**: `SET` allocates ~1 KB for a small payload, `GetOrSetAsync_CacheMiss` doubles that because both paths run; `RemoveByPatternAsync` allocates ~7.5 KB for cursor + pipeline buffers.
+- **Single-operation Redis calls sit in the low-millisecond range in this environment** because Windows Docker Desktop loopback dominates the floor. On Linux CI runners with native Docker, expect materially lower latency and tighter variance.
+- **Cache-miss `GetOrSetAsync` is several times slower than a plain `SetAsync`** because the client performs a read, then runs the factory, then writes the value back; the extra network round-trips dominate the cost.
+- **`RemoveByPatternAsync` is the heaviest operation in this run** because it combines `SCAN` cursor iteration with batched deletes. Expect roughly linear scaling with the number of matched keys, so avoid it on hot paths.
+- **Allocation tracks the amount of work performed**: JSON serialization/deserialization makes `Get`/`Set` paths allocate more than existence checks, cache-miss `GetOrSetAsync` allocates more than either path alone, and pattern removal adds cursor and pipeline buffer overhead.
 
 ## Stability interpretation
 

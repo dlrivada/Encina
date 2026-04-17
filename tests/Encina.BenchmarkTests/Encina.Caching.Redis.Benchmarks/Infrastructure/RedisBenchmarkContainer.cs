@@ -35,13 +35,19 @@ public sealed class RedisBenchmarkContainer : IAsyncDisposable
 
     public void Stop()
     {
-        _connection?.Dispose();
-        _container.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        StopAndDisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     public async ValueTask DisposeAsync()
     {
+        await StopAndDisposeAsync().ConfigureAwait(false);
+    }
+
+    private async ValueTask StopAndDisposeAsync()
+    {
         _connection?.Dispose();
+        _connection = null;
+        await _container.StopAsync().ConfigureAwait(false);
         await _container.DisposeAsync().ConfigureAwait(false);
     }
 }
