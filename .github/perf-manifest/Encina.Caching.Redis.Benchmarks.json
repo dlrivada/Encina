@@ -2,9 +2,11 @@
   "project": "Encina.Caching.Redis.Benchmarks",
   "generated": "2026-04-14T00:00:00.0000000Z",
   "totalClasses": 1,
-  "totalMethods": 9,
+  "totalMethods": 10,
   "targets": {
     "$comment": "Baselines captured 2026-04-14 on i9-13900KS (Windows Docker Desktop) via --job short against Testcontainers redis:7-alpine. Means are in microseconds at the wire because the Docker bridge adds ~1ms of loopback latency + jitter; the Linux CI runner runs Docker natively and is typically 2-3x faster. Targets apply ~3x headroom over local Windows numbers to absorb runner variance. Revisit after first CI run.",
+    "ExistsAsync_False.mean_ns_max": 3100000,
+    "ExistsAsync_False.allocated_bytes_max": 890,
     "ExistsAsync_True.mean_ns_max": 3100000,
     "ExistsAsync_True.allocated_bytes_max": 890,
     "GetAsync_CacheHit.mean_ns_max": 4000000,
@@ -26,6 +28,7 @@
   },
   "stabilityOverrides": {
     "$comment": "Docker-bridge RTT to a Testcontainers redis:7-alpine instance dominates each benchmark. Loopback latency on Windows Docker Desktop fluctuates between 200us and 2ms per round-trip, so CoV stays above 20% even at N=20. The measurements are meaningful as orders of magnitude (microseconds vs. the nanosecond paths of Memory/Hybrid) but not precise enough for stable regression detection. All methods listed.",
+    "RedisCacheProviderBenchmarks.ExistsAsync_False": "Docker loopback jitter dominates; CoV ~45% at N=20.",
     "RedisCacheProviderBenchmarks.ExistsAsync_True": "Docker loopback jitter dominates; CoV ~45% at N=20.",
     "RedisCacheProviderBenchmarks.GetAsync_CacheHit": "Docker loopback jitter dominates; CoV ~34% at N=20.",
     "RedisCacheProviderBenchmarks.GetAsync_CacheMiss": "Docker loopback jitter dominates; CoV ~36% at N=20, multimodal.",
@@ -44,6 +47,7 @@
       "file": "RedisCacheProviderBenchmarks.cs",
       "hasMemoryDiagnoser": true,
       "methods": [
+        { "name": "ExistsAsync_False", "docRef": "bench:caching-redis/exists-false" },
         { "name": "ExistsAsync_True", "docRef": "bench:caching-redis/exists-true" },
         { "name": "GetAsync_CacheHit", "docRef": "bench:caching-redis/get-hit" },
         { "name": "GetAsync_CacheMiss", "docRef": "bench:caching-redis/get-miss" },

@@ -9,7 +9,7 @@ This baseline measures the `MemoryCacheProvider` wrapper around the built-in `IM
 
 ## Benchmark Environment
 
-```
+```text
 BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2/2025Update/HudsonValley2)
 13th Gen Intel Core i9-13900KS 3.20GHz, 1 CPU, 32 logical and 24 physical cores
 .NET SDK 10.0.201

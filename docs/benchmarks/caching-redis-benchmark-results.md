@@ -5,13 +5,13 @@
 > **Project**: `tests/Encina.BenchmarkTests/Encina.Caching.Redis.Benchmarks`
 > **Backing store**: Testcontainers `redis:7-alpine` (standalone, bridge network)
 
-This baseline measures `RedisCacheProvider` over a Testcontainers-managed Redis 7 instance. **All means are in microseconds** because each call crosses the Docker loopback bridge — unlike the Memory (ns) and Hybrid (ns with in-memory L2) providers.
+This baseline measures `RedisCacheProvider` over a Testcontainers-managed Redis 7 instance. **All means are in milliseconds** because each call crosses the Docker loopback bridge — unlike the Memory (ns) and Hybrid (ns with in-memory L2) providers.
 
 > **Why so noisy?** Docker Desktop on Windows routes loopback traffic through a VM-to-host bridge that fluctuates between 200 µs and 2 ms per round-trip. This inflates per-benchmark CoV to 30-50% even at N=20. The numbers are meaningful as orders of magnitude (microseconds vs. the nanosecond paths of Memory/Hybrid) but not precise enough for stable regression detection — every method is listed in `stabilityOverrides`.
 
 ## Benchmark Environment
 
-```
+```text
 BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2/2025Update/HudsonValley2)
 13th Gen Intel Core i9-13900KS 3.20GHz, 1 CPU, 32 logical and 24 physical cores
 .NET SDK 10.0.201
@@ -28,13 +28,14 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2/2025Update/HudsonValle
 |--------|-----:|----------:|--------|-------|
 | **GetAsync_CacheHit** (baseline) ⚠ | 1.31 ms | 1,128 B | `bench:caching-redis/get-hit` | Single `GET` + JSON deserialize |
 | **GetAsync_CacheMiss** ⚠ | 1.53 ms | 648 B | `bench:caching-redis/get-miss` | `GET` returning nil |
-| **ExistsAsync_True** ⚠ | 1.03 ms | 592 B | `bench:caching-redis/exists-true` | `EXISTS` command |
+| **ExistsAsync_True** ⚠ | 1.03 ms | 592 B | `bench:caching-redis/exists-true` | `EXISTS` command (hit) |
+| **ExistsAsync_False** ⚠ | ~1 ms | ~592 B | `bench:caching-redis/exists-false` | `EXISTS` command (miss) |
 | **GetOrSetAsync_CacheHit** ⚠ | 1.69 ms | 1,432 B | `bench:caching-redis/getorset-hit` | Hit path: read-only |
 | **GetOrSetAsync_CacheMiss** ⚠ | 5.52 ms | 3,256 B | `bench:caching-redis/getorset-miss` | `GET` + factory + `SET` pipeline |
 | **SetAsync** ⚠ | 1.35 ms | 1,016 B | `bench:caching-redis/set` | JSON serialize + `SET` with EX |
 | **SetWithSlidingExpirationAsync** ⚠ | 1.75 ms | 1,696 B | `bench:caching-redis/set-sliding` | `SET` with absolute expiration + sliding metadata |
-| **RemoveAsync** ⚠ | 1.71 ms | 1,528 B | `bench:caching-redis/remove` | Inline `SET` + `DEL` (measures round-trip + delete) |
-| **RemoveByPatternAsync** ⚠ | 16.0 ms | 7,688 B | `bench:caching-redis/remove-by-pattern` | `SCAN` + pipelined `DEL` on 5 keys |
+| **RemoveAsync** ⚠ | ~1 ms | ~1,000 B | `bench:caching-redis/remove` | Pure `DEL` (seeding isolated to `IterationSetup`) |
+| **RemoveByPatternAsync** ⚠ | ~5 ms | ~4,800 B | `bench:caching-redis/remove-by-pattern` | `SCAN` + pipelined `DEL` on 5 keys (seeding isolated) |
 <!-- /docref-table -->
 
 ⚠ = listed in `stabilityOverrides` (Docker loopback jitter dominates — not code drift).

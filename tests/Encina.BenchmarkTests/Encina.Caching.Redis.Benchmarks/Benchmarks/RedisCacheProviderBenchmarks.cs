@@ -19,6 +19,8 @@ public class RedisCacheProviderBenchmarks : IDisposable
     private bool _disposed;
     private string _existingKey = null!;
     private string _missingKey = null!;
+    private string _removeKey = null!;
+    private string _patternPrefix = null!;
     private TestData _testData = null!;
 
     [GlobalSetup]
@@ -30,7 +32,7 @@ public class RedisCacheProviderBenchmarks : IDisposable
         var options = Options.Create(new RedisCacheOptions
         {
             DefaultExpiration = TimeSpan.FromMinutes(5),
-            KeyPrefix = "bench:"
+            KeyPrefix = "bench"
         });
 
         _provider = new RedisCacheProvider(
@@ -92,6 +94,13 @@ public class RedisCacheProviderBenchmarks : IDisposable
         return await _provider.ExistsAsync(_existingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-redis/exists-false")]
+    [Benchmark]
+    public async Task<bool> ExistsAsync_False()
+    {
+        return await _provider.ExistsAsync(_missingKey, CancellationToken.None);
+    }
+
     [BenchmarkCategory("DocRef:bench:caching-redis/getorset-hit")]
     [Benchmark]
     public async Task<TestData> GetOrSetAsync_CacheHit()
@@ -115,26 +124,37 @@ public class RedisCacheProviderBenchmarks : IDisposable
             CancellationToken.None);
     }
 
+    [IterationSetup(Target = nameof(RemoveAsync))]
+    public void SeedRemoveKey()
+    {
+        _removeKey = $"remove-{Guid.NewGuid():N}";
+        _provider.SetAsync(_removeKey, _testData, TimeSpan.FromMinutes(5), CancellationToken.None)
+            .GetAwaiter().GetResult();
+    }
+
     [BenchmarkCategory("DocRef:bench:caching-redis/remove")]
     [Benchmark]
     public async Task RemoveAsync()
     {
-        var key = $"remove-{Guid.NewGuid():N}";
-        await _provider.SetAsync(key, _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
-        await _provider.RemoveAsync(key, CancellationToken.None);
+        await _provider.RemoveAsync(_removeKey, CancellationToken.None);
+    }
+
+    [IterationSetup(Target = nameof(RemoveByPatternAsync))]
+    public void SeedPatternKeys()
+    {
+        _patternPrefix = $"pattern-{Guid.NewGuid():N}";
+        for (var i = 0; i < 5; i++)
+        {
+            _provider.SetAsync($"{_patternPrefix}-{i}", _testData, TimeSpan.FromMinutes(5), CancellationToken.None)
+                .GetAwaiter().GetResult();
+        }
     }
 
     [BenchmarkCategory("DocRef:bench:caching-redis/remove-by-pattern")]
     [Benchmark]
     public async Task RemoveByPatternAsync()
     {
-        var prefix = $"pattern-{Guid.NewGuid():N}";
-        for (var i = 0; i < 5; i++)
-        {
-            await _provider.SetAsync($"{prefix}-{i}", _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
-        }
-
-        await _provider.RemoveByPatternAsync($"{prefix}-*", CancellationToken.None);
+        await _provider.RemoveByPatternAsync($"{_patternPrefix}-*", CancellationToken.None);
     }
 
     [BenchmarkCategory("DocRef:bench:caching-redis/set-sliding")]
