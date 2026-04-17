@@ -77,7 +77,7 @@ public sealed class TypeConversionFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.IntegerFromString)!;
         var act = () => fn.Evaluate(["abc"]);
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*cannot parse*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot parse");
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class TypeConversionFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.DoubleFromString)!;
         var act = () => fn.Evaluate(["not-a-number"]);
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*cannot parse*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot parse");
     }
 
     #endregion
@@ -161,7 +161,7 @@ public sealed class TypeConversionFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.BooleanFromString)!;
         var act = () => fn.Evaluate(["yes"]);
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*cannot parse*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("cannot parse");
     }
 
     [Fact]

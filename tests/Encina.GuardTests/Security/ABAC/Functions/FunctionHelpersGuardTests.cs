@@ -32,7 +32,7 @@ public class FunctionHelpersGuardTests
 
         var act = (Action)(() => FunctionHelpers.ValidateArgCount(args, 2, TestFn));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly 2 received 1");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"exactly 2 argument\(s\).*received 1");
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class FunctionHelpersGuardTests
 
         var act = (Action)(() => FunctionHelpers.ValidateArgCount(args, 2, TestFn));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly 2 received 3");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"exactly 2 argument\(s\).*received 3");
     }
 
     #endregion
@@ -76,7 +76,7 @@ public class FunctionHelpersGuardTests
 
         var act = (Action)(() => FunctionHelpers.ValidateMinArgCount(args, 2, TestFn));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("at least 2 received 1");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"at least 2 argument\(s\).*received 1");
     }
 
     #endregion
@@ -166,7 +166,7 @@ public class FunctionHelpersGuardTests
     {
         var act = (Action)(() => FunctionHelpers.CoerceToBool(42, TestFn, 0));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("argument 0 cannot convert Boolean");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"argument 0.*cannot convert.*Boolean");
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class FunctionHelpersGuardTests
     {
         var act = (Action)(() => FunctionHelpers.CoerceToBool("notabool", TestFn, 0));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("argument 0 cannot convert Boolean");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"argument 0.*cannot convert.*Boolean");
     }
 
     #endregion
@@ -301,7 +301,7 @@ public class FunctionHelpersGuardTests
     {
         var act = (Action)(() => FunctionHelpers.CoerceToDateTime(42, TestFn, 0));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("argument 0 cannot convert DateTime");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"argument 0.*cannot convert.*DateTime");
     }
 
     #endregion
@@ -341,7 +341,7 @@ public class FunctionHelpersGuardTests
     {
         var act = (Action)(() => FunctionHelpers.CoerceToTime(42, TestFn, 0));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("argument 0 cannot convert Time");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"argument 0.*cannot convert.*Time");
     }
 
     #endregion
@@ -388,7 +388,7 @@ public class FunctionHelpersGuardTests
     {
         var act = (Action)(() => FunctionHelpers.CoerceToDate(42, TestFn, 0));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("argument 0 cannot convert Date");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"argument 0.*cannot convert.*Date");
     }
 
     #endregion
@@ -408,7 +408,7 @@ public class FunctionHelpersGuardTests
     {
         var act = (Action)(() => FunctionHelpers.CoerceToBag(null, TestFn, 0));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("argument 0 must not be null expected AttributeBag");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"argument 0 must not be null.*AttributeBag");
     }
 
     [Fact]
@@ -416,7 +416,7 @@ public class FunctionHelpersGuardTests
     {
         var act = (Action)(() => FunctionHelpers.CoerceToBag("not a bag", TestFn, 0));
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("argument 0 expected AttributeBag");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"argument 0.*expected AttributeBag");
     }
 
     #endregion

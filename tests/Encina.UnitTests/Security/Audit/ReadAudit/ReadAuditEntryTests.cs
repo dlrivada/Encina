@@ -126,8 +126,8 @@ public class ReadAuditEntryTests
         };
 
         // Assert — Record equality uses reference equality for Dictionary<string, object?>,
-        // so we use BeEquivalentTo for deep structural comparison.
-        entry1.ShouldBe(entry2);
+        // so we use ShouldBeEquivalentTo for deep structural comparison.
+        entry1.ShouldBeEquivalentTo(entry2);
     }
 
     [Fact]

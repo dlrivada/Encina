@@ -60,7 +60,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "a");
         var fn = _registry.GetFunction(XACMLFunctionIds.AnyOfFunc)!;
         var act = () => fn.Evaluate(["nonexistent-function", "a", bag]);
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*nonexistent-function*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("nonexistent-function");
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public sealed class HigherOrderFunctionsTests
         var bag = MakeBag(XACMLDataTypes.String, "a");
         var fn = _registry.GetFunction(XACMLFunctionIds.Map)!;
         var act = () => fn.Evaluate(["nonexistent-function", bag]);
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*nonexistent-function*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("nonexistent-function");
     }
 
     [Fact]

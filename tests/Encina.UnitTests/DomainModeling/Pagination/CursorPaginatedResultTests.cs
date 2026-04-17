@@ -353,8 +353,8 @@ public class CursorPaginatedResultTests
             HasPreviousPage = false
         };
 
-        // Assert - Structural equality comparison
-        result1.ShouldBe(result2);
+        // Assert - Structural equality comparison (ShouldBe fails due to ReadOnlyArray reference equality)
+        result1.ShouldBeEquivalentTo(result2);
     }
 
     #endregion

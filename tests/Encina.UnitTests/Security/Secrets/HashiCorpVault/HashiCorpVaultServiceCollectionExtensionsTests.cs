@@ -152,7 +152,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             // VaultAddress intentionally left empty
         });
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*VaultAddress*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"VaultAddress.*required");
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             // AuthMethod intentionally left null
         });
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*AuthMethod*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"AuthMethod.*required");
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             vault.AuthMethod = new TokenAuthMethodInfo("hvs.test");
         });
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*VaultAddress*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"VaultAddress.*required");
     }
 
     #endregion

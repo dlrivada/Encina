@@ -108,7 +108,9 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Permissions.ShouldBe(["orders:read", "orders:write"]);
+        context.Permissions.ShouldContain("orders:read");
+        context.Permissions.ShouldContain("orders:write");
+        context.Permissions.Count.ShouldBe(2);
     }
 
     [Fact]

@@ -100,7 +100,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var act = () => services.AddGoogleCloudSecretManager(gcp => { });
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*ProjectId*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"ProjectId.*required");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class GoogleCloudSecretManagerServiceCollectionExtensionsTests
 
         var act = () => services.AddGoogleCloudSecretManager(gcp => gcp.ProjectId = "   ");
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*ProjectId*required*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"ProjectId.*required");
     }
 
     #endregion

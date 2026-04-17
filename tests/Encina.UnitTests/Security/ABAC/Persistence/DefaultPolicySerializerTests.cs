@@ -479,7 +479,7 @@ public sealed class DefaultPolicySerializerTests
         // Assert
         json.ShouldContain("\"id\":");
         json.ShouldContain("\"algorithm\":");
-        json.ShouldNotContain("\"Id\":");
+        json.ShouldNotContain("\"Id\":", Case.Sensitive);
     }
 
     [Fact]

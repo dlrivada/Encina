@@ -518,12 +518,12 @@ public class PagedResultTests
     [Fact]
     public void BeEquivalentTo_SameValues_ShouldSucceed()
     {
-        // Arrange - For structural comparison, use ShouldBe
+        // Arrange - For structural comparison, use ShouldBeEquivalentTo
         var result1 = new PagedResult<int>([1, 2, 3], 1, 10, 100);
         var result2 = new PagedResult<int>([1, 2, 3], 1, 10, 100);
 
-        // Assert - Structural equality comparison
-        result1.ShouldBe(result2);
+        // Assert - Structural equality comparison (ShouldBe fails due to ReadOnlyArray reference equality)
+        result1.ShouldBeEquivalentTo(result2);
     }
 
     #endregion

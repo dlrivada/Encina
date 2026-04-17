@@ -48,7 +48,7 @@ public sealed class PolicyBuilderTests
 
         var act = () => builder.Build();
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*must contain at least one rule*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must contain at least one rule");
     }
 
     #endregion

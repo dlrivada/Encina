@@ -47,7 +47,7 @@ public sealed class PolicySetBuilderTests
 
         var act = () => builder.Build();
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("*must contain at least one policy or nested policy set*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must contain at least one policy or nested policy set");
     }
 
     #endregion
