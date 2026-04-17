@@ -79,7 +79,7 @@ public class DefaultRiskAssessorTests
 
         // Act & Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.AssessAsync<TestRecord>(null!, ["City"]).AsTask());
+            async () => await sut.AssessAsync<TestRecord>(null!, ["City"]).ConfigureAwait(false));
         ex.ParamName.ShouldBe("dataset");
     }
 
@@ -96,7 +96,7 @@ public class DefaultRiskAssessorTests
 
         // Act & Assert
         var ex = await Should.ThrowAsync<ArgumentNullException>(
-            () => sut.AssessAsync<TestRecord>(dataset, null!).AsTask());
+            async () => await sut.AssessAsync<TestRecord>(dataset, null!).ConfigureAwait(false));
         ex.ParamName.ShouldBe("quasiIdentifiers");
     }
 
