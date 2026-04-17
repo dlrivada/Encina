@@ -324,11 +324,11 @@ public sealed class EncinaRefitMockFixture<TApiClient> : IAsyncLifetime
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         var requests = Server.LogEntries
-            .Where(e => e.RequestMessage?.Path?.Equals(path, StringComparison.OrdinalIgnoreCase) == true);
+            .Where(e => string.Equals(e.RequestMessage?.Path, path, StringComparison.OrdinalIgnoreCase));
 
         if (method is not null)
         {
-            requests = requests.Where(e => e.RequestMessage?.Method?.Equals(method, StringComparison.OrdinalIgnoreCase) == true);
+            requests = requests.Where(e => string.Equals(e.RequestMessage?.Method, method, StringComparison.OrdinalIgnoreCase));
         }
 
         var matchedRequests = requests.ToList();
