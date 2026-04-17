@@ -62,7 +62,9 @@ public class SecurityContextTests
         var context = new SecurityContext(principal);
 
         // Assert
-        context.Roles.ShouldBe(["Admin", "Manager"]);
+        context.Roles.ShouldContain("Admin");
+        context.Roles.ShouldContain("Manager");
+        context.Roles.Count.ShouldBe(2);
     }
 
     [Fact]
