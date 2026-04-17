@@ -11,6 +11,10 @@ on:
         description: "Mutate ALL files (very slow — hours). Default: only recent changes."
         type: boolean
         default: false
+      custom_scope:
+        description: "Override mutation scope glob (e.g. **/Pipeline/Behaviors/*.cs). Overrides rotation."
+        type: string
+        default: ""
   schedule:
     # Run weekly on Fridays at 3:00 AM UTC
     - cron: "0 3 * * 5"
@@ -134,7 +138,10 @@ jobs:
             "**/Sharding/Health/*.cs"
           )
 
-          if [ "${{ inputs.full_mode }}" = "true" ]; then
+          CUSTOM="${{ inputs.custom_scope }}"
+          if [ -n "$CUSTOM" ]; then
+            SCOPE="$CUSTOM"
+          elif [ "${{ inputs.full_mode }}" = "true" ]; then
             SCOPE="**/*.cs"
           elif [ "${{ inputs.diff_mode }}" = "true" ]; then
             SCOPE="**/*.cs"
