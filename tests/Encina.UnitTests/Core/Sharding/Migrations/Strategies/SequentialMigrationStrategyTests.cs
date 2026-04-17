@@ -297,12 +297,12 @@ public sealed class SequentialMigrationStrategyTests
 
         var status = await SequentialMigrationStrategy.ExecuteOnShardAsync(
             shard,
-            async (_, _) => { await Task.Delay(5); return (Either<EncinaError, Unit>)unit; },
+            async (_, _) => { await Task.Delay(5, CancellationToken.None); return (Either<EncinaError, Unit>)unit; },
             TimeSpan.FromSeconds(30),
             CancellationToken.None);
 
         status.Outcome.ShouldBe(MigrationOutcome.Succeeded);
-        status.Elapsed.ShouldBeGreaterThan(TimeSpan.Zero);
+        status.Duration.ShouldBeGreaterThan(TimeSpan.Zero);
     }
 
     [Fact]
