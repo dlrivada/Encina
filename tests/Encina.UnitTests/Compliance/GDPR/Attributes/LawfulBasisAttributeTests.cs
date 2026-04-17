@@ -1,6 +1,6 @@
 using System.Reflection;
 using Encina.Compliance.GDPR;
-using FluentAssertions;
+using Shouldly;
 using LawfulBasis = Encina.Compliance.GDPR.LawfulBasis;
 
 namespace Encina.UnitTests.Compliance.GDPR.Attributes;
@@ -17,7 +17,7 @@ public class LawfulBasisAttributeTests
         var attr = new LawfulBasisAttribute(LawfulBasis.Consent);
 
         // Assert
-        attr.Basis.Should().Be(LawfulBasis.Consent);
+        attr.Basis.ShouldBe(LawfulBasis.Consent);
     }
 
     [Theory]
@@ -33,7 +33,7 @@ public class LawfulBasisAttributeTests
         var attr = new LawfulBasisAttribute(basis);
 
         // Assert
-        attr.Basis.Should().Be(basis);
+        attr.Basis.ShouldBe(basis);
     }
 
     [Fact]
@@ -44,10 +44,10 @@ public class LawfulBasisAttributeTests
             .GetCustomAttribute<AttributeUsageAttribute>();
 
         // Assert
-        usage.Should().NotBeNull();
-        usage!.ValidOn.Should().Be(AttributeTargets.Class);
-        usage.Inherited.Should().BeTrue();
-        usage.AllowMultiple.Should().BeFalse();
+        usage.ShouldNotBeNull();
+        usage!.ValidOn.ShouldBe(AttributeTargets.Class);
+        usage.Inherited.ShouldBeTrue();
+        usage.AllowMultiple.ShouldBeFalse();
     }
 
     [Fact]
@@ -57,10 +57,10 @@ public class LawfulBasisAttributeTests
         var attr = new LawfulBasisAttribute(LawfulBasis.Contract);
 
         // Assert
-        attr.Purpose.Should().BeNull();
-        attr.LIAReference.Should().BeNull();
-        attr.LegalReference.Should().BeNull();
-        attr.ContractReference.Should().BeNull();
+        attr.Purpose.ShouldBeNull();
+        attr.LIAReference.ShouldBeNull();
+        attr.LegalReference.ShouldBeNull();
+        attr.ContractReference.ShouldBeNull();
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class LawfulBasisAttributeTests
         var attr = new LawfulBasisAttribute(LawfulBasis.Consent) { Purpose = "Marketing newsletters" };
 
         // Assert
-        attr.Purpose.Should().Be("Marketing newsletters");
+        attr.Purpose.ShouldBe("Marketing newsletters");
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class LawfulBasisAttributeTests
         };
 
         // Assert
-        attr.LIAReference.Should().Be("LIA-2024-FRAUD-001");
+        attr.LIAReference.ShouldBe("LIA-2024-FRAUD-001");
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class LawfulBasisAttributeTests
         };
 
         // Assert
-        attr.LegalReference.Should().Be("EU VAT Directive 2006/112/EC");
+        attr.LegalReference.ShouldBe("EU VAT Directive 2006/112/EC");
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class LawfulBasisAttributeTests
         };
 
         // Assert
-        attr.ContractReference.Should().Be("Terms of Service v2.1");
+        attr.ContractReference.ShouldBe("Terms of Service v2.1");
     }
 
     [Fact]
@@ -125,11 +125,11 @@ public class LawfulBasisAttributeTests
         };
 
         // Assert
-        attr.Basis.Should().Be(LawfulBasis.LegitimateInterests);
-        attr.Purpose.Should().Be("Fraud detection");
-        attr.LIAReference.Should().Be("LIA-2024-FRAUD-001");
-        attr.LegalReference.Should().Be("Some legal ref");
-        attr.ContractReference.Should().Be("Some contract ref");
+        attr.Basis.ShouldBe(LawfulBasis.LegitimateInterests);
+        attr.Purpose.ShouldBe("Fraud detection");
+        attr.LIAReference.ShouldBe("LIA-2024-FRAUD-001");
+        attr.LegalReference.ShouldBe("Some legal ref");
+        attr.ContractReference.ShouldBe("Some contract ref");
     }
 
     [Fact]
@@ -140,9 +140,9 @@ public class LawfulBasisAttributeTests
             .GetCustomAttribute<LawfulBasisAttribute>();
 
         // Assert
-        attr.Should().NotBeNull();
-        attr!.Basis.Should().Be(LawfulBasis.Consent);
-        attr.Purpose.Should().Be("Test consent processing");
+        attr.ShouldNotBeNull();
+        attr!.Basis.ShouldBe(LawfulBasis.Consent);
+        attr.Purpose.ShouldBe("Test consent processing");
     }
 
     [Fact]
@@ -153,10 +153,10 @@ public class LawfulBasisAttributeTests
             .GetCustomAttribute<LawfulBasisAttribute>();
 
         // Assert
-        attr.Should().NotBeNull();
-        attr!.Basis.Should().Be(LawfulBasis.LegitimateInterests);
-        attr.Purpose.Should().Be("Fraud detection");
-        attr.LIAReference.Should().Be("LIA-2024-FRAUD-001");
+        attr.ShouldNotBeNull();
+        attr!.Basis.ShouldBe(LawfulBasis.LegitimateInterests);
+        attr.Purpose.ShouldBe("Fraud detection");
+        attr.LIAReference.ShouldBe("LIA-2024-FRAUD-001");
     }
 
     [Fact]
@@ -167,8 +167,8 @@ public class LawfulBasisAttributeTests
             .GetCustomAttribute<LawfulBasisAttribute>(inherit: true);
 
         // Assert
-        attr.Should().NotBeNull();
-        attr!.Basis.Should().Be(LawfulBasis.VitalInterests);
+        attr.ShouldNotBeNull();
+        attr!.Basis.ShouldBe(LawfulBasis.VitalInterests);
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class LawfulBasisAttributeTests
             .GetCustomAttribute<LawfulBasisAttribute>(inherit: false);
 
         // Assert — DerivedLawfulBasisRequest does not have its own attribute
-        attr.Should().BeNull();
+        attr.ShouldBeNull();
     }
 }
 

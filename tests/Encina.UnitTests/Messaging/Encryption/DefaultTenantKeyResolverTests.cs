@@ -1,6 +1,6 @@
 using Encina.Messaging.Encryption;
-using FluentAssertions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption;
 
@@ -17,7 +17,7 @@ public class DefaultTenantKeyResolverTests
         var keyId = resolver.ResolveKeyId("acme-corp");
 
         // Assert
-        keyId.Should().Be("tenant-acme-corp-key");
+        keyId.ShouldBe("tenant-acme-corp-key");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class DefaultTenantKeyResolverTests
         var keyId = resolver.ResolveKeyId("contoso");
 
         // Assert
-        keyId.Should().Be("org-contoso-encryption-key");
+        keyId.ShouldBe("org-contoso-encryption-key");
     }
 
     [Fact]
@@ -43,9 +43,9 @@ public class DefaultTenantKeyResolverTests
         var options = Options.Create(new MessageEncryptionOptions());
         var resolver = new DefaultTenantKeyResolver(options);
 
-        var act = () => resolver.ResolveKeyId(null!);
+        Action act = () => resolver.ResolveKeyId(null!);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("tenantId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("tenantId");
     }
 
     [Fact]
@@ -54,9 +54,9 @@ public class DefaultTenantKeyResolverTests
         var options = Options.Create(new MessageEncryptionOptions());
         var resolver = new DefaultTenantKeyResolver(options);
 
-        var act = () => resolver.ResolveKeyId(string.Empty);
+        Action act = () => resolver.ResolveKeyId(string.Empty);
 
-        act.Should().Throw<ArgumentException>().WithParameterName("tenantId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("tenantId");
     }
 
     [Fact]
@@ -65,16 +65,15 @@ public class DefaultTenantKeyResolverTests
         var options = Options.Create(new MessageEncryptionOptions());
         var resolver = new DefaultTenantKeyResolver(options);
 
-        var act = () => resolver.ResolveKeyId("   ");
+        Action act = () => resolver.ResolveKeyId("   ");
 
-        act.Should().Throw<ArgumentException>().WithParameterName("tenantId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("tenantId");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new DefaultTenantKeyResolver(null!);
-
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(() => new DefaultTenantKeyResolver(null!))
+            .ParamName.ShouldBe("options");
     }
 }

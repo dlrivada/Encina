@@ -2,7 +2,7 @@
 
 using Encina.Compliance.ProcessorAgreements.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -32,15 +32,15 @@ public class DataProcessingAgreementTests
             LastUpdatedAtUtc = Now
         };
 
-        dpa.Id.Should().Be("dpa-001");
-        dpa.ProcessorId.Should().Be("proc-001");
-        dpa.Status.Should().Be(DPAStatus.Active);
-        dpa.SignedAtUtc.Should().Be(Now.AddDays(-30));
-        dpa.MandatoryTerms.Should().Be(terms);
-        dpa.HasSCCs.Should().BeTrue();
-        dpa.ProcessingPurposes.Should().HaveCount(2);
-        dpa.CreatedAtUtc.Should().Be(Now.AddDays(-30));
-        dpa.LastUpdatedAtUtc.Should().Be(Now);
+        dpa.Id.ShouldBe("dpa-001");
+        dpa.ProcessorId.ShouldBe("proc-001");
+        dpa.Status.ShouldBe(DPAStatus.Active);
+        dpa.SignedAtUtc.ShouldBe(Now.AddDays(-30));
+        dpa.MandatoryTerms.ShouldBe(terms);
+        dpa.HasSCCs.ShouldBeTrue();
+        dpa.ProcessingPurposes.Count.ShouldBe(2);
+        dpa.CreatedAtUtc.ShouldBe(Now.AddDays(-30));
+        dpa.LastUpdatedAtUtc.ShouldBe(Now);
     }
 
     #endregion
@@ -52,9 +52,9 @@ public class DataProcessingAgreementTests
     {
         var dpa = CreateActiveDPA();
 
-        dpa.ExpiresAtUtc.Should().BeNull();
-        dpa.TenantId.Should().BeNull();
-        dpa.ModuleId.Should().BeNull();
+        dpa.ExpiresAtUtc.ShouldBeNull();
+        dpa.TenantId.ShouldBeNull();
+        dpa.ModuleId.ShouldBeNull();
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public class DataProcessingAgreementTests
             ModuleId = "module-hr"
         };
 
-        dpa.ExpiresAtUtc.Should().Be(Now.AddYears(1));
-        dpa.TenantId.Should().Be("tenant-xyz");
-        dpa.ModuleId.Should().Be("module-hr");
+        dpa.ExpiresAtUtc.ShouldBe(Now.AddYears(1));
+        dpa.TenantId.ShouldBe("tenant-xyz");
+        dpa.ModuleId.ShouldBe("module-hr");
     }
 
     #endregion
@@ -79,10 +79,10 @@ public class DataProcessingAgreementTests
     [Fact]
     public void DPAStatus_ShouldHaveExpectedValues()
     {
-        ((int)DPAStatus.Active).Should().Be(0);
-        ((int)DPAStatus.Expired).Should().Be(1);
-        ((int)DPAStatus.PendingRenewal).Should().Be(2);
-        ((int)DPAStatus.Terminated).Should().Be(3);
+        ((int)DPAStatus.Active).ShouldBe(0);
+        ((int)DPAStatus.Expired).ShouldBe(1);
+        ((int)DPAStatus.PendingRenewal).ShouldBe(2);
+        ((int)DPAStatus.Terminated).ShouldBe(3);
     }
 
     #endregion
@@ -94,7 +94,7 @@ public class DataProcessingAgreementTests
     {
         var dpa = CreateActiveDPA() with { ExpiresAtUtc = Now.AddDays(30) };
 
-        dpa.IsActive(Now).Should().BeTrue();
+        dpa.IsActive(Now).ShouldBeTrue();
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public class DataProcessingAgreementTests
     {
         var dpa = CreateActiveDPA();
 
-        dpa.ExpiresAtUtc.Should().BeNull();
-        dpa.IsActive(Now).Should().BeTrue();
+        dpa.ExpiresAtUtc.ShouldBeNull();
+        dpa.IsActive(Now).ShouldBeTrue();
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class DataProcessingAgreementTests
     {
         var dpa = CreateActiveDPA() with { ExpiresAtUtc = Now.AddDays(-1) };
 
-        dpa.IsActive(Now).Should().BeFalse();
+        dpa.IsActive(Now).ShouldBeFalse();
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class DataProcessingAgreementTests
     {
         var dpa = CreateActiveDPA() with { Status = DPAStatus.Expired };
 
-        dpa.IsActive(Now).Should().BeFalse();
+        dpa.IsActive(Now).ShouldBeFalse();
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public class DataProcessingAgreementTests
     {
         var dpa = CreateActiveDPA() with { Status = DPAStatus.Terminated };
 
-        dpa.IsActive(Now).Should().BeFalse();
+        dpa.IsActive(Now).ShouldBeFalse();
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class DataProcessingAgreementTests
     {
         var dpa = CreateActiveDPA() with { Status = DPAStatus.PendingRenewal };
 
-        dpa.IsActive(Now).Should().BeFalse();
+        dpa.IsActive(Now).ShouldBeFalse();
     }
 
     #endregion

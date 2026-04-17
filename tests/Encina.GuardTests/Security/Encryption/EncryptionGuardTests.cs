@@ -3,11 +3,11 @@ using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Algorithms;
 using Encina.Security.Encryption.Health;
-using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Encryption;
 
@@ -26,8 +26,8 @@ public class EncryptionGuardTests
         var act = () => new AesGcmFieldEncryptor(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("keyProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("keyProvider");
     }
 
     [Fact]
@@ -42,8 +42,8 @@ public class EncryptionGuardTests
         var act = async () => await encryptor.EncryptStringAsync(null!, context);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("plaintext");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("plaintext");
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public class EncryptionGuardTests
         var act = async () => await encryptor.EncryptStringAsync("test", null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public class EncryptionGuardTests
         var act = async () => await encryptor.DecryptStringAsync(encrypted, null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public class EncryptionGuardTests
         var act = async () => await encryptor.EncryptBytesAsync(new byte[] { 1, 2, 3 }, null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public class EncryptionGuardTests
         var act = async () => await encryptor.DecryptBytesAsync(encrypted, null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -134,8 +134,8 @@ public class EncryptionGuardTests
         var act = () => new EncryptionOrchestrator(null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("fieldEncryptor");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("fieldEncryptor");
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public class EncryptionGuardTests
         var act = () => new EncryptionOrchestrator(fieldEncryptor, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -165,8 +165,8 @@ public class EncryptionGuardTests
         var act = async () => await orchestrator.EncryptAsync<object>(null!, context);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("instance");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("instance");
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public class EncryptionGuardTests
         var act = async () => await orchestrator.EncryptAsync("test", null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     [Fact]
@@ -198,8 +198,8 @@ public class EncryptionGuardTests
         var act = async () => await orchestrator.DecryptAsync<object>(null!, context);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("instance");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("instance");
     }
 
     [Fact]
@@ -214,8 +214,8 @@ public class EncryptionGuardTests
         var act = async () => await orchestrator.DecryptAsync("test", null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     #endregion
@@ -233,8 +233,8 @@ public class EncryptionGuardTests
         var act = () => new EncryptionPipelineBehavior<TestCommand, Unit>(null!, options, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("orchestrator");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("orchestrator");
     }
 
     [Fact]
@@ -248,8 +248,8 @@ public class EncryptionGuardTests
         var act = () => new EncryptionPipelineBehavior<TestCommand, Unit>(orchestrator, null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -263,8 +263,8 @@ public class EncryptionGuardTests
         var act = () => new EncryptionPipelineBehavior<TestCommand, Unit>(orchestrator, options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -281,8 +281,8 @@ public class EncryptionGuardTests
         var act = () => provider.AddKey(null!, new byte[32]);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("keyId");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("keyId");
     }
 
     [Fact]
@@ -295,8 +295,8 @@ public class EncryptionGuardTests
         var act = () => provider.AddKey("key-1", null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("key");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("key");
     }
 
     [Fact]
@@ -309,8 +309,8 @@ public class EncryptionGuardTests
         var act = () => provider.SetCurrentKey(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("keyId");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("keyId");
     }
 
     [Fact]
@@ -323,8 +323,8 @@ public class EncryptionGuardTests
         var act = async () => await provider.GetKeyAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("keyId");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("keyId");
     }
 
     #endregion
@@ -341,8 +341,8 @@ public class EncryptionGuardTests
         var act = () => services.AddEncinaEncryption();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -355,8 +355,8 @@ public class EncryptionGuardTests
         var act = () => services.AddEncinaEncryption<InMemoryKeyProvider>();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     #endregion
@@ -370,8 +370,8 @@ public class EncryptionGuardTests
         var act = () => new EncryptionHealthCheck(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     #endregion

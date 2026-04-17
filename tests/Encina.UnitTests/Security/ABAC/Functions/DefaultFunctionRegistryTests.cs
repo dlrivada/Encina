@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -19,7 +19,7 @@ public sealed class DefaultFunctionRegistryTests
     {
         var ids = _sut.GetAllFunctionIds();
 
-        ids.Should().NotBeEmpty("Standard XACML functions should be pre-registered");
+        ids.ShouldNotBeEmpty("Standard XACML functions should be pre-registered");
     }
 
     [Theory]
@@ -37,7 +37,7 @@ public sealed class DefaultFunctionRegistryTests
     [InlineData(XACMLFunctionIds.StringRegexpMatch)]
     public void Constructor_RegistersKnownFunction(string functionId)
     {
-        _sut.GetFunction(functionId).Should().NotBeNull(
+        _sut.GetFunction(functionId).ShouldNotBeNull(
             $"Function '{functionId}' should be pre-registered");
     }
 
@@ -50,8 +50,8 @@ public sealed class DefaultFunctionRegistryTests
     {
         var fn = _sut.GetFunction(XACMLFunctionIds.StringEqual);
 
-        fn.Should().NotBeNull();
-        fn!.ReturnType.Should().Be(XACMLDataTypes.Boolean);
+        fn.ShouldNotBeNull();
+        fn!.ReturnType.ShouldBe(XACMLDataTypes.Boolean);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class DefaultFunctionRegistryTests
     {
         var fn = _sut.GetFunction("non-existent-function");
 
-        fn.Should().BeNull();
+        fn.ShouldBeNull();
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class DefaultFunctionRegistryTests
     {
         var act = () => _sut.GetFunction(null!);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class DefaultFunctionRegistryTests
     {
         var act = () => _sut.GetFunction("");
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     #endregion
@@ -90,7 +90,7 @@ public sealed class DefaultFunctionRegistryTests
 
         _sut.Register("custom-function", customFn);
 
-        _sut.GetFunction("custom-function").Should().BeSameAs(customFn);
+        _sut.GetFunction("custom-function").ShouldBeSameAs(customFn);
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public sealed class DefaultFunctionRegistryTests
 
         _sut.Register(XACMLFunctionIds.StringEqual, replacement);
 
-        _sut.GetFunction(XACMLFunctionIds.StringEqual).Should().BeSameAs(replacement);
-        _sut.GetFunction(XACMLFunctionIds.StringEqual).Should().NotBeSameAs(original);
+        _sut.GetFunction(XACMLFunctionIds.StringEqual).ShouldBeSameAs(replacement);
+        _sut.GetFunction(XACMLFunctionIds.StringEqual).ShouldNotBeSameAs(original);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class DefaultFunctionRegistryTests
 
         var act = () => _sut.Register(null!, fn);
 
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class DefaultFunctionRegistryTests
     {
         var act = () => _sut.Register("custom-fn", null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -133,9 +133,9 @@ public sealed class DefaultFunctionRegistryTests
     {
         var ids = _sut.GetAllFunctionIds();
 
-        ids.Should().Contain(XACMLFunctionIds.StringEqual);
-        ids.Should().Contain(XACMLFunctionIds.IntegerAdd);
-        ids.Should().Contain(XACMLFunctionIds.And);
+        ids.ShouldContain(XACMLFunctionIds.StringEqual);
+        ids.ShouldContain(XACMLFunctionIds.IntegerAdd);
+        ids.ShouldContain(XACMLFunctionIds.And);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class DefaultFunctionRegistryTests
     {
         var ids = _sut.GetAllFunctionIds();
 
-        ids.Should().BeInAscendingOrder(StringComparer.Ordinal);
+        ids.ShouldBe(ids.OrderBy(x => x, StringComparer.Ordinal));
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class DefaultFunctionRegistryTests
 
         var ids = _sut.GetAllFunctionIds();
 
-        ids.Should().Contain("zzz-custom");
+        ids.ShouldContain("zzz-custom");
     }
 
     #endregion

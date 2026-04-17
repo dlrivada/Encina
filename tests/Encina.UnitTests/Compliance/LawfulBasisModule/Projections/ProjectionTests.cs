@@ -2,7 +2,7 @@ using Encina.Compliance.GDPR;
 using Encina.Compliance.LawfulBasis.Events;
 using Encina.Compliance.LawfulBasis.ReadModels;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.LawfulBasisModule.Projections;
 
@@ -22,7 +22,7 @@ public class ProjectionTests
     [Fact]
     public void LawfulBasisProjection_ProjectionName_ShouldReturnExpectedName()
     {
-        _lbProjection.ProjectionName.Should().Be("LawfulBasisProjection");
+        _lbProjection.ProjectionName.ShouldBe("LawfulBasisProjection");
     }
 
     [Fact]
@@ -45,20 +45,20 @@ public class ProjectionTests
         var model = _lbProjection.Create(@event, DefaultContext);
 
         // Assert
-        model.Id.Should().Be(DefaultId);
-        model.RequestTypeName.Should().Be("MyApp.Commands.CreateOrder");
-        model.Basis.Should().Be(LawfulBasis.Contract);
-        model.Purpose.Should().Be("Order processing");
-        model.LIAReference.Should().BeNull();
-        model.LegalReference.Should().BeNull();
-        model.ContractReference.Should().Be("contract-001");
-        model.RegisteredAtUtc.Should().Be(Now);
-        model.TenantId.Should().Be("tenant-1");
-        model.ModuleId.Should().Be("module-1");
-        model.IsRevoked.Should().BeFalse();
-        model.RevocationReason.Should().BeNull();
-        model.LastModifiedAtUtc.Should().Be(Now);
-        model.Version.Should().Be(1);
+        model.Id.ShouldBe(DefaultId);
+        model.RequestTypeName.ShouldBe("MyApp.Commands.CreateOrder");
+        model.Basis.ShouldBe(LawfulBasis.Contract);
+        model.Purpose.ShouldBe("Order processing");
+        model.LIAReference.ShouldBeNull();
+        model.LegalReference.ShouldBeNull();
+        model.ContractReference.ShouldBe("contract-001");
+        model.RegisteredAtUtc.ShouldBe(Now);
+        model.TenantId.ShouldBe("tenant-1");
+        model.ModuleId.ShouldBe("module-1");
+        model.IsRevoked.ShouldBeFalse();
+        model.RevocationReason.ShouldBeNull();
+        model.LastModifiedAtUtc.ShouldBe(Now);
+        model.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -84,17 +84,17 @@ public class ProjectionTests
         var updated = _lbProjection.Apply(@event, current, DefaultContext);
 
         // Assert
-        updated.Basis.Should().Be(LawfulBasis.LegitimateInterests);
-        updated.Purpose.Should().Be("Fraud prevention");
-        updated.LIAReference.Should().Be("LIA-2026-FRAUD-001");
-        updated.LegalReference.Should().BeNull();
-        updated.ContractReference.Should().BeNull();
-        updated.LastModifiedAtUtc.Should().Be(changedAt);
-        updated.Version.Should().Be(2);
+        updated.Basis.ShouldBe(LawfulBasis.LegitimateInterests);
+        updated.Purpose.ShouldBe("Fraud prevention");
+        updated.LIAReference.ShouldBe("LIA-2026-FRAUD-001");
+        updated.LegalReference.ShouldBeNull();
+        updated.ContractReference.ShouldBeNull();
+        updated.LastModifiedAtUtc.ShouldBe(changedAt);
+        updated.Version.ShouldBe(2);
         // Unchanged fields
-        updated.Id.Should().Be(DefaultId);
-        updated.RequestTypeName.Should().Be("MyApp.Commands.CreateOrder");
-        updated.IsRevoked.Should().BeFalse();
+        updated.Id.ShouldBe(DefaultId);
+        updated.RequestTypeName.ShouldBe("MyApp.Commands.CreateOrder");
+        updated.IsRevoked.ShouldBeFalse();
     }
 
     [Fact]
@@ -115,10 +115,10 @@ public class ProjectionTests
         var updated = _lbProjection.Apply(@event, current, DefaultContext);
 
         // Assert
-        updated.IsRevoked.Should().BeTrue();
-        updated.RevocationReason.Should().Be("No longer needed");
-        updated.LastModifiedAtUtc.Should().Be(revokedAt);
-        updated.Version.Should().Be(2);
+        updated.IsRevoked.ShouldBeTrue();
+        updated.RevocationReason.ShouldBe("No longer needed");
+        updated.LastModifiedAtUtc.ShouldBe(revokedAt);
+        updated.Version.ShouldBe(2);
     }
 
     #endregion
@@ -130,7 +130,7 @@ public class ProjectionTests
     [Fact]
     public void LIAProjection_ProjectionName_ShouldReturnExpectedName()
     {
-        _liaProjection.ProjectionName.Should().Be("LIAProjection");
+        _liaProjection.ProjectionName.ShouldBe("LIAProjection");
     }
 
     [Fact]
@@ -163,41 +163,41 @@ public class ProjectionTests
         var model = _liaProjection.Create(@event, DefaultContext);
 
         // Assert — Identity
-        model.Id.Should().Be(DefaultId);
-        model.Reference.Should().Be("LIA-2026-FRAUD-001");
-        model.Name.Should().Be("Fraud Prevention LIA");
-        model.Purpose.Should().Be("Detect fraudulent transactions");
+        model.Id.ShouldBe(DefaultId);
+        model.Reference.ShouldBe("LIA-2026-FRAUD-001");
+        model.Name.ShouldBe("Fraud Prevention LIA");
+        model.Purpose.ShouldBe("Detect fraudulent transactions");
 
         // Assert — Purpose Test
-        model.LegitimateInterest.Should().Be("Protecting business from fraud");
-        model.Benefits.Should().Be("Reduced financial losses");
-        model.ConsequencesIfNotProcessed.Should().Be("Increased fraud exposure");
+        model.LegitimateInterest.ShouldBe("Protecting business from fraud");
+        model.Benefits.ShouldBe("Reduced financial losses");
+        model.ConsequencesIfNotProcessed.ShouldBe("Increased fraud exposure");
 
         // Assert — Necessity Test
-        model.NecessityJustification.Should().Be("No less intrusive alternative");
-        model.AlternativesConsidered.Should().BeEquivalentTo(["Manual review", "Rule-based filtering"]);
-        model.DataMinimisationNotes.Should().Be("Only transaction metadata");
+        model.NecessityJustification.ShouldBe("No less intrusive alternative");
+        model.AlternativesConsidered.ShouldBe(["Manual review", "Rule-based filtering"]);
+        model.DataMinimisationNotes.ShouldBe("Only transaction metadata");
 
         // Assert — Balancing Test
-        model.NatureOfData.Should().Be("Transaction data, IP addresses");
-        model.ReasonableExpectations.Should().Be("Users expect fraud protection");
-        model.ImpactAssessment.Should().Be("Minimal impact on individual rights");
-        model.Safeguards.Should().BeEquivalentTo(["Encryption", "Access controls"]);
+        model.NatureOfData.ShouldBe("Transaction data, IP addresses");
+        model.ReasonableExpectations.ShouldBe("Users expect fraud protection");
+        model.ImpactAssessment.ShouldBe("Minimal impact on individual rights");
+        model.Safeguards.ShouldBe(["Encryption", "Access controls"]);
 
         // Assert — Governance
-        model.AssessedBy.Should().Be("DPO");
-        model.DPOInvolvement.Should().BeTrue();
-        model.AssessedAtUtc.Should().Be(Now);
-        model.Conditions.Should().Be("Annual review required");
+        model.AssessedBy.ShouldBe("DPO");
+        model.DPOInvolvement.ShouldBeTrue();
+        model.AssessedAtUtc.ShouldBe(Now);
+        model.Conditions.ShouldBe("Annual review required");
 
         // Assert — Outcome & metadata
-        model.Outcome.Should().Be(LIAOutcome.RequiresReview);
-        model.Conclusion.Should().BeNull();
-        model.NextReviewAtUtc.Should().BeNull();
-        model.TenantId.Should().Be("tenant-1");
-        model.ModuleId.Should().Be("module-1");
-        model.LastModifiedAtUtc.Should().Be(Now);
-        model.Version.Should().Be(1);
+        model.Outcome.ShouldBe(LIAOutcome.RequiresReview);
+        model.Conclusion.ShouldBeNull();
+        model.NextReviewAtUtc.ShouldBeNull();
+        model.TenantId.ShouldBe("tenant-1");
+        model.ModuleId.ShouldBe("module-1");
+        model.LastModifiedAtUtc.ShouldBe(Now);
+        model.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -219,10 +219,10 @@ public class ProjectionTests
         var updated = _liaProjection.Apply(@event, current, DefaultContext);
 
         // Assert
-        updated.Outcome.Should().Be(LIAOutcome.Approved);
-        updated.Conclusion.Should().Be("Balancing test favors controller");
-        updated.LastModifiedAtUtc.Should().Be(approvedAt);
-        updated.Version.Should().Be(2);
+        updated.Outcome.ShouldBe(LIAOutcome.Approved);
+        updated.Conclusion.ShouldBe("Balancing test favors controller");
+        updated.LastModifiedAtUtc.ShouldBe(approvedAt);
+        updated.Version.ShouldBe(2);
     }
 
     [Fact]
@@ -244,10 +244,10 @@ public class ProjectionTests
         var updated = _liaProjection.Apply(@event, current, DefaultContext);
 
         // Assert
-        updated.Outcome.Should().Be(LIAOutcome.Rejected);
-        updated.Conclusion.Should().Be("Data subject rights override");
-        updated.LastModifiedAtUtc.Should().Be(rejectedAt);
-        updated.Version.Should().Be(2);
+        updated.Outcome.ShouldBe(LIAOutcome.Rejected);
+        updated.Conclusion.ShouldBe("Data subject rights override");
+        updated.LastModifiedAtUtc.ShouldBe(rejectedAt);
+        updated.Version.ShouldBe(2);
     }
 
     [Fact]
@@ -271,9 +271,9 @@ public class ProjectionTests
         var updated = _liaProjection.Apply(@event, current, DefaultContext);
 
         // Assert
-        updated.NextReviewAtUtc.Should().Be(nextReview);
-        updated.LastModifiedAtUtc.Should().Be(scheduledAt);
-        updated.Version.Should().Be(2);
+        updated.NextReviewAtUtc.ShouldBe(nextReview);
+        updated.LastModifiedAtUtc.ShouldBe(scheduledAt);
+        updated.Version.ShouldBe(2);
     }
 
     #endregion

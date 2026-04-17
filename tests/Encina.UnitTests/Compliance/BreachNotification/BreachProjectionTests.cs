@@ -2,7 +2,7 @@ using Encina.Compliance.BreachNotification.Events;
 using Encina.Compliance.BreachNotification.Model;
 using Encina.Compliance.BreachNotification.ReadModels;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -60,7 +60,7 @@ public class BreachProjectionTests
         var name = _sut.ProjectionName;
 
         // Assert
-        name.Should().Be("BreachProjection");
+        name.ShouldBe("BreachProjection");
     }
 
     #endregion
@@ -90,16 +90,16 @@ public class BreachProjectionTests
         var result = _sut.Create(detected, _context);
 
         // Assert
-        result.Id.Should().Be(breachId);
-        result.Nature.Should().Be("data exfiltration");
-        result.Severity.Should().Be(BreachSeverity.Critical);
-        result.DetectedByRule.Should().Be("MassDataExfiltrationRule");
-        result.EstimatedAffectedSubjects.Should().Be(10_000);
-        result.Description.Should().Be("Large-scale data exfiltration via compromised API key");
-        result.DetectedByUserId.Should().Be("siem-agent");
-        result.DetectedAtUtc.Should().Be(detectedAt);
-        result.TenantId.Should().Be("tenant-A");
-        result.ModuleId.Should().Be("module-B");
+        result.Id.ShouldBe(breachId);
+        result.Nature.ShouldBe("data exfiltration");
+        result.Severity.ShouldBe(BreachSeverity.Critical);
+        result.DetectedByRule.ShouldBe("MassDataExfiltrationRule");
+        result.EstimatedAffectedSubjects.ShouldBe(10_000);
+        result.Description.ShouldBe("Large-scale data exfiltration via compromised API key");
+        result.DetectedByUserId.ShouldBe("siem-agent");
+        result.DetectedAtUtc.ShouldBe(detectedAt);
+        result.TenantId.ShouldBe("tenant-A");
+        result.ModuleId.ShouldBe("module-B");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class BreachProjectionTests
         var result = _sut.Create(detected, _context);
 
         // Assert
-        result.Status.Should().Be(BreachStatus.Detected);
+        result.Status.ShouldBe(BreachStatus.Detected);
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class BreachProjectionTests
         var result = _sut.Create(detected, _context);
 
         // Assert
-        result.DeadlineUtc.Should().Be(detectedAt.AddHours(72));
+        result.DeadlineUtc.ShouldBe(detectedAt.AddHours(72));
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class BreachProjectionTests
         var result = _sut.Create(detected, _context);
 
         // Assert
-        result.Version.Should().Be(1);
+        result.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class BreachProjectionTests
         var result = _sut.Create(detected, _context);
 
         // Assert
-        result.LastModifiedAtUtc.Should().Be(detectedAt);
+        result.LastModifiedAtUtc.ShouldBe(detectedAt);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class BreachProjectionTests
         var result = _sut.Create(detected, _context);
 
         // Assert
-        result.DetectedByUserId.Should().BeNull();
+        result.DetectedByUserId.ShouldBeNull();
     }
 
     #endregion
@@ -193,10 +193,10 @@ public class BreachProjectionTests
         var result = _sut.Apply(assessed, readModel, _context);
 
         // Assert
-        result.Severity.Should().Be(BreachSeverity.Critical);
-        result.EstimatedAffectedSubjects.Should().Be(25_000);
-        result.AssessmentSummary.Should().Be("Investigation reveals broader scope than initially estimated");
-        result.AssessedAtUtc.Should().Be(assessedAt);
+        result.Severity.ShouldBe(BreachSeverity.Critical);
+        result.EstimatedAffectedSubjects.ShouldBe(25_000);
+        result.AssessmentSummary.ShouldBe("Investigation reveals broader scope than initially estimated");
+        result.AssessedAtUtc.ShouldBe(assessedAt);
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(assessed, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(BreachStatus.Investigating);
+        result.Status.ShouldBe(BreachStatus.Investigating);
     }
 
     [Fact]
@@ -241,7 +241,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(assessed, readModel, _context);
 
         // Assert
-        result.LastModifiedAtUtc.Should().Be(assessedAt);
+        result.LastModifiedAtUtc.ShouldBe(assessedAt);
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(assessed, readModel, _context);
 
         // Assert
-        result.Version.Should().Be(2);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -290,8 +290,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(reported, readModel, _context);
 
         // Assert
-        result.AuthorityName.Should().Be("AEPD");
-        result.ReportedToDPAAtUtc.Should().Be(reportedAt);
+        result.AuthorityName.ShouldBe("AEPD");
+        result.ReportedToDPAAtUtc.ShouldBe(reportedAt);
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(reported, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(BreachStatus.AuthorityNotified);
+        result.Status.ShouldBe(BreachStatus.AuthorityNotified);
     }
 
     [Fact]
@@ -336,8 +336,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(reported, readModel, _context);
 
         // Assert
-        result.LastModifiedAtUtc.Should().Be(reportedAt);
-        result.Version.Should().Be(3);
+        result.LastModifiedAtUtc.ShouldBe(reportedAt);
+        result.Version.ShouldBe(3);
     }
 
     #endregion
@@ -364,10 +364,10 @@ public class BreachProjectionTests
         var result = _sut.Apply(notified, readModel, _context);
 
         // Assert
-        result.SubjectCount.Should().Be(3_500);
-        result.CommunicationMethod.Should().Be("email");
-        result.Exemption.Should().Be(SubjectNotificationExemption.None);
-        result.NotifiedSubjectsAtUtc.Should().Be(notifiedAt);
+        result.SubjectCount.ShouldBe(3_500);
+        result.CommunicationMethod.ShouldBe("email");
+        result.Exemption.ShouldBe(SubjectNotificationExemption.None);
+        result.NotifiedSubjectsAtUtc.ShouldBe(notifiedAt);
     }
 
     [Fact]
@@ -389,7 +389,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(notified, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(BreachStatus.SubjectsNotified);
+        result.Status.ShouldBe(BreachStatus.SubjectsNotified);
     }
 
     [Fact]
@@ -411,7 +411,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(notified, readModel, _context);
 
         // Assert
-        result.Exemption.Should().Be(SubjectNotificationExemption.DisproportionateEffort);
+        result.Exemption.ShouldBe(SubjectNotificationExemption.DisproportionateEffort);
     }
 
     [Fact]
@@ -434,8 +434,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(notified, readModel, _context);
 
         // Assert
-        result.LastModifiedAtUtc.Should().Be(notifiedAt);
-        result.Version.Should().Be(4);
+        result.LastModifiedAtUtc.ShouldBe(notifiedAt);
+        result.Version.ShouldBe(4);
     }
 
     #endregion
@@ -461,11 +461,11 @@ public class BreachProjectionTests
         var result = _sut.Apply(phasedReport, readModel, _context);
 
         // Assert
-        result.PhasedReports.Should().HaveCount(1);
-        result.PhasedReports[0].PhaseNumber.Should().Be(1);
-        result.PhasedReports[0].ReportContent.Should().Be("Initial findings: compromised credentials used to access customer records");
-        result.PhasedReports[0].SubmittedByUserId.Should().Be("analyst-42");
-        result.PhasedReports[0].SubmittedAtUtc.Should().Be(submittedAt);
+        result.PhasedReports.Count.ShouldBe(1);
+        result.PhasedReports[0].PhaseNumber.ShouldBe(1);
+        result.PhasedReports[0].ReportContent.ShouldBe("Initial findings: compromised credentials used to access customer records");
+        result.PhasedReports[0].SubmittedByUserId.ShouldBe("analyst-42");
+        result.PhasedReports[0].SubmittedAtUtc.ShouldBe(submittedAt);
     }
 
     [Fact]
@@ -499,9 +499,9 @@ public class BreachProjectionTests
         var result = _sut.Apply(phase2, readModel, _context);
 
         // Assert
-        result.PhasedReports.Should().HaveCount(2);
-        result.PhasedReports[0].PhaseNumber.Should().Be(1);
-        result.PhasedReports[1].PhaseNumber.Should().Be(2);
+        result.PhasedReports.Count.ShouldBe(2);
+        result.PhasedReports[0].PhaseNumber.ShouldBe(1);
+        result.PhasedReports[1].PhaseNumber.ShouldBe(2);
     }
 
     [Fact]
@@ -523,8 +523,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(phasedReport, readModel, _context);
 
         // Assert
-        result.LastModifiedAtUtc.Should().Be(submittedAt);
-        result.Version.Should().Be(3);
+        result.LastModifiedAtUtc.ShouldBe(submittedAt);
+        result.Version.ShouldBe(3);
     }
 
     #endregion
@@ -549,8 +549,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(contained, readModel, _context);
 
         // Assert
-        result.ContainmentMeasures.Should().Be("Revoked compromised API keys, rotated secrets, blocked suspicious IPs");
-        result.ContainedAtUtc.Should().Be(containedAt);
+        result.ContainmentMeasures.ShouldBe("Revoked compromised API keys, rotated secrets, blocked suspicious IPs");
+        result.ContainedAtUtc.ShouldBe(containedAt);
     }
 
     [Fact]
@@ -570,7 +570,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(contained, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(BreachStatus.Resolved);
+        result.Status.ShouldBe(BreachStatus.Resolved);
     }
 
     [Fact]
@@ -591,8 +591,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(contained, readModel, _context);
 
         // Assert
-        result.LastModifiedAtUtc.Should().Be(containedAt);
-        result.Version.Should().Be(5);
+        result.LastModifiedAtUtc.ShouldBe(containedAt);
+        result.Version.ShouldBe(5);
     }
 
     #endregion
@@ -617,8 +617,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(closed, readModel, _context);
 
         // Assert
-        result.ResolutionSummary.Should().Be("Root cause: compromised third-party dependency. Remediation: updated dependency, rotated all credentials, implemented WAF rules.");
-        result.ClosedAtUtc.Should().Be(closedAt);
+        result.ResolutionSummary.ShouldBe("Root cause: compromised third-party dependency. Remediation: updated dependency, rotated all credentials, implemented WAF rules.");
+        result.ClosedAtUtc.ShouldBe(closedAt);
     }
 
     [Fact]
@@ -638,7 +638,7 @@ public class BreachProjectionTests
         var result = _sut.Apply(closed, readModel, _context);
 
         // Assert
-        result.Status.Should().Be(BreachStatus.Closed);
+        result.Status.ShouldBe(BreachStatus.Closed);
     }
 
     [Fact]
@@ -659,8 +659,8 @@ public class BreachProjectionTests
         var result = _sut.Apply(closed, readModel, _context);
 
         // Assert
-        result.LastModifiedAtUtc.Should().Be(closedAt);
-        result.Version.Should().Be(7);
+        result.LastModifiedAtUtc.ShouldBe(closedAt);
+        result.Version.ShouldBe(7);
     }
 
     #endregion
@@ -685,9 +685,9 @@ public class BreachProjectionTests
             detectedAtUtc: t0);
 
         var readModel = _sut.Create(detected, _context);
-        readModel.Status.Should().Be(BreachStatus.Detected);
-        readModel.Version.Should().Be(1);
-        readModel.DeadlineUtc.Should().Be(t0.AddHours(72));
+        readModel.Status.ShouldBe(BreachStatus.Detected);
+        readModel.Version.ShouldBe(1);
+        readModel.DeadlineUtc.ShouldBe(t0.AddHours(72));
 
         // Step 2: Breach assessed
         var t1 = t0.AddHours(4);
@@ -702,9 +702,9 @@ public class BreachProjectionTests
             ModuleId: "module-1");
 
         readModel = _sut.Apply(assessed, readModel, _context);
-        readModel.Status.Should().Be(BreachStatus.Investigating);
-        readModel.Severity.Should().Be(BreachSeverity.Critical);
-        readModel.Version.Should().Be(2);
+        readModel.Status.ShouldBe(BreachStatus.Investigating);
+        readModel.Severity.ShouldBe(BreachSeverity.Critical);
+        readModel.Version.ShouldBe(2);
 
         // Step 3: Reported to DPA
         var t2 = t1.AddHours(8);
@@ -719,9 +719,9 @@ public class BreachProjectionTests
             ModuleId: "module-1");
 
         readModel = _sut.Apply(reported, readModel, _context);
-        readModel.Status.Should().Be(BreachStatus.AuthorityNotified);
-        readModel.AuthorityName.Should().Be("AEPD");
-        readModel.Version.Should().Be(3);
+        readModel.Status.ShouldBe(BreachStatus.AuthorityNotified);
+        readModel.AuthorityName.ShouldBe("AEPD");
+        readModel.Version.ShouldBe(3);
 
         // Step 4: Phased report added
         var t3 = t2.AddDays(1);
@@ -735,8 +735,8 @@ public class BreachProjectionTests
             ModuleId: "module-1");
 
         readModel = _sut.Apply(phasedReport, readModel, _context);
-        readModel.PhasedReports.Should().HaveCount(1);
-        readModel.Version.Should().Be(4);
+        readModel.PhasedReports.Count.ShouldBe(1);
+        readModel.Version.ShouldBe(4);
 
         // Step 5: Subjects notified
         var t4 = t3.AddDays(1);
@@ -751,9 +751,9 @@ public class BreachProjectionTests
             ModuleId: "module-1");
 
         readModel = _sut.Apply(notified, readModel, _context);
-        readModel.Status.Should().Be(BreachStatus.SubjectsNotified);
-        readModel.SubjectCount.Should().Be(15_000);
-        readModel.Version.Should().Be(5);
+        readModel.Status.ShouldBe(BreachStatus.SubjectsNotified);
+        readModel.SubjectCount.ShouldBe(15_000);
+        readModel.Version.ShouldBe(5);
 
         // Step 6: Breach contained
         var t5 = t4.AddDays(2);
@@ -766,8 +766,8 @@ public class BreachProjectionTests
             ModuleId: "module-1");
 
         readModel = _sut.Apply(contained, readModel, _context);
-        readModel.Status.Should().Be(BreachStatus.Resolved);
-        readModel.Version.Should().Be(6);
+        readModel.Status.ShouldBe(BreachStatus.Resolved);
+        readModel.Version.ShouldBe(6);
 
         // Step 7: Breach closed
         var t6 = t5.AddDays(5);
@@ -780,10 +780,10 @@ public class BreachProjectionTests
             ModuleId: "module-1");
 
         readModel = _sut.Apply(closed, readModel, _context);
-        readModel.Status.Should().Be(BreachStatus.Closed);
-        readModel.ClosedAtUtc.Should().Be(t6);
-        readModel.LastModifiedAtUtc.Should().Be(t6);
-        readModel.Version.Should().Be(7);
+        readModel.Status.ShouldBe(BreachStatus.Closed);
+        readModel.ClosedAtUtc.ShouldBe(t6);
+        readModel.LastModifiedAtUtc.ShouldBe(t6);
+        readModel.Version.ShouldBe(7);
     }
 
     #endregion

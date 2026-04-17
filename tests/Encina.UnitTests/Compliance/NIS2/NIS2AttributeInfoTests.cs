@@ -1,7 +1,7 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 
@@ -40,7 +40,7 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(NoAttributeType));
 
         // Assert
-        info.HasAnyAttribute.Should().BeFalse();
+        info.HasAnyAttribute.ShouldBeFalse();
     }
 
     #endregion
@@ -54,7 +54,7 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(CriticalOnlyType));
 
         // Assert
-        info.IsNIS2Critical.Should().BeTrue();
+        info.IsNIS2Critical.ShouldBeTrue();
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(CriticalOnlyType));
 
         // Assert
-        info.CriticalDescription.Should().Be("Test critical");
+        info.CriticalDescription.ShouldBe("Test critical");
     }
 
     #endregion
@@ -78,7 +78,7 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(MFAOnlyType));
 
         // Assert
-        info.RequiresMFA.Should().BeTrue();
+        info.RequiresMFA.ShouldBeTrue();
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(MFAOnlyType));
 
         // Assert
-        info.MFAReason.Should().Be("Sensitive");
+        info.MFAReason.ShouldBe("Sensitive");
     }
 
     #endregion
@@ -102,9 +102,9 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(MultiSupplyChainType));
 
         // Assert
-        info.SupplyChainChecks.Should().HaveCount(2);
-        info.SupplyChainChecks.Should().Contain("sup-1");
-        info.SupplyChainChecks.Should().Contain("sup-2");
+        info.SupplyChainChecks.Count.ShouldBe(2);
+        info.SupplyChainChecks.ShouldContain("sup-1");
+        info.SupplyChainChecks.ShouldContain("sup-2");
     }
 
     #endregion
@@ -118,7 +118,7 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(FullyDecoratedType));
 
         // Assert
-        info.HasAnyAttribute.Should().BeTrue();
+        info.HasAnyAttribute.ShouldBeTrue();
     }
 
     [Fact]
@@ -128,10 +128,10 @@ public class NIS2AttributeInfoTests
         var info = NIS2AttributeInfo.FromType(typeof(FullyDecoratedType));
 
         // Assert
-        info.IsNIS2Critical.Should().BeTrue();
-        info.RequiresMFA.Should().BeTrue();
-        info.SupplyChainChecks.Should().HaveCount(1);
-        info.SupplyChainChecks.Should().Contain("sup-1");
+        info.IsNIS2Critical.ShouldBeTrue();
+        info.RequiresMFA.ShouldBeTrue();
+        info.SupplyChainChecks.Count.ShouldBe(1);
+        info.SupplyChainChecks.ShouldContain("sup-1");
     }
 
     #endregion

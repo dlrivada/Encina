@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Encina.Security.Secrets.Diagnostics;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -34,36 +34,36 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     [Fact]
     public void SourceName_DelegatesToSecretsActivitySource()
     {
-        SecretsDiagnostics.SourceName.Should().Be(SecretsActivitySource.SourceName);
+        SecretsDiagnostics.SourceName.ShouldBe(SecretsActivitySource.SourceName);
     }
 
     [Fact]
     public void SourceVersion_DelegatesToSecretsActivitySource()
     {
-        SecretsDiagnostics.SourceVersion.Should().Be(SecretsActivitySource.SourceVersion);
+        SecretsDiagnostics.SourceVersion.ShouldBe(SecretsActivitySource.SourceVersion);
     }
 
     [Fact]
     public void ActivitySource_IsSameAsSecretsActivitySource()
     {
-        SecretsDiagnostics.ActivitySource.Should().BeSameAs(SecretsActivitySource.Source);
+        SecretsDiagnostics.ActivitySource.ShouldBeSameAs(SecretsActivitySource.Source);
     }
 
     [Fact]
     public void TagConstants_DelegateToSecretsActivitySource()
     {
-        SecretsDiagnostics.TagSecretName.Should().Be(SecretsActivitySource.TagSecretName);
-        SecretsDiagnostics.TagOperation.Should().Be(SecretsActivitySource.TagOperation);
-        SecretsDiagnostics.TagProvider.Should().Be(SecretsActivitySource.TagProviderType);
-        SecretsDiagnostics.TagOutcome.Should().Be(SecretsActivitySource.TagOutcome);
-        SecretsDiagnostics.TagCached.Should().Be(SecretsActivitySource.TagCacheHit);
-        SecretsDiagnostics.TagRequestType.Should().Be(SecretsActivitySource.TagRequestType);
+        SecretsDiagnostics.TagSecretName.ShouldBe(SecretsActivitySource.TagSecretName);
+        SecretsDiagnostics.TagOperation.ShouldBe(SecretsActivitySource.TagOperation);
+        SecretsDiagnostics.TagProvider.ShouldBe(SecretsActivitySource.TagProviderType);
+        SecretsDiagnostics.TagOutcome.ShouldBe(SecretsActivitySource.TagOutcome);
+        SecretsDiagnostics.TagCached.ShouldBe(SecretsActivitySource.TagCacheHit);
+        SecretsDiagnostics.TagRequestType.ShouldBe(SecretsActivitySource.TagRequestType);
     }
 
     [Fact]
     public void TagPropertyName_HasCorrectValue()
     {
-        SecretsDiagnostics.TagPropertyName.Should().Be("secrets.property_name");
+        SecretsDiagnostics.TagPropertyName.ShouldBe("secrets.property_name");
     }
 
     #endregion
@@ -73,43 +73,43 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     [Fact]
     public void OperationsTotal_IsNotNull()
     {
-        SecretsDiagnostics.OperationsTotal.Should().NotBeNull();
+        SecretsDiagnostics.OperationsTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void FailuresTotal_IsNotNull()
     {
-        SecretsDiagnostics.FailuresTotal.Should().NotBeNull();
+        SecretsDiagnostics.FailuresTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void CacheHitsTotal_IsNotNull()
     {
-        SecretsDiagnostics.CacheHitsTotal.Should().NotBeNull();
+        SecretsDiagnostics.CacheHitsTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void CacheMissesTotal_IsNotNull()
     {
-        SecretsDiagnostics.CacheMissesTotal.Should().NotBeNull();
+        SecretsDiagnostics.CacheMissesTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void OperationDuration_IsNotNull()
     {
-        SecretsDiagnostics.OperationDuration.Should().NotBeNull();
+        SecretsDiagnostics.OperationDuration.ShouldNotBeNull();
     }
 
     [Fact]
     public void InjectionsTotal_IsNotNull()
     {
-        SecretsDiagnostics.InjectionsTotal.Should().NotBeNull();
+        SecretsDiagnostics.InjectionsTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void PropertiesInjected_IsNotNull()
     {
-        SecretsDiagnostics.PropertiesInjected.Should().NotBeNull();
+        SecretsDiagnostics.PropertiesInjected.ShouldNotBeNull();
     }
 
     #endregion
@@ -121,8 +121,8 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     {
         using var activity = SecretsDiagnostics.StartGetSecret("test-secret");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be(SecretsActivitySource.GetSecretActivity);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe(SecretsActivitySource.GetSecretActivity);
     }
 
     [Fact]
@@ -130,8 +130,8 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     {
         using var activity = SecretsDiagnostics.StartSetSecret("test-secret");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be(SecretsActivitySource.SetSecretActivity);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe(SecretsActivitySource.SetSecretActivity);
     }
 
     [Fact]
@@ -139,8 +139,8 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     {
         using var activity = SecretsDiagnostics.StartRotateSecret("test-secret");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be(SecretsActivitySource.RotateSecretActivity);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe(SecretsActivitySource.RotateSecretActivity);
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     {
         using var activity = SecretsDiagnostics.StartSecretInjection("MyRequest");
 
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be(SecretsActivitySource.InjectSecretsActivity);
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe(SecretsActivitySource.InjectSecretsActivity);
     }
 
     #endregion
@@ -163,7 +163,7 @@ public sealed class SecretsDiagnosticsTests : IDisposable
 
         var act = () => SecretsDiagnostics.RecordSuccess(activity);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public sealed class SecretsDiagnosticsTests : IDisposable
 
         var act = () => SecretsDiagnostics.RecordFailure(activity, "error message");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     {
         var act = () => SecretsDiagnostics.RecordSuccess(null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public sealed class SecretsDiagnosticsTests : IDisposable
     {
         var act = () => SecretsDiagnostics.RecordFailure(null, "error");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

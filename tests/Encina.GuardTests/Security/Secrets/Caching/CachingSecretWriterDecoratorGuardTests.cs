@@ -1,6 +1,6 @@
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Caching;
 
@@ -22,8 +22,8 @@ public sealed class CachingSecretWriterDecoratorGuardTests
             new SecretCachingOptions(),
             Substitute.For<ILogger<CachingSecretWriterDecorator>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public sealed class CachingSecretWriterDecoratorGuardTests
             new SecretCachingOptions(),
             Substitute.For<ILogger<CachingSecretWriterDecorator>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public sealed class CachingSecretWriterDecoratorGuardTests
             null!,
             Substitute.For<ILogger<CachingSecretWriterDecorator>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -64,8 +64,8 @@ public sealed class CachingSecretWriterDecoratorGuardTests
             new SecretCachingOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class CachingSecretWriterDecoratorGuardTests
             new SecretCachingOptions(),
             Substitute.For<ILogger<CachingSecretWriterDecorator>>());
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -96,8 +96,8 @@ public sealed class CachingSecretWriterDecoratorGuardTests
 
         var act = async () => await sut.SetSecretAsync(secretName!, "value");
 
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithParameterName(nameof(secretName));
+        (await Should.ThrowAsync<ArgumentException>(act))
+            .ParamName.ShouldBe(nameof(secretName));
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public sealed class CachingSecretWriterDecoratorGuardTests
 
         var act = async () => await sut.SetSecretAsync("key", null!);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("value");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("value");
     }
 
     #endregion

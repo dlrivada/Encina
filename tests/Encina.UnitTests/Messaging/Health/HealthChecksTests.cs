@@ -41,7 +41,7 @@ public sealed class HealthChecksTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("Database connection failed");
+        result.Description!.ShouldContain("Database connection failed");
         result.Exception.ShouldNotBeNull();
     }
 
@@ -64,7 +64,7 @@ public sealed class HealthChecksTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("cancelled");
+        result.Description!.ShouldContain("cancelled");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class HealthChecksTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("healthy");
+        result.Description!.ShouldContain("healthy");
     }
 
     [Fact]

@@ -1,8 +1,8 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct;
 
@@ -28,14 +28,11 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IAISystemRegistry>().Should().NotBeNull()
-            .And.BeOfType<InMemoryAISystemRegistry>();
-        provider.GetService<IAIActClassifier>().Should().NotBeNull()
-            .And.BeOfType<DefaultAIActClassifier>();
-        provider.GetService<IHumanOversightEnforcer>().Should().NotBeNull()
-            .And.BeOfType<DefaultHumanOversightEnforcer>();
-        provider.GetService<IDataQualityValidator>().Should().NotBeNull();
-        provider.GetService<IAIActDocumentation>().Should().NotBeNull();
+        provider.GetService<IAISystemRegistry>().ShouldNotBeNull().ShouldBeOfType<InMemoryAISystemRegistry>();
+        provider.GetService<IAIActClassifier>().ShouldNotBeNull().ShouldBeOfType<DefaultAIActClassifier>();
+        provider.GetService<IHumanOversightEnforcer>().ShouldNotBeNull().ShouldBeOfType<DefaultHumanOversightEnforcer>();
+        provider.GetService<IDataQualityValidator>().ShouldNotBeNull();
+        provider.GetService<IAIActDocumentation>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -51,7 +48,7 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IOptions<AIActOptions>>().Should().NotBeNull();
+        provider.GetService<IOptions<AIActOptions>>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -61,8 +58,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => ((IServiceCollection)null!).AddEncinaAIAct();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -83,7 +80,7 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert — TryAdd should NOT override the custom registration
-        provider.GetService<IAISystemRegistry>().Should().BeSameAs(customRegistry);
+        provider.GetService<IAISystemRegistry>().ShouldBeSameAs(customRegistry);
     }
 
     [Fact]
@@ -105,7 +102,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetService<IAIActComplianceValidator>().Should().BeSameAs(customValidator);
+        scope.ServiceProvider.GetService<IAIActComplianceValidator>().ShouldBeSameAs(customValidator);
     }
 
     [Fact]
@@ -123,7 +120,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert — health check should be registered
-        services.Should().Contain(sd => sd.ImplementationType != null &&
+        services.ShouldContain(sd => sd.ImplementationType != null &&
             sd.ImplementationType.Name.Contains("HealthCheckService"));
     }
 
@@ -141,7 +138,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ImplementationType == typeof(AIActAutoRegistrationHostedService));
     }
 
@@ -159,7 +156,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        services.Should().NotContain(sd =>
+        services.ShouldNotContain(sd =>
             sd.ImplementationType == typeof(AIActAutoRegistrationHostedService));
     }
 
@@ -177,7 +174,7 @@ public class ServiceCollectionExtensionsTests
         });
 
         // Assert
-        returned.Should().BeSameAs(services);
+        returned.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -197,7 +194,6 @@ public class ServiceCollectionExtensionsTests
 
         // Assert — scoped service requires a scope
         using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetService<IAIActComplianceValidator>().Should().NotBeNull()
-            .And.BeOfType<DefaultAIActComplianceValidator>();
+        scope.ServiceProvider.GetService<IAIActComplianceValidator>().ShouldNotBeNull().ShouldBeOfType<DefaultAIActComplianceValidator>();
     }
 }

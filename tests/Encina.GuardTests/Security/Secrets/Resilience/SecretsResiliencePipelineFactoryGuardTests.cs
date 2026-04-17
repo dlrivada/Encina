@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Resilience;
 
@@ -24,8 +24,8 @@ public sealed class SecretsResiliencePipelineFactoryGuardTests
             new SecretsCircuitBreakerState(),
             Substitute.For<ILogger<object>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public sealed class SecretsResiliencePipelineFactoryGuardTests
             null!,
             Substitute.For<ILogger<object>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("circuitBreakerState");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("circuitBreakerState");
     }
 
     [Fact]
@@ -48,8 +48,8 @@ public sealed class SecretsResiliencePipelineFactoryGuardTests
             new SecretsCircuitBreakerState(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class SecretsResiliencePipelineFactoryGuardTests
             new SecretsCircuitBreakerState(),
             Substitute.For<ILogger<object>>());
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

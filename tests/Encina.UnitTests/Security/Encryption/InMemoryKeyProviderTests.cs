@@ -1,5 +1,5 @@
 using Encina.Security.Encryption;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Encryption;
 
@@ -17,9 +17,9 @@ public sealed class InMemoryKeyProviderTests
 
         var result = await _sut.GetKeyAsync("key-1");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var retrieved = result.Match(Right: k => k, Left: _ => []);
-        retrieved.Should().BeEquivalentTo(key);
+        retrieved.ShouldBe(key);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class InMemoryKeyProviderTests
     {
         var result = await _sut.GetKeyAsync("nonexistent");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class InMemoryKeyProviderTests
 
         var result = await _sut.GetKeyAsync("key-1", cts.Token);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -54,9 +54,9 @@ public sealed class InMemoryKeyProviderTests
 
         var result = await _sut.GetCurrentKeyIdAsync();
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var keyId = result.Match(Right: id => id, Left: _ => string.Empty);
-        keyId.Should().Be("key-1");
+        keyId.ShouldBe("key-1");
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class InMemoryKeyProviderTests
     {
         var result = await _sut.GetCurrentKeyIdAsync();
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class InMemoryKeyProviderTests
 
         var result = await _sut.GetCurrentKeyIdAsync(cts.Token);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -89,14 +89,14 @@ public sealed class InMemoryKeyProviderTests
     {
         var result = await _sut.RotateKeyAsync();
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var keyId = result.Match(Right: id => id, Left: _ => string.Empty);
-        keyId.Should().StartWith("key-");
-        _sut.Count.Should().Be(1);
+        keyId.ShouldStartWith("key-");
+        _sut.Count.ShouldBe(1);
 
         var currentResult = await _sut.GetCurrentKeyIdAsync();
         var currentKeyId = currentResult.Match(Right: id => id, Left: _ => string.Empty);
-        currentKeyId.Should().Be(keyId);
+        currentKeyId.ShouldBe(keyId);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class InMemoryKeyProviderTests
         await _sut.RotateKeyAsync();
         await _sut.RotateKeyAsync();
 
-        _sut.Count.Should().Be(3);
+        _sut.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class InMemoryKeyProviderTests
 
         var keyResult = await _sut.GetKeyAsync(keyId);
         var key = keyResult.Match(Right: k => k, Left: _ => []);
-        key.Length.Should().Be(32);
+        key.Length.ShouldBe(32);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class InMemoryKeyProviderTests
 
         var result = await _sut.RotateKeyAsync(cts.Token);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -144,13 +144,13 @@ public sealed class InMemoryKeyProviderTests
         _sut.AddKey("key-1", key1);
         _sut.AddKey("key-1", key2);
 
-        _sut.Count.Should().Be(1);
+        _sut.Count.ShouldBe(1);
     }
 
     [Fact]
     public void Count_EmptyProvider_ReturnsZero()
     {
-        _sut.Count.Should().Be(0);
+        _sut.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class InMemoryKeyProviderTests
 
         _sut.Clear();
 
-        _sut.Count.Should().Be(0);
+        _sut.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public sealed class InMemoryKeyProviderTests
         _sut.Clear();
 
         var result = await _sut.GetCurrentKeyIdAsync();
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -194,8 +194,8 @@ public sealed class InMemoryKeyProviderTests
             .Select(r => r.Match(Right: id => id, Left: _ => string.Empty))
             .ToList();
 
-        keyIds.Distinct().Count().Should().Be(keyIds.Count);
-        _sut.Count.Should().Be(50);
+        keyIds.Distinct().Count().ShouldBe(keyIds.Count);
+        _sut.Count.ShouldBe(50);
     }
 
     #endregion

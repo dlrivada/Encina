@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 
@@ -15,7 +15,7 @@ public class SensitiveDataAccessedNotificationGuardTests
         var act = () => new SensitiveDataAccessedNotification(
             "Patient", "PAT-001", "user-1", DateTimeOffset.UtcNow);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public class SensitiveDataAccessedNotificationGuardTests
         var act = () => new SensitiveDataAccessedNotification(
             "Patient", null, "user-1", DateTimeOffset.UtcNow);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class SensitiveDataAccessedNotificationGuardTests
         var act = () => new SensitiveDataAccessedNotification(
             "Patient", "PAT-001", null, DateTimeOffset.UtcNow);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -43,10 +43,10 @@ public class SensitiveDataAccessedNotificationGuardTests
         var notification = new SensitiveDataAccessedNotification(
             "FinancialRecord", "FR-100", "user-42", now);
 
-        notification.EntityType.Should().Be("FinancialRecord");
-        notification.EntityId.Should().Be("FR-100");
-        notification.UserId.Should().Be("user-42");
-        notification.AccessedAtUtc.Should().Be(now);
+        notification.EntityType.ShouldBe("FinancialRecord");
+        notification.EntityId.ShouldBe("FR-100");
+        notification.UserId.ShouldBe("user-42");
+        notification.AccessedAtUtc.ShouldBe(now);
     }
 
     [Fact]
@@ -55,6 +55,6 @@ public class SensitiveDataAccessedNotificationGuardTests
         var notification = new SensitiveDataAccessedNotification(
             "Patient", null, null, DateTimeOffset.UtcNow);
 
-        notification.Should().BeAssignableTo<INotification>();
+        notification.ShouldBeAssignableTo<INotification>();
     }
 }

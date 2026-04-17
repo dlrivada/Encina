@@ -46,6 +46,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
@@ -63,6 +64,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("NotificationDeadlineHours");
     }
 
@@ -80,6 +82,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("NotificationDeadlineHours");
     }
 
@@ -97,6 +100,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("AlertAtHoursRemaining");
         result.FailureMessage.ShouldContain("non-positive");
     }
@@ -116,6 +120,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("AlertAtHoursRemaining");
         result.FailureMessage.ShouldContain("NotificationDeadlineHours");
     }
@@ -134,6 +139,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("DeadlineCheckInterval");
     }
 
@@ -151,6 +157,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("DeadlineCheckInterval");
     }
 
@@ -168,6 +175,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("SubjectNotificationSeverityThreshold");
     }
 
@@ -204,6 +212,7 @@ public sealed class BreachNotificationOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("EnforcementMode");
         result.FailureMessage.ShouldContain("NotificationDeadlineHours");
         result.FailureMessage.ShouldContain("DeadlineCheckInterval");

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Encina.DomainModeling.Pagination;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -23,8 +23,8 @@ public class Base64JsonCursorEncoderTests
         var encoded = _encoder.Encode(value);
 
         // Assert
-        encoded.Should().NotBeNullOrEmpty();
-        encoded.Should().NotBe(value); // Should be encoded
+        encoded.ShouldNotBeNullOrEmpty();
+        encoded.ShouldNotBe(value); // Should be encoded
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class Base64JsonCursorEncoderTests
         var encoded = _encoder.Encode(value);
 
         // Assert
-        encoded.Should().NotBeNullOrEmpty();
+        encoded.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class Base64JsonCursorEncoderTests
         var encoded = _encoder.Encode(value);
 
         // Assert
-        encoded.Should().NotBeNullOrEmpty();
+        encoded.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class Base64JsonCursorEncoderTests
         var encoded = _encoder.Encode(value);
 
         // Assert
-        encoded.Should().NotBeNullOrEmpty();
+        encoded.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class Base64JsonCursorEncoderTests
         var encoded = _encoder.Encode<string?>(null);
 
         // Assert
-        encoded.Should().BeNull();
+        encoded.ShouldBeNull();
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class Base64JsonCursorEncoderTests
         var encoded = _encoder.Encode(value);
 
         // Assert
-        encoded.Should().NotBeNullOrEmpty();
+        encoded.ShouldNotBeNullOrEmpty();
     }
 
     #endregion
@@ -104,7 +104,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<string>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<int>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<Guid>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<DateTime>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<string>(null);
 
         // Assert
-        decoded.Should().BeNull();
+        decoded.ShouldBeNull();
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<string>("");
 
         // Assert
-        decoded.Should().BeNull();
+        decoded.ShouldBeNull();
     }
 
     #endregion
@@ -188,7 +188,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<string>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Theory]
@@ -204,7 +204,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<int>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Theory]
@@ -220,7 +220,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<long>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<decimal>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public class Base64JsonCursorEncoderTests
         {
             var encoded = _encoder.Encode(original);
             var decoded = _encoder.Decode<bool>(encoded!);
-            decoded.Should().Be(original);
+            decoded.ShouldBe(original);
         }
     }
 
@@ -268,9 +268,9 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<CompositeKey>(encoded!);
 
         // Assert
-        decoded.Should().NotBeNull();
-        decoded!.CreatedAt.Should().Be(createdAt);
-        decoded.Id.Should().Be(id);
+        decoded.ShouldNotBeNull();
+        decoded!.CreatedAt.ShouldBe(createdAt);
+        decoded.Id.ShouldBe(id);
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<OrderCursor>(encoded!);
 
         // Assert
-        decoded.Should().BeEquivalentTo(original);
+        decoded.ShouldBe(original);
     }
 
     private sealed record CompositeKey(DateTime CreatedAt, Guid Id);
@@ -308,7 +308,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<string>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<string>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -336,7 +336,7 @@ public class Base64JsonCursorEncoderTests
         var decoded = _encoder.Decode<string>(encoded!);
 
         // Assert
-        decoded.Should().Be(original);
+        decoded.ShouldBe(original);
     }
 
     [Fact]
@@ -346,11 +346,10 @@ public class Base64JsonCursorEncoderTests
         var invalidCursor = "not-valid-base64!!!";
 
         // Act
-        var action = () => _encoder.Decode<string>(invalidCursor);
+        Action action = () => _encoder.Decode<string>(invalidCursor);
 
         // Assert - CursorEncodingException wraps FormatException
-        action.Should().Throw<CursorEncodingException>()
-            .WithInnerException<FormatException>();
+        Should.Throw<CursorEncodingException>(action).InnerException.ShouldBeOfType<FormatException>();
     }
 
     [Fact]
@@ -360,11 +359,10 @@ public class Base64JsonCursorEncoderTests
         var invalidJson = Convert.ToBase64String("not-valid-json"u8.ToArray());
 
         // Act
-        var action = () => _encoder.Decode<int>(invalidJson);
+        Action action = () => _encoder.Decode<int>(invalidJson);
 
         // Assert - CursorEncodingException wraps JsonException
-        action.Should().Throw<CursorEncodingException>()
-            .WithInnerException<JsonException>();
+        Should.Throw<CursorEncodingException>(action).InnerException.ShouldBeOfType<JsonException>();
     }
 
     [Fact]
@@ -374,11 +372,10 @@ public class Base64JsonCursorEncoderTests
         var encoded = _encoder.Encode("text-value");
 
         // Act - Try to decode as int
-        var action = () => _encoder.Decode<int>(encoded!);
+        Action action = () => _encoder.Decode<int>(encoded!);
 
         // Assert - CursorEncodingException wraps JsonException
-        action.Should().Throw<CursorEncodingException>()
-            .WithInnerException<JsonException>();
+        Should.Throw<CursorEncodingException>(action).InnerException.ShouldBeOfType<JsonException>();
     }
 
     #endregion
@@ -396,7 +393,7 @@ public class Base64JsonCursorEncoderTests
 
         // Assert - Standard Base64 might have +, /, = which are not URL-safe
         // This test verifies the encoded value can be safely used in URLs
-        encoded.Should().NotBeNull();
+        encoded.ShouldNotBeNull();
 
         // If URL-safe encoding is used, these characters should not appear:
         // However, standard Base64 is also acceptable if URL encoding is done at the transport layer
@@ -419,8 +416,8 @@ public class Base64JsonCursorEncoderTests
         var decoded2 = _encoder.Decode<DateTime>(encoded2!);
 
         // Assert
-        decoded2.Should().Be(original);
-        encoded1.Should().Be(encoded2); // Same input = same output
+        decoded2.ShouldBe(original);
+        encoded1.ShouldBe(encoded2); // Same input = same output
     }
 
     #endregion

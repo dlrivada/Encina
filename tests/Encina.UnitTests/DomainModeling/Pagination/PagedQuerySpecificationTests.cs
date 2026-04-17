@@ -1,5 +1,5 @@
 using Encina.DomainModeling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -89,17 +89,16 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Pagination.Should().Be(pagination);
-        spec.Pagination.PageNumber.Should().Be(3);
-        spec.Pagination.PageSize.Should().Be(25);
+        spec.Pagination.ShouldBe(pagination);
+        spec.Pagination.PageNumber.ShouldBe(3);
+        spec.Pagination.PageSize.ShouldBe(25);
     }
 
     [Fact]
     public void Constructor_WithNullPagination_ShouldThrowArgumentNullException()
     {
         // Act & Assert
-        var action = () => new SimplePagedSpec(null!);
-        action.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(() => new SimplePagedSpec(null!));
     }
 
     [Fact]
@@ -112,8 +111,8 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Skip.Should().Be(20); // (3-1) * 10
-        spec.Take.Should().Be(10);
+        spec.Skip.ShouldBe(20); // (3-1) * 10
+        spec.Take.ShouldBe(10);
     }
 
     [Fact]
@@ -126,8 +125,8 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Skip.Should().Be(0);
-        spec.Take.Should().Be(20);
+        spec.Skip.ShouldBe(0);
+        spec.Take.ShouldBe(20);
     }
 
     #endregion
@@ -142,7 +141,7 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Should().BeAssignableTo<IPagedSpecification<TestEntity>>();
+        spec.ShouldBeAssignableTo<IPagedSpecification<TestEntity>>();
     }
 
     [Fact]
@@ -153,7 +152,7 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Should().BeAssignableTo<ISpecification<TestEntity>>();
+        spec.ShouldBeAssignableTo<ISpecification<TestEntity>>();
     }
 
     [Fact]
@@ -164,7 +163,7 @@ public class PagedQuerySpecificationTests
         var spec = new EntitySummaryPagedSpec(pagination);
 
         // Assert
-        spec.Should().BeAssignableTo<IPagedSpecification<TestEntity, TestEntityDto>>();
+        spec.ShouldBeAssignableTo<IPagedSpecification<TestEntity, TestEntityDto>>();
     }
 
     #endregion
@@ -179,8 +178,8 @@ public class PagedQuerySpecificationTests
         var spec = new ActiveEntitiesPagedSpec(pagination);
 
         // Assert
-        spec.Criteria.Should().NotBeEmpty();
-        spec.Criteria.Should().HaveCount(1);
+        spec.Criteria.ShouldNotBeEmpty();
+        spec.Criteria.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -200,8 +199,8 @@ public class PagedQuerySpecificationTests
         var filtered = testEntities.AsQueryable().Where(spec.Criteria[0]).ToList();
 
         // Assert
-        filtered.Should().HaveCount(2);
-        filtered.Should().OnlyContain(e => e.IsActive);
+        filtered.Count.ShouldBe(2);
+        filtered.ShouldAllBe(e => e.IsActive);
     }
 
     #endregion
@@ -216,8 +215,8 @@ public class PagedQuerySpecificationTests
         var spec = new OrderedActiveEntitiesPagedSpec(pagination, descending: false);
 
         // Assert
-        spec.OrderBy.Should().NotBeNull();
-        spec.OrderByDescending.Should().BeNull();
+        spec.OrderBy.ShouldNotBeNull();
+        spec.OrderByDescending.ShouldBeNull();
     }
 
     [Fact]
@@ -228,8 +227,8 @@ public class PagedQuerySpecificationTests
         var spec = new OrderedActiveEntitiesPagedSpec(pagination, descending: true);
 
         // Assert
-        spec.OrderByDescending.Should().NotBeNull();
-        spec.OrderBy.Should().BeNull();
+        spec.OrderByDescending.ShouldNotBeNull();
+        spec.OrderBy.ShouldBeNull();
     }
 
     #endregion
@@ -244,7 +243,7 @@ public class PagedQuerySpecificationTests
         var spec = new EntitySummaryPagedSpec(pagination);
 
         // Assert
-        spec.Selector.Should().NotBeNull();
+        spec.Selector.ShouldNotBeNull();
     }
 
     [Fact]
@@ -259,8 +258,8 @@ public class PagedQuerySpecificationTests
         var projected = spec.Selector!.Compile()(entity);
 
         // Assert
-        projected.Id.Should().Be(1);
-        projected.Name.Should().Be("Test Entity");
+        projected.Id.ShouldBe(1);
+        projected.Name.ShouldBe("Test Entity");
     }
 
     [Fact]
@@ -271,9 +270,9 @@ public class PagedQuerySpecificationTests
         var spec = new ActiveEntitySummaryPagedSpec(pagination);
 
         // Assert
-        spec.Criteria.Should().HaveCount(1);
-        spec.Selector.Should().NotBeNull();
-        spec.Pagination.Should().NotBeNull();
+        spec.Criteria.Count.ShouldBe(1);
+        spec.Selector.ShouldNotBeNull();
+        spec.Pagination.ShouldNotBeNull();
     }
 
     #endregion
@@ -296,10 +295,10 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Skip.Should().Be(expectedSkip);
-        spec.Take.Should().Be(expectedTake);
-        spec.Pagination.PageNumber.Should().Be(pageNumber);
-        spec.Pagination.PageSize.Should().Be(pageSize);
+        spec.Skip.ShouldBe(expectedSkip);
+        spec.Take.ShouldBe(expectedTake);
+        spec.Pagination.PageNumber.ShouldBe(pageNumber);
+        spec.Pagination.PageSize.ShouldBe(pageSize);
     }
 
     [Fact]
@@ -320,9 +319,9 @@ public class PagedQuerySpecificationTests
         var result = query.ToList();
 
         // Assert
-        result.Should().HaveCount(5);
-        result[0].Id.Should().Be(6); // Page 2 starts at item 6
-        result[4].Id.Should().Be(10);
+        result.Count.ShouldBe(5);
+        result[0].Id.ShouldBe(6); // Page 2 starts at item 6
+        result[4].Id.ShouldBe(10);
     }
 
     #endregion
@@ -366,9 +365,9 @@ public class PagedQuerySpecificationTests
         var result = query.ToList();
 
         // Assert
-        result.Should().HaveCount(3); // Page size 3, 4 active items
-        result.Should().OnlyContain(e => e.IsActive);
-        result[0].Id.Should().Be(4); // Most recent active
+        result.Count.ShouldBe(3); // Page size 3, 4 active items
+        result.ShouldAllBe(e => e.IsActive);
+        result[0].Id.ShouldBe(4); // Most recent active
     }
 
     #endregion
@@ -382,10 +381,10 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(PaginationOptions.Default);
 
         // Assert
-        spec.Pagination.PageNumber.Should().Be(1);
-        spec.Pagination.PageSize.Should().Be(20);
-        spec.Skip.Should().Be(0);
-        spec.Take.Should().Be(20);
+        spec.Pagination.PageNumber.ShouldBe(1);
+        spec.Pagination.PageSize.ShouldBe(20);
+        spec.Skip.ShouldBe(0);
+        spec.Take.ShouldBe(20);
     }
 
     #endregion
@@ -400,8 +399,8 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Skip.Should().Be(99900); // (1000-1) * 100
-        spec.Take.Should().Be(100);
+        spec.Skip.ShouldBe(99900); // (1000-1) * 100
+        spec.Take.ShouldBe(100);
     }
 
     [Fact]
@@ -412,8 +411,8 @@ public class PagedQuerySpecificationTests
         var spec = new SimplePagedSpec(pagination);
 
         // Assert
-        spec.Skip.Should().Be(0);
-        spec.Take.Should().Be(1);
+        spec.Skip.ShouldBe(0);
+        spec.Take.ShouldBe(1);
     }
 
     #endregion

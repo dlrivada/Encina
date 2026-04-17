@@ -8,12 +8,12 @@ using Encina.Compliance.BreachNotification.ReadModels;
 using Encina.Compliance.BreachNotification.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
@@ -73,7 +73,7 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             "Report summary",
             "user-10");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<BreachAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -92,8 +92,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             "Report summary",
             "user-10");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     [Fact]
@@ -114,8 +114,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             "Second report",
             "user-10");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("Invalid state transition"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("Invalid state transition"));
     }
 
     #endregion
@@ -146,7 +146,7 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             SubjectNotificationExemption.None,
             "user-11");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<BreachAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -165,8 +165,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             SubjectNotificationExemption.None,
             "user-11");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -195,7 +195,7 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             "Revoked access tokens and blocked IPs",
             "user-12");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<BreachAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -212,8 +212,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             "Revoked access tokens",
             "user-12");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -242,7 +242,7 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             "Root cause: misconfigured firewall. Remediation complete.",
             "user-13");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<BreachAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -259,8 +259,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
             "Resolution summary",
             "user-13");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -286,8 +286,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
 
         var result = await _sut.GetBreachesByStatusAsync(BreachStatus.Detected);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(list => list.Should().HaveCount(2), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(list => list.Count.ShouldBe(2), _ => { });
     }
 
     [Fact]
@@ -299,8 +299,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
 
         var result = await _sut.GetBreachesByStatusAsync(BreachStatus.Detected);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("GetBreachesByStatus"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("GetBreachesByStatus"));
     }
 
     #endregion
@@ -322,8 +322,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
 
         var result = await _sut.GetApproachingDeadlineBreachesAsync();
 
-        result.IsRight.Should().BeTrue();
-        result.Match(list => list.Should().HaveCount(1), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(list => list.Count.ShouldBe(1), _ => { });
     }
 
     [Fact]
@@ -335,8 +335,8 @@ public sealed class DefaultBreachNotificationServiceExtendedTests
 
         var result = await _sut.GetApproachingDeadlineBreachesAsync();
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("GetApproachingDeadlineBreaches"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("GetApproachingDeadlineBreaches"));
     }
 
     #endregion

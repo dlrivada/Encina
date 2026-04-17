@@ -1,11 +1,12 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Injection;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
 public sealed class SecretPropertyCacheTests : IDisposable
 {
+    private static readonly string[] ExpectedMultiSecretNames = ["api-key", "db-connection"];
     public void Dispose()
     {
         SecretPropertyCache.ClearCache();
@@ -60,7 +61,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(PlainRequest));
 
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -68,9 +69,9 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(SingleSecretRequest));
 
-        properties.Should().HaveCount(1);
-        properties[0].Attribute.SecretName.Should().Be("my-secret");
-        properties[0].Property.Name.Should().Be("ApiKey");
+        properties.Length.ShouldBe(1);
+        properties[0].Attribute.SecretName.ShouldBe("my-secret");
+        properties[0].Property.Name.ShouldBe("ApiKey");
     }
 
     [Fact]
@@ -78,9 +79,9 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(MultiSecretRequest));
 
-        properties.Should().HaveCount(2);
+        properties.Length.ShouldBe(2);
         properties.Select(p => p.Attribute.SecretName)
-            .Should().BeEquivalentTo("api-key", "db-connection");
+            .ShouldBe(ExpectedMultiSecretNames);
     }
 
     [Fact]
@@ -88,7 +89,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(NonStringSecretRequest));
 
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -96,7 +97,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(ReadOnlySecretRequest));
 
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -105,7 +106,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
         var first = SecretPropertyCache.GetProperties(typeof(SingleSecretRequest));
         var second = SecretPropertyCache.GetProperties(typeof(SingleSecretRequest));
 
-        ReferenceEquals(first, second).Should().BeTrue();
+        ReferenceEquals(first, second).ShouldBeTrue();
     }
 
     #endregion
@@ -120,7 +121,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
 
         properties[0].SetValue(request, "injected-value");
 
-        request.ApiKey.Should().Be("injected-value");
+        request.ApiKey.ShouldBe("injected-value");
     }
 
     #endregion
@@ -135,7 +136,7 @@ public sealed class SecretPropertyCacheTests : IDisposable
         SecretPropertyCache.ClearCache();
 
         var second = SecretPropertyCache.GetProperties(typeof(SingleSecretRequest));
-        ReferenceEquals(first, second).Should().BeFalse();
+        ReferenceEquals(first, second).ShouldBeFalse();
     }
 
     #endregion
@@ -147,8 +148,8 @@ public sealed class SecretPropertyCacheTests : IDisposable
     {
         var properties = SecretPropertyCache.GetProperties(typeof(VersionedSecretRequest));
 
-        properties.Should().HaveCount(1);
-        properties[0].Attribute.Version.Should().Be("v2");
+        properties.Length.ShouldBe(1);
+        properties[0].Attribute.Version.ShouldBe("v2");
     }
 
     #endregion

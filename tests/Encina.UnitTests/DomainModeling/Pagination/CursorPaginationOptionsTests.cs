@@ -1,5 +1,5 @@
 using Encina.DomainModeling.Pagination;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.DomainModeling.Pagination;
 
@@ -17,9 +17,9 @@ public class CursorPaginationOptionsTests
         var options = new CursorPaginationOptions();
 
         // Assert
-        options.Cursor.Should().BeNull();
-        options.PageSize.Should().Be(20);
-        options.Direction.Should().Be(CursorDirection.Forward);
+        options.Cursor.ShouldBeNull();
+        options.PageSize.ShouldBe(20);
+        options.Direction.ShouldBe(CursorDirection.Forward);
     }
 
     [Fact]
@@ -32,9 +32,9 @@ public class CursorPaginationOptionsTests
             Direction: CursorDirection.Backward);
 
         // Assert
-        options.Cursor.Should().Be("test-cursor");
-        options.PageSize.Should().Be(50);
-        options.Direction.Should().Be(CursorDirection.Backward);
+        options.Cursor.ShouldBe("test-cursor");
+        options.PageSize.ShouldBe(50);
+        options.Direction.ShouldBe(CursorDirection.Backward);
     }
 
     #endregion
@@ -48,9 +48,9 @@ public class CursorPaginationOptionsTests
         var options = CursorPaginationOptions.Default;
 
         // Assert
-        options.Cursor.Should().BeNull();
-        options.PageSize.Should().Be(CursorPaginationOptions.DefaultPageSize);
-        options.Direction.Should().Be(CursorDirection.Forward);
+        options.Cursor.ShouldBeNull();
+        options.PageSize.ShouldBe(CursorPaginationOptions.DefaultPageSize);
+        options.Direction.ShouldBe(CursorDirection.Forward);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class CursorPaginationOptionsTests
         var options2 = CursorPaginationOptions.Default;
 
         // Assert - Same reference
-        ReferenceEquals(options1, options2).Should().BeTrue();
+        ReferenceEquals(options1, options2).ShouldBeTrue();
     }
 
     #endregion
@@ -72,14 +72,14 @@ public class CursorPaginationOptionsTests
     public void MaxPageSize_ShouldBe100()
     {
         // Assert
-        CursorPaginationOptions.MaxPageSize.Should().Be(100);
+        CursorPaginationOptions.MaxPageSize.ShouldBe(100);
     }
 
     [Fact]
     public void DefaultPageSize_ShouldBe20()
     {
         // Assert
-        CursorPaginationOptions.DefaultPageSize.Should().Be(20);
+        CursorPaginationOptions.DefaultPageSize.ShouldBe(20);
     }
 
     #endregion
@@ -96,10 +96,10 @@ public class CursorPaginationOptionsTests
         var modified = original.WithCursor("new-cursor");
 
         // Assert
-        modified.Cursor.Should().Be("new-cursor");
-        modified.PageSize.Should().Be(original.PageSize);
-        modified.Direction.Should().Be(original.Direction);
-        original.Cursor.Should().BeNull(); // Original unchanged
+        modified.Cursor.ShouldBe("new-cursor");
+        modified.PageSize.ShouldBe(original.PageSize);
+        modified.Direction.ShouldBe(original.Direction);
+        original.Cursor.ShouldBeNull(); // Original unchanged
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class CursorPaginationOptionsTests
         var modified = original.WithCursor(null);
 
         // Assert
-        modified.Cursor.Should().BeNull();
+        modified.Cursor.ShouldBeNull();
     }
 
     #endregion
@@ -129,9 +129,9 @@ public class CursorPaginationOptionsTests
         var modified = original.WithSize(50);
 
         // Assert
-        modified.PageSize.Should().Be(50);
-        modified.Cursor.Should().Be(original.Cursor);
-        modified.Direction.Should().Be(original.Direction);
+        modified.PageSize.ShouldBe(50);
+        modified.Cursor.ShouldBe(original.Cursor);
+        modified.Direction.ShouldBe(original.Direction);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class CursorPaginationOptionsTests
         var options = CursorPaginationOptions.Default.WithSize(1);
 
         // Assert
-        options.PageSize.Should().Be(1);
+        options.PageSize.ShouldBe(1);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class CursorPaginationOptionsTests
         var options = CursorPaginationOptions.Default.WithSize(CursorPaginationOptions.MaxPageSize);
 
         // Assert
-        options.PageSize.Should().Be(100);
+        options.PageSize.ShouldBe(100);
     }
 
     [Fact]
@@ -161,9 +161,8 @@ public class CursorPaginationOptionsTests
         var options = CursorPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSize(0);
-        action.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("pageSize");
+        Action action = () => options.WithSize(0);
+        Should.Throw<ArgumentOutOfRangeException>(action).ParamName.ShouldBe("pageSize");
     }
 
     [Fact]
@@ -173,9 +172,8 @@ public class CursorPaginationOptionsTests
         var options = CursorPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSize(-1);
-        action.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("pageSize");
+        Action action = () => options.WithSize(-1);
+        Should.Throw<ArgumentOutOfRangeException>(action).ParamName.ShouldBe("pageSize");
     }
 
     [Fact]
@@ -185,9 +183,8 @@ public class CursorPaginationOptionsTests
         var options = CursorPaginationOptions.Default;
 
         // Act & Assert
-        var action = () => options.WithSize(101);
-        action.Should().Throw<ArgumentOutOfRangeException>()
-            .And.ParamName.Should().Be("pageSize");
+        Action action = () => options.WithSize(101);
+        Should.Throw<ArgumentOutOfRangeException>(action).ParamName.ShouldBe("pageSize");
     }
 
     #endregion
@@ -204,9 +201,9 @@ public class CursorPaginationOptionsTests
         var modified = original.WithDirection(CursorDirection.Backward);
 
         // Assert
-        modified.Direction.Should().Be(CursorDirection.Backward);
-        modified.Cursor.Should().Be(original.Cursor);
-        modified.PageSize.Should().Be(original.PageSize);
+        modified.Direction.ShouldBe(CursorDirection.Backward);
+        modified.Cursor.ShouldBe(original.Cursor);
+        modified.PageSize.ShouldBe(original.PageSize);
     }
 
     [Fact]
@@ -219,7 +216,7 @@ public class CursorPaginationOptionsTests
         var modified = original.WithDirection(CursorDirection.Forward);
 
         // Assert
-        modified.Direction.Should().Be(CursorDirection.Forward);
+        modified.Direction.ShouldBe(CursorDirection.Forward);
     }
 
     #endregion
@@ -233,7 +230,7 @@ public class CursorPaginationOptionsTests
         var options = new CursorPaginationOptions(Cursor: null);
 
         // Assert
-        options.IsFirstPage.Should().BeTrue();
+        options.IsFirstPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -243,7 +240,7 @@ public class CursorPaginationOptionsTests
         var options = new CursorPaginationOptions(Cursor: "");
 
         // Assert
-        options.IsFirstPage.Should().BeTrue();
+        options.IsFirstPage.ShouldBeTrue();
     }
 
     [Fact]
@@ -253,7 +250,7 @@ public class CursorPaginationOptionsTests
         var options = new CursorPaginationOptions(Cursor: "some-cursor");
 
         // Assert
-        options.IsFirstPage.Should().BeFalse();
+        options.IsFirstPage.ShouldBeFalse();
     }
 
     #endregion
@@ -270,9 +267,9 @@ public class CursorPaginationOptionsTests
             .WithDirection(CursorDirection.Backward);
 
         // Assert
-        options.Cursor.Should().Be("test-cursor");
-        options.PageSize.Should().Be(50);
-        options.Direction.Should().Be(CursorDirection.Backward);
+        options.Cursor.ShouldBe("test-cursor");
+        options.PageSize.ShouldBe(50);
+        options.Direction.ShouldBe(CursorDirection.Backward);
     }
 
     [Fact]
@@ -288,9 +285,9 @@ public class CursorPaginationOptionsTests
             .WithDirection(CursorDirection.Backward);
 
         // Assert - Original should be unchanged
-        original.Cursor.Should().BeNull();
-        original.PageSize.Should().Be(20);
-        original.Direction.Should().Be(CursorDirection.Forward);
+        original.Cursor.ShouldBeNull();
+        original.PageSize.ShouldBe(20);
+        original.Direction.ShouldBe(CursorDirection.Forward);
     }
 
     #endregion
@@ -301,14 +298,14 @@ public class CursorPaginationOptionsTests
     public void CursorDirection_Forward_ShouldBeZero()
     {
         // Assert
-        ((int)CursorDirection.Forward).Should().Be(0);
+        ((int)CursorDirection.Forward).ShouldBe(0);
     }
 
     [Fact]
     public void CursorDirection_Backward_ShouldBeOne()
     {
         // Assert
-        ((int)CursorDirection.Backward).Should().Be(1);
+        ((int)CursorDirection.Backward).ShouldBe(1);
     }
 
     #endregion
@@ -323,8 +320,8 @@ public class CursorPaginationOptionsTests
         var options2 = new CursorPaginationOptions("cursor", 50, CursorDirection.Forward);
 
         // Assert
-        options1.Should().Be(options2);
-        (options1 == options2).Should().BeTrue();
+        options1.ShouldBe(options2);
+        (options1 == options2).ShouldBeTrue();
     }
 
     [Fact]
@@ -335,7 +332,7 @@ public class CursorPaginationOptionsTests
         var options2 = new CursorPaginationOptions("cursor2", 50, CursorDirection.Forward);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     [Fact]
@@ -346,7 +343,7 @@ public class CursorPaginationOptionsTests
         var options2 = new CursorPaginationOptions("cursor", 100, CursorDirection.Forward);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     [Fact]
@@ -357,7 +354,7 @@ public class CursorPaginationOptionsTests
         var options2 = new CursorPaginationOptions("cursor", 50, CursorDirection.Backward);
 
         // Assert
-        options1.Should().NotBe(options2);
+        options1.ShouldNotBe(options2);
     }
 
     #endregion

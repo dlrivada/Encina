@@ -1,6 +1,6 @@
 using Encina.Compliance.DataResidency.Attributes;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -13,10 +13,10 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE", "FR", "IT");
 
         // Assert
-        attr.AllowedRegionCodes.Should().HaveCount(3);
-        attr.AllowedRegionCodes.Should().Contain("DE");
-        attr.AllowedRegionCodes.Should().Contain("FR");
-        attr.AllowedRegionCodes.Should().Contain("IT");
+        attr.AllowedRegionCodes.Length.ShouldBe(3);
+        attr.AllowedRegionCodes.ShouldContain("DE");
+        attr.AllowedRegionCodes.ShouldContain("FR");
+        attr.AllowedRegionCodes.ShouldContain("IT");
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE");
 
         // Assert
-        attr.AllowedRegionCodes.Should().ContainSingle().Which.Should().Be("DE");
+        attr.AllowedRegionCodes.ShouldHaveSingleItem().ShouldBe("DE");
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE");
 
         // Assert
-        attr.DataCategory.Should().BeNull();
+        attr.DataCategory.ShouldBeNull();
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE") { DataCategory = "healthcare-data" };
 
         // Assert
-        attr.DataCategory.Should().Be("healthcare-data");
+        attr.DataCategory.ShouldBe("healthcare-data");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE");
 
         // Assert
-        attr.RequireAdequacyDecision.Should().BeFalse();
+        attr.RequireAdequacyDecision.ShouldBeFalse();
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class DataResidencyAttributeTests
         var attr = new DataResidencyAttribute("DE") { RequireAdequacyDecision = true };
 
         // Assert
-        attr.RequireAdequacyDecision.Should().BeTrue();
+        attr.RequireAdequacyDecision.ShouldBeTrue();
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class DataResidencyAttributeTests
             .FirstOrDefault();
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().HaveFlag(AttributeTargets.Class);
+        attributeUsage.ShouldNotBeNull();
+        (attributeUsage!.ValidOn & AttributeTargets.Class).ShouldBe(AttributeTargets.Class);
     }
 }

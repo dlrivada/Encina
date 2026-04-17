@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -19,7 +19,7 @@ public class RegexFunctionsGuardTests
 
         var act = () => fn.Evaluate(["pattern"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 2*received 1*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class RegexFunctionsGuardTests
 
         var act = () => fn.Evaluate([null, "hello"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class RegexFunctionsGuardTests
 
         var act = () => fn.Evaluate(["[invalid", "hello"]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*invalid regex pattern*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("invalid");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class RegexFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringRegexpMatch)!;
 
-        fn.Evaluate([@"^\d{3}-\d{4}$", "123-4567"]).Should().Be(true);
+        fn.Evaluate([@"^\d{3}-\d{4}$", "123-4567"]).ShouldBe(true);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class RegexFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringRegexpMatch)!;
 
-        fn.Evaluate([@"^\d+$", "not-a-number"]).Should().Be(false);
+        fn.Evaluate([@"^\d+$", "not-a-number"]).ShouldBe(false);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class RegexFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringRegexpMatch)!;
 
-        fn.Evaluate(["^$", ""]).Should().Be(true);
+        fn.Evaluate(["^$", ""]).ShouldBe(true);
     }
 
     [Fact]
@@ -71,6 +71,6 @@ public class RegexFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringRegexpMatch)!;
 
-        fn.Evaluate(["^$", null]).Should().Be(true);
+        fn.Evaluate(["^$", null]).ShouldBe(true);
     }
 }

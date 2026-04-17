@@ -2,7 +2,7 @@
 
 using Encina.Compliance.DPIA.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -31,7 +31,7 @@ public class DPIAResultTests
     {
         var result = CreateResult(level);
 
-        result.IsAcceptable.Should().Be(expected);
+        result.IsAcceptable.ShouldBe(expected);
     }
 
     #endregion
@@ -61,12 +61,12 @@ public class DPIAResultTests
             AssessedBy = "tester",
         };
 
-        result.OverallRisk.Should().Be(RiskLevel.High);
-        result.IdentifiedRisks.Should().HaveCount(1);
-        result.ProposedMitigations.Should().HaveCount(1);
-        result.RequiresPriorConsultation.Should().BeTrue();
-        result.AssessedAtUtc.Should().Be(now);
-        result.AssessedBy.Should().Be("tester");
+        result.OverallRisk.ShouldBe(RiskLevel.High);
+        result.IdentifiedRisks.Count.ShouldBe(1);
+        result.ProposedMitigations.Count.ShouldBe(1);
+        result.RequiresPriorConsultation.ShouldBeTrue();
+        result.AssessedAtUtc.ShouldBe(now);
+        result.AssessedBy.ShouldBe("tester");
     }
 
     #endregion

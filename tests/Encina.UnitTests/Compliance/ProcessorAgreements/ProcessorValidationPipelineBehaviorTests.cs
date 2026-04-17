@@ -3,17 +3,12 @@
 using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
@@ -88,9 +83,9 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        nextCalled.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
         await _dpaService.DidNotReceive().HasValidDPAAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -110,8 +105,8 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithoutProcessor(), _context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        nextCalled.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
         await _dpaService.DidNotReceive().HasValidDPAAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -137,9 +132,9 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
-        ((string)result).Should().Be("handler-result");
+        nextCalled.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
+        ((string)result).ShouldBe("handler-result");
     }
 
     [Fact]
@@ -158,7 +153,7 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, SuccessNext(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -183,8 +178,8 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        nextCalled.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -203,9 +198,9 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, SuccessNext(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Be("Validator infrastructure error");
+        error.Message.ShouldBe("Validator infrastructure error");
     }
 
     [Fact]
@@ -231,8 +226,8 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        nextCalled.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -251,9 +246,9 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, SuccessNext(), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("Connection failed");
+        error.Message.ShouldContain("Connection failed");
     }
 
     [Fact]
@@ -279,7 +274,7 @@ public class ProcessorValidationPipelineBehaviorTests
         var result = await sut.Handle(new TestCommandWithProcessor(), _context, next, CancellationToken.None);
 
         // Assert
-        nextCalled.Should().BeTrue();
-        result.IsRight.Should().BeTrue();
+        nextCalled.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 }

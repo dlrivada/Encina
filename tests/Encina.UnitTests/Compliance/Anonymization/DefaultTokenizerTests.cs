@@ -3,13 +3,9 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.Anonymization.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
@@ -55,8 +51,8 @@ public class DefaultTokenizerTests
         var act = () => new DefaultTokenizer(null!, _keyProvider);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("mappingStore");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("mappingStore");
     }
 
     [Fact]
@@ -66,8 +62,8 @@ public class DefaultTokenizerTests
         var act = () => new DefaultTokenizer(_mappingStore, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("keyProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("keyProvider");
     }
 
     #endregion
@@ -84,9 +80,9 @@ public class DefaultTokenizerTests
         var result = await _sut.TokenizeAsync("sensitive-value", options);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var token = result.Match(Right: t => t, Left: _ => string.Empty);
-        Guid.TryParse(token, out _).Should().BeTrue("token should be a valid GUID");
+        Guid.TryParse(token, out _).ShouldBeTrue();
     }
 
     [Fact]
@@ -103,9 +99,9 @@ public class DefaultTokenizerTests
         var result = await _sut.TokenizeAsync("4111-1111-1111-1111", options);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var token = result.Match(Right: t => t, Left: _ => string.Empty);
-        token.Should().StartWith("cc_");
+        token.ShouldStartWith("cc_");
     }
 
     [Fact]
@@ -122,9 +118,9 @@ public class DefaultTokenizerTests
         var result = await _sut.TokenizeAsync("some-value", options);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var token = result.Match(Right: t => t, Left: _ => string.Empty);
-        token.Should().StartWith("tok_");
+        token.ShouldStartWith("tok_");
     }
 
     [Fact]
@@ -142,9 +138,9 @@ public class DefaultTokenizerTests
         var result = await _sut.TokenizeAsync(originalValue, options);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var token = result.Match(Right: t => t, Left: _ => string.Empty);
-        token.Should().HaveLength(originalValue.Length);
+        token.Length.ShouldBe(originalValue.Length);
     }
 
     [Fact]
@@ -162,17 +158,17 @@ public class DefaultTokenizerTests
         var result = await _sut.TokenizeAsync(originalValue, options);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var token = result.Match(Right: t => t, Left: _ => string.Empty);
 
-        token.Should().HaveLength(originalValue.Length);
-        token[0].Should().Match(c => char.IsUpper((char)c), "position 0 should be uppercase");
-        token[1].Should().Match(c => char.IsLower((char)c), "position 1 should be lowercase");
-        token[2].Should().Match(c => char.IsDigit((char)c), "position 2 should be digit");
-        token[3].Should().Be('-', "position 3 should preserve the separator");
-        token[4].Should().Match(c => char.IsUpper((char)c), "position 4 should be uppercase");
-        token[5].Should().Match(c => char.IsLower((char)c), "position 5 should be lowercase");
-        token[6].Should().Match(c => char.IsDigit((char)c), "position 6 should be digit");
+        token.Length.ShouldBe(originalValue.Length);
+        char.IsUpper(token[0]).ShouldBeTrue("position 0 should be uppercase");
+        char.IsLower(token[1]).ShouldBeTrue("position 1 should be lowercase");
+        char.IsDigit(token[2]).ShouldBeTrue("position 2 should be digit");
+        token[3].ShouldBe('-', "position 3 should preserve the separator");
+        char.IsUpper(token[4]).ShouldBeTrue("position 4 should be uppercase");
+        char.IsLower(token[5]).ShouldBeTrue("position 5 should be lowercase");
+        char.IsDigit(token[6]).ShouldBeTrue("position 6 should be digit");
     }
 
     [Fact]
@@ -186,14 +182,14 @@ public class DefaultTokenizerTests
         var result2 = await _sut.TokenizeAsync("duplicate-value", options);
 
         // Assert
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
 
         var token1 = result1.Match(Right: t => t, Left: _ => string.Empty);
         var token2 = result2.Match(Right: t => t, Left: _ => string.Empty);
 
-        token1.Should().Be(token2, "tokenizing the same value should return the same token (deduplication)");
-        _mappingStore.Count.Should().Be(1, "only one mapping should exist for the same value");
+        token1.ShouldBe(token2, "tokenizing the same value should return the same token (deduplication)");
+        _mappingStore.Count.ShouldBe(1, "only one mapping should exist for the same value");
     }
 
     [Fact]
@@ -207,14 +203,14 @@ public class DefaultTokenizerTests
         var result2 = await _sut.TokenizeAsync("value-two", options);
 
         // Assert
-        result1.IsRight.Should().BeTrue();
-        result2.IsRight.Should().BeTrue();
+        result1.IsRight.ShouldBeTrue();
+        result2.IsRight.ShouldBeTrue();
 
         var token1 = result1.Match(Right: t => t, Left: _ => string.Empty);
         var token2 = result2.Match(Right: t => t, Left: _ => string.Empty);
 
-        token1.Should().NotBe(token2, "different values should produce different tokens");
-        _mappingStore.Count.Should().Be(2, "two distinct mappings should be stored");
+        token1.ShouldNotBe(token2, "different values should produce different tokens");
+        _mappingStore.Count.ShouldBe(2, "two distinct mappings should be stored");
     }
 
     [Fact]
@@ -233,9 +229,9 @@ public class DefaultTokenizerTests
         var result = await tokenizer.TokenizeAsync("some-value", options);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(Right: _ => default, Left: e => e);
-        error.Message.Should().Contain("No active cryptographic key");
+        error.Message.ShouldContain("No active cryptographic key");
     }
 
     [Fact]
@@ -257,9 +253,9 @@ public class DefaultTokenizerTests
         var result = await tokenizer.TokenizeAsync("some-value", options);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(Right: _ => default, Left: e => e);
-        error.Message.Should().Contain("missing-key");
+        error.Message.ShouldContain("missing-key");
     }
 
     [Fact]
@@ -272,8 +268,8 @@ public class DefaultTokenizerTests
         var act = async () => await _sut.TokenizeAsync(null!, options);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("value");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("value");
     }
 
     [Fact]
@@ -283,8 +279,8 @@ public class DefaultTokenizerTests
         var act = async () => await _sut.TokenizeAsync("some-value", null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("options");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -297,16 +293,16 @@ public class DefaultTokenizerTests
         var result = await _sut.TokenizeAsync("secret-data", options);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         // Verify the mapping was stored
-        _mappingStore.Count.Should().Be(1);
+        _mappingStore.Count.ShouldBe(1);
 
         var allResult = await _mappingStore.GetAllAsync();
         var all = allResult.Match(Right: l => l, Left: _ => []);
-        all.Should().HaveCount(1);
-        all[0].EncryptedOriginalValue.Should().NotBeEmpty();
-        all[0].KeyId.Should().Be("active-key");
+        all.Count.ShouldBe(1);
+        all[0].EncryptedOriginalValue.ShouldNotBeEmpty();
+        all[0].KeyId.ShouldBe("active-key");
     }
 
     #endregion
@@ -325,9 +321,9 @@ public class DefaultTokenizerTests
         var result = await _sut.DetokenizeAsync(token);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var originalValue = result.Match(Right: v => v, Left: _ => string.Empty);
-        originalValue.Should().Be("my-original-value");
+        originalValue.ShouldBe("my-original-value");
     }
 
     [Fact]
@@ -337,10 +333,10 @@ public class DefaultTokenizerTests
         var result = await _sut.DetokenizeAsync("non-existent-token");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(Right: _ => default, Left: e => e);
-        error.Message.Should().Contain("non-existent-token");
-        error.Message.Should().Contain("not found");
+        error.Message.ShouldContain("non-existent-token");
+        error.Message.ShouldContain("not found");
     }
 
     [Fact]
@@ -350,8 +346,8 @@ public class DefaultTokenizerTests
         var act = async () => await _sut.DetokenizeAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("token");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("token");
     }
 
     [Fact]
@@ -372,9 +368,9 @@ public class DefaultTokenizerTests
         for (int i = 0; i < values.Length; i++)
         {
             var result = await _sut.DetokenizeAsync(tokens[i]);
-            result.IsRight.Should().BeTrue();
+            result.IsRight.ShouldBeTrue();
             var original = result.Match(Right: v => v, Left: _ => string.Empty);
-            original.Should().Be(values[i]);
+            original.ShouldBe(values[i]);
         }
     }
 
@@ -400,9 +396,9 @@ public class DefaultTokenizerTests
         var result = await failingTokenizer.DetokenizeAsync(token);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = result.Match(Right: _ => default, Left: e => e);
-        error.Message.Should().Contain("active-key");
+        error.Message.ShouldContain("active-key");
     }
 
     #endregion
@@ -421,9 +417,9 @@ public class DefaultTokenizerTests
         var result = await _sut.IsTokenAsync(token);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isToken = result.Match(Right: b => b, Left: _ => false);
-        isToken.Should().BeTrue();
+        isToken.ShouldBeTrue();
     }
 
     [Fact]
@@ -433,9 +429,9 @@ public class DefaultTokenizerTests
         var result = await _sut.IsTokenAsync("not-a-token");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var isToken = result.Match(Right: b => b, Left: _ => true);
-        isToken.Should().BeFalse();
+        isToken.ShouldBeFalse();
     }
 
     [Fact]
@@ -445,8 +441,8 @@ public class DefaultTokenizerTests
         var act = async () => await _sut.IsTokenAsync(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("value");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("value");
     }
 
     #endregion

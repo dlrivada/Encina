@@ -1,6 +1,6 @@
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Sagas;
 
@@ -30,28 +30,28 @@ public class SagaRunnerGuardTests
     public void Constructor_NullOrchestrator_ThrowsArgumentNullException()
     {
         var act = () => new SagaRunner(null!, _requestContext, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("orchestrator");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("orchestrator");
     }
 
     [Fact]
     public void Constructor_NullRequestContext_ThrowsArgumentNullException()
     {
         var act = () => new SagaRunner(_orchestrator, null!, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new SagaRunner(_orchestrator, _requestContext, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_ValidParameters_CreatesInstance()
     {
         var sut = CreateSut();
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     #endregion
@@ -63,7 +63,7 @@ public class SagaRunnerGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.RunAsync<TestSagaData>(null!, new TestSagaData()).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("definition");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("definition");
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class SagaRunnerGuardTests
         var sut = CreateSut();
         var definition = CreateMinimalDefinition();
         var act = () => sut.RunAsync(definition, (TestSagaData)null!).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("initialData");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("initialData");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class SagaRunnerGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.RunAsync<TestSagaData>((BuiltSagaDefinition<TestSagaData>)null!).AsTask();
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("definition");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("definition");
     }
 
     #endregion

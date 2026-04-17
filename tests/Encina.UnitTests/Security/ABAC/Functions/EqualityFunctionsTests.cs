@@ -1,5 +1,5 @@
 using Encina.Security.ABAC;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Functions;
 
@@ -23,7 +23,7 @@ public sealed class EqualityFunctionsTests
     [InlineData("abc", "xyz", false)]
     public void StringEqual_ReturnsExpected(string a, string b, bool expected)
     {
-        Eval(XACMLFunctionIds.StringEqual, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.StringEqual, a, b).ShouldBe(expected);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class EqualityFunctionsTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringEqual)!;
         var act = () => fn.Evaluate(["one"]);
-        act.Should().Throw<InvalidOperationException>();
+        Should.Throw<InvalidOperationException>(act);
     }
 
     #endregion
@@ -44,7 +44,7 @@ public sealed class EqualityFunctionsTests
     [InlineData(true, false, false)]
     public void BooleanEqual_ReturnsExpected(bool a, bool b, bool expected)
     {
-        Eval(XACMLFunctionIds.BooleanEqual, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.BooleanEqual, a, b).ShouldBe(expected);
     }
 
     #endregion
@@ -58,13 +58,13 @@ public sealed class EqualityFunctionsTests
     [InlineData(-1, 1, false)]
     public void IntegerEqual_ReturnsExpected(int a, int b, bool expected)
     {
-        Eval(XACMLFunctionIds.IntegerEqual, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.IntegerEqual, a, b).ShouldBe(expected);
     }
 
     [Fact]
     public void IntegerEqual_StringCoercion_Works()
     {
-        Eval(XACMLFunctionIds.IntegerEqual, "42", 42).Should().Be(true);
+        Eval(XACMLFunctionIds.IntegerEqual, "42", 42).ShouldBe(true);
     }
 
     #endregion
@@ -77,7 +77,7 @@ public sealed class EqualityFunctionsTests
     [InlineData(1.0, 2.0, false)]
     public void DoubleEqual_ReturnsExpected(double a, double b, bool expected)
     {
-        Eval(XACMLFunctionIds.DoubleEqual, a, b).Should().Be(expected);
+        Eval(XACMLFunctionIds.DoubleEqual, a, b).ShouldBe(expected);
     }
 
     #endregion
@@ -88,7 +88,7 @@ public sealed class EqualityFunctionsTests
     public void DateEqual_SameDate_ReturnsTrue()
     {
         var date = new DateOnly(2026, 3, 8);
-        Eval(XACMLFunctionIds.DateEqual, date, date).Should().Be(true);
+        Eval(XACMLFunctionIds.DateEqual, date, date).ShouldBe(true);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class EqualityFunctionsTests
     {
         var a = new DateOnly(2026, 1, 1);
         var b = new DateOnly(2026, 12, 31);
-        Eval(XACMLFunctionIds.DateEqual, a, b).Should().Be(false);
+        Eval(XACMLFunctionIds.DateEqual, a, b).ShouldBe(false);
     }
 
     #endregion
@@ -107,7 +107,7 @@ public sealed class EqualityFunctionsTests
     public void DateTimeEqual_SameDateTime_ReturnsTrue()
     {
         var dt = new DateTime(2026, 3, 8, 12, 0, 0, DateTimeKind.Utc);
-        Eval(XACMLFunctionIds.DateTimeEqual, dt, dt).Should().Be(true);
+        Eval(XACMLFunctionIds.DateTimeEqual, dt, dt).ShouldBe(true);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class EqualityFunctionsTests
     {
         var a = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var b = new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc);
-        Eval(XACMLFunctionIds.DateTimeEqual, a, b).Should().Be(false);
+        Eval(XACMLFunctionIds.DateTimeEqual, a, b).ShouldBe(false);
     }
 
     #endregion
@@ -126,7 +126,7 @@ public sealed class EqualityFunctionsTests
     public void TimeEqual_SameTime_ReturnsTrue()
     {
         var t = TimeSpan.FromHours(14);
-        Eval(XACMLFunctionIds.TimeEqual, t, t).Should().Be(true);
+        Eval(XACMLFunctionIds.TimeEqual, t, t).ShouldBe(true);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class EqualityFunctionsTests
     {
         var a = TimeSpan.FromHours(9);
         var b = TimeSpan.FromHours(17);
-        Eval(XACMLFunctionIds.TimeEqual, a, b).Should().Be(false);
+        Eval(XACMLFunctionIds.TimeEqual, a, b).ShouldBe(false);
     }
 
     #endregion
@@ -157,7 +157,7 @@ public sealed class EqualityFunctionsTests
 
         foreach (var id in ids)
         {
-            _registry.GetFunction(id)!.ReturnType.Should().Be(XACMLDataTypes.Boolean,
+            _registry.GetFunction(id)!.ReturnType.ShouldBe(XACMLDataTypes.Boolean,
                 $"Function '{id}' should return Boolean");
         }
     }

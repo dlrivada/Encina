@@ -2,15 +2,10 @@ using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Attributes;
 using Encina.Compliance.DataResidency.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
@@ -47,9 +42,9 @@ public class DefaultRegionRouterTests
         var result = await _sut.DetermineTargetRegionAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.Match(
-            Right: region => region.Should().Be(RegionRegistry.DE),
+            Right: region => region.ShouldBe(RegionRegistry.DE),
             Left: _ => { });
     }
 
@@ -68,28 +63,28 @@ public class DefaultRegionRouterTests
         var result = await _sut.DetermineTargetRegionAsync(request);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
     public void Constructor_NullPolicy_ShouldThrow()
     {
         var act = () => new DefaultRegionRouter(null!, _contextProvider, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("residencyPolicyService");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("residencyPolicyService");
     }
 
     [Fact]
     public void Constructor_NullContextProvider_ShouldThrow()
     {
         var act = () => new DefaultRegionRouter(_policyService, null!, _logger);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("regionContextProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("regionContextProvider");
     }
 
     [Fact]
     public void Constructor_NullLogger_ShouldThrow()
     {
         var act = () => new DefaultRegionRouter(_policyService, _contextProvider, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     // Helper test type decorated with [DataResidency]

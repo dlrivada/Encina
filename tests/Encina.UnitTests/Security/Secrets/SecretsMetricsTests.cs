@@ -1,7 +1,7 @@
 using System.Diagnostics.Metrics;
 using Encina.Security.Secrets.Diagnostics;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -51,7 +51,7 @@ public sealed class SecretsMetricsTests : IDisposable
     {
         var act = () => new SecretsMetrics(null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -61,13 +61,13 @@ public sealed class SecretsMetricsTests : IDisposable
     [Fact]
     public void MeterName_IsCorrect()
     {
-        SecretsMetrics.MeterName.Should().Be("Encina.Security.Secrets");
+        SecretsMetrics.MeterName.ShouldBe("Encina.Security.Secrets");
     }
 
     [Fact]
     public void MeterVersion_IsCorrect()
     {
-        SecretsMetrics.MeterVersion.Should().Be("1.0.0");
+        SecretsMetrics.MeterVersion.ShouldBe("1.0.0");
     }
 
     #endregion
@@ -80,8 +80,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordGetSecret("my-secret", success: true, TimeSpan.FromMilliseconds(42));
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.get.count");
-        _counterValues["secrets.get.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.get.count");
+        _counterValues["secrets.get.count"].ShouldBe(1);
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordGetSecret("my-secret", success: true, TimeSpan.FromMilliseconds(42));
         _listener.RecordObservableInstruments();
 
-        _histogramValues.Should().ContainKey("secrets.get.duration");
-        _histogramValues["secrets.get.duration"].Should().BeApproximately(42.0, 0.1);
+        _histogramValues.ShouldContainKey("secrets.get.duration");
+        _histogramValues["secrets.get.duration"].ShouldBeInRange(41.9, 42.1);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordGetSecret("my-secret", success: false, TimeSpan.FromMilliseconds(10), "not_found");
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.get.count");
+        _counterValues.ShouldContainKey("secrets.get.count");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordGetSecret("secret-2", true, TimeSpan.FromMilliseconds(20));
         _listener.RecordObservableInstruments();
 
-        _counterValues["secrets.get.count"].Should().Be(2);
+        _counterValues["secrets.get.count"].ShouldBe(2);
     }
 
     #endregion
@@ -123,8 +123,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordSetSecret("my-secret", success: true);
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.set.count");
-        _counterValues["secrets.set.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.set.count");
+        _counterValues["secrets.set.count"].ShouldBe(1);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordSetSecret("my-secret", success: false, "provider_unavailable");
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.set.count");
+        _counterValues.ShouldContainKey("secrets.set.count");
     }
 
     #endregion
@@ -146,8 +146,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordRotation("my-secret", success: true);
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.rotation.count");
-        _counterValues["secrets.rotation.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.rotation.count");
+        _counterValues["secrets.rotation.count"].ShouldBe(1);
     }
 
     #endregion
@@ -160,8 +160,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordCacheHit("my-secret");
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.cache.hits");
-        _counterValues["secrets.cache.hits"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.cache.hits");
+        _counterValues["secrets.cache.hits"].ShouldBe(1);
     }
 
     [Fact]
@@ -170,8 +170,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordCacheMiss("my-secret");
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.cache.misses");
-        _counterValues["secrets.cache.misses"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.cache.misses");
+        _counterValues["secrets.cache.misses"].ShouldBe(1);
     }
 
     #endregion
@@ -184,8 +184,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordInjection(typeof(string), success: true, TimeSpan.FromMilliseconds(5), propertiesInjected: 3);
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.injection.count");
-        _counterValues["secrets.injection.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.injection.count");
+        _counterValues["secrets.injection.count"].ShouldBe(1);
     }
 
     [Fact]
@@ -194,8 +194,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordInjection(typeof(string), success: true, TimeSpan.FromMilliseconds(15.5));
         _listener.RecordObservableInstruments();
 
-        _histogramValues.Should().ContainKey("secrets.injection.duration");
-        _histogramValues["secrets.injection.duration"].Should().BeApproximately(15.5, 0.1);
+        _histogramValues.ShouldContainKey("secrets.injection.duration");
+        _histogramValues["secrets.injection.duration"].ShouldBeInRange(15.4, 15.6);
     }
 
     #endregion
@@ -208,8 +208,8 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordFailover("my-secret", "EnvironmentSecretProvider");
         _listener.RecordObservableInstruments();
 
-        _counterValues.Should().ContainKey("secrets.failover.count");
-        _counterValues["secrets.failover.count"].Should().Be(1);
+        _counterValues.ShouldContainKey("secrets.failover.count");
+        _counterValues["secrets.failover.count"].ShouldBe(1);
     }
 
     #endregion
@@ -228,14 +228,14 @@ public sealed class SecretsMetricsTests : IDisposable
         _metrics.RecordFailover("s6", "Provider");
         _listener.RecordObservableInstruments();
 
-        _counterValues["secrets.get.count"].Should().Be(1);
-        _counterValues["secrets.set.count"].Should().Be(1);
-        _counterValues["secrets.rotation.count"].Should().Be(1);
-        _counterValues["secrets.cache.hits"].Should().Be(1);
-        _counterValues["secrets.cache.misses"].Should().Be(1);
+        _counterValues["secrets.get.count"].ShouldBe(1);
+        _counterValues["secrets.set.count"].ShouldBe(1);
+        _counterValues["secrets.rotation.count"].ShouldBe(1);
+        _counterValues["secrets.cache.hits"].ShouldBe(1);
+        _counterValues["secrets.cache.misses"].ShouldBe(1);
         // injection.count includes propertiesInjected (0 in this case) + 1
-        _counterValues["secrets.injection.count"].Should().Be(1);
-        _counterValues["secrets.failover.count"].Should().Be(1);
+        _counterValues["secrets.injection.count"].ShouldBe(1);
+        _counterValues["secrets.failover.count"].ShouldBe(1);
     }
 
     #endregion

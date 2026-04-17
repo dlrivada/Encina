@@ -2,16 +2,11 @@ using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.Retention;
@@ -247,7 +242,7 @@ public sealed class RetentionFluentPolicyHostedServiceTests
 
         var task = sut.StopAsync(CancellationToken.None);
 
-        task.IsCompletedSuccessfully.Should().BeTrue();
+        task.IsCompletedSuccessfully.ShouldBeTrue();
     }
 
     #endregion

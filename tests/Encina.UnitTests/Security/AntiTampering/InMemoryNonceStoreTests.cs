@@ -1,6 +1,6 @@
 using Encina.Security.AntiTampering.Nonce;
-using FluentAssertions;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.AntiTampering;
 
@@ -30,7 +30,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var result = await _sut.TryAddAsync("nonce-1", TimeSpan.FromMinutes(10));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var result = await _sut.TryAddAsync("nonce-1", TimeSpan.FromMinutes(10));
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -59,16 +59,16 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var result = await _sut.TryAddAsync("nonce-1", TimeSpan.FromMinutes(5));
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
     public async Task TryAddAsync_MultipleDistinctNonces_AllSucceed()
     {
         // Act & Assert
-        (await _sut.TryAddAsync("nonce-a", TimeSpan.FromMinutes(10))).Should().BeTrue();
-        (await _sut.TryAddAsync("nonce-b", TimeSpan.FromMinutes(10))).Should().BeTrue();
-        (await _sut.TryAddAsync("nonce-c", TimeSpan.FromMinutes(10))).Should().BeTrue();
+        (await _sut.TryAddAsync("nonce-a", TimeSpan.FromMinutes(10))).ShouldBeTrue();
+        (await _sut.TryAddAsync("nonce-b", TimeSpan.FromMinutes(10))).ShouldBeTrue();
+        (await _sut.TryAddAsync("nonce-c", TimeSpan.FromMinutes(10))).ShouldBeTrue();
     }
 
     #endregion
@@ -85,7 +85,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var result = await _sut.ExistsAsync("nonce-1");
 
         // Assert
-        result.Should().BeTrue();
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var result = await _sut.ExistsAsync("nonce-unknown");
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var result = await _sut.ExistsAsync("nonce-1");
 
         // Assert
-        result.Should().BeFalse();
+        result.ShouldBeFalse();
     }
 
     #endregion
@@ -128,7 +128,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var act = async () => await _sut.TryAddAsync(nonce!, TimeSpan.FromMinutes(10));
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Theory]
@@ -141,7 +141,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         var act = async () => await _sut.ExistsAsync(nonce!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -155,7 +155,7 @@ public sealed class InMemoryNonceStoreTests : IDisposable
         using var store = new InMemoryNonceStore(null);
 
         // Assert - no exception, store is functional
-        store.Should().NotBeNull();
+        store.ShouldNotBeNull();
     }
 
     #endregion

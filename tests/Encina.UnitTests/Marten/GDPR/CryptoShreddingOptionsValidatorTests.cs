@@ -37,6 +37,7 @@ public sealed class CryptoShreddingOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("KeyRotationDays");
     }
 
@@ -54,6 +55,7 @@ public sealed class CryptoShreddingOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("AnonymizedPlaceholder");
     }
 
@@ -72,6 +74,7 @@ public sealed class CryptoShreddingOptionsValidatorTests
 
         // Assert
         result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
         result.FailureMessage.ShouldContain("KeyRotationDays");
         result.FailureMessage.ShouldContain("AnonymizedPlaceholder");
     }

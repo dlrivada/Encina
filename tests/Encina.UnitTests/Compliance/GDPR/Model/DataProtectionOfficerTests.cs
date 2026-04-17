@@ -1,5 +1,5 @@
 using Encina.Compliance.GDPR;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR.Model;
 
@@ -15,9 +15,9 @@ public class DataProtectionOfficerTests
         var dpo = new DataProtectionOfficer("Jane Smith", "dpo@company.com", "+34 600 000 000");
 
         // Assert
-        dpo.Name.Should().Be("Jane Smith");
-        dpo.Email.Should().Be("dpo@company.com");
-        dpo.Phone.Should().Be("+34 600 000 000");
+        dpo.Name.ShouldBe("Jane Smith");
+        dpo.Email.ShouldBe("dpo@company.com");
+        dpo.Phone.ShouldBe("+34 600 000 000");
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class DataProtectionOfficerTests
         var dpo = new DataProtectionOfficer("Jane Smith", "dpo@company.com");
 
         // Assert
-        dpo.Phone.Should().BeNull();
+        dpo.Phone.ShouldBeNull();
     }
 
     [Fact]
@@ -39,9 +39,9 @@ public class DataProtectionOfficerTests
 #pragma warning restore CA1859
 
         // Assert
-        dpo.Name.Should().Be("Jane Smith");
-        dpo.Email.Should().Be("dpo@company.com");
-        dpo.Phone.Should().BeNull();
+        dpo.Name.ShouldBe("Jane Smith");
+        dpo.Email.ShouldBe("dpo@company.com");
+        dpo.Phone.ShouldBeNull();
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class DataProtectionOfficerTests
         var b = new DataProtectionOfficer("Jane Smith", "dpo@company.com", "+1-555-0100");
 
         // Assert
-        a.Should().Be(b);
+        a.ShouldBe(b);
     }
 
     [Fact]
@@ -63,6 +63,6 @@ public class DataProtectionOfficerTests
         var b = new DataProtectionOfficer("John Doe", "dpo@b.com");
 
         // Assert
-        a.Should().NotBe(b);
+        a.ShouldNotBe(b);
     }
 }

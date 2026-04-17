@@ -1,5 +1,5 @@
 using Encina.Security.Secrets;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -10,7 +10,7 @@ public sealed class SecretReferenceTests
     {
         var reference = new SecretReference { Name = "my-secret" };
 
-        reference.Name.Should().Be("my-secret");
+        reference.Name.ShouldBe("my-secret");
     }
 
     [Fact]
@@ -18,7 +18,7 @@ public sealed class SecretReferenceTests
     {
         var reference = new SecretReference { Name = "s" };
 
-        reference.Version.Should().BeNull();
+        reference.Version.ShouldBeNull();
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class SecretReferenceTests
     {
         var reference = new SecretReference { Name = "s" };
 
-        reference.CacheDuration.Should().BeNull();
+        reference.CacheDuration.ShouldBeNull();
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class SecretReferenceTests
     {
         var reference = new SecretReference { Name = "s" };
 
-        reference.AutoRotate.Should().BeFalse();
+        reference.AutoRotate.ShouldBeFalse();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class SecretReferenceTests
     {
         var reference = new SecretReference { Name = "s" };
 
-        reference.RotationInterval.Should().BeNull();
+        reference.RotationInterval.ShouldBeNull();
     }
 
     [Fact]
@@ -57,11 +57,11 @@ public sealed class SecretReferenceTests
             RotationInterval = TimeSpan.FromHours(24)
         };
 
-        reference.Name.Should().Be("db-password");
-        reference.Version.Should().Be("v2");
-        reference.CacheDuration.Should().Be(TimeSpan.FromMinutes(15));
-        reference.AutoRotate.Should().BeTrue();
-        reference.RotationInterval.Should().Be(TimeSpan.FromHours(24));
+        reference.Name.ShouldBe("db-password");
+        reference.Version.ShouldBe("v2");
+        reference.CacheDuration.ShouldBe(TimeSpan.FromMinutes(15));
+        reference.AutoRotate.ShouldBeTrue();
+        reference.RotationInterval.ShouldBe(TimeSpan.FromHours(24));
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class SecretReferenceTests
         var a = new SecretReference { Name = "secret-1", Version = "v1" };
         var b = new SecretReference { Name = "secret-1", Version = "v1" };
 
-        a.Should().Be(b);
+        a.ShouldBe(b);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class SecretReferenceTests
         var a = new SecretReference { Name = "secret-1", Version = "v1" };
         var b = new SecretReference { Name = "secret-1", Version = "v2" };
 
-        a.Should().NotBe(b);
+        a.ShouldNotBe(b);
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public sealed class SecretReferenceTests
 
         var modified = original with { AutoRotate = true };
 
-        modified.Name.Should().Be("secret-1");
-        modified.Version.Should().Be("v1");
-        modified.AutoRotate.Should().BeTrue();
+        modified.Name.ShouldBe("secret-1");
+        modified.Version.ShouldBe("v1");
+        modified.AutoRotate.ShouldBeTrue();
     }
 }

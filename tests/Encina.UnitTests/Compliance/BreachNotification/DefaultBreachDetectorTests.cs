@@ -3,16 +3,11 @@
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
@@ -92,9 +87,9 @@ public class DefaultBreachDetectorTests
         var result = await sut.DetectAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().BeEmpty();
+        breaches.ShouldBeEmpty();
     }
 
     [Fact]
@@ -111,10 +106,10 @@ public class DefaultBreachDetectorTests
         var result = await sut.DetectAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().HaveCount(1);
-        breaches[0].DetectionRuleName.Should().Be("UnauthorizedAccessRule");
+        breaches.Count.ShouldBe(1);
+        breaches[0].DetectionRuleName.ShouldBe("UnauthorizedAccessRule");
     }
 
     [Fact]
@@ -129,9 +124,9 @@ public class DefaultBreachDetectorTests
         var result = await sut.DetectAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().BeEmpty();
+        breaches.ShouldBeEmpty();
     }
 
     [Fact]
@@ -154,10 +149,10 @@ public class DefaultBreachDetectorTests
         var result = await sut.DetectAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().HaveCount(1);
-        breaches[0].DetectionRuleName.Should().Be("WorkingRule");
+        breaches.Count.ShouldBe(1);
+        breaches[0].DetectionRuleName.ShouldBe("WorkingRule");
     }
 
     [Fact]
@@ -177,10 +172,12 @@ public class DefaultBreachDetectorTests
         var result = await sut.DetectAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().HaveCount(2);
-        breaches.Select(b => b.DetectionRuleName).Should().Contain(["Rule1", "Rule2"]);
+        breaches.Count.ShouldBe(2);
+        var ruleNames = breaches.Select(b => b.DetectionRuleName).ToList();
+        ruleNames.ShouldContain("Rule1");
+        ruleNames.ShouldContain("Rule2");
     }
 
     [Fact]
@@ -205,10 +202,10 @@ public class DefaultBreachDetectorTests
         var result = await sut.DetectAsync(securityEvent);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().HaveCount(1);
-        breaches[0].DetectionRuleName.Should().Be("WorkingRule");
+        breaches.Count.ShouldBe(1);
+        breaches[0].DetectionRuleName.ShouldBe("WorkingRule");
     }
 
     #endregion
@@ -230,10 +227,10 @@ public class DefaultBreachDetectorTests
         // Assert — verify by detecting with it
         var securityEvent = CreateTestEvent(SecurityEventType.DataExfiltration);
         var result = await sut.DetectAsync(securityEvent);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().HaveCount(1);
-        breaches[0].DetectionRuleName.Should().Be("DynamicRule");
+        breaches.Count.ShouldBe(1);
+        breaches[0].DetectionRuleName.ShouldBe("DynamicRule");
     }
 
     [Fact]
@@ -257,14 +254,14 @@ public class DefaultBreachDetectorTests
         // Assert
         var securityEvent = CreateTestEvent(SecurityEventType.UnauthorizedAccess);
         var result = await sut.DetectAsync(securityEvent);
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var breaches = result.Match(r => r, _ => []);
-        breaches.Should().HaveCount(1);
+        breaches.Count.ShouldBe(1);
 
         // Only one rule with that name should exist (replacement, not duplicate)
         var rulesResult = await sut.GetRegisteredRulesAsync();
         var ruleNames = rulesResult.Match(r => r, _ => []);
-        ruleNames.Count(n => n == "SameNameRule").Should().Be(1);
+        ruleNames.Count(n => n == "SameNameRule").ShouldBe(1);
     }
 
     #endregion
@@ -284,10 +281,12 @@ public class DefaultBreachDetectorTests
         var result = await sut.GetRegisteredRulesAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var ruleNames = result.Match(r => r, _ => []);
-        ruleNames.Should().HaveCount(3);
-        ruleNames.Should().Contain(["RuleAlpha", "RuleBeta", "RuleGamma"]);
+        ruleNames.Count.ShouldBe(3);
+        ruleNames.ShouldContain("RuleAlpha");
+        ruleNames.ShouldContain("RuleBeta");
+        ruleNames.ShouldContain("RuleGamma");
     }
 
     #endregion

@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit.ReadAudit;
 
@@ -13,31 +13,31 @@ public class ReadAuditErrorsTests
     [Fact]
     public void StoreErrorCode_ShouldBeCorrect()
     {
-        ReadAuditErrors.StoreErrorCode.Should().Be("read_audit.store_error");
+        ReadAuditErrors.StoreErrorCode.ShouldBe("read_audit.store_error");
     }
 
     [Fact]
     public void NotFoundCode_ShouldBeCorrect()
     {
-        ReadAuditErrors.NotFoundCode.Should().Be("read_audit.not_found");
+        ReadAuditErrors.NotFoundCode.ShouldBe("read_audit.not_found");
     }
 
     [Fact]
     public void InvalidQueryCode_ShouldBeCorrect()
     {
-        ReadAuditErrors.InvalidQueryCode.Should().Be("read_audit.invalid_query");
+        ReadAuditErrors.InvalidQueryCode.ShouldBe("read_audit.invalid_query");
     }
 
     [Fact]
     public void PurgeFailedCode_ShouldBeCorrect()
     {
-        ReadAuditErrors.PurgeFailedCode.Should().Be("read_audit.purge_failed");
+        ReadAuditErrors.PurgeFailedCode.ShouldBe("read_audit.purge_failed");
     }
 
     [Fact]
     public void PurposeRequiredCode_ShouldBeCorrect()
     {
-        ReadAuditErrors.PurposeRequiredCode.Should().Be("read_audit.purpose_required");
+        ReadAuditErrors.PurposeRequiredCode.ShouldBe("read_audit.purpose_required");
     }
 
     #endregion
@@ -51,8 +51,8 @@ public class ReadAuditErrorsTests
         var error = ReadAuditErrors.StoreError("LogRead", "Connection failed");
 
         // Assert
-        error.Message.Should().Contain("LogRead");
-        error.Message.Should().Contain("Connection failed");
+        error.Message.ShouldContain("LogRead");
+        error.Message.ShouldContain("Connection failed");
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class ReadAuditErrorsTests
         var error = ReadAuditErrors.StoreError("Query", "Failed", exception);
 
         // Assert
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     #endregion
@@ -79,8 +79,8 @@ public class ReadAuditErrorsTests
         var error = ReadAuditErrors.NotFound("Patient", "P-123");
 
         // Assert
-        error.Message.Should().Contain("Patient");
-        error.Message.Should().Contain("P-123");
+        error.Message.ShouldContain("Patient");
+        error.Message.ShouldContain("P-123");
     }
 
     #endregion
@@ -94,7 +94,7 @@ public class ReadAuditErrorsTests
         var error = ReadAuditErrors.InvalidQuery("PageSize must be positive");
 
         // Assert
-        error.Message.Should().Contain("PageSize must be positive");
+        error.Message.ShouldContain("PageSize must be positive");
     }
 
     #endregion
@@ -108,7 +108,7 @@ public class ReadAuditErrorsTests
         var error = ReadAuditErrors.PurgeFailed("Timeout exceeded");
 
         // Assert
-        error.Message.Should().Contain("Timeout exceeded");
+        error.Message.ShouldContain("Timeout exceeded");
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class ReadAuditErrorsTests
         var error = ReadAuditErrors.PurgeFailed("Timeout", exception);
 
         // Assert
-        error.Exception.IsSome.Should().BeTrue();
+        error.Exception.IsSome.ShouldBeTrue();
     }
 
     #endregion
@@ -135,7 +135,7 @@ public class ReadAuditErrorsTests
         var error = ReadAuditErrors.PurposeRequired("Patient", "user-1");
 
         // Assert
-        error.Message.Should().Contain("Patient");
+        error.Message.ShouldContain("Patient");
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class ReadAuditErrorsTests
         var act = () => ReadAuditErrors.PurposeRequired("Patient", null);
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

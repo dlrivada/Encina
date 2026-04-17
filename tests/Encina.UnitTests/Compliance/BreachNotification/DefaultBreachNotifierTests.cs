@@ -2,11 +2,9 @@
 
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Model;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -49,9 +47,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyAuthorityAsync(breach);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.Outcome.Should().Be(NotificationOutcome.Sent);
+        notification.Outcome.ShouldBe(NotificationOutcome.Sent);
     }
 
     [Fact]
@@ -65,9 +63,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyAuthorityAsync(breach);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.BreachId.Should().Be(breach.Id);
+        notification.BreachId.ShouldBe(breach.Id);
     }
 
     [Fact]
@@ -84,9 +82,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyAuthorityAsync(breach);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.SentAtUtc.Should().Be(expectedTime);
+        notification.SentAtUtc.ShouldBe(expectedTime);
     }
 
     [Fact]
@@ -100,9 +98,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyAuthorityAsync(breach);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.Recipient.Should().Contain("supervisory-authority");
+        notification.Recipient!.ShouldContain("supervisory-authority");
     }
 
     #endregion
@@ -121,9 +119,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyDataSubjectsAsync(breach, subjectIds);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.Outcome.Should().Be(NotificationOutcome.Sent);
+        notification.Outcome.ShouldBe(NotificationOutcome.Sent);
     }
 
     [Fact]
@@ -138,9 +136,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyDataSubjectsAsync(breach, subjectIds);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.BreachId.Should().Be(breach.Id);
+        notification.BreachId.ShouldBe(breach.Id);
     }
 
     [Fact]
@@ -155,9 +153,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyDataSubjectsAsync(breach, subjectIds);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.Recipient.Should().Contain("3 subjects");
+        notification.Recipient!.ShouldContain("3 subjects");
     }
 
     [Fact]
@@ -175,9 +173,9 @@ public class DefaultBreachNotifierTests
         var result = await sut.NotifyDataSubjectsAsync(breach, subjectIds);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var notification = result.Match(r => r, _ => null!);
-        notification.SentAtUtc.Should().Be(expectedTime);
+        notification.SentAtUtc.ShouldBe(expectedTime);
     }
 
     #endregion

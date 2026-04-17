@@ -7,11 +7,11 @@ using Encina.Messaging.Encryption.Attributes;
 using Encina.Messaging.Encryption.Model;
 using Encina.Messaging.Encryption.Serialization;
 using Encina.Messaging.Serialization;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Encryption;
@@ -43,7 +43,7 @@ public class EncryptingMessageSerializerTests : IDisposable
         var result = serializer.Serialize(new TestMessage { Name = "test" });
 
         // Assert
-        result.Should().Be("{\"Name\":\"test\"}");
+        result.ShouldBe("{\"Name\":\"test\"}");
         _ = _provider.DidNotReceive().EncryptAsync(
             Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>());
     }
@@ -60,7 +60,7 @@ public class EncryptingMessageSerializerTests : IDisposable
         var result = serializer.Serialize(new TestMessage { Name = "test" });
 
         // Assert
-        result.Should().Be("{\"Name\":\"test\"}");
+        result.ShouldBe("{\"Name\":\"test\"}");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class EncryptingMessageSerializerTests : IDisposable
         var result = serializer.Serialize(new TestMessage { Name = "test" });
 
         // Assert
-        result.Should().StartWith("ENC:v1:test-key:AES-256-GCM:");
+        result.ShouldStartWith("ENC:v1:test-key:AES-256-GCM:");
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class EncryptingMessageSerializerTests : IDisposable
         var result = serializer.Serialize(new EncryptedTestMessage { Data = "secret" });
 
         // Assert
-        result.Should().StartWith("ENC:");
+        result.ShouldStartWith("ENC:");
     }
 
     [Fact]
@@ -135,11 +135,10 @@ public class EncryptingMessageSerializerTests : IDisposable
             .Returns(Left<EncinaError, EncryptedPayload>(error));
 
         // Act
-        var act = () => serializer.Serialize(new TestMessage { Name = "test" });
+        Action act = () => serializer.Serialize(new TestMessage { Name = "test" });
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*TestMessage*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("TestMessage");
     }
 
     [Fact]
@@ -154,8 +153,8 @@ public class EncryptingMessageSerializerTests : IDisposable
         var result = serializer.Deserialize<TestMessage>("{\"Name\":\"test\"}");
 
         // Assert
-        result.Should().NotBeNull();
-        result!.Name.Should().Be("test");
+        result.ShouldNotBeNull();
+        result!.Name.ShouldBe("test");
     }
 
     [Fact]
@@ -187,8 +186,8 @@ public class EncryptingMessageSerializerTests : IDisposable
         var result = serializer.Deserialize<TestMessage>(encryptedString);
 
         // Assert
-        result.Should().NotBeNull();
-        result!.Name.Should().Be("decrypted");
+        result.ShouldNotBeNull();
+        result!.Name.ShouldBe("decrypted");
     }
 
     [Fact]
@@ -215,11 +214,10 @@ public class EncryptingMessageSerializerTests : IDisposable
             .Returns(Left<EncinaError, ImmutableArray<byte>>(error));
 
         // Act
-        var act = () => serializer.Deserialize<TestMessage>(encryptedString);
+        Action act = () => serializer.Deserialize<TestMessage>(encryptedString);
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*bad-key*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("bad-key");
     }
 
     [Fact]
@@ -234,8 +232,8 @@ public class EncryptingMessageSerializerTests : IDisposable
         var result = serializer.Deserialize("{\"Name\":\"test\"}", typeof(TestMessage));
 
         // Assert
-        result.Should().NotBeNull();
-        ((TestMessage)result!).Name.Should().Be("test");
+        result.ShouldNotBeNull();
+        ((TestMessage)result!).Name.ShouldBe("test");
     }
 
     private EncryptingMessageSerializer CreateSerializer(IOptions<MessageEncryptionOptions>? options = null)

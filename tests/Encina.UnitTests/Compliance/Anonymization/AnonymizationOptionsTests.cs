@@ -1,5 +1,5 @@
 using Encina.Compliance.Anonymization;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -17,7 +17,7 @@ public class AnonymizationOptionsTests
         var options = new AnonymizationOptions();
 
         // Assert
-        options.EnforcementMode.Should().Be(AnonymizationEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(AnonymizationEnforcementMode.Block);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class AnonymizationOptionsTests
         var options = new AnonymizationOptions();
 
         // Assert
-        options.TrackAuditTrail.Should().BeTrue();
+        options.TrackAuditTrail.ShouldBeTrue();
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class AnonymizationOptionsTests
         var options = new AnonymizationOptions();
 
         // Assert
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class AnonymizationOptionsTests
         var options = new AnonymizationOptions();
 
         // Assert
-        options.AutoRegisterFromAttributes.Should().BeTrue();
+        options.AutoRegisterFromAttributes.ShouldBeTrue();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class AnonymizationOptionsTests
         var options = new AnonymizationOptions();
 
         // Assert
-        options.AssembliesToScan.Should().BeEmpty();
+        options.AssembliesToScan.ShouldBeEmpty();
     }
 
     #endregion
@@ -74,7 +74,7 @@ public class AnonymizationOptionsTests
         options.EnforcementMode = AnonymizationEnforcementMode.Warn;
 
         // Assert
-        options.EnforcementMode.Should().Be(AnonymizationEnforcementMode.Warn);
+        options.EnforcementMode.ShouldBe(AnonymizationEnforcementMode.Warn);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class AnonymizationOptionsTests
         options.TrackAuditTrail = false;
 
         // Assert
-        options.TrackAuditTrail.Should().BeFalse();
+        options.TrackAuditTrail.ShouldBeFalse();
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class AnonymizationOptionsTests
         options.AddHealthCheck = true;
 
         // Assert
-        options.AddHealthCheck.Should().BeTrue();
+        options.AddHealthCheck.ShouldBeTrue();
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class AnonymizationOptionsTests
         options.AutoRegisterFromAttributes = false;
 
         // Assert
-        options.AutoRegisterFromAttributes.Should().BeFalse();
+        options.AutoRegisterFromAttributes.ShouldBeFalse();
     }
 
     [Fact]
@@ -127,8 +127,8 @@ public class AnonymizationOptionsTests
         options.AssembliesToScan.Add(assembly);
 
         // Assert
-        options.AssembliesToScan.Should().ContainSingle()
-            .Which.Should().BeSameAs(assembly);
+        options.AssembliesToScan.ShouldHaveSingleItem()
+            .ShouldBeSameAs(assembly);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class AnonymizationOptionsTests
         options.EnforcementMode = AnonymizationEnforcementMode.Disabled;
 
         // Assert
-        options.EnforcementMode.Should().Be(AnonymizationEnforcementMode.Disabled);
+        options.EnforcementMode.ShouldBe(AnonymizationEnforcementMode.Disabled);
     }
 
     #endregion

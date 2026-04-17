@@ -245,7 +245,7 @@ public sealed class ReadWriteSeparationHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description.ShouldNotBeNull();
         result.Description!.ShouldContain("all replicas are unreachable");
-        result.Description.ShouldContain("fall back to the primary");
+        result.Description!.ShouldContain("fall back to the primary");
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 using Encina.Compliance.GDPR;
-using FluentAssertions;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR;
 
@@ -22,11 +22,11 @@ public class DefaultGDPRComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, context);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (ComplianceResult)result;
-        compliance.IsCompliant.Should().BeTrue();
-        compliance.Errors.Should().BeEmpty();
-        compliance.Warnings.Should().BeEmpty();
+        compliance.IsCompliant.ShouldBeTrue();
+        compliance.Errors.ShouldBeEmpty();
+        compliance.Warnings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public class DefaultGDPRComplianceValidatorTests
         var result = await _sut.ValidateAsync(request, context, cts.Token);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var compliance = (ComplianceResult)result;
-        compliance.IsCompliant.Should().BeTrue();
+        compliance.IsCompliant.ShouldBeTrue();
     }
 }

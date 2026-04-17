@@ -1,5 +1,5 @@
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct.Model;
 
@@ -20,7 +20,7 @@ public class AISystemRegistrationTests
             RegisteredAtUtc = DateTimeOffset.UtcNow
         };
 
-        reg.ProhibitedPractices.Should().BeEmpty();
+        reg.ProhibitedPractices.ShouldBeEmpty();
     }
 
     [Fact]
@@ -37,8 +37,8 @@ public class AISystemRegistrationTests
 
         var modified = original with { RiskLevel = AIRiskLevel.MinimalRisk };
 
-        modified.RiskLevel.Should().Be(AIRiskLevel.MinimalRisk);
-        original.RiskLevel.Should().Be(AIRiskLevel.HighRisk);
+        modified.RiskLevel.ShouldBe(AIRiskLevel.MinimalRisk);
+        original.RiskLevel.ShouldBe(AIRiskLevel.HighRisk);
     }
 
     [Fact]
@@ -53,9 +53,9 @@ public class AISystemRegistrationTests
             RegisteredAtUtc = DateTimeOffset.UtcNow
         };
 
-        reg.Provider.Should().BeNull();
-        reg.Version.Should().BeNull();
-        reg.Description.Should().BeNull();
-        reg.DeploymentContext.Should().BeNull();
+        reg.Provider.ShouldBeNull();
+        reg.Version.ShouldBeNull();
+        reg.Description.ShouldBeNull();
+        reg.DeploymentContext.ShouldBeNull();
     }
 }

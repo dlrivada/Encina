@@ -1,5 +1,5 @@
 using Encina.Messaging.ReadWriteSeparation;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.ReadWriteSeparation;
 
@@ -15,21 +15,21 @@ public class ReadWriteSeparationGuardTests
     public void Constructor_NullReplicas_ThrowsArgumentNullException()
     {
         var act = () => new LeastConnectionsReplicaSelector(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("replicas");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("replicas");
     }
 
     [Fact]
     public void Constructor_EmptyReplicas_ThrowsArgumentException()
     {
         var act = () => new LeastConnectionsReplicaSelector(new List<string>());
-        act.Should().Throw<ArgumentException>().WithParameterName("replicas");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("replicas");
     }
 
     [Fact]
     public void Constructor_SingleReplica_Succeeds()
     {
         var sut = new LeastConnectionsReplicaSelector(new List<string> { "Server=replica1" });
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class ReadWriteSeparationGuardTests
     {
         var replicas = new List<string> { "Server=replica1", "Server=replica2", "Server=replica3" };
         var sut = new LeastConnectionsReplicaSelector(replicas);
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     #endregion
@@ -51,7 +51,7 @@ public class ReadWriteSeparationGuardTests
 
         var selected = sut.SelectReplica();
 
-        selected.Should().Be("Server=replica1");
+        selected.ShouldBe("Server=replica1");
     }
 
     [Fact]
@@ -62,11 +62,11 @@ public class ReadWriteSeparationGuardTests
 
         // First call selects replica1 (both start at 0, first is picked)
         var first = sut.SelectReplica();
-        first.Should().Be("Server=replica1");
+        first.ShouldBe("Server=replica1");
 
         // Second call selects replica2 (replica1 now has 1 connection)
         var second = sut.SelectReplica();
-        second.Should().Be("Server=replica2");
+        second.ShouldBe("Server=replica2");
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class ReadWriteSeparationGuardTests
 
         // Now replica1=1, replica2=1. First encountered (replica1) should be selected.
         var next = sut.SelectReplica();
-        next.Should().Be("Server=replica1");
+        next.ShouldBe("Server=replica1");
     }
 
     #endregion
@@ -97,7 +97,7 @@ public class ReadWriteSeparationGuardTests
     {
         var sut = new LeastConnectionsReplicaSelector(new List<string> { "Server=replica1" });
         var act = () => sut.ReleaseReplica(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connectionString");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("connectionString");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class ReadWriteSeparationGuardTests
 
         // Releasing an unknown replica should not throw
         var act = () => sut.ReleaseReplica("Server=unknown");
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class ReadWriteSeparationGuardTests
         sut.ReleaseReplica("Server=replica1"); // count = 0
         sut.ReleaseReplica("Server=replica1"); // count should stay at 0
 
-        sut.GetConnectionCount("Server=replica1").Should().Be(0);
+        sut.GetConnectionCount("Server=replica1").ShouldBe(0);
     }
 
     #endregion
@@ -130,8 +130,8 @@ public class ReadWriteSeparationGuardTests
     public void GetConnectionCount_NullConnectionString_ThrowsArgumentNullException()
     {
         var sut = new LeastConnectionsReplicaSelector(new List<string> { "Server=replica1" });
-        var act = () => sut.GetConnectionCount(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("connectionString");
+        Action act = () => sut.GetConnectionCount(null!);
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("connectionString");
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class ReadWriteSeparationGuardTests
     {
         var sut = new LeastConnectionsReplicaSelector(new List<string> { "Server=replica1" });
         var count = sut.GetConnectionCount("Server=unknown");
-        count.Should().Be(0);
+        count.ShouldBe(0);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class ReadWriteSeparationGuardTests
         sut.SelectReplica();
         sut.SelectReplica();
 
-        sut.GetConnectionCount("Server=replica1").Should().Be(2);
+        sut.GetConnectionCount("Server=replica1").ShouldBe(2);
     }
 
     #endregion
@@ -164,8 +164,8 @@ public class ReadWriteSeparationGuardTests
 
         using var lease = sut.AcquireReplica();
 
-        lease.ConnectionString.Should().Be("Server=replica1");
-        sut.GetConnectionCount("Server=replica1").Should().Be(1);
+        lease.ConnectionString.ShouldBe("Server=replica1");
+        sut.GetConnectionCount("Server=replica1").ShouldBe(1);
     }
 
     [Fact]
@@ -174,10 +174,10 @@ public class ReadWriteSeparationGuardTests
         var sut = new LeastConnectionsReplicaSelector(new List<string> { "Server=replica1" });
 
         var lease = sut.AcquireReplica();
-        sut.GetConnectionCount("Server=replica1").Should().Be(1);
+        sut.GetConnectionCount("Server=replica1").ShouldBe(1);
 
         lease.Dispose();
-        sut.GetConnectionCount("Server=replica1").Should().Be(0);
+        sut.GetConnectionCount("Server=replica1").ShouldBe(0);
     }
 
     [Fact]
@@ -189,10 +189,10 @@ public class ReadWriteSeparationGuardTests
         using var lease1 = sut.AcquireReplica(); // replica1
         using var lease2 = sut.AcquireReplica(); // replica2
 
-        lease1.ConnectionString.Should().Be("Server=replica1");
-        lease2.ConnectionString.Should().Be("Server=replica2");
-        sut.GetConnectionCount("Server=replica1").Should().Be(1);
-        sut.GetConnectionCount("Server=replica2").Should().Be(1);
+        lease1.ConnectionString.ShouldBe("Server=replica1");
+        lease2.ConnectionString.ShouldBe("Server=replica2");
+        sut.GetConnectionCount("Server=replica1").ShouldBe(1);
+        sut.GetConnectionCount("Server=replica2").ShouldBe(1);
     }
 
     #endregion
@@ -207,9 +207,9 @@ public class ReadWriteSeparationGuardTests
 
         var counts = sut.GetAllConnectionCounts();
 
-        counts.Should().HaveCount(2);
-        counts["Server=replica1"].Should().Be(0);
-        counts["Server=replica2"].Should().Be(0);
+        counts.Count.ShouldBe(2);
+        counts["Server=replica1"].ShouldBe(0);
+        counts["Server=replica2"].ShouldBe(0);
     }
 
     [Fact]
@@ -224,8 +224,8 @@ public class ReadWriteSeparationGuardTests
 
         var counts = sut.GetAllConnectionCounts();
 
-        counts["Server=replica1"].Should().Be(2);
-        counts["Server=replica2"].Should().Be(1);
+        counts["Server=replica1"].ShouldBe(2);
+        counts["Server=replica2"].ShouldBe(1);
     }
 
     #endregion
@@ -243,7 +243,7 @@ public class ReadWriteSeparationGuardTests
 
         var counts = sut.GetAllConnectionCounts();
         var total = counts.Values.Sum();
-        total.Should().Be(100);
+        total.ShouldBe(100);
     }
 
     #endregion

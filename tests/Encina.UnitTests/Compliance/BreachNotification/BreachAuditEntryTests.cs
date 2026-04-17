@@ -1,7 +1,7 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.BreachNotification.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -25,10 +25,10 @@ public class BreachAuditEntryTests
         var entry = BreachAuditEntry.Create(breachId, action, detail, performedByUserId);
 
         // Assert
-        entry.BreachId.Should().Be(breachId);
-        entry.Action.Should().Be(action);
-        entry.Detail.Should().Be(detail);
-        entry.PerformedByUserId.Should().Be(performedByUserId);
+        entry.BreachId.ShouldBe(breachId);
+        entry.Action.ShouldBe(action);
+        entry.Detail.ShouldBe(detail);
+        entry.PerformedByUserId.ShouldBe(performedByUserId);
     }
 
     [Fact]
@@ -38,9 +38,9 @@ public class BreachAuditEntryTests
         var entry = BreachAuditEntry.Create("breach-001", "BreachDetected");
 
         // Assert
-        entry.Id.Should().NotBeNullOrWhiteSpace();
-        entry.Id.Should().HaveLength(32);
-        entry.Id.Should().MatchRegex("^[0-9a-f]{32}$");
+        entry.Id.ShouldNotBeNullOrWhiteSpace();
+        entry.Id.Length.ShouldBe(32);
+        entry.Id.ShouldMatch("^[0-9a-f]{32}$");
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public class BreachAuditEntryTests
 
         // Assert
         var after = DateTimeOffset.UtcNow;
-        entry.OccurredAtUtc.Should().BeOnOrAfter(before);
-        entry.OccurredAtUtc.Should().BeOnOrBefore(after);
+        entry.OccurredAtUtc.ShouldBeGreaterThanOrEqualTo(before);
+        entry.OccurredAtUtc.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class BreachAuditEntryTests
         var entry = BreachAuditEntry.Create("breach-001", "BreachDetected", detail: null);
 
         // Assert
-        entry.Detail.Should().BeNull();
+        entry.Detail.ShouldBeNull();
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class BreachAuditEntryTests
             performedByUserId: null);
 
         // Assert
-        entry.PerformedByUserId.Should().BeNull();
+        entry.PerformedByUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public class BreachAuditEntryTests
         var entry = BreachAuditEntry.Create("breach-001", "StatusChanged");
 
         // Assert
-        entry.Detail.Should().BeNull();
-        entry.PerformedByUserId.Should().BeNull();
+        entry.Detail.ShouldBeNull();
+        entry.PerformedByUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class BreachAuditEntryTests
         var entry2 = BreachAuditEntry.Create("breach-001", "AuthorityNotified");
 
         // Assert
-        entry1.Id.Should().NotBe(entry2.Id);
+        entry1.Id.ShouldNotBe(entry2.Id);
     }
 
     #endregion
@@ -118,9 +118,9 @@ public class BreachAuditEntryTests
         var modified = original with { Action = "AuthorityNotified" };
 
         // Assert
-        original.Action.Should().Be("BreachDetected");
-        modified.Action.Should().Be("AuthorityNotified");
-        modified.Id.Should().Be(original.Id);
+        original.Action.ShouldBe("BreachDetected");
+        modified.Action.ShouldBe("AuthorityNotified");
+        modified.Id.ShouldBe(original.Id);
     }
 
     #endregion

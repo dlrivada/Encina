@@ -1,9 +1,9 @@
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Polly;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Resilience;
 
@@ -24,8 +24,8 @@ public sealed class ResilientSecretWriterDecoratorGuardTests
             new SecretsResilienceOptions(),
             Substitute.For<ILogger<ResilientSecretWriterDecorator>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -37,8 +37,8 @@ public sealed class ResilientSecretWriterDecoratorGuardTests
             new SecretsResilienceOptions(),
             Substitute.For<ILogger<ResilientSecretWriterDecorator>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("pipeline");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("pipeline");
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public sealed class ResilientSecretWriterDecoratorGuardTests
             null!,
             Substitute.For<ILogger<ResilientSecretWriterDecorator>>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -63,8 +63,8 @@ public sealed class ResilientSecretWriterDecoratorGuardTests
             new SecretsResilienceOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion

@@ -1,9 +1,9 @@
 using Encina.Security.Audit;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -424,7 +424,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await Should.ThrowAsync<InvalidOperationException>(act);
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
             Arg.Any<Unit?>(),
@@ -453,7 +453,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             cts.Token);
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        await Should.ThrowAsync<OperationCanceledException>(act);
         _entryFactory.Received(1).Create(
             Arg.Any<TestCommand>(),
             Arg.Any<Unit?>(),
@@ -483,7 +483,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         var result = await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -505,7 +505,7 @@ public class AuditPipelineBehaviorTests : IDisposable
         var result = await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
 
         // Assert - Request should still succeed
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -520,8 +520,8 @@ public class AuditPipelineBehaviorTests : IDisposable
             null!, _entryFactory, _options, _commandLogger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("auditStore");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
@@ -532,8 +532,8 @@ public class AuditPipelineBehaviorTests : IDisposable
             _auditStore, null!, _options, _commandLogger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entryFactory");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("entryFactory");
     }
 
     [Fact]
@@ -544,8 +544,8 @@ public class AuditPipelineBehaviorTests : IDisposable
             _auditStore, _entryFactory, null!, _commandLogger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -556,8 +556,8 @@ public class AuditPipelineBehaviorTests : IDisposable
             _auditStore, _entryFactory, _options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("logger");
     }
 
     #endregion

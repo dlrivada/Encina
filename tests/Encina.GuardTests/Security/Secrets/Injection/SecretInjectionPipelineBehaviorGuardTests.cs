@@ -1,8 +1,8 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Injection;
-using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Secrets.Injection;
 
@@ -22,8 +22,8 @@ public sealed class SecretInjectionPipelineBehaviorGuardTests
             Options.Create(new SecretsOptions()),
             NullLogger<SecretInjectionPipelineBehavior<FakeRequest, string>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("orchestrator");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("orchestrator");
     }
 
     [Fact]
@@ -34,8 +34,8 @@ public sealed class SecretInjectionPipelineBehaviorGuardTests
             null!,
             NullLogger<SecretInjectionPipelineBehavior<FakeRequest, string>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -46,8 +46,8 @@ public sealed class SecretInjectionPipelineBehaviorGuardTests
             Options.Create(new SecretsOptions()),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -65,8 +65,8 @@ public sealed class SecretInjectionPipelineBehaviorGuardTests
             () => ValueTask.FromResult<Either<EncinaError, string>>("ok"),
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("request");
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public sealed class SecretInjectionPipelineBehaviorGuardTests
             () => ValueTask.FromResult<Either<EncinaError, string>>("ok"),
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        (await Should.ThrowAsync<ArgumentNullException>(act))
+            .ParamName.ShouldBe("context");
     }
 
     #endregion

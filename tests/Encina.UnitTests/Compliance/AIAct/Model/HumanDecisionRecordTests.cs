@@ -1,5 +1,5 @@
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct.Model;
 
@@ -21,8 +21,8 @@ public class HumanDecisionRecordTests
             Rationale = "All checks passed"
         };
 
-        record.RequestTypeName.Should().BeNull();
-        record.CorrelationId.Should().BeNull();
+        record.RequestTypeName.ShouldBeNull();
+        record.CorrelationId.ShouldBeNull();
     }
 
     [Fact]
@@ -50,6 +50,6 @@ public class HumanDecisionRecordTests
             Rationale = "OK"
         };
 
-        a.Should().Be(b);
+        a.ShouldBe(b);
     }
 }

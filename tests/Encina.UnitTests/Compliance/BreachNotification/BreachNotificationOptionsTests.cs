@@ -2,8 +2,8 @@
 
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Model;
-using FluentAssertions;
 using LanguageExt;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
@@ -25,20 +25,20 @@ public class BreachNotificationOptionsTests
         var options = new BreachNotificationOptions();
 
         // Assert
-        options.EnforcementMode.Should().Be(BreachDetectionEnforcementMode.Warn);
-        options.PublishNotifications.Should().BeTrue();
-        options.TrackAuditTrail.Should().BeTrue();
-        options.NotificationDeadlineHours.Should().Be(72);
-        options.AutoNotifyOnHighSeverity.Should().BeFalse();
-        options.PhasedReportingEnabled.Should().BeTrue();
-        options.EnableDeadlineMonitoring.Should().BeFalse();
-        options.DeadlineCheckInterval.Should().Be(TimeSpan.FromMinutes(15));
-        options.AddHealthCheck.Should().BeFalse();
-        options.SupervisoryAuthority.Should().BeNull();
-        options.UnauthorizedAccessThreshold.Should().Be(5);
-        options.DataExfiltrationThresholdMB.Should().Be(100);
-        options.AnomalousQueryThreshold.Should().Be(1000);
-        options.AssembliesToScan.Should().BeEmpty();
+        options.EnforcementMode.ShouldBe(BreachDetectionEnforcementMode.Warn);
+        options.PublishNotifications.ShouldBeTrue();
+        options.TrackAuditTrail.ShouldBeTrue();
+        options.NotificationDeadlineHours.ShouldBe(72);
+        options.AutoNotifyOnHighSeverity.ShouldBeFalse();
+        options.PhasedReportingEnabled.ShouldBeTrue();
+        options.EnableDeadlineMonitoring.ShouldBeFalse();
+        options.DeadlineCheckInterval.ShouldBe(TimeSpan.FromMinutes(15));
+        options.AddHealthCheck.ShouldBeFalse();
+        options.SupervisoryAuthority.ShouldBeNull();
+        options.UnauthorizedAccessThreshold.ShouldBe(5);
+        options.DataExfiltrationThresholdMB.ShouldBe(100);
+        options.AnomalousQueryThreshold.ShouldBe(1000);
+        options.AssembliesToScan.ShouldBeEmpty();
     }
 
     [Fact]
@@ -48,9 +48,7 @@ public class BreachNotificationOptionsTests
         var options = new BreachNotificationOptions();
 
         // Assert
-        options.AlertAtHoursRemaining.Should().BeEquivalentTo(
-            ExpectedDefaultAlertHours,
-            opt => opt.WithStrictOrdering());
+        options.AlertAtHoursRemaining.ShouldBe(ExpectedDefaultAlertHours);
     }
 
     [Fact]
@@ -60,7 +58,7 @@ public class BreachNotificationOptionsTests
         var options = new BreachNotificationOptions();
 
         // Assert
-        options.SubjectNotificationSeverityThreshold.Should().Be(BreachSeverity.High);
+        options.SubjectNotificationSeverityThreshold.ShouldBe(BreachSeverity.High);
     }
 
     #endregion
@@ -77,8 +75,8 @@ public class BreachNotificationOptionsTests
         options.AddDetectionRule<FakeDetectionRule>();
 
         // Assert
-        options.DetectionRuleTypes.Should().ContainSingle()
-            .Which.Should().Be(typeof(FakeDetectionRule));
+        options.DetectionRuleTypes.ShouldHaveSingleItem()
+            .ShouldBe(typeof(FakeDetectionRule));
     }
 
     [Fact]
@@ -92,7 +90,7 @@ public class BreachNotificationOptionsTests
         options.AddDetectionRule<FakeDetectionRule>();
 
         // Assert
-        options.DetectionRuleTypes.Should().ContainSingle();
+        options.DetectionRuleTypes.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -105,7 +103,7 @@ public class BreachNotificationOptionsTests
         var result = options.AddDetectionRule<FakeDetectionRule>();
 
         // Assert
-        result.Should().BeSameAs(options);
+        result.ShouldBeSameAs(options);
     }
 
     [Fact]
@@ -120,9 +118,9 @@ public class BreachNotificationOptionsTests
             .AddDetectionRule<AnotherFakeDetectionRule>();
 
         // Assert
-        options.DetectionRuleTypes.Should().HaveCount(2);
-        options.DetectionRuleTypes.Should().Contain(typeof(FakeDetectionRule));
-        options.DetectionRuleTypes.Should().Contain(typeof(AnotherFakeDetectionRule));
+        options.DetectionRuleTypes.Count.ShouldBe(2);
+        options.DetectionRuleTypes.ShouldContain(typeof(FakeDetectionRule));
+        options.DetectionRuleTypes.ShouldContain(typeof(AnotherFakeDetectionRule));
     }
 
     #endregion
@@ -139,7 +137,7 @@ public class BreachNotificationOptionsTests
         options.EnforcementMode = BreachDetectionEnforcementMode.Block;
 
         // Assert
-        options.EnforcementMode.Should().Be(BreachDetectionEnforcementMode.Block);
+        options.EnforcementMode.ShouldBe(BreachDetectionEnforcementMode.Block);
     }
 
     [Fact]
@@ -152,7 +150,7 @@ public class BreachNotificationOptionsTests
         options.NotificationDeadlineHours = 48;
 
         // Assert
-        options.NotificationDeadlineHours.Should().Be(48);
+        options.NotificationDeadlineHours.ShouldBe(48);
     }
 
     [Fact]
@@ -165,9 +163,7 @@ public class BreachNotificationOptionsTests
         options.AlertAtHoursRemaining = [24, 12, 1];
 
         // Assert
-        options.AlertAtHoursRemaining.Should().BeEquivalentTo(
-            CustomAlertHours,
-            opt => opt.WithStrictOrdering());
+        options.AlertAtHoursRemaining.ShouldBe(CustomAlertHours);
     }
 
     #endregion

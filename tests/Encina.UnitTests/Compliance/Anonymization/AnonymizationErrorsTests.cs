@@ -1,7 +1,7 @@
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
-using FluentAssertions;
 using LanguageExt;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -17,7 +17,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.KeyNotFound("key-001");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -25,7 +25,7 @@ public class AnonymizationErrorsTests
     public void KeyNotFound_ShouldIncludeKeyIdInMessage()
     {
         var error = AnonymizationErrors.KeyNotFound("key-001");
-        error.Message.Should().Contain("key-001");
+        error.Message.ShouldContain("key-001");
     }
 
     #endregion
@@ -37,7 +37,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.KeyRotationFailed("key-001", "Provider unavailable");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.KeyRotationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.KeyRotationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -45,8 +45,8 @@ public class AnonymizationErrorsTests
     public void KeyRotationFailed_ShouldIncludeKeyIdAndReasonInMessage()
     {
         var error = AnonymizationErrors.KeyRotationFailed("key-001", "Provider unavailable");
-        error.Message.Should().Contain("key-001");
-        error.Message.Should().Contain("Provider unavailable");
+        error.Message.ShouldContain("key-001");
+        error.Message.ShouldContain("Provider unavailable");
     }
 
     #endregion
@@ -58,7 +58,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.NoActiveKey();
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.NoActiveKeyCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.NoActiveKeyCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -66,7 +66,7 @@ public class AnonymizationErrorsTests
     public void NoActiveKey_ShouldHaveDescriptiveMessage()
     {
         var error = AnonymizationErrors.NoActiveKey();
-        error.Message.Should().NotBeNullOrWhiteSpace();
+        error.Message.ShouldNotBeNullOrWhiteSpace();
     }
 
     #endregion
@@ -78,7 +78,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.EncryptionFailed("key-002");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.EncryptionFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.EncryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -86,7 +86,7 @@ public class AnonymizationErrorsTests
     public void EncryptionFailed_ShouldIncludeKeyIdInMessage()
     {
         var error = AnonymizationErrors.EncryptionFailed("key-002");
-        error.Message.Should().Contain("key-002");
+        error.Message.ShouldContain("key-002");
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class AnonymizationErrorsTests
         var innerException = new InvalidOperationException("Bad padding");
         var error = AnonymizationErrors.EncryptionFailed("key-002", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.EncryptionFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.EncryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -108,7 +108,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.DecryptionFailed("key-003");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.DecryptionFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -116,7 +116,7 @@ public class AnonymizationErrorsTests
     public void DecryptionFailed_ShouldIncludeKeyIdInMessage()
     {
         var error = AnonymizationErrors.DecryptionFailed("key-003");
-        error.Message.Should().Contain("key-003");
+        error.Message.ShouldContain("key-003");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class AnonymizationErrorsTests
         var innerException = new InvalidOperationException("Tag mismatch");
         var error = AnonymizationErrors.DecryptionFailed("key-003", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.DecryptionFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.DecryptionFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -138,7 +138,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.TokenNotFound("tok_abc123");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.TokenNotFoundCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.TokenNotFoundCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -146,7 +146,7 @@ public class AnonymizationErrorsTests
     public void TokenNotFound_ShouldIncludeTokenInMessage()
     {
         var error = AnonymizationErrors.TokenNotFound("tok_abc123");
-        error.Message.Should().Contain("tok_abc123");
+        error.Message.ShouldContain("tok_abc123");
     }
 
     #endregion
@@ -158,7 +158,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.TokenizationFailed("Hash collision detected");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.TokenizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.TokenizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -166,7 +166,7 @@ public class AnonymizationErrorsTests
     public void TokenizationFailed_ShouldIncludeInputMessageInMessage()
     {
         var error = AnonymizationErrors.TokenizationFailed("Hash collision detected");
-        error.Message.Should().Contain("Hash collision detected");
+        error.Message.ShouldContain("Hash collision detected");
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class AnonymizationErrorsTests
         var innerException = new InvalidOperationException("Store unavailable");
         var error = AnonymizationErrors.TokenizationFailed("Hash collision detected", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.TokenizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.TokenizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -189,7 +189,7 @@ public class AnonymizationErrorsTests
         var error = AnonymizationErrors.TechniqueNotApplicable(
             AnonymizationTechnique.Generalization, "Email", typeof(string));
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.TechniqueNotApplicableCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.TechniqueNotApplicableCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -198,7 +198,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.TechniqueNotApplicable(
             AnonymizationTechnique.Perturbation, "Email", typeof(string));
-        error.Message.Should().Contain("Email");
+        error.Message.ShouldContain("Email");
     }
 
     #endregion
@@ -210,7 +210,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.TechniqueNotRegistered(AnonymizationTechnique.KAnonymity);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.TechniqueNotRegisteredCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.TechniqueNotRegisteredCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -218,7 +218,7 @@ public class AnonymizationErrorsTests
     public void TechniqueNotRegistered_ShouldIncludeTechniqueInMessage()
     {
         var error = AnonymizationErrors.TechniqueNotRegistered(AnonymizationTechnique.KAnonymity);
-        error.Message.Should().Contain("KAnonymity");
+        error.Message.ShouldContain("KAnonymity");
     }
 
     #endregion
@@ -230,7 +230,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.AnonymizationFailed("Name", "Null value not supported");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.AnonymizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.AnonymizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -238,7 +238,7 @@ public class AnonymizationErrorsTests
     public void AnonymizationFailed_ShouldIncludeFieldNameInMessage()
     {
         var error = AnonymizationErrors.AnonymizationFailed("Name", "Null value not supported");
-        error.Message.Should().Contain("Name");
+        error.Message.ShouldContain("Name");
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public class AnonymizationErrorsTests
         var innerException = new InvalidOperationException("Technique error");
         var error = AnonymizationErrors.AnonymizationFailed("Name", "Null value not supported", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.AnonymizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.AnonymizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -260,7 +260,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.PseudonymizationFailed("Key expired");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.PseudonymizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.PseudonymizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -268,7 +268,7 @@ public class AnonymizationErrorsTests
     public void PseudonymizationFailed_ShouldIncludeInputMessageInMessage()
     {
         var error = AnonymizationErrors.PseudonymizationFailed("Key expired");
-        error.Message.Should().Contain("Key expired");
+        error.Message.ShouldContain("Key expired");
     }
 
     [Fact]
@@ -277,7 +277,7 @@ public class AnonymizationErrorsTests
         var innerException = new InvalidOperationException("HMAC failure");
         var error = AnonymizationErrors.PseudonymizationFailed("Key expired", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.PseudonymizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.PseudonymizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -290,7 +290,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.DepseudonymizationFailed("HMAC-based pseudonym cannot be reversed");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.DepseudonymizationFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.DepseudonymizationFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -298,7 +298,7 @@ public class AnonymizationErrorsTests
     public void DepseudonymizationFailed_ShouldIncludeInputMessageInMessage()
     {
         var error = AnonymizationErrors.DepseudonymizationFailed("HMAC-based pseudonym cannot be reversed");
-        error.Message.Should().Contain("HMAC-based pseudonym cannot be reversed");
+        error.Message.ShouldContain("HMAC-based pseudonym cannot be reversed");
     }
 
     #endregion
@@ -310,7 +310,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.RiskAssessmentFailed("Dataset too small for k-anonymity");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.RiskAssessmentFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.RiskAssessmentFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -318,7 +318,7 @@ public class AnonymizationErrorsTests
     public void RiskAssessmentFailed_ShouldIncludeInputMessageInMessage()
     {
         var error = AnonymizationErrors.RiskAssessmentFailed("Dataset too small for k-anonymity");
-        error.Message.Should().Contain("Dataset too small for k-anonymity");
+        error.Message.ShouldContain("Dataset too small for k-anonymity");
     }
 
     [Fact]
@@ -327,7 +327,7 @@ public class AnonymizationErrorsTests
         var innerException = new InvalidOperationException("Metric calculation overflow");
         var error = AnonymizationErrors.RiskAssessmentFailed("Dataset too small for k-anonymity", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.RiskAssessmentFailedCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.RiskAssessmentFailedCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -340,7 +340,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.StoreError("AddEntry", "Connection timeout");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.StoreErrorCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -348,7 +348,7 @@ public class AnonymizationErrorsTests
     public void StoreError_ShouldIncludeOperationInMessage()
     {
         var error = AnonymizationErrors.StoreError("AddEntry", "Connection timeout");
-        error.Message.Should().Contain("AddEntry");
+        error.Message.ShouldContain("AddEntry");
     }
 
     [Fact]
@@ -357,7 +357,7 @@ public class AnonymizationErrorsTests
         var innerException = new InvalidOperationException("Deadlock");
         var error = AnonymizationErrors.StoreError("AddEntry", "Connection timeout", innerException);
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.StoreErrorCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.StoreErrorCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -370,7 +370,7 @@ public class AnonymizationErrorsTests
     {
         var error = AnonymizationErrors.InvalidParameter("granularity", "Must be greater than zero");
         error.GetCode().Match(
-            Some: code => code.Should().Be(AnonymizationErrors.InvalidParameterCode),
+            Some: code => code.ShouldBe(AnonymizationErrors.InvalidParameterCode),
             None: () => Assert.Fail("Expected error code"));
     }
 
@@ -378,7 +378,7 @@ public class AnonymizationErrorsTests
     public void InvalidParameter_ShouldIncludeParameterNameInMessage()
     {
         var error = AnonymizationErrors.InvalidParameter("granularity", "Must be greater than zero");
-        error.Message.Should().Contain("granularity");
+        error.Message.ShouldContain("granularity");
     }
 
     #endregion
@@ -407,27 +407,27 @@ public class AnonymizationErrorsTests
             .GetField(constantName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!
             .GetValue(null) as string;
 
-        actualValue.Should().Be(expectedValue);
+        actualValue.ShouldBe(expectedValue);
     }
 
     [Fact]
     public void ErrorCodes_ShouldFollowAnonymizationConvention()
     {
-        AnonymizationErrors.KeyNotFoundCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.KeyRotationFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.NoActiveKeyCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.EncryptionFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.DecryptionFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.TokenNotFoundCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.TokenizationFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.TechniqueNotApplicableCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.TechniqueNotRegisteredCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.AnonymizationFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.PseudonymizationFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.DepseudonymizationFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.RiskAssessmentFailedCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.StoreErrorCode.Should().StartWith("anonymization.");
-        AnonymizationErrors.InvalidParameterCode.Should().StartWith("anonymization.");
+        AnonymizationErrors.KeyNotFoundCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.KeyRotationFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.NoActiveKeyCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.EncryptionFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.DecryptionFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.TokenNotFoundCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.TokenizationFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.TechniqueNotApplicableCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.TechniqueNotRegisteredCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.AnonymizationFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.PseudonymizationFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.DepseudonymizationFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.RiskAssessmentFailedCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.StoreErrorCode.ShouldStartWith("anonymization.");
+        AnonymizationErrors.InvalidParameterCode.ShouldStartWith("anonymization.");
     }
 
     [Fact]
@@ -452,7 +452,7 @@ public class AnonymizationErrorsTests
             AnonymizationErrors.InvalidParameterCode
         };
 
-        codes.Should().OnlyHaveUniqueItems();
+        codes.ShouldBeUnique();
     }
 
     #endregion

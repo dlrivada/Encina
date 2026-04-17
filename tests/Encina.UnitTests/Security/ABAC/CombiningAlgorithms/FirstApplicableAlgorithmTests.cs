@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -15,7 +15,7 @@ public sealed class FirstApplicableAlgorithmTests
     [Fact]
     public void AlgorithmId_ReturnsFirstApplicable()
     {
-        _sut.AlgorithmId.Should().Be(CombiningAlgorithmId.FirstApplicable);
+        _sut.AlgorithmId.ShouldBe(CombiningAlgorithmId.FirstApplicable);
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public sealed class FirstApplicableAlgorithmTests
             MakeRuleResult(Effect.Deny)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class FirstApplicableAlgorithmTests
             MakeRuleResult(Effect.Permit)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Deny);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class FirstApplicableAlgorithmTests
             MakeRuleResult(Effect.Permit)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Permit);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class FirstApplicableAlgorithmTests
             MakeRuleResult(Effect.NotApplicable)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.NotApplicable);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -76,14 +76,14 @@ public sealed class FirstApplicableAlgorithmTests
             MakeRuleResult(Effect.Permit)
         };
 
-        _sut.CombineRuleResults(results).Should().Be(Effect.Indeterminate);
+        _sut.CombineRuleResults(results).ShouldBe(Effect.Indeterminate);
     }
 
     [Fact]
     public void CombineRuleResults_Empty_ReturnsNotApplicable()
     {
         _sut.CombineRuleResults(Array.Empty<RuleEvaluationResult>())
-            .Should().Be(Effect.NotApplicable);
+            .ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -97,15 +97,15 @@ public sealed class FirstApplicableAlgorithmTests
         };
 
         var combined = _sut.CombinePolicyResults(results);
-        combined.Effect.Should().Be(Effect.Permit);
-        combined.PolicyId.Should().Be("p2");
+        combined.Effect.ShouldBe(Effect.Permit);
+        combined.PolicyId.ShouldBe("p2");
     }
 
     [Fact]
     public void CombinePolicyResults_Empty_ReturnsNotApplicable()
     {
         var combined = _sut.CombinePolicyResults(Array.Empty<PolicyEvaluationResult>());
-        combined.Effect.Should().Be(Effect.NotApplicable);
+        combined.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     #region Helpers

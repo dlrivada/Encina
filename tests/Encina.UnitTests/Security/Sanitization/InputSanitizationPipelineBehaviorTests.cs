@@ -3,13 +3,13 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.Sanitization;
@@ -61,8 +61,8 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             },
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _sanitizer.Received(1).SanitizeHtml(Arg.Any<string>());
     }
 
@@ -117,7 +117,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _sanitizer.Received(1).SanitizeForSql(Arg.Any<string>());
     }
 
@@ -140,7 +140,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _sanitizer.Received(1).SanitizeHtml(Arg.Any<string>());
         _sanitizer.Received(1).SanitizeForSql(Arg.Any<string>());
     }
@@ -159,7 +159,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        request.Title.Should().Be("Clean");
+        request.Title.ShouldBe("Clean");
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _sanitizer.DidNotReceive().SanitizeHtml(Arg.Any<string>());
     }
 
@@ -198,7 +198,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         // HtmlField is sanitized by attribute, PlainField by auto-sanitize
         _sanitizer.Received(1).SanitizeHtml(Arg.Any<string>());
     }
@@ -246,7 +246,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)),
             CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             },
             CancellationToken.None);
 
-        nextStepCalled.Should().BeFalse();
+        nextStepCalled.ShouldBeFalse();
     }
 
     #endregion
@@ -295,7 +295,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             },
             CancellationToken.None);
 
-        nextStepCalled.Should().BeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Left(error)),
             CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

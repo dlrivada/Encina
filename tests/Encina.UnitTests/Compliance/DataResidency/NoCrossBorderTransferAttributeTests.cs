@@ -1,6 +1,6 @@
 using Encina.Compliance.DataResidency.Attributes;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
 
@@ -13,8 +13,8 @@ public class NoCrossBorderTransferAttributeTests
         var attr = new NoCrossBorderTransferAttribute();
 
         // Assert
-        attr.DataCategory.Should().BeNull();
-        attr.Reason.Should().BeNull();
+        attr.DataCategory.ShouldBeNull();
+        attr.Reason.ShouldBeNull();
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public class NoCrossBorderTransferAttributeTests
         var attr = new NoCrossBorderTransferAttribute { DataCategory = "personal-data" };
 
         // Assert
-        attr.DataCategory.Should().Be("personal-data");
+        attr.DataCategory.ShouldBe("personal-data");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class NoCrossBorderTransferAttributeTests
         var attr = new NoCrossBorderTransferAttribute { Reason = "Data sovereignty requirement" };
 
         // Assert
-        attr.Reason.Should().Be("Data sovereignty requirement");
+        attr.Reason.ShouldBe("Data sovereignty requirement");
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class NoCrossBorderTransferAttributeTests
             .FirstOrDefault();
 
         // Assert
-        attributeUsage.Should().NotBeNull();
-        attributeUsage!.ValidOn.Should().HaveFlag(AttributeTargets.Class);
+        attributeUsage.ShouldNotBeNull();
+        (attributeUsage!.ValidOn & AttributeTargets.Class).ShouldBe(AttributeTargets.Class);
     }
 }

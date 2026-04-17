@@ -2,7 +2,7 @@ using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.DataSubjectRights.Abstractions;
 using Encina.Compliance.GDPR;
 
-using FluentAssertions;
+using Shouldly;
 
 using LanguageExt;
 
@@ -100,8 +100,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
         await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -118,8 +118,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
         await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -139,8 +139,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
         await _dsrService.Received(1).HasActiveRestrictionAsync("cust-1", Arg.Any<CancellationToken>());
         _extractor.DidNotReceive().ExtractSubjectId(Arg.Any<RestrictedCommand>(), Arg.Any<IRequestContext>());
     }
@@ -159,8 +159,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
         _extractor.Received(1).ExtractSubjectId(command, _context);
     }
 
@@ -178,7 +178,7 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _extractor.Received(1).ExtractSubjectId(command, _context);
     }
 
@@ -196,7 +196,7 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _extractor.Received(1).ExtractSubjectId(command, _context);
     }
 
@@ -212,8 +212,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
         await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -235,8 +235,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -253,8 +253,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsLeft.Should().BeTrue();
-        _nextStepCalled.Should().BeFalse();
+        result.IsLeft.ShouldBeTrue();
+        _nextStepCalled.ShouldBeFalse();
     }
 
     [Fact]
@@ -271,8 +271,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -291,8 +291,8 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
-        _nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
     }
 
     // ================================================================
@@ -313,7 +313,7 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _dsrService.Received(1).HasActiveRestrictionAsync("activity-subject", Arg.Any<CancellationToken>());
     }
 }

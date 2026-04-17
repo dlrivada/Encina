@@ -1,7 +1,7 @@
 using Azure.Security.KeyVault.Secrets;
 using Encina.Security.Secrets.AzureKeyVault;
-using FluentAssertions;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.AzureKeyVault;
 
@@ -12,7 +12,7 @@ public sealed class AzureKeyVaultOptionsTests
     {
         var options = new AzureKeyVaultOptions();
 
-        options.VaultUri.Should().BeNull();
+        options.VaultUri.ShouldBeNull();
     }
 
     [Fact]
@@ -20,7 +20,7 @@ public sealed class AzureKeyVaultOptionsTests
     {
         var options = new AzureKeyVaultOptions();
 
-        options.Credential.Should().BeNull();
+        options.Credential.ShouldBeNull();
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class AzureKeyVaultOptionsTests
     {
         var options = new AzureKeyVaultOptions();
 
-        options.ClientOptions.Should().BeNull();
+        options.ClientOptions.ShouldBeNull();
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class AzureKeyVaultOptionsTests
 
         options.VaultUri = uri;
 
-        options.VaultUri.Should().Be(uri);
+        options.VaultUri.ShouldBe(uri);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class AzureKeyVaultOptionsTests
 
         options.Credential = credential;
 
-        options.Credential.Should().BeSameAs(credential);
+        options.Credential.ShouldBeSameAs(credential);
     }
 
     [Fact]
@@ -61,6 +61,6 @@ public sealed class AzureKeyVaultOptionsTests
 
         options.ClientOptions = clientOptions;
 
-        options.ClientOptions.Should().BeSameAs(clientOptions);
+        options.ClientOptions.ShouldBeSameAs(clientOptions);
     }
 }

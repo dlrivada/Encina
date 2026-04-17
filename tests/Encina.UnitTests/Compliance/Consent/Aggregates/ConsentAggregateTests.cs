@@ -1,7 +1,7 @@
 using Encina.Compliance.Consent;
 using Encina.Compliance.Consent.Aggregates;
 using Encina.Compliance.Consent.Events;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Consent;
 
@@ -28,21 +28,21 @@ public class ConsentAggregateTests
             "admin", Now, "tenant-1", "module-1");
 
         // Assert
-        aggregate.Id.Should().Be(DefaultId);
-        aggregate.DataSubjectId.Should().Be("user-1");
-        aggregate.Purpose.Should().Be("marketing");
-        aggregate.Status.Should().Be(ConsentStatus.Active);
-        aggregate.ConsentVersionId.Should().Be("v1");
-        aggregate.Source.Should().Be("web-form");
-        aggregate.IpAddress.Should().Be("192.168.1.1");
-        aggregate.ProofOfConsent.Should().Be("proof-hash");
-        aggregate.Metadata.Should().BeSameAs(DefaultMetadata);
-        aggregate.GivenAtUtc.Should().Be(Now);
-        aggregate.ExpiresAtUtc.Should().Be(ExpiresAt);
-        aggregate.TenantId.Should().Be("tenant-1");
-        aggregate.ModuleId.Should().Be("module-1");
-        aggregate.WithdrawnAtUtc.Should().BeNull();
-        aggregate.WithdrawalReason.Should().BeNull();
+        aggregate.Id.ShouldBe(DefaultId);
+        aggregate.DataSubjectId.ShouldBe("user-1");
+        aggregate.Purpose.ShouldBe("marketing");
+        aggregate.Status.ShouldBe(ConsentStatus.Active);
+        aggregate.ConsentVersionId.ShouldBe("v1");
+        aggregate.Source.ShouldBe("web-form");
+        aggregate.IpAddress.ShouldBe("192.168.1.1");
+        aggregate.ProofOfConsent.ShouldBe("proof-hash");
+        aggregate.Metadata.ShouldBeSameAs(DefaultMetadata);
+        aggregate.GivenAtUtc.ShouldBe(Now);
+        aggregate.ExpiresAtUtc.ShouldBe(ExpiresAt);
+        aggregate.TenantId.ShouldBe("tenant-1");
+        aggregate.ModuleId.ShouldBe("module-1");
+        aggregate.WithdrawnAtUtc.ShouldBeNull();
+        aggregate.WithdrawalReason.ShouldBeNull();
     }
 
     [Fact]
@@ -54,9 +54,9 @@ public class ConsentAggregateTests
             null, null, DefaultMetadata, null, "admin", Now);
 
         // Assert
-        aggregate.UncommittedEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<ConsentGranted>();
-        aggregate.Version.Should().Be(1);
+        aggregate.UncommittedEvents.ShouldHaveSingleItem()
+            .ShouldBeOfType<ConsentGranted>();
+        aggregate.Version.ShouldBe(1);
     }
 
     [Fact]
@@ -68,11 +68,11 @@ public class ConsentAggregateTests
             null, null, DefaultMetadata, null, "admin", Now);
 
         // Assert
-        aggregate.IpAddress.Should().BeNull();
-        aggregate.ProofOfConsent.Should().BeNull();
-        aggregate.ExpiresAtUtc.Should().BeNull();
-        aggregate.TenantId.Should().BeNull();
-        aggregate.ModuleId.Should().BeNull();
+        aggregate.IpAddress.ShouldBeNull();
+        aggregate.ProofOfConsent.ShouldBeNull();
+        aggregate.ExpiresAtUtc.ShouldBeNull();
+        aggregate.TenantId.ShouldBeNull();
+        aggregate.ModuleId.ShouldBeNull();
     }
 
     [Theory]
@@ -87,8 +87,7 @@ public class ConsentAggregateTests
             null, null, DefaultMetadata, null, "admin", Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("dataSubjectId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("dataSubjectId");
     }
 
     [Theory]
@@ -103,8 +102,7 @@ public class ConsentAggregateTests
             null, null, DefaultMetadata, null, "admin", Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("purpose");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("purpose");
     }
 
     [Theory]
@@ -119,8 +117,7 @@ public class ConsentAggregateTests
             null, null, DefaultMetadata, null, "admin", Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("consentVersionId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("consentVersionId");
     }
 
     [Theory]
@@ -135,8 +132,7 @@ public class ConsentAggregateTests
             null, null, DefaultMetadata, null, "admin", Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("source");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("source");
     }
 
     [Fact]
@@ -148,8 +144,7 @@ public class ConsentAggregateTests
             null, null, null!, null, "admin", Now);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("metadata");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("metadata");
     }
 
     [Theory]
@@ -164,8 +159,7 @@ public class ConsentAggregateTests
             null, null, DefaultMetadata, null, grantedBy!, Now);
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("grantedBy");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("grantedBy");
     }
 
     #endregion
@@ -182,9 +176,9 @@ public class ConsentAggregateTests
         aggregate.Withdraw("admin", "no longer needed", Now.AddDays(30));
 
         // Assert
-        aggregate.Status.Should().Be(ConsentStatus.Withdrawn);
-        aggregate.WithdrawnAtUtc.Should().Be(Now.AddDays(30));
-        aggregate.WithdrawalReason.Should().Be("no longer needed");
+        aggregate.Status.ShouldBe(ConsentStatus.Withdrawn);
+        aggregate.WithdrawnAtUtc.ShouldBe(Now.AddDays(30));
+        aggregate.WithdrawalReason.ShouldBe("no longer needed");
     }
 
     [Fact]
@@ -197,8 +191,8 @@ public class ConsentAggregateTests
         aggregate.Withdraw("admin", "reason", Now.AddDays(1));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<ConsentWithdrawn>();
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<ConsentWithdrawn>();
     }
 
     [Fact]
@@ -211,7 +205,7 @@ public class ConsentAggregateTests
         aggregate.Withdraw("admin", null, Now.AddDays(30));
 
         // Assert
-        aggregate.Status.Should().Be(ConsentStatus.Withdrawn);
+        aggregate.Status.ShouldBe(ConsentStatus.Withdrawn);
     }
 
     [Fact]
@@ -224,7 +218,7 @@ public class ConsentAggregateTests
         aggregate.Withdraw("admin", null, Now.AddDays(1));
 
         // Assert
-        aggregate.WithdrawalReason.Should().BeNull();
+        aggregate.WithdrawalReason.ShouldBeNull();
     }
 
     [Fact]
@@ -237,8 +231,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.Withdraw("admin", null, Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Withdrawn*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Withdrawn");
     }
 
     [Fact]
@@ -252,8 +246,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.Withdraw("admin", null, Now.AddDays(367));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Expired*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Expired");
     }
 
     [Theory]
@@ -269,8 +263,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.Withdraw(withdrawnBy!, null, Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("withdrawnBy");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("withdrawnBy");
     }
 
     #endregion
@@ -287,7 +280,7 @@ public class ConsentAggregateTests
         aggregate.Expire(Now.AddDays(366));
 
         // Assert
-        aggregate.Status.Should().Be(ConsentStatus.Expired);
+        aggregate.Status.ShouldBe(ConsentStatus.Expired);
     }
 
     [Fact]
@@ -300,8 +293,8 @@ public class ConsentAggregateTests
         aggregate.Expire(Now.AddDays(366));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<ConsentExpired>();
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<ConsentExpired>();
     }
 
     [Fact]
@@ -314,8 +307,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.Expire(Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*no expiration date*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("no expiration date");
     }
 
     [Fact]
@@ -328,8 +321,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.Expire(Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Withdrawn*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Withdrawn");
     }
 
     [Fact]
@@ -342,8 +335,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.Expire(Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*RequiresReconsent*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("RequiresReconsent");
     }
 
     #endregion
@@ -361,10 +354,10 @@ public class ConsentAggregateTests
         aggregate.Renew("v2", newExpiry, "admin", "mobile-app", Now.AddDays(100));
 
         // Assert
-        aggregate.Status.Should().Be(ConsentStatus.Active);
-        aggregate.ConsentVersionId.Should().Be("v2");
-        aggregate.ExpiresAtUtc.Should().Be(newExpiry);
-        aggregate.Source.Should().Be("mobile-app");
+        aggregate.Status.ShouldBe(ConsentStatus.Active);
+        aggregate.ConsentVersionId.ShouldBe("v2");
+        aggregate.ExpiresAtUtc.ShouldBe(newExpiry);
+        aggregate.Source.ShouldBe("mobile-app");
     }
 
     [Fact]
@@ -377,7 +370,7 @@ public class ConsentAggregateTests
         aggregate.Renew("v2", null, "admin", null, Now.AddDays(100));
 
         // Assert
-        aggregate.Source.Should().Be("web-form");
+        aggregate.Source.ShouldBe("web-form");
     }
 
     [Fact]
@@ -390,8 +383,8 @@ public class ConsentAggregateTests
         aggregate.Renew("v2", null, "admin", null, Now.AddDays(100));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<ConsentRenewed>();
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<ConsentRenewed>();
     }
 
     [Fact]
@@ -404,8 +397,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.Renew("v2", null, "admin", null, Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Withdrawn*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Withdrawn");
     }
 
     [Fact]
@@ -419,8 +412,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.Renew("v2", null, "admin", null, Now.AddDays(400));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Expired*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Expired");
     }
 
     [Theory]
@@ -436,8 +429,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.Renew(consentVersionId!, null, "admin", null, Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("consentVersionId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("consentVersionId");
     }
 
     [Theory]
@@ -453,8 +445,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.Renew("v2", null, renewedBy!, null, Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("renewedBy");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("renewedBy");
     }
 
     #endregion
@@ -471,8 +462,8 @@ public class ConsentAggregateTests
         aggregate.ChangeVersion("v2", "Updated privacy terms", true, "legal-team", Now.AddDays(50));
 
         // Assert
-        aggregate.Status.Should().Be(ConsentStatus.RequiresReconsent);
-        aggregate.ConsentVersionId.Should().Be("v2");
+        aggregate.Status.ShouldBe(ConsentStatus.RequiresReconsent);
+        aggregate.ConsentVersionId.ShouldBe("v2");
     }
 
     [Fact]
@@ -485,8 +476,8 @@ public class ConsentAggregateTests
         aggregate.ChangeVersion("v2", "Minor clarification", false, "legal-team", Now.AddDays(50));
 
         // Assert
-        aggregate.Status.Should().Be(ConsentStatus.Active);
-        aggregate.ConsentVersionId.Should().Be("v2");
+        aggregate.Status.ShouldBe(ConsentStatus.Active);
+        aggregate.ConsentVersionId.ShouldBe("v2");
     }
 
     [Fact]
@@ -499,8 +490,8 @@ public class ConsentAggregateTests
         aggregate.ChangeVersion("v2", "Updated terms", true, "legal-team", Now.AddDays(50));
 
         // Assert
-        aggregate.UncommittedEvents.Should().HaveCount(2);
-        aggregate.UncommittedEvents[^1].Should().BeOfType<ConsentVersionChanged>();
+        aggregate.UncommittedEvents.Count.ShouldBe(2);
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<ConsentVersionChanged>();
     }
 
     [Fact]
@@ -513,8 +504,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.ChangeVersion("v2", "desc", true, "admin", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Withdrawn*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Withdrawn");
     }
 
     [Fact]
@@ -527,8 +518,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.ChangeVersion("v3", "desc", true, "admin", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*RequiresReconsent*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("RequiresReconsent");
     }
 
     [Theory]
@@ -544,8 +535,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.ChangeVersion(newVersionId!, "desc", true, "admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("newVersionId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("newVersionId");
     }
 
     [Theory]
@@ -561,8 +551,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.ChangeVersion("v2", description!, true, "admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("description");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("description");
     }
 
     [Theory]
@@ -578,8 +567,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.ChangeVersion("v2", "desc", true, changedBy!, Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("changedBy");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("changedBy");
     }
 
     #endregion
@@ -598,15 +586,15 @@ public class ConsentAggregateTests
         aggregate.ProvideReconsent("v3", "mobile-app", "10.0.0.1", "new-proof", newMetadata, newExpiry, "user-1", Now.AddDays(60));
 
         // Assert
-        aggregate.Status.Should().Be(ConsentStatus.Active);
-        aggregate.ConsentVersionId.Should().Be("v3");
-        aggregate.Source.Should().Be("mobile-app");
-        aggregate.IpAddress.Should().Be("10.0.0.1");
-        aggregate.ProofOfConsent.Should().Be("new-proof");
-        aggregate.Metadata.Should().BeSameAs(newMetadata);
-        aggregate.ExpiresAtUtc.Should().Be(newExpiry);
-        aggregate.WithdrawnAtUtc.Should().BeNull();
-        aggregate.WithdrawalReason.Should().BeNull();
+        aggregate.Status.ShouldBe(ConsentStatus.Active);
+        aggregate.ConsentVersionId.ShouldBe("v3");
+        aggregate.Source.ShouldBe("mobile-app");
+        aggregate.IpAddress.ShouldBe("10.0.0.1");
+        aggregate.ProofOfConsent.ShouldBe("new-proof");
+        aggregate.Metadata.ShouldBeSameAs(newMetadata);
+        aggregate.ExpiresAtUtc.ShouldBe(newExpiry);
+        aggregate.WithdrawnAtUtc.ShouldBeNull();
+        aggregate.WithdrawalReason.ShouldBeNull();
     }
 
     [Fact]
@@ -619,7 +607,7 @@ public class ConsentAggregateTests
         aggregate.ProvideReconsent("v3", "web", null, null, DefaultMetadata, null, "admin", Now.AddDays(60));
 
         // Assert
-        aggregate.UncommittedEvents[^1].Should().BeOfType<ConsentReconsentProvided>();
+        aggregate.UncommittedEvents[^1].ShouldBeOfType<ConsentReconsentProvided>();
     }
 
     [Fact]
@@ -632,8 +620,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.ProvideReconsent("v2", "web", null, null, DefaultMetadata, null, "admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Active*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Active");
     }
 
     [Fact]
@@ -646,8 +634,8 @@ public class ConsentAggregateTests
         var act = () => aggregate.ProvideReconsent("v2", "web", null, null, DefaultMetadata, null, "admin", Now.AddDays(60));
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Withdrawn*");
+        Should.Throw<InvalidOperationException>(act)
+            .Message.ShouldContain("Withdrawn");
     }
 
     [Theory]
@@ -663,8 +651,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.ProvideReconsent(versionId!, "web", null, null, DefaultMetadata, null, "admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("newConsentVersionId");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("newConsentVersionId");
     }
 
     [Theory]
@@ -680,8 +667,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.ProvideReconsent("v3", source!, null, null, DefaultMetadata, null, "admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("source");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("source");
     }
 
     [Fact]
@@ -694,8 +680,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.ProvideReconsent("v3", "web", null, null, null!, null, "admin", Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .And.ParamName.Should().Be("metadata");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("metadata");
     }
 
     [Theory]
@@ -711,8 +696,7 @@ public class ConsentAggregateTests
         var act = () => aggregate.ProvideReconsent("v3", "web", null, null, DefaultMetadata, null, grantedBy!, Now.AddDays(1));
 
         // Assert
-        act.Should().Throw<ArgumentException>()
-            .And.ParamName.Should().Be("grantedBy");
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe("grantedBy");
     }
 
     #endregion
@@ -727,25 +711,25 @@ public class ConsentAggregateTests
             DefaultId, "user-1", "marketing", "v1", "web-form",
             "192.168.1.1", "proof-v1", DefaultMetadata, ExpiresAt,
             "admin", Now);
-        aggregate.Status.Should().Be(ConsentStatus.Active);
+        aggregate.Status.ShouldBe(ConsentStatus.Active);
 
         // Change version requiring reconsent
         aggregate.ChangeVersion("v2", "Major policy update", true, "legal-team", Now.AddDays(30));
-        aggregate.Status.Should().Be(ConsentStatus.RequiresReconsent);
+        aggregate.Status.ShouldBe(ConsentStatus.RequiresReconsent);
 
         // Provide reconsent
         var reconsentMetadata = new Dictionary<string, object?> { ["accepted"] = true };
         aggregate.ProvideReconsent("v2", "mobile-app", "10.0.0.1", "proof-v2", reconsentMetadata, ExpiresAt.AddDays(365), "user-1", Now.AddDays(35));
-        aggregate.Status.Should().Be(ConsentStatus.Active);
-        aggregate.ConsentVersionId.Should().Be("v2");
+        aggregate.Status.ShouldBe(ConsentStatus.Active);
+        aggregate.ConsentVersionId.ShouldBe("v2");
 
         // Withdraw
         aggregate.Withdraw("user-1", "GDPR request", Now.AddDays(60));
-        aggregate.Status.Should().Be(ConsentStatus.Withdrawn);
+        aggregate.Status.ShouldBe(ConsentStatus.Withdrawn);
 
         // All events should be recorded
-        aggregate.UncommittedEvents.Should().HaveCount(4);
-        aggregate.Version.Should().Be(4);
+        aggregate.UncommittedEvents.Count.ShouldBe(4);
+        aggregate.Version.ShouldBe(4);
     }
 
     [Fact]
@@ -760,14 +744,14 @@ public class ConsentAggregateTests
         // Renew with new expiry
         var newExpiry = ExpiresAt.AddDays(365);
         aggregate.Renew("v1", newExpiry, "admin", null, Now.AddDays(300));
-        aggregate.ExpiresAtUtc.Should().Be(newExpiry);
+        aggregate.ExpiresAtUtc.ShouldBe(newExpiry);
 
         // Expire
         aggregate.Expire(newExpiry.AddDays(1));
-        aggregate.Status.Should().Be(ConsentStatus.Expired);
+        aggregate.Status.ShouldBe(ConsentStatus.Expired);
 
-        aggregate.UncommittedEvents.Should().HaveCount(3);
-        aggregate.Version.Should().Be(3);
+        aggregate.UncommittedEvents.Count.ShouldBe(3);
+        aggregate.Version.ShouldBe(3);
     }
 
     #endregion

@@ -1,9 +1,9 @@
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Providers;
-using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets;
 
@@ -25,8 +25,8 @@ public sealed class ConfigurationSecretProviderTests
 
         var result = await provider.GetSecretAsync("api-key");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("my-api-key-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("my-api-key-value"));
     }
 
     [Fact]
@@ -37,8 +37,8 @@ public sealed class ConfigurationSecretProviderTests
 
         var result = await provider.GetSecretAsync("missing-key");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode));
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public sealed class ConfigurationSecretProviderTests
 
         var result = await provider.GetSecretAsync("db-password");
 
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("p@ssw0rd"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("p@ssw0rd"));
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class ConfigurationSecretProviderTests
 
         var act = () => provider.GetSecretAsync(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class ConfigurationSecretProviderTests
 
         var act = () => provider.GetSecretAsync("").AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -94,11 +94,11 @@ public sealed class ConfigurationSecretProviderTests
 
         var result = await provider.GetSecretAsync<TestDbConfig>("db-config");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(v =>
         {
-            v.Host.Should().Be("localhost");
-            v.Port.Should().Be(5432);
+            v.Host.ShouldBe("localhost");
+            v.Port.ShouldBe(5432);
         });
     }
 
@@ -110,8 +110,8 @@ public sealed class ConfigurationSecretProviderTests
 
         var result = await provider.GetSecretAsync<TestDbConfig>("missing");
 
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfNone("").Should().Be(SecretsErrors.NotFoundCode));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(SecretsErrors.NotFoundCode));
     }
 
     [Fact]
@@ -125,11 +125,11 @@ public sealed class ConfigurationSecretProviderTests
 
         var result = await provider.GetSecretAsync<TestDbConfig>("json-secret");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(v =>
         {
-            v.Host.Should().Be("db.example.com");
-            v.Port.Should().Be(3306);
+            v.Host.ShouldBe("db.example.com");
+            v.Port.ShouldBe(3306);
         });
     }
 
@@ -141,7 +141,7 @@ public sealed class ConfigurationSecretProviderTests
 
         var act = () => provider.GetSecretAsync<TestDbConfig>(null!).AsTask();
 
-        await act.Should().ThrowAsync<ArgumentException>();
+        await Should.ThrowAsync<ArgumentException>(act);
     }
 
     #endregion
@@ -151,7 +151,7 @@ public sealed class ConfigurationSecretProviderTests
     [Fact]
     public void Constructor_DefaultSectionPath_IsSecrets()
     {
-        ConfigurationSecretProvider.DefaultSectionPath.Should().Be("Secrets");
+        ConfigurationSecretProvider.DefaultSectionPath.ShouldBe("Secrets");
     }
 
     [Fact]
@@ -159,8 +159,8 @@ public sealed class ConfigurationSecretProviderTests
     {
         var act = () => new ConfigurationSecretProvider(null!, _logger);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configuration");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("configuration");
     }
 
     [Fact]
@@ -170,8 +170,8 @@ public sealed class ConfigurationSecretProviderTests
 
         var act = () => new ConfigurationSecretProvider(config, null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public sealed class ConfigurationSecretProviderTests
 
         var act = () => new ConfigurationSecretProvider(config, _logger, "");
 
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("sectionPath");
+        Should.Throw<ArgumentException>(act)
+            .ParamName.ShouldBe("sectionPath");
     }
 
     #endregion

@@ -3,11 +3,11 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Security.Audit;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -36,7 +36,7 @@ public sealed class AuditedReadOnlyRepositoryTests
             h.TimeProvider,
             NullLogger<AuditedReadOnlyRepository<ReadOnlyAuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class AuditedReadOnlyRepositoryTests
             h.TimeProvider,
             NullLogger<AuditedReadOnlyRepository<ReadOnlyAuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("readAuditStore");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readAuditStore");
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class AuditedReadOnlyRepositoryTests
             h.TimeProvider,
             NullLogger<AuditedReadOnlyRepository<ReadOnlyAuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("requestContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContext");
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class AuditedReadOnlyRepositoryTests
             h.TimeProvider,
             NullLogger<AuditedReadOnlyRepository<ReadOnlyAuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("readAuditContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readAuditContext");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class AuditedReadOnlyRepositoryTests
             h.TimeProvider,
             NullLogger<AuditedReadOnlyRepository<ReadOnlyAuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public sealed class AuditedReadOnlyRepositoryTests
             null!,
             NullLogger<AuditedReadOnlyRepository<ReadOnlyAuditedTestEntity, Guid>>.Instance);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class AuditedReadOnlyRepositoryTests
             h.TimeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     // ── GetByIdAsync ────────────────────────────────────────────────────
@@ -148,13 +148,14 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.GetByIdAsync(id);
 
-        result.IsSome.Should().BeTrue();
-        h.LoggedEntries.Should().HaveCount(1);
+        result.IsSome.ShouldBeTrue();
+        h.LoggedEntries.Count.ShouldBe(1);
         var entry = h.LoggedEntries[0];
-        entry.EntityCount.Should().Be(1);
-        entry.EntityId.Should().Be(id.ToString());
-        entry.EntityType.Should().Be(nameof(ReadOnlyAuditedTestEntity));
-        entry.Metadata.Should().ContainKey("method").WhoseValue.Should().Be("GetById");
+        entry.EntityCount.ShouldBe(1);
+        entry.EntityId.ShouldBe(id.ToString());
+        entry.EntityType.ShouldBe(nameof(ReadOnlyAuditedTestEntity));
+        entry.Metadata.ShouldContainKey("method");
+        entry.Metadata["method"].ShouldBe("GetById");
     }
 
     [Fact]
@@ -168,9 +169,9 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.GetByIdAsync(id);
 
-        result.IsNone.Should().BeTrue();
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].EntityCount.Should().Be(0);
+        result.IsNone.ShouldBeTrue();
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     [Fact]
@@ -184,7 +185,7 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetByIdAsync(id);
 
-        h.LoggedEntries.Should().BeEmpty();
+        h.LoggedEntries.ShouldBeEmpty();
     }
 
     // ── GetAllAsync ─────────────────────────────────────────────────────
@@ -203,10 +204,10 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.GetAllAsync();
 
-        result.Should().HaveCount(2);
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].EntityCount.Should().Be(2);
-        h.LoggedEntries[0].Metadata!["method"].Should().Be("GetAll");
+        result.Count.ShouldBe(2);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].EntityCount.ShouldBe(2);
+        h.LoggedEntries[0].Metadata!["method"].ShouldBe("GetAll");
     }
 
     [Fact]
@@ -219,8 +220,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].EntityCount.Should().Be(0);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── FindAsync (Specification) ───────────────────────────────────────
@@ -236,9 +237,9 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.FindAsync(spec);
 
-        result.Should().HaveCount(1);
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].Metadata!["method"].Should().Be("Find");
+        result.Count.ShouldBe(1);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].Metadata!["method"].ShouldBe("Find");
     }
 
     [Fact]
@@ -252,8 +253,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.FindAsync(spec);
 
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].EntityCount.Should().Be(0);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── FindOneAsync ────────────────────────────────────────────────────
@@ -269,10 +270,10 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.FindOneAsync(spec);
 
-        result.IsSome.Should().BeTrue();
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].EntityCount.Should().Be(1);
-        h.LoggedEntries[0].Metadata!["method"].Should().Be("FindOne");
+        result.IsSome.ShouldBeTrue();
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].EntityCount.ShouldBe(1);
+        h.LoggedEntries[0].Metadata!["method"].ShouldBe("FindOne");
     }
 
     [Fact]
@@ -286,9 +287,9 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.FindOneAsync(spec);
 
-        result.IsNone.Should().BeTrue();
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].EntityCount.Should().Be(0);
+        result.IsNone.ShouldBeTrue();
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── FindAsync (predicate) ───────────────────────────────────────────
@@ -309,10 +310,10 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.FindAsync(predicate);
 
-        result.Should().HaveCount(3);
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].Metadata!["method"].Should().Be("FindByPredicate");
-        h.LoggedEntries[0].EntityCount.Should().Be(3);
+        result.Count.ShouldBe(3);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].Metadata!["method"].ShouldBe("FindByPredicate");
+        h.LoggedEntries[0].EntityCount.ShouldBe(3);
     }
 
     [Fact]
@@ -326,8 +327,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.FindAsync(predicate);
 
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].EntityCount.Should().Be(0);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].EntityCount.ShouldBe(0);
     }
 
     // ── GetPagedAsync ───────────────────────────────────────────────────
@@ -346,10 +347,10 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.GetPagedAsync(1, 20);
 
-        result.Items.Should().HaveCount(1);
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].Metadata!["method"].Should().Be("GetPaged");
-        h.LoggedEntries[0].EntityCount.Should().Be(1);
+        result.Items.Count.ShouldBe(1);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].Metadata!["method"].ShouldBe("GetPaged");
+        h.LoggedEntries[0].EntityCount.ShouldBe(1);
     }
 
     [Fact]
@@ -371,10 +372,10 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.GetPagedAsync(spec, 3, 15);
 
-        result.TotalCount.Should().Be(45);
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].Metadata!["method"].Should().Be("GetPagedWithSpec");
-        h.LoggedEntries[0].EntityCount.Should().Be(2);
+        result.TotalCount.ShouldBe(45);
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].Metadata!["method"].ShouldBe("GetPagedWithSpec");
+        h.LoggedEntries[0].EntityCount.ShouldBe(2);
     }
 
     // ── Metadata operations (not audited) ───────────────────────────────
@@ -389,8 +390,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.AnyAsync(spec);
 
-        result.Should().BeTrue();
-        h.LoggedEntries.Should().BeEmpty();
+        result.ShouldBeTrue();
+        h.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -403,8 +404,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.AnyAsync(predicate);
 
-        result.Should().BeFalse();
-        h.LoggedEntries.Should().BeEmpty();
+        result.ShouldBeFalse();
+        h.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -417,8 +418,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.CountAsync(spec);
 
-        result.Should().Be(5);
-        h.LoggedEntries.Should().BeEmpty();
+        result.ShouldBe(5);
+        h.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -430,8 +431,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         var result = await sut.CountAsync();
 
-        result.Should().Be(123);
-        h.LoggedEntries.Should().BeEmpty();
+        result.ShouldBe(123);
+        h.LoggedEntries.ShouldBeEmpty();
     }
 
     // ── Sampling / exclusion logic ──────────────────────────────────────
@@ -449,7 +450,7 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.Should().BeEmpty();
+        h.LoggedEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -465,8 +466,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].UserId.Should().Be("user-99");
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].UserId.ShouldBe("user-99");
     }
 
     [Fact]
@@ -479,7 +480,7 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.Should().BeEmpty();
+        h.LoggedEntries.ShouldBeEmpty();
     }
 
     // ── Audit failure resilience ────────────────────────────────────────
@@ -497,9 +498,8 @@ public sealed class AuditedReadOnlyRepositoryTests
 
         var sut = h.Create();
 
-        var act = async () => await sut.GetAllAsync();
-        var result = await act.Should().NotThrowAsync();
-        result.Which.Should().HaveCount(1);
+        var items = await sut.GetAllAsync();
+        items.Count.ShouldBe(1);
     }
 
     // ── Purpose handling ────────────────────────────────────────────────
@@ -516,8 +516,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].Purpose.Should().Be("Patient care review");
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].Purpose.ShouldBe("Patient care review");
     }
 
     [Fact]
@@ -533,8 +533,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.Should().HaveCount(1);
-        h.LoggedEntries[0].Purpose.Should().BeNull();
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].Purpose.ShouldBeNull();
     }
 
     [Fact]
@@ -551,13 +551,13 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.Should().HaveCount(1);
+        h.LoggedEntries.Count.ShouldBe(1);
         var entry = h.LoggedEntries[0];
-        entry.UserId.Should().Be("alice");
-        entry.TenantId.Should().Be("acme");
-        entry.CorrelationId.Should().Be("trace-abc");
-        entry.AccessMethod.Should().Be(ReadAccessMethod.Repository);
-        entry.AccessedAtUtc.Should().Be(h.TimeProvider.GetUtcNow());
+        entry.UserId.ShouldBe("alice");
+        entry.TenantId.ShouldBe("acme");
+        entry.CorrelationId.ShouldBe("trace-abc");
+        entry.AccessMethod.ShouldBe(ReadAccessMethod.Repository);
+        entry.AccessedAtUtc.ShouldBe(h.TimeProvider.GetUtcNow());
     }
 
     // ── Harness & helpers ───────────────────────────────────────────────

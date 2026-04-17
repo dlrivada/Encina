@@ -1,6 +1,6 @@
 using Encina.Compliance.Retention.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -35,13 +35,13 @@ public class DeletionResultTests
         };
 
         // Assert
-        result.TotalRecordsEvaluated.Should().Be(10);
-        result.RecordsDeleted.Should().Be(7);
-        result.RecordsRetained.Should().Be(1);
-        result.RecordsFailed.Should().Be(1);
-        result.RecordsUnderHold.Should().Be(1);
-        result.Details.Should().HaveCount(1);
-        result.ExecutedAtUtc.Should().Be(executedAt);
+        result.TotalRecordsEvaluated.ShouldBe(10);
+        result.RecordsDeleted.ShouldBe(7);
+        result.RecordsRetained.ShouldBe(1);
+        result.RecordsFailed.ShouldBe(1);
+        result.RecordsUnderHold.ShouldBe(1);
+        result.Details.Count.ShouldBe(1);
+        result.ExecutedAtUtc.ShouldBe(executedAt);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class DeletionResultTests
         };
 
         // Assert
-        result.Details.Should().BeEmpty();
+        result.Details.ShouldBeEmpty();
     }
 
     #endregion
@@ -79,10 +79,10 @@ public class DeletionResultTests
         };
 
         // Assert
-        detail.EntityId.Should().Be("invoice-12345");
-        detail.DataCategory.Should().Be("financial-records");
-        detail.Outcome.Should().Be(DeletionOutcome.Deleted);
-        detail.Reason.Should().BeNull();
+        detail.EntityId.ShouldBe("invoice-12345");
+        detail.DataCategory.ShouldBe("financial-records");
+        detail.Outcome.ShouldBe(DeletionOutcome.Deleted);
+        detail.Reason.ShouldBeNull();
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class DeletionResultTests
         };
 
         // Assert
-        detail.Reason.Should().Be("Under active legal hold: Case #2024-456");
+        detail.Reason.ShouldBe("Under active legal hold: Case #2024-456");
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class DeletionResultTests
         };
 
         // Assert
-        detail.Reason.Should().BeNull();
+        detail.Reason.ShouldBeNull();
     }
 
     #endregion
@@ -123,37 +123,37 @@ public class DeletionResultTests
     [Fact]
     public void DeletionOutcome_Deleted_ShouldHaveValue0()
     {
-        ((int)DeletionOutcome.Deleted).Should().Be(0);
+        ((int)DeletionOutcome.Deleted).ShouldBe(0);
     }
 
     [Fact]
     public void DeletionOutcome_Retained_ShouldHaveValue1()
     {
-        ((int)DeletionOutcome.Retained).Should().Be(1);
+        ((int)DeletionOutcome.Retained).ShouldBe(1);
     }
 
     [Fact]
     public void DeletionOutcome_Failed_ShouldHaveValue2()
     {
-        ((int)DeletionOutcome.Failed).Should().Be(2);
+        ((int)DeletionOutcome.Failed).ShouldBe(2);
     }
 
     [Fact]
     public void DeletionOutcome_HeldByLegalHold_ShouldHaveValue3()
     {
-        ((int)DeletionOutcome.HeldByLegalHold).Should().Be(3);
+        ((int)DeletionOutcome.HeldByLegalHold).ShouldBe(3);
     }
 
     [Fact]
     public void DeletionOutcome_Skipped_ShouldHaveValue4()
     {
-        ((int)DeletionOutcome.Skipped).Should().Be(4);
+        ((int)DeletionOutcome.Skipped).ShouldBe(4);
     }
 
     [Fact]
     public void DeletionOutcome_ShouldDefineExactlyFiveValues()
     {
-        Enum.GetValues<DeletionOutcome>().Should().HaveCount(5);
+        Enum.GetValues<DeletionOutcome>().Length.ShouldBe(5);
     }
 
     #endregion
@@ -163,31 +163,31 @@ public class DeletionResultTests
     [Fact]
     public void RetentionStatus_Active_ShouldHaveValue0()
     {
-        ((int)RetentionStatus.Active).Should().Be(0);
+        ((int)RetentionStatus.Active).ShouldBe(0);
     }
 
     [Fact]
     public void RetentionStatus_Expired_ShouldHaveValue1()
     {
-        ((int)RetentionStatus.Expired).Should().Be(1);
+        ((int)RetentionStatus.Expired).ShouldBe(1);
     }
 
     [Fact]
     public void RetentionStatus_Deleted_ShouldHaveValue2()
     {
-        ((int)RetentionStatus.Deleted).Should().Be(2);
+        ((int)RetentionStatus.Deleted).ShouldBe(2);
     }
 
     [Fact]
     public void RetentionStatus_UnderLegalHold_ShouldHaveValue3()
     {
-        ((int)RetentionStatus.UnderLegalHold).Should().Be(3);
+        ((int)RetentionStatus.UnderLegalHold).ShouldBe(3);
     }
 
     [Fact]
     public void RetentionStatus_ShouldDefineExactlyFourValues()
     {
-        Enum.GetValues<RetentionStatus>().Should().HaveCount(4);
+        Enum.GetValues<RetentionStatus>().Length.ShouldBe(4);
     }
 
     #endregion
@@ -210,11 +210,11 @@ public class DeletionResultTests
         };
 
         // Assert
-        data.EntityId.Should().Be("order-12345");
-        data.DataCategory.Should().Be("financial-records");
-        data.ExpiresAtUtc.Should().Be(expiresAt);
-        data.DaysUntilExpiration.Should().Be(7);
-        data.PolicyId.Should().BeNull();
+        data.EntityId.ShouldBe("order-12345");
+        data.DataCategory.ShouldBe("financial-records");
+        data.ExpiresAtUtc.ShouldBe(expiresAt);
+        data.DaysUntilExpiration.ShouldBe(7);
+        data.PolicyId.ShouldBeNull();
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class DeletionResultTests
         };
 
         // Assert
-        data.PolicyId.Should().Be("policy-abc");
+        data.PolicyId.ShouldBe("policy-abc");
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public class DeletionResultTests
         };
 
         // Assert
-        data.DaysUntilExpiration.Should().Be(-5);
+        data.DaysUntilExpiration.ShouldBe(-5);
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public class DeletionResultTests
         };
 
         // Assert
-        data.DaysUntilExpiration.Should().Be(0);
+        data.DaysUntilExpiration.ShouldBe(0);
     }
 
     [Fact]
@@ -279,7 +279,7 @@ public class DeletionResultTests
         };
 
         // Assert
-        data.PolicyId.Should().BeNull();
+        data.PolicyId.ShouldBeNull();
     }
 
     #endregion

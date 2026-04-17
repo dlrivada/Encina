@@ -6,12 +6,12 @@ using Encina.Compliance.BreachNotification.ReadModels;
 using Encina.Compliance.BreachNotification.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
@@ -60,7 +60,7 @@ public sealed class DefaultBreachNotificationServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("repository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("repository");
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class DefaultBreachNotificationServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("readModelRepository");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readModelRepository");
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class DefaultBreachNotificationServiceTests
             _timeProvider,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("cache");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class DefaultBreachNotificationServiceTests
             null!,
             _logger);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("timeProvider");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class DefaultBreachNotificationServiceTests
             _timeProvider,
             null!);
 
-        act.Should().Throw<ArgumentNullException>().And.ParamName.Should().Be("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -137,8 +137,8 @@ public sealed class DefaultBreachNotificationServiceTests
             100,
             "Data was exfiltrated via API endpoint");
 
-        result.IsRight.Should().BeTrue();
-        result.Match(id => id.Should().NotBeEmpty(), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(id => id.ShouldNotBe(Guid.Empty), _ => { });
         await _repository.Received(1).CreateAsync(Arg.Any<BreachAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -157,7 +157,7 @@ public sealed class DefaultBreachNotificationServiceTests
             100,
             "Data was exfiltrated");
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -188,7 +188,7 @@ public sealed class DefaultBreachNotificationServiceTests
             "Assessment complete",
             "user-42");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _repository.Received(1).SaveAsync(Arg.Any<BreachAggregate>(), Arg.Any<CancellationToken>());
     }
 
@@ -207,8 +207,8 @@ public sealed class DefaultBreachNotificationServiceTests
             "Assessment complete",
             "user-42");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     [Fact]
@@ -229,8 +229,8 @@ public sealed class DefaultBreachNotificationServiceTests
             "Second assessment attempt",
             "user-42");
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("Invalid state transition"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("Invalid state transition"));
     }
 
     #endregion
@@ -253,8 +253,8 @@ public sealed class DefaultBreachNotificationServiceTests
 
         var result = await _sut.GetBreachAsync(breachId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(breachId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(breachId), _ => { });
 
         // Should NOT call the read model repository when cache hit
         await _readModelRepository
@@ -277,8 +277,8 @@ public sealed class DefaultBreachNotificationServiceTests
 
         var result = await _sut.GetBreachAsync(breachId);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(model => model.Id.Should().Be(breachId), _ => { });
+        result.IsRight.ShouldBeTrue();
+        result.Match(model => model.Id.ShouldBe(breachId), _ => { });
 
         // Should cache the result
         await _cache.Received(1).SetAsync(
@@ -302,8 +302,8 @@ public sealed class DefaultBreachNotificationServiceTests
 
         var result = await _sut.GetBreachAsync(breachId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not found"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
     }
 
     #endregion
@@ -321,8 +321,8 @@ public sealed class DefaultBreachNotificationServiceTests
 
         var result = await _sut.GetBreachHistoryAsync(breachId);
 
-        result.IsLeft.Should().BeTrue();
-        result.Match(_ => { }, error => error.Message.Should().Contain("not available"));
+        result.IsLeft.ShouldBeTrue();
+        result.Match(_ => { }, error => error.Message.ShouldContain("not available"));
     }
 
     #endregion
@@ -344,7 +344,7 @@ public sealed class DefaultBreachNotificationServiceTests
 
         var result = await _sut.GetApproachingDeadlineBreachesAsync();
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _readModelRepository.Received(1).QueryAsync(
             Arg.Any<Func<IQueryable<BreachReadModel>, IQueryable<BreachReadModel>>>(),
             Arg.Any<CancellationToken>());

@@ -3,17 +3,12 @@
 using Encina.Caching;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.GuardTests.Security.ABAC.Persistence;
@@ -37,8 +32,8 @@ public class CachingPolicyStoreDecoratorGuardTests
             new PolicyCachingOptions(),
             NullLoggerFactory.Instance.CreateLogger<CachingPolicyStoreDecorator>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("inner");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("inner");
     }
 
     [Fact]
@@ -51,8 +46,8 @@ public class CachingPolicyStoreDecoratorGuardTests
             new PolicyCachingOptions(),
             NullLoggerFactory.Instance.CreateLogger<CachingPolicyStoreDecorator>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("cache");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("cache");
     }
 
     [Fact]
@@ -65,8 +60,8 @@ public class CachingPolicyStoreDecoratorGuardTests
             null!,
             NullLoggerFactory.Instance.CreateLogger<CachingPolicyStoreDecorator>());
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -79,8 +74,8 @@ public class CachingPolicyStoreDecoratorGuardTests
             new PolicyCachingOptions(),
             null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -94,7 +89,7 @@ public class CachingPolicyStoreDecoratorGuardTests
             new PolicyCachingOptions(),
             NullLoggerFactory.Instance.CreateLogger<CachingPolicyStoreDecorator>());
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -107,7 +102,7 @@ public class CachingPolicyStoreDecoratorGuardTests
             new PolicyCachingOptions(),
             NullLoggerFactory.Instance.CreateLogger<CachingPolicyStoreDecorator>());
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -141,7 +136,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var result = await sut.GetAllPolicySetsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -171,7 +166,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var result = await sut.GetAllPolicySetsAsync();
 
         // Assert
-        result.IsRight.Should().BeTrue("cache failure should fall back to inner store");
+        result.IsRight.ShouldBeTrue("cache failure should fall back to inner store");
     }
 
     #endregion
@@ -194,7 +189,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var result = await sut.SavePolicySetAsync(ps);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await cache.Received().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -214,7 +209,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var result = await sut.SavePolicySetAsync(ps);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         await cache.DidNotReceive().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -237,7 +232,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var result = await sut.DeletePolicySetAsync("del-ps");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await cache.Received().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -261,7 +256,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var result = await sut.SavePolicyAsync(pol);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await cache.Received().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -284,7 +279,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var result = await sut.DeletePolicyAsync("del-pol");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await cache.Received().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -303,8 +298,8 @@ public class CachingPolicyStoreDecoratorGuardTests
 
         var result = await sut.ExistsPolicySetAsync("exists-ps");
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Left: _ => false, Right: v => v).Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        result.Match(Left: _ => false, Right: v => v).ShouldBeTrue();
     }
 
     [Fact]
@@ -318,8 +313,8 @@ public class CachingPolicyStoreDecoratorGuardTests
 
         var result = await sut.GetPolicySetCountAsync();
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Left: _ => -1, Right: v => v).Should().Be(5);
+        result.IsRight.ShouldBeTrue();
+        result.Match(Left: _ => -1, Right: v => v).ShouldBe(5);
     }
 
     [Fact]
@@ -333,8 +328,8 @@ public class CachingPolicyStoreDecoratorGuardTests
 
         var result = await sut.ExistsPolicyAsync("exists-pol");
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Left: _ => true, Right: v => v).Should().BeFalse();
+        result.IsRight.ShouldBeTrue();
+        result.Match(Left: _ => true, Right: v => v).ShouldBeFalse();
     }
 
     [Fact]
@@ -348,8 +343,8 @@ public class CachingPolicyStoreDecoratorGuardTests
 
         var result = await sut.GetPolicyCountAsync();
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Left: _ => -1, Right: v => v).Should().Be(10);
+        result.IsRight.ShouldBeTrue();
+        result.Match(Left: _ => -1, Right: v => v).ShouldBe(10);
     }
 
     #endregion
@@ -401,7 +396,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var act = async () => await sut.SavePolicySetAsync(ps);
 
         // Assert
-        await act.Should().NotThrowAsync("PubSub failures should be caught and logged, not propagated");
+        await Should.NotThrowAsync(act);
     }
 
     #endregion
@@ -427,7 +422,7 @@ public class CachingPolicyStoreDecoratorGuardTests
         var act = async () => await sut.SavePolicySetAsync(ps);
 
         // Assert
-        await act.Should().NotThrowAsync("cache invalidation failures should be caught and logged");
+        await Should.NotThrowAsync(act);
     }
 
     #endregion

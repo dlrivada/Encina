@@ -1,5 +1,5 @@
 using Encina.Compliance.Anonymization.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -18,7 +18,7 @@ public class AnonymizationAuditEntryTests
             operation: AnonymizationOperation.Anonymized);
 
         // Assert
-        entry.Id.Should().NotBeNullOrEmpty();
+        entry.Id.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class AnonymizationAuditEntryTests
             operation: AnonymizationOperation.Anonymized);
 
         // Assert
-        entry.Operation.Should().Be(AnonymizationOperation.Anonymized);
+        entry.Operation.ShouldBe(AnonymizationOperation.Anonymized);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class AnonymizationAuditEntryTests
             technique: AnonymizationTechnique.DataMasking);
 
         // Assert
-        entry.Technique.Should().Be(AnonymizationTechnique.DataMasking);
+        entry.Technique.ShouldBe(AnonymizationTechnique.DataMasking);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class AnonymizationAuditEntryTests
             operation: AnonymizationOperation.KeyRotated);
 
         // Assert
-        entry.Technique.Should().BeNull();
+        entry.Technique.ShouldBeNull();
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class AnonymizationAuditEntryTests
             fieldName: "Email");
 
         // Assert
-        entry.FieldName.Should().Be("Email");
+        entry.FieldName.ShouldBe("Email");
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class AnonymizationAuditEntryTests
             subjectId: "user-123");
 
         // Assert
-        entry.SubjectId.Should().Be("user-123");
+        entry.SubjectId.ShouldBe("user-123");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class AnonymizationAuditEntryTests
             keyId: "key-2025-01");
 
         // Assert
-        entry.KeyId.Should().Be("key-2025-01");
+        entry.KeyId.ShouldBe("key-2025-01");
     }
 
     [Fact]
@@ -105,8 +105,8 @@ public class AnonymizationAuditEntryTests
         var after = DateTimeOffset.UtcNow;
 
         // Assert
-        entry.PerformedAtUtc.Should().BeOnOrAfter(before);
-        entry.PerformedAtUtc.Should().BeOnOrBefore(after);
+        entry.PerformedAtUtc.ShouldBeGreaterThanOrEqualTo(before);
+        entry.PerformedAtUtc.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class AnonymizationAuditEntryTests
             performedByUserId: "admin@company.com");
 
         // Assert
-        entry.PerformedByUserId.Should().Be("admin@company.com");
+        entry.PerformedByUserId.ShouldBe("admin@company.com");
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class AnonymizationAuditEntryTests
             operation: AnonymizationOperation.Anonymized);
 
         // Assert
-        entry.PerformedByUserId.Should().BeNull();
+        entry.PerformedByUserId.ShouldBeNull();
     }
 
     [Fact]
@@ -145,13 +145,13 @@ public class AnonymizationAuditEntryTests
             performedByUserId: "admin@company.com");
 
         // Assert
-        entry.Id.Should().NotBeNullOrEmpty();
-        entry.Operation.Should().Be(AnonymizationOperation.Pseudonymized);
-        entry.Technique.Should().Be(AnonymizationTechnique.DataMasking);
-        entry.FieldName.Should().Be("Email");
-        entry.SubjectId.Should().Be("user-123");
-        entry.KeyId.Should().Be("key-2025-01");
-        entry.PerformedByUserId.Should().Be("admin@company.com");
+        entry.Id.ShouldNotBeNullOrEmpty();
+        entry.Operation.ShouldBe(AnonymizationOperation.Pseudonymized);
+        entry.Technique.ShouldBe(AnonymizationTechnique.DataMasking);
+        entry.FieldName.ShouldBe("Email");
+        entry.SubjectId.ShouldBe("user-123");
+        entry.KeyId.ShouldBe("key-2025-01");
+        entry.PerformedByUserId.ShouldBe("admin@company.com");
     }
 
     #endregion
@@ -172,7 +172,7 @@ public class AnonymizationAuditEntryTests
         var entry = AnonymizationAuditEntry.Create(operation: operation);
 
         // Assert
-        entry.Operation.Should().Be(operation);
+        entry.Operation.ShouldBe(operation);
     }
 
     #endregion

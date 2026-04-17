@@ -1,8 +1,8 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Health;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -24,8 +24,8 @@ public sealed class SanitizationHealthCheckTests
                 Registration = new HealthCheckRegistration("test", healthCheck, null, null)
             });
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("healthy");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description!.ShouldContain("healthy");
     }
 
     [Fact]
@@ -42,8 +42,8 @@ public sealed class SanitizationHealthCheckTests
                 Registration = new HealthCheckRegistration("test", healthCheck, null, null)
             });
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("ISanitizer");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("ISanitizer");
     }
 
     [Fact]
@@ -62,25 +62,25 @@ public sealed class SanitizationHealthCheckTests
                 Registration = new HealthCheckRegistration("test", healthCheck, null, null)
             });
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("sanitizer");
-        result.Data.Should().ContainKey("encoder");
-        result.Data["sanitizer"].Should().Be("DefaultSanitizer");
-        result.Data["encoder"].Should().Be("DefaultOutputEncoder");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("sanitizer");
+        result.Data.ShouldContainKey("encoder");
+        result.Data["sanitizer"].ShouldBe("DefaultSanitizer");
+        result.Data["encoder"].ShouldBe("DefaultOutputEncoder");
     }
 
     [Fact]
     public void DefaultName_IsCorrect()
     {
-        SanitizationHealthCheck.DefaultName.Should().Be("encina-sanitization");
+        SanitizationHealthCheck.DefaultName.ShouldBe("encina-sanitization");
     }
 
     [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        SanitizationHealthCheck.Tags.Should().Contain("encina");
-        SanitizationHealthCheck.Tags.Should().Contain("security");
-        SanitizationHealthCheck.Tags.Should().Contain("sanitization");
-        SanitizationHealthCheck.Tags.Should().Contain("ready");
+        SanitizationHealthCheck.Tags.ShouldContain("encina");
+        SanitizationHealthCheck.Tags.ShouldContain("security");
+        SanitizationHealthCheck.Tags.ShouldContain("sanitization");
+        SanitizationHealthCheck.Tags.ShouldContain("ready");
     }
 }

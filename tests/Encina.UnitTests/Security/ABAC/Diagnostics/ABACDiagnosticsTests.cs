@@ -3,7 +3,7 @@ using System.Diagnostics.Metrics;
 
 using Encina.Security.ABAC.Diagnostics;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Diagnostics;
 
@@ -18,13 +18,13 @@ public sealed class ABACDiagnosticsTests
     [Fact]
     public void SourceName_IsEncinaSecurityABAC()
     {
-        ABACDiagnostics.SourceName.Should().Be("Encina.Security.ABAC");
+        ABACDiagnostics.SourceName.ShouldBe("Encina.Security.ABAC");
     }
 
     [Fact]
     public void SourceVersion_Is1_0()
     {
-        ABACDiagnostics.SourceVersion.Should().Be("1.0");
+        ABACDiagnostics.SourceVersion.ShouldBe("1.0");
     }
 
     #endregion
@@ -34,13 +34,13 @@ public sealed class ABACDiagnosticsTests
     [Fact]
     public void ActivitySource_HasCorrectName()
     {
-        ABACDiagnostics.ActivitySource.Name.Should().Be("Encina.Security.ABAC");
+        ABACDiagnostics.ActivitySource.Name.ShouldBe("Encina.Security.ABAC");
     }
 
     [Fact]
     public void ActivitySource_HasCorrectVersion()
     {
-        ABACDiagnostics.ActivitySource.Version.Should().Be("1.0");
+        ABACDiagnostics.ActivitySource.Version.ShouldBe("1.0");
     }
 
     #endregion
@@ -50,7 +50,7 @@ public sealed class ABACDiagnosticsTests
     [Fact]
     public void Meter_HasCorrectName()
     {
-        ABACDiagnostics.Meter.Name.Should().Be("Encina.Security.ABAC");
+        ABACDiagnostics.Meter.Name.ShouldBe("Encina.Security.ABAC");
     }
 
     #endregion
@@ -60,55 +60,55 @@ public sealed class ABACDiagnosticsTests
     [Fact]
     public void EvaluationTotal_IsNotNull()
     {
-        ABACDiagnostics.EvaluationTotal.Should().NotBeNull();
+        ABACDiagnostics.EvaluationTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void EvaluationPermitted_IsNotNull()
     {
-        ABACDiagnostics.EvaluationPermitted.Should().NotBeNull();
+        ABACDiagnostics.EvaluationPermitted.ShouldNotBeNull();
     }
 
     [Fact]
     public void EvaluationDenied_IsNotNull()
     {
-        ABACDiagnostics.EvaluationDenied.Should().NotBeNull();
+        ABACDiagnostics.EvaluationDenied.ShouldNotBeNull();
     }
 
     [Fact]
     public void EvaluationNotApplicable_IsNotNull()
     {
-        ABACDiagnostics.EvaluationNotApplicable.Should().NotBeNull();
+        ABACDiagnostics.EvaluationNotApplicable.ShouldNotBeNull();
     }
 
     [Fact]
     public void EvaluationIndeterminate_IsNotNull()
     {
-        ABACDiagnostics.EvaluationIndeterminate.Should().NotBeNull();
+        ABACDiagnostics.EvaluationIndeterminate.ShouldNotBeNull();
     }
 
     [Fact]
     public void ObligationExecuted_IsNotNull()
     {
-        ABACDiagnostics.ObligationExecuted.Should().NotBeNull();
+        ABACDiagnostics.ObligationExecuted.ShouldNotBeNull();
     }
 
     [Fact]
     public void ObligationFailed_IsNotNull()
     {
-        ABACDiagnostics.ObligationFailed.Should().NotBeNull();
+        ABACDiagnostics.ObligationFailed.ShouldNotBeNull();
     }
 
     [Fact]
     public void ObligationNoHandler_IsNotNull()
     {
-        ABACDiagnostics.ObligationNoHandler.Should().NotBeNull();
+        ABACDiagnostics.ObligationNoHandler.ShouldNotBeNull();
     }
 
     [Fact]
     public void AdviceExecuted_IsNotNull()
     {
-        ABACDiagnostics.AdviceExecuted.Should().NotBeNull();
+        ABACDiagnostics.AdviceExecuted.ShouldNotBeNull();
     }
 
     #endregion
@@ -118,13 +118,13 @@ public sealed class ABACDiagnosticsTests
     [Fact]
     public void EvaluationDuration_IsNotNull()
     {
-        ABACDiagnostics.EvaluationDuration.Should().NotBeNull();
+        ABACDiagnostics.EvaluationDuration.ShouldNotBeNull();
     }
 
     [Fact]
     public void ObligationDuration_IsNotNull()
     {
-        ABACDiagnostics.ObligationDuration.Should().NotBeNull();
+        ABACDiagnostics.ObligationDuration.ShouldNotBeNull();
     }
 
     #endregion
@@ -134,37 +134,37 @@ public sealed class ABACDiagnosticsTests
     [Fact]
     public void TagRequestType_HasCorrectValue()
     {
-        ABACDiagnostics.TagRequestType.Should().Be("abac.request_type");
+        ABACDiagnostics.TagRequestType.ShouldBe("abac.request_type");
     }
 
     [Fact]
     public void TagEffect_HasCorrectValue()
     {
-        ABACDiagnostics.TagEffect.Should().Be("abac.effect");
+        ABACDiagnostics.TagEffect.ShouldBe("abac.effect");
     }
 
     [Fact]
     public void TagPolicyId_HasCorrectValue()
     {
-        ABACDiagnostics.TagPolicyId.Should().Be("abac.policy_id");
+        ABACDiagnostics.TagPolicyId.ShouldBe("abac.policy_id");
     }
 
     [Fact]
     public void TagEnforcementMode_HasCorrectValue()
     {
-        ABACDiagnostics.TagEnforcementMode.Should().Be("abac.enforcement_mode");
+        ABACDiagnostics.TagEnforcementMode.ShouldBe("abac.enforcement_mode");
     }
 
     [Fact]
     public void TagObligationId_HasCorrectValue()
     {
-        ABACDiagnostics.TagObligationId.Should().Be("abac.obligation_id");
+        ABACDiagnostics.TagObligationId.ShouldBe("abac.obligation_id");
     }
 
     [Fact]
     public void TagAdviceId_HasCorrectValue()
     {
-        ABACDiagnostics.TagAdviceId.Should().Be("abac.advice_id");
+        ABACDiagnostics.TagAdviceId.ShouldBe("abac.advice_id");
     }
 
     #endregion
@@ -177,7 +177,7 @@ public sealed class ABACDiagnosticsTests
         // Without an ActivityListener, no activity is created
         var activity = ABACDiagnostics.StartEvaluation("TestRequest");
 
-        activity.Should().BeNull("no listeners are registered");
+        activity.ShouldBeNull("no listeners are registered");
     }
 
     [Fact]
@@ -192,8 +192,8 @@ public sealed class ABACDiagnosticsTests
 
         var activity = ABACDiagnostics.StartEvaluation("MyRequest");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ABACDiagnostics.TagRequestType).Should().Be("MyRequest");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ABACDiagnostics.TagRequestType).ShouldBe("MyRequest");
         activity.Dispose();
     }
 
@@ -214,10 +214,10 @@ public sealed class ABACDiagnosticsTests
         using var activity = ABACDiagnostics.StartEvaluation("TestRequest");
         ABACDiagnostics.RecordPermitted(activity, "policy-1");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ABACDiagnostics.TagEffect).Should().Be("permit");
-        activity.GetTagItem(ABACDiagnostics.TagPolicyId).Should().Be("policy-1");
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ABACDiagnostics.TagEffect).ShouldBe("permit");
+        activity.GetTagItem(ABACDiagnostics.TagPolicyId).ShouldBe("policy-1");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     [Fact]
@@ -233,10 +233,10 @@ public sealed class ABACDiagnosticsTests
         using var activity = ABACDiagnostics.StartEvaluation("TestRequest");
         ABACDiagnostics.RecordDenied(activity, "policy-deny", "access denied");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ABACDiagnostics.TagEffect).Should().Be("deny");
-        activity.GetTagItem(ABACDiagnostics.TagPolicyId).Should().Be("policy-deny");
-        activity.Status.Should().Be(ActivityStatusCode.Error);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ABACDiagnostics.TagEffect).ShouldBe("deny");
+        activity.GetTagItem(ABACDiagnostics.TagPolicyId).ShouldBe("policy-deny");
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
     }
 
     [Fact]
@@ -252,9 +252,9 @@ public sealed class ABACDiagnosticsTests
         using var activity = ABACDiagnostics.StartEvaluation("TestRequest");
         ABACDiagnostics.RecordIndeterminate(activity, "evaluation error");
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ABACDiagnostics.TagEffect).Should().Be("indeterminate");
-        activity.Status.Should().Be(ActivityStatusCode.Error);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ABACDiagnostics.TagEffect).ShouldBe("indeterminate");
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
     }
 
     [Fact]
@@ -270,9 +270,9 @@ public sealed class ABACDiagnosticsTests
         using var activity = ABACDiagnostics.StartEvaluation("TestRequest");
         ABACDiagnostics.RecordNotApplicable(activity);
 
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ABACDiagnostics.TagEffect).Should().Be("not_applicable");
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ABACDiagnostics.TagEffect).ShouldBe("not_applicable");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public sealed class ABACDiagnosticsTests
     {
         var act = () => ABACDiagnostics.RecordPermitted(null, "policy-1");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public sealed class ABACDiagnosticsTests
     {
         var act = () => ABACDiagnostics.RecordDenied(null, "policy-1", "denied");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public sealed class ABACDiagnosticsTests
     {
         var act = () => ABACDiagnostics.RecordIndeterminate(null, "error");
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -304,7 +304,7 @@ public sealed class ABACDiagnosticsTests
     {
         var act = () => ABACDiagnostics.RecordNotApplicable(null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -334,7 +334,7 @@ public sealed class ABACDiagnosticsTests
                 new KeyValuePair<string, object?>(ABACDiagnostics.TagAdviceId, "test-advice"));
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public sealed class ABACDiagnosticsTests
                 new KeyValuePair<string, object?>(ABACDiagnostics.TagObligationId, "test"));
         };
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion
@@ -381,7 +381,7 @@ public sealed class ABACDiagnosticsTests
 
         listener.RecordObservableInstruments();
 
-        recordedValue.Should().Be(1);
+        recordedValue.ShouldBe(1);
     }
 
     #endregion

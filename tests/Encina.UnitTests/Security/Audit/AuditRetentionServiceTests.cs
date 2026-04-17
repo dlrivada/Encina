@@ -1,10 +1,10 @@
 using Encina.Security.Audit;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.Audit;
@@ -41,7 +41,7 @@ public class AuditRetentionServiceTests
         // Assert - PurgeEntriesAsync should never be called
         _mockAuditStore.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IAuditStore.PurgeEntriesAsync))
-            .Should().BeEmpty();
+            .ShouldBeEmpty();
     }
 
     #endregion
@@ -58,8 +58,8 @@ public class AuditRetentionServiceTests
         var act = () => new AuditRetentionService(null!, options, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("auditStore");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("auditStore");
     }
 
     [Fact]
@@ -69,8 +69,8 @@ public class AuditRetentionServiceTests
         var act = () => new AuditRetentionService(_mockAuditStore, null!, _logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class AuditRetentionServiceTests
         var act = () => new AuditRetentionService(_mockAuditStore, options, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("logger");
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class AuditRetentionServiceTests
         var service = new AuditRetentionService(_mockAuditStore, options, _logger, null);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class AuditRetentionServiceTests
         var service = new AuditRetentionService(_mockAuditStore, options, _logger);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 
     #endregion
@@ -137,7 +137,7 @@ public class AuditRetentionServiceTests
         var service = new AuditRetentionService(_mockAuditStore, options, _logger);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
         // Options are read at execution time, not construction
     }
 
@@ -156,7 +156,7 @@ public class AuditRetentionServiceTests
         var service = new AuditRetentionService(_mockAuditStore, options, _logger);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 
     [Theory]
@@ -178,7 +178,7 @@ public class AuditRetentionServiceTests
         var service = new AuditRetentionService(_mockAuditStore, options, _logger);
 
         // Assert
-        service.Should().NotBeNull();
+        service.ShouldNotBeNull();
     }
 
     #endregion
@@ -200,7 +200,7 @@ public class AuditRetentionServiceTests
         var actualCutoff = now.AddDays(-retentionDays);
 
         // Assert
-        actualCutoff.Date.Should().Be(expectedCutoff.Date);
+        actualCutoff.Date.ShouldBe(expectedCutoff.Date);
     }
 
     [Theory]
@@ -217,7 +217,7 @@ public class AuditRetentionServiceTests
         var actualCutoff = baseDate.AddDays(-retentionDays);
 
         // Assert
-        actualCutoff.Should().Be(expectedCutoff);
+        actualCutoff.ShouldBe(expectedCutoff);
     }
 
     #endregion
@@ -233,8 +233,7 @@ public class AuditRetentionServiceTests
         using var cts = new CancellationTokenSource();
 
         // Act & Assert
-        await service.Invoking(s => s.StartAsync(cts.Token))
-            .Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await service.StartAsync(cts.Token));
 
         await service.StopAsync(cts.Token);
     }
@@ -250,8 +249,7 @@ public class AuditRetentionServiceTests
         await service.StartAsync(cts.Token);
 
         // Act & Assert
-        await service.Invoking(s => s.StopAsync(cts.Token))
-            .Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await service.StopAsync(cts.Token));
     }
 
     [Fact]
@@ -275,8 +273,7 @@ public class AuditRetentionServiceTests
         cts.Cancel();
 
         // Assert - Should not throw
-        await service.Invoking(s => s.StopAsync(CancellationToken.None))
-            .Should().NotThrowAsync();
+        await Should.NotThrowAsync(async () => await service.StopAsync(CancellationToken.None));
     }
 
     #endregion
@@ -303,7 +300,7 @@ public class AuditRetentionServiceTests
         // Assert - Purge should never be called
         _mockAuditStore.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IAuditStore.PurgeEntriesAsync))
-            .Should().BeEmpty();
+            .ShouldBeEmpty();
     }
 
     #endregion

@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.GoogleCloudSecretManager;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.GoogleCloudSecretManager;
 
@@ -10,7 +10,7 @@ public sealed class GoogleCloudSecretManagerOptionsTests
     {
         var options = new GoogleCloudSecretManagerOptions();
 
-        options.ProjectId.Should().Be("");
+        options.ProjectId.ShouldBe("");
     }
 
     [Fact]
@@ -20,6 +20,6 @@ public sealed class GoogleCloudSecretManagerOptionsTests
 
         options.ProjectId = "my-gcp-project";
 
-        options.ProjectId.Should().Be("my-gcp-project");
+        options.ProjectId.ShouldBe("my-gcp-project");
     }
 }

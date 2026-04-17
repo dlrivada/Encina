@@ -2,7 +2,7 @@ using Encina.Compliance.DPIA.Events;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
 using Encina.Marten.Projections;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA.ReadModels;
 
@@ -22,7 +22,7 @@ public class DPIAProjectionTests
     [Fact]
     public void ProjectionName_ShouldReturnDPIAProjection()
     {
-        _sut.ProjectionName.Should().Be("DPIAProjection");
+        _sut.ProjectionName.ShouldBe("DPIAProjection");
     }
 
     #endregion
@@ -46,23 +46,23 @@ public class DPIAProjectionTests
         var model = _sut.Create(@event, DefaultContext);
 
         // Assert
-        model.Id.Should().Be(DefaultId);
-        model.RequestTypeName.Should().Be("MyApp.Commands.ProcessData");
-        model.ProcessingType.Should().Be("AutomatedDecisionMaking");
-        model.Reason.Should().Be("High-risk profiling operation");
-        model.Status.Should().Be(DPIAAssessmentStatus.Draft);
-        model.TenantId.Should().Be("tenant-1");
-        model.ModuleId.Should().Be("module-1");
-        model.LastModifiedAtUtc.Should().Be(Now);
-        model.Version.Should().Be(1);
-        model.OverallRisk.Should().BeNull();
-        model.IdentifiedRisks.Should().BeEmpty();
-        model.ProposedMitigations.Should().BeEmpty();
-        model.RequiresPriorConsultation.Should().BeFalse();
-        model.AssessedAtUtc.Should().BeNull();
-        model.DPOConsultation.Should().BeNull();
-        model.ApprovedAtUtc.Should().BeNull();
-        model.NextReviewAtUtc.Should().BeNull();
+        model.Id.ShouldBe(DefaultId);
+        model.RequestTypeName.ShouldBe("MyApp.Commands.ProcessData");
+        model.ProcessingType.ShouldBe("AutomatedDecisionMaking");
+        model.Reason.ShouldBe("High-risk profiling operation");
+        model.Status.ShouldBe(DPIAAssessmentStatus.Draft);
+        model.TenantId.ShouldBe("tenant-1");
+        model.ModuleId.ShouldBe("module-1");
+        model.LastModifiedAtUtc.ShouldBe(Now);
+        model.Version.ShouldBe(1);
+        model.OverallRisk.ShouldBeNull();
+        model.IdentifiedRisks.ShouldBeEmpty();
+        model.ProposedMitigations.ShouldBeEmpty();
+        model.RequiresPriorConsultation.ShouldBeFalse();
+        model.AssessedAtUtc.ShouldBeNull();
+        model.DPOConsultation.ShouldBeNull();
+        model.ApprovedAtUtc.ShouldBeNull();
+        model.NextReviewAtUtc.ShouldBeNull();
     }
 
     #endregion
@@ -100,14 +100,14 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.OverallRisk.Should().Be(RiskLevel.High);
-        result.IdentifiedRisks.Should().BeEquivalentTo(risks);
-        result.ProposedMitigations.Should().BeEquivalentTo(mitigations);
-        result.RequiresPriorConsultation.Should().BeTrue();
-        result.AssessedAtUtc.Should().Be(assessedAt);
-        result.Status.Should().Be(DPIAAssessmentStatus.InReview);
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
-        result.Version.Should().Be(2);
+        result.OverallRisk.ShouldBe(RiskLevel.High);
+        result.IdentifiedRisks.ShouldBe(risks);
+        result.ProposedMitigations.ShouldBe(mitigations);
+        result.RequiresPriorConsultation.ShouldBeTrue();
+        result.AssessedAtUtc.ShouldBe(assessedAt);
+        result.Status.ShouldBe(DPIAAssessmentStatus.InReview);
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -133,17 +133,17 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.DPOConsultation.Should().NotBeNull();
-        result.DPOConsultation!.Id.Should().Be(consultationId);
-        result.DPOConsultation.DPOName.Should().Be("Jane Smith");
-        result.DPOConsultation.DPOEmail.Should().Be("jane.smith@example.com");
-        result.DPOConsultation.RequestedAtUtc.Should().Be(occurredAt);
-        result.DPOConsultation.Decision.Should().Be(DPOConsultationDecision.Pending);
-        result.DPOConsultation.RespondedAtUtc.Should().BeNull();
-        result.DPOConsultation.Comments.Should().BeNull();
-        result.DPOConsultation.Conditions.Should().BeNull();
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
-        result.Version.Should().Be(2);
+        result.DPOConsultation.ShouldNotBeNull();
+        result.DPOConsultation!.Id.ShouldBe(consultationId);
+        result.DPOConsultation.DPOName.ShouldBe("Jane Smith");
+        result.DPOConsultation.DPOEmail.ShouldBe("jane.smith@example.com");
+        result.DPOConsultation.RequestedAtUtc.ShouldBe(occurredAt);
+        result.DPOConsultation.Decision.ShouldBe(DPOConsultationDecision.Pending);
+        result.DPOConsultation.RespondedAtUtc.ShouldBeNull();
+        result.DPOConsultation.Comments.ShouldBeNull();
+        result.DPOConsultation.Conditions.ShouldBeNull();
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -180,15 +180,15 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.DPOConsultation.Should().NotBeNull();
-        result.DPOConsultation!.Decision.Should().Be(DPOConsultationDecision.ConditionallyApproved);
-        result.DPOConsultation.Comments.Should().Be("Acceptable with conditions");
-        result.DPOConsultation.Conditions.Should().Be("Must implement encryption before go-live");
-        result.DPOConsultation.RespondedAtUtc.Should().Be(respondedAt);
-        result.DPOConsultation.DPOName.Should().Be("Jane Smith");
-        result.DPOConsultation.DPOEmail.Should().Be("jane.smith@example.com");
-        result.LastModifiedAtUtc.Should().Be(respondedAt);
-        result.Version.Should().Be(2);
+        result.DPOConsultation.ShouldNotBeNull();
+        result.DPOConsultation!.Decision.ShouldBe(DPOConsultationDecision.ConditionallyApproved);
+        result.DPOConsultation.Comments.ShouldBe("Acceptable with conditions");
+        result.DPOConsultation.Conditions.ShouldBe("Must implement encryption before go-live");
+        result.DPOConsultation.RespondedAtUtc.ShouldBe(respondedAt);
+        result.DPOConsultation.DPOName.ShouldBe("Jane Smith");
+        result.DPOConsultation.DPOEmail.ShouldBe("jane.smith@example.com");
+        result.LastModifiedAtUtc.ShouldBe(respondedAt);
+        result.Version.ShouldBe(2);
     }
 
     [Fact]
@@ -212,9 +212,9 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.DPOConsultation.Should().BeNull();
-        result.LastModifiedAtUtc.Should().Be(respondedAt);
-        result.Version.Should().Be(2);
+        result.DPOConsultation.ShouldBeNull();
+        result.LastModifiedAtUtc.ShouldBe(respondedAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -239,11 +239,11 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DPIAAssessmentStatus.Approved);
-        result.ApprovedAtUtc.Should().Be(occurredAt);
-        result.NextReviewAtUtc.Should().Be(nextReview);
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DPIAAssessmentStatus.Approved);
+        result.ApprovedAtUtc.ShouldBe(occurredAt);
+        result.NextReviewAtUtc.ShouldBe(nextReview);
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -267,9 +267,9 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DPIAAssessmentStatus.Rejected);
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DPIAAssessmentStatus.Rejected);
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -293,9 +293,9 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DPIAAssessmentStatus.RequiresRevision);
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DPIAAssessmentStatus.RequiresRevision);
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -318,9 +318,9 @@ public class DPIAProjectionTests
         var result = _sut.Apply(@event, current, DefaultContext);
 
         // Assert
-        result.Status.Should().Be(DPIAAssessmentStatus.Expired);
-        result.LastModifiedAtUtc.Should().Be(occurredAt);
-        result.Version.Should().Be(2);
+        result.Status.ShouldBe(DPIAAssessmentStatus.Expired);
+        result.LastModifiedAtUtc.ShouldBe(occurredAt);
+        result.Version.ShouldBe(2);
     }
 
     #endregion
@@ -376,22 +376,22 @@ public class DPIAProjectionTests
         model = _sut.Apply(approvedEvent, model, DefaultContext);
 
         // Assert
-        model.Id.Should().Be(assessmentId);
-        model.RequestTypeName.Should().Be("MyApp.Commands.ProfileUser");
-        model.ProcessingType.Should().Be("Profiling");
-        model.Reason.Should().Be("Systematic profiling of user behavior");
-        model.Status.Should().Be(DPIAAssessmentStatus.Approved);
-        model.OverallRisk.Should().Be(RiskLevel.Medium);
-        model.IdentifiedRisks.Should().HaveCount(1);
-        model.ProposedMitigations.Should().HaveCount(1);
-        model.RequiresPriorConsultation.Should().BeFalse();
-        model.AssessedAtUtc.Should().Be(evaluatedAt);
-        model.ApprovedAtUtc.Should().Be(approvedAt);
-        model.NextReviewAtUtc.Should().Be(nextReview);
-        model.TenantId.Should().Be("tenant-acme");
-        model.ModuleId.Should().Be("module-analytics");
-        model.LastModifiedAtUtc.Should().Be(approvedAt);
-        model.Version.Should().Be(3);
+        model.Id.ShouldBe(assessmentId);
+        model.RequestTypeName.ShouldBe("MyApp.Commands.ProfileUser");
+        model.ProcessingType.ShouldBe("Profiling");
+        model.Reason.ShouldBe("Systematic profiling of user behavior");
+        model.Status.ShouldBe(DPIAAssessmentStatus.Approved);
+        model.OverallRisk.ShouldBe(RiskLevel.Medium);
+        model.IdentifiedRisks.Count.ShouldBe(1);
+        model.ProposedMitigations.Count.ShouldBe(1);
+        model.RequiresPriorConsultation.ShouldBeFalse();
+        model.AssessedAtUtc.ShouldBe(evaluatedAt);
+        model.ApprovedAtUtc.ShouldBe(approvedAt);
+        model.NextReviewAtUtc.ShouldBe(nextReview);
+        model.TenantId.ShouldBe("tenant-acme");
+        model.ModuleId.ShouldBe("module-analytics");
+        model.LastModifiedAtUtc.ShouldBe(approvedAt);
+        model.Version.ShouldBe(3);
     }
 
     #endregion

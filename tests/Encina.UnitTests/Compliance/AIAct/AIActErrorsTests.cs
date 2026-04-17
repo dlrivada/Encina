@@ -1,6 +1,6 @@
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.AIAct;
 
@@ -14,13 +14,13 @@ public class AIActErrorsTests
     [Fact]
     public void ErrorCodes_ShouldFollowConvention()
     {
-        AIActErrors.ProhibitedUseCode.Should().StartWith("aiact.");
-        AIActErrors.ComplianceValidationFailedCode.Should().StartWith("aiact.");
-        AIActErrors.HumanOversightRequiredCode.Should().StartWith("aiact.");
-        AIActErrors.TransparencyRequiredCode.Should().StartWith("aiact.");
-        AIActErrors.SystemNotRegisteredCode.Should().StartWith("aiact.");
-        AIActErrors.PipelineBlockedCode.Should().StartWith("aiact.");
-        AIActErrors.ValidatorErrorCode.Should().StartWith("aiact.");
+        AIActErrors.ProhibitedUseCode.ShouldStartWith("aiact.");
+        AIActErrors.ComplianceValidationFailedCode.ShouldStartWith("aiact.");
+        AIActErrors.HumanOversightRequiredCode.ShouldStartWith("aiact.");
+        AIActErrors.TransparencyRequiredCode.ShouldStartWith("aiact.");
+        AIActErrors.SystemNotRegisteredCode.ShouldStartWith("aiact.");
+        AIActErrors.PipelineBlockedCode.ShouldStartWith("aiact.");
+        AIActErrors.ValidatorErrorCode.ShouldStartWith("aiact.");
     }
 
     // -- ProhibitedUse --
@@ -31,10 +31,10 @@ public class AIActErrorsTests
         var error = AIActErrors.ProhibitedUse(
             typeof(string), "test-system", ["Social scoring detected"]);
 
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("test-system");
-        error.Message.Should().Contain("Social scoring detected");
-        error.Message.Should().Contain("Art. 5");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("test-system");
+        error.Message.ShouldContain("Social scoring detected");
+        error.Message.ShouldContain("Art. 5");
     }
 
     // -- ComplianceValidationFailed --
@@ -45,10 +45,10 @@ public class AIActErrorsTests
         var error = AIActErrors.ComplianceValidationFailed(
             typeof(string), "cv-screener", AIRiskLevel.HighRisk, ["Missing Art. 14 oversight"]);
 
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("cv-screener");
-        error.Message.Should().Contain("HighRisk");
-        error.Message.Should().Contain("Missing Art. 14 oversight");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("cv-screener");
+        error.Message.ShouldContain("HighRisk");
+        error.Message.ShouldContain("Missing Art. 14 oversight");
     }
 
     // -- HumanOversightRequired --
@@ -58,9 +58,9 @@ public class AIActErrorsTests
     {
         var error = AIActErrors.HumanOversightRequired(typeof(string), "loan-system");
 
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("loan-system");
-        error.Message.Should().Contain("Art. 14");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("loan-system");
+        error.Message.ShouldContain("Art. 14");
     }
 
     // -- TransparencyRequired --
@@ -70,9 +70,9 @@ public class AIActErrorsTests
     {
         var error = AIActErrors.TransparencyRequired(typeof(string), "chatbot-v1");
 
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("chatbot-v1");
-        error.Message.Should().Contain("Art. 13");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("chatbot-v1");
+        error.Message.ShouldContain("Art. 13");
     }
 
     // -- SystemNotRegistered --
@@ -82,9 +82,9 @@ public class AIActErrorsTests
     {
         var error = AIActErrors.SystemNotRegistered(typeof(string), "unknown-system");
 
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("unknown-system");
-        error.Message.Should().Contain("not registered");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("unknown-system");
+        error.Message.ShouldContain("not registered");
     }
 
     // -- PipelineBlocked --
@@ -94,8 +94,8 @@ public class AIActErrorsTests
     {
         var error = AIActErrors.PipelineBlocked("MyRequest", "Compliance check failed");
 
-        error.Message.Should().Contain("MyRequest");
-        error.Message.Should().Contain("Compliance check failed");
+        error.Message.ShouldContain("MyRequest");
+        error.Message.ShouldContain("Compliance check failed");
     }
 
     // -- ValidatorError --
@@ -107,7 +107,7 @@ public class AIActErrorsTests
 
         var error = AIActErrors.ValidatorError(typeof(string), inner);
 
-        error.Message.Should().Contain("String");
-        error.Message.Should().Contain("Registry unavailable");
+        error.Message.ShouldContain("String");
+        error.Message.ShouldContain("Registry unavailable");
     }
 }

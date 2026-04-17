@@ -1,8 +1,8 @@
 using Encina.Security.Audit;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -23,10 +23,10 @@ public class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        provider.GetService<IPiiMasker>().Should().NotBeNull();
-        provider.GetService<IAuditStore>().Should().NotBeNull();
-        provider.GetService<IAuditEntryFactory>().Should().NotBeNull();
-        provider.GetService<IOptions<AuditOptions>>().Should().NotBeNull();
+        provider.GetService<IPiiMasker>().ShouldNotBeNull();
+        provider.GetService<IAuditStore>().ShouldNotBeNull();
+        provider.GetService<IAuditEntryFactory>().ShouldNotBeNull();
+        provider.GetService<IOptions<AuditOptions>>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var masker = provider.GetRequiredService<IPiiMasker>();
-        masker.Should().BeOfType<NullPiiMasker>();
+        masker.ShouldBeOfType<NullPiiMasker>();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var store = provider.GetRequiredService<IAuditStore>();
-        store.Should().BeOfType<InMemoryAuditStore>();
+        store.ShouldBeOfType<InMemoryAuditStore>();
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var factory = provider.GetRequiredService<IAuditEntryFactory>();
-        factory.Should().BeOfType<DefaultAuditEntryFactory>();
+        factory.ShouldBeOfType<DefaultAuditEntryFactory>();
     }
 
     [Fact]
@@ -97,10 +97,10 @@ public class ServiceCollectionExtensionsTests
         var options = provider.GetRequiredService<IOptions<AuditOptions>>().Value;
 
         // Assert
-        options.AuditAllCommands.Should().BeFalse();
-        options.AuditAllQueries.Should().BeTrue();
-        options.IncludePayloadHash.Should().BeFalse();
-        options.RetentionDays.Should().Be(365);
+        options.AuditAllCommands.ShouldBeFalse();
+        options.AuditAllQueries.ShouldBeTrue();
+        options.IncludePayloadHash.ShouldBeFalse();
+        options.RetentionDays.ShouldBe(365);
     }
 
     [Fact]
@@ -116,10 +116,10 @@ public class ServiceCollectionExtensionsTests
         var options = provider.GetRequiredService<IOptions<AuditOptions>>().Value;
 
         // Assert
-        options.AuditAllCommands.Should().BeTrue();
-        options.AuditAllQueries.Should().BeFalse();
-        options.IncludePayloadHash.Should().BeTrue();
-        options.RetentionDays.Should().Be(2555);
+        options.AuditAllCommands.ShouldBeTrue();
+        options.AuditAllQueries.ShouldBeFalse();
+        options.IncludePayloadHash.ShouldBeTrue();
+        options.RetentionDays.ShouldBe(2555);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert - Custom masker should be used (TryAdd doesn't override)
         var masker = provider.GetRequiredService<IPiiMasker>();
-        masker.Should().BeOfType<CustomPiiMasker>();
+        masker.ShouldBeOfType<CustomPiiMasker>();
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert - Custom store should be used (TryAdd doesn't override)
         var store = provider.GetRequiredService<IAuditStore>();
-        store.Should().BeOfType<CustomAuditStore>();
+        store.ShouldBeOfType<CustomAuditStore>();
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class ServiceCollectionExtensionsTests
         var result = services.AddEncinaAudit();
 
         // Assert
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -179,8 +179,8 @@ public class ServiceCollectionExtensionsTests
         var act = () => services.AddEncinaAudit();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act)
+                .ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class ServiceCollectionExtensionsTests
         };
 
         // Assert
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IAuditEntryFactory));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IPiiMasker));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class ServiceCollectionExtensionsTests
 
         // Assert
         var descriptor = services.First(d => d.ServiceType == typeof(IAuditStore));
-        descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
             d.ImplementationType == typeof(AuditRetentionService));
-        descriptor.Should().NotBeNull();
+        descriptor.ShouldNotBeNull();
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
             d.ImplementationType == typeof(AuditRetentionService));
-        descriptor.Should().BeNull();
+        descriptor.ShouldBeNull();
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
             d.ImplementationType == typeof(AuditRetentionService));
-        descriptor.Should().BeNull();
+        descriptor.ShouldBeNull();
     }
 
     #region Custom Test Implementations

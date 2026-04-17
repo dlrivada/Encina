@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Audit;
 
@@ -20,9 +20,9 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().BeSameAs(input);
-        result.Name.Should().Be("John Doe");
-        result.Email.Should().Be("john@example.com");
+        result.ShouldBeSameAs(input);
+        result.Name.ShouldBe("John Doe");
+        result.Email.ShouldBe("john@example.com");
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().BeSameAs(input);
+        result.ShouldBeSameAs(input);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().Be("sensitive data");
+        result.ShouldBe("sensitive data");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().Be(12345);
+        result.ShouldBe(12345);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().Be(input);
+        result.ShouldBe(input);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().Be("sensitive data");
+        result.ShouldBe("sensitive data");
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().BeSameAs(input);
-        result.Should().HaveCount(3);
+        result.ShouldBeSameAs(input);
+        result.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -114,16 +114,16 @@ public class NullPiiMaskerTests
         var result = _masker.MaskForAudit(input);
 
         // Assert
-        result.Should().BeSameAs(input);
-        result.Name.Should().Be("Test");
-        result.Value.Should().Be(42);
+        result.ShouldBeSameAs(input);
+        result.Name.ShouldBe("Test");
+        result.Value.ShouldBe(42);
     }
 
     [Fact]
     public void Instance_ShouldImplementIPiiMasker()
     {
         // Assert
-        _masker.Should().BeAssignableTo<IPiiMasker>();
+        _masker.ShouldBeAssignableTo<IPiiMasker>();
     }
 
     private sealed class TestRequest

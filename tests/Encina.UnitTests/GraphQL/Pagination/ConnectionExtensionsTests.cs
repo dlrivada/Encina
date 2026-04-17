@@ -1,6 +1,6 @@
 using Encina.DomainModeling.Pagination;
 using Encina.GraphQL.Pagination;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.GraphQL.Pagination;
 
@@ -34,13 +34,13 @@ public sealed class ConnectionExtensionsTests
         var connection = pagedData.ToConnection();
 
         // Assert
-        connection.Edges.Should().HaveCount(2);
-        connection.Edges[0].Node.Id.Should().Be(1);
-        connection.Edges[0].Cursor.Should().Be("cursor_a");
-        connection.Edges[1].Node.Id.Should().Be(2);
-        connection.Edges[1].Cursor.Should().Be("cursor_b");
-        connection.PageInfo.HasNextPage.Should().BeTrue();
-        connection.TotalCount.Should().Be(50);
+        connection.Edges.Count.ShouldBe(2);
+        connection.Edges[0].Node.Id.ShouldBe(1);
+        connection.Edges[0].Cursor.ShouldBe("cursor_a");
+        connection.Edges[1].Node.Id.ShouldBe(2);
+        connection.Edges[1].Cursor.ShouldBe("cursor_b");
+        connection.PageInfo.HasNextPage.ShouldBeTrue();
+        connection.TotalCount.ShouldBe(50);
     }
 
     [Fact]
@@ -50,11 +50,10 @@ public sealed class ConnectionExtensionsTests
         CursorPagedData<TestProduct>? data = null;
 
         // Act
-        var act = () => data!.ToConnection();
+        Action act = () => data!.ToConnection();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("data");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("data");
     }
 
     #endregion
@@ -79,12 +78,12 @@ public sealed class ConnectionExtensionsTests
         var connection = result.ToConnection();
 
         // Assert
-        connection.Edges.Should().HaveCount(2);
-        connection.PageInfo.HasNextPage.Should().BeTrue();
-        connection.PageInfo.HasPreviousPage.Should().BeTrue();
-        connection.PageInfo.StartCursor.Should().Be("prev_cursor");
-        connection.PageInfo.EndCursor.Should().Be("next_cursor");
-        connection.TotalCount.Should().Be(100);
+        connection.Edges.Count.ShouldBe(2);
+        connection.PageInfo.HasNextPage.ShouldBeTrue();
+        connection.PageInfo.HasPreviousPage.ShouldBeTrue();
+        connection.PageInfo.StartCursor.ShouldBe("prev_cursor");
+        connection.PageInfo.EndCursor.ShouldBe("next_cursor");
+        connection.TotalCount.ShouldBe(100);
     }
 
     [Fact]
@@ -104,7 +103,7 @@ public sealed class ConnectionExtensionsTests
         var connection = result.ToConnection();
 
         // Assert
-        connection.Edges[0].Cursor.Should().Be("prev");
+        connection.Edges[0].Cursor.ShouldBe("prev");
     }
 
     [Fact]
@@ -124,7 +123,7 @@ public sealed class ConnectionExtensionsTests
         var connection = result.ToConnection();
 
         // Assert
-        connection.Edges[1].Cursor.Should().Be("next");
+        connection.Edges[1].Cursor.ShouldBe("next");
     }
 
     [Fact]
@@ -144,8 +143,8 @@ public sealed class ConnectionExtensionsTests
         var connection = result.ToConnection();
 
         // Assert
-        connection.Edges.Should().HaveCount(1);
-        connection.Edges[0].Cursor.Should().Be("cursor");
+        connection.Edges.Count.ShouldBe(1);
+        connection.Edges[0].Cursor.ShouldBe("cursor");
     }
 
     [Fact]
@@ -166,9 +165,9 @@ public sealed class ConnectionExtensionsTests
         var connection = result.ToConnection();
 
         // Assert
-        connection.Edges.Should().BeEmpty();
-        connection.PageInfo.HasNextPage.Should().BeFalse();
-        connection.PageInfo.HasPreviousPage.Should().BeFalse();
+        connection.Edges.ShouldBeEmpty();
+        connection.PageInfo.HasNextPage.ShouldBeFalse();
+        connection.PageInfo.HasPreviousPage.ShouldBeFalse();
     }
 
     [Fact]
@@ -178,11 +177,10 @@ public sealed class ConnectionExtensionsTests
         CursorPaginatedResult<TestProduct>? result = null;
 
         // Act
-        var act = () => result!.ToConnection();
+        Action act = () => result!.ToConnection();
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("result");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("result");
     }
 
     [Fact]
@@ -208,10 +206,10 @@ public sealed class ConnectionExtensionsTests
         var connection = result.ToConnection();
 
         // Assert
-        connection.Edges[0].Cursor.Should().Be("prev"); // First
-        connection.Edges[1].Cursor.Should().Be("next"); // Middle - uses approximate
-        connection.Edges[2].Cursor.Should().Be("next"); // Middle - uses approximate
-        connection.Edges[3].Cursor.Should().Be("next"); // Last
+        connection.Edges[0].Cursor.ShouldBe("prev"); // First
+        connection.Edges[1].Cursor.ShouldBe("next"); // Middle - uses approximate
+        connection.Edges[2].Cursor.ShouldBe("next"); // Middle - uses approximate
+        connection.Edges[3].Cursor.ShouldBe("next"); // Last
     }
 
     #endregion
@@ -236,11 +234,11 @@ public sealed class ConnectionExtensionsTests
         var mappedConnection = connection.Map(p => new TestProductDto(p.Id, p.Name.ToUpperInvariant()));
 
         // Assert
-        mappedConnection.Edges.Should().HaveCount(2);
-        mappedConnection.Edges[0].Node.Id.Should().Be(1);
-        mappedConnection.Edges[0].Node.Name.Should().Be("PRODUCT A");
-        mappedConnection.Edges[1].Node.Id.Should().Be(2);
-        mappedConnection.Edges[1].Node.Name.Should().Be("PRODUCT B");
+        mappedConnection.Edges.Count.ShouldBe(2);
+        mappedConnection.Edges[0].Node.Id.ShouldBe(1);
+        mappedConnection.Edges[0].Node.Name.ShouldBe("PRODUCT A");
+        mappedConnection.Edges[1].Node.Id.ShouldBe(2);
+        mappedConnection.Edges[1].Node.Name.ShouldBe("PRODUCT B");
     }
 
     [Fact]
@@ -260,7 +258,7 @@ public sealed class ConnectionExtensionsTests
         var mappedConnection = connection.Map(p => new TestProductDto(p.Id, p.Name));
 
         // Assert
-        mappedConnection.Edges[0].Cursor.Should().Be("cursor_a");
+        mappedConnection.Edges[0].Cursor.ShouldBe("cursor_a");
     }
 
     [Fact]
@@ -280,8 +278,8 @@ public sealed class ConnectionExtensionsTests
         var mappedConnection = connection.Map(p => new TestProductDto(p.Id, p.Name));
 
         // Assert
-        mappedConnection.PageInfo.Should().Be(connection.PageInfo);
-        mappedConnection.TotalCount.Should().Be(100);
+        mappedConnection.PageInfo.ShouldBe(connection.PageInfo);
+        mappedConnection.TotalCount.ShouldBe(100);
     }
 
     [Fact]
@@ -291,11 +289,10 @@ public sealed class ConnectionExtensionsTests
         Connection<TestProduct>? connection = null;
 
         // Act
-        var act = () => connection!.Map(p => new TestProductDto(p.Id, p.Name));
+        Action act = () => connection!.Map(p => new TestProductDto(p.Id, p.Name));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("connection");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("connection");
     }
 
     [Fact]
@@ -305,11 +302,10 @@ public sealed class ConnectionExtensionsTests
         var connection = Connection<TestProduct>.Empty();
 
         // Act
-        var act = () => connection.Map<TestProduct, TestProductDto>(null!);
+        Action act = () => connection.Map<TestProduct, TestProductDto>(null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("selector");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("selector");
     }
 
     #endregion

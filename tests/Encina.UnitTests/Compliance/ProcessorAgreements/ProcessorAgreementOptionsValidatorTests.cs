@@ -2,7 +2,7 @@
 
 using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.ProcessorAgreements.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -22,7 +22,7 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -42,8 +42,8 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().NotBeNullOrEmpty();
+        result.Succeeded.ShouldBeFalse();
+        result.FailureMessage.ShouldNotBeNullOrEmpty();
     }
 
     #endregion
@@ -63,8 +63,8 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().NotBeNullOrEmpty();
+        result.Succeeded.ShouldBeFalse();
+        result.FailureMessage.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().NotBeNullOrEmpty();
+        result.Succeeded.ShouldBeFalse();
+        result.FailureMessage.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -134,8 +134,8 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().NotBeNullOrEmpty();
+        result.Succeeded.ShouldBeFalse();
+        result.FailureMessage.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     #endregion
@@ -172,8 +172,8 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().NotBeNullOrEmpty();
+        result.Succeeded.ShouldBeFalse();
+        result.FailureMessage.ShouldNotBeNullOrEmpty();
     }
 
     [Fact]
@@ -189,8 +189,8 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().NotBeNullOrEmpty();
+        result.Succeeded.ShouldBeFalse();
+        result.FailureMessage.ShouldNotBeNullOrEmpty();
     }
 
     #endregion
@@ -204,7 +204,7 @@ public class ProcessorAgreementOptionsValidatorTests
         var act = () => _validator.Validate(null, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 
     #endregion
@@ -226,8 +226,8 @@ public class ProcessorAgreementOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().NotBeNullOrEmpty();
+        result.Succeeded.ShouldBeFalse();
+        result.FailureMessage.ShouldNotBeNullOrEmpty();
     }
 
     #endregion

@@ -1,6 +1,6 @@
 using Encina.Compliance.CrossBorderTransfer;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.CrossBorderTransfer;
 
@@ -11,22 +11,22 @@ public class CrossBorderTransferOptionsTests
     {
         var options = new CrossBorderTransferOptions();
 
-        options.EnforcementMode.Should().Be(CrossBorderTransferEnforcementMode.Block);
-        options.DefaultSourceCountryCode.Should().Be("DE");
-        options.TIARiskThreshold.Should().Be(0.6);
-        options.DefaultTIAExpirationDays.Should().Be(365);
-        options.DefaultSCCExpirationDays.Should().BeNull();
-        options.DefaultTransferExpirationDays.Should().Be(365);
-        options.AutoDetectTransfers.Should().BeFalse();
-        options.CacheEnabled.Should().BeTrue();
-        options.CacheTTLMinutes.Should().Be(5);
-        options.AddHealthCheck.Should().BeFalse();
-        options.RequireTIAForNonAdequate.Should().BeTrue();
-        options.RequireSCCForNonAdequate.Should().BeTrue();
-        options.EnableExpirationMonitoring.Should().BeFalse();
-        options.ExpirationCheckInterval.Should().Be(TimeSpan.FromHours(1));
-        options.AlertBeforeExpirationDays.Should().Be(30);
-        options.PublishExpirationNotifications.Should().BeTrue();
+        options.EnforcementMode.ShouldBe(CrossBorderTransferEnforcementMode.Block);
+        options.DefaultSourceCountryCode.ShouldBe("DE");
+        options.TIARiskThreshold.ShouldBe(0.6);
+        options.DefaultTIAExpirationDays.ShouldBe(365);
+        options.DefaultSCCExpirationDays.ShouldBeNull();
+        options.DefaultTransferExpirationDays.ShouldBe(365);
+        options.AutoDetectTransfers.ShouldBeFalse();
+        options.CacheEnabled.ShouldBeTrue();
+        options.CacheTTLMinutes.ShouldBe(5);
+        options.AddHealthCheck.ShouldBeFalse();
+        options.RequireTIAForNonAdequate.ShouldBeTrue();
+        options.RequireSCCForNonAdequate.ShouldBeTrue();
+        options.EnableExpirationMonitoring.ShouldBeFalse();
+        options.ExpirationCheckInterval.ShouldBe(TimeSpan.FromHours(1));
+        options.AlertBeforeExpirationDays.ShouldBe(30);
+        options.PublishExpirationNotifications.ShouldBeTrue();
     }
 
     [Fact]
@@ -52,21 +52,21 @@ public class CrossBorderTransferOptionsTests
             PublishExpirationNotifications = false
         };
 
-        options.EnforcementMode.Should().Be(CrossBorderTransferEnforcementMode.Warn);
-        options.DefaultSourceCountryCode.Should().Be("FR");
-        options.TIARiskThreshold.Should().Be(0.8);
-        options.DefaultTIAExpirationDays.Should().Be(180);
-        options.DefaultSCCExpirationDays.Should().Be(365);
-        options.DefaultTransferExpirationDays.Should().Be(730);
-        options.AutoDetectTransfers.Should().BeTrue();
-        options.CacheEnabled.Should().BeFalse();
-        options.CacheTTLMinutes.Should().Be(10);
-        options.AddHealthCheck.Should().BeTrue();
-        options.RequireTIAForNonAdequate.Should().BeFalse();
-        options.RequireSCCForNonAdequate.Should().BeFalse();
-        options.EnableExpirationMonitoring.Should().BeTrue();
-        options.ExpirationCheckInterval.Should().Be(TimeSpan.FromMinutes(30));
-        options.AlertBeforeExpirationDays.Should().Be(60);
-        options.PublishExpirationNotifications.Should().BeFalse();
+        options.EnforcementMode.ShouldBe(CrossBorderTransferEnforcementMode.Warn);
+        options.DefaultSourceCountryCode.ShouldBe("FR");
+        options.TIARiskThreshold.ShouldBe(0.8);
+        options.DefaultTIAExpirationDays.ShouldBe(180);
+        options.DefaultSCCExpirationDays.ShouldBe(365);
+        options.DefaultTransferExpirationDays.ShouldBe(730);
+        options.AutoDetectTransfers.ShouldBeTrue();
+        options.CacheEnabled.ShouldBeFalse();
+        options.CacheTTLMinutes.ShouldBe(10);
+        options.AddHealthCheck.ShouldBeTrue();
+        options.RequireTIAForNonAdequate.ShouldBeFalse();
+        options.RequireSCCForNonAdequate.ShouldBeFalse();
+        options.EnableExpirationMonitoring.ShouldBeTrue();
+        options.ExpirationCheckInterval.ShouldBe(TimeSpan.FromMinutes(30));
+        options.AlertBeforeExpirationDays.ShouldBe(60);
+        options.PublishExpirationNotifications.ShouldBeFalse();
     }
 }

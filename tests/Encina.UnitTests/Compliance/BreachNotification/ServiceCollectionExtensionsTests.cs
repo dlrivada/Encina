@@ -1,12 +1,10 @@
 using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Model;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.BreachNotification;
 
@@ -22,9 +20,9 @@ public class ServiceCollectionExtensionsTests
 
         services.AddEncinaBreachNotification();
 
-        services.Should().Contain(s => s.ServiceType == typeof(IBreachDetector));
-        services.Should().Contain(s => s.ServiceType == typeof(IBreachNotifier));
-        services.Should().Contain(s => s.ServiceType == typeof(IBreachNotificationService));
+        services.ShouldContain(s => s.ServiceType == typeof(IBreachDetector));
+        services.ShouldContain(s => s.ServiceType == typeof(IBreachNotifier));
+        services.ShouldContain(s => s.ServiceType == typeof(IBreachNotificationService));
     }
 
     [Fact]
@@ -38,7 +36,7 @@ public class ServiceCollectionExtensionsTests
             options.NotificationDeadlineHours = 48;
         });
 
-        services.Should().Contain(s => s.ServiceType == typeof(IBreachDetector));
+        services.ShouldContain(s => s.ServiceType == typeof(IBreachDetector));
     }
 
     [Fact]
@@ -58,7 +56,7 @@ public class ServiceCollectionExtensionsTests
             options.AddHealthCheck = false;
         });
 
-        services.Count.Should().BeGreaterThan(withoutHealthCheck.Count);
+        services.Count.ShouldBeGreaterThan(withoutHealthCheck.Count);
     }
 
     [Fact]
@@ -71,7 +69,7 @@ public class ServiceCollectionExtensionsTests
             options.EnableDeadlineMonitoring = true;
         });
 
-        services.Should().Contain(s =>
+        services.ShouldContain(s =>
             s.ServiceType == typeof(IHostedService) &&
             s.ImplementationType == typeof(BreachDeadlineMonitorService));
     }
@@ -86,7 +84,7 @@ public class ServiceCollectionExtensionsTests
             options.EnableDeadlineMonitoring = false;
         });
 
-        services.Should().NotContain(s =>
+        services.ShouldNotContain(s =>
             s.ImplementationType == typeof(BreachDeadlineMonitorService));
     }
 
@@ -97,7 +95,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddEncinaBreachNotification();
 
-        services.Should().Contain(s =>
+        services.ShouldContain(s =>
             s.ServiceType == typeof(IPipelineBehavior<,>));
     }
 
@@ -108,7 +106,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddEncinaBreachNotification();
 
-        services.Should().Contain(s => s.ServiceType == typeof(IBreachDetectionRule));
+        services.ShouldContain(s => s.ServiceType == typeof(IBreachDetectionRule));
     }
 
     [Fact]
@@ -118,7 +116,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddEncinaBreachNotification();
 
-        services.Should().Contain(s =>
+        services.ShouldContain(s =>
             s.ServiceType == typeof(IValidateOptions<BreachNotificationOptions>));
     }
 
@@ -129,6 +127,6 @@ public class ServiceCollectionExtensionsTests
 
         var result = services.AddEncinaBreachNotification();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 }

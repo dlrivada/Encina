@@ -2,12 +2,10 @@ using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Health;
 using Encina.Compliance.Retention.Services;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Retention;
 
@@ -23,9 +21,9 @@ public sealed class ServiceCollectionExtensionsTests
 
         services.AddEncinaRetention();
 
-        services.Should().Contain(sd => sd.ServiceType == typeof(IRetentionPolicyService));
-        services.Should().Contain(sd => sd.ServiceType == typeof(IRetentionRecordService));
-        services.Should().Contain(sd => sd.ServiceType == typeof(ILegalHoldService));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IRetentionPolicyService));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IRetentionRecordService));
+        services.ShouldContain(sd => sd.ServiceType == typeof(ILegalHoldService));
     }
 
     [Fact]
@@ -35,7 +33,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         services.AddEncinaRetention();
 
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType == typeof(IValidateOptions<RetentionOptions>));
     }
 
@@ -51,7 +49,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         // Health checks are registered via IHealthChecksBuilder, which registers
         // the HealthCheckService infrastructure, not individual IHealthCheck entries
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType == typeof(HealthCheckService));
     }
 
@@ -65,7 +63,7 @@ public sealed class ServiceCollectionExtensionsTests
             options.AddHealthCheck = false;
         });
 
-        services.Should().NotContain(sd =>
+        services.ShouldNotContain(sd =>
             sd.ImplementationType == typeof(RetentionHealthCheck));
     }
 
@@ -79,7 +77,7 @@ public sealed class ServiceCollectionExtensionsTests
             options.EnableAutomaticEnforcement = true;
         });
 
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ImplementationType == typeof(RetentionEnforcementService));
     }
 
@@ -93,7 +91,7 @@ public sealed class ServiceCollectionExtensionsTests
             options.EnableAutomaticEnforcement = false;
         });
 
-        services.Should().NotContain(sd =>
+        services.ShouldNotContain(sd =>
             sd.ImplementationType == typeof(RetentionEnforcementService));
     }
 
@@ -111,8 +109,8 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
         var opts = provider.GetRequiredService<IOptions<RetentionOptions>>().Value;
 
-        opts.EnforcementMode.Should().Be(RetentionEnforcementMode.Block);
-        opts.AlertBeforeExpirationDays.Should().Be(7);
+        opts.EnforcementMode.ShouldBe(RetentionEnforcementMode.Block);
+        opts.AlertBeforeExpirationDays.ShouldBe(7);
     }
 
     [Fact]
@@ -125,7 +123,7 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
         var opts = provider.GetRequiredService<IOptions<RetentionOptions>>().Value;
 
-        opts.EnforcementMode.Should().Be(RetentionEnforcementMode.Warn);
+        opts.EnforcementMode.ShouldBe(RetentionEnforcementMode.Warn);
     }
 
     [Fact]
@@ -135,7 +133,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         var result = services.AddEncinaRetention();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -153,7 +151,7 @@ public sealed class ServiceCollectionExtensionsTests
             });
         });
 
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType == typeof(RetentionFluentPolicyDescriptor));
     }
 
@@ -167,7 +165,7 @@ public sealed class ServiceCollectionExtensionsTests
             options.AutoRegisterFromAttributes = true;
         });
 
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType == typeof(RetentionAutoRegistrationDescriptor));
     }
 
@@ -178,7 +176,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         services.AddEncinaRetention();
 
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType == typeof(TimeProvider));
     }
 
@@ -193,7 +191,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         // The custom registration should remain (TryAdd does not override)
         services.Where(sd => sd.ServiceType == typeof(IRetentionPolicyService))
-            .Should().HaveCount(1);
+            .Count().ShouldBe(1);
     }
 
     [Fact]
@@ -207,8 +205,8 @@ public sealed class ServiceCollectionExtensionsTests
             sd.ServiceType == typeof(IRetentionPolicyService) &&
             sd.ImplementationType == typeof(DefaultRetentionPolicyService));
 
-        policyDescriptor.Should().NotBeNull();
-        policyDescriptor!.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        policyDescriptor.ShouldNotBeNull();
+        policyDescriptor!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -218,7 +216,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         services.AddEncinaRetention();
 
-        services.Should().Contain(sd =>
+        services.ShouldContain(sd =>
             sd.ServiceType == typeof(IPipelineBehavior<,>) &&
             sd.ImplementationType == typeof(RetentionValidationPipelineBehavior<,>));
     }

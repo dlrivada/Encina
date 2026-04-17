@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Encina.Messaging.Encryption;
 using Encina.Messaging.Encryption.Model;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption;
 
@@ -17,16 +17,16 @@ public class EncryptedPayloadFormatterTests
         var result = EncryptedPayloadFormatter.Format(payload);
 
         // Assert
-        result.Should().StartWith("ENC:v1:test-key:AES-256-GCM:");
-        result.Split(':').Should().HaveCount(7);
+        result.ShouldStartWith("ENC:v1:test-key:AES-256-GCM:");
+        result.Split(':').Length.ShouldBe(7);
     }
 
     [Fact]
     public void Format_NullPayload_ThrowsArgumentNullException()
     {
-        var act = () => EncryptedPayloadFormatter.Format(null!);
+        Action act = () => EncryptedPayloadFormatter.Format(null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("payload");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("payload");
     }
 
     [Fact]
@@ -40,94 +40,94 @@ public class EncryptedPayloadFormatterTests
         var result = EncryptedPayloadFormatter.TryParse(formatted, out var parsed);
 
         // Assert
-        result.Should().BeTrue();
-        parsed.Should().NotBeNull();
-        parsed!.KeyId.Should().Be("my-key");
-        parsed.Algorithm.Should().Be("AES-256-GCM");
-        parsed.Nonce.ToArray().Should().Equal(10, 20);
-        parsed.Tag.ToArray().Should().Equal(30, 40);
-        parsed.Ciphertext.ToArray().Should().Equal(50, 60);
-        parsed.Version.Should().Be(1);
+        result.ShouldBeTrue();
+        parsed.ShouldNotBeNull();
+        parsed!.KeyId.ShouldBe("my-key");
+        parsed.Algorithm.ShouldBe("AES-256-GCM");
+        parsed.Nonce.ToArray().ShouldBe([10, 20]);
+        parsed.Tag.ToArray().ShouldBe([30, 40]);
+        parsed.Ciphertext.ToArray().ShouldBe([50, 60]);
+        parsed.Version.ShouldBe(1);
     }
 
     [Fact]
     public void TryParse_NullContent_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse(null, out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse(null, out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void TryParse_EmptyString_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse(string.Empty, out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse(string.Empty, out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void TryParse_PlainJson_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse("{\"hello\":\"world\"}", out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse("{\"hello\":\"world\"}", out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void TryParse_UnsupportedVersion_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse("ENC:v99:key:algo:a:b:c", out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse("ENC:v99:key:algo:a:b:c", out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void TryParse_MissingParts_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse("ENC:v1:key:algo", out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse("ENC:v1:key:algo", out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void TryParse_InvalidBase64_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse("ENC:v1:key:algo:!!!:!!!:!!!", out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse("ENC:v1:key:algo:!!!:!!!:!!!", out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void TryParse_EmptyKeyId_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse("ENC:v1::algo:YQ==:Yg==:Yw==", out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse("ENC:v1::algo:YQ==:Yg==:Yw==", out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void TryParse_EmptyAlgorithm_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.TryParse("ENC:v1:key::YQ==:Yg==:Yw==", out var payload).Should().BeFalse();
-        payload.Should().BeNull();
+        EncryptedPayloadFormatter.TryParse("ENC:v1:key::YQ==:Yg==:Yw==", out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
     }
 
     [Fact]
     public void IsEncrypted_EncryptedContent_ReturnsTrue()
     {
-        EncryptedPayloadFormatter.IsEncrypted("ENC:v1:key:algo:a:b:c").Should().BeTrue();
+        EncryptedPayloadFormatter.IsEncrypted("ENC:v1:key:algo:a:b:c").ShouldBeTrue();
     }
 
     [Fact]
     public void IsEncrypted_PlainContent_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.IsEncrypted("{\"hello\":\"world\"}").Should().BeFalse();
+        EncryptedPayloadFormatter.IsEncrypted("{\"hello\":\"world\"}").ShouldBeFalse();
     }
 
     [Fact]
     public void IsEncrypted_NullContent_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.IsEncrypted(null).Should().BeFalse();
+        EncryptedPayloadFormatter.IsEncrypted(null).ShouldBeFalse();
     }
 
     [Fact]
     public void IsEncrypted_EmptyContent_ReturnsFalse()
     {
-        EncryptedPayloadFormatter.IsEncrypted(string.Empty).Should().BeFalse();
+        EncryptedPayloadFormatter.IsEncrypted(string.Empty).ShouldBeFalse();
     }
 
     [Fact]
@@ -144,12 +144,12 @@ public class EncryptedPayloadFormatterTests
         var parsed = EncryptedPayloadFormatter.TryParse(formatted, out var result);
 
         // Assert
-        parsed.Should().BeTrue();
-        result!.KeyId.Should().Be(original.KeyId);
-        result.Algorithm.Should().Be(original.Algorithm);
-        result.Nonce.ToArray().Should().Equal(nonce);
-        result.Tag.ToArray().Should().Equal(tag);
-        result.Ciphertext.ToArray().Should().Equal(ciphertext);
+        parsed.ShouldBeTrue();
+        result!.KeyId.ShouldBe(original.KeyId);
+        result.Algorithm.ShouldBe(original.Algorithm);
+        result.Nonce.ToArray().ShouldBe(nonce);
+        result.Tag.ToArray().ShouldBe(tag);
+        result.Ciphertext.ToArray().ShouldBe(ciphertext);
     }
 
     private static EncryptedPayload CreatePayload(

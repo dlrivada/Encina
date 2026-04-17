@@ -1,5 +1,5 @@
 using Encina.Messaging.Scheduling;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Scheduling;
 
@@ -12,13 +12,13 @@ public sealed class ExponentialBackoffRetryPolicyGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new ExponentialBackoffRetryPolicy(null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_ValidOptions_Succeeds()
     {
         var act = () => new ExponentialBackoffRetryPolicy(new SchedulingOptions());
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 }

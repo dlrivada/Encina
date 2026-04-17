@@ -1,10 +1,10 @@
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Health;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Encryption;
 
@@ -30,8 +30,8 @@ public sealed class EncryptionHealthCheckTests
                 Registration = new HealthCheckRegistration("test", healthCheck, null, null)
             });
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Contain("healthy");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description!.ShouldContain("healthy");
     }
 
     [Fact]
@@ -48,8 +48,8 @@ public sealed class EncryptionHealthCheckTests
                 Registration = new HealthCheckRegistration("test", healthCheck, null, null)
             });
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("IKeyProvider");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("IKeyProvider");
     }
 
     [Fact]
@@ -69,8 +69,8 @@ public sealed class EncryptionHealthCheckTests
                 Registration = new HealthCheckRegistration("test", healthCheck, null, null)
             });
 
-        result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Contain("current key");
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("current key");
     }
 
     [Fact]
@@ -92,22 +92,22 @@ public sealed class EncryptionHealthCheckTests
                 Registration = new HealthCheckRegistration("test", healthCheck, null, null)
             });
 
-        result.Status.Should().Be(HealthStatus.Healthy);
-        result.Data.Should().ContainKey("currentKeyId");
-        result.Data.Should().ContainKey("algorithm");
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("currentKeyId");
+        result.Data.ShouldContainKey("algorithm");
     }
 
     [Fact]
     public void DefaultName_IsCorrect()
     {
-        EncryptionHealthCheck.DefaultName.Should().Be("encina-encryption");
+        EncryptionHealthCheck.DefaultName.ShouldBe("encina-encryption");
     }
 
     [Fact]
     public void Tags_ContainsExpectedValues()
     {
-        EncryptionHealthCheck.Tags.Should().Contain("encina");
-        EncryptionHealthCheck.Tags.Should().Contain("encryption");
-        EncryptionHealthCheck.Tags.Should().Contain("ready");
+        EncryptionHealthCheck.Tags.ShouldContain("encina");
+        EncryptionHealthCheck.Tags.ShouldContain("encryption");
+        EncryptionHealthCheck.Tags.ShouldContain("ready");
     }
 }

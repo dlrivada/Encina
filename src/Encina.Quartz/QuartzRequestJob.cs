@@ -40,9 +40,8 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var requestObj = context.JobDetail.JobDataMap.Get(QuartzConstants.RequestKey);
-
-        if (requestObj is not TRequest request)
+        if (!context.JobDetail.JobDataMap.TryGetValue(QuartzConstants.RequestKey, out var requestObj) ||
+            requestObj is not TRequest request)
         {
             Log.RequestNotFoundInJobDataMap(_logger, context.JobDetail.Key);
 

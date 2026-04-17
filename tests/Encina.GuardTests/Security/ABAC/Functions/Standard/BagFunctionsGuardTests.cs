@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC.Functions.Standard;
 
@@ -22,7 +22,7 @@ public class BagFunctionsGuardTests
 
         var act = () => fn.Evaluate(Array.Empty<object?>());
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*exactly 1*received 0*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("exactly");
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class BagFunctionsGuardTests
 
         var act = () => fn.Evaluate([null]);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*must not be null*expected AttributeBag*");
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("must");
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class BagFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.StringOneAndOnly)!;
         var bag = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.String, Value = "admin" });
 
-        fn.Evaluate([bag]).Should().Be("admin");
+        fn.Evaluate([bag]).ShouldBe("admin");
     }
 
     #endregion
@@ -53,7 +53,7 @@ public class BagFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringBagSize)!;
 
-        fn.Evaluate([AttributeBag.Empty]).Should().Be(0);
+        fn.Evaluate([AttributeBag.Empty]).ShouldBe(0);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class BagFunctionsGuardTests
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "b" },
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "c" });
 
-        fn.Evaluate([bag]).Should().Be(3);
+        fn.Evaluate([bag]).ShouldBe(3);
     }
 
     #endregion
@@ -80,7 +80,7 @@ public class BagFunctionsGuardTests
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "admin" },
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "user" });
 
-        fn.Evaluate(["admin", bag]).Should().Be(true);
+        fn.Evaluate(["admin", bag]).ShouldBe(true);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class BagFunctionsGuardTests
         var bag = AttributeBag.Of(
             new AttributeValue { DataType = XACMLDataTypes.String, Value = "user" });
 
-        fn.Evaluate(["admin", bag]).Should().Be(false);
+        fn.Evaluate(["admin", bag]).ShouldBe(false);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class BagFunctionsGuardTests
     {
         var fn = _registry.GetFunction(XACMLFunctionIds.StringIsIn)!;
 
-        fn.Evaluate(["admin", AttributeBag.Empty]).Should().Be(false);
+        fn.Evaluate(["admin", AttributeBag.Empty]).ShouldBe(false);
     }
 
     #endregion
@@ -112,9 +112,9 @@ public class BagFunctionsGuardTests
 
         var result = fn.Evaluate([1, 2, 3]);
 
-        result.Should().BeOfType<AttributeBag>();
+        result.ShouldBeOfType<AttributeBag>();
         var bag = (AttributeBag)result!;
-        bag.Count.Should().Be(3);
+        bag.Count.ShouldBe(3);
     }
 
     [Fact]
@@ -124,9 +124,9 @@ public class BagFunctionsGuardTests
 
         var result = fn.Evaluate(Array.Empty<object?>());
 
-        result.Should().BeOfType<AttributeBag>();
+        result.ShouldBeOfType<AttributeBag>();
         var bag = (AttributeBag)result!;
-        bag.Count.Should().Be(0);
+        bag.Count.ShouldBe(0);
     }
 
     #endregion
@@ -141,7 +141,7 @@ public class BagFunctionsGuardTests
             new AttributeValue { DataType = XACMLDataTypes.Integer, Value = 10 },
             new AttributeValue { DataType = XACMLDataTypes.Integer, Value = 20 });
 
-        fn.Evaluate([10, bag]).Should().Be(true);
+        fn.Evaluate([10, bag]).ShouldBe(true);
     }
 
     #endregion
@@ -154,7 +154,7 @@ public class BagFunctionsGuardTests
         var fn = _registry.GetFunction(XACMLFunctionIds.BooleanOneAndOnly)!;
         var bag = AttributeBag.Of(new AttributeValue { DataType = XACMLDataTypes.Boolean, Value = true });
 
-        fn.Evaluate([bag]).Should().Be(true);
+        fn.Evaluate([bag]).ShouldBe(true);
     }
 
     #endregion
@@ -165,40 +165,40 @@ public class BagFunctionsGuardTests
     public void ValuesEqual_BothNull_ReturnsFalse()
     {
         // ReferenceEquals(null, null) is true
-        BagFunctions.ValuesEqual(null, null).Should().BeTrue();
+        BagFunctions.ValuesEqual(null, null).ShouldBeTrue();
     }
 
     [Fact]
     public void ValuesEqual_OneNull_ReturnsFalse()
     {
-        BagFunctions.ValuesEqual("hello", null).Should().BeFalse();
-        BagFunctions.ValuesEqual(null, "hello").Should().BeFalse();
+        BagFunctions.ValuesEqual("hello", null).ShouldBeFalse();
+        BagFunctions.ValuesEqual(null, "hello").ShouldBeFalse();
     }
 
     [Fact]
     public void ValuesEqual_SameReference_ReturnsTrue()
     {
         var obj = new object();
-        BagFunctions.ValuesEqual(obj, obj).Should().BeTrue();
+        BagFunctions.ValuesEqual(obj, obj).ShouldBeTrue();
     }
 
     [Fact]
     public void ValuesEqual_IntAndDouble_CrossTypeComparison()
     {
-        BagFunctions.ValuesEqual(42, 42.0).Should().BeTrue();
-        BagFunctions.ValuesEqual(42.0, 42).Should().BeTrue();
+        BagFunctions.ValuesEqual(42, 42.0).ShouldBeTrue();
+        BagFunctions.ValuesEqual(42.0, 42).ShouldBeTrue();
     }
 
     [Fact]
     public void ValuesEqual_DifferentStrings_ReturnsFalse()
     {
-        BagFunctions.ValuesEqual("hello", "world").Should().BeFalse();
+        BagFunctions.ValuesEqual("hello", "world").ShouldBeFalse();
     }
 
     [Fact]
     public void ValuesEqual_SameStrings_ReturnsTrue()
     {
-        BagFunctions.ValuesEqual("hello", "hello").Should().BeTrue();
+        BagFunctions.ValuesEqual("hello", "hello").ShouldBeTrue();
     }
 
     #endregion

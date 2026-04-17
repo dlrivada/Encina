@@ -1,9 +1,7 @@
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Model;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 
@@ -33,7 +31,7 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     #endregion
@@ -57,8 +55,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementMode");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
     #endregion
@@ -81,8 +80,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EntityType");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EntityType");
     }
 
     #endregion
@@ -105,8 +105,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("Sector");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("Sector");
     }
 
     #endregion
@@ -131,8 +132,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("IncidentNotificationHours");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("IncidentNotificationHours");
     }
 
     #endregion
@@ -155,8 +157,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("CompetentAuthority");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("CompetentAuthority");
     }
 
     #endregion
@@ -180,7 +183,7 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     #endregion
@@ -205,8 +208,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforceEncryption");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforceEncryption");
     }
 
     [Fact]
@@ -227,7 +231,7 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
+        result.ShouldBe(ValidateOptionsResult.Success);
     }
 
     #endregion
@@ -252,8 +256,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("ExternalCallTimeout");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("ExternalCallTimeout");
     }
 
     #endregion
@@ -277,8 +282,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("test-supplier");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("test-supplier");
     }
 
     #endregion
@@ -306,8 +312,9 @@ public class NIS2OptionsValidatorTests
         var result = _sut.Validate(null, options);
 
         // Assert
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("RiskLevel");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("RiskLevel");
     }
 
     #endregion

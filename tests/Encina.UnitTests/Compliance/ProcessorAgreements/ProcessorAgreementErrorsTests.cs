@@ -1,7 +1,7 @@
 #pragma warning disable CA2012
 
 using Encina.Compliance.ProcessorAgreements;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.ProcessorAgreements;
 
@@ -19,8 +19,8 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.NotFound(processorId);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.NotFoundCode);
-        error.Message.Should().Contain(processorId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.NotFoundCode);
+        error.Message.ShouldContain(processorId);
     }
 
     #endregion
@@ -37,8 +37,8 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.AlreadyExists(processorId);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.AlreadyExistsCode);
-        error.Message.Should().Contain(processorId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.AlreadyExistsCode);
+        error.Message.ShouldContain(processorId);
     }
 
     #endregion
@@ -55,8 +55,8 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.DPANotFound(dpaId);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.DPANotFoundCode);
-        error.Message.Should().Contain(dpaId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.DPANotFoundCode);
+        error.Message.ShouldContain(dpaId);
     }
 
     #endregion
@@ -73,8 +73,8 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.DPAMissing(processorId);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.DPAMissingCode);
-        error.Message.Should().Contain(processorId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.DPAMissingCode);
+        error.Message.ShouldContain(processorId);
     }
 
     #endregion
@@ -93,9 +93,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.DPAExpired(processorId, dpaId, expiredAtUtc);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.DPAExpiredCode);
-        error.Message.Should().Contain(processorId);
-        error.Message.Should().Contain(dpaId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.DPAExpiredCode);
+        error.Message.ShouldContain(processorId);
+        error.Message.ShouldContain(dpaId);
     }
 
     #endregion
@@ -113,9 +113,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.DPATerminated(processorId, dpaId);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.DPATerminatedCode);
-        error.Message.Should().Contain(processorId);
-        error.Message.Should().Contain(dpaId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.DPATerminatedCode);
+        error.Message.ShouldContain(processorId);
+        error.Message.ShouldContain(dpaId);
     }
 
     #endregion
@@ -133,9 +133,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.DPAPendingRenewal(processorId, dpaId);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.DPAPendingRenewalCode);
-        error.Message.Should().Contain(processorId);
-        error.Message.Should().Contain(dpaId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.DPAPendingRenewalCode);
+        error.Message.ShouldContain(processorId);
+        error.Message.ShouldContain(dpaId);
     }
 
     #endregion
@@ -154,9 +154,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.DPAIncomplete(processorId, dpaId, missingTerms);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.DPAIncompleteCode);
-        error.Message.Should().Contain(processorId);
-        error.Message.Should().Contain(dpaId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.DPAIncompleteCode);
+        error.Message.ShouldContain(processorId);
+        error.Message.ShouldContain(dpaId);
     }
 
     #endregion
@@ -174,9 +174,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.SubProcessorUnauthorized(processorId, subProcessorId);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.SubProcessorUnauthorizedCode);
-        error.Message.Should().Contain(processorId);
-        error.Message.Should().Contain(subProcessorId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.SubProcessorUnauthorizedCode);
+        error.Message.ShouldContain(processorId);
+        error.Message.ShouldContain(subProcessorId);
     }
 
     #endregion
@@ -195,8 +195,8 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.SubProcessorDepthExceeded(processorId, requestedDepth, maxDepth);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.SubProcessorDepthExceededCode);
-        error.Message.Should().Contain(processorId);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.SubProcessorDepthExceededCode);
+        error.Message.ShouldContain(processorId);
     }
 
     #endregion
@@ -214,9 +214,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.SCCRequired(processorId, country);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.SCCRequiredCode);
-        error.Message.Should().Contain(processorId);
-        error.Message.Should().Contain(country);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.SCCRequiredCode);
+        error.Message.ShouldContain(processorId);
+        error.Message.ShouldContain(country);
     }
 
     #endregion
@@ -234,9 +234,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.StoreError(operation, message);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.StoreErrorCode);
-        error.Message.Should().Contain(operation);
-        error.Message.Should().Contain(message);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.StoreErrorCode);
+        error.Message.ShouldContain(operation);
+        error.Message.ShouldContain(message);
     }
 
     [Fact]
@@ -251,9 +251,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.StoreError(operation, message, exception);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.StoreErrorCode);
-        error.Message.Should().Contain(operation);
-        error.Message.Should().Contain(message);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.StoreErrorCode);
+        error.Message.ShouldContain(operation);
+        error.Message.ShouldContain(message);
     }
 
     #endregion
@@ -271,9 +271,9 @@ public class ProcessorAgreementErrorsTests
         var error = ProcessorAgreementErrors.ValidationFailed(processorId, message);
 
         // Assert
-        error.GetCode().IfNone("").Should().Be(ProcessorAgreementErrors.ValidationFailedCode);
-        error.Message.Should().Contain(processorId);
-        error.Message.Should().Contain(message);
+        error.GetCode().IfNone("").ShouldBe(ProcessorAgreementErrors.ValidationFailedCode);
+        error.Message.ShouldContain(processorId);
+        error.Message.ShouldContain(message);
     }
 
     #endregion
@@ -301,7 +301,7 @@ public class ProcessorAgreementErrorsTests
         var actualValue = field?.GetValue(null) as string;
 
         // Assert
-        actualValue.Should().Be(expectedValue);
+        actualValue.ShouldBe(expectedValue);
     }
 
     #endregion

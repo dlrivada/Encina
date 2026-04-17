@@ -1,6 +1,6 @@
 using Encina.Compliance.Anonymization;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.Anonymization;
 
@@ -15,7 +15,7 @@ public class AnonymizationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -25,8 +25,9 @@ public class AnonymizationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("EnforcementMode");
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldNotBeNull();
+        result.FailureMessage.ShouldContain("EnforcementMode");
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public class AnonymizationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -46,7 +47,7 @@ public class AnonymizationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -56,7 +57,7 @@ public class AnonymizationOptionsValidatorTests
 
         var result = _sut.Validate(null, options);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -64,6 +65,6 @@ public class AnonymizationOptionsValidatorTests
     {
         var act = () => _sut.Validate(null, null!);
 
-        act.Should().Throw<ArgumentNullException>();
+        Should.Throw<ArgumentNullException>(act);
     }
 }

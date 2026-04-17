@@ -4,17 +4,12 @@ using Encina;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Health;
 using Encina.Compliance.NIS2.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.NIS2;
@@ -95,7 +90,7 @@ public class NIS2ComplianceHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Status.ShouldBe(HealthStatus.Healthy);
     }
 
     #endregion
@@ -124,7 +119,7 @@ public class NIS2ComplianceHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
+        result.Status.ShouldBe(HealthStatus.Degraded);
     }
 
     #endregion
@@ -154,7 +149,7 @@ public class NIS2ComplianceHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
-        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
     #endregion

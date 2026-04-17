@@ -4,17 +4,12 @@ using Encina.Compliance.DataResidency;
 using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Attributes;
 using Encina.Compliance.DataResidency.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.DataResidency;
@@ -91,8 +86,8 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
         await _regionContextProvider.DidNotReceive()
             .GetCurrentRegionAsync(Arg.Any<CancellationToken>());
     }
@@ -116,8 +111,8 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
         await _regionContextProvider.DidNotReceive()
             .GetCurrentRegionAsync(Arg.Any<CancellationToken>());
     }
@@ -145,9 +140,9 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("resolve");
+        error.Message.ShouldContain("resolve");
     }
 
     [Fact]
@@ -170,8 +165,8 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     #endregion
@@ -198,8 +193,8 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -221,9 +216,9 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("not allowed");
+        error.Message.ShouldContain("not allowed");
     }
 
     [Fact]
@@ -246,8 +241,8 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     #endregion
@@ -274,9 +269,9 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("No residency policy");
+        error.Message.ShouldContain("No residency policy");
     }
 
     [Fact]
@@ -300,8 +295,8 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     #endregion
@@ -330,9 +325,9 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("Adequacy decision required");
+        error.Message.ShouldContain("Adequacy decision required");
     }
 
     #endregion
@@ -355,8 +350,8 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        nextStepCalled.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
+        nextStepCalled.ShouldBeTrue();
     }
 
     #endregion
@@ -381,7 +376,7 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
 
         // Unit has no EntityId/Id property, so RegisterLocationAsync should NOT be called
         // (ResolveEntityId returns null for types without EntityId/Id)
@@ -410,7 +405,7 @@ public class DataResidencyPipelineBehaviorTests
             CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _dataLocationService.DidNotReceive()
             .RegisterLocationAsync(
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),

@@ -1,6 +1,6 @@
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Serialization;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Outbox;
 
@@ -24,49 +24,49 @@ public class OutboxOrchestratorGuardTests
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
         var act = () => new OutboxOrchestrator(null!, _options, _logger, _messageFactory, _messageSerializer);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new OutboxOrchestrator(_store, null!, _logger, _messageFactory, _messageSerializer);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new OutboxOrchestrator(_store, _options, null!, _messageFactory, _messageSerializer);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullMessageFactory_ThrowsArgumentNullException()
     {
         var act = () => new OutboxOrchestrator(_store, _options, _logger, null!, _messageSerializer);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("messageFactory");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageFactory");
     }
 
     [Fact]
     public void Constructor_NullMessageSerializer_ThrowsArgumentNullException()
     {
         var act = () => new OutboxOrchestrator(_store, _options, _logger, _messageFactory, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("messageSerializer");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageSerializer");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
         var act = () => new OutboxOrchestrator(_store, _options, _logger, _messageFactory, _messageSerializer, timeProvider: null);
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
     public void Constructor_ValidParameters_CreatesInstance()
     {
         var sut = CreateSut();
-        sut.Should().NotBeNull();
+        sut.ShouldNotBeNull();
     }
 
     #endregion
@@ -78,7 +78,7 @@ public class OutboxOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.AddAsync<TestNotification>(null!);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("notification");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("notification");
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class OutboxOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.AddAsync(new TestNotification());
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class OutboxOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.AddAsync(new TestNotification());
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     #endregion
@@ -123,7 +123,7 @@ public class OutboxOrchestratorGuardTests
     {
         var sut = CreateSut();
         var act = () => sut.ProcessPendingMessagesAsync(null!);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("publishCallback");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("publishCallback");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class OutboxOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ProcessPendingMessagesAsync((_, _, _) => Task.CompletedTask);
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -149,8 +149,8 @@ public class OutboxOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.ProcessPendingMessagesAsync((_, _, _) => Task.CompletedTask);
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: count => count, Left: _ => -1).Should().Be(0);
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: count => count, Left: _ => -1).ShouldBe(0);
     }
 
     #endregion
@@ -167,7 +167,7 @@ public class OutboxOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.GetPendingCountAsync();
 
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
@@ -180,8 +180,8 @@ public class OutboxOrchestratorGuardTests
         var sut = CreateSut();
         var result = await sut.GetPendingCountAsync();
 
-        result.IsRight.Should().BeTrue();
-        result.Match(Right: count => count, Left: _ => -1).Should().Be(0);
+        result.IsRight.ShouldBeTrue();
+        result.Match(Right: count => count, Left: _ => -1).ShouldBe(0);
     }
 
     #endregion

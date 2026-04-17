@@ -1,5 +1,5 @@
 using Encina.Messaging.Diagnostics;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Diagnostics;
 
@@ -15,7 +15,7 @@ public class MessagingStoreMetricsGuardTests
     {
         var act = () => new MessagingStoreMetricsCallbacks(null!, () => 0L);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("getOutboxPendingCount");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("getOutboxPendingCount");
     }
 
     [Fact]
@@ -23,7 +23,7 @@ public class MessagingStoreMetricsGuardTests
     {
         var act = () => new MessagingStoreMetricsCallbacks(() => 0L, null!);
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("getActiveSagaCount");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("getActiveSagaCount");
     }
 
     #endregion
@@ -35,7 +35,7 @@ public class MessagingStoreMetricsGuardTests
     {
         var act = () => new MessagingStoreMetrics(null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class MessagingStoreMetricsGuardTests
     {
         var act = () => new MessagingStoreMetrics();
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class MessagingStoreMetricsGuardTests
 
         var act = () => new MessagingStoreMetrics(callbacks);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     #endregion

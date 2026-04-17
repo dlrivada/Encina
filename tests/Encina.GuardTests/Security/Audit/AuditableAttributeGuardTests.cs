@@ -1,5 +1,5 @@
 using Encina.Security.Audit;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.Audit;
 
@@ -14,12 +14,12 @@ public class AuditableAttributeGuardTests
     {
         var attribute = new AuditableAttribute();
 
-        attribute.EntityType.Should().BeNull();
-        attribute.Action.Should().BeNull();
-        attribute.SensitivityLevel.Should().BeNull();
-        attribute.Skip.Should().BeFalse();
-        attribute.IncludePayload.Should().BeNull();
-        attribute.SensitiveFields.Should().BeNull();
+        attribute.EntityType.ShouldBeNull();
+        attribute.Action.ShouldBeNull();
+        attribute.SensitivityLevel.ShouldBeNull();
+        attribute.Skip.ShouldBeFalse();
+        attribute.IncludePayload.ShouldBeNull();
+        attribute.SensitiveFields.ShouldBeNull();
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class AuditableAttributeGuardTests
     {
         var attribute = new AuditableAttribute { Skip = true };
 
-        attribute.Skip.Should().BeTrue();
+        attribute.Skip.ShouldBeTrue();
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public class AuditableAttributeGuardTests
     {
         var attribute = new AuditableAttribute { IncludePayloadValue = false };
 
-        attribute.IncludePayload.Should().NotBeNull();
-        attribute.IncludePayload.Should().BeFalse();
+        attribute.IncludePayload.ShouldNotBeNull();
+        attribute.IncludePayload.Value.ShouldBeFalse();
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public class AuditableAttributeGuardTests
     {
         var attribute = new AuditableAttribute { IncludePayloadValue = true };
 
-        attribute.IncludePayload.Should().NotBeNull();
-        attribute.IncludePayload.Should().BeTrue();
+        attribute.IncludePayload.ShouldNotBeNull();
+        attribute.IncludePayload.Value.ShouldBeTrue();
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class AuditableAttributeGuardTests
         var fields = new[] { "Diagnosis", "SSN" };
         var attribute = new AuditableAttribute { SensitiveFields = fields };
 
-        attribute.SensitiveFields.Should().BeSameAs(fields);
+        attribute.SensitiveFields.ShouldBeSameAs(fields);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class AuditableAttributeGuardTests
             Action = "Generate"
         };
 
-        attribute.EntityType.Should().Be("Invoice");
-        attribute.Action.Should().Be("Generate");
+        attribute.EntityType.ShouldBe("Invoice");
+        attribute.Action.ShouldBe("Generate");
     }
 }

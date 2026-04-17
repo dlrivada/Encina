@@ -1,5 +1,5 @@
 using Encina.Messaging.Encryption.DataProtection;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption.DataProtection;
 
@@ -9,21 +9,21 @@ public class DataProtectionEncryptionOptionsTests
     public void Defaults_Purpose_HasExpectedValue()
     {
         var options = new DataProtectionEncryptionOptions();
-        options.Purpose.Should().Be("Encina.Messaging.Encryption");
+        options.Purpose.ShouldBe("Encina.Messaging.Encryption");
     }
 
     [Fact]
     public void Purpose_IsSettable()
     {
         var options = new DataProtectionEncryptionOptions { Purpose = "Custom.Purpose" };
-        options.Purpose.Should().Be("Custom.Purpose");
+        options.Purpose.ShouldBe("Custom.Purpose");
     }
 
     [Fact]
     public void Purpose_CanBeSetToEmptyString()
     {
         var options = new DataProtectionEncryptionOptions { Purpose = "" };
-        options.Purpose.Should().BeEmpty();
+        options.Purpose.ShouldBeEmpty();
     }
 
     [Fact]
@@ -32,6 +32,6 @@ public class DataProtectionEncryptionOptionsTests
         var options = new DataProtectionEncryptionOptions();
         options.Purpose = "First";
         options.Purpose = "Second";
-        options.Purpose.Should().Be("Second");
+        options.Purpose.ShouldBe("Second");
     }
 }

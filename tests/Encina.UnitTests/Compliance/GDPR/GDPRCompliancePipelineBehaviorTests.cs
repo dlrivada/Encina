@@ -1,10 +1,9 @@
 using Encina.Compliance.GDPR;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-
+using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.GDPR;
@@ -53,7 +52,7 @@ public class GDPRCompliancePipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         await _registry.DidNotReceive().GetActivityByRequestTypeAsync(Arg.Any<Type>(), Arg.Any<CancellationToken>());
     }
 
@@ -78,7 +77,7 @@ public class GDPRCompliancePipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
@@ -96,9 +95,9 @@ public class GDPRCompliancePipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("No processing activity is registered");
+        error.Message.ShouldContain("No processing activity is registered");
     }
 
     [Fact]
@@ -116,7 +115,7 @@ public class GDPRCompliancePipelineBehaviorTests
             request, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- Enforcement modes --
@@ -146,9 +145,9 @@ public class GDPRCompliancePipelineBehaviorTests
             new SampleDecoratedRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("compliance validation failed");
+        error.Message.ShouldContain("compliance validation failed");
     }
 
     [Fact]
@@ -176,7 +175,7 @@ public class GDPRCompliancePipelineBehaviorTests
             new SampleDecoratedRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- Registry lookup error --
@@ -198,9 +197,9 @@ public class GDPRCompliancePipelineBehaviorTests
             new SampleDecoratedRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.Should().Contain("Failed to look up");
+        error.Message.ShouldContain("Failed to look up");
     }
 
     // -- Validator error --
@@ -227,7 +226,7 @@ public class GDPRCompliancePipelineBehaviorTests
             new SampleDecoratedRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     // -- ProcessesPersonalData marker attribute --
@@ -246,7 +245,7 @@ public class GDPRCompliancePipelineBehaviorTests
             new SampleMarkerOnlyRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     // -- Warnings --
@@ -273,7 +272,7 @@ public class GDPRCompliancePipelineBehaviorTests
             new SampleDecoratedRequest(), RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
     }
 
     // -- Null request --
@@ -289,8 +288,7 @@ public class GDPRCompliancePipelineBehaviorTests
             null!, RequestContext.CreateForTest(), Next(Unit.Default), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("request");
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("request");
     }
 
     // -- Helpers --

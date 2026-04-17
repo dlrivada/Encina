@@ -2,7 +2,7 @@
 
 using Encina.Compliance.DPIA;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.DPIA;
 
@@ -27,16 +27,16 @@ public class DefaultDPIATemplateProviderTests
     {
         var result = await _sut.GetTemplateAsync(processingType);
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
             Right: t =>
             {
-                t.ProcessingType.Should().Be(processingType);
-                t.Name.Should().NotBeNullOrWhiteSpace();
-                t.Description.Should().NotBeNullOrWhiteSpace();
-                t.Sections.Should().NotBeEmpty();
-                t.RiskCategories.Should().NotBeEmpty();
-                t.SuggestedMitigations.Should().NotBeEmpty();
+                t.ProcessingType.ShouldBe(processingType);
+                t.Name.ShouldNotBeNullOrWhiteSpace();
+                t.Description.ShouldNotBeNullOrWhiteSpace();
+                t.Sections.ShouldNotBeEmpty();
+                t.RiskCategories.ShouldNotBeEmpty();
+                t.SuggestedMitigations.ShouldNotBeEmpty();
             },
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
@@ -46,9 +46,9 @@ public class DefaultDPIATemplateProviderTests
     {
         var result = await _sut.GetTemplateAsync("unknown-type");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: t => t.ProcessingType.Should().Be("general"),
+            Right: t => t.ProcessingType.ShouldBe("general"),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -57,9 +57,9 @@ public class DefaultDPIATemplateProviderTests
     {
         var result = await _sut.GetTemplateAsync("PROFILING");
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: t => t.ProcessingType.Should().Be("profiling"),
+            Right: t => t.ProcessingType.ShouldBe("profiling"),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -72,9 +72,9 @@ public class DefaultDPIATemplateProviderTests
     {
         var result = await _sut.GetAllTemplatesAsync();
 
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         _ = result.Match(
-            Right: templates => templates.Should().HaveCount(7),
+            Right: templates => templates.Count.ShouldBe(7),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -88,9 +88,8 @@ public class DefaultDPIATemplateProviderTests
             {
                 foreach (var template in templates)
                 {
-                    template.Sections.Should().NotBeEmpty(
-                        $"Template '{template.Name}' should have sections");
-                    template.Sections.Should().OnlyContain(
+                    template.Sections.ShouldNotBeEmpty();
+                    template.Sections.ShouldAllBe(
                         s => s.IsRequired,
                         $"All sections in '{template.Name}' should be required");
                 }
@@ -108,7 +107,7 @@ public class DefaultDPIATemplateProviderTests
         var result = await _sut.GetTemplateAsync("profiling");
 
         _ = result.Match(
-            Right: t => t.RiskCategories.Should().Contain("Automated Decision-Making"),
+            Right: t => t.RiskCategories.ShouldContain("Automated Decision-Making"),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 
@@ -118,7 +117,7 @@ public class DefaultDPIATemplateProviderTests
         var result = await _sut.GetTemplateAsync("special-category");
 
         _ = result.Match(
-            Right: t => t.RiskCategories.Should().Contain("Special Category Data"),
+            Right: t => t.RiskCategories.ShouldContain("Special Category Data"),
             Left: _ => throw new InvalidOperationException("Expected Right"));
     }
 

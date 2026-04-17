@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Encina.Compliance.GDPR.Diagnostics;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.GDPR;
 
@@ -28,13 +28,13 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
     [Fact]
     public void SourceName_ShouldBeDedicatedProcessingActivitySource()
     {
-        ProcessingActivityDiagnostics.SourceName.Should().Be("Encina.Compliance.GDPR.ProcessingActivity");
+        ProcessingActivityDiagnostics.SourceName.ShouldBe("Encina.Compliance.GDPR.ProcessingActivity");
     }
 
     [Fact]
     public void SourceVersion_ShouldBe1_0()
     {
-        ProcessingActivityDiagnostics.SourceVersion.Should().Be("1.0");
+        ProcessingActivityDiagnostics.SourceVersion.ShouldBe("1.0");
     }
 
     // -- StartRegistration --
@@ -46,8 +46,8 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         using var activity = ProcessingActivityDiagnostics.StartRegistration(typeof(string));
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("ProcessingActivity.Register");
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("ProcessingActivity.Register");
     }
 
     [Fact]
@@ -57,9 +57,9 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         using var activity = ProcessingActivityDiagnostics.StartRegistration(typeof(string));
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ProcessingActivityDiagnostics.TagRequestType).Should().Be("String");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).Should().Be("register");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ProcessingActivityDiagnostics.TagRequestType).ShouldBe("String");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).ShouldBe("register");
     }
 
     // -- StartUpdate --
@@ -71,10 +71,10 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         using var activity = ProcessingActivityDiagnostics.StartUpdate(typeof(int));
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("ProcessingActivity.Update");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).Should().Be("update");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagRequestType).Should().Be("Int32");
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("ProcessingActivity.Update");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).ShouldBe("update");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagRequestType).ShouldBe("Int32");
     }
 
     // -- StartGetByRequestType --
@@ -86,10 +86,10 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         using var activity = ProcessingActivityDiagnostics.StartGetByRequestType(typeof(double));
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("ProcessingActivity.GetByRequestType");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).Should().Be("get_by_request_type");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagRequestType).Should().Be("Double");
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("ProcessingActivity.GetByRequestType");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).ShouldBe("get_by_request_type");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagRequestType).ShouldBe("Double");
     }
 
     // -- StartGetAll --
@@ -101,9 +101,9 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         using var activity = ProcessingActivityDiagnostics.StartGetAll();
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.OperationName.Should().Be("ProcessingActivity.GetAll");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).Should().Be("get_all");
+        activity.ShouldNotBeNull();
+        activity!.OperationName.ShouldBe("ProcessingActivity.GetAll");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagOperation).ShouldBe("get_all");
     }
 
     // -- RecordSuccess --
@@ -118,9 +118,9 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         ProcessingActivityDiagnostics.RecordSuccess(activity, "register");
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ProcessingActivityDiagnostics.TagOutcome).Should().Be("success");
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ProcessingActivityDiagnostics.TagOutcome).ShouldBe("success");
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     [Fact]
@@ -133,10 +133,10 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         ProcessingActivityDiagnostics.RecordSuccess(activity, 5, "get_all");
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ProcessingActivityDiagnostics.TagOutcome).Should().Be("success");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagActivityCount).Should().Be(5);
-        activity.Status.Should().Be(ActivityStatusCode.Ok);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ProcessingActivityDiagnostics.TagOutcome).ShouldBe("success");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagActivityCount).ShouldBe(5);
+        activity.Status.ShouldBe(ActivityStatusCode.Ok);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
     {
         // Act & Assert — counters still fire but no activity tags set
         var act = () => ProcessingActivityDiagnostics.RecordSuccess(null, "register");
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     // -- RecordFailure --
@@ -159,10 +159,10 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         ProcessingActivityDiagnostics.RecordFailure(activity, "register", "Duplicate request type");
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ProcessingActivityDiagnostics.TagOutcome).Should().Be("failed");
-        activity.GetTagItem(ProcessingActivityDiagnostics.TagFailureReason).Should().Be("Duplicate request type");
-        activity.Status.Should().Be(ActivityStatusCode.Error);
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ProcessingActivityDiagnostics.TagOutcome).ShouldBe("failed");
+        activity.GetTagItem(ProcessingActivityDiagnostics.TagFailureReason).ShouldBe("Duplicate request type");
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
     }
 
     [Fact]
@@ -175,8 +175,8 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
         ProcessingActivityDiagnostics.RecordFailure(activity, "register");
 
         // Assert
-        activity.Should().NotBeNull();
-        activity!.GetTagItem(ProcessingActivityDiagnostics.TagFailureReason).Should().Be("unknown");
+        activity.ShouldNotBeNull();
+        activity!.GetTagItem(ProcessingActivityDiagnostics.TagFailureReason).ShouldBe("unknown");
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
     {
         // Act & Assert — counters still fire but no activity tags set
         var act = () => ProcessingActivityDiagnostics.RecordFailure(null, "register", "reason");
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     // -- Counter existence --
@@ -192,13 +192,13 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
     [Fact]
     public void OperationsTotal_ShouldExist()
     {
-        ProcessingActivityDiagnostics.OperationsTotal.Should().NotBeNull();
+        ProcessingActivityDiagnostics.OperationsTotal.ShouldNotBeNull();
     }
 
     [Fact]
     public void OperationsFailedTotal_ShouldExist()
     {
-        ProcessingActivityDiagnostics.OperationsFailedTotal.Should().NotBeNull();
+        ProcessingActivityDiagnostics.OperationsFailedTotal.ShouldNotBeNull();
     }
 
     // -- Tag constants --
@@ -206,16 +206,16 @@ public class ProcessingActivityDiagnosticsTests : IDisposable
     [Fact]
     public void TagConstants_ShouldHaveExpectedValues()
     {
-        ProcessingActivityDiagnostics.TagOperation.Should().Be("operation");
-        ProcessingActivityDiagnostics.TagOutcome.Should().Be("outcome");
-        ProcessingActivityDiagnostics.TagRequestType.Should().Be("request.type");
-        ProcessingActivityDiagnostics.TagActivityCount.Should().Be("activity.count");
-        ProcessingActivityDiagnostics.TagFailureReason.Should().Be("failure_reason");
+        ProcessingActivityDiagnostics.TagOperation.ShouldBe("operation");
+        ProcessingActivityDiagnostics.TagOutcome.ShouldBe("outcome");
+        ProcessingActivityDiagnostics.TagRequestType.ShouldBe("request.type");
+        ProcessingActivityDiagnostics.TagActivityCount.ShouldBe("activity.count");
+        ProcessingActivityDiagnostics.TagFailureReason.ShouldBe("failure_reason");
     }
 
     [Fact]
     public void TagProvider_ShouldExist()
     {
-        ProcessingActivityDiagnostics.TagProvider.Should().Be("provider");
+        ProcessingActivityDiagnostics.TagProvider.ShouldBe("provider");
     }
 }

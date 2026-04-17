@@ -1,5 +1,5 @@
 using Encina.Messaging.Encryption;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption;
 
@@ -9,63 +9,63 @@ public class MessageEncryptionOptionsTests
     public void Defaults_Enabled_IsTrue()
     {
         var options = new MessageEncryptionOptions();
-        options.Enabled.Should().BeTrue();
+        options.Enabled.ShouldBeTrue();
     }
 
     [Fact]
     public void Defaults_EncryptAllMessages_IsFalse()
     {
         var options = new MessageEncryptionOptions();
-        options.EncryptAllMessages.Should().BeFalse();
+        options.EncryptAllMessages.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_DefaultKeyId_IsNull()
     {
         var options = new MessageEncryptionOptions();
-        options.DefaultKeyId.Should().BeNull();
+        options.DefaultKeyId.ShouldBeNull();
     }
 
     [Fact]
     public void Defaults_UseTenantKeys_IsFalse()
     {
         var options = new MessageEncryptionOptions();
-        options.UseTenantKeys.Should().BeFalse();
+        options.UseTenantKeys.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_TenantKeyPattern_HasExpectedValue()
     {
         var options = new MessageEncryptionOptions();
-        options.TenantKeyPattern.Should().Be("tenant-{0}-key");
+        options.TenantKeyPattern.ShouldBe("tenant-{0}-key");
     }
 
     [Fact]
     public void Defaults_AuditDecryption_IsFalse()
     {
         var options = new MessageEncryptionOptions();
-        options.AuditDecryption.Should().BeFalse();
+        options.AuditDecryption.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_AddHealthCheck_IsFalse()
     {
         var options = new MessageEncryptionOptions();
-        options.AddHealthCheck.Should().BeFalse();
+        options.AddHealthCheck.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_EnableTracing_IsFalse()
     {
         var options = new MessageEncryptionOptions();
-        options.EnableTracing.Should().BeFalse();
+        options.EnableTracing.ShouldBeFalse();
     }
 
     [Fact]
     public void Defaults_EnableMetrics_IsFalse()
     {
         var options = new MessageEncryptionOptions();
-        options.EnableMetrics.Should().BeFalse();
+        options.EnableMetrics.ShouldBeFalse();
     }
 
     [Fact]
@@ -84,14 +84,14 @@ public class MessageEncryptionOptionsTests
             EnableMetrics = true
         };
 
-        options.Enabled.Should().BeFalse();
-        options.EncryptAllMessages.Should().BeTrue();
-        options.DefaultKeyId.Should().Be("my-key");
-        options.UseTenantKeys.Should().BeTrue();
-        options.TenantKeyPattern.Should().Be("custom-{0}");
-        options.AuditDecryption.Should().BeTrue();
-        options.AddHealthCheck.Should().BeTrue();
-        options.EnableTracing.Should().BeTrue();
-        options.EnableMetrics.Should().BeTrue();
+        options.Enabled.ShouldBeFalse();
+        options.EncryptAllMessages.ShouldBeTrue();
+        options.DefaultKeyId.ShouldBe("my-key");
+        options.UseTenantKeys.ShouldBeTrue();
+        options.TenantKeyPattern.ShouldBe("custom-{0}");
+        options.AuditDecryption.ShouldBeTrue();
+        options.AddHealthCheck.ShouldBeTrue();
+        options.EnableTracing.ShouldBeTrue();
+        options.EnableMetrics.ShouldBeTrue();
     }
 }

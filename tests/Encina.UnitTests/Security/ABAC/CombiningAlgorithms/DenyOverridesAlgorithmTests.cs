@@ -1,6 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.CombiningAlgorithms;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.CombiningAlgorithms;
 
@@ -17,7 +17,7 @@ public sealed class DenyOverridesAlgorithmTests
     [Fact]
     public void AlgorithmId_ReturnsDenyOverrides()
     {
-        _sut.AlgorithmId.Should().Be(CombiningAlgorithmId.DenyOverrides);
+        _sut.AlgorithmId.ShouldBe(CombiningAlgorithmId.DenyOverrides);
     }
 
     #endregion
@@ -31,7 +31,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Permit);
+        effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny);
+        effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.NotApplicable);
+        effect.ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Indeterminate);
+        effect.ShouldBe(Effect.Indeterminate);
     }
 
     #endregion
@@ -80,7 +80,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Permit);
+        effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny);
+        effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.NotApplicable);
+        effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -126,7 +126,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Deny, "Deny overrides Permit per XACML §C.1");
+        effect.ShouldBe(Effect.Deny, "Deny overrides Permit per XACML §C.1");
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Permit);
+        effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Indeterminate,
+        effect.ShouldBe(Effect.Indeterminate,
             "Permit + Indeterminate{{P}} → Indeterminate per XACML §C.1");
     }
 
@@ -169,7 +169,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.Indeterminate,
+        effect.ShouldBe(Effect.Indeterminate,
             "Indeterminate{{D}} → Indeterminate per XACML §C.1");
     }
 
@@ -180,7 +180,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var effect = _sut.CombineRuleResults(results);
 
-        effect.Should().Be(Effect.NotApplicable);
+        effect.ShouldBe(Effect.NotApplicable);
     }
 
     #endregion
@@ -198,7 +198,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Permit);
+        combined.Effect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Deny);
+        combined.Effect.ShouldBe(Effect.Deny);
     }
 
     [Fact]
@@ -233,9 +233,9 @@ public sealed class DenyOverridesAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Deny);
-        combined.Obligations.Should().ContainSingle()
-            .Which.Id.Should().Be("audit-log");
+        combined.Effect.ShouldBe(Effect.Deny);
+        combined.Obligations.ShouldHaveSingleItem()
+            .Id.ShouldBe("audit-log");
     }
 
     [Fact]
@@ -256,8 +256,8 @@ public sealed class DenyOverridesAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Advice.Should().ContainSingle()
-            .Which.Id.Should().Be("notify-user");
+        combined.Advice.ShouldHaveSingleItem()
+            .Id.ShouldBe("notify-user");
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class DenyOverridesAlgorithmTests
 
         var combined = _sut.CombinePolicyResults(results);
 
-        combined.Effect.Should().Be(Effect.Indeterminate);
+        combined.Effect.ShouldBe(Effect.Indeterminate);
     }
 
     #endregion

@@ -1,6 +1,6 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Attributes;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
 
@@ -23,9 +23,9 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
     {
         var properties = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
 
-        properties.Should().HaveCount(2);
-        properties.Select(p => p.Property.Name).Should().Contain("Title");
-        properties.Select(p => p.Property.Name).Should().Contain("Content");
+        properties.Length.ShouldBe(2);
+        properties.Select(p => p.Property.Name).ShouldContain("Title");
+        properties.Select(p => p.Property.Name).ShouldContain("Content");
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
     {
         var properties = SanitizationPropertyCache.GetProperties(typeof(TypeWithNoAttributes));
 
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var first = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
         var second = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
 
-        first.Should().BeSameAs(second);
+        first.ShouldBeSameAs(second);
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         SanitizationPropertyCache.ClearCache();
         var second = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
 
-        first.Should().NotBeSameAs(second);
-        first.Should().HaveCount(second.Length);
+        first.ShouldNotBeSameAs(second);
+        first.Length.ShouldBe(second.Length);
     }
 
     [Fact]
@@ -62,10 +62,10 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var properties = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
 
         var titleProp = properties.First(p => p.Property.Name == "Title");
-        titleProp.Attribute.SanitizationType.Should().Be(SanitizationType.Html);
+        titleProp.Attribute.SanitizationType.ShouldBe(SanitizationType.Html);
 
         var contentProp = properties.First(p => p.Property.Name == "Content");
-        contentProp.Attribute.SanitizationType.Should().Be(SanitizationType.Sql);
+        contentProp.Attribute.SanitizationType.ShouldBe(SanitizationType.Sql);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var instance = new TypeWithSanitizedProps { Title = "test-value" };
         var value = titleProp.Getter(instance);
 
-        value.Should().Be("test-value");
+        value.ShouldBe("test-value");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var instance = new TypeWithSanitizedProps { Title = "original" };
         titleProp.Setter(instance, "modified");
 
-        instance.Title.Should().Be("modified");
+        instance.Title.ShouldBe("modified");
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var properties = SanitizationPropertyCache.GetProperties(typeof(TypeWithNonStringAttribute));
 
         // Non-string properties are skipped even if decorated
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var props1 = SanitizationPropertyCache.GetProperties(typeof(TypeWithSanitizedProps));
         var props2 = SanitizationPropertyCache.GetProperties(typeof(TypeWithNoAttributes));
 
-        props1.Should().HaveCount(2);
-        props2.Should().BeEmpty();
+        props1.Length.ShouldBe(2);
+        props2.ShouldBeEmpty();
     }
 
     #endregion
@@ -120,7 +120,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
     {
         var properties = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        properties.Should().HaveCount(3); // Title, Content, Description (all strings)
+        properties.Length.ShouldBe(3); // Title, Content, Description (all strings)
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
     {
         var properties = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        properties.Select(p => p.Name).Should().NotContain("Age");
+        properties.Select(p => p.Name).ShouldNotContain("Age");
     }
 
     [Fact]
@@ -137,8 +137,8 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
         var first = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
         var second = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithMixedProps));
 
-        first.Should().HaveCount(second.Length);
-        first.Select(p => p.Name).Should().BeEquivalentTo(second.Select(p => p.Name));
+        first.Length.ShouldBe(second.Length);
+        first.Select(p => p.Name).ShouldBe(second.Select(p => p.Name));
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class SanitizationPropertyCacheTests : IDisposable
     {
         var properties = SanitizationPropertyCache.GetStringProperties(typeof(TypeWithNoStrings));
 
-        properties.Should().BeEmpty();
+        properties.ShouldBeEmpty();
     }
 
     #endregion

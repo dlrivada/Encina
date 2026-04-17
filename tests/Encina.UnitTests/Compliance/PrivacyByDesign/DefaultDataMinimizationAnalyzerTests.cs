@@ -2,13 +2,10 @@
 
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
-
-using FluentAssertions;
-
 using LanguageExt;
-
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.PrivacyByDesign;
 
@@ -74,12 +71,12 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.AnalyzeAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var report = (MinimizationReport)result;
-        report.MinimizationScore.Should().Be(1.0);
-        report.UnnecessaryFields.Should().BeEmpty();
-        report.NecessaryFields.Should().HaveCount(2);
-        report.Recommendations.Should().BeEmpty();
+        report.MinimizationScore.ShouldBe(1.0);
+        report.UnnecessaryFields.ShouldBeEmpty();
+        report.NecessaryFields.Count.ShouldBe(2);
+        report.Recommendations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -92,16 +89,16 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.AnalyzeAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var report = (MinimizationReport)result;
 
         // Score = necessary(1) / total(3) = 0.333...
-        report.MinimizationScore.Should().BeApproximately(1.0 / 3.0, 0.001);
-        report.NecessaryFields.Should().HaveCount(1);
-        report.UnnecessaryFields.Should().HaveCount(2);
+        report.MinimizationScore.ShouldBe(1.0 / 3.0, 0.001);
+        report.NecessaryFields.Count.ShouldBe(1);
+        report.UnnecessaryFields.Count.ShouldBe(2);
 
         // All unnecessary fields should have HasValue = false (null values)
-        report.UnnecessaryFields.Should().AllSatisfy(f => f.HasValue.Should().BeFalse());
+        report.UnnecessaryFields.ToList().ForEach(f => f.HasValue.ShouldBeFalse());
     }
 
     [Fact]
@@ -119,17 +116,17 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.AnalyzeAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var report = (MinimizationReport)result;
 
         // Score = necessary(1) / total(3) = 0.333...
-        report.MinimizationScore.Should().BeApproximately(1.0 / 3.0, 0.001);
-        report.UnnecessaryFields.Should().HaveCount(2);
-        report.UnnecessaryFields.Should().AllSatisfy(f => f.HasValue.Should().BeTrue());
+        report.MinimizationScore.ShouldBe(1.0 / 3.0, 0.001);
+        report.UnnecessaryFields.Count.ShouldBe(2);
+        report.UnnecessaryFields.ToList().ForEach(f => f.HasValue.ShouldBeTrue());
 
         // Should generate recommendations for fields with values
-        report.Recommendations.Should().NotBeEmpty();
-        report.Recommendations.Should().HaveCount(2);
+        report.Recommendations.ShouldNotBeEmpty();
+        report.Recommendations.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -142,16 +139,16 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.AnalyzeAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var report = (MinimizationReport)result;
 
         var referral = report.UnnecessaryFields.First(f => f.FieldName == "ReferralSource");
-        referral.Severity.Should().Be(MinimizationSeverity.Warning);
-        referral.Reason.Should().Be("Analytics only");
+        referral.Severity.ShouldBe(MinimizationSeverity.Warning);
+        referral.Reason.ShouldBe("Analytics only");
 
         var campaign = report.UnnecessaryFields.First(f => f.FieldName == "CampaignCode");
-        campaign.Severity.Should().Be(MinimizationSeverity.Violation);
-        campaign.Reason.Should().Be("Marketing");
+        campaign.Severity.ShouldBe(MinimizationSeverity.Violation);
+        campaign.Reason.ShouldBe("Marketing");
     }
 
     [Fact]
@@ -164,9 +161,9 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.AnalyzeAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var report = (MinimizationReport)result;
-        report.RequestTypeName.Should().Contain(nameof(AllNecessaryRequest));
+        report.RequestTypeName.ShouldContain(nameof(AllNecessaryRequest));
     }
 
     [Fact]
@@ -181,9 +178,9 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.AnalyzeAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var report = (MinimizationReport)result;
-        report.AnalyzedAtUtc.Should().Be(now);
+        report.AnalyzedAtUtc.ShouldBe(now);
     }
 
     [Fact]
@@ -193,7 +190,7 @@ public class DefaultDataMinimizationAnalyzerTests
         Func<Task> act = async () => await _sut.AnalyzeAsync<AllNecessaryRequest>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion
@@ -210,19 +207,19 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.InspectDefaultsAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var defaults = result.Match(r => r, _ => (IReadOnlyList<DefaultPrivacyFieldInfo>)[]);
-        defaults.Should().HaveCount(2);
+        defaults.Count.ShouldBe(2);
 
         var shareData = defaults.First(d => d.FieldName == "ShareData");
-        shareData.MatchesDefault.Should().BeTrue();
-        shareData.DeclaredDefault.Should().Be(false);
-        shareData.ActualValue.Should().Be(false);
+        shareData.MatchesDefault.ShouldBeTrue();
+        shareData.DeclaredDefault.ShouldBe(false);
+        shareData.ActualValue.ShouldBe(false);
 
         var marketingConsent = defaults.First(d => d.FieldName == "MarketingConsent");
-        marketingConsent.MatchesDefault.Should().BeTrue();
-        marketingConsent.DeclaredDefault.Should().BeNull();
-        marketingConsent.ActualValue.Should().BeNull();
+        marketingConsent.MatchesDefault.ShouldBeTrue();
+        marketingConsent.DeclaredDefault.ShouldBeNull();
+        marketingConsent.ActualValue.ShouldBeNull();
     }
 
     [Fact]
@@ -235,17 +232,17 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.InspectDefaultsAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var defaults = result.Match(r => r, _ => (IReadOnlyList<DefaultPrivacyFieldInfo>)[]);
-        defaults.Should().HaveCount(2);
+        defaults.Count.ShouldBe(2);
 
         var shareData = defaults.First(d => d.FieldName == "ShareData");
-        shareData.MatchesDefault.Should().BeFalse();
-        shareData.ActualValue.Should().Be(true);
+        shareData.MatchesDefault.ShouldBeFalse();
+        shareData.ActualValue.ShouldBe(true);
 
         var marketingConsent = defaults.First(d => d.FieldName == "MarketingConsent");
-        marketingConsent.MatchesDefault.Should().BeFalse();
-        marketingConsent.ActualValue.Should().Be("yes");
+        marketingConsent.MatchesDefault.ShouldBeFalse();
+        marketingConsent.ActualValue.ShouldBe("yes");
     }
 
     [Fact]
@@ -258,9 +255,9 @@ public class DefaultDataMinimizationAnalyzerTests
         var result = await _sut.InspectDefaultsAsync(request);
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         var defaults = result.Match(r => r, _ => (IReadOnlyList<DefaultPrivacyFieldInfo>)[]);
-        defaults.Should().BeEmpty();
+        defaults.ShouldBeEmpty();
     }
 
     [Fact]
@@ -270,7 +267,7 @@ public class DefaultDataMinimizationAnalyzerTests
         Func<Task> act = async () => await _sut.InspectDefaultsAsync<AllNecessaryRequest>(null!);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     #endregion

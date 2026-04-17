@@ -1,9 +1,9 @@
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.DataProtection;
-using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.UnitTests.Messaging.Encryption.DataProtection;
 
@@ -14,9 +14,9 @@ public class ServiceCollectionExtensionsTests
     {
         IServiceCollection services = null!;
 
-        var act = () => services.AddEncinaMessageEncryptionDataProtection();
+        Action act = () => services.AddEncinaMessageEncryptionDataProtection();
 
-        act.Should().Throw<ArgumentNullException>().WithParameterName("services");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class ServiceCollectionExtensionsTests
 
         var result = services.AddEncinaMessageEncryptionDataProtection();
 
-        result.Should().BeSameAs(services);
+        result.ShouldBeSameAs(services);
     }
 
     [Fact]
@@ -41,9 +41,9 @@ public class ServiceCollectionExtensionsTests
         var descriptor = services.FirstOrDefault(
             d => d.ServiceType == typeof(IMessageEncryptionProvider));
 
-        descriptor.Should().NotBeNull();
-        descriptor!.Lifetime.Should().Be(ServiceLifetime.Singleton);
-        descriptor.ImplementationType.Should().Be(typeof(DataProtectionMessageEncryptionProvider));
+        descriptor.ShouldNotBeNull();
+        descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        descriptor.ImplementationType.ShouldBe(typeof(DataProtectionMessageEncryptionProvider));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<DataProtectionEncryptionOptions>>().Value;
 
-        options.Purpose.Should().Be("Custom.Purpose");
+        options.Purpose.ShouldBe("Custom.Purpose");
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var options = sp.GetRequiredService<IOptions<DataProtectionEncryptionOptions>>().Value;
 
-        options.Purpose.Should().Be("Encina.Messaging.Encryption");
+        options.Purpose.ShouldBe("Encina.Messaging.Encryption");
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var encOptions = sp.GetRequiredService<IOptions<global::Encina.Messaging.Encryption.MessageEncryptionOptions>>().Value;
 
-        encOptions.EncryptAllMessages.Should().BeTrue();
-        encOptions.DefaultKeyId.Should().Be("dp-key");
+        encOptions.EncryptAllMessages.ShouldBeTrue();
+        encOptions.DefaultKeyId.ShouldBe("dp-key");
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
         var provider = sp.GetService<IMessageEncryptionProvider>();
 
-        provider.Should().NotBeNull();
-        provider.Should().BeOfType<DataProtectionMessageEncryptionProvider>();
+        provider.ShouldNotBeNull();
+        provider.ShouldBeOfType<DataProtectionMessageEncryptionProvider>();
     }
 
     [Fact]
@@ -120,9 +120,9 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddDataProtection();
 
-        var act = () => services.AddEncinaMessageEncryptionDataProtection(configure: null);
+        Action act = () => services.AddEncinaMessageEncryptionDataProtection(configure: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -131,11 +131,11 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddDataProtection();
 
-        var act = () => services.AddEncinaMessageEncryptionDataProtection(
+        Action act = () => services.AddEncinaMessageEncryptionDataProtection(
             configure: o => o.Purpose = "Test",
             configureEncryption: null);
 
-        act.Should().NotThrow();
+        Should.NotThrow(act);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class ServiceCollectionExtensionsTests
         var descriptors = services.Where(
             d => d.ServiceType == typeof(IMessageEncryptionProvider)).ToList();
 
-        descriptors.Should().HaveCount(1);
+        descriptors.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class ServiceCollectionExtensionsTests
         var sp = services.BuildServiceProvider();
 
         // Should resolve without error
-        var act = () => sp.GetRequiredService<IOptions<DataProtectionEncryptionOptions>>();
-        act.Should().NotThrow();
+        Action act = () => sp.GetRequiredService<IOptions<DataProtectionEncryptionOptions>>();
+        Should.NotThrow(act);
     }
 }

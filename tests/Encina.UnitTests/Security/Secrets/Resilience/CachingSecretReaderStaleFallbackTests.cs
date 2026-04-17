@@ -5,10 +5,10 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.Resilience;
 
@@ -78,8 +78,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("db-password");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("super-secret"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("super-secret"));
 
         // Verify LKG was stored with extended TTL
         await _cache.Received().SetAsync(
@@ -113,8 +113,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("api-key");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("cached-value"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("cached-value"));
     }
 
     [Fact]
@@ -135,8 +135,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("conn-string");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("Server=prod;"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("Server=prod;"));
     }
 
     [Fact]
@@ -157,8 +157,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("token");
 
         // Assert
-        result.IsRight.Should().BeTrue();
-        result.IfRight(v => v.Should().Be("bearer-xyz"));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(v => v.ShouldBe("bearer-xyz"));
     }
 
     #endregion
@@ -182,8 +182,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("missing-key");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.CircuitBreakerOpenCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.CircuitBreakerOpenCode)));
     }
 
     [Fact]
@@ -203,8 +203,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("new-secret");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.ResilienceTimeoutCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.ResilienceTimeoutCode)));
     }
 
     #endregion
@@ -229,8 +229,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("secret-x");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.NotFoundCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.NotFoundCode)));
     }
 
     [Fact]
@@ -251,8 +251,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("restricted");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.AccessDeniedCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.AccessDeniedCode)));
     }
 
     #endregion
@@ -289,8 +289,8 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("key");
 
         // Assert — no fallback because MaxStaleDuration is zero
-        result.IsLeft.Should().BeTrue();
-        result.IfLeft(e => e.GetCode().IfSome(c => c.Should().Be(SecretsErrors.CircuitBreakerOpenCode)));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfSome(c => c.ShouldBe(SecretsErrors.CircuitBreakerOpenCode)));
     }
 
     #endregion
@@ -327,7 +327,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync("key");
 
         // Assert — no fallback because EnableResilience is false
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion
@@ -356,11 +356,11 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync<TestConfig>("db-config");
 
         // Assert
-        result.IsRight.Should().BeTrue();
+        result.IsRight.ShouldBeTrue();
         result.IfRight(v =>
         {
-            v.Host.Should().Be("prod-server");
-            v.Port.Should().Be(5432);
+            v.Host.ShouldBe("prod-server");
+            v.Port.ShouldBe(5432);
         });
     }
 
@@ -384,7 +384,7 @@ public sealed class CachingSecretReaderStaleFallbackTests
         var result = await decorator.GetSecretAsync<TestConfig>("new-config");
 
         // Assert
-        result.IsLeft.Should().BeTrue();
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

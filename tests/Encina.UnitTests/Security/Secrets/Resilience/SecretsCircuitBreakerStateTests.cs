@@ -1,5 +1,5 @@
 using Encina.Security.Secrets.Resilience;
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Security.Secrets.Resilience;
 
@@ -10,7 +10,7 @@ public sealed class SecretsCircuitBreakerStateTests
     {
         var state = new SecretsCircuitBreakerState();
 
-        state.State.Should().Be(CircuitBreakerStateValue.Closed);
+        state.State.ShouldBe(CircuitBreakerStateValue.Closed);
     }
 
     [Fact]
@@ -20,7 +20,7 @@ public sealed class SecretsCircuitBreakerStateTests
 
         state.SetOpened();
 
-        state.State.Should().Be(CircuitBreakerStateValue.Opened);
+        state.State.ShouldBe(CircuitBreakerStateValue.Opened);
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class SecretsCircuitBreakerStateTests
 
         state.SetHalfOpen();
 
-        state.State.Should().Be(CircuitBreakerStateValue.HalfOpen);
+        state.State.ShouldBe(CircuitBreakerStateValue.HalfOpen);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class SecretsCircuitBreakerStateTests
 
         state.SetClosed();
 
-        state.State.Should().Be(CircuitBreakerStateValue.Closed);
+        state.State.ShouldBe(CircuitBreakerStateValue.Closed);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class SecretsCircuitBreakerStateTests
         state.SetOpened();
         state.SetHalfOpen();
 
-        state.State.Should().Be(CircuitBreakerStateValue.HalfOpen);
+        state.State.ShouldBe(CircuitBreakerStateValue.HalfOpen);
     }
 
     [Fact]
@@ -64,6 +64,6 @@ public sealed class SecretsCircuitBreakerStateTests
         state.SetHalfOpen();
         state.SetClosed();
 
-        state.State.Should().Be(CircuitBreakerStateValue.Closed);
+        state.State.ShouldBe(CircuitBreakerStateValue.Closed);
     }
 }

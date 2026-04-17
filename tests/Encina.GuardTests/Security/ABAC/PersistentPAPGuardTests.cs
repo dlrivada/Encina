@@ -4,14 +4,11 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Health;
 using Encina.Security.ABAC.Persistence;
-
-using FluentAssertions;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using NSubstitute;
+using Shouldly;
 
 namespace Encina.GuardTests.Security.ABAC;
 
@@ -33,8 +30,8 @@ public class PersistentPAPGuardTests
         var act = () => new PersistentPolicyAdministrationPoint(null!, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("store");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("store");
     }
 
     [Fact]
@@ -47,8 +44,8 @@ public class PersistentPAPGuardTests
         var act = () => new PersistentPolicyAdministrationPoint(store, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("logger");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("logger");
     }
 
     #endregion
@@ -65,7 +62,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.GetPolicySetAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -78,7 +75,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.GetPolicySetAsync("");
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -91,7 +88,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.GetPolicySetAsync("   ");
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -104,7 +101,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.AddPolicySetAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -117,7 +114,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.UpdatePolicySetAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -130,7 +127,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.RemovePolicySetAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -143,7 +140,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.RemovePolicySetAsync("");
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -156,7 +153,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.GetPolicyAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -169,7 +166,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.GetPolicyAsync("");
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -182,7 +179,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.AddPolicyAsync(null!, null);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -195,7 +192,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.UpdatePolicyAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentNullException>();
+        Should.ThrowAsync<ArgumentNullException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -208,7 +205,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.RemovePolicyAsync(null!);
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -221,7 +218,7 @@ public class PersistentPAPGuardTests
         var act = async () => await sut.RemovePolicyAsync("");
 
         // Assert
-        act.Should().ThrowAsync<ArgumentException>();
+        Should.ThrowAsync<ArgumentException>(act).GetAwaiter().GetResult();
     }
 
     #endregion
@@ -238,8 +235,8 @@ public class PersistentPAPGuardTests
         var act = () => serializer.Serialize((PolicySet)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("policySet");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("policySet");
     }
 
     [Fact]
@@ -252,8 +249,8 @@ public class PersistentPAPGuardTests
         var act = () => serializer.Serialize((Policy)null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("policy");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("policy");
     }
 
     #endregion
@@ -270,8 +267,8 @@ public class PersistentPAPGuardTests
         var act = () => PolicyEntityMapper.ToPolicySetEntity(null!, serializer, TimeProvider.System);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("policySet");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("policySet");
     }
 
     [Fact]
@@ -284,8 +281,8 @@ public class PersistentPAPGuardTests
         var act = () => PolicyEntityMapper.ToPolicySetEntity(ps, null!, TimeProvider.System);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serializer");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serializer");
     }
 
     [Fact]
@@ -299,8 +296,8 @@ public class PersistentPAPGuardTests
         var act = () => PolicyEntityMapper.ToPolicySetEntity(ps, serializer, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -310,11 +307,11 @@ public class PersistentPAPGuardTests
         var serializer = new DefaultPolicySerializer();
 
         // Act
-        var act = () => PolicyEntityMapper.ToPolicySet(null!, serializer);
+        var act = (Action)(() => PolicyEntityMapper.ToPolicySet(null!, serializer));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entity");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("entity");
     }
 
     [Fact]
@@ -330,11 +327,11 @@ public class PersistentPAPGuardTests
         };
 
         // Act
-        var act = () => PolicyEntityMapper.ToPolicySet(entity, null!);
+        var act = (Action)(() => PolicyEntityMapper.ToPolicySet(entity, null!));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serializer");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serializer");
     }
 
     [Fact]
@@ -344,11 +341,11 @@ public class PersistentPAPGuardTests
         var serializer = new DefaultPolicySerializer();
 
         // Act
-        var act = () => PolicyEntityMapper.ToPolicyEntity(null!, serializer, TimeProvider.System);
+        var act = (Action)(() => PolicyEntityMapper.ToPolicyEntity(null!, serializer, TimeProvider.System));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("policy");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("policy");
     }
 
     [Fact]
@@ -358,11 +355,11 @@ public class PersistentPAPGuardTests
         var p = CreateMinimalPolicy();
 
         // Act
-        var act = () => PolicyEntityMapper.ToPolicyEntity(p, null!, TimeProvider.System);
+        var act = (Action)(() => PolicyEntityMapper.ToPolicyEntity(p, null!, TimeProvider.System));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serializer");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serializer");
     }
 
     [Fact]
@@ -373,11 +370,11 @@ public class PersistentPAPGuardTests
         var serializer = new DefaultPolicySerializer();
 
         // Act
-        var act = () => PolicyEntityMapper.ToPolicyEntity(p, serializer, null!);
+        var act = (Action)(() => PolicyEntityMapper.ToPolicyEntity(p, serializer, null!));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("timeProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("timeProvider");
     }
 
     [Fact]
@@ -387,11 +384,11 @@ public class PersistentPAPGuardTests
         var serializer = new DefaultPolicySerializer();
 
         // Act
-        var act = () => PolicyEntityMapper.ToPolicy(null!, serializer);
+        var act = (Action)(() => PolicyEntityMapper.ToPolicy(null!, serializer));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("entity");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("entity");
     }
 
     [Fact]
@@ -407,11 +404,11 @@ public class PersistentPAPGuardTests
         };
 
         // Act
-        var act = () => PolicyEntityMapper.ToPolicy(entity, null!);
+        var act = (Action)(() => PolicyEntityMapper.ToPolicy(entity, null!));
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serializer");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serializer");
     }
 
     #endregion
@@ -428,8 +425,8 @@ public class PersistentPAPGuardTests
         var act = () => new ABACHealthCheck(null!, sp);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("pap");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("pap");
     }
 
     [Fact]
@@ -442,8 +439,8 @@ public class PersistentPAPGuardTests
         var act = () => new ABACHealthCheck(pap, null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("serviceProvider");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("serviceProvider");
     }
 
     #endregion
@@ -461,7 +458,7 @@ public class PersistentPAPGuardTests
         var act = () => options.AddFunction(null!, function);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -475,7 +472,7 @@ public class PersistentPAPGuardTests
         var act = () => options.AddFunction("", function);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -489,7 +486,7 @@ public class PersistentPAPGuardTests
         var act = () => options.AddFunction("   ", function);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Should.Throw<ArgumentException>(act);
     }
 
     [Fact]
@@ -502,8 +499,8 @@ public class PersistentPAPGuardTests
         var act = () => options.AddFunction("custom:test", null!);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("function");
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("function");
     }
 
     #endregion

@@ -1,6 +1,6 @@
 using Encina.Compliance.NIS2.Model;
 
-using FluentAssertions;
+using Shouldly;
 
 namespace Encina.UnitTests.Compliance.NIS2;
 
@@ -23,13 +23,13 @@ public sealed class NIS2IncidentTests
             initialAssessment: "Data exfiltration suspected");
 
         // Assert
-        incident.Id.Should().NotBeEmpty();
-        incident.Description.Should().Be("Unauthorized access to critical systems");
-        incident.Severity.Should().Be(NIS2IncidentSeverity.High);
-        incident.DetectedAtUtc.Should().Be(TestDetectedAt);
-        incident.IsSignificant.Should().BeTrue();
-        incident.AffectedServices.Should().HaveCount(2);
-        incident.InitialAssessment.Should().Be("Data exfiltration suspected");
+        incident.Id.ShouldNotBe(Guid.Empty);
+        incident.Description.ShouldBe("Unauthorized access to critical systems");
+        incident.Severity.ShouldBe(NIS2IncidentSeverity.High);
+        incident.DetectedAtUtc.ShouldBe(TestDetectedAt);
+        incident.IsSignificant.ShouldBeTrue();
+        incident.AffectedServices.Count.ShouldBe(2);
+        incident.InitialAssessment.ShouldBe("Data exfiltration suspected");
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class NIS2IncidentTests
         var incident2 = CreateTestIncident();
 
         // Assert
-        incident1.Id.Should().NotBe(incident2.Id);
+        incident1.Id.ShouldNotBe(incident2.Id);
     }
 
     #endregion
@@ -54,7 +54,7 @@ public sealed class NIS2IncidentTests
         var incident = CreateTestIncident();
 
         // Assert — Art. 23(4)(a): early warning within 24 hours
-        incident.EarlyWarningDeadlineUtc.Should().Be(TestDetectedAt.AddHours(24));
+        incident.EarlyWarningDeadlineUtc.ShouldBe(TestDetectedAt.AddHours(24));
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class NIS2IncidentTests
         var incident = CreateTestIncident();
 
         // Assert — Art. 23(4)(b): incident notification within 72 hours
-        incident.IncidentNotificationDeadlineUtc.Should().Be(TestDetectedAt.AddHours(72));
+        incident.IncidentNotificationDeadlineUtc.ShouldBe(TestDetectedAt.AddHours(72));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class NIS2IncidentTests
         var incident = CreateTestIncident();
 
         // Assert — Art. 23(4)(d): final report deadline depends on notification submission
-        incident.FinalReportDeadlineUtc.Should().BeNull();
+        incident.FinalReportDeadlineUtc.ShouldBeNull();
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class NIS2IncidentTests
         var incident = CreateTestIncident() with { IncidentNotificationAtUtc = notificationTime };
 
         // Assert — Art. 23(4)(d): final report within 1 month of notification
-        incident.FinalReportDeadlineUtc.Should().Be(notificationTime.AddMonths(1));
+        incident.FinalReportDeadlineUtc.ShouldBe(notificationTime.AddMonths(1));
     }
 
     [Fact]
@@ -96,8 +96,8 @@ public sealed class NIS2IncidentTests
         var incident = CreateTestIncident() with { IncidentNotificationAtUtc = notificationTime };
 
         // Assert
-        incident.EarlyWarningDeadlineUtc.Should().BeBefore(incident.IncidentNotificationDeadlineUtc);
-        incident.IncidentNotificationDeadlineUtc.Should().BeBefore(incident.FinalReportDeadlineUtc!.Value);
+        incident.EarlyWarningDeadlineUtc.ShouldBeLessThan(incident.IncidentNotificationDeadlineUtc);
+        incident.IncidentNotificationDeadlineUtc.ShouldBeLessThan(incident.FinalReportDeadlineUtc!.Value);
     }
 
     #endregion
@@ -111,9 +111,9 @@ public sealed class NIS2IncidentTests
         var incident = CreateTestIncident();
 
         // Assert — freshly created, no notifications filed yet
-        incident.EarlyWarningAtUtc.Should().BeNull();
-        incident.IncidentNotificationAtUtc.Should().BeNull();
-        incident.FinalReportAtUtc.Should().BeNull();
+        incident.EarlyWarningAtUtc.ShouldBeNull();
+        incident.IncidentNotificationAtUtc.ShouldBeNull();
+        incident.FinalReportAtUtc.ShouldBeNull();
     }
 
     #endregion
