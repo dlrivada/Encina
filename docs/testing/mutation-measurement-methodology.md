@@ -148,6 +148,38 @@ These exclude files where mutation testing has no value (logging surface, diagno
 
 Until then, `AllTests` mode is the only working configuration.
 
+## Per-folder test filter
+
+`AllTests` mode is Stryker's contract, but `--test-case-filter` is VSTest's. Encina exploits the latter to bypass the former: the workflow pairs each rotation folder with a test-namespace substring and passes it to Stryker via `--test-case-filter "FullyQualifiedName~<substring>"`. Each mutant then runs only the ~20–500 tests whose FQN matches, instead of the full ~23,000. See [#1027](https://github.com/dlrivada/Encina/issues/1027) for the rationale.
+
+The mapping lives in the `FILTERS` bash array in `.github/workflows/mutation-tests.yml`, parallel to `FOLDERS`. Each entry is a pipe-separated list of substrings; at runtime each substring is wrapped in `FullyQualifiedName~<substring>` and joined with `|` (OR). The substrings are derived from the convention that test folders mirror source folders:
+
+| Source folder | Test FQN segment | Filter substring |
+|---|---|---|
+| `src/Encina/Sharding/Migrations/Strategies/` | `Encina.UnitTests.Core.Sharding.Migrations.Strategies.*` | `Sharding.Migrations.Strategies` |
+| `src/Encina/Dispatchers/Strategies/` | `Encina.UnitTests.Dispatchers.Strategies.*` | `Dispatchers.Strategies` |
+| `src/Encina/Modules/Isolation/` | `Encina.UnitTests.Core.Modules.Isolation.*` | `Modules.Isolation` |
+
+### Edge cases
+
+- **Root-namespace folders** (`**/Core/*.cs`, `**/Pipeline/*.cs`, `**/Results/*.cs`): source files declare `namespace Encina;` with no folder-derived segment, so the filter falls back to the explicit test-folder path (e.g. `Encina.UnitTests.Core|Encina.ContractTests.Core`). This is broader than ideal — it also runs tests for sibling source folders rooted at the same test path — but it is never *narrower* than reality, which is the safety property that matters.
+- **Non-recursive globs**: `**/Pipeline/*.cs` matches `src/Encina/Pipeline/*.cs` only, but the filter `Pipeline` also matches `Pipeline.Behaviors` tests. Accepted — prefer false positives (extra tests) over false negatives (missed kills).
+- **Tests in unexpected locations**: `ContractTests/Database/Sharding/*` contains contract tests for routing/replica/colocation code that lives in `src/Encina/Sharding/*`. The substring `Sharding.Routing` (etc.) still matches because it is a substring of the full FQN — the mirror convention is looser than "exact namespace match".
+
+### Custom-scope dispatch
+
+When `workflow_dispatch` is invoked with `custom_scope`, the `Select mutation scope` step looks up the scope in `FOLDERS` and reuses its paired filter. If the custom scope doesn't match any rotation entry, the filter is empty and Stryker falls back to the default `test-case-filter` from `stryker-config.json` (which selects all tests in the three Stryker test projects).
+
+### What this unlocks
+
+- Per-mutant test execution drops from ~23,000 to ~20–500 → per-mutant time drops from ~3 min to ~5–10 s.
+- A folder rotation completes in ~5–10 min instead of ~3 h.
+- Kill counts become deterministic: a targeted test added to the matching folder shows up in the next run's kill delta, instead of being drowned in the ~23,000-test noise.
+
+### Risk: namespace drift
+
+If a test namespace is renamed (e.g. `Encina.UnitTests.Core.Sharding.Migrations.Strategies` → something else), tests silently stop matching the filter and mutants stop being killed. The dashboard would show a regression but without an obvious cause. Mitigation: the `FILTERS` array is a concrete artifact reviewers must update alongside namespace changes. If the methodology is ever revised, prefer explicit, reviewable mappings over clever derivations.
+
 ## DocRef convention
 
 Mutation results are cited from documentation via stable identifiers:
