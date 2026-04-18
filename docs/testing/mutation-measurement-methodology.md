@@ -150,9 +150,11 @@ Until then, `AllTests` mode is the only working configuration.
 
 ## Per-folder test filter
 
-`AllTests` mode is Stryker's contract, but `--test-case-filter` is VSTest's. Encina exploits the latter to bypass the former: the workflow pairs each rotation folder with a test-namespace substring and passes it to Stryker via `--test-case-filter "FullyQualifiedName~<substring>"`. Each mutant then runs only the ~20–500 tests whose FQN matches, instead of the full ~23,000. See [#1027](https://github.com/dlrivada/Encina/issues/1027) for the rationale.
+`AllTests` mode is Stryker's contract, but `test-case-filter` is VSTest's. Encina exploits the latter to bypass the former: the workflow pairs each rotation folder with a test-namespace substring and patches `stryker-config.json` (the `test-case-filter` property) to `FullyQualifiedName~<substring>` before invoking Stryker. Each mutant then runs only the ~20–500 tests whose FQN matches, instead of the full ~23,000. See [#1027](https://github.com/dlrivada/Encina/issues/1027) for the rationale.
 
-The mapping lives in the `FILTERS` bash array in `.github/workflows/mutation-tests.yml`, parallel to `FOLDERS`. Each entry is a pipe-separated list of substrings; at runtime each substring is wrapped in `FullyQualifiedName~<substring>` and joined with `|` (OR). The substrings are derived from the convention that test folders mirror source folders:
+> **Why patch the config file instead of passing `--test-case-filter` on the CLI?** Stryker.NET 4.14 exposes this setting only via the config file, not the command line (upstream [stryker-mutator/stryker-net#3091](https://github.com/stryker-mutator/stryker-net/issues/3091)). The workflow uses `jq` to rewrite `.github/stryker-config.json` in place before the run — CI runners are ephemeral, so the edit does not leak into tracked state.
+
+The mapping lives in the `FILTERS` bash array in `.github/workflows/mutation-tests.yml`, parallel to `FOLDERS`. Each entry is a pipe-separated list of substrings; at runtime each substring is wrapped in `FullyQualifiedName~<substring>` and joined with `|` (OR). An empty entry means "no override — use the default filter from `stryker-config.json`" (currently all three Stryker test projects). The substrings are derived from the convention that test folders mirror source folders:
 
 | Source folder | Test FQN segment | Filter substring |
 |---|---|---|
@@ -162,7 +164,8 @@ The mapping lives in the `FILTERS` bash array in `.github/workflows/mutation-tes
 
 ### Edge cases
 
-- **Root-namespace folders** (`**/Core/*.cs`, `**/Pipeline/*.cs`, `**/Results/*.cs`): source files declare `namespace Encina;` with no folder-derived segment, so the filter falls back to the explicit test-folder path (e.g. `Encina.UnitTests.Core|Encina.ContractTests.Core`). This is broader than ideal — it also runs tests for sibling source folders rooted at the same test path — but it is never *narrower* than reality, which is the safety property that matters.
+- **Root-namespace folders** (`**/Core/*.cs`, `**/Pipeline/*.cs`): source files declare `namespace Encina;` with no folder-derived segment, so the filter falls back to the explicit test-folder path (e.g. `Encina.UnitTests.Core|Encina.ContractTests.Core`). This is broader than ideal — it also runs tests for sibling source folders rooted at the same test path — but it is never *narrower* than reality, which is the safety property that matters.
+- **`**/Results/*.cs`**: same root-namespace situation, but there is no corresponding `*.Results.*` test namespace — tests for `EitherHelpers`, `EncinaErrors`, and `NullFunctionalFailureDetector` live in scattered domain folders. The FILTERS entry is intentionally empty so the run falls back to the config default (all three Stryker test projects). This sacrifices speed for correctness on the Results rotation only.
 - **Non-recursive globs**: `**/Pipeline/*.cs` matches `src/Encina/Pipeline/*.cs` only, but the filter `Pipeline` also matches `Pipeline.Behaviors` tests. Accepted — prefer false positives (extra tests) over false negatives (missed kills).
 - **Tests in unexpected locations**: `ContractTests/Database/Sharding/*` contains contract tests for routing/replica/colocation code that lives in `src/Encina/Sharding/*`. The substring `Sharding.Routing` (etc.) still matches because it is a substring of the full FQN — the mirror convention is looser than "exact namespace match".
 

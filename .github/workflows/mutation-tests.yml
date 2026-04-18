@@ -153,6 +153,11 @@ jobs:
             "**/Results/*.cs"
             "**/Sharding/Health/*.cs"
           )
+          # An empty filter means "no override" — Stryker uses the default
+          # `test-case-filter` from `stryker-config.json`. Use that for folders
+          # with no discoverable mirror tests (e.g. **/Results/*.cs: source
+          # files declare `namespace Encina;` and tests are scattered outside
+          # any `Results`-named namespace).
           FILTERS=(
             "Encina.UnitTests.Core|Encina.ContractTests.Core"
             "Pipeline.Behaviors|Core.Pipeline"
@@ -169,9 +174,16 @@ jobs:
             "Sharding.Resharding"
             "Sharding.Diagnostics"
             "Modules.Isolation"
-            "Encina.UnitTests.Results|Encina.PropertyTests.Results"
+            ""
             "Sharding.Health"
           )
+
+          # FOLDERS and FILTERS are indexed in lock-step. A mismatch would
+          # silently pair a scope with the wrong filter, so fail fast.
+          if [ "${#FOLDERS[@]}" -ne "${#FILTERS[@]}" ]; then
+            echo "::error::FOLDERS (${#FOLDERS[@]}) and FILTERS (${#FILTERS[@]}) must have the same length" >&2
+            exit 1
+          fi
 
           CUSTOM="${{ inputs.custom_scope }}"
           FILTER=""
@@ -189,9 +201,9 @@ jobs:
           elif [ "${{ inputs.diff_mode }}" = "true" ]; then
             SCOPE="**/*.cs"
           else
-            # Rotate based on ISO week number
+            # Rotate based on ISO week number, modulo the rotation length.
             WEEK=$(date -u +%V)
-            IDX=$(( 10#$WEEK % 17 ))
+            IDX=$(( 10#$WEEK % ${#FOLDERS[@]} ))
             SCOPE="${FOLDERS[$IDX]}"
             FILTER="${FILTERS[$IDX]}"
           fi
@@ -214,11 +226,13 @@ jobs:
             MUTATE_ARGS="$MUTATE_ARGS --mutate:$excl"
           done
 
-          # Build --test-case-filter from FILTER: each pipe-separated substring
-          # becomes a `FullyQualifiedName~<substring>` clause joined with `|`.
-          # This overrides test-case-filter in stryker-config.json so mutants
-          # only run the tests that mirror the mutated folder's namespace.
-          FILTER_ARGS=()
+          # Stryker.NET 4.14 exposes `test-case-filter` only via the config
+          # file, not the CLI (stryker-mutator/stryker-net#3091). To override
+          # per-folder, patch `.github/stryker-config.json` in place before
+          # invoking Stryker. Build the VSTest filter expression by wrapping
+          # each pipe-separated substring in `FullyQualifiedName~<substring>`
+          # joined with `|` (OR). CI runners are ephemeral, so the in-place
+          # edit does not leak into tracked state.
           if [ -n "$FILTER" ]; then
             IFS='|' read -ra FILTER_PARTS <<< "$FILTER"
             TCF=""
@@ -229,19 +243,24 @@ jobs:
                 TCF="$TCF|FullyQualifiedName~$part"
               fi
             done
-            FILTER_ARGS=(--test-case-filter "$TCF")
-            echo "Test-case filter: $TCF"
+            echo "Patching stryker-config.json test-case-filter: $TCF"
+            tmp=$(mktemp)
+            jq --arg tcf "$TCF" '."stryker-config"."test-case-filter" = $tcf' \
+              .github/stryker-config.json > "$tmp"
+            mv "$tmp" .github/stryker-config.json
+          else
+            echo "No FILTER set; using stryker-config.json default test-case-filter"
           fi
 
           if [ "${{ inputs.diff_mode }}" = "true" ]; then
             echo "Mode: diff (vs main)"
-            dotnet run --file .github/scripts/run-stryker.cs -- --since:main $MUTATE_ARGS "${FILTER_ARGS[@]}"
+            dotnet run --file .github/scripts/run-stryker.cs -- --since:main $MUTATE_ARGS
           elif [ "${{ inputs.full_mode }}" = "true" ]; then
             echo "Mode: full (all files — will take hours)"
             dotnet run --file .github/scripts/run-stryker.cs
           else
             echo "Mode: weekly rotation (scope: $SCOPE)"
-            dotnet run --file .github/scripts/run-stryker.cs -- $MUTATE_ARGS "${FILTER_ARGS[@]}"
+            dotnet run --file .github/scripts/run-stryker.cs -- $MUTATE_ARGS
           fi
 
       - name: Upload Stryker logs
