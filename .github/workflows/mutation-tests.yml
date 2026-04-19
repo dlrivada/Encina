@@ -111,13 +111,29 @@ jobs:
           # Stryker also loads ALL 6,181 mutants into RAM during creation even
           # with --since, causing OOM on the 7GB runner.
           #
-          # Strategy: restrict the --mutate glob to one folder at a time.
-          # Schedule rotates weekly; dispatch can override.
+          # Strategy: restrict the --mutate glob to one folder at a time AND
+          # narrow --test-case-filter to only the tests that mirror that folder's
+          # namespace. Schedule rotates weekly; dispatch can override.
           #
-          # Each folder produces ~30-150 mutants = 1-3h in AllTests mode.
-          # Each entry must produce ≤ ~80 mutants to complete within 3h
-          # in AllTests mode (~3 min/mutant × 80 ≈ 4h with safety margin).
-          # Rule of thumb: ≤ 8 .cs files per entry.
+          # Each folder produces ~30-150 mutants. With per-folder filter the
+          # tests per mutant drop from ~23k to ~20-500, so a folder run
+          # completes in ~5-10 min instead of ~3 h.
+          # Rule of thumb: ≤ 8 .cs files per entry to keep mutant count low.
+          #
+          # FILTERS is parallel to FOLDERS. Each entry is a pipe-separated list
+          # of substrings; at runtime each substring is wrapped in
+          # `FullyQualifiedName~<substring>` and joined with `|` (OR). The
+          # substrings are chosen from test-namespace segments that mirror the
+          # source folder (tests/Encina.UnitTests/Core/Sharding/Migrations/
+          # Strategies/ → `Sharding.Migrations.Strategies`).
+          #
+          # Edge cases:
+          # - `**/Core/*.cs`, `**/Pipeline/*.cs`, `**/Results/*.cs` live in
+          #   `namespace Encina` (root) so the filter falls back to the
+          #   explicit test-folder path.
+          # - `**/Pipeline/*.cs` is non-recursive but `Pipeline` substring
+          #   also matches `Pipeline.Behaviors` tests — accepted (broader is
+          #   safe; narrower would risk false negatives).
           FOLDERS=(
             "**/Core/*.cs"
             "**/Pipeline/Behaviors/*.cs"
@@ -137,35 +153,104 @@ jobs:
             "**/Results/*.cs"
             "**/Sharding/Health/*.cs"
           )
+          # An empty filter means "no override" — Stryker uses the default
+          # `test-case-filter` from `stryker-config.json`. Use that for folders
+          # with no discoverable mirror tests (e.g. **/Results/*.cs: source
+          # files declare `namespace Encina;` and tests are scattered outside
+          # any `Results`-named namespace).
+          FILTERS=(
+            "Encina.UnitTests.Core|Encina.ContractTests.Core"
+            "Pipeline.Behaviors|Core.Pipeline"
+            "Pipeline"
+            "Dispatchers.Strategies"
+            "Core.Validation"
+            "Sharding.Migrations.Strategies"
+            "Sharding.Routing"
+            "Sharding.ReplicaSelection"
+            "Sharding.Execution"
+            "Sharding.Shadow"
+            "Sharding.Colocation"
+            "Sharding.TimeBased"
+            "Sharding.Resharding"
+            "Sharding.Diagnostics"
+            "Modules.Isolation"
+            ""
+            "Sharding.Health"
+          )
+
+          # FOLDERS and FILTERS are indexed in lock-step. A mismatch would
+          # silently pair a scope with the wrong filter, so fail fast.
+          if [ "${#FOLDERS[@]}" -ne "${#FILTERS[@]}" ]; then
+            echo "::error::FOLDERS (${#FOLDERS[@]}) and FILTERS (${#FILTERS[@]}) must have the same length" >&2
+            exit 1
+          fi
 
           CUSTOM="${{ inputs.custom_scope }}"
+          FILTER=""
           if [ -n "$CUSTOM" ]; then
             SCOPE="$CUSTOM"
+            # If the custom scope matches a rotation entry, reuse its filter.
+            for i in "${!FOLDERS[@]}"; do
+              if [ "${FOLDERS[$i]}" = "$CUSTOM" ]; then
+                FILTER="${FILTERS[$i]}"
+                break
+              fi
+            done
           elif [ "${{ inputs.full_mode }}" = "true" ]; then
             SCOPE="**/*.cs"
           elif [ "${{ inputs.diff_mode }}" = "true" ]; then
             SCOPE="**/*.cs"
           else
-            # Rotate based on ISO week number
+            # Rotate based on ISO week number, modulo the rotation length.
             WEEK=$(date -u +%V)
-            IDX=$(( 10#$WEEK % 17 ))
+            IDX=$(( 10#$WEEK % ${#FOLDERS[@]} ))
             SCOPE="${FOLDERS[$IDX]}"
+            FILTER="${FILTERS[$IDX]}"
           fi
 
           echo "scope=$SCOPE" >> "$GITHUB_OUTPUT"
+          echo "filter=$FILTER" >> "$GITHUB_OUTPUT"
           echo "Selected mutation scope: $SCOPE"
+          echo "Selected test filter: ${FILTER:-<none — using config default>}"
 
       - name: Run mutation tests
         id: stryker
         run: |
           mkdir -p artifacts/mutation
           SCOPE="${{ steps.scope.outputs.scope }}"
+          FILTER="${{ steps.scope.outputs.filter }}"
 
           # Build mutate args: include scope + standard exclusions
           MUTATE_ARGS="--mutate:$SCOPE"
           for excl in '!**/Log.cs' '!**/LogMessages.cs' '!**/Diagnostics/*ActivitySource.cs' '!**/Diagnostics/*Metrics.cs' '!**/*Errors.cs' '!**/*Constants.cs'; do
             MUTATE_ARGS="$MUTATE_ARGS --mutate:$excl"
           done
+
+          # Stryker.NET 4.14 exposes `test-case-filter` only via the config
+          # file, not the CLI (stryker-mutator/stryker-net#3091). To override
+          # per-folder, patch `.github/stryker-config.json` in place before
+          # invoking Stryker. Build the VSTest filter expression by wrapping
+          # each pipe-separated substring in `FullyQualifiedName~<substring>`
+          # joined with `|` (OR). CI runners are ephemeral, so the in-place
+          # edit does not leak into tracked state.
+          if [ -n "$FILTER" ]; then
+            IFS='|' read -ra FILTER_PARTS <<< "$FILTER"
+            TCF=""
+            for part in "${FILTER_PARTS[@]}"; do
+              if [ -z "$TCF" ]; then
+                TCF="FullyQualifiedName~$part"
+              else
+                TCF="$TCF|FullyQualifiedName~$part"
+              fi
+            done
+            echo "Patching stryker-config.json test-case-filter: $TCF"
+            tmp=$(mktemp)
+            jq --arg tcf "$TCF" '."stryker-config"."test-case-filter" = $tcf' \
+              .github/stryker-config.json > "$tmp"
+            mv "$tmp" .github/stryker-config.json
+          else
+            echo "No FILTER set; using stryker-config.json default test-case-filter"
+          fi
 
           if [ "${{ inputs.diff_mode }}" = "true" ]; then
             echo "Mode: diff (vs main)"
