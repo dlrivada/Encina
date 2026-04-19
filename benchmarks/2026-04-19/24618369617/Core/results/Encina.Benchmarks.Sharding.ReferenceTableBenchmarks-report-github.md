@@ -1,0 +1,30 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+Intel Xeon Platinum 8370C CPU 2.80GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v4
+
+
+```
+| Method                                     | Job        | IterationCount | LaunchCount | WarmupCount | Mean             | Error          | StdDev         | Median           | Ratio  | RatioSD | Rank | Gen0    | Allocated | Alloc Ratio |
+|------------------------------------------- |----------- |--------------- |------------ |------------ |-----------------:|---------------:|---------------:|-----------------:|-------:|--------:|-----:|--------:|----------:|------------:|
+| &#39;Hash 100 rows&#39;                            | DefaultJob | Default        | Default     | Default     |    78,065.890 ns |    267.8456 ns |    237.4381 ns |    78,028.359 ns |  1.000 |    0.00 |    6 |  0.4883 |   14560 B |       1.000 |
+| &#39;Hash 1000 rows&#39;                           | DefaultJob | Default        | Default     | Default     |   840,080.954 ns |  1,688.7552 ns |  1,497.0375 ns |   840,023.545 ns | 10.761 |    0.04 |    7 |  4.8828 |  140560 B |       9.654 |
+| &#39;Hash 5000 rows&#39;                           | DefaultJob | Default        | Default     | Default     | 4,418,971.634 ns | 16,180.9385 ns | 15,135.6600 ns | 4,421,293.062 ns | 56.606 |    0.25 |    8 | 23.4375 |  700560 B |      48.115 |
+| &#39;Hash empty collection&#39;                    | DefaultJob | Default        | Default     | Default     |        10.428 ns |      0.0323 ns |      0.0286 ns |        10.434 ns |  0.000 |    0.00 |    3 |  0.0010 |      24 B |       0.002 |
+| &#39;Registry.IsRegistered (hit)&#39;              | DefaultJob | Default        | Default     | Default     |         6.961 ns |      0.0519 ns |      0.0460 ns |         6.975 ns |  0.000 |    0.00 |    1 |       - |         - |       0.000 |
+| Registry.GetConfiguration                  | DefaultJob | Default        | Default     | Default     |         7.903 ns |      0.0132 ns |      0.0110 ns |         7.904 ns |  0.000 |    0.00 |    2 |       - |         - |       0.000 |
+| Registry.GetAllConfigurations              | DefaultJob | Default        | Default     | Default     |       134.009 ns |      0.7559 ns |      0.7070 ns |       133.969 ns |  0.002 |    0.00 |    5 |  0.0043 |     112 B |       0.008 |
+| &#39;EntityMetadataCache.GetOrCreate (cached)&#39; | DefaultJob | Default        | Default     | Default     |        14.305 ns |      0.0224 ns |      0.0199 ns |        14.302 ns |  0.000 |    0.00 |    4 |       - |         - |       0.000 |
+|                                            |            |                |             |             |                  |                |                |                  |        |         |      |         |           |             |
+| &#39;Hash 100 rows&#39;                            | MediumRun  | 15             | 2           | 10          |    76,843.702 ns |    486.7027 ns |    728.4737 ns |    77,046.269 ns |  1.000 |    0.01 |    6 |  0.4883 |   14560 B |       1.000 |
+| &#39;Hash 1000 rows&#39;                           | MediumRun  | 15             | 2           | 10          |   804,266.115 ns |    844.7411 ns |  1,127.7052 ns |   803,719.726 ns | 10.467 |    0.10 |    7 |  4.8828 |  140560 B |       9.654 |
+| &#39;Hash 5000 rows&#39;                           | MediumRun  | 15             | 2           | 10          | 4,331,715.635 ns |  3,882.0534 ns |  5,442.0972 ns | 4,331,225.758 ns | 56.375 |    0.53 |    8 | 23.4375 |  700560 B |      48.115 |
+| &#39;Hash empty collection&#39;                    | MediumRun  | 15             | 2           | 10          |         9.968 ns |      0.0319 ns |      0.0457 ns |         9.962 ns |  0.000 |    0.00 |    3 |  0.0010 |      24 B |       0.002 |
+| &#39;Registry.IsRegistered (hit)&#39;              | MediumRun  | 15             | 2           | 10          |         6.801 ns |      0.2812 ns |      0.4122 ns |         6.422 ns |  0.000 |    0.00 |    1 |       - |         - |       0.000 |
+| Registry.GetConfiguration                  | MediumRun  | 15             | 2           | 10          |         7.927 ns |      0.0114 ns |      0.0164 ns |         7.925 ns |  0.000 |    0.00 |    2 |       - |         - |       0.000 |
+| Registry.GetAllConfigurations              | MediumRun  | 15             | 2           | 10          |       136.795 ns |      0.7592 ns |      1.1128 ns |       136.369 ns |  0.002 |    0.00 |    5 |  0.0043 |     112 B |       0.008 |
+| &#39;EntityMetadataCache.GetOrCreate (cached)&#39; | MediumRun  | 15             | 2           | 10          |        15.491 ns |      0.0172 ns |      0.0247 ns |        15.495 ns |  0.000 |    0.00 |    4 |       - |         - |       0.000 |

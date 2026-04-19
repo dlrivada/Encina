@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ScatterGatherBenchmarks-20260419-015714</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  MediumRun  : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method              </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SingleHandler</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>4.331 &mu;s</td><td>0.0161 &mu;s</td><td>0.0096 &mu;s</td><td>4.329 &mu;s</td><td>1.00</td><td>0.00</td><td>0.1526</td><td>-</td><td>2.58 KB</td><td>1.00</td>
+</tr><tr><td>FiveHandlers_Parallel</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>6.642 &mu;s</td><td>0.0239 &mu;s</td><td>0.0142 &mu;s</td><td>6.645 &mu;s</td><td>1.53</td><td>0.00</td><td>0.2518</td><td>-</td><td>4.16 KB</td><td>1.61</td>
+</tr><tr><td>FiveHandlers_Sequential</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>5.418 &mu;s</td><td>0.0162 &mu;s</td><td>0.0107 &mu;s</td><td>5.421 &mu;s</td><td>1.25</td><td>0.00</td><td>0.1907</td><td>-</td><td>3.16 KB</td><td>1.22</td>
+</tr><tr><td>TenHandlers_Quorum</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>8.105 &mu;s</td><td>0.0355 &mu;s</td><td>0.0211 &mu;s</td><td>8.113 &mu;s</td><td>1.87</td><td>0.01</td><td>0.3357</td><td>-</td><td>5.52 KB</td><td>2.14</td>
+</tr><tr><td>ThreeHandlers_WaitForFirst</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>5.116 &mu;s</td><td>0.0449 &mu;s</td><td>0.0297 &mu;s</td><td>5.105 &mu;s</td><td>1.18</td><td>0.01</td><td>0.2060</td><td>-</td><td>3.39 KB</td><td>1.32</td>
+</tr><tr><td>FiftyHandlers_Parallel</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>25.505 &mu;s</td><td>0.0640 &mu;s</td><td>0.0381 &mu;s</td><td>25.518 &mu;s</td><td>5.89</td><td>0.01</td><td>1.1902</td><td>0.0610</td><td>19.69 KB</td><td>7.64</td>
+</tr><tr><td>SingleHandler</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4.310 &mu;s</td><td>0.0364 &mu;s</td><td>0.0533 &mu;s</td><td>4.343 &mu;s</td><td>1.00</td><td>0.02</td><td>0.1526</td><td>-</td><td>2.58 KB</td><td>1.00</td>
+</tr><tr><td>FiveHandlers_Parallel</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>6.779 &mu;s</td><td>0.0375 &mu;s</td><td>0.0526 &mu;s</td><td>6.806 &mu;s</td><td>1.57</td><td>0.02</td><td>0.2518</td><td>-</td><td>4.16 KB</td><td>1.61</td>
+</tr><tr><td>FiveHandlers_Sequential</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.349 &mu;s</td><td>0.0174 &mu;s</td><td>0.0255 &mu;s</td><td>5.341 &mu;s</td><td>1.24</td><td>0.02</td><td>0.1907</td><td>-</td><td>3.16 KB</td><td>1.22</td>
+</tr><tr><td>TenHandlers_Quorum</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>7.933 &mu;s</td><td>0.0170 &mu;s</td><td>0.0249 &mu;s</td><td>7.932 &mu;s</td><td>1.84</td><td>0.02</td><td>0.3357</td><td>-</td><td>5.52 KB</td><td>2.14</td>
+</tr><tr><td>ThreeHandlers_WaitForFirst</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.206 &mu;s</td><td>0.0339 &mu;s</td><td>0.0496 &mu;s</td><td>5.233 &mu;s</td><td>1.21</td><td>0.02</td><td>0.2060</td><td>-</td><td>3.39 KB</td><td>1.32</td>
+</tr><tr><td>FiftyHandlers_Parallel</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>25.909 &mu;s</td><td>0.1187 &mu;s</td><td>0.1740 &mu;s</td><td>25.897 &mu;s</td><td>6.01</td><td>0.08</td><td>1.1902</td><td>0.0610</td><td>19.69 KB</td><td>7.64</td>
+</tr></tbody></table>
+</body>
+</html>
