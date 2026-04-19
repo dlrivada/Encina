@@ -381,6 +381,10 @@ jobs:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
       - name: Download shard reports
+        # actions/download-artifact@v8 fails the step when a `pattern:` matches
+        # no artifacts. Swallow that failure so the merge step below owns the
+        # 0-shards case and emits a clearer "no reports found" error.
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           pattern: mutation-report-shard-*
@@ -389,7 +393,7 @@ jobs:
       - name: Merge shard reports
         id: merge
         run: |
-          mkdir -p artifacts/mutation/reports
+          mkdir -p artifacts/mutation/reports shards
           SHARD_COUNT="${{ needs.select-matrix.outputs.shard_count }}"
           mapfile -t REPORTS < <(find shards -name "mutation-report.json" -type f | sort)
           SUCCESSFUL=${#REPORTS[@]}
