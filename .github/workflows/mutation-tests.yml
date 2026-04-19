@@ -47,6 +47,16 @@ jobs:
     steps:
       - name: Build matrix
         id: build
+        # workflow_dispatch inputs pass through env: instead of being
+        # interpolated into the script via ${{ }}. Direct interpolation
+        # of user-controlled inputs is the classic GitHub Actions script
+        # injection vector (see GitHub Security hardening guide). With
+        # env: bash consumes the values as variables, not as literal text
+        # expanded at template time.
+        env:
+          CUSTOM_SCOPE: ${{ inputs.custom_scope }}
+          FULL_MODE: ${{ inputs.full_mode }}
+          DIFF_MODE: ${{ inputs.diff_mode }}
         run: |
           # Keep FOLDERS and FILTERS in lock-step: each rotation entry pairs
           # a mutation scope glob with a VSTest --test-case-filter substring
@@ -98,24 +108,22 @@ jobs:
             exit 1
           fi
 
-          CUSTOM="${{ inputs.custom_scope }}"
-
-          if [ -n "$CUSTOM" ]; then
+          if [ -n "$CUSTOM_SCOPE" ]; then
             # Custom scope: reuse paired filter if the glob matches a rotation entry.
             FILTER=""
             for i in "${!FOLDERS[@]}"; do
-              if [ "${FOLDERS[$i]}" = "$CUSTOM" ]; then
+              if [ "${FOLDERS[$i]}" = "$CUSTOM_SCOPE" ]; then
                 FILTER="${FILTERS[$i]}"
                 break
               fi
             done
-            MATRIX=$(jq -nc --arg scope "$CUSTOM" --arg filter "$FILTER" \
+            MATRIX=$(jq -nc --arg scope "$CUSTOM_SCOPE" --arg filter "$FILTER" \
               '[{idx: "custom", scope: $scope, filter: $filter}]')
             MODE="custom"
-          elif [ "${{ inputs.full_mode }}" = "true" ]; then
+          elif [ "$FULL_MODE" = "true" ]; then
             MATRIX=$(jq -nc '[{idx: "full", scope: "**/*.cs", filter: ""}]')
             MODE="full"
-          elif [ "${{ inputs.diff_mode }}" = "true" ]; then
+          elif [ "$DIFF_MODE" = "true" ]; then
             MATRIX=$(jq -nc '[{idx: "diff", scope: "**/*.cs", filter: ""}]')
             MODE="diff"
           else
@@ -262,13 +270,24 @@ jobs:
 
       - name: Run mutation tests (shard ${{ matrix.idx }})
         id: stryker
+        # Pass matrix fields + select-matrix outputs via env: rather than
+        # ${{ }} template interpolation. matrix.scope/matrix.filter carry
+        # the user-controlled `custom_scope` input in custom mode — an
+        # attacker-crafted value like `"; rm -rf / #` would otherwise
+        # execute in the runner shell. Same script-injection hardening as
+        # the "Build matrix" step above.
+        env:
+          MATRIX_IDX: ${{ matrix.idx }}
+          MATRIX_SCOPE: ${{ matrix.scope }}
+          MATRIX_FILTER: ${{ matrix.filter }}
+          SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
         run: |
           mkdir -p artifacts/mutation
-          SCOPE="${{ matrix.scope }}"
-          FILTER="${{ matrix.filter }}"
-          MODE="${{ needs.select-matrix.outputs.mode }}"
+          SCOPE="$MATRIX_SCOPE"
+          FILTER="$MATRIX_FILTER"
+          MODE="$SELECT_MODE"
 
-          echo "Shard idx: ${{ matrix.idx }}"
+          echo "Shard idx: $MATRIX_IDX"
           echo "Scope: $SCOPE"
           echo "Filter: ${FILTER:-<default from stryker-config.json>}"
           echo "Mode: $MODE"
@@ -331,13 +350,20 @@ jobs:
 
       - name: Publish shard text summary
         if: steps.stryker-report.outputs.summary-file != ''
+        # matrix.scope carries user input in custom mode; the value only
+        # reaches the job summary (no shell execution), but passing via
+        # env: keeps the hardening consistent and prevents a future edit
+        # from accidentally evaluating it.
+        env:
+          MATRIX_IDX: ${{ matrix.idx }}
+          MATRIX_SCOPE: ${{ matrix.scope }}
+          SUMMARY_FILE: ${{ steps.stryker-report.outputs.summary-file }}
         run: |
-          summary_file="${{ steps.stryker-report.outputs.summary-file }}"
-          if [ -f "$summary_file" ]; then
+          if [ -f "$SUMMARY_FILE" ]; then
             {
-              echo "### Mutation Report — Shard ${{ matrix.idx }} (\`${{ matrix.scope }}\`)";
+              echo "### Mutation Report — Shard ${MATRIX_IDX} (\`${MATRIX_SCOPE}\`)";
               echo '```';
-              cat "$summary_file";
+              cat "$SUMMARY_FILE";
               echo '```';
             } >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -392,9 +418,13 @@ jobs:
 
       - name: Merge shard reports
         id: merge
+        # SHARD_COUNT is derived from jq 'length' over a JSON built with
+        # --arg, so it's always a number — but pass it via env: for
+        # consistency with the rest of the workflow's injection hardening.
+        env:
+          SHARD_COUNT: ${{ needs.select-matrix.outputs.shard_count }}
         run: |
           mkdir -p artifacts/mutation/reports shards
-          SHARD_COUNT="${{ needs.select-matrix.outputs.shard_count }}"
           mapfile -t REPORTS < <(find shards -name "mutation-report.json" -type f | sort)
           SUCCESSFUL=${#REPORTS[@]}
 
