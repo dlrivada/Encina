@@ -22,7 +22,7 @@
 [![Benchmarks](https://dlrivada.github.io/Encina/benchmarks/badge.svg)](https://dlrivada.github.io/Encina/performance/)
 [![Performance Dashboard](https://img.shields.io/badge/performance-dashboard-blue)](https://dlrivada.github.io/Encina/performance/)
 
-<!-- Mutation testing (Stryker.NET, weekly rotation - see docs/testing/mutation-measurement-methodology.md) -->
+<!-- Mutation testing (Stryker.NET, 17-shard weekly matrix - see docs/testing/mutation-measurement-methodology.md) -->
 [![Mutation Dashboard](https://img.shields.io/badge/mutations-dashboard-blue)](https://dlrivada.github.io/Encina/mutations/)
 
 <!-- Code Quality (SonarCloud - static analysis) -->

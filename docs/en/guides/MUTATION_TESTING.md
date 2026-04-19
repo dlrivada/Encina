@@ -1,6 +1,6 @@
 # Encina Mutation Testing Guide
 
-> **Methodology**: [`docs/testing/mutation-measurement-methodology.md`](../../testing/mutation-measurement-methodology.md) is the contract that defines the formulas, the accumulation model, the folder rotation, and the citation system. This guide is the practical companion: how to run, interpret, and contribute.
+> **Methodology**: [`docs/testing/mutation-measurement-methodology.md`](../../testing/mutation-measurement-methodology.md) is the contract that defines the formulas, the accumulation model, the matrix execution model, and the citation system. This guide is the practical companion: how to run, interpret, and contribute.
 >
 > **Dashboard**: <https://dlrivada.github.io/Encina/mutations/>
 > **Tracking**: [#957](https://github.com/dlrivada/Encina/issues/957) (workflow stabilization, closed), [#962](https://github.com/dlrivada/Encina/issues/962) (scope widening + cited-by, closed)
@@ -15,7 +15,7 @@ This complements coverage: coverage tells you *which* lines are tested, mutation
 
 ## Current state (April 2026)
 
-The Mutation Tests workflow runs weekly via GitHub Actions on the `main` branch, mutating one folder per run from a 17-entry rotation. Results accumulate per-file across runs into a single dashboard ([accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
+The Mutation Tests workflow runs weekly via GitHub Actions on the `main` branch. It fans out into 17 parallel shards (one per folder of `src/Encina/`) and an `aggregate` job merges their reports into a single dataset. Results accumulate per-file across runs into a single dashboard ([accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
 
 The current accumulated snapshot:
 
@@ -61,7 +61,7 @@ The C# helper script wraps Stryker with the repo's configuration:
 dotnet run --file .github/scripts/run-stryker.cs
 ```
 
-Use the same `--mutate` glob the CI rotation uses to mutate just one folder:
+Use the same `--mutate` glob one of the CI matrix shards uses to mutate just one folder:
 
 ```bash
 dotnet run --file .github/scripts/run-stryker.cs -- \
@@ -154,18 +154,19 @@ public void IsAdult_ExactlyEighteen_ShouldReturnTrue()
 
 ## Workflow
 
-The Mutation Tests workflow (`.github/workflows/mutation-tests.yml`) runs Friday at 03:00 UTC plus on `workflow_dispatch`. Three execution modes:
+The Mutation Tests workflow (`.github/workflows/mutation-tests.yml`) runs Friday at 03:00 UTC plus on `workflow_dispatch`. Execution modes:
 
 | Trigger | Mode | Scope |
 |---------|------|-------|
-| `schedule` (weekly) | Default | One folder from the 17-entry rotation, picked by ISO week number |
-| `workflow_dispatch` (default) | Default | Same as schedule |
-| `workflow_dispatch` `diff_mode: true` | Diff | `--since:main` — only files changed vs main (PR-style) |
-| `workflow_dispatch` `full_mode: true` | Full | No `--mutate` override — entire `**/*.cs`. Will exceed the timeout in current configuration. |
+| `schedule` (weekly) | Matrix | All 17 folders run as parallel shards; the `aggregate` job merges their reports |
+| `workflow_dispatch` (default) | Matrix | Same as schedule |
+| `workflow_dispatch` `custom_scope: "<glob>"` | Custom (1 shard) | Override `--mutate` glob; matrix collapses to one shard |
+| `workflow_dispatch` `diff_mode: true` | Diff (1 shard) | `--since:main` — only files changed vs main (PR-style) |
+| `workflow_dispatch` `full_mode: true` | Full (1 shard) | No `--mutate` override — entire `**/*.cs`. Will exceed the timeout in current configuration. |
 
 After Stryker completes, `.github/workflows/publish-mutations.yml` is triggered automatically. It:
 
-1. Downloads the `mutation-report` artifact from the Mutation Tests run.
+1. Downloads the aggregated `mutation-report` artifact from the Mutation Tests run (produced by the `aggregate` job, which merges every shard's `mutation-report-shard-*`).
 2. Fetches the previous `latest.json` from GitHub Pages and merges it (carry-forward for files this run did not touch — see [accumulation model](../../testing/mutation-measurement-methodology.md#the-accumulation-model)).
 3. Runs `mut-docs-render.cs` to expand `<!-- mutref-table -->` and `<!-- mutref -->` markers in `docs/` and `src/`, and to build `cited-by.json`.
 4. Commits any rendered doc changes back to `main`.

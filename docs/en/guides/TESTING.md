@@ -94,7 +94,7 @@ Quick local run:
 dotnet run --file .github/scripts/run-stryker.cs
 ```
 
-Reports land under `artifacts/mutation/reports/` (JSON + HTML). The full `**/*.cs` scope works locally given enough time; the CI rotation limits each run to one folder so it fits the 350-minute job timeout.
+Reports land under `artifacts/mutation/reports/` (JSON + HTML). The full `**/*.cs` scope works locally given enough time; CI runs 17 folder shards in parallel so each shard fits a 60-minute per-shard timeout.
 
 The README badge is updated automatically by `.github/scripts/update-mutation-summary.cs`, which is invoked by the publish workflow after each Stryker run.
 
