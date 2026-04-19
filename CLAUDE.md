@@ -582,7 +582,7 @@ Maintain high-quality test coverage that balances thoroughness with development 
 - **Line Coverage**: ≥85% (target for overall codebase)
 - **Branch Coverage**: ≥80% (target for overall codebase)
 - **Method Coverage**: ≥90% (target for overall codebase)
-- **Mutation Score**: tracked per-file on the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/) — there is no project-wide target. Each weekly run mutates one folder from a 17-entry rotation (see [methodology](docs/testing/mutation-measurement-methodology.md)) and results accumulate per-file.
+- **Mutation Score**: tracked per-file on the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/) — there is no project-wide target. Each weekly run mutates all 17 `src/Encina/` folders in parallel as a GitHub Actions matrix (see [methodology](docs/testing/mutation-measurement-methodology.md)) and results accumulate per-file.
 
 #### Per-Flag Coverage System (Obligations Model) — CRITICAL
 

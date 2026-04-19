@@ -74,7 +74,7 @@ dotnet run --file .github/scripts/run-stryker.cs -- \
   "--mutate:!**/*Constants.cs"
 ```
 
-The full `**/*.cs` scope works locally given enough time (~hours) but is not feasible in CI's 350-minute runner timeout under AllTests mode. See [methodology — coverage analysis: why off](../../testing/mutation-measurement-methodology.md#coverage-analysis-why-off) for the underlying constraint.
+The full `**/*.cs` scope works locally given enough time (~hours) but is not feasible under CI's 60-minute per-shard timeout in AllTests mode — a `full_mode` dispatch collapses the matrix to a single shard, which is why the budget breaks. See [methodology — coverage analysis: why off](../../testing/mutation-measurement-methodology.md#coverage-analysis-why-off) for the underlying constraint.
 
 ### Reports
 
