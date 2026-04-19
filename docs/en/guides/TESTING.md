@@ -84,7 +84,7 @@ The output includes `encina-coverage-summary.json`, `encina-coverage-report.md`,
 
 ## Mutation Testing
 
-The Mutation Tests workflow runs weekly via Stryker.NET on a rotating subset of `src/Encina/` folders. Results accumulate per-file across runs into a single dashboard at <https://dlrivada.github.io/Encina/mutations/>.
+The Mutation Tests workflow runs weekly via Stryker.NET, fanning out into 17 parallel shards (one per folder of `src/Encina/`) that an `aggregate` job merges into a single dataset. Results accumulate per-file across runs into a single dashboard at <https://dlrivada.github.io/Encina/mutations/>.
 
 For the methodology (formulas, accumulation model, citation system) see [`docs/testing/mutation-measurement-methodology.md`](../../testing/mutation-measurement-methodology.md). For the practical guide (running, interpreting, contributing) see [`MUTATION_TESTING.md`](MUTATION_TESTING.md).
 
