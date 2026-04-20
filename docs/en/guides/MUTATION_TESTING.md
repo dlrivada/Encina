@@ -162,7 +162,7 @@ The Mutation Tests workflow (`.github/workflows/mutation-tests.yml`) runs Friday
 | `workflow_dispatch` (default) | Matrix | Same as schedule |
 | `workflow_dispatch` `custom_scope: "<glob>"` | Custom (1 shard) | Override `--mutate` glob; matrix collapses to one shard |
 | `workflow_dispatch` `diff_mode: true` | Diff (1 shard) | `--since:main` — only files changed vs main (PR-style) |
-| `workflow_dispatch` `full_mode: true` | Full (1 shard) | No `--mutate` override — entire `**/*.cs`. Will exceed the timeout in current configuration. |
+| `workflow_dispatch` `full_mode: true` | Full (1 shard) | Explicit `--mutate:**/*.cs` plus the workflow exclusion list (mirrors the configured full-project mutate scope). Will exceed the timeout in current configuration. |
 
 After Stryker completes, `.github/workflows/publish-mutations.yml` is triggered automatically. It:
 
