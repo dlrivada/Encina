@@ -143,8 +143,9 @@ jobs:
           fi
           mkdir -p _site/api
           cp -r docs/_api-build/. _site/api/
-          echo "API reference merged into _site/api/"
-          ls _site/api/ | head -10
+          file_count=$(find _site/api -maxdepth 1 -type f | wc -l)
+          echo "API reference merged into _site/api/ ($file_count files at root)"
+          ls _site/api/index.html _site/api/favicon.ico
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
