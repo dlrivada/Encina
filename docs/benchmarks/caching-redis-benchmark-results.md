@@ -58,7 +58,7 @@ CoV figures at N=20 for this run:
 | `GetAsync_CacheMiss` | ~36% | Loopback jitter + multimodal |
 | `GetOrSetAsync_CacheHit` | ~46% | Loopback jitter + bimodal |
 | `GetOrSetAsync_CacheMiss` | ~18% | Two round-trips smooth the jitter |
-| `RemoveAsync` | ~49% | Inline setup + teardown |
+| `RemoveAsync` | ~49% | Loopback jitter |
 | `RemoveByPatternAsync` | ~30% | `SCAN` batching averages out |
 | `SetAsync` | ~30% | Loopback jitter + bimodal |
 | `SetWithSlidingExpirationAsync` | ~41% | Loopback jitter |
