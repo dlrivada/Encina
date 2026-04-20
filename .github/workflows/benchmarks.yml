@@ -65,7 +65,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # Phase 2: Incremental filtering
   #
-  # Compute fingerprints for all 20 benchmark projects, compare against the
+  # Compute fingerprints for every benchmark project in full-matrix, compare against the
   # previous run's fingerprints published on GitHub Pages, and emit a matrix
   # containing only the projects whose source closure changed. The aggregate
   # job downstream will carry forward the unchanged modules from the previous
@@ -146,6 +146,9 @@ jobs:
             { "name": "CdcDebezium",          "path": "tests/Encina.BenchmarkTests/Encina.Cdc.Debezium.Benchmarks/Encina.Cdc.Debezium.Benchmarks.csproj",       "project": "Encina.Cdc.Debezium.Benchmarks",          "os": "ubuntu-latest" },
             { "name": "EFCore",               "path": "tests/Encina.BenchmarkTests/Encina.EntityFrameworkCore.Benchmarks/Encina.EntityFrameworkCore.Benchmarks.csproj", "project": "Encina.EntityFrameworkCore.Benchmarks", "os": "ubuntu-latest" },
             { "name": "Caching",              "path": "tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/Encina.Caching.Benchmarks.csproj",               "project": "Encina.Caching.Benchmarks",               "os": "ubuntu-latest" },
+            { "name": "CachingHybrid",        "path": "tests/Encina.BenchmarkTests/Encina.Caching.Hybrid.Benchmarks/Encina.Caching.Hybrid.Benchmarks.csproj", "project": "Encina.Caching.Hybrid.Benchmarks",        "os": "ubuntu-latest" },
+            { "name": "CachingMemory",        "path": "tests/Encina.BenchmarkTests/Encina.Caching.Memory.Benchmarks/Encina.Caching.Memory.Benchmarks.csproj", "project": "Encina.Caching.Memory.Benchmarks",        "os": "ubuntu-latest" },
+            { "name": "CachingRedis",         "path": "tests/Encina.BenchmarkTests/Encina.Caching.Redis.Benchmarks/Encina.Caching.Redis.Benchmarks.csproj",   "project": "Encina.Caching.Redis.Benchmarks",         "os": "ubuntu-latest" },
             { "name": "DistributedLock",      "path": "tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/Encina.DistributedLock.Benchmarks.csproj", "project": "Encina.DistributedLock.Benchmarks",     "os": "ubuntu-latest" },
             { "name": "Polly",                "path": "tests/Encina.BenchmarkTests/Encina.Polly.Benchmarks/Encina.Polly.Benchmarks.csproj",                   "project": "Encina.Polly.Benchmarks",                 "os": "ubuntu-latest" },
             { "name": "ExtensionsResilience", "path": "tests/Encina.BenchmarkTests/Encina.Extensions.Resilience.Benchmarks/Encina.Extensions.Resilience.Benchmarks.csproj", "project": "Encina.Extensions.Resilience.Benchmarks", "os": "ubuntu-latest" },
@@ -170,7 +173,7 @@ jobs:
           echo "force_full=$FORCE" >> "$GITHUB_OUTPUT"
 
           if [ "$FORCE" = "true" ]; then
-            echo "Full run (schedule or force_full) — all 20 projects will execute."
+            echo "Full run (schedule or force_full) — all $(jq 'length' /tmp/full-matrix.json) projects will execute."
             cp /tmp/full-matrix.json /tmp/changed.json
             SKIPPED="[]"
           else

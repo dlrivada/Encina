@@ -1,8 +1,8 @@
 {
   "project": "Encina.Caching.Benchmarks",
   "generated": "2026-04-10T22:16:58.8815269Z",
-  "totalClasses": 7,
-  "totalMethods": 42,
+  "totalClasses": 5,
+  "totalMethods": 22,
   "targets": {
     "$comment": "Populate with per-method target values once Phase 1 produces baseline data. Example: { \u0022SendCommand.mean_ns_max\u0022: 2000, \u0022SendCommand.allocated_bytes_max\u0022: 4096 }"
   },
@@ -10,10 +10,7 @@
     "$comment": "Keys are matched as 'ClassName.Method' or 'ClassName.Method(Params)'. Matching entries are excluded from the stable/unstable headline ratio and from regression detection. They remain visible on the dashboard with an ExpectedUnstable flag. Only use for benchmarks whose variance is a property of what they measure (lock contention, cache thrashing, multi-threaded races) rather than a flaw in the benchmark design.",
     "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=5)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-32% even at N=30 is inherent to the operation.",
     "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=10)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 31-44% even at N=30.",
-    "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=25)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-41% even at N=30.",
-    "MemoryCacheProviderBenchmarks.SetWithSlidingExpirationAsync": "Timer-backed sliding expiration introduces real scheduler noise; CoV 17-20% at N=28 does not settle with more iterations.",
-    "MemoryCacheProviderBenchmarks.SetAsync": "MemoryCache write timing on shared CI runner; CoV ~12% at N=27 does not settle even after raising iterationCount to 20.",
-    "MemoryCacheProviderBenchmarks.GetOrSetAsync_CacheMiss": "MemoryCache miss path on shared CI runner; CoV ~11% at N=18 does not settle even after raising iterationCount to 20."
+    "CacheInvalidationBenchmarks.Invalidation_MultipleKeys(keyCount=25)": "Multi-key cache invalidation races on the underlying ConcurrentDictionary; CoV 28-41% even at N=30."
   },
   "classes": [
     {
@@ -95,104 +92,6 @@
         },
         {
           "name": "TryAcquireAsync_Success",
-          "docRef": null
-        }
-      ]
-    },
-    {
-      "name": "HybridCacheProviderBenchmarks",
-      "namespace": "Encina.Caching.Benchmarks",
-      "fullName": "Encina.Caching.Benchmarks.HybridCacheProviderBenchmarks",
-      "file": "HybridCacheProviderBenchmarks.cs",
-      "hasMemoryDiagnoser": true,
-      "methods": [
-        {
-          "name": "ExistsAsync_False",
-          "docRef": null
-        },
-        {
-          "name": "ExistsAsync_True",
-          "docRef": null
-        },
-        {
-          "name": "GetAsync_CacheHit",
-          "docRef": "bench:caching/hybrid-get-hit"
-        },
-        {
-          "name": "GetAsync_CacheMiss",
-          "docRef": "bench:caching/hybrid-get-miss"
-        },
-        {
-          "name": "GetOrSetAsync_CacheHit",
-          "docRef": null
-        },
-        {
-          "name": "GetOrSetAsync_CacheMiss",
-          "docRef": null
-        },
-        {
-          "name": "GetOrSetAsync_WithTags",
-          "docRef": null
-        },
-        {
-          "name": "RemoveAsync",
-          "docRef": null
-        },
-        {
-          "name": "RemoveByTagAsync",
-          "docRef": null
-        },
-        {
-          "name": "SetAsync",
-          "docRef": "bench:caching/hybrid-set"
-        },
-        {
-          "name": "SetWithSlidingExpirationAsync",
-          "docRef": null
-        }
-      ]
-    },
-    {
-      "name": "MemoryCacheProviderBenchmarks",
-      "namespace": "Encina.Caching.Benchmarks",
-      "fullName": "Encina.Caching.Benchmarks.MemoryCacheProviderBenchmarks",
-      "file": "MemoryCacheProviderBenchmarks.cs",
-      "hasMemoryDiagnoser": true,
-      "methods": [
-        {
-          "name": "ExistsAsync_False",
-          "docRef": null
-        },
-        {
-          "name": "ExistsAsync_True",
-          "docRef": null
-        },
-        {
-          "name": "GetAsync_CacheHit",
-          "docRef": "bench:caching/memory-get-hit"
-        },
-        {
-          "name": "GetAsync_CacheMiss",
-          "docRef": "bench:caching/memory-get-miss"
-        },
-        {
-          "name": "GetOrSetAsync_CacheHit",
-          "docRef": null
-        },
-        {
-          "name": "GetOrSetAsync_CacheMiss",
-          "docRef": null
-        },
-        {
-          "name": "RemoveAsync",
-          "docRef": null
-        },
-        {
-          "name": "SetAsync",
-          "docRef": "bench:caching/memory-set"
-        },
-        {
-          "name": "SetWithSlidingExpirationAsync",
           "docRef": null
         }
       ]

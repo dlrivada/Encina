@@ -4,12 +4,21 @@ Performance comparison of Encina's caching providers and operations. Data auto-g
 
 See [ADR-003](../architecture/adr/003-caching-strategy.md) for the architectural decision behind the caching strategy.
 
-## Provider Operations (Memory vs Hybrid)
+## Provider Operations (Memory vs Hybrid vs Redis)
 
-<!-- docref-table: bench:caching/memory-* -->
+See per-provider results docs for detailed tables:
+
+- [Encina.Caching.Memory](caching-memory-benchmark-results.md)
+- [Encina.Caching.Hybrid](caching-hybrid-benchmark-results.md)
+- [Encina.Caching.Redis](caching-redis-benchmark-results.md)
+
+<!-- docref-table: bench:caching-memory/* -->
 <!-- /docref-table -->
 
-<!-- docref-table: bench:caching/hybrid-* -->
+<!-- docref-table: bench:caching-hybrid/* -->
+<!-- /docref-table -->
+
+<!-- docref-table: bench:caching-redis/* -->
 <!-- /docref-table -->
 
 ## Key Generation

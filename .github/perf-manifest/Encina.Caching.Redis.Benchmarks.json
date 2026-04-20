@@ -1,0 +1,63 @@
+{
+  "project": "Encina.Caching.Redis.Benchmarks",
+  "generated": "2026-04-14T00:00:00.0000000Z",
+  "totalClasses": 1,
+  "totalMethods": 10,
+  "targets": {
+    "$comment": "Baselines captured 2026-04-14 on i9-13900KS (Windows Docker Desktop) via --job short against Testcontainers redis:7-alpine. Observed means are in the low-millisecond range because the Docker bridge adds ~1ms of loopback latency + jitter; the Linux CI runner runs Docker natively and is typically 2-3x faster. Target keys use the standard mean_ns_max convention (nanoseconds) with ~3x headroom over local Windows numbers to absorb runner variance. Revisit after first CI run.",
+    "ExistsAsync_False.mean_ns_max": 3100000,
+    "ExistsAsync_False.allocated_bytes_max": 890,
+    "ExistsAsync_True.mean_ns_max": 3100000,
+    "ExistsAsync_True.allocated_bytes_max": 890,
+    "GetAsync_CacheHit.mean_ns_max": 4000000,
+    "GetAsync_CacheHit.allocated_bytes_max": 1700,
+    "GetAsync_CacheMiss.mean_ns_max": 4600000,
+    "GetAsync_CacheMiss.allocated_bytes_max": 980,
+    "GetOrSetAsync_CacheHit.mean_ns_max": 5100000,
+    "GetOrSetAsync_CacheHit.allocated_bytes_max": 2150,
+    "GetOrSetAsync_CacheMiss.mean_ns_max": 16600000,
+    "GetOrSetAsync_CacheMiss.allocated_bytes_max": 4890,
+    "RemoveAsync.mean_ns_max": 5150000,
+    "RemoveAsync.allocated_bytes_max": 2300,
+    "RemoveByPatternAsync.mean_ns_max": 48000000,
+    "RemoveByPatternAsync.allocated_bytes_max": 11540,
+    "SetAsync.mean_ns_max": 4050000,
+    "SetAsync.allocated_bytes_max": 1530,
+    "SetWithSlidingExpirationAsync.mean_ns_max": 5250000,
+    "SetWithSlidingExpirationAsync.allocated_bytes_max": 2550
+  },
+  "stabilityOverrides": {
+    "$comment": "Docker-bridge RTT to a Testcontainers redis:7-alpine instance dominates each benchmark. Loopback latency on Windows Docker Desktop fluctuates between 200us and 2ms per round-trip, so CoV stays above 20% even at N=20. The measurements are meaningful as orders of magnitude (milliseconds vs. the nanosecond paths of Memory/Hybrid) but not precise enough for stable regression detection. All methods listed.",
+    "RedisCacheProviderBenchmarks.ExistsAsync_False": "Docker loopback jitter dominates; CoV ~45% at N=20.",
+    "RedisCacheProviderBenchmarks.ExistsAsync_True": "Docker loopback jitter dominates; CoV ~45% at N=20.",
+    "RedisCacheProviderBenchmarks.GetAsync_CacheHit": "Docker loopback jitter dominates; CoV ~34% at N=20.",
+    "RedisCacheProviderBenchmarks.GetAsync_CacheMiss": "Docker loopback jitter dominates; CoV ~36% at N=20, multimodal.",
+    "RedisCacheProviderBenchmarks.GetOrSetAsync_CacheHit": "Docker loopback jitter dominates; CoV ~46% at N=20, bimodal.",
+    "RedisCacheProviderBenchmarks.GetOrSetAsync_CacheMiss": "Factory invocation + Redis write; CoV ~18% at N=20.",
+    "RedisCacheProviderBenchmarks.RemoveAsync": "Docker loopback jitter dominates; CoV ~49% at N=20.",
+    "RedisCacheProviderBenchmarks.RemoveByPatternAsync": "SCAN + sequential DEL on 5 keys; CoV ~30% at N=20.",
+    "RedisCacheProviderBenchmarks.SetAsync": "Docker loopback jitter dominates; CoV ~30% at N=20, bimodal.",
+    "RedisCacheProviderBenchmarks.SetWithSlidingExpirationAsync": "Docker loopback jitter dominates; CoV ~41% at N=20."
+  },
+  "classes": [
+    {
+      "name": "RedisCacheProviderBenchmarks",
+      "namespace": "Encina.Caching.Redis.Benchmarks.Benchmarks",
+      "fullName": "Encina.Caching.Redis.Benchmarks.Benchmarks.RedisCacheProviderBenchmarks",
+      "file": "RedisCacheProviderBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        { "name": "ExistsAsync_False", "docRef": "bench:caching-redis/exists-false" },
+        { "name": "ExistsAsync_True", "docRef": "bench:caching-redis/exists-true" },
+        { "name": "GetAsync_CacheHit", "docRef": "bench:caching-redis/get-hit" },
+        { "name": "GetAsync_CacheMiss", "docRef": "bench:caching-redis/get-miss" },
+        { "name": "GetOrSetAsync_CacheHit", "docRef": "bench:caching-redis/getorset-hit" },
+        { "name": "GetOrSetAsync_CacheMiss", "docRef": "bench:caching-redis/getorset-miss" },
+        { "name": "RemoveAsync", "docRef": "bench:caching-redis/remove" },
+        { "name": "RemoveByPatternAsync", "docRef": "bench:caching-redis/remove-by-pattern" },
+        { "name": "SetAsync", "docRef": "bench:caching-redis/set" },
+        { "name": "SetWithSlidingExpirationAsync", "docRef": "bench:caching-redis/set-sliding" }
+      ]
+    }
+  ]
+}

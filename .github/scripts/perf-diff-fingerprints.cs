@@ -15,8 +15,8 @@
 //   Each module in `previous.modules[]` may have a `fingerprint` field. A
 //   module whose fingerprint matches the current value is unchanged; its
 //   matrix entry is removed from `changed-out` and added to `skipped-out`.
-// - `full-matrix` is the static list of all 20 benchmark projects (kept in
-//   benchmarks.yml inline). Each entry has { name, path, project, os }.
+// - `full-matrix` is the static list of every benchmark project (kept inline in
+//   benchmarks.yml). Each entry has { name, path, project, os }.
 // - A project with no previous fingerprint (new, renamed, or previous run
 //   was forced-full but didn't publish fingerprints) is treated as changed
 //   and included in the run.

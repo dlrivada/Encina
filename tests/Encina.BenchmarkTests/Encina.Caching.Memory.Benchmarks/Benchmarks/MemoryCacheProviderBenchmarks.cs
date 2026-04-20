@@ -1,24 +1,22 @@
 using BenchmarkDotNet.Attributes;
-using Encina.Caching.Hybrid;
-using Microsoft.Extensions.Caching.Hybrid;
-using Microsoft.Extensions.DependencyInjection;
+using Encina.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using MsMemoryCache = Microsoft.Extensions.Caching.Memory.MemoryCache;
+using MsMemoryCacheOptions = Microsoft.Extensions.Caching.Memory.MemoryCacheOptions;
 
-namespace Encina.Caching.Benchmarks;
+namespace Encina.Caching.Memory.Benchmarks.Benchmarks;
 
 /// <summary>
-/// Benchmarks for HybridCacheProvider operations.
+/// Benchmarks for <see cref="MemoryCacheProvider"/> operations (in-process L1 cache).
 /// </summary>
 [MemoryDiagnoser]
-// Palanca 2: iterationCount raised from 10 to 20 and warmupCount from 3 to 5 so
-// GetOrSetAsync_WithTags / RemoveByTagAsync (CoV 4-6 % at N=8-9) clear the
-// two-tier stability rule (3 % at N<10, 10 % at N>=10).
 [SimpleJob(warmupCount: 5, iterationCount: 20)]
-public class HybridCacheProviderBenchmarks : IDisposable
+[BenchmarkCategory("Unstable")]
+public class MemoryCacheProviderBenchmarks : IDisposable
 {
-    private HybridCacheProvider _provider = null!;
-    private ServiceProvider _serviceProvider = null!;
+    private MemoryCacheProvider _provider = null!;
+    private MsMemoryCache _memoryCache = null!;
     private bool _disposed;
     private string _existingKey = null!;
     private string _missingKey = null!;
@@ -27,23 +25,19 @@ public class HybridCacheProviderBenchmarks : IDisposable
     [GlobalSetup]
     public void Setup()
     {
-        var services = new ServiceCollection();
-        services.AddHybridCache();
-        services.AddDistributedMemoryCache();
-        _serviceProvider = services.BuildServiceProvider();
+        var memoryCacheOptions = Options.Create(new MsMemoryCacheOptions());
+        _memoryCache = new MsMemoryCache(memoryCacheOptions);
 
-        var hybridCache = _serviceProvider.GetRequiredService<HybridCache>();
-        var options = Options.Create(new HybridCacheProviderOptions
+        var options = Options.Create(new MemoryCacheOptions
         {
             DefaultExpiration = TimeSpan.FromMinutes(5)
         });
 
-        _provider = new HybridCacheProvider(hybridCache, options, NullLogger<HybridCacheProvider>.Instance);
+        _provider = new MemoryCacheProvider(_memoryCache, options, NullLogger<MemoryCacheProvider>.Instance);
         _existingKey = "existing-key";
         _missingKey = "missing-key";
         _testData = new TestData(Guid.NewGuid(), "Test Name", 42);
 
-        // Pre-populate cache
         _provider.SetAsync(_existingKey, _testData, TimeSpan.FromMinutes(5), CancellationToken.None)
             .GetAwaiter().GetResult();
     }
@@ -58,28 +52,28 @@ public class HybridCacheProviderBenchmarks : IDisposable
     {
         if (!_disposed)
         {
-            _serviceProvider?.Dispose();
+            _memoryCache?.Dispose();
             _disposed = true;
         }
 
         GC.SuppressFinalize(this);
     }
 
-    [BenchmarkCategory("DocRef:bench:caching/hybrid-get-hit")]
+    [BenchmarkCategory("DocRef:bench:caching-memory/get-hit")]
     [Benchmark(Baseline = true)]
     public async Task<TestData?> GetAsync_CacheHit()
     {
         return await _provider.GetAsync<TestData>(_existingKey, CancellationToken.None);
     }
 
-    [BenchmarkCategory("DocRef:bench:caching/hybrid-get-miss")]
+    [BenchmarkCategory("DocRef:bench:caching-memory/get-miss")]
     [Benchmark]
     public async Task<TestData?> GetAsync_CacheMiss()
     {
         return await _provider.GetAsync<TestData>(_missingKey, CancellationToken.None);
     }
 
-    [BenchmarkCategory("DocRef:bench:caching/hybrid-set")]
+    [BenchmarkCategory("DocRef:bench:caching-memory/set")]
     [Benchmark]
     public async Task SetAsync()
     {
@@ -87,18 +81,21 @@ public class HybridCacheProviderBenchmarks : IDisposable
         await _provider.SetAsync(key, _testData, TimeSpan.FromMinutes(5), CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/exists-true")]
     [Benchmark]
     public async Task<bool> ExistsAsync_True()
     {
         return await _provider.ExistsAsync(_existingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/exists-false")]
     [Benchmark]
     public async Task<bool> ExistsAsync_False()
     {
         return await _provider.ExistsAsync(_missingKey, CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/getorset-hit")]
     [Benchmark]
     public async Task<TestData> GetOrSetAsync_CacheHit()
     {
@@ -109,6 +106,7 @@ public class HybridCacheProviderBenchmarks : IDisposable
             CancellationToken.None);
     }
 
+    [BenchmarkCategory("DocRef:bench:caching-memory/getorset-miss")]
     [Benchmark]
     public async Task<TestData> GetOrSetAsync_CacheMiss()
     {
@@ -120,18 +118,7 @@ public class HybridCacheProviderBenchmarks : IDisposable
             CancellationToken.None);
     }
 
-    [Benchmark]
-    public async Task<TestData> GetOrSetAsync_WithTags()
-    {
-        var key = $"tagged-{Guid.NewGuid():N}";
-        return await _provider.GetOrSetAsync(
-            key,
-            _ => Task.FromResult(_testData),
-            TimeSpan.FromMinutes(5),
-            ["tag1", "tag2"],
-            CancellationToken.None);
-    }
-
+    [BenchmarkCategory("DocRef:bench:caching-memory/remove")]
     [Benchmark]
     public async Task RemoveAsync()
     {
@@ -140,24 +127,7 @@ public class HybridCacheProviderBenchmarks : IDisposable
         await _provider.RemoveAsync(key, CancellationToken.None);
     }
 
-    [Benchmark]
-    public async Task RemoveByTagAsync()
-    {
-        var tag = $"tag-{Guid.NewGuid():N}";
-        var key = $"taggeditem-{Guid.NewGuid():N}";
-
-        // Add item with tag
-        await _provider.GetOrSetAsync(
-            key,
-            _ => Task.FromResult(_testData),
-            TimeSpan.FromMinutes(5),
-            [tag],
-            CancellationToken.None);
-
-        // Remove by tag
-        await _provider.RemoveByTagAsync(tag, CancellationToken.None);
-    }
-
+    [BenchmarkCategory("DocRef:bench:caching-memory/set-sliding")]
     [Benchmark]
     public async Task SetWithSlidingExpirationAsync()
     {
@@ -170,3 +140,6 @@ public class HybridCacheProviderBenchmarks : IDisposable
             CancellationToken.None);
     }
 }
+
+/// <summary>Test data record for cache benchmarks.</summary>
+public sealed record TestData(Guid Id, string Name, int Value);

@@ -1,0 +1,53 @@
+{
+  "project": "Encina.Caching.Memory.Benchmarks",
+  "generated": "2026-04-14T00:00:00.0000000Z",
+  "totalClasses": 1,
+  "totalMethods": 9,
+  "targets": {
+    "$comment": "Baselines captured 2026-04-14 on i9-13900KS (Windows) via --job short. Targets apply ~3x headroom on mean and ~1.5x on allocated bytes to absorb ubuntu-latest runner slowdown. Revisit after first CI run.",
+    "ExistsAsync_False.mean_ns_max": 72,
+    "ExistsAsync_False.allocated_bytes_max": 16,
+    "ExistsAsync_True.mean_ns_max": 76,
+    "ExistsAsync_True.allocated_bytes_max": 16,
+    "GetAsync_CacheHit.mean_ns_max": 100,
+    "GetAsync_CacheHit.allocated_bytes_max": 220,
+    "GetAsync_CacheMiss.mean_ns_max": 71,
+    "GetAsync_CacheMiss.allocated_bytes_max": 16,
+    "GetOrSetAsync_CacheHit.mean_ns_max": 140,
+    "GetOrSetAsync_CacheHit.allocated_bytes_max": 420,
+    "GetOrSetAsync_CacheMiss.mean_ns_max": 8100,
+    "GetOrSetAsync_CacheMiss.allocated_bytes_max": 1620,
+    "RemoveAsync.mean_ns_max": 2130,
+    "RemoveAsync.allocated_bytes_max": 1180,
+    "SetAsync.mean_ns_max": 5800,
+    "SetAsync.allocated_bytes_max": 1100,
+    "SetWithSlidingExpirationAsync.mean_ns_max": 6000,
+    "SetWithSlidingExpirationAsync.allocated_bytes_max": 1210
+  },
+  "stabilityOverrides": {
+    "$comment": "Keys are matched as 'ClassName.Method' or 'ClassName.Method(Params)'. Matching entries are excluded from the stable/unstable headline ratio and from regression detection.",
+    "MemoryCacheProviderBenchmarks.SetWithSlidingExpirationAsync": "Timer-backed sliding expiration introduces real scheduler noise; CoV ~13% at N=20 does not settle with more iterations.",
+    "MemoryCacheProviderBenchmarks.SetAsync": "MemoryCache write path is bimodal on BDN MultimodalDistribution detector; CoV ~14% at N=20 is inherent to allocation pressure on shared CI runner.",
+    "MemoryCacheProviderBenchmarks.GetOrSetAsync_CacheMiss": "Factory-invocation + cache population is bimodal (BDN MultimodalDistribution); CoV ~14% at N=20 does not stabilize."
+  },
+  "classes": [
+    {
+      "name": "MemoryCacheProviderBenchmarks",
+      "namespace": "Encina.Caching.Memory.Benchmarks.Benchmarks",
+      "fullName": "Encina.Caching.Memory.Benchmarks.Benchmarks.MemoryCacheProviderBenchmarks",
+      "file": "MemoryCacheProviderBenchmarks.cs",
+      "hasMemoryDiagnoser": true,
+      "methods": [
+        { "name": "ExistsAsync_False", "docRef": "bench:caching-memory/exists-false" },
+        { "name": "ExistsAsync_True", "docRef": "bench:caching-memory/exists-true" },
+        { "name": "GetAsync_CacheHit", "docRef": "bench:caching-memory/get-hit" },
+        { "name": "GetAsync_CacheMiss", "docRef": "bench:caching-memory/get-miss" },
+        { "name": "GetOrSetAsync_CacheHit", "docRef": "bench:caching-memory/getorset-hit" },
+        { "name": "GetOrSetAsync_CacheMiss", "docRef": "bench:caching-memory/getorset-miss" },
+        { "name": "RemoveAsync", "docRef": "bench:caching-memory/remove" },
+        { "name": "SetAsync", "docRef": "bench:caching-memory/set" },
+        { "name": "SetWithSlidingExpirationAsync", "docRef": "bench:caching-memory/set-sliding" }
+      ]
+    }
+  ]
+}
