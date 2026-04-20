@@ -31,7 +31,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2/2025Update/HudsonValle
 | **ExistsAsync_True** ⚠ | 1.03 ms | 592 B | `bench:caching-redis/exists-true` | `EXISTS` command (hit) |
 | **ExistsAsync_False** ⚠ | ~1 ms | ~592 B | `bench:caching-redis/exists-false` | `EXISTS` command (miss) |
 | **GetOrSetAsync_CacheHit** ⚠ | 1.69 ms | 1,432 B | `bench:caching-redis/getorset-hit` | Hit path: read-only |
-| **GetOrSetAsync_CacheMiss** ⚠ | 5.52 ms | 3,256 B | `bench:caching-redis/getorset-miss` | `GET` + factory + `SET` pipeline |
+| **GetOrSetAsync_CacheMiss** ⚠ | 5.52 ms | 3,256 B | `bench:caching-redis/getorset-miss` | Sequential miss path: `GET` + lock + factory + `SET` |
 | **SetAsync** ⚠ | 1.35 ms | 1,016 B | `bench:caching-redis/set` | JSON serialize + `SET` with EX |
 | **SetWithSlidingExpirationAsync** ⚠ | 1.75 ms | 1,696 B | `bench:caching-redis/set-sliding` | `SET` with absolute expiration + sliding metadata |
 | **RemoveAsync** ⚠ | ~1 ms | ~1,000 B | `bench:caching-redis/remove` | Pure `DEL` (seeding isolated to `IterationSetup`) |
