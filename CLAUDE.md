@@ -582,7 +582,7 @@ Maintain high-quality test coverage that balances thoroughness with development 
 - **Line Coverage**: ≥85% (target for overall codebase)
 - **Branch Coverage**: ≥80% (target for overall codebase)
 - **Method Coverage**: ≥90% (target for overall codebase)
-- **Mutation Score**: tracked per-file on the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/) — there is no project-wide target. Each weekly run mutates one folder from a 17-entry rotation (see [methodology](docs/testing/mutation-measurement-methodology.md)) and results accumulate per-file.
+- **Mutation Score**: tracked per-file on the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/) — there is no project-wide target. Each weekly run mutates all 17 `src/Encina/` folders in parallel as a GitHub Actions matrix (see [methodology](docs/testing/mutation-measurement-methodology.md)) and results accumulate per-file.
 
 #### Per-Flag Coverage System (Obligations Model) — CRITICAL
 
@@ -658,13 +658,14 @@ Choose test types based on risk and value. Not every piece of code needs all tes
 
 #### Mutation Testing System
 
-The Mutation Tests workflow runs Stryker.NET weekly against a rotating subset of `src/Encina/` folders (17 entries, ISO-week selection). Results accumulate per-file across runs into a single dashboard at <https://dlrivada.github.io/Encina/mutations/>.
+The Mutation Tests workflow runs Stryker.NET weekly across all 17 `src/Encina/` folders in a parallel GitHub Actions matrix. Results accumulate per-file across runs into a single dashboard at <https://dlrivada.github.io/Encina/mutations/>.
 
 Key facts to know before touching anything mutation-related:
 
-- **Coverage analysis is `off`** in `stryker-config.json` because xUnit v3 + Stryker `perTest` mode is broken upstream ([stryker-net#3117](https://github.com/stryker-mutator/stryker-net/issues/3117)). All runs use `AllTests` mode, which is why scope rotation is needed instead of a full project run.
-- **Folder rotation** is in `.github/workflows/mutation-tests.yml` under "Select mutation scope". Each entry must produce ≤ ~80 mutants to fit the 350-min job timeout.
-- **Accumulation** happens in `mutation-history.cs --merge-from`. The publish workflow fetches the previous `latest.json` from Pages, the script carries forward per-file data for files this run did not touch, and the overall score is recomputed across the merged set.
+- **Coverage analysis is `off`** in `stryker-config.json` because xUnit v3 + Stryker `perTest` mode is broken upstream ([stryker-net#3117](https://github.com/stryker-mutator/stryker-net/issues/3117)). All runs use `AllTests` mode, which is why scope sharding is needed instead of a single full-project run.
+- **Per-folder test filter** bypasses the upstream bug's cost (see [#1027](https://github.com/dlrivada/Encina/issues/1027)). Each shard pairs a folder with a test-namespace substring and patches `stryker-config.json` (`test-case-filter` property) via `jq` before invoking Stryker — Stryker.NET 4.14 only honors this setting from the config file, not the CLI ([stryker-net#3091](https://github.com/stryker-mutator/stryker-net/issues/3091)). Each mutant runs ~20–500 tests instead of ~23,000. When adding or renaming a folder in `FOLDERS`, update the parallel `FILTERS` array in the same step (an empty entry means "no override — use the config default").
+- **Matrix execution** (see [#1028](https://github.com/dlrivada/Encina/issues/1028)) lives in `.github/workflows/mutation-tests.yml`. The `select-matrix` job emits a 17-entry JSON array by default; `run-mutation-tests` is a matrix job with `fail-fast: false` and job-level `continue-on-error: true` so a single shard's failure doesn't fail the workflow. `aggregate` merges every `mutation-report-shard-*` artifact via `jq -s '(.[0]) + {files: (map(.files) | add)}'` into a single `mutation-report` artifact — the shape `publish-mutations.yml` consumes. `workflow_dispatch` inputs (`custom_scope`, `diff_mode`, `full_mode`) collapse the matrix to 1 shard.
+- **Accumulation** happens in `mutation-history.cs --merge-from`. The publish workflow fetches the previous `latest.json` from Pages, the script carries forward per-file data for files this run did not touch, and the overall score is recomputed across the merged set. With matrix execution the carry-forward layer mostly survives intermittent shard failures — if a shard fails, the prior week's data for that folder persists until the next successful run.
 - **Citation system** mirrors the performance dashboard's docref pattern. DocRef IDs are `mut:<package>/<path>`. Markers are `<!-- mutref-table: pattern -->` (block) and `<!-- mutref: id:field -->` (inline). `mut-docs-render.cs` expands them in `docs/` + `src/`. The reverse index lives in `docs/mutations/data/cited-by.json` and the dashboard surfaces it as the "Cited In" column.
 - **Methodology** (formulas, constraints, citation spec) is in [`docs/testing/mutation-measurement-methodology.md`](docs/testing/mutation-measurement-methodology.md). Practical guide is [`docs/en/guides/MUTATION_TESTING.md`](docs/en/guides/MUTATION_TESTING.md).
 

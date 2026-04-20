@@ -1,20 +1,49 @@
 name: Documentation
 
-# Disabled: docs/docfx.json was removed (site is static HTML via GitHub Pages, not DocFX).
-# Re-enable when DocFX API documentation is restored.
+# Builds the documentation site (Jekyll narrative + DocFX API reference)
+# and deploys to GitHub Pages. See issue #91 for the hybrid architecture.
+#
+# Scopes:
+#   Jekyll  -> docs/**/*.md (just-the-docs theme, narrative content)
+#   DocFX   -> src/**/*.csproj (API reference from XML comments) -> /api/
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'src/**/*.cs'
+      - 'src/**/*.csproj'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'src/**/*.cs'
+      - 'src/**/*.csproj'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
+
+    # configure-pages@v5 needs pages:write to enable the Pages environment.
+    # id-token is only required by deploy-pages@v5 (deploy job) — don't
+    # grant OIDC to PR validation runs.
     permissions:
       contents: read
+      pages: write
 
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -35,27 +64,106 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Encina.slnx
 
-      - name: Build solution
+      - name: Build solution (XML docs generation)
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Generate API metadata
-        run: dotnet docfx metadata docs/docfx.json
+      - name: Generate API metadata (DocFX)
+        run: dotnet docfx metadata docs/docfx.json --warningsAsErrors false
 
-      - name: Build documentation site
-        run: dotnet docfx build docs/docfx.json
+      - name: Build API reference site (DocFX)
+        run: dotnet docfx build docs/docfx.json --warningsAsErrors false
 
-      - name: Upload artifact
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build Jekyll site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+          future: false
+          verbose: false
+
+      - name: Fix _site ownership
+        # jekyll-build-pages@v1 runs inside a Docker container and writes
+        # _site/ as a different UID/GID, so subsequent native steps cannot
+        # modify it. Reclaim ownership for the runner user before merging.
+        shell: bash
+        run: sudo chown -R "$USER:$USER" _site
+
+      - name: Preserve sibling Pages subtrees
+        # Multiple publish-* workflows share a single gh-pages deployment target
+        # (/coverage, /benchmarks, /load-tests, /mutations). Their data files
+        # (latest.json, history.json, …) AND badge artifacts (badge.svg,
+        # badge.json) are written at deploy-time only — not committed to main.
+        # Overlay the live Pages copies so our docs deploy does not wipe them.
+        # Mirrors the pattern in publish-benchmarks.yml (lines 311-333).
+        # Gated to main-only to avoid wasting network calls on PR validation
+        # (the deploy step is also main-only, so preservation is moot on PR).
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          for domain in coverage benchmarks load-tests mutations; do
+            echo "Fetching live $domain data from Pages (to preserve across deploy)..."
+            mkdir -p "_site/$domain/data"
+            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
+              url="https://dlrivada.github.io/Encina/$domain/data/$file"
+              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
+                echo "  ✓ $domain/data/$file"
+              else
+                rm -f "_site/$domain/data/$file.new"
+                echo "  - $domain/data/$file (not on Pages)"
+              fi
+            done
+            # Badges live at /<domain>/badge.{svg,json} (referenced from README).
+            # Only coverage+benchmarks currently generate them, but loop harmlessly.
+            for badge in badge.svg badge.json; do
+              url="https://dlrivada.github.io/Encina/$domain/$badge"
+              if curl -fsSL -o "_site/$domain/$badge.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/$badge.new" "_site/$domain/$badge"
+                echo "  ✓ $domain/$badge"
+              else
+                rm -f "_site/$domain/$badge.new"
+              fi
+            done
+          done
+
+      - name: Merge DocFX API reference into Jekyll site
+        shell: bash
+        run: |
+          if [ ! -d docs/_api-build ] || [ -z "$(ls -A docs/_api-build 2>/dev/null)" ]; then
+            echo "::error::DocFX output directory docs/_api-build is missing or empty"
+            exit 1
+          fi
+          if [ ! -f docs/_api-build/index.html ]; then
+            echo "::error::DocFX output docs/_api-build/index.html not found — build produced no landing page"
+            exit 1
+          fi
+          mkdir -p _site/api
+          cp -r docs/_api-build/. _site/api/
+          file_count=$(find _site/api -maxdepth 1 -type f | wc -l)
+          echo "API reference merged into _site/api/ ($file_count files at root)"
+          ls _site/api/index.html _site/api/favicon.ico
+
+      - name: Upload Pages artifact
+        # Only upload when we intend to deploy (main branch). Skipping on PR
+        # avoids avoidable failures for forked PRs (where Pages upload is
+        # restricted) and keeps PR validation limited to build correctness.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4
         with:
-          path: docs/_site
+          path: ./_site
 
   deploy:
     name: Deploy to GitHub Pages
     needs: build-docs
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only deploy from main to prevent workflow_dispatch overwriting Pages from
+    # feature branches. Skips on PRs (build-only validation).
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       pages: write
       id-token: write
 

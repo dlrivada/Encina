@@ -10,6 +10,13 @@ url: https://dlrivada.github.io
 baseurl: /Encina
 
 aux_links:
+  # just-the-docs does NOT apply relative_url/baseurl to aux_links targets
+  # (contrary to common assumptions — verified by observing the rendered HTML
+  # which emits href="/api/" verbatim). The absolute path MUST include the
+  # baseurl explicitly, otherwise clicking the link goes to
+  # https://dlrivada.github.io/api/ (404) instead of .../Encina/api/.
+  "API Reference":
+    - /Encina/api/
   "GitHub":
     - https://github.com/dlrivada/Encina
 
@@ -50,3 +57,9 @@ exclude:
   - configuration/
   - security/
   - coverage/data/.gitkeep
+  # DocFX artifacts (API reference is built separately and merged into _site/api/ by CI)
+  - docfx.json
+  - filterConfig.yml
+  - _api-build/
+  - _api-landing/
+  - api/

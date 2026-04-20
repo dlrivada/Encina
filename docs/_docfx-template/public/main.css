@@ -1,0 +1,22 @@
+/*
+ * Custom overrides on top of DocFX modern template.
+ * This file replaces the empty main.css shipped by the modern template
+ * (via the template chain in docfx.json).
+ */
+
+/*
+ * Namespace dropdown in the header only.
+ *
+ * DocFX modern builds the namespace switcher as a Bootstrap 5 dropdown from
+ * the TOC. With a large library (Encina has ~110 public namespaces) the
+ * rendered menu overflows the viewport and there's no way to scroll to
+ * items near the end. Constrain the height and enable inner scroll.
+ *
+ * Scoped to `header .navbar` to avoid affecting other Bootstrap dropdowns
+ * on the site (e.g. autocomplete/typeahead menus rendered elsewhere).
+ */
+header .navbar .dropdown-menu {
+  max-height: 80vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
