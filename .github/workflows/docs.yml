@@ -38,6 +38,13 @@ jobs:
     name: Build Documentation
     runs-on: ubuntu-latest
 
+    # actions/configure-pages@v5 and upload-pages-artifact@v4 need Pages access
+    # in the build job; id-token is used by the deploy job but must flow through.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
@@ -78,9 +85,36 @@ jobs:
           future: false
           verbose: false
 
+      - name: Preserve sibling Pages subtrees
+        # Multiple publish-* workflows share a single gh-pages deployment target
+        # (/coverage, /benchmarks, /load-tests, /mutations). Their latest.json
+        # and derived data files are written at deploy-time only (not committed
+        # to main). Overlay the live Pages copies so our docs deploy does not
+        # wipe newer data. Mirrors the pattern in publish-coverage.yml etc.
+        shell: bash
+        run: |
+          for domain in coverage benchmarks load-tests mutations; do
+            echo "Fetching live $domain data from Pages (to preserve across deploy)..."
+            mkdir -p "_site/$domain/data"
+            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
+              url="https://dlrivada.github.io/Encina/$domain/data/$file"
+              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
+                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
+                echo "  ✓ $domain/$file"
+              else
+                rm -f "_site/$domain/data/$file.new"
+                echo "  - $domain/$file (not on Pages)"
+              fi
+            done
+          done
+
       - name: Merge DocFX API reference into Jekyll site
         shell: bash
         run: |
+          if [ ! -d docs/_api-build ] || [ -z "$(ls -A docs/_api-build 2>/dev/null)" ]; then
+            echo "::error::DocFX output directory docs/_api-build is missing or empty"
+            exit 1
+          fi
           if [ ! -f docs/_api-build/index.html ]; then
             echo "::error::DocFX output docs/_api-build/index.html not found — build produced no landing page"
             exit 1
@@ -98,7 +132,9 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build-docs
-    if: github.event_name != 'pull_request'
+    # Only deploy from main to prevent workflow_dispatch overwriting Pages from
+    # feature branches. Skips on PRs (build-only validation).
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
