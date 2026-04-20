@@ -5,7 +5,7 @@ title: API Reference
 
 # Encina API Reference
 
-Complete API reference for all 112 Encina packages, auto-generated from XML documentation comments.
+Complete API reference for Encina packages, auto-generated from XML documentation comments.
 
 ## Navigating the reference
 
