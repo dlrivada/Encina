@@ -92,6 +92,9 @@ jobs:
         # badge.json) are written at deploy-time only — not committed to main.
         # Overlay the live Pages copies so our docs deploy does not wipe them.
         # Mirrors the pattern in publish-benchmarks.yml (lines 311-333).
+        # Gated to main-only to avoid wasting network calls on PR validation
+        # (the deploy step is also main-only, so preservation is moot on PR).
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           for domain in coverage benchmarks load-tests mutations; do
