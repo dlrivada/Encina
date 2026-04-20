@@ -351,16 +351,28 @@ jobs:
         id: stryker-report
         if: always()
         run: |
-          # Stryker writes to artifacts/mutation/reports/ or artifacts/mutation/{timestamp}/reports/.
-          if [ -f "artifacts/mutation/reports/mutation-report.json" ]; then
-            echo "reports-dir=artifacts/mutation/reports" >> "$GITHUB_OUTPUT"
-            echo "summary-file=artifacts/mutation/reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
-          else
-            latest=$(ls -d artifacts/mutation/*/ 2>/dev/null | grep -v reports | sort | tail -n 1)
-            if [ -n "$latest" ] && [ -f "${latest}reports/mutation-report.json" ]; then
-              echo "reports-dir=${latest}reports" >> "$GITHUB_OUTPUT"
-              echo "summary-file=${latest}reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
-            fi
+          # Stryker writes the report to one of:
+          #   - artifacts/mutation/reports/mutation-report.json (direct)
+          #   - artifacts/mutation/<timestamp>/reports/mutation-report.json
+          #     (when it adds a timestamp subdirectory)
+          # Because run-stryker.cs also passes `--log-to-file`, Stryker
+          # creates artifacts/mutation/logs/ — that directory sorts
+          # lexicographically AFTER numeric timestamps, so a naive
+          # "newest subdirectory under artifacts/mutation" lookup picks
+          # `logs/` and silently misses the real report (reported by
+          # Copilot on #1030).
+          #
+          # Search directly for any mutation-report.json under a
+          # `reports/` subdirectory anywhere beneath artifacts/mutation.
+          # `-printf '%T@ %p\n'` + `sort -rn` picks the newest by mtime
+          # so timestamped runs are unambiguous; paths with spaces are
+          # handled because cut -f2- keeps everything after the epoch.
+          # GNU find is available on ubuntu-latest.
+          report=$(find artifacts/mutation -type f -name "mutation-report.json" -path "*/reports/*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)
+          if [ -n "$report" ]; then
+            reports_dir=$(dirname "$report")
+            echo "reports-dir=$reports_dir" >> "$GITHUB_OUTPUT"
+            echo "summary-file=$reports_dir/mutation-report.txt" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish shard text summary
