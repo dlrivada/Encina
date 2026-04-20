@@ -14,6 +14,7 @@ on:
       - 'src/**/*.cs'
       - 'src/**/*.csproj'
       - 'Directory.Build.props'
+      - 'Directory.Build.targets'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
@@ -21,6 +22,7 @@ on:
       - 'src/**/*.cs'
       - 'src/**/*.csproj'
       - 'Directory.Build.props'
+      - 'Directory.Build.targets'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -79,14 +81,14 @@ jobs:
       - name: Merge DocFX API reference into Jekyll site
         shell: bash
         run: |
-          if [ ! -d docs/_api-build/api ]; then
-            echo "::error::DocFX site output directory docs/_api-build/api not found"
+          if [ ! -f docs/_api-build/index.html ]; then
+            echo "::error::DocFX output docs/_api-build/index.html not found — build produced no landing page"
             exit 1
           fi
           mkdir -p _site/api
-          cp -r docs/_api-build/api/. _site/api/
-          echo "API reference merged from docs/_api-build/api into _site/api/"
-          ls -la _site/api/ | head -20
+          cp -r docs/_api-build/. _site/api/
+          echo "API reference merged into _site/api/"
+          ls _site/api/ | head -10
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
