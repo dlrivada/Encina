@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       diff_mode:
-        description: "Only mutate files changed since main (faster PR-style runs)"
+        description: "Only mutate files changed since main (collapses matrix to 1 shard)"
         type: boolean
         default: false
       full_mode:
-        description: "Mutate ALL files (very slow — hours). Default: only recent changes."
+        description: "Mutate ALL files in one shard (very slow). Default: 17-shard matrix."
         type: boolean
         default: false
       custom_scope:
-        description: "Override mutation scope glob (e.g. **/Pipeline/Behaviors/*.cs). Overrides rotation."
+        description: "Override mutation scope glob (collapses matrix to 1 shard). e.g. **/Pipeline/Behaviors/*.cs"
         type: string
         default: ""
   schedule:
@@ -22,14 +22,214 @@ on:
 permissions:
   contents: read
 
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_SDK_VERSION: '10.0.x'
+
 jobs:
-  run-mutation-tests:
+  # Phase 1 — Select matrix shards.
+  #
+  # Default (scheduled run, or dispatch without overrides): emits 17 shard
+  # entries, one per rotation folder. Every weekly run now mutates the entire
+  # src/Encina/Encina.csproj in parallel instead of one folder per ISO-week.
+  #
+  # Dispatch overrides (custom_scope / full_mode / diff_mode) collapse the
+  # matrix to a single shard so operators can target narrow scopes without
+  # spawning 17 parallel runners.
+  select-matrix:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
-    env:
-      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-      DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+      mode: ${{ steps.build.outputs.mode }}
+      shard_count: ${{ steps.build.outputs.shard_count }}
+    steps:
+      - name: Build matrix
+        id: build
+        # workflow_dispatch inputs pass through env: instead of being
+        # interpolated into the script via ${{ }}. Direct interpolation
+        # of user-controlled inputs is the classic GitHub Actions script
+        # injection vector (see GitHub Security hardening guide). With
+        # env: bash consumes the values as variables, not as literal text
+        # expanded at template time.
+        env:
+          CUSTOM_SCOPE: ${{ inputs.custom_scope }}
+          FULL_MODE: ${{ inputs.full_mode }}
+          DIFF_MODE: ${{ inputs.diff_mode }}
+        run: |
+          # Keep FOLDERS and FILTERS in lock-step: each rotation entry pairs
+          # a mutation scope glob with a VSTest --test-case-filter substring
+          # (or empty to use the stryker-config.json default). See
+          # docs/testing/mutation-measurement-methodology.md for the full
+          # edge-case notes — especially the rationale for root-namespace
+          # fallbacks and overly broad substrings.
+          FOLDERS=(
+            "**/Core/*.cs"
+            "**/Pipeline/Behaviors/*.cs"
+            "**/Pipeline/*.cs"
+            "**/Dispatchers/Strategies/*.cs"
+            "**/Validation/*.cs"
+            "**/Sharding/Migrations/Strategies/*.cs"
+            "**/Sharding/Routing/*.cs"
+            "**/Sharding/ReplicaSelection/*.cs"
+            "**/Sharding/Execution/*.cs"
+            "**/Sharding/Shadow/**/*.cs"
+            "**/Sharding/Colocation/*.cs"
+            "**/Sharding/TimeBased/*.cs"
+            "**/Sharding/Resharding/Phases/*.cs"
+            "**/Sharding/Diagnostics/*.cs"
+            "**/Modules/Isolation/*.cs"
+            "**/Results/*.cs"
+            "**/Sharding/Health/*.cs"
+          )
+          FILTERS=(
+            "Encina.UnitTests.Core|Encina.ContractTests.Core"
+            "Pipeline.Behaviors|Core.Pipeline"
+            "Pipeline"
+            "Dispatchers.Strategies"
+            "Core.Validation"
+            "Sharding.Migrations.Strategies"
+            "Sharding.Routing"
+            "Sharding.ReplicaSelection"
+            "Sharding.Execution"
+            "Sharding.Shadow"
+            "Sharding.Colocation"
+            "Sharding.TimeBased"
+            "Sharding.Resharding"
+            "Sharding.Diagnostics"
+            "Modules.Isolation"
+            ""
+            "Sharding.Health"
+          )
+
+          if [ "${#FOLDERS[@]}" -ne "${#FILTERS[@]}" ]; then
+            echo "::error::FOLDERS (${#FOLDERS[@]}) and FILTERS (${#FILTERS[@]}) must have the same length" >&2
+            exit 1
+          fi
+
+          if [ -n "$CUSTOM_SCOPE" ]; then
+            # Custom scope: reuse paired filter if the glob matches a rotation entry.
+            FILTER=""
+            for i in "${!FOLDERS[@]}"; do
+              if [ "${FOLDERS[$i]}" = "$CUSTOM_SCOPE" ]; then
+                FILTER="${FILTERS[$i]}"
+                break
+              fi
+            done
+            MATRIX=$(jq -nc --arg scope "$CUSTOM_SCOPE" --arg filter "$FILTER" \
+              '[{idx: "custom", scope: $scope, filter: $filter}]')
+            MODE="custom"
+          elif [ "$FULL_MODE" = "true" ]; then
+            MATRIX=$(jq -nc '[{idx: "full", scope: "**/*.cs", filter: ""}]')
+            MODE="full"
+          elif [ "$DIFF_MODE" = "true" ]; then
+            MATRIX=$(jq -nc '[{idx: "diff", scope: "**/*.cs", filter: ""}]')
+            MODE="diff"
+          else
+            # Default: emit all 17 rotation entries as matrix shards.
+            ENTRIES=""
+            for i in "${!FOLDERS[@]}"; do
+              ENTRY=$(jq -nc --arg idx "$i" --arg scope "${FOLDERS[$i]}" --arg filter "${FILTERS[$i]}" \
+                '{idx: $idx, scope: $scope, filter: $filter}')
+              if [ -z "$ENTRIES" ]; then
+                ENTRIES="$ENTRY"
+              else
+                ENTRIES="$ENTRIES,$ENTRY"
+              fi
+            done
+            MATRIX="[$ENTRIES]"
+            MODE="matrix"
+          fi
+
+          COUNT=$(echo "$MATRIX" | jq 'length')
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "shard_count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Mode: $MODE"
+          echo "Shard count: $COUNT"
+          echo "Matrix:"
+          echo "$MATRIX" | jq .
+
+  # Diagnostic baseline — runs once in parallel with the matrix instead of
+  # once per shard. Stryker auto-discovers every test project that references
+  # src/Encina/Encina.csproj; this step surfaces which project owns any
+  # "unable to test" failures Stryker reports.
+  test-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget
+
+      - name: Restore
+        run: dotnet restore Encina.slnx
+
+      - name: Build
+        run: dotnet build Encina.slnx --configuration Release --no-restore
+
+      - name: Run Stryker test projects (diagnostic baseline)
+        run: |
+          mkdir -p artifacts/test-baseline
+          for proj in \
+            tests/Encina.UnitTests/Encina.UnitTests.csproj \
+            tests/Encina.PropertyTests/Encina.PropertyTests.csproj \
+            tests/Encina.ContractTests/Encina.ContractTests.csproj \
+            tests/Encina.GuardTests/Encina.GuardTests.csproj \
+            tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj \
+            tests/Encina.LoadTests/Encina.LoadTests.csproj \
+            tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj; do
+            name=$(basename "$proj" .csproj)
+            echo "::group::$name"
+            dotnet test "$proj" \
+              --configuration Debug \
+              --logger "trx;LogFileName=${name}.trx" \
+              --results-directory artifacts/test-baseline \
+              2>&1 | tee "artifacts/test-baseline/${name}.log" || true
+            echo "::endgroup::"
+          done
+
+      - name: Upload diagnostic baseline
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-test-baseline
+          path: artifacts/test-baseline
+          if-no-files-found: ignore
+
+  # Phase 2 — Run mutation tests per shard.
+  #
+  # With fail-fast: false, a single-shard failure does not abort the other
+  # matrix entries. continue-on-error: true at the job level prevents any
+  # shard failure from failing the overall workflow conclusion, so the
+  # downstream publish-mutations workflow (which requires success) still
+  # runs as long as the aggregate job succeeds.
+  run-mutation-tests:
+    needs: select-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.select-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -68,171 +268,49 @@ jobs:
       - name: Restore .NET tools
         run: dotnet tool restore
 
-      - name: Run Stryker test projects (diagnostic baseline)
-        id: test-baseline
-        continue-on-error: true
-        run: |
-          mkdir -p artifacts/test-baseline
-          # Stryker auto-discovers every test project that references the mutated
-          # project (src/Encina/Encina.csproj), not just the ones listed under
-          # stryker-config.json:test-projects. Run all of them here so we know
-          # which one owns the 76 failures Stryker reports.
-          for proj in \
-            tests/Encina.UnitTests/Encina.UnitTests.csproj \
-            tests/Encina.PropertyTests/Encina.PropertyTests.csproj \
-            tests/Encina.ContractTests/Encina.ContractTests.csproj \
-            tests/Encina.GuardTests/Encina.GuardTests.csproj \
-            tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj \
-            tests/Encina.LoadTests/Encina.LoadTests.csproj \
-            tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj; do
-            name=$(basename "$proj" .csproj)
-            echo "::group::$name"
-            dotnet test "$proj" \
-              --configuration Debug \
-              --logger "trx;LogFileName=${name}.trx" \
-              --results-directory artifacts/test-baseline \
-              2>&1 | tee "artifacts/test-baseline/${name}.log" || true
-            echo "::endgroup::"
-          done
-
-      - name: Upload diagnostic baseline
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: mutation-test-baseline
-          path: artifacts/test-baseline
-          if-no-files-found: ignore
-
-      - name: Select mutation scope
-        id: scope
-        run: |
-          # Without perTest coverage (xUnit v3 + Stryker, see stryker-mutator/
-          # stryker-net#3117), AllTests mode runs ~23k tests per mutant.
-          # Stryker also loads ALL 6,181 mutants into RAM during creation even
-          # with --since, causing OOM on the 7GB runner.
-          #
-          # Strategy: restrict the --mutate glob to one folder at a time AND
-          # narrow --test-case-filter to only the tests that mirror that folder's
-          # namespace. Schedule rotates weekly; dispatch can override.
-          #
-          # Each folder produces ~30-150 mutants. With per-folder filter the
-          # tests per mutant drop from ~23k to ~20-500, so a folder run
-          # completes in ~5-10 min instead of ~3 h.
-          # Rule of thumb: ≤ 8 .cs files per entry to keep mutant count low.
-          #
-          # FILTERS is parallel to FOLDERS. Each entry is a pipe-separated list
-          # of substrings; at runtime each substring is wrapped in
-          # `FullyQualifiedName~<substring>` and joined with `|` (OR). The
-          # substrings are chosen from test-namespace segments that mirror the
-          # source folder (tests/Encina.UnitTests/Core/Sharding/Migrations/
-          # Strategies/ → `Sharding.Migrations.Strategies`).
-          #
-          # Edge cases:
-          # - `**/Core/*.cs`, `**/Pipeline/*.cs`, `**/Results/*.cs` live in
-          #   `namespace Encina` (root) so the filter falls back to the
-          #   explicit test-folder path.
-          # - `**/Pipeline/*.cs` is non-recursive but `Pipeline` substring
-          #   also matches `Pipeline.Behaviors` tests — accepted (broader is
-          #   safe; narrower would risk false negatives).
-          FOLDERS=(
-            "**/Core/*.cs"
-            "**/Pipeline/Behaviors/*.cs"
-            "**/Pipeline/*.cs"
-            "**/Dispatchers/Strategies/*.cs"
-            "**/Validation/*.cs"
-            "**/Sharding/Migrations/Strategies/*.cs"
-            "**/Sharding/Routing/*.cs"
-            "**/Sharding/ReplicaSelection/*.cs"
-            "**/Sharding/Execution/*.cs"
-            "**/Sharding/Shadow/**/*.cs"
-            "**/Sharding/Colocation/*.cs"
-            "**/Sharding/TimeBased/*.cs"
-            "**/Sharding/Resharding/Phases/*.cs"
-            "**/Sharding/Diagnostics/*.cs"
-            "**/Modules/Isolation/*.cs"
-            "**/Results/*.cs"
-            "**/Sharding/Health/*.cs"
-          )
-          # An empty filter means "no override" — Stryker uses the default
-          # `test-case-filter` from `stryker-config.json`. Use that for folders
-          # with no discoverable mirror tests (e.g. **/Results/*.cs: source
-          # files declare `namespace Encina;` and tests are scattered outside
-          # any `Results`-named namespace).
-          FILTERS=(
-            "Encina.UnitTests.Core|Encina.ContractTests.Core"
-            "Pipeline.Behaviors|Core.Pipeline"
-            "Pipeline"
-            "Dispatchers.Strategies"
-            "Core.Validation"
-            "Sharding.Migrations.Strategies"
-            "Sharding.Routing"
-            "Sharding.ReplicaSelection"
-            "Sharding.Execution"
-            "Sharding.Shadow"
-            "Sharding.Colocation"
-            "Sharding.TimeBased"
-            "Sharding.Resharding"
-            "Sharding.Diagnostics"
-            "Modules.Isolation"
-            ""
-            "Sharding.Health"
-          )
-
-          # FOLDERS and FILTERS are indexed in lock-step. A mismatch would
-          # silently pair a scope with the wrong filter, so fail fast.
-          if [ "${#FOLDERS[@]}" -ne "${#FILTERS[@]}" ]; then
-            echo "::error::FOLDERS (${#FOLDERS[@]}) and FILTERS (${#FILTERS[@]}) must have the same length" >&2
-            exit 1
-          fi
-
-          CUSTOM="${{ inputs.custom_scope }}"
-          FILTER=""
-          if [ -n "$CUSTOM" ]; then
-            SCOPE="$CUSTOM"
-            # If the custom scope matches a rotation entry, reuse its filter.
-            for i in "${!FOLDERS[@]}"; do
-              if [ "${FOLDERS[$i]}" = "$CUSTOM" ]; then
-                FILTER="${FILTERS[$i]}"
-                break
-              fi
-            done
-          elif [ "${{ inputs.full_mode }}" = "true" ]; then
-            SCOPE="**/*.cs"
-          elif [ "${{ inputs.diff_mode }}" = "true" ]; then
-            SCOPE="**/*.cs"
-          else
-            # Rotate based on ISO week number, modulo the rotation length.
-            WEEK=$(date -u +%V)
-            IDX=$(( 10#$WEEK % ${#FOLDERS[@]} ))
-            SCOPE="${FOLDERS[$IDX]}"
-            FILTER="${FILTERS[$IDX]}"
-          fi
-
-          echo "scope=$SCOPE" >> "$GITHUB_OUTPUT"
-          echo "filter=$FILTER" >> "$GITHUB_OUTPUT"
-          echo "Selected mutation scope: $SCOPE"
-          echo "Selected test filter: ${FILTER:-<none — using config default>}"
-
-      - name: Run mutation tests
+      - name: Run mutation tests (shard ${{ matrix.idx }})
         id: stryker
+        # Pass matrix fields + select-matrix outputs via env: rather than
+        # ${{ }} template interpolation. matrix.scope/matrix.filter carry
+        # the user-controlled `custom_scope` input in custom mode — an
+        # attacker-crafted value like `"; rm -rf / #` would otherwise
+        # execute in the runner shell. Same script-injection hardening as
+        # the "Build matrix" step above.
+        env:
+          MATRIX_IDX: ${{ matrix.idx }}
+          MATRIX_SCOPE: ${{ matrix.scope }}
+          MATRIX_FILTER: ${{ matrix.filter }}
+          SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
         run: |
           mkdir -p artifacts/mutation
-          SCOPE="${{ steps.scope.outputs.scope }}"
-          FILTER="${{ steps.scope.outputs.filter }}"
+          SCOPE="$MATRIX_SCOPE"
+          FILTER="$MATRIX_FILTER"
+          MODE="$SELECT_MODE"
 
-          # Build mutate args: include scope + standard exclusions
-          MUTATE_ARGS="--mutate:$SCOPE"
+          echo "Shard idx: $MATRIX_IDX"
+          echo "Scope: $SCOPE"
+          echo "Filter: ${FILTER:-<default from stryker-config.json>}"
+          echo "Mode: $MODE"
+
+          # Build --mutate args: shard scope + standard exclusions.
+          #
+          # Stored as a bash array (not a space-joined string) so every
+          # element is passed as a single argv entry when expanded via
+          # "${MUTATE_ARGS[@]}". The scope value comes from workflow_dispatch
+          # input `custom_scope` in custom mode, so an unquoted expansion
+          # would be a command-injection surface — word-splitting could let
+          # crafted whitespace in the scope spill into neighbouring args,
+          # and glob expansion could substitute matching filenames from the
+          # runner working tree.
+          MUTATE_ARGS=("--mutate:$SCOPE")
           for excl in '!**/Log.cs' '!**/LogMessages.cs' '!**/Diagnostics/*ActivitySource.cs' '!**/Diagnostics/*Metrics.cs' '!**/*Errors.cs' '!**/*Constants.cs'; do
-            MUTATE_ARGS="$MUTATE_ARGS --mutate:$excl"
+            MUTATE_ARGS+=("--mutate:$excl")
           done
 
-          # Stryker.NET 4.14 exposes `test-case-filter` only via the config
-          # file, not the CLI (stryker-mutator/stryker-net#3091). To override
-          # per-folder, patch `.github/stryker-config.json` in place before
-          # invoking Stryker. Build the VSTest filter expression by wrapping
-          # each pipe-separated substring in `FullyQualifiedName~<substring>`
-          # joined with `|` (OR). CI runners are ephemeral, so the in-place
-          # edit does not leak into tracked state.
+          # Stryker.NET 4.14 exposes test-case-filter only via the config file,
+          # not the CLI (stryker-mutator/stryker-net#3091). Patch the config
+          # in place before invoking Stryker. CI runners are ephemeral, so
+          # the in-place edit does not leak into tracked state.
           if [ -n "$FILTER" ]; then
             IFS='|' read -ra FILTER_PARTS <<< "$FILTER"
             TCF=""
@@ -252,71 +330,181 @@ jobs:
             echo "No FILTER set; using stryker-config.json default test-case-filter"
           fi
 
-          if [ "${{ inputs.diff_mode }}" = "true" ]; then
-            echo "Mode: diff (vs main)"
-            dotnet run --file .github/scripts/run-stryker.cs -- --since:main $MUTATE_ARGS
-          elif [ "${{ inputs.full_mode }}" = "true" ]; then
-            echo "Mode: full (all files — will take hours)"
-            dotnet run --file .github/scripts/run-stryker.cs
+          # Always expand MUTATE_ARGS via "${MUTATE_ARGS[@]}" (quoted) so
+          # each array element becomes exactly one argv entry — no word
+          # splitting, no glob expansion.
+          if [ "$MODE" = "diff" ]; then
+            echo "Running diff mode (vs main)"
+            dotnet run --file .github/scripts/run-stryker.cs -- --since:main "${MUTATE_ARGS[@]}"
+          elif [ "$MODE" = "full" ]; then
+            echo "Running full mode (all files — will exceed the 60-min shard timeout)"
+            # Pass MUTATE_ARGS so the CLI exclusion list stays the single
+            # source of truth; otherwise full_mode would silently drift if
+            # MUTATE_ARGS gains an exclusion the config file does not have.
+            dotnet run --file .github/scripts/run-stryker.cs -- "${MUTATE_ARGS[@]}"
           else
-            echo "Mode: weekly rotation (scope: $SCOPE)"
-            dotnet run --file .github/scripts/run-stryker.cs -- $MUTATE_ARGS
+            echo "Running shard scope: $SCOPE"
+            dotnet run --file .github/scripts/run-stryker.cs -- "${MUTATE_ARGS[@]}"
           fi
 
-      - name: Upload Stryker logs
+      - name: Locate mutation report
+        id: stryker-report
+        if: always()
+        run: |
+          # Stryker writes the report to one of:
+          #   - artifacts/mutation/reports/mutation-report.json (direct)
+          #   - artifacts/mutation/<timestamp>/reports/mutation-report.json
+          #     (when it adds a timestamp subdirectory)
+          # Because run-stryker.cs also passes `--log-to-file`, Stryker
+          # creates artifacts/mutation/logs/ — that directory sorts
+          # lexicographically AFTER numeric timestamps, so a naive
+          # "newest subdirectory under artifacts/mutation" lookup picks
+          # `logs/` and silently misses the real report (reported by
+          # Copilot on #1030).
+          #
+          # Search directly for any mutation-report.json under a
+          # `reports/` subdirectory anywhere beneath artifacts/mutation.
+          # `-printf '%T@ %p\n'` + `sort -rn` picks the newest by mtime
+          # so timestamped runs are unambiguous; paths with spaces are
+          # handled because cut -f2- keeps everything after the epoch.
+          # GNU find is available on ubuntu-latest.
+          report=$(find artifacts/mutation -type f -name "mutation-report.json" -path "*/reports/*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)
+          if [ -n "$report" ]; then
+            reports_dir=$(dirname "$report")
+            echo "reports-dir=$reports_dir" >> "$GITHUB_OUTPUT"
+            echo "summary-file=$reports_dir/mutation-report.txt" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish shard text summary
+        if: steps.stryker-report.outputs.summary-file != ''
+        # matrix.scope carries user input in custom mode; the value only
+        # reaches the job summary (no shell execution), but passing via
+        # env: keeps the hardening consistent and prevents a future edit
+        # from accidentally evaluating it.
+        env:
+          MATRIX_IDX: ${{ matrix.idx }}
+          MATRIX_SCOPE: ${{ matrix.scope }}
+          SUMMARY_FILE: ${{ steps.stryker-report.outputs.summary-file }}
+        run: |
+          if [ -f "$SUMMARY_FILE" ]; then
+            {
+              echo "### Mutation Report — Shard ${MATRIX_IDX} (\`${MATRIX_SCOPE}\`)";
+              echo '```';
+              cat "$SUMMARY_FILE";
+              echo '```';
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload shard mutation report
+        if: steps.stryker-report.outputs.reports-dir != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report-shard-${{ matrix.idx }}
+          path: ${{ steps.stryker-report.outputs.reports-dir }}
+          if-no-files-found: error
+
+      - name: Upload Stryker logs (shard ${{ matrix.idx }})
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: stryker-logs
+          name: stryker-logs-shard-${{ matrix.idx }}
           path: artifacts/mutation/logs
           if-no-files-found: ignore
 
-      - name: Summarize mutation results
+  # Phase 3 — Aggregate shard reports into a single mutation-report artifact.
+  #
+  # publish-mutations.yml downloads an artifact named `mutation-report` and
+  # runs mutation-history.cs on it. This job produces that artifact by
+  # merging the `files` maps from every successful shard's report.
+  #
+  # if: always() so aggregate still runs if some shards failed. A downstream
+  # check guards against the 0-shards-succeeded case.
+  aggregate:
+    needs: [select-matrix, run-mutation-tests]
+    if: always() && needs.select-matrix.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Download shard reports
+        # actions/download-artifact@v8 fails the step when a `pattern:` matches
+        # no artifacts. Swallow that failure so the merge step below owns the
+        # 0-shards case and emits a clearer "no reports found" error.
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: mutation-report-shard-*
+          path: shards
+
+      - name: Merge shard reports
+        id: merge
+        # SHARD_COUNT is derived from jq 'length' over a JSON built with
+        # --arg, so it's always a number — but pass it via env: for
+        # consistency with the rest of the workflow's injection hardening.
+        env:
+          SHARD_COUNT: ${{ needs.select-matrix.outputs.shard_count }}
+        run: |
+          mkdir -p artifacts/mutation/reports shards
+          mapfile -t REPORTS < <(find shards -name "mutation-report.json" -type f | sort)
+          SUCCESSFUL=${#REPORTS[@]}
+
+          if [ "$SUCCESSFUL" -eq 0 ]; then
+            echo "::error::No shard reports found. All $SHARD_COUNT shards failed to produce mutation-report.json."
+            exit 1
+          fi
+
+          echo "Merging $SUCCESSFUL / $SHARD_COUNT shard reports:"
+          printf '  - %s\n' "${REPORTS[@]}"
+
+          # Combine every shard's `files` map into one. Each folder glob is
+          # disjoint (non-recursive *.cs patterns), so file-path collisions
+          # don't happen in practice; if they ever do, the last shard wins —
+          # benign because both shards would have mutated the same file.
+          # Metadata (thresholds, projectRoot, etc.) inherits from shard[0].
+          jq -s '(.[0]) + {files: (map(.files) | add)}' "${REPORTS[@]}" \
+            > artifacts/mutation/reports/mutation-report.json
+
+          MUTANTS=$(jq '[.files | to_entries[] | .value.mutants // [] | length] | add // 0' \
+            artifacts/mutation/reports/mutation-report.json)
+          FILES=$(jq '.files | length' artifacts/mutation/reports/mutation-report.json)
+
+          echo "successful=$SUCCESSFUL" >> "$GITHUB_OUTPUT"
+          echo "mutants=$MUTANTS" >> "$GITHUB_OUTPUT"
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+
+          {
+            echo '### Matrix Aggregation';
+            echo '';
+            echo "| Metric | Value |";
+            echo "|--------|------:|";
+            echo "| Shards attempted | $SHARD_COUNT |";
+            echo "| Shards with reports | $SUCCESSFUL |";
+            echo "| Mutated files | $FILES |";
+            echo "| Mutants | $MUTANTS |";
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize aggregated results
         run: |
           output=$(dotnet run --file .github/scripts/update-mutation-summary.cs)
           echo "$output"
           {
-            echo '### Mutation Summary';
+            echo '';
+            echo '### Mutation Summary (Aggregated)';
             echo '```';
             echo "$output";
             echo '```';
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Locate mutation report
-        id: stryker-report
-        run: |
-          # Stryker creates reports directly in artifacts/mutation/reports/
-          # or in artifacts/mutation/{timestamp}/reports/
-          if [ -f "artifacts/mutation/reports/mutation-report.json" ]; then
-            echo "reports-dir=artifacts/mutation/reports" >> "$GITHUB_OUTPUT"
-            echo "summary-file=artifacts/mutation/reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
-          else
-            # Look for timestamped subdirectory
-            latest=$(ls -d artifacts/mutation/*/ 2>/dev/null | grep -v reports | sort | tail -n 1)
-            if [ -n "$latest" ] && [ -f "${latest}reports/mutation-report.json" ]; then
-              echo "reports-dir=${latest}reports" >> "$GITHUB_OUTPUT"
-              echo "summary-file=${latest}reports/mutation-report.txt" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-
-      - name: Publish Stryker text summary
-        if: steps.stryker-report.outputs.summary-file != ''
-        run: |
-          summary_file="${{ steps.stryker-report.outputs.summary-file }}"
-          if [ -f "$summary_file" ]; then
-            {
-              echo '### Mutation Report (Stryker Text)';
-              echo '```';
-              cat "$summary_file";
-              echo '```';
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Warning: Summary file not found at $summary_file"
-          fi
-
-      - name: Upload mutation report artifact
-        if: steps.stryker-report.outputs.reports-dir != ''
+      - name: Upload aggregated mutation report
         uses: actions/upload-artifact@v7
         with:
           name: mutation-report
-          path: ${{ steps.stryker-report.outputs.reports-dir }}
+          path: artifacts/mutation/reports
+          if-no-files-found: error

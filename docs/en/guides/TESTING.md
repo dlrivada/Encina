@@ -84,7 +84,7 @@ The output includes `encina-coverage-summary.json`, `encina-coverage-report.md`,
 
 ## Mutation Testing
 
-The Mutation Tests workflow runs weekly via Stryker.NET on a rotating subset of `src/Encina/` folders. Results accumulate per-file across runs into a single dashboard at <https://dlrivada.github.io/Encina/mutations/>.
+The Mutation Tests workflow runs weekly via Stryker.NET, fanning out into 17 parallel shards (one per folder of `src/Encina/`) that an `aggregate` job merges into a single dataset. Results accumulate per-file across runs into a single dashboard at <https://dlrivada.github.io/Encina/mutations/>.
 
 For the methodology (formulas, accumulation model, citation system) see [`docs/testing/mutation-measurement-methodology.md`](../../testing/mutation-measurement-methodology.md). For the practical guide (running, interpreting, contributing) see [`MUTATION_TESTING.md`](MUTATION_TESTING.md).
 
@@ -94,7 +94,7 @@ Quick local run:
 dotnet run --file .github/scripts/run-stryker.cs
 ```
 
-Reports land under `artifacts/mutation/reports/` (JSON + HTML). The full `**/*.cs` scope works locally given enough time; the CI rotation limits each run to one folder so it fits the 350-minute job timeout.
+Reports land under `artifacts/mutation/reports/` (JSON + HTML). The full `**/*.cs` scope works locally given enough time; CI runs 17 folder shards in parallel so each shard fits a 60-minute per-shard timeout.
 
 The README badge is updated automatically by `.github/scripts/update-mutation-summary.cs`, which is invoked by the publish workflow after each Stryker run.
 
