@@ -38,12 +38,12 @@ jobs:
     name: Build Documentation
     runs-on: ubuntu-latest
 
-    # actions/configure-pages@v5 and upload-pages-artifact@v4 need Pages access
-    # in the build job; id-token is used by the deploy job but must flow through.
+    # configure-pages@v5 needs pages:write to enable the Pages environment.
+    # id-token is only required by deploy-pages@v5 (deploy job) — don't
+    # grant OIDC to PR validation runs.
     permissions:
       contents: read
       pages: write
-      id-token: write
 
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -74,7 +74,6 @@ jobs:
         run: dotnet docfx build docs/docfx.json --warningsAsErrors false
 
       - name: Setup Pages
-        id: pages
         uses: actions/configure-pages@v5
 
       - name: Build Jekyll site
@@ -148,6 +147,10 @@ jobs:
           ls _site/api/index.html _site/api/favicon.ico
 
       - name: Upload Pages artifact
+        # Only upload when we intend to deploy (main branch). Skipping on PR
+        # avoids avoidable failures for forked PRs (where Pages upload is
+        # restricted) and keeps PR validation limited to build correctness.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./_site
