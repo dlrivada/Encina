@@ -65,7 +65,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # Phase 2: Incremental filtering
   #
-  # Compute fingerprints for all 20 benchmark projects, compare against the
+  # Compute fingerprints for every benchmark project in full-matrix, compare against the
   # previous run's fingerprints published on GitHub Pages, and emit a matrix
   # containing only the projects whose source closure changed. The aggregate
   # job downstream will carry forward the unchanged modules from the previous
@@ -173,7 +173,7 @@ jobs:
           echo "force_full=$FORCE" >> "$GITHUB_OUTPUT"
 
           if [ "$FORCE" = "true" ]; then
-            echo "Full run (schedule or force_full) — all 20 projects will execute."
+            echo "Full run (schedule or force_full) — all $(jq 'length' /tmp/full-matrix.json) projects will execute."
             cp /tmp/full-matrix.json /tmp/changed.json
             SKIPPED="[]"
           else
