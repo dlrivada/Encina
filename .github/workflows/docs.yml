@@ -85,6 +85,13 @@ jobs:
           future: false
           verbose: false
 
+      - name: Fix _site ownership
+        # jekyll-build-pages@v1 runs inside a Docker container and writes
+        # _site/ as a different UID/GID, so subsequent native steps cannot
+        # modify it. Reclaim ownership for the runner user before merging.
+        shell: bash
+        run: sudo chown -R "$USER:$USER" _site
+
       - name: Preserve sibling Pages subtrees
         # Multiple publish-* workflows share a single gh-pages deployment target
         # (/coverage, /benchmarks, /load-tests, /mutations). Their data files
