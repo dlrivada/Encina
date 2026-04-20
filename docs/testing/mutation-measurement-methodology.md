@@ -17,9 +17,9 @@ Off-the-shelf mutation testing assumes that every commit can re-run the full mut
 
 - The Stryker `--mutate` glob produces ~6,181 mutants for `src/Encina/Encina.csproj` alone.
 - xUnit v3 + Stryker's `coverage-analysis: perTest` mode is broken upstream ([stryker-mutator/stryker-net#3117](https://github.com/stryker-mutator/stryker-net/issues/3117)). Without per-test coverage, every mutant runs the full ~23,000 test suite (`AllTests` mode).
-- A full run at `~3 min/mutant` exceeds GitHub's 6-hour job limit and the 7 GB runner OOMs under Stryker's 4-way concurrency.
+- A full single-job run at `~3 min/mutant` exceeds GitHub's 6-hour job limit and the 7 GB runner OOMs under Stryker's 4-way concurrency.
 
-The result is that Encina runs **partial** mutation analysis on a rotating subset of folders, and the dashboard **accumulates** results across runs. The formulas below define exactly what that means and how to interpret the numbers.
+Encina instead runs **17 parallel shards per weekly run**, each mutating one folder of `src/Encina/` in ~10–15 min. The per-shard filter (see [#1027](https://github.com/dlrivada/Encina/issues/1027)) drops per-mutant test execution from ~23,000 tests to ~20–500 without touching Stryker's broken `perTest` path. The `aggregate` job merges the 17 shard reports into a single `mutation-report.json` that the downstream publish workflow treats as one normal Stryker run. The formulas below define exactly what the merged dataset means and how to interpret the numbers.
 
 ## The mutation score formula
 
@@ -42,17 +42,14 @@ The formula lives in `.github/scripts/mutation-history.cs` (`MutationCounts.Dete
 
 ## The accumulation model
 
-Stryker's report is per-run. Encina's dashboard is per-file across runs. The `mutation-history.cs --merge-from` flag bridges the two:
+Stryker's report is per-run. Encina's dashboard is per-file across runs. Two layers of merging produce the final dataset:
 
-1. Each weekly run mutates **one folder** (rotation of 17 entries — see [Folder rotation](#folder-rotation)).
-2. `mutation-history.cs` reads the new Stryker report and the previous `latest.json`.
-3. For every file in the previous snapshot **not** touched by the new run, the per-file counts are carried forward unchanged.
-4. For every file the new run mutated, fresh data replaces the previous values.
-5. The overall score is **recomputed** across the merged file set.
+1. **Per-run aggregation** (`.github/workflows/mutation-tests.yml`): the weekly workflow fans out into a 17-shard matrix (see [Matrix execution](#matrix-execution)). An `aggregate` job then merges the 17 shard reports into a single `mutation-report.json` by taking the union of their `files` maps.
+2. **Cross-run carry-forward** (`mutation-history.cs --merge-from`): `publish-mutations.yml` reads the aggregated report and the previous `latest.json`. For every file in the previous snapshot **not** touched by this run, the per-file counts are carried forward unchanged. Files the new run mutated get fresh data. The overall score is **recomputed** across the merged file set.
 
-After 17 successful weekly runs, every folder has been measured at least once, and the dashboard reflects the union. A folder is allowed to "go stale" — its data shows the last time that folder was actually mutated, with no extrapolation.
+With matrix execution every folder gets a fresh measurement every week, so the carry-forward layer mostly handles files outside the rotation scope (or occasional intermittent shard failures). If a shard fails, the previous week's data for that folder survives until the next successful run — the dashboard never silently regresses to zero for transient infrastructure issues.
 
-This model deliberately picks **completeness over freshness**. The alternative — overwriting the dashboard with each run's narrow snapshot — would make the score swing wildly between weeks (5.08% one week, 0% the next) and lose the cumulative work.
+This model deliberately picks **completeness over freshness**. The alternative — overwriting the dashboard with each run's narrow snapshot — would make the score swing wildly when shards fail and lose the cumulative work.
 
 ### Live snapshot of folders measured so far
 
@@ -85,19 +82,20 @@ The two folders measured during the workflow stabilization (smoke test + Health)
 
 For the canonical view across all packages and history, go to the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/).
 
-## Folder rotation
+## Matrix execution
 
-`.github/workflows/mutation-tests.yml` uses ISO week number modulo 17 to pick a folder:
+`.github/workflows/mutation-tests.yml` fans the weekly run out into 17 parallel shards — one per folder in the list below — via a GitHub Actions matrix. Before [#1028](https://github.com/dlrivada/Encina/issues/1028) the workflow rotated through the same 17 entries one per week (ISO-week modulo 17), which meant each folder was measured roughly once every 4 months. With per-folder runs down to ~5–10 min after [#1027](https://github.com/dlrivada/Encina/issues/1027), running all 17 in parallel every week became feasible.
 
-```bash
-WEEK=$(date -u +%V)
-IDX=$(( 10#$WEEK % 17 ))
-SCOPE="${FOLDERS[$IDX]}"
-```
+Pipeline shape:
 
-The 17 entries are sized to fit the runner's 5h 50m timeout (350-minute job timeout) at `~3 min/mutant × ~80 mutants ≈ 4h with safety margin`. Each entry has at most 8 `.cs` files after exclusions.
+| Job | Purpose |
+|-----|---------|
+| `select-matrix` | Emits the shard list as a JSON array (17 entries by default; 1 entry when a dispatch override collapses the matrix). |
+| `test-baseline` | Runs once in parallel with the matrix (not per shard). Diagnostic aid that exposes which Stryker test project owns any "unable to test" failures. |
+| `run-mutation-tests` | Matrix job (`fail-fast: false`, job-level `continue-on-error: true`). Each shard uploads `mutation-report-shard-<idx>`. A shard failure does **not** fail the workflow. |
+| `aggregate` | Downloads every `mutation-report-shard-*` artifact, merges their `files` maps with `jq -s '(.[0]) + {files: (map(.files) | add)}'`, and uploads the result as a single `mutation-report` artifact (the shape `publish-mutations.yml` expects). |
 
-Currently rotated folders:
+The 17 shard scopes:
 
 - `**/Core/*.cs`
 - `**/Pipeline/Behaviors/*.cs`
@@ -117,19 +115,22 @@ Currently rotated folders:
 - `**/Results/*.cs`
 - `**/Sharding/Health/*.cs`
 
-Operators can override via the `workflow_dispatch` inputs:
+Each entry is sized for ≤ 8 `.cs` files after exclusions, which keeps per-shard mutant count at ~30–150 and the per-shard wall-clock time around 10–15 min (build + Stryker). The matrix runs at ~15 min end-to-end; serial runner-time is ~2 h per weekly run, well within the weekly CI budget.
+
+Operators can override via the `workflow_dispatch` inputs; any of them collapses the matrix to a single shard:
 
 | Input | Effect |
 |-------|--------|
-| (default) | Weekly rotation. |
-| `diff_mode: true` | `--since:main` — mutate only files changed vs main. Useful for PR-style validation. |
-| `full_mode: true` | No `--mutate` override — mutate the entire `**/*.cs` glob. Will exceed the runner timeout in current configuration. |
+| (default) | Full 17-shard matrix — every folder measured fresh. |
+| `custom_scope: "<glob>"` | Single shard with the given `--mutate` override. If the glob matches a rotation entry, its paired test-case-filter is reused; otherwise the config default applies. |
+| `diff_mode: true` | Single shard with `--since:main` — mutate only files changed vs main. Useful for PR-style validation. |
+| `full_mode: true` | Single shard mutating the entire `**/*.cs` glob. Will exceed the 60-minute per-shard timeout in the current configuration. |
 
 ## Mutate filter
 
 The `mutate` array in `.github/stryker-config.json` is the global allow/deny list. Patterns are interpreted **relative to the target project** (`src/Encina/Encina.csproj`), not the solution root — Stryker's behavior was unintuitive on this point and produced the original 0-mutants bug ([#957](https://github.com/dlrivada/Encina/issues/957)).
 
-Standard exclusions (carried into the rotation step's CLI overrides):
+Standard exclusions (carried into each shard's CLI overrides):
 
 ```
 !**/Log.cs
@@ -171,12 +172,12 @@ The mapping lives in the `FILTERS` bash array in `.github/workflows/mutation-tes
 
 ### Custom-scope dispatch
 
-When `workflow_dispatch` is invoked with `custom_scope`, the `Select mutation scope` step looks up the scope in `FOLDERS` and reuses its paired filter. If the custom scope doesn't match any rotation entry, the filter is empty and Stryker falls back to the default `test-case-filter` from `stryker-config.json` (which selects all tests in the three Stryker test projects).
+When `workflow_dispatch` is invoked with `custom_scope`, the `select-matrix` job emits a single-shard matrix instead of the usual 17, and looks up the scope in the `FOLDERS` array to reuse its paired filter. If the custom scope doesn't match any rotation entry, the filter is empty and Stryker falls back to the default `test-case-filter` from `stryker-config.json` (which selects all tests in the three Stryker test projects).
 
 ### What this unlocks
 
 - Per-mutant test execution drops from ~23,000 to ~20–500 → per-mutant time drops from ~3 min to ~5–10 s.
-- A folder rotation completes in ~5–10 min instead of ~3 h.
+- A single folder shard completes in ~5–10 min instead of ~3 h, making the 17-shard matrix (see [Matrix execution](#matrix-execution)) cheap enough to run every week.
 - Kill counts become deterministic: a targeted test added to the matching folder shows up in the next run's kill delta, instead of being drowned in the ~23,000-test noise.
 
 ### Risk: namespace drift
