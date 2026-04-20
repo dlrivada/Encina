@@ -35,7 +35,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2/2025Update/HudsonValle
 | **SetAsync** ⚠ | 1.35 ms | 1,016 B | `bench:caching-redis/set` | JSON serialize + `SET` with EX |
 | **SetWithSlidingExpirationAsync** ⚠ | 1.75 ms | 1,696 B | `bench:caching-redis/set-sliding` | `SET` with absolute expiration + sliding metadata |
 | **RemoveAsync** ⚠ | ~1 ms | ~1,000 B | `bench:caching-redis/remove` | Pure `DEL` (seeding isolated to `IterationSetup`) |
-| **RemoveByPatternAsync** ⚠ | ~5 ms | ~4,800 B | `bench:caching-redis/remove-by-pattern` | `SCAN` + pipelined `DEL` on 5 keys (seeding isolated) |
+| **RemoveByPatternAsync** ⚠ | ~5 ms | ~4,800 B | `bench:caching-redis/remove-by-pattern` | `SCAN` + per-key `DEL` on 5 keys (seeding isolated) |
 <!-- /docref-table -->
 
 ⚠ = listed in `stabilityOverrides` (Docker loopback jitter dominates — not code drift).
