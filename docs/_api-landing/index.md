@@ -29,8 +29,8 @@ Start here if you're new to Encina:
 
 ## Looking for guides instead?
 
-This is the **API reference** (code-level documentation). For narrative content — getting started, tutorials, architectural overviews, ADRs — see the **[main documentation site](https://dlrivada.github.io/Encina/)**.
+This is the **API reference** (code-level documentation). For narrative content — getting started, tutorials, architectural overviews, ADRs — navigate to the main documentation site via the browser back button or the site root.
 
 ## Source
 
-All pages are generated from XML `<summary>`, `<remarks>`, `<param>`, `<returns>`, `<example>` comments in the source `.cs` files. If you find a missing or incorrect description, please [open an issue](https://github.com/dlrivada/Encina/issues/new/choose) or edit the source directly.
+All pages are generated from XML `<summary>`, `<remarks>`, `<param>`, `<returns>`, `<example>` comments in the source `.cs` files. If you find a missing or incorrect description, please open an issue on [GitHub](https://github.com/dlrivada/Encina) or edit the source directly.
