@@ -1,20 +1,36 @@
 name: Documentation
 
-# Disabled: docs/docfx.json was removed (site is static HTML via GitHub Pages, not DocFX).
-# Re-enable when DocFX API documentation is restored.
+# Builds the documentation site (Jekyll narrative + DocFX API reference)
+# and deploys to GitHub Pages. See issue #91 for the hybrid architecture.
+#
+# Scopes:
+#   Jekyll  -> docs/**/*.md (just-the-docs theme, narrative content)
+#   DocFX   -> src/**/*.csproj (API reference from XML comments) -> /api/
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'src/**/*.cs'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'src/**/*.cs'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -35,27 +51,51 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Encina.slnx
 
-      - name: Build solution
+      - name: Build solution (XML docs generation)
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
-      - name: Generate API metadata
-        run: dotnet docfx metadata docs/docfx.json
+      - name: Generate API metadata (DocFX)
+        run: dotnet docfx metadata docs/docfx.json --warningsAsErrors false
 
-      - name: Build documentation site
-        run: dotnet docfx build docs/docfx.json
+      - name: Build API reference site (DocFX)
+        run: dotnet docfx build docs/docfx.json --warningsAsErrors false
 
-      - name: Upload artifact
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build Jekyll site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+          future: false
+          verbose: false
+
+      - name: Merge DocFX API reference into Jekyll site
+        shell: bash
+        run: |
+          if [ ! -d docs/_api-build ]; then
+            echo "::error::DocFX output directory docs/_api-build not found"
+            exit 1
+          fi
+          mkdir -p _site/api
+          cp -r docs/_api-build/. _site/api/
+          echo "API reference merged into _site/api/"
+          ls -la _site/api/ | head -20
+
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: docs/_site
+          path: ./_site
 
   deploy:
     name: Deploy to GitHub Pages
     needs: build-docs
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       pages: write
       id-token: write
 
