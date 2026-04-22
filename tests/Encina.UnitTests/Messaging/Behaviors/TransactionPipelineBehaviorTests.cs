@@ -428,10 +428,10 @@ public sealed class TransactionPipelineBehaviorTests
             base.Dispose(disposing);
         }
 
-        public override async ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
             DisposeAsyncCalls++;
-            await base.DisposeAsync().ConfigureAwait(false);
+            return ValueTask.CompletedTask;
         }
     }
 
