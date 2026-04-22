@@ -21,8 +21,10 @@ namespace Encina.Messaging;
 /// </para>
 /// <para>
 /// The caller's <see cref="CancellationToken"/> is propagated to connection open and
-/// transaction begin. Commit and rollback run with <see cref="CancellationToken.None"/>
-/// so that cleanup cannot be interrupted by a cancellation arriving after the handler completes.
+/// transaction begin when token-aware <see cref="DbConnection"/> APIs are available;
+/// otherwise synchronous <see cref="IDbConnection"/> APIs are used. Commit and rollback
+/// run with <see cref="CancellationToken.None"/> so that transaction cleanup is not
+/// canceled by the caller token, including rollback in cancellation paths.
 /// </para>
 /// </remarks>
 /// <example>
