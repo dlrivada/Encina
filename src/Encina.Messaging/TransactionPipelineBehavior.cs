@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using LanguageExt;
 
 namespace Encina.Messaging;
@@ -17,6 +18,13 @@ namespace Encina.Messaging;
 /// </para>
 /// <para>
 /// The connection is opened automatically if it's not already open.
+/// </para>
+/// <para>
+/// The caller's <see cref="CancellationToken"/> is propagated to connection open and
+/// transaction begin when token-aware <see cref="DbConnection"/> APIs are available;
+/// otherwise synchronous <see cref="IDbConnection"/> APIs are used. Commit and rollback
+/// run with <see cref="CancellationToken.None"/> so that transaction cleanup is not
+/// canceled by the caller token, including rollback in cancellation paths.
 /// </para>
 /// </remarks>
 /// <example>
@@ -56,35 +64,76 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        // Open connection if needed
+        var dbConnection = _connection as DbConnection;
+
         if (_connection.State != ConnectionState.Open)
         {
-            _connection.Open();
+            if (dbConnection is not null)
+            {
+                await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                _connection.Open();
+            }
         }
 
-        // Begin transaction
-        using var transaction = _connection.BeginTransaction();
+        var transaction = dbConnection is not null
+            ? await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
+            : _connection.BeginTransaction();
 
         try
         {
-            var result = await nextStep();
+            var result = await nextStep().ConfigureAwait(false);
 
-            // Commit on success, rollback on error
-            result.Match(
-                Right: _ => transaction.Commit(),
-                Left: _ => transaction.Rollback());
+            await result.Match(
+                Right: _ => CommitAsync(transaction, CancellationToken.None),
+                Left: _ => RollbackAsync(transaction, CancellationToken.None)).ConfigureAwait(false);
 
             return result;
         }
         catch (OperationCanceledException)
         {
-            transaction.Rollback();
+            await RollbackAsync(transaction, CancellationToken.None).ConfigureAwait(false);
             throw;
         }
         catch (Exception ex)
         {
-            transaction.Rollback();
+            await RollbackAsync(transaction, CancellationToken.None).ConfigureAwait(false);
             return EncinaErrors.FromException("transaction.failed", ex);
         }
+        finally
+        {
+            if (transaction is DbTransaction dbTransaction)
+            {
+                await dbTransaction.DisposeAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                transaction.Dispose();
+            }
+        }
+    }
+
+    private static Task CommitAsync(IDbTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction is DbTransaction dbTransaction)
+        {
+            return dbTransaction.CommitAsync(cancellationToken);
+        }
+
+        transaction.Commit();
+        return Task.CompletedTask;
+    }
+
+    private static Task RollbackAsync(IDbTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction is DbTransaction dbTransaction)
+        {
+            return dbTransaction.RollbackAsync(cancellationToken);
+        }
+
+        transaction.Rollback();
+        return Task.CompletedTask;
     }
 }
