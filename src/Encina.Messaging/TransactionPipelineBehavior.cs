@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using LanguageExt;
 
 namespace Encina.Messaging;
@@ -56,35 +57,78 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        // Open connection if needed
+        var dbConnection = _connection as DbConnection;
+
         if (_connection.State != ConnectionState.Open)
         {
-            _connection.Open();
+            if (dbConnection is not null)
+            {
+                await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                _connection.Open();
+            }
         }
 
-        // Begin transaction
-        using var transaction = _connection.BeginTransaction();
+        var transaction = dbConnection is not null
+            ? await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
+            : _connection.BeginTransaction();
 
         try
         {
             var result = await nextStep();
 
-            // Commit on success, rollback on error
-            result.Match(
-                Right: _ => transaction.Commit(),
-                Left: _ => transaction.Rollback());
+            await result.Match(
+                Right: _ => CommitAsync(transaction, cancellationToken),
+                Left: _ => RollbackAsync(transaction, cancellationToken)).ConfigureAwait(false);
 
             return result;
         }
         catch (OperationCanceledException)
         {
-            transaction.Rollback();
+            await RollbackAsync(transaction, CancellationToken.None).ConfigureAwait(false);
             throw;
         }
         catch (Exception ex)
         {
-            transaction.Rollback();
+            await RollbackAsync(transaction, CancellationToken.None).ConfigureAwait(false);
             return EncinaErrors.FromException("transaction.failed", ex);
+        }
+        finally
+        {
+            if (transaction is DbTransaction dbTransaction)
+            {
+                await dbTransaction.DisposeAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                transaction.Dispose();
+            }
+        }
+    }
+
+    private static async Task CommitAsync(IDbTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction is DbTransaction dbTransaction)
+        {
+            await dbTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            transaction.Commit();
+        }
+    }
+
+    private static async Task RollbackAsync(IDbTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction is DbTransaction dbTransaction)
+        {
+            await dbTransaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            transaction.Rollback();
         }
     }
 }

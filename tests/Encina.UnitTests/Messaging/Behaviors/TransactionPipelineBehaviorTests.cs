@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using Encina.Messaging;
 using LanguageExt;
 
@@ -240,6 +241,108 @@ public sealed class TransactionPipelineBehaviorTests
 
     #endregion
 
+    #region Handle Tests - Async Path (DbConnection)
+
+    [Fact]
+    public async Task Handle_DbConnectionClosed_OpensConnectionAsync()
+    {
+        // Arrange
+        var fakeConnection = new FakeDbConnection();
+        fakeConnection.SetState(ConnectionState.Closed);
+
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
+        var request = new TestRequest(Guid.NewGuid());
+        var context = CreateTestContext();
+
+        RequestHandlerCallback<string> nextStep = () =>
+            ValueTask.FromResult<Either<EncinaError, string>>("Success");
+
+        // Act
+        await behavior.Handle(request, context, nextStep, CancellationToken.None);
+
+        // Assert
+        fakeConnection.OpenAsyncCalls.ShouldBe(1);
+        fakeConnection.OpenCalls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Handle_DbConnection_UsesBeginTransactionAsync_AndCommitAsync()
+    {
+        // Arrange
+        var fakeConnection = new FakeDbConnection();
+        fakeConnection.SetState(ConnectionState.Open);
+
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
+        var request = new TestRequest(Guid.NewGuid());
+        var context = CreateTestContext();
+
+        RequestHandlerCallback<string> nextStep = () =>
+            ValueTask.FromResult<Either<EncinaError, string>>("Success");
+
+        // Act
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        fakeConnection.BeginTransactionAsyncCalls.ShouldBe(1);
+        fakeConnection.BeginTransactionCalls.ShouldBe(0);
+        fakeConnection.FakeTransaction.CommitAsyncCalls.ShouldBe(1);
+        fakeConnection.FakeTransaction.CommitCalls.ShouldBe(0);
+        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(0);
+        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_DbConnection_HandlerReturnsError_UsesRollbackAsync()
+    {
+        // Arrange
+        var fakeConnection = new FakeDbConnection();
+        fakeConnection.SetState(ConnectionState.Open);
+
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
+        var request = new TestRequest(Guid.NewGuid());
+        var context = CreateTestContext();
+        var error = EncinaErrors.Create("test.error", "Test error");
+
+        RequestHandlerCallback<string> nextStep = () =>
+            ValueTask.FromResult<Either<EncinaError, string>>(error);
+
+        // Act
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(1);
+        fakeConnection.FakeTransaction.RollbackCalls.ShouldBe(0);
+        fakeConnection.FakeTransaction.CommitAsyncCalls.ShouldBe(0);
+        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Handle_DbConnection_HandlerThrows_UsesRollbackAsync()
+    {
+        // Arrange
+        var fakeConnection = new FakeDbConnection();
+        fakeConnection.SetState(ConnectionState.Open);
+
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
+        var request = new TestRequest(Guid.NewGuid());
+        var context = CreateTestContext();
+
+        RequestHandlerCallback<string> nextStep = () =>
+            throw new InvalidOperationException("Handler failed");
+
+        // Act
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(1);
+        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
+    }
+
+    #endregion
+
     #region Helpers
 
     private static IRequestContext CreateTestContext()
@@ -249,6 +352,99 @@ public sealed class TransactionPipelineBehaviorTests
         context.UserId.Returns("test-user");
         context.Timestamp.Returns(DateTimeOffset.UtcNow);
         return context;
+    }
+
+    private sealed class FakeDbTransaction : DbTransaction
+    {
+        public int CommitCalls { get; private set; }
+        public int CommitAsyncCalls { get; private set; }
+        public int RollbackCalls { get; private set; }
+        public int RollbackAsyncCalls { get; private set; }
+        public int DisposeCalls { get; private set; }
+        public int DisposeAsyncCalls { get; private set; }
+
+        public override IsolationLevel IsolationLevel => IsolationLevel.Unspecified;
+        protected override DbConnection? DbConnection => null;
+
+        public override void Commit() => CommitCalls++;
+
+        public override Task CommitAsync(CancellationToken cancellationToken = default)
+        {
+            CommitAsyncCalls++;
+            return Task.CompletedTask;
+        }
+
+        public override void Rollback() => RollbackCalls++;
+
+        public override Task RollbackAsync(CancellationToken cancellationToken = default)
+        {
+            RollbackAsyncCalls++;
+            return Task.CompletedTask;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                DisposeCalls++;
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            DisposeAsyncCalls++;
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private sealed class FakeDbConnection : DbConnection
+    {
+        private ConnectionState _state = ConnectionState.Closed;
+
+        public int OpenCalls { get; private set; }
+        public int OpenAsyncCalls { get; private set; }
+        public int BeginTransactionCalls { get; private set; }
+        public int BeginTransactionAsyncCalls { get; private set; }
+        public FakeDbTransaction FakeTransaction { get; } = new();
+
+        [System.Diagnostics.CodeAnalysis.AllowNull]
+        public override string ConnectionString { get; set; } = string.Empty;
+        public override string Database => string.Empty;
+        public override string DataSource => string.Empty;
+        public override string ServerVersion => string.Empty;
+        public override ConnectionState State => _state;
+
+        public void SetState(ConnectionState state) => _state = state;
+
+        public override void ChangeDatabase(string databaseName) { }
+
+        public override void Close() => _state = ConnectionState.Closed;
+
+        public override void Open()
+        {
+            OpenCalls++;
+            _state = ConnectionState.Open;
+        }
+
+        public override Task OpenAsync(CancellationToken cancellationToken)
+        {
+            OpenAsyncCalls++;
+            _state = ConnectionState.Open;
+            return Task.CompletedTask;
+        }
+
+        protected override DbCommand CreateDbCommand() => throw new NotImplementedException();
+
+        protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
+        {
+            BeginTransactionCalls++;
+            return FakeTransaction;
+        }
+
+        protected override ValueTask<DbTransaction> BeginDbTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
+        {
+            BeginTransactionAsyncCalls++;
+            return ValueTask.FromResult<DbTransaction>(FakeTransaction);
+        }
     }
 
     #endregion
