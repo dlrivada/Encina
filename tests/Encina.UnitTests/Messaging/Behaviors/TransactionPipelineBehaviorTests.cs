@@ -350,6 +350,32 @@ public sealed class TransactionPipelineBehaviorTests
         fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
     }
 
+    [Fact]
+    public async Task Handle_DbConnection_HandlerThrowsOperationCanceled_RollsBackAndRethrows()
+    {
+        // Arrange
+        var fakeConnection = new FakeDbConnection();
+        fakeConnection.SetState(ConnectionState.Open);
+
+        var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
+        var request = new TestRequest(Guid.NewGuid());
+        var context = CreateTestContext();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        RequestHandlerCallback<string> nextStep = () =>
+            throw new OperationCanceledException(cts.Token);
+
+        // Act
+        var act = async () => await behavior.Handle(request, context, nextStep, cts.Token);
+
+        // Assert
+        await act.ShouldThrowAsync<OperationCanceledException>();
+        fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(1);
+        fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
+        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
+    }
+
     #endregion
 
     #region Helpers
