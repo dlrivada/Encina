@@ -119,7 +119,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     {
         if (transaction is DbTransaction dbTransaction)
         {
-            return dbTransaction.CommitAsync(cancellationToken).AsTask();
+            return dbTransaction.CommitAsync(cancellationToken);
         }
 
         transaction.Commit();
@@ -130,7 +130,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
     {
         if (transaction is DbTransaction dbTransaction)
         {
-            return dbTransaction.RollbackAsync(cancellationToken).AsTask();
+            return dbTransaction.RollbackAsync(cancellationToken);
         }
 
         transaction.Rollback();
