@@ -294,7 +294,7 @@ public sealed class TransactionPipelineBehaviorTests
         fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(0);
         fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
         fakeConnection.BeginTransactionAsyncToken.ShouldBe(cts.Token);
-        fakeConnection.FakeTransaction.CommitAsyncToken.ShouldBe(cts.Token);
+        fakeConnection.FakeTransaction.CommitAsyncToken.ShouldBe(CancellationToken.None);
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public sealed class TransactionPipelineBehaviorTests
         fakeConnection.FakeTransaction.RollbackCalls.ShouldBe(0);
         fakeConnection.FakeTransaction.CommitAsyncCalls.ShouldBe(0);
         fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
-        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(cts.Token);
+        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
     }
 
     [Fact]

@@ -19,6 +19,11 @@ namespace Encina.Messaging;
 /// <para>
 /// The connection is opened automatically if it's not already open.
 /// </para>
+/// <para>
+/// The caller's <see cref="CancellationToken"/> is propagated to connection open and
+/// transaction begin. Commit and rollback run with <see cref="CancellationToken.None"/>
+/// so that cleanup cannot be interrupted by a cancellation arriving after the handler completes.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -80,8 +85,8 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             var result = await nextStep().ConfigureAwait(false);
 
             await result.Match(
-                Right: _ => CommitAsync(transaction, cancellationToken),
-                Left: _ => RollbackAsync(transaction, cancellationToken)).ConfigureAwait(false);
+                Right: _ => CommitAsync(transaction, CancellationToken.None),
+                Left: _ => RollbackAsync(transaction, CancellationToken.None)).ConfigureAwait(false);
 
             return result;
         }
