@@ -77,7 +77,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
 
         try
         {
-            var result = await nextStep();
+            var result = await nextStep().ConfigureAwait(false);
 
             await result.Match(
                 Right: _ => CommitAsync(transaction, cancellationToken),
