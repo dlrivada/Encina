@@ -431,7 +431,7 @@ public sealed class TransactionPipelineBehaviorTests
         public override ValueTask DisposeAsync()
         {
             DisposeAsyncCalls++;
-            return ValueTask.CompletedTask;
+            return base.DisposeAsync();
         }
     }
 
