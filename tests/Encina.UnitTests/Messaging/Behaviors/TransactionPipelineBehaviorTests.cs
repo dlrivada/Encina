@@ -253,16 +253,18 @@ public sealed class TransactionPipelineBehaviorTests
         var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
         var request = new TestRequest(Guid.NewGuid());
         var context = CreateTestContext();
+        using var cts = new CancellationTokenSource();
 
         RequestHandlerCallback<string> nextStep = () =>
             ValueTask.FromResult<Either<EncinaError, string>>("Success");
 
         // Act
-        await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
         fakeConnection.OpenAsyncCalls.ShouldBe(1);
         fakeConnection.OpenCalls.ShouldBe(0);
+        fakeConnection.OpenAsyncToken.ShouldBe(cts.Token);
     }
 
     [Fact]
@@ -275,12 +277,13 @@ public sealed class TransactionPipelineBehaviorTests
         var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
         var request = new TestRequest(Guid.NewGuid());
         var context = CreateTestContext();
+        using var cts = new CancellationTokenSource();
 
         RequestHandlerCallback<string> nextStep = () =>
             ValueTask.FromResult<Either<EncinaError, string>>("Success");
 
         // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -290,6 +293,8 @@ public sealed class TransactionPipelineBehaviorTests
         fakeConnection.FakeTransaction.CommitCalls.ShouldBe(0);
         fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(0);
         fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
+        fakeConnection.BeginTransactionAsyncToken.ShouldBe(cts.Token);
+        fakeConnection.FakeTransaction.CommitAsyncToken.ShouldBe(cts.Token);
     }
 
     [Fact]
@@ -303,12 +308,13 @@ public sealed class TransactionPipelineBehaviorTests
         var request = new TestRequest(Guid.NewGuid());
         var context = CreateTestContext();
         var error = EncinaErrors.Create("test.error", "Test error");
+        using var cts = new CancellationTokenSource();
 
         RequestHandlerCallback<string> nextStep = () =>
             ValueTask.FromResult<Either<EncinaError, string>>(error);
 
         // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -316,10 +322,11 @@ public sealed class TransactionPipelineBehaviorTests
         fakeConnection.FakeTransaction.RollbackCalls.ShouldBe(0);
         fakeConnection.FakeTransaction.CommitAsyncCalls.ShouldBe(0);
         fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
+        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(cts.Token);
     }
 
     [Fact]
-    public async Task Handle_DbConnection_HandlerThrows_UsesRollbackAsync()
+    public async Task Handle_DbConnection_HandlerThrows_UsesRollbackAsyncWithoutPropagatingCallerToken()
     {
         // Arrange
         var fakeConnection = new FakeDbConnection();
@@ -328,17 +335,19 @@ public sealed class TransactionPipelineBehaviorTests
         var behavior = new TransactionPipelineBehavior<TestRequest, string>(fakeConnection);
         var request = new TestRequest(Guid.NewGuid());
         var context = CreateTestContext();
+        using var cts = new CancellationTokenSource();
 
         RequestHandlerCallback<string> nextStep = () =>
             throw new InvalidOperationException("Handler failed");
 
         // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        var result = await behavior.Handle(request, context, nextStep, cts.Token);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
         fakeConnection.FakeTransaction.RollbackAsyncCalls.ShouldBe(1);
         fakeConnection.FakeTransaction.DisposeAsyncCalls.ShouldBe(1);
+        fakeConnection.FakeTransaction.RollbackAsyncToken.ShouldBe(CancellationToken.None);
     }
 
     #endregion
@@ -362,6 +371,8 @@ public sealed class TransactionPipelineBehaviorTests
         public int RollbackAsyncCalls { get; private set; }
         public int DisposeCalls { get; private set; }
         public int DisposeAsyncCalls { get; private set; }
+        public CancellationToken CommitAsyncToken { get; private set; }
+        public CancellationToken RollbackAsyncToken { get; private set; }
 
         public override IsolationLevel IsolationLevel => IsolationLevel.Unspecified;
         protected override DbConnection? DbConnection => null;
@@ -371,6 +382,7 @@ public sealed class TransactionPipelineBehaviorTests
         public override Task CommitAsync(CancellationToken cancellationToken = default)
         {
             CommitAsyncCalls++;
+            CommitAsyncToken = cancellationToken;
             return Task.CompletedTask;
         }
 
@@ -379,6 +391,7 @@ public sealed class TransactionPipelineBehaviorTests
         public override Task RollbackAsync(CancellationToken cancellationToken = default)
         {
             RollbackAsyncCalls++;
+            RollbackAsyncToken = cancellationToken;
             return Task.CompletedTask;
         }
 
@@ -404,6 +417,8 @@ public sealed class TransactionPipelineBehaviorTests
         public int OpenAsyncCalls { get; private set; }
         public int BeginTransactionCalls { get; private set; }
         public int BeginTransactionAsyncCalls { get; private set; }
+        public CancellationToken OpenAsyncToken { get; private set; }
+        public CancellationToken BeginTransactionAsyncToken { get; private set; }
         public FakeDbTransaction FakeTransaction { get; } = new();
 
         [System.Diagnostics.CodeAnalysis.AllowNull]
@@ -428,6 +443,7 @@ public sealed class TransactionPipelineBehaviorTests
         public override Task OpenAsync(CancellationToken cancellationToken)
         {
             OpenAsyncCalls++;
+            OpenAsyncToken = cancellationToken;
             _state = ConnectionState.Open;
             return Task.CompletedTask;
         }
@@ -443,6 +459,7 @@ public sealed class TransactionPipelineBehaviorTests
         protected override ValueTask<DbTransaction> BeginDbTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
         {
             BeginTransactionAsyncCalls++;
+            BeginTransactionAsyncToken = cancellationToken;
             return ValueTask.FromResult<DbTransaction>(FakeTransaction);
         }
     }
