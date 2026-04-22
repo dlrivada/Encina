@@ -115,27 +115,25 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         }
     }
 
-    private static async Task CommitAsync(IDbTransaction transaction, CancellationToken cancellationToken)
+    private static Task CommitAsync(IDbTransaction transaction, CancellationToken cancellationToken)
     {
         if (transaction is DbTransaction dbTransaction)
         {
-            await dbTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return dbTransaction.CommitAsync(cancellationToken).AsTask();
         }
-        else
-        {
-            transaction.Commit();
-        }
+
+        transaction.Commit();
+        return Task.CompletedTask;
     }
 
-    private static async Task RollbackAsync(IDbTransaction transaction, CancellationToken cancellationToken)
+    private static Task RollbackAsync(IDbTransaction transaction, CancellationToken cancellationToken)
     {
         if (transaction is DbTransaction dbTransaction)
         {
-            await dbTransaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            return dbTransaction.RollbackAsync(cancellationToken).AsTask();
         }
-        else
-        {
-            transaction.Rollback();
-        }
+
+        transaction.Rollback();
+        return Task.CompletedTask;
     }
 }
