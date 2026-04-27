@@ -1,28 +1,210 @@
 # Dependabot configuration
-# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+#
+# NuGet is split into three parallel jobs (src/, tests/, tools/) because the
+# repository has 156 .csproj files and a single root-scoped run iterates each
+# project sequentially, hitting the 45-min internal updater timeout (and ~1h
+# GitHub job timeout) before any PR is produced. See issue #1042.
+#
+# Aggressive grouping by package family + cooldown reduces PR volume and
+# spreads updates across runs. Security updates bypass cooldown automatically,
+# so GHSA advisories still flow through without delay.
 
 version: 2
+
 updates:
-  # NuGet packages
+  # NuGet — src/ (110 csproj files; the heavy job)
   - package-ecosystem: "nuget"
-    directory: "/"
+    directory: "/src"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 15
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+      semver-minor-days: 3
+      semver-patch-days: 1
     groups:
-      # Group minor/patch updates to reduce PR noise
-      nuget-minor:
+      microsoft-extensions:
+        patterns:
+          - "Microsoft.Extensions.*"
+          - "Microsoft.Bcl.*"
+          - "System.*"
+        update-types: ["minor", "patch"]
+      microsoft-aspnetcore:
+        patterns:
+          - "Microsoft.AspNetCore.*"
+        update-types: ["minor", "patch"]
+      microsoft-efcore:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+          - "Microsoft.Data.*"
+          - "Pomelo.*"
+          - "Npgsql*"
+          - "MySqlConnector"
+          - "Oracle.*"
+        update-types: ["minor", "patch"]
+      microsoft-codeanalysis:
+        patterns:
+          - "Microsoft.CodeAnalysis.*"
+          - "Roslynator.*"
+          - "SonarAnalyzer.*"
+          - "Meziantou.*"
+          - "JetBrains.Annotations"
+        update-types: ["minor", "patch"]
+      aws-sdk:
+        patterns:
+          - "AWSSDK.*"
+          - "Amazon.*"
+        update-types: ["minor", "patch"]
+      azure:
+        patterns:
+          - "Azure.*"
+          - "Microsoft.Azure.*"
+        update-types: ["minor", "patch"]
+      opentelemetry:
+        patterns:
+          - "OpenTelemetry*"
+        update-types: ["minor", "patch"]
+      aspire:
+        patterns:
+          - "Aspire.*"
+        update-types: ["minor", "patch"]
+      grpc:
+        patterns:
+          - "Grpc.*"
+        update-types: ["minor", "patch"]
+      hangfire:
+        patterns:
+          - "Hangfire.*"
+        update-types: ["minor", "patch"]
+      dapr:
+        patterns:
+          - "Dapr.*"
+        update-types: ["minor", "patch"]
+      hotchocolate:
+        patterns:
+          - "HotChocolate*"
+        update-types: ["minor", "patch"]
+      sentry:
+        patterns:
+          - "Sentry*"
+        update-types: ["minor", "patch"]
+      # Catch-all for everything else (low-volume packages)
+      nuget-other:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
+        exclude-patterns:
+          - "Microsoft.Extensions.*"
+          - "Microsoft.Bcl.*"
+          - "System.*"
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.EntityFrameworkCore*"
+          - "Microsoft.Data.*"
+          - "Pomelo.*"
+          - "Npgsql*"
+          - "MySqlConnector"
+          - "Oracle.*"
+          - "Microsoft.CodeAnalysis.*"
+          - "Roslynator.*"
+          - "SonarAnalyzer.*"
+          - "Meziantou.*"
+          - "JetBrains.Annotations"
+          - "AWSSDK.*"
+          - "Amazon.*"
+          - "Azure.*"
+          - "Microsoft.Azure.*"
+          - "OpenTelemetry*"
+          - "Aspire.*"
+          - "Grpc.*"
+          - "Hangfire.*"
+          - "Dapr.*"
+          - "HotChocolate*"
+          - "Sentry*"
+        update-types: ["minor", "patch"]
     labels:
       - "dependencies"
       - "nuget"
     commit-message:
       prefix: "deps"
+
+  # NuGet — tests/ (45 csproj files; mostly test-only packages)
+  - package-ecosystem: "nuget"
+    directory: "/tests"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+      semver-minor-days: 3
+      semver-patch-days: 1
+    groups:
+      xunit:
+        patterns:
+          - "xunit.*"
+          - "coverlet.*"
+        update-types: ["minor", "patch"]
+      testcontainers:
+        patterns:
+          - "Testcontainers*"
+        update-types: ["minor", "patch"]
+      microsoft-test-extensions:
+        patterns:
+          - "Microsoft.Extensions.*"
+          - "Microsoft.NET.Test.*"
+          - "Microsoft.AspNetCore.*"
+        update-types: ["minor", "patch"]
+      verify:
+        patterns:
+          - "Verify*"
+        update-types: ["minor", "patch"]
+      archunit:
+        patterns:
+          - "TngTech.*"
+        update-types: ["minor", "patch"]
+      # Catch-all for everything else (NSubstitute, Bogus, FsCheck, Shouldly, etc.)
+      nuget-test-other:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "xunit.*"
+          - "coverlet.*"
+          - "Testcontainers*"
+          - "Microsoft.Extensions.*"
+          - "Microsoft.NET.Test.*"
+          - "Microsoft.AspNetCore.*"
+          - "Verify*"
+          - "TngTech.*"
+        update-types: ["minor", "patch"]
+    labels:
+      - "dependencies"
+      - "nuget"
+    commit-message:
+      prefix: "deps(tests)"
+
+  # NuGet — tools/ (1 csproj; trivial scope)
+  - package-ecosystem: "nuget"
+    directory: "/tools"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+    groups:
+      nuget-tools:
+        patterns:
+          - "*"
+        update-types: ["minor", "patch"]
+    labels:
+      - "dependencies"
+      - "nuget"
+    commit-message:
+      prefix: "deps(tools)"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
