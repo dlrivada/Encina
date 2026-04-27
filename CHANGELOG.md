@@ -1,5 +1,32 @@
 ## [Unreleased] - v0.13.0 - Security & Compliance
 
+### Security
+
+#### Dependency advisories — OpenTelemetry 1.15.3 / Microsoft.AspNetCore.DataProtection 10.0.7 (#1041)
+
+Bumped three transitively-vulnerable packages plus aligned the .NET 10 monthly patch family to 10.0.7 and the OpenTelemetry 1.x family to 1.15.3:
+
+- **[CVE-2026-40372](https://github.com/advisories/GHSA-9mv3-2cwr-p262)** (CVSS 9.1, Critical) — `Microsoft.AspNetCore.DataProtection` 10.0.0–10.0.6 has an HMAC validation bypass that allows forging authentication cookies and decrypting protected payloads. Bumped to **10.0.7**.
+- **[GHSA-g94r-2vxg-569j](https://github.com/advisories/GHSA-g94r-2vxg-569j)** (Moderate) — `OpenTelemetry.Api` and `OpenTelemetry.Extensions.Propagators` < 1.15.3 — excessive memory allocation when parsing OpenTelemetry propagation headers. Bumped both to **1.15.3** (Propagators added to central versions defensively).
+- **[GHSA-mr8r-92fq-pj8p](https://github.com/advisories/GHSA-mr8r-92fq-pj8p)** + **[GHSA-q834-8qmm-v933](https://github.com/advisories/GHSA-q834-8qmm-v933)** (Moderate) — `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.13.1–1.15.2: unbounded `grpc-status-details-bin` parsing in OTLP/gRPC retry handling and unbounded HTTP response body reads. Bumped to **1.15.3**.
+
+**Mitigation guidance for `Microsoft.AspNetCore.DataProtection` consumers (CVE-2026-40372)**
+
+Updating to 10.0.7 fixes the validation bug going forward, but **any cookie / token / payload signed by a key that was active during the vulnerable window remains forgeable until that key is revoked**. After updating, consumers exposed to untrusted traffic should rotate the data-protection key ring:
+
+```csharp
+var keyManager = serviceProvider.GetRequiredService<IKeyManager>();
+keyManager.RevokeAllKeys(
+    revocationDate: DateTimeOffset.UtcNow,
+    reason: "CVE-2026-40372: DataProtection 10.0.6 validation bypass");
+```
+
+`RevokeAllKeys` marks every existing key as revoked; a fresh key is auto-generated on the next `Protect` call. This invalidates all in-flight authentication cookies, antiforgery tokens, and protected payloads — users sign back in, antiforgery tokens reissue.
+
+**Application-level artifacts that survive key-ring rotation must be rotated separately**: API keys, refresh tokens, password-reset links, and any plaintext secrets that travelled inside protected payloads during the vulnerable window are still attacker-controlled even after the key ring rotates. Inventory and rotate them, then audit logs for anomalous activity against protected endpoints during the window.
+
+This mitigation only matters for projects that actually consume `Microsoft.AspNetCore.DataProtection` at runtime. In Encina, the package is referenced by `Encina.Messaging.Encryption.DataProtection`; consumers of that package should follow the rotation guidance above. `Encina.ContractTests` references it for compile-time contract verification only and does not produce runtime tokens.
+
 ### Added
 
 #### Encina.Messaging — Scheduled Message Processor + Retry Policy & Dispatcher Abstractions (#765)
