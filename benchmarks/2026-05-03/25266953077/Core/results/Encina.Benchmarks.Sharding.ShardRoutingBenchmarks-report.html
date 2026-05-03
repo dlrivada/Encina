@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ShardRoutingBenchmarks-20260503-015330</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+Intel Xeon Platinum 8370C CPU 2.80GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.203
+  [Host]    : .NET 10.0.7 (10.0.7, 10.0.726.21808), X64 RyuJIT x86-64-v4
+  MediumRun : .NET 10.0.7 (10.0.7, 10.0.726.21808), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=MediumRun  InvocationCount=1  IterationCount=15  
+LaunchCount=2  UnrollFactor=1  WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                    </th><th>ShardCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Hash routing&#39;</td><td>3</td><td>4.590 &mu;s</td><td>0.1997 &mu;s</td><td>0.2800 &mu;s</td><td>1.00</td><td>0.09</td><td>4</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>3</td><td>1.806 &mu;s</td><td>0.1564 &mu;s</td><td>0.2141 &mu;s</td><td>0.39</td><td>0.05</td><td>1</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>3</td><td>2.502 &mu;s</td><td>0.0834 &mu;s</td><td>0.1196 &mu;s</td><td>0.55</td><td>0.04</td><td>2</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>3</td><td>3.857 &mu;s</td><td>0.3149 &mu;s</td><td>0.4517 &mu;s</td><td>0.84</td><td>0.11</td><td>3</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>3</td><td>5.724 &mu;s</td><td>0.9050 &mu;s</td><td>1.2387 &mu;s</td><td>1.25</td><td>0.28</td><td>4</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>3</td><td>2.722 &mu;s</td><td>0.2788 &mu;s</td><td>0.3999 &mu;s</td><td>0.60</td><td>0.09</td><td>2</td><td>104 B</td><td>1.86</td>
+</tr><tr><td>GetShardConnectionString</td><td>3</td><td>2.946 &mu;s</td><td>0.2184 &mu;s</td><td>0.2989 &mu;s</td><td>0.64</td><td>0.08</td><td>2</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>3</td><td>5.278 &mu;s</td><td>0.4610 &mu;s</td><td>0.6311 &mu;s</td><td>1.15</td><td>0.15</td><td>4</td><td>152 B</td><td>2.71</td>
+</tr><tr><td>&#39;Hash routing&#39;</td><td>50</td><td>3.744 &mu;s</td><td>0.2972 &mu;s</td><td>0.4356 &mu;s</td><td>1.01</td><td>0.17</td><td>2</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>50</td><td>2.051 &mu;s</td><td>0.1290 &mu;s</td><td>0.1808 &mu;s</td><td>0.56</td><td>0.08</td><td>1</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>50</td><td>3.471 &mu;s</td><td>0.6672 &mu;s</td><td>0.9780 &mu;s</td><td>0.94</td><td>0.29</td><td>2</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>50</td><td>4.252 &mu;s</td><td>0.1196 &mu;s</td><td>0.1715 &mu;s</td><td>1.15</td><td>0.15</td><td>2</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>50</td><td>7.489 &mu;s</td><td>0.3743 &mu;s</td><td>0.5368 &mu;s</td><td>2.03</td><td>0.29</td><td>5</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>50</td><td>3.595 &mu;s</td><td>0.2799 &mu;s</td><td>0.4014 &mu;s</td><td>0.97</td><td>0.16</td><td>2</td><td>480 B</td><td>8.57</td>
+</tr><tr><td>GetShardConnectionString</td><td>50</td><td>5.514 &mu;s</td><td>0.9489 &mu;s</td><td>1.3909 &mu;s</td><td>1.49</td><td>0.42</td><td>3</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>50</td><td>6.398 &mu;s</td><td>0.8880 &mu;s</td><td>1.2449 &mu;s</td><td>1.73</td><td>0.40</td><td>4</td><td>152 B</td><td>2.71</td>
+</tr></tbody></table>
+</body>
+</html>

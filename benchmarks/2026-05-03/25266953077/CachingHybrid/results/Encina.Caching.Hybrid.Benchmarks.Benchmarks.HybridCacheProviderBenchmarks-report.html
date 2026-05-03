@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Hybrid.Benchmarks.Benchmarks.HybridCacheProviderBenchmarks-20260503-021248</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.203
+  [Host]     : .NET 10.0.7 (10.0.7, 10.0.726.21808), X64 RyuJIT x86-64-v4
+  Job-NUBXJZ : .NET 10.0.7 (10.0.7, 10.0.726.21808), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.7 (10.0.7, 10.0.726.21808), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                 </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>ExistsAsync_False</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>882.5 ns</td><td>7.26 ns</td><td>8.36 ns</td><td>0.82</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>ExistsAsync_True</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>913.3 ns</td><td>5.93 ns</td><td>6.83 ns</td><td>0.85</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetAsync_CacheHit</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1,070.1 ns</td><td>3.99 ns</td><td>4.26 ns</td><td>1.00</td><td>0.01</td><td>0.0286</td><td>-</td><td>496 B</td><td>1.00</td>
+</tr><tr><td>GetAsync_CacheMiss</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>853.0 ns</td><td>2.04 ns</td><td>2.35 ns</td><td>0.80</td><td>0.00</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetOrSetAsync_CacheHit</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1,103.9 ns</td><td>2.63 ns</td><td>2.81 ns</td><td>1.03</td><td>0.00</td><td>0.0324</td><td>-</td><td>560 B</td><td>1.13</td>
+</tr><tr><td>GetOrSetAsync_CacheMiss</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>5,571.9 ns</td><td>109.82 ns</td><td>117.51 ns</td><td>5.21</td><td>0.11</td><td>0.1068</td><td>0.0992</td><td>1792 B</td><td>3.61</td>
+</tr><tr><td>GetOrSetAsync_WithTags</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>10,004.7 ns</td><td>862.36 ns</td><td>922.72 ns</td><td>9.35</td><td>0.84</td><td>0.1221</td><td>0.1068</td><td>2216 B</td><td>4.47</td>
+</tr><tr><td>RemoveAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>3,224.3 ns</td><td>46.26 ns</td><td>51.42 ns</td><td>3.01</td><td>0.05</td><td>0.0648</td><td>-</td><td>1136 B</td><td>2.29</td>
+</tr><tr><td>RemoveByTagAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>8,824.1 ns</td><td>342.87 ns</td><td>352.11 ns</td><td>8.25</td><td>0.32</td><td>0.1373</td><td>0.1221</td><td>2448 B</td><td>4.94</td>
+</tr><tr><td>SetAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>4,036.9 ns</td><td>151.68 ns</td><td>162.29 ns</td><td>3.77</td><td>0.15</td><td>0.0610</td><td>0.0572</td><td>1064 B</td><td>2.15</td>
+</tr><tr><td>SetWithSlidingExpirationAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>4,142.0 ns</td><td>405.89 ns</td><td>451.15 ns</td><td>3.87</td><td>0.41</td><td>0.0610</td><td>0.0572</td><td>1072 B</td><td>2.16</td>
+</tr><tr><td>ExistsAsync_False</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>902.2 ns</td><td>2.90 ns</td><td>4.25 ns</td><td>0.83</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>ExistsAsync_True</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>905.4 ns</td><td>3.48 ns</td><td>5.11 ns</td><td>0.83</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetAsync_CacheHit</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>1,089.0 ns</td><td>4.92 ns</td><td>7.06 ns</td><td>1.00</td><td>0.01</td><td>0.0286</td><td>-</td><td>496 B</td><td>1.00</td>
+</tr><tr><td>GetAsync_CacheMiss</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>851.9 ns</td><td>2.89 ns</td><td>4.24 ns</td><td>0.78</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetOrSetAsync_CacheHit</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>1,092.4 ns</td><td>6.34 ns</td><td>9.10 ns</td><td>1.00</td><td>0.01</td><td>0.0324</td><td>-</td><td>560 B</td><td>1.13</td>
+</tr><tr><td>GetOrSetAsync_CacheMiss</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5,625.3 ns</td><td>108.86 ns</td><td>156.13 ns</td><td>5.17</td><td>0.14</td><td>0.1068</td><td>0.0992</td><td>1792 B</td><td>3.61</td>
+</tr><tr><td>GetOrSetAsync_WithTags</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>10,352.7 ns</td><td>558.97 ns</td><td>801.67 ns</td><td>9.51</td><td>0.73</td><td>0.1221</td><td>0.1068</td><td>2216 B</td><td>4.47</td>
+</tr><tr><td>RemoveAsync</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3,326.6 ns</td><td>41.92 ns</td><td>61.45 ns</td><td>3.05</td><td>0.06</td><td>0.0648</td><td>-</td><td>1136 B</td><td>2.29</td>
+</tr><tr><td>RemoveByTagAsync</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>8,695.4 ns</td><td>367.41 ns</td><td>502.91 ns</td><td>7.98</td><td>0.46</td><td>0.1373</td><td>0.1221</td><td>2448 B</td><td>4.94</td>
+</tr><tr><td>SetAsync</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4,116.9 ns</td><td>66.54 ns</td><td>95.42 ns</td><td>3.78</td><td>0.09</td><td>0.0610</td><td>0.0572</td><td>1064 B</td><td>2.15</td>
+</tr><tr><td>SetWithSlidingExpirationAsync</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4,026.2 ns</td><td>140.28 ns</td><td>182.41 ns</td><td>3.70</td><td>0.17</td><td>0.0610</td><td>0.0572</td><td>1072 B</td><td>2.16</td>
+</tr></tbody></table>
+</body>
+</html>
