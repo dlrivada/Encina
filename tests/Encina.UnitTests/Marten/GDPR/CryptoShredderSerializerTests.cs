@@ -7,9 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Weasel.Core;
-
-using ISerializer = Marten.ISerializer;
 using static LanguageExt.Prelude;
+using ISerializer = Marten.ISerializer;
 
 namespace Encina.UnitTests.Marten.GDPR;
 
