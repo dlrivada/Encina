@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 DRAFT — DEC-001 … DEC-003 decided 2026-09-21; awaiting DEC-004 … DEC-006 |
+| **Status** | 🟡 DRAFT — DEC-001 … DEC-004 decided 2026-09-21; awaiting DEC-005 and DEC-006 |
 | **Author** | Specifier (Claude), from `docs/engineering/PHASE0-BASELINE.md` |
 | **Date** | 2026-09-21 |
 | **Evidence** | `PHASE0-BASELINE.md` (2026-09-21) |
@@ -42,11 +42,11 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 
 ### Build and quality gates
 
-- **REQ-005** The solution builds from a clean clone in Release with zero warnings and zero NuGet audit findings at or above the severity threshold decided in DEC-004.
+- **REQ-005** The solution builds from a clean clone in Release with zero warnings and zero NuGet audit findings of **moderate or higher** severity (DEC-004); the audit stays promoted to an error by `TreatWarningsAsErrors`.
 - **REQ-006** All test projects in the 1.0 list run green in CI, with no test excluded from CI without an open issue naming it.
 - **REQ-007** Every package in the 1.0 list reaches its per-flag coverage targets as declared in its manifest, or its manifest is revised with a recorded justification before release.
 - **REQ-008** Mutation testing runs reproducibly, publishes per-file results with the exact tool versions, and documents its known limitations; no mutation-score threshold is a release blocker while upstream results are unreliable.
-- **REQ-009** Static analysis (CodeQL, and SonarCloud if DEC-006 keeps it) produces a current result with no open findings above the severity decided in DEC-004.
+- **REQ-009** Static analysis (CodeQL, and SonarCloud if DEC-006 keeps it) produces a current result with no open findings of **high or higher** severity; medium findings are listed with a disposition in the evidence report (DEC-004).
 - **REQ-010** Architecture tests, PublicAPI analyzers and EventId-range checks pass for every package in the 1.0 list.
 
 ### Defects and security
@@ -64,7 +64,7 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 
 ### Release engineering
 
-- **REQ-018** Packages are produced by CI from a tagged commit, with deterministic build settings, SourceLink, license, readme and icon metadata, and are signed with build provenance at the level decided in DEC-004.
+- **REQ-018** Packages are produced by CI from a tagged commit, with deterministic build settings, SourceLink, license, readme and icon metadata, carry a GitHub Actions artifact attestation and are Sigstore-signed (DEC-004; #92, #93).
 - **REQ-019** Package identifiers are reserved on NuGet.org and the publish workflow is exercised end to end against a pre-release version before 1.0.
 - **REQ-020** The SDK version is pinned (`global.json`) and the repository's default branch is protected (no direct pushes, required checks) as decided in DEC-006.
 - **REQ-021** `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` and the issue/PR templates describe the actual 1.0 process.
@@ -165,7 +165,7 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 | **DEC-001** | Canonical package list and disposition of the 11 projects outside the solution (#1089), incl. `Encina.Secrets.*` vs `Encina.Security.Secrets.*` | (a) `Security.Secrets` canonical, delete `Secrets.*`; (b) the reverse; (c) keep both (rejected: REQ-003). AIAct/Consent: (a) add to solution and 1.0; (b) defer. Testing.*: add to solution. | (a) for Secrets; Consent and AIAct in 1.0 (EU regulation is mandatory for the target applications); Testing.* in. | **Decided 2026-09-21.** (a): `Encina.Security.Secrets.*` is canonical (#400 superseded #603 three days after it landed; #452 closed as superseded). `Encina.Secrets.*` deleted from `src/`. The other nine projects were never in `Encina.slnx` but are built and tested through ProjectReferences; they are now listed in the solution. AIAct and Consent are part of 1.0; AIAct gets a short article-coverage audit before any "AI Act compliant" claim (REQ-024). |
 | **DEC-002** | Release scope: which milestones/EPICs are part of 1.0, and whether 1.0 has a target date | (a) consolidation only, no EPIC; (b) existing modules hardened + the compliance EPICs #881 (AI Act) and #880 (NIS2 + Digital Omnibus), new regulation packages post-1.0; (c) whole feature milestones v0.14–v0.20. Date: fixed vs none. | (b); no date; benchmarks only for #560/#561. | **Decided 2026-09-21.** (b). No target date: sequencing matters, the calendar does not. EPIC #881 complete (twelve compliance issues), EPIC #880 without DORA/eIDAS2/Data Act/ENS/EHDS (#804–#808 post-1.0). #71, #72, #74 moved from #881 to v0.21.0 because they are testing/CI work, not AI Act. Feature milestones v0.14–v0.20 are not blocked, just outside the 1.0 contract. |
 | **DEC-003** | Provider set for 1.0 where `CLAUDE.md` and `src/` disagree: caching (Memcached absent), locks (PostgreSQL/MySQL absent), cloud (GCP absent) | (a) ship what exists and amend `CLAUDE.md`; (b) implement the missing ones before 1.0. | (a), or (a) plus the two database locks. | **Decided 2026-09-21.** Caching and distributed locks are implemented **as documented** before 1.0: Memcached (#277, the Memcached part only), PostgreSQL `pg_advisory_lock` (#207) and MySQL `GET_LOCK` (#208), so the 8-cache and 4-lock rules in `CLAUDE.md` become true. Cloud stays as it is: Google Cloud Functions (#205) is post-1.0 and `CLAUDE.md`'s cloud triangle is amended to say GCP is deferred. |
-| **DEC-004** | Severity thresholds: NuGet audit level that blocks the build, CodeQL/Sonar level that blocks release, SLSA level for provenance | Audit: block on ≥ moderate (current behaviour) vs ≥ high. Static: block on ≥ high. Provenance: SLSA L2 (#92) vs GitHub artifact attestations only. | Audit ≥ moderate (keep), static ≥ high, GitHub attestations + Sigstore signing (#93) which satisfies L2 in practice. | *pending* |
+| **DEC-004** | Severity thresholds: NuGet audit level that blocks the build, CodeQL/Sonar level that blocks release, SLSA level for provenance | Audit: block on ≥ moderate (current behaviour) vs ≥ high. Static: block on ≥ high. Provenance: SLSA L2 (#92) vs GitHub artifact attestations only. | Audit ≥ moderate (keep), static ≥ high, GitHub attestations + Sigstore signing (#93). | **Decided 2026-09-21.** NuGet audit keeps breaking the build at **moderate or higher** (the five red months were a process failure, not a threshold failure). Static analysis blocks the release at **high or higher**; medium findings are listed with a disposition in the evidence report. Provenance = **GitHub Actions artifact attestations + Sigstore-signed packages** (#92, #93), which satisfies SLSA L2 in practice without separate infrastructure. |
 | **DEC-005** | Versioning and CHANGELOG: go from 0.13.0-dev straight to 1.0.0-rc.1, or cut 0.13.0 first; how to consolidate the 2,621-line Unreleased section | (a) tag 0.13.0 now as "last pre-1.0", then rc; (b) skip to 1.0.0-rc.1 and fold Unreleased into a "0.13 → 1.0" section. | (a): it gives a checkpoint with the current CHANGELOG as is, and the 1.0 entry starts clean. | *pending* |
 | **DEC-006** | Process policy: keep SonarCloud (needs #75) or drop it in favour of CodeQL + analyzers; branch protection on `main` with required `ci.yml`; agents commit only via PR | (a) keep Sonar; (b) drop Sonar and remove the claim. Protection: on/off. | (b) unless the token is configured within Phase 1; protection on; PR-only for all agents. | *pending* |
 
