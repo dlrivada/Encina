@@ -9,4 +9,4 @@ Specification-Driven Development artifacts for Encina (see `docs/engineering/AI-
 
 | Spec | Title | Status |
 |---|---|---|
-| [SPEC-000](SPEC-000-encina-1.0-baseline-and-release-scope.md) | Encina 1.0 Baseline and Release Scope | 🟡 DRAFT |
+| [SPEC-000](SPEC-000-encina-1.0-baseline-and-release-scope.md) | Encina 1.0 Baseline and Release Scope | 🟢 APPROVED (2026-09-21) |

@@ -175,6 +175,7 @@ Agents should be able to work independently and safely, preferably using isolate
 Isolation has a cost that must be paid back: a worktree that outlives its task is a stale copy of the repository that later agents can mistake for the current state. Rules:
 
 - one task, one worktree, one branch; never two agents on the same branch at once;
+- an agent never commits to `main`, with or without administrator rights: every change reaches `main` through a pull request whose required checks are green (SPEC-000 INV-006, DEC-006);
 - when the task ends (merged, abandoned or superseded), the worktree is removed and, if the branch is not merged, its disposition (keep / delete / convert to issue) is recorded;
 - `git worktree list` should be part of the repository-topology pass of any audit (§22, Pass 1), and orphaned worktrees are a finding.
 

@@ -9,7 +9,7 @@
 | Test Consolidation | `docs/plans/test-consolidation-plan.md` | 🟡 In Progress |
 | Performance Measurement Infrastructure | `docs/plans/performance-infrastructure-plan.md` | 🟢 Phase 4 implemented (ADR-025) |
 | Encina 1.0 — Phase 0 baseline | `docs/engineering/PHASE0-BASELINE.md` | 🟢 Diagnostic done 2026-09-21; next: #1088 (build) |
-| SPEC-000 — 1.0 Baseline and Release Scope | `docs/specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md` | 🟡 DRAFT — awaiting human decisions DEC-001…006 |
+| SPEC-000 — 1.0 Baseline and Release Scope | `docs/specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md` | 🟢 APPROVED 2026-09-21 — the 1.0 boundary; six decisions recorded |
 | AI development model (SDD, agents, routing) | `docs/engineering/AI-DEVELOPMENT-MODEL.md` | 🟢 Reference |
 
 ## Project Philosophy
