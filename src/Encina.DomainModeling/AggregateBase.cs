@@ -75,6 +75,24 @@ public abstract class AggregateBase : IAggregate
     /// <inheritdoc />
     public void ClearUncommittedEvents() => _uncommittedEvents.Clear();
 
+    /// <inheritdoc />
+    public void LoadFromHistory(IEnumerable<object> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        foreach (var domainEvent in history)
+        {
+            if (domainEvent is null)
+            {
+                throw new ArgumentException("Event history must not contain null events.", nameof(history));
+            }
+
+            // Replay: mutate state and advance the version, but do not track as uncommitted
+            Apply(domainEvent);
+            Version++;
+        }
+    }
+
     /// <summary>
     /// Applies an event to the aggregate and adds it to the uncommitted events list.
     /// </summary>

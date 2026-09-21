@@ -31,11 +31,29 @@ public interface IAggregate
     /// Gets or sets the current version of the aggregate (number of events applied).
     /// </summary>
     /// <remarks>
-    /// The setter is needed by event store repositories (e.g., Marten) to sync the aggregate's
-    /// version with the stream version after loading via event replay, since Apply() does not
-    /// increment the version during replay (only RaiseEvent does during new event creation).
+    /// The setter is needed by snapshot-based repositories to restore the version recorded
+    /// with a snapshot before replaying the events that follow it. Ordinary replay goes through
+    /// <see cref="LoadFromHistory"/>, which maintains the version itself.
     /// </remarks>
     int Version { get; set; }
+
+    /// <summary>
+    /// Rebuilds the aggregate state from its persisted event history.
+    /// </summary>
+    /// <param name="history">The persisted events, oldest first.</param>
+    /// <remarks>
+    /// <para>
+    /// Each event is applied to the aggregate state and increments <see cref="Version"/>,
+    /// exactly as when it was originally raised, but without being added to
+    /// <see cref="UncommittedEvents"/>: replayed events are already persisted.
+    /// </para>
+    /// <para>
+    /// Event store repositories call this method after fetching a stream, which keeps
+    /// event replay provider-agnostic: the aggregate, not the event store, decides how an
+    /// event mutates its state.
+    /// </para>
+    /// </remarks>
+    void LoadFromHistory(IEnumerable<object> history);
 
     /// <summary>
     /// Gets the uncommitted domain events that have been raised but not yet persisted.

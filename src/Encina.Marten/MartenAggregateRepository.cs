@@ -11,9 +11,18 @@ namespace Encina.Marten;
 /// <summary>
 /// Marten-based implementation of the aggregate repository.
 /// </summary>
-/// <typeparam name="TAggregate">The aggregate type.</typeparam>
+/// <typeparam name="TAggregate">
+/// The aggregate type. It must expose a parameterless constructor so that the repository can
+/// instantiate it before replaying its event stream through <see cref="IAggregate.LoadFromHistory"/>.
+/// </typeparam>
+/// <remarks>
+/// Event replay is done by Encina, not by Marten: the repository fetches the stream with
+/// <c>FetchStreamAsync</c> and lets the aggregate fold the events. This keeps aggregates
+/// provider-agnostic (a single <c>Apply(object)</c> switch) instead of requiring the
+/// per-event-type methods and <c>partial</c> classes that Marten's own aggregation needs.
+/// </remarks>
 public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository<TAggregate>
-    where TAggregate : class, IAggregate
+    where TAggregate : class, IAggregate, new()
 {
     private readonly IDocumentSession _session;
     private readonly IRequestContext _requestContext;
@@ -65,11 +74,11 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         {
             Log.LoadingAggregate(_logger, typeof(TAggregate).Name, id);
 
-            var aggregate = await _session.Events.AggregateStreamAsync<TAggregate>(
+            var events = await _session.Events.FetchStreamAsync(
                 id,
                 token: cancellationToken).ConfigureAwait(false);
 
-            if (aggregate is null)
+            if (events.Count == 0)
             {
                 Log.AggregateNotFound(_logger, typeof(TAggregate).Name, id);
 
@@ -79,18 +88,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} was not found."));
             }
 
-            // Marten's AggregateStreamAsync calls Apply() (not RaiseEvent), so the aggregate's
-            // Version property is not automatically set to match the stream version.
-            // We set the version from a separate query using the document store to avoid
-            // session state interference (Marten tracks stream state within sessions).
-            var store = _session.DocumentStore;
-            await using var versionSession = store.LightweightSession();
-            var streamState = await versionSession.Events.FetchStreamStateAsync(id, cancellationToken)
-                .ConfigureAwait(false);
-            if (streamState is not null)
-            {
-                aggregate.Version = (int)streamState.Version;
-            }
+            var aggregate = Replay(events);
 
             Log.LoadedAggregate(_logger, typeof(TAggregate).Name, id, aggregate.Version);
 
@@ -118,12 +116,13 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         {
             Log.LoadingAggregateAtVersion(_logger, typeof(TAggregate).Name, id, version);
 
-            var aggregate = await _session.Events.AggregateStreamAsync<TAggregate>(
+            // Marten returns the events up to and including the requested version
+            var events = await _session.Events.FetchStreamAsync(
                 id,
                 version: version,
                 token: cancellationToken).ConfigureAwait(false);
 
-            if (aggregate is null)
+            if (events.Count == 0)
             {
                 return Left<EncinaError, TAggregate>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(
@@ -131,8 +130,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} at version {version} was not found."));
             }
 
-            // Sync version from the requested version (since Apply doesn't increment Version)
-            aggregate.Version = version;
+            var aggregate = Replay(events);
 
             return Right<EncinaError, TAggregate>(aggregate); // NOSONAR S6966: LanguageExt Right is a pure function
         }
@@ -167,13 +165,12 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             // Enrich session with metadata before appending events
             _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
-            // Append events to the stream.
-            // We do NOT pass an explicit expected version because the session already tracks
-            // the stream state from AggregateStreamAsync in LoadAsync. Marten handles
-            // optimistic concurrency natively at the session level — if another process
-            // modified the stream between our load and save, SaveChangesAsync will throw
+            // Append events with optimistic concurrency. Marten's expectedVersion is the version
+            // the stream must have AFTER the append; the aggregate's Version already counts the
+            // uncommitted events (RaiseEvent increments it), so it is exactly that number. If
+            // another process appended to the stream since we loaded it, SaveChangesAsync throws
             // a concurrency exception that we catch below.
-            _session.Events.Append(aggregate.Id, uncommittedEvents.ToArray());
+            _session.Events.Append(aggregate.Id, aggregate.Version, uncommittedEvents.ToArray());
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -286,6 +283,16 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                     ex,
                     $"Failed to create aggregate {typeof(TAggregate).Name} with ID {aggregate.Id}."));
         }
+    }
+
+    /// <summary>
+    /// Instantiates the aggregate and replays the fetched events into it.
+    /// </summary>
+    private static TAggregate Replay(IReadOnlyList<global::JasperFx.Events.IEvent> events)
+    {
+        var aggregate = new TAggregate();
+        aggregate.LoadFromHistory(events.Select(static e => e.Data));
+        return aggregate;
     }
 
     /// <summary>

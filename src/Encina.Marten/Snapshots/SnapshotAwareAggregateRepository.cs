@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using Encina.DomainModeling;
 using LanguageExt;
 using Marten;
@@ -292,22 +291,13 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             // No snapshot, load all events from the beginning
             Log.LoadingAggregate(_logger, typeof(TAggregate).Name, id);
 
-            TAggregate? aggregate;
-            if (targetVersion.HasValue)
-            {
-                aggregate = await _session.Events.AggregateStreamAsync<TAggregate>(
-                    id,
-                    version: targetVersion.Value,
-                    token: cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                aggregate = await _session.Events.AggregateStreamAsync<TAggregate>(
-                    id,
-                    token: cancellationToken).ConfigureAwait(false);
-            }
+            // Marten returns the events up to and including 'version' (0 = all)
+            var allEvents = await _session.Events.FetchStreamAsync(
+                id,
+                version: targetVersion ?? 0,
+                token: cancellationToken).ConfigureAwait(false);
 
-            if (aggregate is null)
+            if (allEvents.Count == 0)
             {
                 Log.AggregateNotFound(_logger, typeof(TAggregate).Name, id);
 
@@ -317,6 +307,9 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                         $"Aggregate {typeof(TAggregate).Name} with ID {id} was not found."));
             }
 
+            var aggregate = new TAggregate();
+            aggregate.LoadFromHistory(allEvents.Select(static e => e.Data));
+
             Log.LoadedAggregate(_logger, typeof(TAggregate).Name, id, aggregate.Version);
 
             return Right<EncinaError, TAggregate>(aggregate); // NOSONAR S6966: LanguageExt Right is a pure function
@@ -325,31 +318,25 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         // We have a snapshot, start from there
         SnapshotLog.LoadingFromSnapshot(_logger, typeof(TAggregate).Name, id, snapshot.Version);
 
-        // Fetch events after the snapshot version
+        // Fetch the events that follow the snapshot ('fromVersion' is inclusive, 'version' caps the range; 0 = no cap)
         var fromVersion = snapshot.Version + 1;
 
         var events = await _session.Events.FetchStreamAsync(
             id,
-            version: fromVersion,
+            version: targetVersion ?? 0,
+            fromVersion: fromVersion,
             token: cancellationToken).ConfigureAwait(false);
 
-        // Filter to target version if specified
-        var eventsToApply = targetVersion.HasValue
-            ? events.Where(e => e.Version <= targetVersion.Value).ToList()
-            : events.ToList();
+        var eventsToApply = events.Where(e => e.Version >= fromVersion).ToList();
 
         if (eventsToApply.Count > 0)
         {
             SnapshotLog.ReplayingEventsAfterSnapshot(_logger, eventsToApply.Count, typeof(TAggregate).Name, id);
         }
 
-        // Start with the snapshot state and apply remaining events
+        // Start with the snapshot state (its Version is the snapshot version) and replay the rest
         var restoredAggregate = snapshot.State;
-
-        foreach (var @event in eventsToApply)
-        {
-            ApplyEvent(restoredAggregate, @event.Data);
-        }
+        restoredAggregate.LoadFromHistory(eventsToApply.Select(static e => e.Data));
 
         SnapshotLog.LoadedFromSnapshotWithEvents(
             _logger,
@@ -360,36 +347,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             restoredAggregate.Version);
 
         return Right<EncinaError, TAggregate>(restoredAggregate); // NOSONAR S6966: LanguageExt Right is a pure function
-    }
-
-    /// <summary>
-    /// Applies an event to the aggregate using reflection to invoke the protected Apply method.
-    /// </summary>
-    [SuppressMessage("SonarAnalyzer.CSharp", "S3011:Reflection should not be used to increase accessibility",
-        Justification = "Required to replay events on aggregate after snapshot restoration - Apply is protected by design")]
-    private static void ApplyEvent(TAggregate aggregate, object @event)
-    {
-        // Access the protected Apply method via the RaiseEvent mechanism
-        // Since we're replaying, we need to use reflection to call Apply
-        var applyMethod = typeof(TAggregate).GetMethod(
-            "Apply",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
-            null,
-            [typeof(object)],
-            null);
-
-        applyMethod?.Invoke(aggregate, [@event]);
-
-        // Increment version manually since we're not going through RaiseEvent
-        var versionProperty = typeof(AggregateBase).GetProperty(
-            "Version",
-            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-
-        if (versionProperty?.SetMethod is not null)
-        {
-            var currentVersion = (int)versionProperty.GetValue(aggregate)!;
-            versionProperty.SetValue(aggregate, currentVersion + 1);
-        }
     }
 
     /// <summary>
