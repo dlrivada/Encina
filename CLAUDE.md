@@ -337,7 +337,7 @@ Beyond the 10 database providers, Encina has **specialized provider categories**
 | **Encina.GoogleCloudFunctions** | GCP Functions | HTTP, Pub/Sub (planned) |
 
 **Cloud provider triangle rule:**
-When implementing cloud-specific features, consider AWS/Azure/GCP coverage.
+When implementing cloud-specific features, consider AWS/Azure/GCP coverage. For **Encina 1.0 the shipped set is AWS Lambda + Azure Functions**; Google Cloud Functions (#205) is explicitly post-1.0 (SPEC-000 DEC-003), so a 1.0 feature is complete when AWS and Azure are covered and the GCP gap is noted in its issue.
 
 ##### 8. Resilience Providers (3 providers)
 
