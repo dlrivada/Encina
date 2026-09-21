@@ -33,6 +33,8 @@ Provisional conclusion:
 
 The planning hypothesis to use initially is **12–16 weeks**, to be replaced by an estimate based on the reconciled backlog.
 
+> **Decision 2026-09-21 (SPEC-000 DEC-002):** Encina 1.0 has **no target date**. The estimates in this document are effort hypotheses used for sequencing, not deadlines, and the compliance EPICs (#881 AI Act, #880 NIS2 + Digital Omnibus) are part of the 1.0 contract. Read every "weeks" figure below in that light.
+
 ---
 
 ## 2. Sources and authority

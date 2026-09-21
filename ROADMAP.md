@@ -519,7 +519,7 @@ Key areas already completed:
   - ~~Secrets Management [#400](https://github.com/dlrivada/Encina/issues/400) — `ISecretProvider`, Vault/Azure/AWS/GCP integration, rotation (MEDIUM - cloud-native)~~ ✅ **COMPLETADO** (v0.13.0, #603)
   - ~~ABAC Engine [#401](https://github.com/dlrivada/Encina/issues/401) — `Encina.Security.ABAC` with XACML 3.0 engine, EEL, fluent DSL, 70+ functions, 764 tests~~ ✅ **COMPLETADO** (v0.13.0)
   - New packages planned: `Encina.Security`, `Encina.Security.Audit`, `Encina.Security.Encryption`, `Encina.Security.PII`, `Encina.Security.AntiTampering`, `Encina.Security.Sanitization`, `Encina.Security.ABAC`
-  - Secrets packages (✅ implemented): `Encina.Secrets`, `Encina.Secrets.AzureKeyVault`, `Encina.Secrets.AWSSecretsManager`, `Encina.Secrets.HashiCorpVault`, `Encina.Secrets.GoogleSecretManager`
+  - Secrets packages (✅ implemented): `Encina.Security.Secrets`, `Encina.Security.Secrets.AzureKeyVault`, `Encina.Security.Secrets.AwsSecretsManager`, `Encina.Security.Secrets.HashiCorpVault`, `Encina.Security.Secrets.GoogleCloudSecretManager`
 - **Compliance Patterns - GDPR & EU Laws** (new - based on December 29, 2025 research):
   - GDPR Core [#402](https://github.com/dlrivada/Encina/issues/402) — `IDataController`, `RoPARegistry`, `GDPRCompliancePipelineBehavior` (CRITICAL - EU mandatory)
   - ~~Consent Management [#403](https://github.com/dlrivada/Encina/issues/403) — `IConsentManager`, `[RequireConsent]`, versioning, proof of consent (CRITICAL - Art. 7)~~ ✅ **COMPLETADO** (v0.13.0)

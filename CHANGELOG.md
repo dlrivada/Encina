@@ -61,6 +61,8 @@ This mitigation only matters for projects that actually consume `Microsoft.AspNe
 
 ### Changed
 
+- **Encina.slnx now lists every project under src/** (#1089, SPEC-000 DEC-001) — Encina.Compliance.AIAct, Encina.Compliance.Consent, Encina.Testing.Architecture, Encina.Testing.FsCheck, Encina.Testing.Testcontainers and Encina.Testing.Verify were built and tested through ProjectReferences but never appeared in the solution; they are now first-class solution members (105 src/ projects).
+
 #### Encina.Messaging — SchedulerOrchestrator ROP callback + retry policy injection (#765)
 
 - `ProcessDueMessagesAsync` callback signature: `Func<..., Task>` → `Func<..., CancellationToken, ValueTask<Either<EncinaError, Unit>>>`. Failures are `Left(EncinaError)` (ROP), not exceptions.
@@ -2629,6 +2631,8 @@ Added the `Encina.Compliance.Attestation` package providing provider-agnostic ta
 ---
 
 ### Removed
+
+- **Encina.Secrets, Encina.Secrets.AWSSecretsManager, Encina.Secrets.AzureKeyVault, Encina.Secrets.GoogleSecretManager, Encina.Secrets.HashiCorpVault** (#1089, SPEC-000 DEC-001) — the ISecretProvider family delivered by #603 on 2026-02-19 and superseded three days later by Encina.Security.Secrets.* (#400). Never listed in Encina.slnx, never referenced, never packaged; the four example docs written against its API and the duplicate secrets-management-googlesecretmanager.md guide are removed with it (docs/features/secrets-management.md documents the canonical family). #452 closed as superseded.
 
 - **SQLite provider support**: Removed SQLite as a supported database provider. The database provider count is now 10 (was 13): ADO.NET (SqlServer, PostgreSQL, MySQL), Dapper (SqlServer, PostgreSQL, MySQL), EF Core (SqlServer, PostgreSQL, MySQL), and MongoDB. All SQLite tests have been removed. SQLite source packages still exist in the codebase but are no longer tested or supported.
 

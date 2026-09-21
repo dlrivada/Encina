@@ -4281,7 +4281,7 @@ dotnet run -c Release -- --filter "*Comparison*"
 | **.NET Aspire Integration** | 🔄 Planned | Encina.Aspire (#449) |
 | **Dapr Building Blocks** | 🔄 Planned | Encina.Dapr (#450) |
 | **Feature Flags** | 🔄 Planned | Encina.FeatureFlags (#451) |
-| **Secrets Management** | ✅ Implemented | Encina.Secrets + 4 providers (#400/#452/#603) |
+| **Secrets Management** | ✅ Implemented | Encina.Security.Secrets + 4 providers (#400; #603/#452 superseded) |
 | **Service Discovery** | 🔄 Planned | Encina.ServiceDiscovery (#453) |
 | **Health Checks (K8s probes)** | 🔄 Planned | Encina.HealthChecks (#454) |
 | **Graceful Shutdown** | 🔄 Planned | Encina.GracefulShutdown (#455) |

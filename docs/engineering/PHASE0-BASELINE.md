@@ -193,13 +193,13 @@ Class per `AI-DEVELOPMENT-MODEL.md` §14 (A deterministic · B conflicts with an
 | # | Finding | Class | Priority | Tracking |
 |---|---|---|---|---|
 | F-01 | Solution fails to restore: Marten 8.30.0 (critical) + 8 transitive advisories; all CI red since May | A | P0 | #1088 |
-| F-02 | 11 `src/` projects outside `Encina.slnx`; `Encina.Secrets.*` duplicates `Encina.Security.Secrets.*` | C (which family is canonical) | P0 | #1089 |
+| F-02 | 11 `src/` projects outside `Encina.slnx`; `Encina.Secrets.*` duplicates `Encina.Security.Secrets.*`. **Corrected 2026-09-21:** nine of them (AIAct, Consent, four Testing.*) were built and tested all along through ProjectReferences from the test projects and were simply never listed in the solution; only `Encina.Secrets.*` (superseded by #400 three days after #603 delivered it) was dead code. **Resolved by DEC-001**: nine added to the solution, `Encina.Secrets.*` deleted, #452 closed as superseded. | C → decided | P0 | #1089, DEC-001 |
 | F-03 | ROADMAP/README metrics and package counts unbacked | A (generate) | P1 | #1090 |
 | F-04 | Coverage dashboard frozen at 2026-04-04, `latest.json` mixes legacy categories with per-flag data | A (after F-01) | P1 | #1088, #912 |
 | F-05 | Mutation matrix has never completed; `latest.json` is one shard | A (after F-01) + external | P1 | #1026, #1087 |
 | F-06 | CodeQL and SonarCloud produce no results | A | P1 | #1088, #75 |
 | F-07 | No signing/provenance/publish path; package metadata minimal; no `global.json` | A | P0 (release gate) | #92, #93, #100, #101, #102 |
-| F-08 | Milestone plan implies 10 feature releases before 1.0; contradicts the consolidation decision | C | P0 (scope) | SPEC-000 DEC-002 |
+| F-08 | Milestone plan implies 10 feature releases before 1.0; contradicts the consolidation decision. **Resolved by DEC-002 (2026-09-21):** 1.0 = existing modules hardened + compliance EPICs #881 and #880 (minus the five new regulation packages); no target date; feature milestones v0.14–v0.20 outside the contract but not blocked. | C → decided | P0 (scope) | SPEC-000 DEC-002 |
 | F-09 | `CHANGELOG.md` Unreleased section is 2,621 lines with a stale header | A | P1 | to open after SPEC-000 decides versioning (DEC-005) |
 | F-10 | Legacy coverage-target issues (#19, #65, #66, #67) reference a model no longer used | A | P3 | close or reword, via #1090 |
 | F-11 | Two ADR-007 files coexist | A | P2 | to open |

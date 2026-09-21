@@ -18,7 +18,4 @@ Code examples demonstrating Encina features.
 
 ## Secrets Management
 
-- [Basic Setup](secrets-basic-setup.md)
-- [Caching Strategy](secrets-caching-strategy.md)
-- [Configuration Integration](secrets-configuration-integration.md)
-- [Error Handling](secrets-error-handling.md)
+- [Secrets Management guide](../features/secrets-management.md) — `Encina.Security.Secrets` and its four vault providers (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, Google Cloud Secret Manager). Dedicated example pages for this package are pending; the previous four examples documented the removed `Encina.Secrets.*` family (#1089).
