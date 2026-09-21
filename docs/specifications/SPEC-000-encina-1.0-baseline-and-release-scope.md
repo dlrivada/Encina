@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 DRAFT — DEC-001 and DEC-002 decided 2026-09-21; awaiting DEC-003 … DEC-006 |
+| **Status** | 🟡 DRAFT — DEC-001 … DEC-003 decided 2026-09-21; awaiting DEC-004 … DEC-006 |
 | **Author** | Specifier (Claude), from `docs/engineering/PHASE0-BASELINE.md` |
 | **Date** | 2026-09-21 |
 | **Evidence** | `PHASE0-BASELINE.md` (2026-09-21) |
@@ -80,6 +80,11 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 - **REQ-025** The AI Act module implements the obligations planned in EPIC #881 (Arts. 9, 10, 10.2f, 11, 12, 13/50, 14, 43, 51–56, plus multi-tenancy, module isolation and the Marten migration) before 1.0, in the dependency order the EPIC defines.
 - **REQ-026** The NIS2 lifecycle and the Digital Omnibus adaptations planned in EPIC #880 (#822–#827, #810–#816) are implemented before 1.0; the five new regulation packages in that EPIC (DORA, eIDAS2, Data Act, ENS, EHDS) are post-1.0.
 
+### Provider completeness (DEC-003)
+
+- **REQ-027** The caching and distributed-lock provider sets ship complete as `CLAUDE.md` documents them: eight caching providers (adding `Encina.Caching.Memcached`, #277) and four lock providers (adding `Encina.DistributedLock.PostgreSQL` with `pg_advisory_lock`, #207, and `Encina.DistributedLock.MySQL` with `GET_LOCK`, #208), each with the same interfaces, options, health check, OpenTelemetry instrumentation and test types as the existing providers of its category.
+- **REQ-028** The cloud provider set for 1.0 is AWS Lambda and Azure Functions; Google Cloud Functions (#205) is post-1.0 and `CLAUDE.md` states the deferral explicitly instead of a three-way triangle.
+
 ## 4. Acceptance criteria
 
 | AC | Requirement | Criterion |
@@ -110,6 +115,8 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 | AC-024 | REQ-024 | One `SPEC-NNN` per compliance package under `docs/specifications/`, with an article coverage table; the package README links to it. |
 | AC-025 | REQ-025 | EPIC #881 closed with its twelve compliance child issues (#836–#847); #71, #72, #74 moved out of it (done 2026-09-21). |
 | AC-026 | REQ-026 | #822–#827 and #810–#816 closed; #804–#808 labelled post-1.0 and left open. |
+| AC-027 | REQ-027 | #207, #208 closed and the Memcached scope of #277 delivered; contract tests cover 8 caches and 4 locks; `CLAUDE.md` provider tables match `src/`. |
+| AC-028 | REQ-028 | #205 labelled post-1.0; `CLAUDE.md` cloud section lists AWS + Azure with GCP deferred. |
 
 ## 5. Constraints
 
@@ -157,7 +164,7 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 |---|---|---|---|---|
 | **DEC-001** | Canonical package list and disposition of the 11 projects outside the solution (#1089), incl. `Encina.Secrets.*` vs `Encina.Security.Secrets.*` | (a) `Security.Secrets` canonical, delete `Secrets.*`; (b) the reverse; (c) keep both (rejected: REQ-003). AIAct/Consent: (a) add to solution and 1.0; (b) defer. Testing.*: add to solution. | (a) for Secrets; Consent and AIAct in 1.0 (EU regulation is mandatory for the target applications); Testing.* in. | **Decided 2026-09-21.** (a): `Encina.Security.Secrets.*` is canonical (#400 superseded #603 three days after it landed; #452 closed as superseded). `Encina.Secrets.*` deleted from `src/`. The other nine projects were never in `Encina.slnx` but are built and tested through ProjectReferences; they are now listed in the solution. AIAct and Consent are part of 1.0; AIAct gets a short article-coverage audit before any "AI Act compliant" claim (REQ-024). |
 | **DEC-002** | Release scope: which milestones/EPICs are part of 1.0, and whether 1.0 has a target date | (a) consolidation only, no EPIC; (b) existing modules hardened + the compliance EPICs #881 (AI Act) and #880 (NIS2 + Digital Omnibus), new regulation packages post-1.0; (c) whole feature milestones v0.14–v0.20. Date: fixed vs none. | (b); no date; benchmarks only for #560/#561. | **Decided 2026-09-21.** (b). No target date: sequencing matters, the calendar does not. EPIC #881 complete (twelve compliance issues), EPIC #880 without DORA/eIDAS2/Data Act/ENS/EHDS (#804–#808 post-1.0). #71, #72, #74 moved from #881 to v0.21.0 because they are testing/CI work, not AI Act. Feature milestones v0.14–v0.20 are not blocked, just outside the 1.0 contract. |
-| **DEC-003** | Provider set for 1.0 where `CLAUDE.md` and `src/` disagree: caching (Memcached absent), locks (PostgreSQL/MySQL absent), cloud (GCP absent) | (a) ship what exists and amend `CLAUDE.md` ("7 caches, 3 locks"); (b) implement the missing ones before 1.0. | (a). They are additive; implementing them is P2. | *pending* |
+| **DEC-003** | Provider set for 1.0 where `CLAUDE.md` and `src/` disagree: caching (Memcached absent), locks (PostgreSQL/MySQL absent), cloud (GCP absent) | (a) ship what exists and amend `CLAUDE.md`; (b) implement the missing ones before 1.0. | (a), or (a) plus the two database locks. | **Decided 2026-09-21.** Caching and distributed locks are implemented **as documented** before 1.0: Memcached (#277, the Memcached part only), PostgreSQL `pg_advisory_lock` (#207) and MySQL `GET_LOCK` (#208), so the 8-cache and 4-lock rules in `CLAUDE.md` become true. Cloud stays as it is: Google Cloud Functions (#205) is post-1.0 and `CLAUDE.md`'s cloud triangle is amended to say GCP is deferred. |
 | **DEC-004** | Severity thresholds: NuGet audit level that blocks the build, CodeQL/Sonar level that blocks release, SLSA level for provenance | Audit: block on ≥ moderate (current behaviour) vs ≥ high. Static: block on ≥ high. Provenance: SLSA L2 (#92) vs GitHub artifact attestations only. | Audit ≥ moderate (keep), static ≥ high, GitHub attestations + Sigstore signing (#93) which satisfies L2 in practice. | *pending* |
 | **DEC-005** | Versioning and CHANGELOG: go from 0.13.0-dev straight to 1.0.0-rc.1, or cut 0.13.0 first; how to consolidate the 2,621-line Unreleased section | (a) tag 0.13.0 now as "last pre-1.0", then rc; (b) skip to 1.0.0-rc.1 and fold Unreleased into a "0.13 → 1.0" section. | (a): it gives a checkpoint with the current CHANGELOG as is, and the 1.0 entry starts clean. | *pending* |
 | **DEC-006** | Process policy: keep SonarCloud (needs #75) or drop it in favour of CodeQL + analyzers; branch protection on `main` with required `ci.yml`; agents commit only via PR | (a) keep Sonar; (b) drop Sonar and remove the claim. Protection: on/off. | (b) unless the token is configured within Phase 1; protection on; PR-only for all agents. | *pending* |
@@ -173,7 +180,7 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 | F-08 | §2, §6, DEC-002, REQ-024–026 |
 | F-09 | REQ-017, DEC-005 |
 | F-13 | REQ-011, REQ-012 |
-| F-14 | REQ-004, DEC-003 |
+| F-14 | REQ-004, REQ-027, REQ-028, DEC-003 |
 | F-15 | REQ-016 |
 | F-16 | REQ-020, DEC-006 |
 | `ENCINA-1.0-RECONCILIATION.md` §6.1, `Stryker-xUnit-v3.md` §5 | REQ-008 |
