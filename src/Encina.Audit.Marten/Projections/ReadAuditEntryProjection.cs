@@ -33,7 +33,7 @@ namespace Encina.Audit.Marten.Projections;
 /// are injected via the constructor.
 /// </para>
 /// </remarks>
-public sealed class ReadAuditEntryProjection : EventProjection
+public sealed partial class ReadAuditEntryProjection : EventProjection
 {
     private readonly string _shreddedPlaceholder;
     private readonly ILogger<ReadAuditEntryProjection> _logger;

@@ -2,6 +2,20 @@
 
 ### Security
 
+#### Dependency advisories — Marten 9.38.0, MongoDB.Driver 3.12.0, .NET 10.0.12 family (#1088)
+
+`dotnet build Encina.slnx` had failed at restore since May 2026 with 283 NU1902/NU1903/NU1904 audit errors (promoted by `TreatWarningsAsErrors`), which kept every CI workflow red and froze the coverage, mutation and CodeQL dashboards. Bumped every package that pulled a vulnerable dependency:
+
+- **Marten 8.30.0 → 9.38.0** — [GHSA-rfx3-98h7-v3xp](https://github.com/advisories/GHSA-rfx3-98h7-v3xp) and [GHSA-vmw2-qwm8-x84c](https://github.com/advisories/GHSA-vmw2-qwm8-x84c) (Critical). Marten 9 changes `ISerializer` (now extends `Weasel.Storage.IStorageSerializer`) and requires `EventProjection` subclasses to be `partial` for the JasperFx source generator: `CryptoShredderSerializer` gained the buffer/parameter-based `WriteTo*` overloads (with crypto-shredding applied), and the two `Encina.Audit.Marten` projections are now `partial`.
+- **MongoDB.Driver 3.7.1 → 3.12.0** — fixes transitive Snappier 1.0.0 (High) and SharpCompress 0.30.1 (Moderate).
+- **Microsoft.* / System.* 10.0.7 → 10.0.12** (28 packages) — fixes `System.Security.Cryptography.Xml` 10.0.7 (High, five advisories) and `SQLitePCLRaw.lib.e_sqlite3` 2.1.11 (High, via Microsoft.Data.Sqlite).
+- **Testcontainers.* 4.11.0 → 4.15.0** — fixes SSH.NET 2025.1.0 (High).
+- **WireMock.Net 2.2.0 → 2.17.0** — fixes Scriban.Signed 7.0.6 (High/Moderate).
+- **HtmlSanitizer 9.0.892 → 9.2.1039** — fixes AngleSharp 0.17.1 (Moderate).
+- **NBomber 6.3.0 → 6.6.0** and **Aspire.Hosting.* 13.2.2/13.1.0 → 13.5.4** — fixes MessagePack 2.5.192 (High/Moderate) via NBomber.Contracts and StreamJsonRpc.
+- **Humanizer 3.0.10** pinned and referenced directly by the four test projects that combine Aspire (Humanizer.Core 3.x) with WireMock (Humanizer 2.14.1 satellites), resolving NU1608.
+- `tests/Directory.Build.targets` removes the JasperFx.Events source generator from test projects: it generated evolvers for private nested test aggregates (CS0122) and no test project defines Marten projections.
+
 #### Dependency advisories — OpenTelemetry 1.15.3 / Microsoft.AspNetCore.DataProtection 10.0.7 (#1041)
 
 Bumped three transitively-vulnerable packages plus aligned the .NET 10 monthly patch family to 10.0.7 and the OpenTelemetry 1.x family to 1.15.3:

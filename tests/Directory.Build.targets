@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Marten 9 ships the JasperFx.Events source generator as a transitive analyzer. It scans every
+    referencing assembly for aggregate/projection conventions (static Create(...), Apply(...)) and
+    generates evolvers/dispatchers for them. Test projects define private nested aggregates for
+    Encina.DomainModeling tests that match those conventions by accident, and the generated code
+    fails to compile (CS0122 inaccessible types). No test project defines Marten projections, so the
+    generator is not needed here: it is removed from the analyzer set for everything under tests/.
+  -->
+  <Target Name="RemoveJasperFxEventsSourceGenerator" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Filename)' == 'JasperFx.Events.SourceGenerator'" />
+    </ItemGroup>
+  </Target>
+
+</Project>
