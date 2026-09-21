@@ -579,9 +579,8 @@ Maintain high-quality test coverage that balances thoroughness with development 
 
 #### Coverage Targets
 
-- **Line Coverage**: ≥85% (target for overall codebase)
-- **Branch Coverage**: ≥80% (target for overall codebase)
-- **Method Coverage**: ≥90% (target for overall codebase)
+- **Line Coverage**: measured **per flag** (unit, guard, contract, property, integration) against the per-package targets declared in .github/coverage-manifest/{Package}.json; there is no single project-wide percentage. The authoritative computation is .github/scripts/coverage-report.cs (obligations model, see below) and the authoritative result is the [coverage dashboard](https://dlrivada.github.io/Encina/coverage/).
+- **Branch / Method Coverage**: not gated; the Cobertura reports carry them for information only.
 - **Mutation Score**: tracked per-file on the [mutations dashboard](https://dlrivada.github.io/Encina/mutations/) — there is no project-wide target. Each weekly run mutates all 17 `src/Encina/` folders in parallel as a GitHub Actions matrix (see [methodology](docs/testing/mutation-measurement-methodology.md)) and results accumulate per-file.
 
 #### Per-Flag Coverage System (Obligations Model) — CRITICAL
@@ -1054,7 +1053,7 @@ When a test type is **legitimately** NOT implemented for a feature, create a jus
 | `Encina.LoadTests` | Performance under load | 🟡 Critical paths |
 | `Encina.BenchmarkTests` | Micro-benchmarks | 🟡 Hot paths |
 
-**Coverage target**: ≥85% line coverage across all test types combined.
+**Coverage target**: every applicable flag must reach its own target from the package manifest (see [Per-Flag Coverage System](#per-flag-coverage-system-obligations-model--critical)).
 
 #### Testing Workflow
 
@@ -1387,7 +1386,7 @@ The `Microsoft.CodeAnalysis.PublicApiAnalyzers` package tracks public API change
 10. ❌ Don't implement messaging features for only some transports - consider ALL applicable transports
 11. ❌ Don't implement cloud features without considering AWS/Azure/GCP triangle
 12. ❌ Don't skip test types without creating a justification `.md` file
-13. ❌ Don't leave test coverage below 85%
+13. ❌ Don't leave any coverage flag below its manifest target (per-flag obligations model, no single 85% rule)
 14. ❌ Don't use `BenchmarkRunner.Run<T>()` - use `BenchmarkSwitcher.FromAssembly().Run(args, config)`
 15. ❌ Don't return `IQueryable<T>` from benchmark methods - always materialize with `.ToList()`
 16. ❌ Don't use `[LoggerMessage]` EventIds without registering the range in `EventIdRanges.cs` first
@@ -1430,7 +1429,7 @@ Use the appropriate template when creating issues:
 |----------|----------|
 | Code throws wrong exception | `[BUG]` |
 | Add GDPR compliance module | `[FEATURE]` |
-| Coverage below 85%, need more tests | `[TEST]` |
+| A coverage flag below its manifest target, need more tests | `[TEST]` |
 | Implement NBomber load tests for Kafka | `[TEST]` |
 | Code works but is messy / duplicated | `[DEBT]` |
 | Evaluate Aspire vs Testcontainers | `[SPIKE]` |

@@ -1,0 +1,420 @@
+# Encina 1.0 — Project State Reconciliation
+
+**Date:** 2026-09-06 (revised 2026-09-21)
+**Purpose:** establish a baseline before starting a Specification-Driven Development (SDD) flow and determine what work is genuinely necessary for Encina 1.0.
+
+> **Guiding principle:** the goal is not to close every open issue. The goal is to demonstrate, with reproducible evidence, that Encina has a coherent scope, a stable architecture, sufficient quality, adequate documentation and a professional release process for a 1.0 version.
+
+This document uses the process vocabulary defined in `AI-DEVELOPMENT-MODEL.md` (agent roles, finding classes A/B/C, ADR and SPEC formats) and does not restate it. Backlog priority uses a separate **P0–P3** scale (§4) so that the letters are not overloaded.
+
+---
+
+## 1. Executive summary
+
+Encina is technically far more advanced than its open-issue count suggests.
+
+The main problem is not the absence of core functionality but **product consolidation**:
+
+- reconcile ROADMAP, CHANGELOG, issues, milestones and code;
+- determine which work genuinely belongs to 1.0;
+- close the defects and technical debt that actually block the release;
+- turn quality and performance claims into reproducible evidence;
+- complete documentation and release engineering;
+- prevent new features or new providers from expanding the scope indefinitely.
+
+Provisional conclusion:
+
+| Scenario | Estimated duration |
+|---|---|
+| Minimum technically reasonable | 6–10 weeks |
+| **Professional 1.0 (recommended)** | **10–16 weeks** |
+| Conservative | 16–24 weeks |
+| Close every open issue | Unbounded |
+
+The planning hypothesis to use initially is **12–16 weeks**, to be replaced by an estimate based on the reconciled backlog.
+
+---
+
+## 2. Sources and authority
+
+Not every source in the repository carries the same weight.
+
+### Code and tests
+
+The source of truth for currently implemented behaviour.
+
+### ROADMAP.md
+
+Represents historical intent and planned work, but shows signs of drift from the current state. Treat it as a **source of intent**, not as an automatic inventory of pending work.
+
+### CHANGELOG.md
+
+An important source of evidence for features actually implemented and for relevant changes. It also shows that the release/documentation history is not fully synchronised with the current state.
+
+### GitHub Issues / Milestones / PRs / Commits
+
+The history of decisions and work. Especially important to determine whether an issue:
+
+- is still pending;
+- was resolved by another PR;
+- was superseded;
+- is experimental;
+- belongs to a later version;
+- was never really a 1.0 requirement.
+
+### Documentation and CI configuration
+
+Determine the real state of the quality and release process.
+
+---
+
+## 3. Problem detected: documentation drift
+
+Different sources describe different versions of the product. Observed on 2026-09-21:
+
+| Source | Claim |
+|---|---|
+| `ROADMAP.md` line 12 | "53 active (including CLI tool)" packages |
+| `README.md` line 153 and 493 | "Packages (39 Active)" / "39 packages total" |
+| `src/` | 110 `.csproj` files (includes analyzers, tooling and packages not yet listed anywhere) |
+| `CHANGELOG.md` line 1 | Still headed `[Unreleased] - v0.13.0 - Security & Compliance` although later work exists |
+| GitHub | 583 open issues, far more than the work that must reasonably be mandatory for 1.0 |
+
+This does not mean the project is badly maintained. It is the typical **knowledge drift** of a large, active project.
+
+One of the first tasks of the SDD process must therefore be a reconciled representation of the current state, and the package count must be settled with a single authoritative source (recommended: generated from `src/**/*.csproj` by a script, not hand-maintained).
+
+---
+
+## 4. Backlog classification (P0–P3)
+
+Every candidate item is classified into one of four priorities.
+
+### P0 — Mandatory for 1.0
+
+Must be completed or explicitly justified before release. Examples:
+
+- defects affecting contractual behaviour;
+- relevant security problems;
+- CI/release failures;
+- inconsistent public API;
+- documentation needed to use the public API correctly;
+- explicit release-gate requirements;
+- broken or incomplete NuGet packaging;
+- licence, security or provenance requirements;
+- problems that invalidate published claims.
+
+### P1 — Recommended for 1.0
+
+Adds professional quality, but can be deferred with an explicit reason. Examples:
+
+- important ergonomic improvements;
+- additional documentation;
+- relevant benchmarks;
+- maintenance automation;
+- coverage of secondary cases.
+
+### P2 — Post-1.0
+
+Must not block the first stable release. Likely examples:
+
+- new providers;
+- new optional integrations;
+- AI/LLM features not needed by the core;
+- exhaustive instrumentation of every adapter;
+- benchmarks for every package/provider;
+- experimental features;
+- scope extensions not tied to an existing requirement.
+
+### P3 — Obsolete / duplicate / superseded
+
+Should be closed or marked as replaced. Examples:
+
+- issues already implemented but still open;
+- duplicates;
+- proposals absorbed by another architecture;
+- features whose direction changed;
+- work that no longer belongs to the product.
+
+---
+
+## 5. Reconciliation by stage
+
+### 5.1 v0.13 — Security & Compliance
+
+Important because it adds functionality that can be part of Encina's core value proposition: security, GDPR, consent, lawful basis, DSR, data residency, audit/compliance.
+
+CHANGELOG shows evidence of real implementation, including `Encina.Security`, security attributes, pipeline behaviour, RBAC/permissions, OpenTelemetry, metrics, health checks, `Encina.Compliance.GDPR`, Processing Activities, RoPA, consent lifecycle, in-memory stores and multiple providers.
+
+**Conclusion:** do not assume every historical v0.13 issue is still pending. Reconciliation must verify each one against (1) code, (2) tests, (3) PublicAPI, (4) documentation, (5) commits/PRs.
+
+### 5.2 v0.20 — Web APIs / Source Generators
+
+Developer-experience and code-generation features are valuable, but not all of them need to block 1.0.
+
+**Proposed rule:** a v0.20 feature is P0 only if it is declared part of the 1.0 contract, is needed for an existing feature to be usable, or its absence leaves the public API incomplete or inconsistent. Existing as an issue or milestone is not sufficient.
+
+### 5.3 v0.20.1 — Advanced Developer Experience
+
+This area carries **scope-creep** risk. Advanced tooling, hot reload, extra integrations and ergonomics are good P1/P2 candidates and must not enter the release gate automatically.
+
+> Encina 1.0 must be a stable, coherent version of the existing product, not the version that contains every idea accumulated since its creation.
+
+---
+
+## 6. v0.21 — Testing & Performance
+
+Encina already has considerable test infrastructure: thousands of tests, measured coverage, mutation testing, architecture tests, integration tests, Testcontainers, fixtures, CI and project-specific tooling.
+
+ROADMAP reflects more than 6,500 tests as target/state, linear coverage around 92.3%, per-package mutation score, zero build warnings and zero SonarCloud issues as documented state. Each of these figures must be re-verified in Phase 0 (the coverage figure in particular predates the per-flag obligations model; see `AI-DEVELOPMENT-MODEL.md` §3).
+
+### 6.1 Mutation testing
+
+The Stryker / xUnit v3 issue (#1026) is an external dependency. The recommendation is **not** to block 1.0 indefinitely waiting for upstream.
+
+The 1.0 requirement should be: defined methodology, reproducible execution, evidence of results, documented external limitations, no falsified metrics. It should **not** be "mutation testing must reach X immediately even though an upstream limitation makes the calculation unreliable".
+
+Current status, upstream verification and the next experiment (#1087, Stryker 5.0.0 with `perTest`) are in `Stryker-xUnit-v3.md`.
+
+### 6.2 Performance
+
+Issue #927 is instructive: a previous **50–100x** claim was corrected because the real measurement was approximately **2x**. This justifies an SDD rule:
+
+> Every quantitative performance claim must be backed by a reproducible benchmark.
+
+Exhaustive benchmarks for every package are not needed before 1.0. What is needed: remove or correct undemonstrated claims, keep benchmarks for critical paths, document the methodology (ADR-025), avoid technical marketing without evidence.
+
+---
+
+## 7. v0.22 — Quality & Documentation
+
+EPIC #892 includes quality gate, security, coverage, documentation, API reference, examples, migration guide, GitHub Pages and DocFX. These relate directly to perceived quality and third-party adoption.
+
+### DocFX
+
+Issue #1032 estimates approximately **254 warnings**. Proposed classification:
+
+- errors that break documentation → P0;
+- public-API / incomplete-documentation warnings → P0/P1;
+- cosmetic warnings → P1/P2;
+- noise from external tooling → document and exclude with justification.
+
+The 254 figure must be refreshed during the audit.
+
+---
+
+## 8. v0.23 — Release Preparation
+
+This is the area most clearly to be treated as the **release gate**. EPIC #893 includes SLSA/provenance, package signing, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue/PR templates, branch protection, GitHub Discussions, package reservation/publication, NuGet pipeline, metadata, branding and the final checklist. The roadmap itself marks this stage as blocking v1.0.
+
+**Conclusion:** release-engineering items are not "nice to have". They belong to P0 except those technically unnecessary for the chosen distribution model.
+
+---
+
+## 9. Specific issues requiring special treatment
+
+### #594 — IDelayedRetryStore
+
+Implementing the abstraction across numerous providers can easily become multiplicative work. It must not be P0 merely because it exists in the backlog. Ask: is it part of the 1.0 contract? Does any P0 feature depend on it? Which providers are really supported in 1.0? Is there a valid alternative implementation? What does maintaining the full matrix cost? Without a contractual dependency it is probably P1/P2.
+
+### #871 — Quality & Documentation v0.13.4
+
+An EPIC mixing defects, hardening and technical debt (ScheduledMessageProcessor, Marten, ThreadPool starvation, flaky tests, IOptionsMonitor, SSRF validation, IValidateOptions, mutation testing, Dependabot, documentation). It must be decomposed, not turned into a single release "mega-ticket".
+
+### #952 — Marten projection
+
+Determine whether it is a real bug, a provider limitation, already-fixed behaviour, an optional feature, or an incompatibility with the current architecture. Only the first case blocks automatically.
+
+### #1026 — Mutation testing
+
+Provisional classification: **P1**, with a P0 component regarding the existence of a methodology and reproducible evidence. Do not block 1.0 on a known upstream bug if the limitation is properly documented. See `Stryker-xUnit-v3.md` and #1087.
+
+### #1032 — DocFX
+
+Provisional classification: **P0/P1**, depending on which warnings affect public documentation.
+
+### #1050 — EventId range 7000–7099
+
+Small, deterministic work. Provisional classification: **P0** if the new EventIds are needed by code entering 1.0. `EventIdRanges.cs` already enforces non-overlap.
+
+### #1051 — CPM transitive pinning
+
+Dependency maintenance. Probably **P0/P1**, depending on whether vulnerabilities or reproducibility problems are associated.
+
+---
+
+## 10. Provider explosion
+
+One of the biggest planning risks is reading "we support X providers" as "every new feature must be implemented immediately in X providers". Encina has a large matrix of database providers, messaging transports, caching, scheduling, distributed lock and other integrations; every new abstraction can multiply the work.
+
+**Proposed rule for 1.0.** Every feature must declare explicitly:
+
+```text
+Supported providers:
+- Provider A
+- Provider B
+
+Deferred providers:
+- Provider C
+- Provider D
+```
+
+The specification must justify why. This distinguishes contractual requirement, existing compatibility, mandatory implementation and deferred implementation.
+
+---
+
+## 11. Existing quality gates
+
+Reconciliation confirms that Encina already has a fairly mature quality infrastructure: unit/integration tests, architecture tests, PublicAPI analyzers, per-flag coverage, mutation testing, CI, Sonar, CodeQL, Dependabot, secret scanning, SBOM, documentation tooling, static analysis and automated review.
+
+Therefore the SDD process **must not create another parallel quality system**. It must orchestrate the existing ones.
+
+---
+
+## 12. Process vocabulary (by reference)
+
+The following are defined once, in `AI-DEVELOPMENT-MODEL.md`, and apply here unchanged:
+
+| Concept | Where |
+|---|---|
+| Agent pipeline (Historian → Auditor → Specifier → Architect → Human Decision Gate → Implementer → Verifier → Adversarial Reviewer) and each role's responsibilities | §8–§13 |
+| Finding classes A (deterministic), B (conflict with an existing decision or contract), C (genuine unresolved decision) | §14 |
+| Human Decision Gate scope | §15 |
+| Decision-analysis / ADR minimum content and the "human decision overrides recommendation" rule | §7, §18 |
+| Specification format (`SPEC-NNN`, `REQ-*`, `AC-*`, constraints, non-goals, invariants, verification) and the rule *Requirements ≠ Design Decisions* | §5, §6 |
+| Target repository layout (`AGENTS.md`, `.opencode/`, `docs/specifications/`) | §19 |
+
+For this reconciliation the pipeline ends with `CI / Quality Gates → Evidence + PR`, i.e. the existing gates of §11 are the last automated step before the human release decision.
+
+---
+
+## 13. Phase 0 — Reconciliation / Baseline
+
+The first phase of the new process is exclusively diagnostic. **No production code is modified.** It must produce:
+
+- **A. Current product** — packages, APIs, providers, patterns, dependencies.
+- **B. Roadmap** — milestones: completed, pending, obsolete.
+- **C. GitHub** — issues, EPICs, dependencies, duplicates, superseded.
+- **D. Quality** — tests, coverage (per-flag), mutation, analyzers, Sonar, CodeQL, CI.
+- **E. Documentation** — README, XML docs, DocFX, examples, docs, warnings.
+- **F. Release** — versioning, NuGet, signing, provenance, SECURITY, licence, metadata.
+- **G. Performance** — benchmarks, claims, evidence, claims without evidence.
+- **H. Classification** — every work item as P0 / P1 / P2 / P3 (§4).
+
+---
+
+## 14. Provisional estimate
+
+The current estimate is a hypothesis, not a commitment.
+
+| Scenario | Duration | Assumes |
+|---|---|---|
+| Minimum | 6–10 weeks | Aggressively reduced backlog, few new features, focus on hardening and release, maximum reuse of existing infrastructure |
+| **Recommended** | **10–16 weeks** | Reconciliation, fixes, documentation, evidence, release engineering, independent reviews, margin for problems found during verification |
+| Conservative | 16–24 weeks | More historical issues, hidden problems, significant documentation, extra provider work, architectural iterations |
+| "Close GitHub" | Not usable | A large open backlog is not a valid measure of the work needed for 1.0 |
+
+AI cost planning is tracked privately by the maintainer and is deliberately not part of this document.
+
+---
+
+## 15. Main risks
+
+| Risk | Response |
+|---|---|
+| **Scope creep** (risk number one) | An explicit release scope (`SPEC-000`) |
+| **Provider matrix explosion** | Supported/deferred providers declared in every specification (§10) |
+| **Knowledge drift** (ROADMAP/CHANGELOG/issues diverge) | A maintained reconciled baseline; single generated source for counts (§3) |
+| **AI overreach** (an agent makes an architectural decision without authorisation) | The Human Decision Gate |
+| **False confidence from metrics** (a coverage percentage does not prove correctness) | Combine tests, mutation, architecture tests, static analysis, review and functional evidence |
+| **Performance claims** | No multipliers without a reproducible benchmark (§6.2) |
+
+---
+
+## 16. What should NOT be done
+
+1. Mass-close issues merely to reduce the counter.
+2. Implement every ROADMAP idea before 1.0.
+3. Add new providers by inertia.
+4. Build a large agent bureaucracy.
+5. Write giant prompts before understanding the flow.
+6. Trust a single agent as the architectural authority.
+7. Use coverage as the only quality metric.
+8. Block 1.0 on external tooling problems without evaluating their real impact.
+9. Keep performance claims without evidence.
+10. Confuse "a feature exists in an issue" with "a 1.0 requirement".
+
+---
+
+## 17. First recommended specification
+
+The next artifact of the new process should be:
+
+**SPEC-000 — Encina 1.0 Baseline and Release Scope**, in `docs/specifications/`.
+
+It implements nothing. It must answer:
+
+1. What is Encina today?
+2. What does "1.0" mean?
+3. Which features form the 1.0 contract?
+4. Which providers are officially supported?
+5. Which quality gates are mandatory?
+6. Which documentation must exist?
+7. Which security/release requirements are mandatory?
+8. Which work is explicitly deferred?
+9. Which issues are considered obsolete?
+10. What evidence will demonstrate that 1.0 is finished?
+
+Once approved by the maintainer, this specification becomes the project's boundary.
+
+---
+
+## 18. Recommended execution order
+
+```text
+PHASE 0
+Reconciliation
+    ↓
+SPEC-000
+1.0 scope + release gates
+    ↓
+Human approval
+    ↓
+P0 backlog
+Mandatory work
+    ↓
+P1 backlog
+Recommended work
+    ↓
+Release hardening
+    ↓
+Documentation
+    ↓
+Performance evidence
+    ↓
+Security / supply chain
+    ↓
+Final verification
+    ↓
+1.0 Release Candidate
+    ↓
+Independent adversarial review
+    ↓
+Final human release decision
+    ↓
+Encina 1.0
+```
+
+---
+
+## 19. Conclusion
+
+Encina does not need to become a "bigger" project to reach 1.0. It needs to become a **more defined** project.
+
+The main task now is to separate what already exists, what is genuinely missing, what is necessary for 1.0, what is recommended, what belongs to the future, and what no longer makes sense.
+
+The SDD methodology must serve precisely to stop the project from expanding again while it is being finished.
+
+The **12–16 week** estimate is a reasonable planning hypothesis but must be replaced by an estimate based on the outcome of Phase 0.
+
+The correct next step is not to implement a feature. It is to complete the **formal reconciliation**, turn it into `SPEC-000`, and obtain the human decision on the scope of Encina 1.0.

@@ -51,11 +51,12 @@ dotnet run --project tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchm
 
 ### Automated (CI)
 
-The CI workflow collects coverage from all 5 measurable test types (Unit, Guard, Contract, Property, Integration) and generates a **weighted coverage report** using `.github/scripts/coverage-report.cs`. Each package is scored against its category target (e.g., 85% for core logic, 50% for database providers).
+The CI workflow collects coverage from all 5 measurable test types (Unit, Guard, Contract, Property, Integration) and generates a **per-flag coverage report** using `.github/scripts/coverage-report.cs`. Each source file declares in `.github/coverage-manifest/{Package}.json` which test types apply to it, and each package declares a target percentage per test type. Coverage is computed **independently per flag** (obligations model): a line covered by unit tests does not count toward the guard or contract flag, and a package is green only when every applicable flag reaches its own target. There are no category-level targets; all configuration lives in the manifests.
 
 Results are published to the **Coverage Dashboard**: [dlrivada.github.io/Encina/coverage/](https://dlrivada.github.io/Encina/coverage/)
 
 The dashboard shows:
+
 - Overall weighted coverage percentage
 - Per-category breakdown with pass/fail status
 - Per-package detail with per-test-type columns (Unit, Guard, Contract, Property, Integration)
