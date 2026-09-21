@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | 🟡 DRAFT — DEC-001 … DEC-004 decided 2026-09-21; awaiting DEC-005 and DEC-006 |
+| **Status** | 🟡 DRAFT — DEC-001 … DEC-005 decided 2026-09-21; awaiting DEC-006 |
 | **Author** | Specifier (Claude), from `docs/engineering/PHASE0-BASELINE.md` |
 | **Date** | 2026-09-21 |
 | **Evidence** | `PHASE0-BASELINE.md` (2026-09-21) |
@@ -60,7 +60,7 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 - **REQ-014** The documentation site builds without errors; the warnings that remain are classified and either fixed or listed with justification.
 - **REQ-015** A third party can go from zero to a working request/handler with a database provider and one messaging pattern using only the published documentation (quickstart, fundamentals, providers overview, one complete example).
 - **REQ-016** Every quantitative performance claim in README, docs or ADRs cites a reproducible benchmark (DocRef) or is removed.
-- **REQ-017** `CHANGELOG.md` has a correct entry for 1.0 and the pre-1.0 history is consolidated according to DEC-005.
+- **REQ-017** `CHANGELOG.md` has one dated section per released version from 0.13.0 onward (DEC-005): the current Unreleased content becomes `[0.13.0]`, every later 1.0 block ships as its own minor version with its own section, and `[1.0.0]` is the top section at release.
 
 ### Release engineering
 
@@ -105,7 +105,7 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 | AC-014 | REQ-014 | `docs.yml` green; #1032 closed or its remaining warnings listed in the evidence report. |
 | AC-015 | REQ-015 | Quickstart (#81), fundamentals (#82), providers overview (#83) and example 01 (#87) published; a fresh-environment walkthrough recorded in the evidence report. |
 | AC-016 | REQ-016 | #927, #928, #929, #1090 closed; DocRef lint passes. |
-| AC-017 | REQ-017 | CHANGELOG top section is `## [1.0.0] - <date>`; pre-1.0 sections per DEC-005. |
+| AC-017 | REQ-017 | Tag `v0.13.0` exists and its CHANGELOG section is dated; each subsequent minor tag has a dated section; at release the top section is `## [1.0.0] - <date>`. |
 | AC-018 | REQ-018 | `release-on-milestone.yml` (or successor) packs, signs, attests and publishes; `Directory.Build.props` carries the metadata; #92, #93, #102 closed. |
 | AC-019 | REQ-019 | A `1.0.0-rc.1` is published to NuGet.org through the workflow; #100, #101 closed. |
 | AC-020 | REQ-020 | `global.json` present; branch protection screenshot/API output in the evidence report; #98 closed. |
@@ -166,7 +166,7 @@ These are Class C. Agents have presented the options; the maintainer decides. On
 | **DEC-002** | Release scope: which milestones/EPICs are part of 1.0, and whether 1.0 has a target date | (a) consolidation only, no EPIC; (b) existing modules hardened + the compliance EPICs #881 (AI Act) and #880 (NIS2 + Digital Omnibus), new regulation packages post-1.0; (c) whole feature milestones v0.14–v0.20. Date: fixed vs none. | (b); no date; benchmarks only for #560/#561. | **Decided 2026-09-21.** (b). No target date: sequencing matters, the calendar does not. EPIC #881 complete (twelve compliance issues), EPIC #880 without DORA/eIDAS2/Data Act/ENS/EHDS (#804–#808 post-1.0). #71, #72, #74 moved from #881 to v0.21.0 because they are testing/CI work, not AI Act. Feature milestones v0.14–v0.20 are not blocked, just outside the 1.0 contract. |
 | **DEC-003** | Provider set for 1.0 where `CLAUDE.md` and `src/` disagree: caching (Memcached absent), locks (PostgreSQL/MySQL absent), cloud (GCP absent) | (a) ship what exists and amend `CLAUDE.md`; (b) implement the missing ones before 1.0. | (a), or (a) plus the two database locks. | **Decided 2026-09-21.** Caching and distributed locks are implemented **as documented** before 1.0: Memcached (#277, the Memcached part only), PostgreSQL `pg_advisory_lock` (#207) and MySQL `GET_LOCK` (#208), so the 8-cache and 4-lock rules in `CLAUDE.md` become true. Cloud stays as it is: Google Cloud Functions (#205) is post-1.0 and `CLAUDE.md`'s cloud triangle is amended to say GCP is deferred. |
 | **DEC-004** | Severity thresholds: NuGet audit level that blocks the build, CodeQL/Sonar level that blocks release, SLSA level for provenance | Audit: block on ≥ moderate (current behaviour) vs ≥ high. Static: block on ≥ high. Provenance: SLSA L2 (#92) vs GitHub artifact attestations only. | Audit ≥ moderate (keep), static ≥ high, GitHub attestations + Sigstore signing (#93). | **Decided 2026-09-21.** NuGet audit keeps breaking the build at **moderate or higher** (the five red months were a process failure, not a threshold failure). Static analysis blocks the release at **high or higher**; medium findings are listed with a disposition in the evidence report. Provenance = **GitHub Actions artifact attestations + Sigstore-signed packages** (#92, #93), which satisfies SLSA L2 in practice without separate infrastructure. |
-| **DEC-005** | Versioning and CHANGELOG: go from 0.13.0-dev straight to 1.0.0-rc.1, or cut 0.13.0 first; how to consolidate the 2,621-line Unreleased section | (a) tag 0.13.0 now as "last pre-1.0", then rc; (b) skip to 1.0.0-rc.1 and fold Unreleased into a "0.13 → 1.0" section. | (a): it gives a checkpoint with the current CHANGELOG as is, and the 1.0 entry starts clean. | *pending* |
+| **DEC-005** | Versioning and CHANGELOG: go from 0.13.0-dev straight to 1.0.0-rc.1, or cut 0.13.0 first; how to consolidate the 2,621-line Unreleased section | (a) tag 0.13.0 now as a checkpoint, then one minor version per 1.0 block, then rc; (b) skip to 1.0.0-rc.1 and fold Unreleased into a "0.13 → 1.0" section. | (a). | **Decided 2026-09-21.** (a). Once the build-repair and DEC-001 branches are on `main`, the `[Unreleased] - v0.13.0` section becomes `[0.13.0] - <date>` as is, the maintainer's agent creates tag `v0.13.0` (which triggers `ci-full` and the dashboard publishes), and `VersionPrefix` moves to `0.14.0`. Each remaining 1.0 block then closes its own minor version (AI Act, NIS2 + Digital Omnibus, providers + release engineering, …) before `1.0.0-rc.1`. Milestones v0.14 – v0.23 are renumbered **after** the per-issue P0–P3 classification, not before. |
 | **DEC-006** | Process policy: keep SonarCloud (needs #75) or drop it in favour of CodeQL + analyzers; branch protection on `main` with required `ci.yml`; agents commit only via PR | (a) keep Sonar; (b) drop Sonar and remove the claim. Protection: on/off. | (b) unless the token is configured within Phase 1; protection on; PR-only for all agents. | *pending* |
 
 ## 10. Traceability
