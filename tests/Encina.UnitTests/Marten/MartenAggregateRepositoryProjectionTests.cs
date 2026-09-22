@@ -1,5 +1,6 @@
 using Encina.Marten;
 using Encina.Marten.Projections;
+using JasperFx.Events;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,6 +9,7 @@ using NSubstitute;
 using Shouldly;
 using static LanguageExt.Prelude;
 using TestAggregate = Encina.UnitTests.Marten.MartenAggregateRepositoryTests.TestAggregate;
+using TestEvent = Encina.UnitTests.Marten.MartenAggregateRepositoryTests.TestEvent;
 
 namespace Encina.UnitTests.Marten;
 
@@ -40,6 +42,17 @@ public sealed class MartenAggregateRepositoryProjectionTests
             Options.Create(_options),
             projectionDispatcher: dispatcher);
 
+    /// <summary>Simulates the persisted stream: one envelope per version, as the store would return after the save.</summary>
+    private void PersistedStreamHas(Guid streamId, params long[] versions)
+    {
+        var envelopes = versions
+            .Select(v => (IEvent)new Event<TestEvent>(new TestEvent(streamId)) { StreamId = streamId, Version = v, Sequence = 100 + v })
+            .ToArray();
+        _session.Events
+            .FetchStreamAsync(streamId, Arg.Any<long>(), Arg.Any<DateTimeOffset?>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(envelopes);
+    }
+
     [Fact]
     public async Task SaveAsync_WithoutDispatcher_StillSaves()
     {
@@ -54,12 +67,12 @@ public sealed class MartenAggregateRepositoryProjectionTests
     }
 
     [Fact]
-    public async Task SaveAsync_WithDispatcher_DispatchesEveryPersistedEvent_AfterSaveChanges()
+    public async Task SaveAsync_WithDispatcher_DispatchesThePersistedEnvelopes_AfterSaveChanges()
     {
         var aggregate = new TestAggregate();
         aggregate.DoSomething();
         aggregate.DoSomething();
-        var events = aggregate.UncommittedEvents.ToArray();
+        PersistedStreamHas(aggregate.Id, 1, 2);
         List<(object Event, ProjectionContext Context)>? captured = null;
         _dispatcher
             .DispatchManyAsync(Arg.Do<IEnumerable<(object Event, ProjectionContext Context)>>(items => captured = [.. items]), Arg.Any<CancellationToken>())
@@ -72,33 +85,30 @@ public sealed class MartenAggregateRepositoryProjectionTests
         Received.InOrder(async () =>
         {
             await _session.SaveChangesAsync(Arg.Any<CancellationToken>());
+            await _session.Events.FetchStreamAsync(aggregate.Id, Arg.Any<long>(), Arg.Any<DateTimeOffset?>(), 1, Arg.Any<CancellationToken>());
             await _dispatcher.DispatchManyAsync(Arg.Any<IEnumerable<(object Event, ProjectionContext Context)>>(), Arg.Any<CancellationToken>());
         });
         captured.ShouldNotBeNull();
-        captured.Select(static c => c.Event).ShouldBe(events);
         captured.Select(static c => c.Context.SequenceNumber).ShouldBe([1L, 2L]);
+        captured.Select(static c => c.Context.GlobalPosition).ShouldBe([101L, 102L]);
         captured.ShouldAllBe(c => c.Context.StreamId == aggregate.Id);
         aggregate.UncommittedEvents.ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task SaveAsync_ExistingStream_SequenceContinuesFromThePreviousVersion()
+    public async Task SaveAsync_ExistingStream_FetchesOnlyTheEventsAfterThePreviousVersion()
     {
         var aggregate = new TestAggregate();
         aggregate.DoSomething();
         aggregate.DoSomething();
         aggregate.ClearUncommittedEvents(); // simulate an aggregate loaded at version 2
         aggregate.DoSomething();
-        List<(object Event, ProjectionContext Context)>? captured = null;
-        _dispatcher
-            .DispatchManyAsync(Arg.Do<IEnumerable<(object Event, ProjectionContext Context)>>(items => captured = [.. items]), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Unit>(Unit.Default));
+        PersistedStreamHas(aggregate.Id, 3);
         var sut = CreateSut(_dispatcher);
 
         await sut.SaveAsync(aggregate);
 
-        captured.ShouldNotBeNull();
-        captured.Single().Context.SequenceNumber.ShouldBe(3);
+        await _session.Events.Received(1).FetchStreamAsync(aggregate.Id, Arg.Any<long>(), Arg.Any<DateTimeOffset?>(), 3, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -106,6 +116,7 @@ public sealed class MartenAggregateRepositoryProjectionTests
     {
         var aggregate = new TestAggregate();
         aggregate.DoSomething();
+        PersistedStreamHas(aggregate.Id, 1);
         List<(object Event, ProjectionContext Context)>? captured = null;
         _dispatcher
             .DispatchManyAsync(Arg.Do<IEnumerable<(object Event, ProjectionContext Context)>>(items => captured = [.. items]), Arg.Any<CancellationToken>())
@@ -115,6 +126,7 @@ public sealed class MartenAggregateRepositoryProjectionTests
         var result = await sut.CreateAsync(aggregate);
 
         result.IsRight.ShouldBeTrue();
+        await _session.Events.Received(1).FetchStreamAsync(aggregate.Id, Arg.Any<long>(), Arg.Any<DateTimeOffset?>(), 1, Arg.Any<CancellationToken>());
         captured.ShouldNotBeNull();
         captured.Single().Context.SequenceNumber.ShouldBe(1);
         captured.Single().Context.StreamId.ShouldBe(aggregate.Id);
@@ -138,11 +150,12 @@ public sealed class MartenAggregateRepositoryProjectionTests
     public async Task SaveAsync_ProjectionFails_ThrowOnProjectionErrorTrue_ReturnsLeftButEventsAreCommitted()
     {
         _options.Projections.ThrowOnProjectionError = true;
+        var aggregate = new TestAggregate();
+        aggregate.DoSomething();
+        PersistedStreamHas(aggregate.Id, 1);
         _dispatcher
             .DispatchManyAsync(Arg.Any<IEnumerable<(object Event, ProjectionContext Context)>>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("projection.failed", "boom")));
-        var aggregate = new TestAggregate();
-        aggregate.DoSomething();
         var sut = CreateSut(_dispatcher);
 
         var result = await sut.SaveAsync(aggregate);
@@ -155,11 +168,12 @@ public sealed class MartenAggregateRepositoryProjectionTests
     [Fact]
     public async Task SaveAsync_ProjectionFails_ThrowOnProjectionErrorFalse_ReturnsRight()
     {
+        var aggregate = new TestAggregate();
+        aggregate.DoSomething();
+        PersistedStreamHas(aggregate.Id, 1);
         _dispatcher
             .DispatchManyAsync(Arg.Any<IEnumerable<(object Event, ProjectionContext Context)>>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("projection.failed", "boom")));
-        var aggregate = new TestAggregate();
-        aggregate.DoSomething();
         var sut = CreateSut(_dispatcher);
 
         var result = await sut.SaveAsync(aggregate);

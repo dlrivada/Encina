@@ -206,9 +206,10 @@ public static class ServiceCollectionExtensions
         // Register the specific read model repository
         services.TryAddScoped<IReadModelRepository<TReadModel>, MartenReadModelRepository<TReadModel>>();
 
-        // The registry picks every registrar up when it is first resolved
-        services.AddSingleton<IProjectionRegistrar>(static _ =>
-            new ProjectionRegistrar<TProjection, TReadModel>());
+        // The registry picks every registrar up when it is first resolved. TryAddEnumerable keys on
+        // the implementation type, so registering the same pair twice cannot double-apply its handlers.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IProjectionRegistrar, ProjectionRegistrar<TProjection, TReadModel>>());
 
         return services;
     }

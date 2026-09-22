@@ -64,6 +64,19 @@ public sealed class ProjectionRegistrationTests
     }
 
     [Fact]
+    public void AddProjection_SamePairTwice_RegistersTheProjectionOnce()
+    {
+        var services = NewServices();
+
+        services.AddProjection<TestProjection, TestReadModel>();
+        services.AddProjection<TestProjection, TestReadModel>();
+
+        services.Count(d => d.ServiceType == typeof(IProjectionRegistrar)).ShouldBe(1);
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<ProjectionRegistry>().GetProjectionsForEvent(typeof(TestCreatedEvent)).Count.ShouldBe(1);
+    }
+
+    [Fact]
     public void AddEncinaMarten_WithProjectionsEnabled_ThenAddProjection_SharesOneRegistry()
     {
         var services = NewServices();

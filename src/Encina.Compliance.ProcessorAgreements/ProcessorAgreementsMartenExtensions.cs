@@ -26,9 +26,12 @@ public static class ProcessorAgreementsMartenExtensions
     /// </list>
     /// </para>
     /// <para>
-    /// It also registers the inline projections that keep the <see cref="ProcessorReadModel"/> and
-    /// <see cref="DPAReadModel"/> read models (and their <see cref="IReadModelRepository{TReadModel}"/>)
-    /// in step with the event streams, so the processor and DPA services can query them.
+    /// It also registers the projections for <see cref="ProcessorReadModel"/> and
+    /// <see cref="DPAReadModel"/> together with their <see cref="IReadModelRepository{TReadModel}"/>.
+    /// While inline projections are enabled (<c>ProjectionOptions.UseInlineProjections</c>, the
+    /// default) the read models stay in step with the event streams, so the processor and DPA
+    /// services can query them; with inline projections disabled they must be rebuilt through
+    /// <c>IProjectionManager</c>.
     /// </para>
     /// <para>
     /// This method should be called alongside <see cref="ServiceCollectionExtensions.AddEncinaProcessorAgreements"/>

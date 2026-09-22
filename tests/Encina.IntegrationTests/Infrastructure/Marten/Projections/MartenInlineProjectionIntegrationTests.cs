@@ -146,11 +146,22 @@ public sealed class MartenInlineProjectionIntegrationTests : IAsyncLifetime
 /// <summary>Read model projected from <see cref="TestSnapshotableAggregate"/> events.</summary>
 public sealed class OrderSummaryReadModel : IReadModel
 {
+    /// <summary>The aggregate (stream) identifier.</summary>
     public Guid Id { get; set; }
+
+    /// <summary>The name given when the aggregate was created.</summary>
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Sum of the item amounts added so far.</summary>
     public decimal Total { get; set; }
+
+    /// <summary>Number of items added so far.</summary>
     public int ItemCount { get; set; }
+
+    /// <summary>"Created" until the aggregate completes, then "Completed".</summary>
     public string Status { get; set; } = string.Empty;
+
+    /// <summary>Stream version of the last event applied, to prove the projection context carries it.</summary>
     public long LastSequence { get; set; }
 }
 
@@ -161,8 +172,13 @@ public sealed class OrderSummaryProjection :
     IProjectionHandler<TestItemAdded, OrderSummaryReadModel>,
     IProjectionHandler<TestAggregateCompleted, OrderSummaryReadModel>
 {
+    /// <inheritdoc />
     public string ProjectionName => "OrderSummary";
 
+    /// <summary>Creates the read model from the first event of the stream.</summary>
+    /// <param name="domainEvent">The creation event.</param>
+    /// <param name="context">The projection context.</param>
+    /// <returns>A new read model in the "Created" status.</returns>
     public OrderSummaryReadModel Create(TestAggregateCreated domainEvent, ProjectionContext context) => new()
     {
         Id = context.StreamId,
@@ -171,6 +187,11 @@ public sealed class OrderSummaryProjection :
         LastSequence = context.SequenceNumber
     };
 
+    /// <summary>Adds the item amount to the totals.</summary>
+    /// <param name="domainEvent">The item-added event.</param>
+    /// <param name="current">The current read model.</param>
+    /// <param name="context">The projection context.</param>
+    /// <returns>The updated read model.</returns>
     public OrderSummaryReadModel Apply(TestItemAdded domainEvent, OrderSummaryReadModel current, ProjectionContext context)
     {
         current.Total += domainEvent.Amount;
@@ -179,6 +200,11 @@ public sealed class OrderSummaryProjection :
         return current;
     }
 
+    /// <summary>Marks the read model as completed.</summary>
+    /// <param name="domainEvent">The completion event.</param>
+    /// <param name="current">The current read model.</param>
+    /// <param name="context">The projection context.</param>
+    /// <returns>The updated read model.</returns>
     public OrderSummaryReadModel Apply(TestAggregateCompleted domainEvent, OrderSummaryReadModel current, ProjectionContext context)
     {
         current.Status = "Completed";

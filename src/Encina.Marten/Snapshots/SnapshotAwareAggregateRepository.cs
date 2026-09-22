@@ -62,11 +62,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         _options = options.Value;
         _snapshotConfig = _options.Snapshots.GetConfigFor<TAggregate>();
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _projections = new InlineProjectionRelay(
-            projectionDispatcher,
-            _options.Projections,
-            _timeProvider,
-            logger);
+        _projections = new InlineProjectionRelay(session, projectionDispatcher, _options.Projections, logger);
 
         // Create enrichment service if metadata tracking is enabled
         if (_options.Metadata.IsAnyMetadataEnabled())
@@ -190,7 +186,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                 typeof(TAggregate).Name,
                 aggregate.Id,
                 versionBeforeAppend,
-                events,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsConcurrencyException(ex))
@@ -281,7 +276,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
                 typeof(TAggregate).Name,
                 aggregate.Id,
                 versionBeforeAppend: 0,
-                events,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsStreamCollisionException(ex))

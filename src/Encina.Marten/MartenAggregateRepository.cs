@@ -49,15 +49,13 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     /// <param name="options">The configuration options.</param>
     /// <param name="enrichers">Optional collection of metadata enrichers.</param>
     /// <param name="projectionDispatcher">Optional inline projection dispatcher; when present, saved events update the read models.</param>
-    /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
     public MartenAggregateRepository(
         IDocumentSession session,
         IRequestContext requestContext,
         ILogger<MartenAggregateRepository<TAggregate>> logger,
         IOptions<EncinaMartenOptions> options,
         IEnumerable<IEventMetadataEnricher>? enrichers = null,
-        IInlineProjectionDispatcher? projectionDispatcher = null,
-        TimeProvider? timeProvider = null)
+        IInlineProjectionDispatcher? projectionDispatcher = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(requestContext);
@@ -68,11 +66,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         _requestContext = requestContext;
         _logger = logger;
         _options = options.Value;
-        _projections = new InlineProjectionRelay(
-            projectionDispatcher,
-            _options.Projections,
-            timeProvider ?? TimeProvider.System,
-            logger);
+        _projections = new InlineProjectionRelay(session, projectionDispatcher, _options.Projections, logger);
 
         // Create enrichment service if metadata tracking is enabled
         if (_options.Metadata.IsAnyMetadataEnabled())
@@ -222,7 +216,6 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                 typeof(TAggregate).Name,
                 aggregate.Id,
                 versionBeforeAppend,
-                events,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsConcurrencyException(ex))
@@ -313,7 +306,6 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
                 typeof(TAggregate).Name,
                 aggregate.Id,
                 versionBeforeAppend: 0,
-                events,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsStreamCollisionException(ex))
