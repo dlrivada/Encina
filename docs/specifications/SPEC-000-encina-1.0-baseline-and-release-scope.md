@@ -89,8 +89,8 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 
 | AC | Requirement | Criterion |
 |---|---|---|
-| AC-001 | REQ-001 | A script in the repository produces the package list from `src/` and CI fails when README/ROADMAP/solution/manifests disagree with it. |
-| AC-002 | REQ-002 | `src/**/*.csproj` count equals solution count plus the deferred list; deferred projects live outside `src/` or are documented in an ADR. |
+| AC-001 | REQ-001 | A committed manifest (one entry per project under `src/`, with `packageId`, disposition `ship` / `deferred` / `removed`, and a reason plus ADR or issue reference for every non-`ship` entry) is the authoritative list. A script compares it by name and disposition against `src/`, `Encina.slnx`, README, ROADMAP and the coverage manifests, and CI fails on any project missing from the manifest, any manifest entry without a project, or any disposition mismatch. |
+| AC-002 | REQ-002 | Every `src/**/*.csproj` has exactly one manifest entry; every `ship` project is in `Encina.slnx` and in the coverage manifests; no `deferred` or `removed` project is in `Encina.slnx`; every `deferred` entry cites the ADR or issue that records the reason. Count equality alone is not sufficient. |
 | AC-003 | REQ-003 | Only one of `Encina.Secrets.*` / `Encina.Security.Secrets.*` exists (DEC-001). |
 | AC-004 | REQ-004 | Each feature in the list has a `Supported providers / Deferred providers` block in its spec or README, and contract tests cover the supported set. |
 | AC-005 | REQ-005 | `ci.yml` and `ci-full.yml` green on `main`; local `dotnet build -c Release` exits 0. |
@@ -99,7 +99,7 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 | AC-008 | REQ-008 | Mutation dashboard shows a completed 17-shard run within the release month; `Stryker-xUnit-v3.md` updated with the outcome of #1087. |
 | AC-009 | REQ-009 | CodeQL run within the release week with zero alerts ≥ threshold; Sonar per DEC-006. |
 | AC-010 | REQ-010 | `Encina.Testing.Architecture` rules and `EventIdUniquenessRule` pass in CI. |
-| AC-011 | REQ-011 | `gh issue list --label bug` at tag time returns only issues labelled `deferred-1.0` with a reason. |
+| AC-011 | REQ-011 | At tag time the union of open issues with the `bug` label and open issues whose title starts with `[BUG]` contains only issues labelled `deferred-1.0`, each with a reason comment; and no issue in that union carries a security classification (`security` label or `[BUG]` title tagged security) whatever its other labels — one such issue fails the gate even if it is labelled `deferred-1.0`. |
 | AC-012 | REQ-012 | #852 closed; a guard/contract test exists per options class. |
 | AC-013 | REQ-013 | RS0016/RS0017 clean; all `PublicAPI.Unshipped.txt` empty after release commit. |
 | AC-014 | REQ-014 | `docs.yml` green; #1032 closed or its remaining warnings listed in the evidence report. |

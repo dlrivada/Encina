@@ -1,6 +1,7 @@
 # Phase 0 — Encina 1.0 Baseline (diagnostic audit)
 
 **Evidence date:** 2026-09-21
+**Status:** historical, pre-remediation snapshot of `main` at commit `3e87b114`. It is kept as the baseline the 1.0 work is measured against and is not updated to the current state; #1088 (build) was fixed the same day in PR #1093 and the findings marked resolved in §9 record what has changed since. The build and CI conclusions in §1 and §2 describe that commit, not today's repository.
 **Scope:** the diagnostic pass defined in `ENCINA-1.0-RECONCILIATION.md` §13 and `AI-DEVELOPMENT-MODEL.md` §22 (Passes 1, 2, 4, 6 and 7). No production code was modified. Pass 3 (historical archaeology of GitHub discussions) and per-issue classification of the 579 open issues are **not** done here; they are the next step (§10).
 **Method:** every figure below was read from the repository, the GitHub API (`gh`) or the published dashboard data files on this date. Where a claim could not be verified it is marked as such.
 
