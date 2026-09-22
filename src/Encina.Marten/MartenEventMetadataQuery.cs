@@ -402,31 +402,31 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
     private static partial class Log
     {
         [LoggerMessage(
-            EventId = 3230,
+            EventId = 2659,
             Level = LogLevel.Debug,
             Message = "Querying events by correlation ID: {CorrelationId}")]
         public static partial void QueryingByCorrelationId(ILogger logger, string correlationId);
 
         [LoggerMessage(
-            EventId = 3231,
+            EventId = 2660,
             Level = LogLevel.Debug,
             Message = "Querying events by causation ID: {CausationId}")]
         public static partial void QueryingByCausationId(ILogger logger, string causationId);
 
         [LoggerMessage(
-            EventId = 3232,
+            EventId = 2661,
             Level = LogLevel.Debug,
             Message = "Querying causal chain for event {EventId}, direction: {Direction}, max depth: {MaxDepth}")]
         public static partial void QueryingCausalChain(ILogger logger, Guid eventId, string direction, int maxDepth);
 
         [LoggerMessage(
-            EventId = 3233,
+            EventId = 2662,
             Level = LogLevel.Error,
             Message = "Query by {QueryType}={QueryValue} failed")]
         public static partial void QueryFailed(ILogger logger, Exception ex, string queryType, string queryValue);
 
         [LoggerMessage(
-            EventId = 3234,
+            EventId = 2663,
             Level = LogLevel.Error,
             Message = "Causal chain query for event {EventId} failed")]
         public static partial void CausalChainQueryFailed(ILogger logger, Exception ex, Guid eventId);

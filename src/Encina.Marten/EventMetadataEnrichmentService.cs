@@ -169,19 +169,19 @@ internal sealed partial class EventMetadataEnrichmentService
     private static partial class Log
     {
         [LoggerMessage(
-            EventId = 3220,
+            EventId = 2656,
             Level = LogLevel.Debug,
             Message = "Set correlation ID on session: {CorrelationId}")]
         public static partial void CorrelationIdSet(ILogger logger, string correlationId);
 
         [LoggerMessage(
-            EventId = 3221,
+            EventId = 2657,
             Level = LogLevel.Debug,
             Message = "Set causation ID on session: {CausationId}")]
         public static partial void CausationIdSet(ILogger logger, string causationId);
 
         [LoggerMessage(
-            EventId = 3222,
+            EventId = 2658,
             Level = LogLevel.Warning,
             Message = "Event metadata enricher {EnricherType} failed")]
         public static partial void EnricherFailed(ILogger logger, Exception ex, string enricherType);

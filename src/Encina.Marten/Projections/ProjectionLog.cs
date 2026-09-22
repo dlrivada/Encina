@@ -4,12 +4,13 @@ namespace Encina.Marten.Projections;
 
 /// <summary>
 /// High-performance logging for projection operations.
+/// <para>Event IDs: 2664-2700 (see <see cref="Encina.Diagnostics.EventIdRanges.Marten"/>).</para>
 /// </summary>
 internal static partial class ProjectionLog
 {
     // Read Model Repository - Loading
     [LoggerMessage(
-        EventId = 4001,
+        EventId = 2664,
         Level = LogLevel.Debug,
         Message = "Loading read model {ReadModelType} with ID {Id}")]
     public static partial void LoadingReadModel(
@@ -18,7 +19,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4002,
+        EventId = 2665,
         Level = LogLevel.Debug,
         Message = "Loaded read model {ReadModelType} with ID {Id}")]
     public static partial void LoadedReadModel(
@@ -27,7 +28,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4003,
+        EventId = 2666,
         Level = LogLevel.Debug,
         Message = "Read model {ReadModelType} with ID {Id} not found")]
     public static partial void ReadModelNotFound(
@@ -36,7 +37,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4004,
+        EventId = 2667,
         Level = LogLevel.Error,
         Message = "Error loading read model {ReadModelType} with ID {Id}")]
     public static partial void ErrorLoadingReadModel(
@@ -46,7 +47,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4005,
+        EventId = 2668,
         Level = LogLevel.Debug,
         Message = "Loading {Count} read models of type {ReadModelType}")]
     public static partial void LoadingReadModels(
@@ -55,7 +56,7 @@ internal static partial class ProjectionLog
         int count);
 
     [LoggerMessage(
-        EventId = 4006,
+        EventId = 2669,
         Level = LogLevel.Debug,
         Message = "Loaded {LoadedCount} of {RequestedCount} read models of type {ReadModelType}")]
     public static partial void LoadedReadModels(
@@ -65,7 +66,7 @@ internal static partial class ProjectionLog
         int requestedCount);
 
     [LoggerMessage(
-        EventId = 4007,
+        EventId = 2670,
         Level = LogLevel.Error,
         Message = "Error loading read models of type {ReadModelType}")]
     public static partial void ErrorLoadingReadModels(
@@ -75,7 +76,7 @@ internal static partial class ProjectionLog
 
     // Read Model Repository - Querying
     [LoggerMessage(
-        EventId = 4010,
+        EventId = 2671,
         Level = LogLevel.Debug,
         Message = "Querying read models of type {ReadModelType}")]
     public static partial void QueryingReadModels(
@@ -83,7 +84,7 @@ internal static partial class ProjectionLog
         string readModelType);
 
     [LoggerMessage(
-        EventId = 4011,
+        EventId = 2672,
         Level = LogLevel.Debug,
         Message = "Query returned {Count} read models of type {ReadModelType}")]
     public static partial void QueriedReadModels(
@@ -92,7 +93,7 @@ internal static partial class ProjectionLog
         int count);
 
     [LoggerMessage(
-        EventId = 4012,
+        EventId = 2673,
         Level = LogLevel.Error,
         Message = "Error querying read models of type {ReadModelType}")]
     public static partial void ErrorQueryingReadModels(
@@ -102,7 +103,7 @@ internal static partial class ProjectionLog
 
     // Read Model Repository - Storing
     [LoggerMessage(
-        EventId = 4020,
+        EventId = 2674,
         Level = LogLevel.Debug,
         Message = "Storing read model {ReadModelType} with ID {Id}")]
     public static partial void StoringReadModel(
@@ -111,7 +112,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4021,
+        EventId = 2675,
         Level = LogLevel.Debug,
         Message = "Stored read model {ReadModelType} with ID {Id}")]
     public static partial void StoredReadModel(
@@ -120,7 +121,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4022,
+        EventId = 2676,
         Level = LogLevel.Error,
         Message = "Error storing read model {ReadModelType} with ID {Id}")]
     public static partial void ErrorStoringReadModel(
@@ -130,7 +131,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4023,
+        EventId = 2677,
         Level = LogLevel.Debug,
         Message = "Storing {Count} read models of type {ReadModelType}")]
     public static partial void StoringReadModels(
@@ -139,7 +140,7 @@ internal static partial class ProjectionLog
         int count);
 
     [LoggerMessage(
-        EventId = 4024,
+        EventId = 2678,
         Level = LogLevel.Debug,
         Message = "Stored {Count} read models of type {ReadModelType}")]
     public static partial void StoredReadModels(
@@ -148,7 +149,7 @@ internal static partial class ProjectionLog
         int count);
 
     [LoggerMessage(
-        EventId = 4025,
+        EventId = 2679,
         Level = LogLevel.Error,
         Message = "Error storing read models of type {ReadModelType}")]
     public static partial void ErrorStoringReadModels(
@@ -158,7 +159,7 @@ internal static partial class ProjectionLog
 
     // Read Model Repository - Deleting
     [LoggerMessage(
-        EventId = 4030,
+        EventId = 2680,
         Level = LogLevel.Debug,
         Message = "Deleting read model {ReadModelType} with ID {Id}")]
     public static partial void DeletingReadModel(
@@ -167,7 +168,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4031,
+        EventId = 2681,
         Level = LogLevel.Debug,
         Message = "Deleted read model {ReadModelType} with ID {Id}")]
     public static partial void DeletedReadModel(
@@ -176,7 +177,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4032,
+        EventId = 2682,
         Level = LogLevel.Error,
         Message = "Error deleting read model {ReadModelType} with ID {Id}")]
     public static partial void ErrorDeletingReadModel(
@@ -186,7 +187,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4033,
+        EventId = 2683,
         Level = LogLevel.Information,
         Message = "Deleting all read models of type {ReadModelType}")]
     public static partial void DeletingAllReadModels(
@@ -194,7 +195,7 @@ internal static partial class ProjectionLog
         string readModelType);
 
     [LoggerMessage(
-        EventId = 4034,
+        EventId = 2684,
         Level = LogLevel.Information,
         Message = "Deleted {Count} read models of type {ReadModelType}")]
     public static partial void DeletedAllReadModels(
@@ -203,7 +204,7 @@ internal static partial class ProjectionLog
         int count);
 
     [LoggerMessage(
-        EventId = 4035,
+        EventId = 2685,
         Level = LogLevel.Error,
         Message = "Error deleting all read models of type {ReadModelType}")]
     public static partial void ErrorDeletingAllReadModels(
@@ -213,7 +214,7 @@ internal static partial class ProjectionLog
 
     // Projection Manager - Rebuild
     [LoggerMessage(
-        EventId = 4050,
+        EventId = 2686,
         Level = LogLevel.Information,
         Message = "Starting rebuild of projection {ProjectionName}")]
     public static partial void StartingRebuild(
@@ -221,7 +222,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4051,
+        EventId = 2687,
         Level = LogLevel.Information,
         Message = "Completed rebuild of projection {ProjectionName}. Processed {EventCount} events")]
     public static partial void CompletedRebuild(
@@ -230,7 +231,7 @@ internal static partial class ProjectionLog
         long eventCount);
 
     [LoggerMessage(
-        EventId = 4052,
+        EventId = 2688,
         Level = LogLevel.Error,
         Message = "Error rebuilding projection {ProjectionName}")]
     public static partial void ErrorRebuild(
@@ -239,7 +240,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4053,
+        EventId = 2689,
         Level = LogLevel.Debug,
         Message = "Rebuild progress for {ProjectionName}: {ProgressPercent}% ({EventsProcessed} events)")]
     public static partial void RebuildProgress(
@@ -250,7 +251,7 @@ internal static partial class ProjectionLog
 
     // Projection Manager - Lifecycle
     [LoggerMessage(
-        EventId = 4060,
+        EventId = 2690,
         Level = LogLevel.Information,
         Message = "Starting projection {ProjectionName}")]
     public static partial void StartingProjection(
@@ -258,7 +259,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4061,
+        EventId = 2691,
         Level = LogLevel.Information,
         Message = "Stopped projection {ProjectionName}")]
     public static partial void StoppedProjection(
@@ -266,7 +267,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4062,
+        EventId = 2692,
         Level = LogLevel.Information,
         Message = "Paused projection {ProjectionName}")]
     public static partial void PausedProjection(
@@ -274,7 +275,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4063,
+        EventId = 2693,
         Level = LogLevel.Information,
         Message = "Resumed projection {ProjectionName}")]
     public static partial void ResumedProjection(
@@ -283,7 +284,7 @@ internal static partial class ProjectionLog
 
     // Inline Projection Dispatcher
     [LoggerMessage(
-        EventId = 4070,
+        EventId = 2694,
         Level = LogLevel.Debug,
         Message = "Dispatching event {EventType} to projection {ProjectionName}")]
     public static partial void DispatchingEvent(
@@ -292,7 +293,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4071,
+        EventId = 2695,
         Level = LogLevel.Debug,
         Message = "Applied event {EventType} to read model {ReadModelType} with ID {Id}")]
     public static partial void AppliedEvent(
@@ -302,7 +303,7 @@ internal static partial class ProjectionLog
         Guid id);
 
     [LoggerMessage(
-        EventId = 4072,
+        EventId = 2696,
         Level = LogLevel.Debug,
         Message = "Created read model {ReadModelType} with ID {Id} from event {EventType}")]
     public static partial void CreatedReadModel(
@@ -312,7 +313,7 @@ internal static partial class ProjectionLog
         string eventType);
 
     [LoggerMessage(
-        EventId = 4073,
+        EventId = 2697,
         Level = LogLevel.Debug,
         Message = "Deleted read model {ReadModelType} with ID {Id} from event {EventType}")]
     public static partial void DeletedReadModelFromEvent(
@@ -322,7 +323,7 @@ internal static partial class ProjectionLog
         string eventType);
 
     [LoggerMessage(
-        EventId = 4074,
+        EventId = 2698,
         Level = LogLevel.Error,
         Message = "Error applying event {EventType} to projection {ProjectionName}")]
     public static partial void ErrorApplyingEvent(
@@ -332,7 +333,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4075,
+        EventId = 2699,
         Level = LogLevel.Warning,
         Message = "No handler found for event {EventType} in projection {ProjectionName}")]
     public static partial void NoHandlerForEvent(
@@ -341,7 +342,7 @@ internal static partial class ProjectionLog
         string projectionName);
 
     [LoggerMessage(
-        EventId = 4076,
+        EventId = 2700,
         Level = LogLevel.Warning,
         Message = "Inline projections failed for aggregate {AggregateType} with ID {Id} after its events were saved; read models may be stale: {ErrorMessage}")]
     public static partial void InlineProjectionFailedAfterSave(
