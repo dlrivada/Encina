@@ -255,20 +255,22 @@ Beyond the 10 database providers, Encina has **specialized provider categories**
 - Error handling and DLQ
 - Message metadata propagation
 
-##### 3. Distributed Lock Providers (4 existing + 8 planned)
+##### 3. Distributed Lock Providers (3 existing + 7 planned; 1.0 ships 5)
 
-| Provider | Backend | Mechanism |
-|----------|---------|-----------|
-| **Encina.DistributedLock.InMemory** | In-Memory | Single-process (testing) |
-| **Encina.DistributedLock.Redis** | Redis | Redlock algorithm |
-| **Encina.DistributedLock.SqlServer** | SQL Server | `sp_getapplock` |
-| **Encina.DistributedLock.PostgreSQL** | PostgreSQL | `pg_advisory_lock` (planned) |
-| **Encina.DistributedLock.MySQL** | MySQL | `GET_LOCK` (planned) |
-| **Encina.DistributedLock.Azure** | Azure Blob | Blob leases (planned) |
-| **Encina.DistributedLock.DynamoDB** | DynamoDB | Conditional writes (planned) |
-| **Encina.DistributedLock.Consul** | Consul | Sessions (planned) |
-| **Encina.DistributedLock.etcd** | etcd | Leases (planned) |
-| **Encina.DistributedLock.ZooKeeper** | ZooKeeper | Ephemeral nodes (planned) |
+| Provider | Backend | Mechanism | 1.0 |
+|----------|---------|-----------|-----|
+| **Encina.DistributedLock.InMemory** | In-Memory | Single-process (testing) | ✅ exists |
+| **Encina.DistributedLock.Redis** | Redis | Redlock algorithm | ✅ exists |
+| **Encina.DistributedLock.SqlServer** | SQL Server | `sp_getapplock` | ✅ exists |
+| **Encina.DistributedLock.PostgreSQL** | PostgreSQL | `pg_advisory_lock` | ✅ before 1.0 (#207, SPEC-000 DEC-003) |
+| **Encina.DistributedLock.MySQL** | MySQL | `GET_LOCK` | ✅ before 1.0 (#208, SPEC-000 DEC-003) |
+| **Encina.DistributedLock.Azure** | Azure Blob | Blob leases | post-1.0 |
+| **Encina.DistributedLock.DynamoDB** | DynamoDB | Conditional writes | post-1.0 |
+| **Encina.DistributedLock.Consul** | Consul | Sessions | post-1.0 |
+| **Encina.DistributedLock.etcd** | etcd | Leases | post-1.0 |
+| **Encina.DistributedLock.ZooKeeper** | ZooKeeper | Ephemeral nodes | post-1.0 |
+
+The 1.0 lock set is exactly the five rows marked ✅ (four production backends plus the in-memory testing provider). A lock feature is complete for 1.0 when those five are covered.
 
 **When distributed lock rules apply:**
 
