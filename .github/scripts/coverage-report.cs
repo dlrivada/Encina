@@ -596,7 +596,8 @@ static JsonObject BuildDocRefIndex(
             {
                 ["package"] = package,
                 ["path"] = sourcePath,
-                ["coverage"] = obligations > 0 ? Math.Round(met * 100.0 / obligations, 2) : 0,
+                // null (not 0) when no flag produced data: 0% would read as "tested and uncovered".
+                ["coverage"] = obligations > 0 ? Math.Round(met * 100.0 / obligations, 2) : null,
                 ["obligations"] = obligations,
                 ["metObligations"] = met,
                 ["flags"] = flags,

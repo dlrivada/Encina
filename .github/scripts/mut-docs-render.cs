@@ -60,12 +60,14 @@ if (!File.Exists(docrefIndexPath))
 var indexJson = JsonNode.Parse(File.ReadAllText(docrefIndexPath)) as JsonObject ?? new JsonObject();
 Console.WriteLine($"Loaded {indexJson.Count} DocRef entries from {docrefIndexPath}");
 
+// A block's body may not contain another mutref opener (tempered token): an unclosed opener must
+// never pair with a later block's closer and swallow the hand-written text in between.
 var tableMarkerRegex = new Regex(
-    @"(<!-- mutref-table:\s*(?<pattern>[^\s]+)\s*-->).*?(<!-- /mutref-table -->)",
+    @"(<!-- mutref-table:\s*(?<pattern>[^\s]+)\s*-->)(?:(?!<!--\s*mutref).)*?(<!-- /mutref-table -->)",
     RegexOptions.Singleline | RegexOptions.Compiled);
 
 var inlineMarkerRegex = new Regex(
-    @"(<!-- mutref:\s*(?<id>[^\s:]+:[^\s:]+):(?<field>\w+)\s*-->).*?(<!-- /mutref -->)",
+    @"(<!-- mutref:\s*(?<id>[^\s:]+:[^\s:]+):(?<field>\w+)\s*-->)(?:(?!<!--\s*/?mutref).)*?(<!-- /mutref -->)",
     RegexOptions.Singleline | RegexOptions.Compiled);
 
 // Collect .md files from docs root and any extra scan roots
@@ -140,21 +142,13 @@ foreach (var file in mdFiles)
 {
     var relPath = Path.GetRelativePath(".", file).Replace('\\', '/');
     var lines = File.ReadAllLines(file);
-    var inFence = false;
-    string? fenceMarker = null;
+    var fence = new FenceState();
     for (int lineNum = 0; lineNum < lines.Length; lineNum++)
     {
         var line = lines[lineNum];
 
         // Track fenced code blocks — citations inside fences don't count.
-        var trimmed = line.TrimStart();
-        if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
-        {
-            var marker = trimmed.StartsWith("```", StringComparison.Ordinal) ? "```" : "~~~";
-            if (!inFence) { inFence = true; fenceMarker = marker; continue; }
-            if (marker == fenceMarker) { inFence = false; fenceMarker = null; continue; }
-        }
-        if (inFence) continue;
+        if (fence.Step(line) != FenceStep.None || fence.Inside) continue;
 
         foreach (Match m in tablePatternRegex.Matches(line))
         {
@@ -327,8 +321,7 @@ static string ProcessOutsideCodeFences(string input, Func<string, string> transf
     var lines = input.Split('\n');
     var sb = new StringBuilder();
     var buffer = new StringBuilder();
-    var inFence = false;
-    string? fenceMarker = null;
+    var fence = new FenceState();
 
     void FlushBuffer()
     {
@@ -340,32 +333,17 @@ static string ProcessOutsideCodeFences(string input, Func<string, string> transf
     for (int i = 0; i < lines.Length; i++)
     {
         var line = lines[i];
-        var trimmed = line.TrimStart();
-        var isFence = trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal);
+        var step = fence.Step(line);
 
-        if (isFence)
+        if (step == FenceStep.Opened) FlushBuffer();
+        if (step != FenceStep.None)
         {
-            var marker = trimmed.StartsWith("```", StringComparison.Ordinal) ? "```" : "~~~";
-            if (!inFence)
-            {
-                FlushBuffer();
-                inFence = true;
-                fenceMarker = marker;
-                sb.Append(line);
-                if (i < lines.Length - 1) sb.Append('\n');
-                continue;
-            }
-            else if (marker == fenceMarker)
-            {
-                inFence = false;
-                fenceMarker = null;
-                sb.Append(line);
-                if (i < lines.Length - 1) sb.Append('\n');
-                continue;
-            }
+            sb.Append(line);
+            if (i < lines.Length - 1) sb.Append('\n');
+            continue;
         }
 
-        if (inFence)
+        if (fence.Inside)
         {
             sb.Append(line);
             if (i < lines.Length - 1) sb.Append('\n');
@@ -378,4 +356,46 @@ static string ProcessOutsideCodeFences(string input, Func<string, string> transf
     }
     FlushBuffer();
     return sb.ToString();
+}
+
+enum FenceStep { None, Opened, Closed }
+
+/// <summary>
+/// CommonMark fence tracking: a fence opens on a run of at least three backticks or tildes and
+/// closes only on a run of the same character, at least as long, with nothing after it, so a
+/// ```` fence can quote ``` examples without being closed by them.
+/// </summary>
+sealed class FenceState
+{
+    private char _char;
+    private int _length;
+
+    public bool Inside { get; private set; }
+
+    public FenceStep Step(string line)
+    {
+        var trimmed = line.TrimStart().TrimEnd('\r');
+        if (trimmed.Length < 3 || (trimmed[0] != '`' && trimmed[0] != '~')) return FenceStep.None;
+
+        var c = trimmed[0];
+        var n = 0;
+        while (n < trimmed.Length && trimmed[n] == c) n++;
+        if (n < 3) return FenceStep.None;
+
+        if (!Inside)
+        {
+            Inside = true;
+            _char = c;
+            _length = n;
+            return FenceStep.Opened;
+        }
+
+        if (c == _char && n >= _length && trimmed[n..].Trim().Length == 0)
+        {
+            Inside = false;
+            return FenceStep.Closed;
+        }
+
+        return FenceStep.None;
+    }
 }

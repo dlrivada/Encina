@@ -93,7 +93,10 @@ jobs:
           # Coverage DocRef index (SPEC-001). Guard: an empty or missing candidate never
           # replaces the index already on Pages (the overlay loop above does not fetch
           # coverage, so fall back to the live copy explicitly).
-          if [ -s coverage-artifact/docref-index.json ] && [ "$(jq 'length' coverage-artifact/docref-index.json)" -gt 0 ]; then
+          # IDs come from the manifests (REQ-003), so the index is never literally empty: a run whose
+          # Cobertura collection broke still lists every file, all noData. "Empty" therefore means
+          # "no entry with data", and such a candidate must not replace the live index.
+          if [ -s coverage-artifact/docref-index.json ] && [ "$(jq '[.[] | select(.noData | not)] | length' coverage-artifact/docref-index.json)" -gt 0 ]; then
             cp -f coverage-artifact/docref-index.json _site/coverage/data/docref-index.json
             echo "Coverage DocRef index: $(jq 'length' _site/coverage/data/docref-index.json) entries from the CI artifact"
           elif curl -fsSL -o _site/coverage/data/docref-index.json \
@@ -142,6 +145,8 @@ jobs:
           cat _site/coverage/data/history.json | head -5
 
       - name: Render covref markers in documentation + build cited-by.json
+        # INV-002: a rendering problem must never block the Pages deploy.
+        continue-on-error: true
         run: |
           if [ ! -f _site/coverage/data/docref-index.json ]; then
             echo "No coverage DocRef index available; skipping covref rendering"
@@ -155,7 +160,7 @@ jobs:
             --scan-roots src
 
           # The Pages payload was copied from docs/ before rendering: refresh the rendered pages.
-          git diff --name-only -- docs | while read -r f; do
+          git -c core.quotePath=false diff --name-only -- docs | while IFS= read -r f; do
             mkdir -p "_site/$(dirname "${f#docs/}")"
             cp -f "$f" "_site/${f#docs/}"
           done
@@ -172,7 +177,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/coverage/data/history.json docs/coverage/data/docref-index.json docs/coverage/data/cited-by.json 2>/dev/null || true
-          git add -u docs/ src/ 2>/dev/null || true
+          git add -u docs/ src/ ./*.md 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No coverage data or doc changes to commit"
           else

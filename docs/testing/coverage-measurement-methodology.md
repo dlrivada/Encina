@@ -248,7 +248,7 @@ The unit of citation is the **file**, with a per-flag breakdown: line-level cita
 |-------|---------|
 | `package` | Package name (e.g. `Encina.Marten`) |
 | `path` | Source path from the repository root |
-| `coverage` | File-level obligations coverage (`metObligations / obligations`), over the flags that have data |
+| `coverage` | File-level obligations coverage (`metObligations / obligations`), over the flags that have data; `null` when no flag has data |
 | `obligations`, `metObligations` | Obligations counted for the file in this run |
 | `flags` | Applicable flags from the manifest, in the order unit, guard, contract, property, integration |
 | `noData` | `true` only when **no** applicable flag produced data for the file in this run |
@@ -275,9 +275,9 @@ Unit coverage of the aggregate repository:
 <!-- covref: cov:Encina.Marten/MartenAggregateRepository.cs:unit -->0/0 (target 38%)<!-- /covref -->.
 ```
 
-Inline fields: `coverage`, `obligations` (`met/total`), `flags`, `lastRun`, and one per flag (`unit`, `guard`, `contract`, `property`, `integration`) rendered as `covered/total (target N%)`, or `no data`.
+Inline fields: the scalar fields of the table above (`package`, `path`, `coverage`, `obligations` rendered as `met/total`, `metObligations`, `flags`, `noData`, `lastRun`, `dashboardUrl`) and one per flag (`unit`, `guard`, `contract`, `property`, `integration`) rendered as `covered/total (target N%)`, or `no data`. `perFlag` itself is not an inline field: cite the flag by name.
 
-Markers inside fenced code blocks are not expanded, and content outside marker blocks is never modified. A glob with no match or an unknown ID renders as a `⚠` line instead of breaking the Pages deploy.
+Markers inside fenced code blocks (a fence closes only on the same character, at least as long as it opened, so a four-backtick fence can quote a three-backtick example) and inside inline code spans are literal text: they are not expanded, cited or validated. Content outside marker blocks is never modified. A marker block cannot contain another marker, so an opener without its closer is left untouched with a warning instead of swallowing the text up to a later closer. A glob with no match or an unknown ID renders as a `⚠` line instead of breaking the Pages deploy. Markers are scanned in `docs/`, `src/` and the `.md` files at the repository root.
 
 ### Live example
 
@@ -293,7 +293,7 @@ File-level coverage of `MartenAggregateRepository.cs` on the last CI Full run: <
 
 `cov-docs-render.cs` also writes `coverage/data/cited-by.json`, mapping each DocRef to the `file:line` locations that cite it (markers and prose mentions that exist in the index). The dashboard shows it in the **Cited In** column of the package table.
 
-A **dangling citation** (an ID that no longer exists, or a field outside the schema above) fails the `coverage-citations` job of `ci.yml` on every pull request, docs-only ones included. The gate runs `cov-docs-render.cs --check-dangling`, which validates IDs against the pull request's own manifests and `src/` tree and fields against the fixed schema; it needs neither coverage data nor GitHub Pages, so citing a file the same pull request adds passes and citing a file it deletes fails. Mentions inside inline code spans are treated as literal text, like fenced blocks.
+A **dangling citation** (an ID that no longer exists, or a field outside the schema above) fails the `coverage-citations` job of `ci.yml` on every pull request, docs-only ones included. The gate runs `cov-docs-render.cs --check-dangling`, which validates IDs against the pull request's own manifests and `src/` tree and fields against the fixed schema; it needs neither coverage data nor GitHub Pages, so citing a file the same pull request adds passes and citing a file it deletes fails. Anything that looks like a covref marker but is not a well-formed block (a field outside the schema, a missing field, an opener split over two lines, an opener without its closer) is also an error, and so is a dangling prose mention on the same line as a marker.
 
 ## Recalculation: how methodology changes propagate to history
 
