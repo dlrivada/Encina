@@ -1485,12 +1485,25 @@ Nunca dejaremos sin resolver o anotar un problema identificado. Lo normal será 
 - **Large multi-issue initiatives** → Create with `[EPIC]` prefix, then create child issues
 - **Code restructuring** → Create with `[REFACTOR]` prefix (no behavior change)
 
+#### Issue Body Format (MANDATORY)
+
+> **CRITICAL**: An issue body uses the headers of its template in `.github/ISSUE_TEMPLATE/` **verbatim**, in order, with the checkboxes ticked (`[x]`). Agents opening issues with `gh issue create` read the template file first and fill every section; a free-form "Summary / Proposed fix" body is not acceptable. Reference issues in the house style: #1050 (`[DEBT]`), #949 (`[BUG]`).
+
+| Template | Required sections |
+|----------|-------------------|
+| `technical_debt.md` | Type, Description, Location (File(s)/Package(s)), Current Behavior, Expected Behavior, Root Cause, Proposed Fix, Priority, Effort Estimate, Related Issues |
+| `bug_report.md` | Description, Steps to Reproduce, Expected Behavior, Actual Behavior, Environment, Code Sample, Stack Trace, Additional Context (add Root Cause when known) |
+| others | the headers of the corresponding template file |
+
+**Feature plans**: a `[FEATURE]` issue of any size gets an implementation plan at `docs/plans/{feature}-implementation-plan-{issue}.md`, generated with the prompt in [`docs/engineering/prompts/implementation-plan-prompt.md`](docs/engineering/prompts/implementation-plan-prompt.md) (style reference: `docs/plans/dsr-implementation-plan-404.md`) and linked from the issue before implementation starts.
+
 #### Workflow
 
-1. **Find issue** → Create GitHub Issue using appropriate template
-2. **Start work** → Assign issue to yourself, move to "In Progress"
-3. **Complete work** → Reference issue in commit (`Fixes #123`) or PR
-4. **Issue auto-closes** when PR is merged
+1. **Find issue** → Create GitHub Issue using the appropriate template, headers verbatim (see above)
+2. **Plan** (features) → Generate the implementation plan with the plan prompt and link it from the issue
+3. **Start work** → Assign issue to yourself, move to "In Progress"
+4. **Complete work** → Reference issue in commit (`Fixes #123`) or PR
+5. **Issue auto-closes** when PR is merged
 
 ### Project Documentation Files
 
