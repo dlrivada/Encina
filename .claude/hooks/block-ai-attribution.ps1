@@ -32,6 +32,10 @@ try {
         '🤖\s*Generated'
     )
 
+    # Options that take a value, so their values are never parsed as options.
+    $commitValueOptions = @('-m', '--message', '-F', '--file', '-t', '--template', '-C', '--reuse-message', '-c', '--reedit-message', '--fixup', '--squash', '--author', '--date', '--trailer', '--cleanup', '--pathspec-from-file')
+    $prValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-B', '--base', '-H', '--head', '-l', '--label', '-a', '--assignee', '-r', '--reviewer', '-m', '--milestone', '-p', '--project', '-T', '--template', '--add-label', '--remove-label', '--add-reviewer', '--remove-reviewer', '--add-assignee', '--remove-assignee', '--add-project', '--remove-project', '--subject', '--match-head-commit', '--author-email')
+
     $findings = [System.Collections.Generic.List[string]]::new()
     function Test-Text([string]$Text, [string]$Source, [string]$What) {
         foreach ($p in $patterns) {
@@ -44,8 +48,8 @@ try {
         $cwd = Update-WorkingDirectory $tokens $cwd
 
         # git [-C dir] [-c k=v] [--opt[=v]] ... commit
-        for ($k = 0; $k -lt $tokens.Count; $k++) {
-            if ($tokens[$k].Quoted -or $tokens[$k].Value -notin 'git', 'git.exe') { continue }
+        $k = Resolve-Executable $tokens
+        if ($k -ge 0 -and (Get-ExecutableName $tokens[$k].Value) -eq 'git') {
             $dir = $cwd
             $j = $k + 1
             while ($j -lt $tokens.Count -and -not $tokens[$j].Quoted -and $tokens[$j].Value.StartsWith('-')) {
@@ -58,22 +62,24 @@ try {
                 if ($opt -ceq '-c' -or ($opt -in '--git-dir', '--work-tree', '--namespace', '--exec-path' -and -not $opt.Contains('='))) { $j += 2; continue }
                 $j++
             }
-            if ($j -ge $tokens.Count -or $tokens[$j].Value -ne 'commit') { continue }
-
-            $commitArgs = $tokens | Select-Object -Skip ($j + 1)
-            foreach ($t in $commitArgs) { Test-Text $t.Value 'command' 'commit message' }
-            foreach ($f in (Get-OptionValues $tokens ($j + 1) @('-F', '--file', '-t', '--template'))) {
-                if ($f.Dynamic -or $f.Value -eq '-') { continue }
-                $path = Resolve-CommandPath $f.Value $dir
-                if ($path) { Test-Text ([IO.File]::ReadAllText($path)) $f.Value 'commit message' }
+            if ($j -lt $tokens.Count -and $tokens[$j].Value -eq 'commit') {
+                $commitArgs = $tokens | Select-Object -Skip ($j + 1)
+                foreach ($t in $commitArgs) { Test-Text $t.Value 'command' 'commit message' }
+                $options = Get-CommandOptions $tokens ($j + 1) $commitValueOptions
+                foreach ($f in (Get-OptionValues $options @('-F', '--file', '-t', '--template'))) {
+                    if ($f.Dynamic -or $f.Value -eq '-') { continue }
+                    $path = Resolve-CommandPath $f.Value $dir
+                    if ($path) { Test-Text ([IO.File]::ReadAllText($path)) $f.Value 'commit message' }
+                }
             }
         }
 
         # gh pr create|edit|merge
-        $at = Find-Invocation $tokens @('gh', 'gh.exe') @('pr', 'create|edit|merge')
+        $at = Find-Invocation $tokens 'gh' @('pr', 'create|edit|merge')
         if ($at -ge 0) {
             foreach ($t in ($tokens | Select-Object -Skip $at)) { Test-Text $t.Value 'command' 'pull request text' }
-            foreach ($f in (Get-OptionValues $tokens $at @('-F', '--body-file'))) {
+            $options = Get-CommandOptions $tokens $at $prValueOptions
+            foreach ($f in (Get-OptionValues $options @('-F', '--body-file'))) {
                 if ($f.Dynamic -or $f.Value -eq '-') { continue }
                 $path = Resolve-CommandPath $f.Value $cwd
                 if ($path) { Test-Text ([IO.File]::ReadAllText($path)) $f.Value 'pull request text' }

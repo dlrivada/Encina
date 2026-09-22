@@ -51,29 +51,35 @@ try {
                 if ($line -match "^\s{0,3}$([regex]::Escape($fence.Char)){$($fence.Length),}\s*$") { $fence = $null }
                 continue
             }
-            $open = [regex]::Match($line, '^\s{0,3}(?<f>`{3,}|~{3,})')
+            # CommonMark: a backtick fence's info string cannot contain a backtick (that line is inline code).
+            $open = [regex]::Match($line, '^\s{0,3}(?<f>`{3,}|~{3,})(?<info>.*)$')
+            if ($open.Success -and $open.Groups['f'].Value[0] -eq '`' -and $open.Groups['info'].Value.Contains('`')) { $open = [System.Text.RegularExpressions.Match]::Empty }
             if ($open.Success) { $fence = @{ Char = [string]$open.Groups['f'].Value[0]; Length = $open.Groups['f'].Value.Length }; continue }
             if ($line -cmatch '^## \S') { $headers.Add($line.Trim()) }
         }
         return , $headers
     }
 
+    # Options of `gh issue create` that take a value, so their values are never parsed as options.
+    $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')
+
     foreach ($tokens in $statements) {
         $cwd = Update-WorkingDirectory $tokens $cwd
-        $at = Find-Invocation $tokens @('gh', 'gh.exe') @('issue', 'create')
+        $at = Find-Invocation $tokens 'gh' @('issue', 'create')
         if ($at -lt 0) { continue }
 
-        $repo = Get-OptionValues $tokens $at @('-R', '--repo')
+        $options = Get-CommandOptions $tokens $at $issueValueOptions
+        $repo = Get-OptionValues $options @('-R', '--repo')
         if ($repo.Count -gt 0 -and ($repo[0].Dynamic -or $repo[0].Value -ne 'dlrivada/Encina')) { continue }
-        if (Test-OptionPresent $tokens $at @('-w', '--web', '-T', '--template')) { continue }
+        if (Test-OptionPresent $options @('-w', '--web', '-T', '--template')) { continue }
 
-        $title = Get-OptionValues $tokens $at @('-t', '--title')
+        $title = Get-OptionValues $options @('-t', '--title')
         if ($title.Count -eq 0 -or $title[0].Dynamic) { continue }
         $titleText = $title[0].Value
 
         $body = $null
-        $bodyFile = Get-OptionValues $tokens $at @('-F', '--body-file')
-        $bodyInline = Get-OptionValues $tokens $at @('-b', '--body')
+        $bodyFile = Get-OptionValues $options @('-F', '--body-file')
+        $bodyInline = Get-OptionValues $options @('-b', '--body')
         if ($bodyFile.Count -gt 0) {
             if ($bodyFile[0].Dynamic -or $bodyFile[0].Value -eq '-') { continue }
             $path = Resolve-CommandPath $bodyFile[0].Value $cwd

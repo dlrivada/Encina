@@ -2,7 +2,8 @@
 # hook inspects the arguments of the `git` / `gh` call itself instead of the whole command text.
 #
 # Understood: single and double quotes (PowerShell backtick and doubled-quote escapes; backslash escapes for
-# Bash), PowerShell here-strings (@" "@, @' '@), $( ... ) and ( ... ) subexpressions, Bash heredocs inside
+# Bash), backtick escapes and line continuations outside quotes, PowerShell here-strings (@" "@, @' '@),
+# $( ... ) and ( ... ) subexpressions (their content is parsed as statements too), Bash heredocs inside
 # $( ... ), and the separators ; | || && newline { }. A token that depends on a variable or a subexpression is
 # marked Dynamic: its Value holds the literal text, which may still contain the words the hooks look for.
 
@@ -41,17 +42,28 @@ function Skip-Subexpression([string]$Text, [int]$Open, [System.Text.StringBuilde
     return [Math]::Min($i + 1, $n)
 }
 
+function Test-LineContinuation([string]$Text, [int]$At, [bool]$Bash) {
+    $escape = if ($Bash) { '\' } else { '`' }
+    return $Text[$At] -eq $escape -and $At + 1 -lt $Text.Length -and $Text[$At + 1] -in "`r", "`n"
+}
+
 function Split-CommandStatements {
-    param([string]$Text, [switch]$Bash)
+    param([string]$Text, [switch]$Bash, [int]$Depth = 0)
 
     $statements = [System.Collections.Generic.List[object]]::new()
     $current = [System.Collections.Generic.List[object]]::new()
+    $inner = [System.Collections.Generic.List[string]]::new()
     $n = $Text.Length
     $i = 0
 
     while ($i -lt $n) {
         $c = $Text[$i]
         if ($c -eq ' ' -or $c -eq "`t") { $i++; continue }
+        if (Test-LineContinuation $Text $i $Bash) {
+            $i += 2
+            if ($i -lt $n -and $Text[$i - 1] -eq "`r" -and $Text[$i] -eq "`n") { $i++ }
+            continue
+        }
 
         $sep = 0
         if (($c -eq '&' -or $c -eq '|') -and $i + 1 -lt $n -and $Text[$i + 1] -eq $c) { $sep = 2 }
@@ -69,6 +81,7 @@ function Split-CommandStatements {
             $c = $Text[$i]
             if ($c -in ' ', "`t", ';', "`n", "`r", '|', '{', '}') { break }
             if ($c -eq '&' -and $i + 1 -lt $n -and $Text[$i + 1] -eq '&') { break }
+            if (Test-LineContinuation $Text $i $Bash) { break }
 
             # PowerShell here-string: @" or @' followed by a newline, closed by "@ or '@ at the start of a line.
             if ($c -eq '@' -and $i + 2 -lt $n -and $Text[$i + 1] -in '"', "'" -and $Text[$i + 2] -in "`r", "`n") {
@@ -114,7 +127,9 @@ function Split-CommandStatements {
                     }
                     if ($d -eq '$' -and $j + 1 -lt $n -and $Text[$j + 1] -eq '(') {
                         $dynamic = $true
+                        $before = $sb.Length
                         $j = Skip-Subexpression $Text ($j + 1) $sb
+                        $inner.Add($sb.ToString($before, $sb.Length - $before))
                         continue
                     }
                     if ($d -eq '$' -and $j + 1 -lt $n -and $Text[$j + 1] -match '[\w{]') { $dynamic = $true }
@@ -128,12 +143,18 @@ function Split-CommandStatements {
             if ($c -eq '(' -or ($c -eq '$' -and $i + 1 -lt $n -and $Text[$i + 1] -eq '(')) {
                 $dynamic = $true
                 $open = if ($c -eq '$') { $i + 1 } else { $i }
+                $before = $sb.Length
                 $i = Skip-Subexpression $Text $open $sb
+                $inner.Add($sb.ToString($before, $sb.Length - $before))
                 continue
             }
 
+            # Escapes outside quotes: PowerShell backtick, Bash backslash.
+            if ((($c -eq '`' -and -not $Bash) -or ($c -eq '\' -and $Bash)) -and $i + 1 -lt $n) {
+                [void]$sb.Append($Text[$i + 1]); $i += 2; continue
+            }
+
             if ($c -eq '$') { $dynamic = $true }
-            if ($Bash -and $c -eq '\' -and $i + 1 -lt $n) { [void]$sb.Append($Text[$i + 1]); $i += 2; continue }
             [void]$sb.Append($c)
             $i++
         }
@@ -141,51 +162,83 @@ function Split-CommandStatements {
     }
 
     if ($current.Count -gt 0) { $statements.Add($current) }
+
+    # Commands inside subexpressions run too: `$r = (gh issue create ...)`, `"$(git commit ...)"`.
+    if ($Depth -lt 4) {
+        foreach ($text in $inner) {
+            foreach ($s in (Split-CommandStatements -Text $text -Bash:$Bash -Depth ($Depth + 1))) { $statements.Add($s) }
+        }
+    }
     return , $statements
 }
 
-# Finds `<program> <verb...>` inside a statement (the program token unquoted); returns the index of the token
-# after the verbs, or -1.
-function Find-Invocation($Tokens, [string[]]$Programs, [string[]]$Verbs) {
-    for ($k = 0; $k -lt $Tokens.Count; $k++) {
-        if ($Tokens[$k].Quoted -or $Programs -notcontains $Tokens[$k].Value) { continue }
-        $ok = $true
-        for ($v = 0; $v -lt $Verbs.Count; $v++) {
-            $t = $k + 1 + $v
-            if ($t -ge $Tokens.Count -or ($Verbs[$v] -split '\|') -notcontains $Tokens[$t].Value) { $ok = $false; break }
-        }
-        if ($ok) { return $k + 1 + $Verbs.Count }
+# Index of the token that names the program a statement runs, skipping the PowerShell call and dot-source
+# operators, `$var =` assignments, Bash `NAME=value` prefixes and wrappers such as `sudo` or `env`.
+function Resolve-Executable($Tokens) {
+    $k = 0
+    while ($k -lt $Tokens.Count) {
+        $t = $Tokens[$k]
+        if (-not $t.Quoted -and $t.Value -in '&', '.') { $k++; continue }
+        if (-not $t.Quoted -and $t.Value -match '^\$[\w:]+$' -and $k + 1 -lt $Tokens.Count -and $Tokens[$k + 1].Value -eq '=') { $k += 2; continue }
+        if (-not $t.Quoted -and $t.Value -match '^[A-Za-z_][A-Za-z0-9_]*=') { $k++; continue }
+        if (-not $t.Quoted -and $t.Value -in 'sudo', 'time', 'env', 'exec', 'command', 'nohup') { $k++; continue }
+        return $k
     }
     return -1
 }
 
-# Values of an option in `--name value`, `--name=value` or `-n value` form, in order of appearance.
-function Get-OptionValues($Tokens, [int]$From, [string[]]$Names) {
-    $result = [System.Collections.Generic.List[object]]::new()
-    for ($k = $From; $k -lt $Tokens.Count; $k++) {
-        $t = $Tokens[$k]
-        if ($t.Quoted) { continue }
-        foreach ($name in $Names) {
-            if ($t.Value -ceq $name -and $k + 1 -lt $Tokens.Count) {
-                $result.Add($Tokens[$k + 1]); break
-            }
-            if ($name.StartsWith('--') -and $t.Value.StartsWith("$name=", [StringComparison]::Ordinal)) {
-                $result.Add((New-CommandToken $t.Value.Substring($name.Length + 1) $false $t.Dynamic)); break
-            }
-        }
-    }
-    return , $result
+# `git`, `C:\Program Files\Git\cmd\git.exe`, "gh" -> git / gh.
+function Get-ExecutableName([string]$Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
+    try { return [IO.Path]::GetFileNameWithoutExtension($Value.Replace('\', '/').Split('/')[-1]).ToLowerInvariant() } catch { return '' }
 }
 
-function Test-OptionPresent($Tokens, [int]$From, [string[]]$Names) {
-    for ($k = $From; $k -lt $Tokens.Count; $k++) {
-        $t = $Tokens[$k]
-        if ($t.Quoted) { continue }
-        foreach ($name in $Names) {
-            if ($t.Value -ceq $name -or ($name.StartsWith('--') -and $t.Value.StartsWith("$name=", [StringComparison]::Ordinal))) { return $true }
-        }
+# If the statement runs `<program> <verb...>`, returns the index of the token after the verbs; otherwise -1.
+function Find-Invocation($Tokens, [string]$Program, [string[]]$Verbs) {
+    $k = Resolve-Executable $Tokens
+    if ($k -lt 0 -or (Get-ExecutableName $Tokens[$k].Value) -ne $Program) { return -1 }
+    for ($v = 0; $v -lt $Verbs.Count; $v++) {
+        $t = $k + 1 + $v
+        if ($t -ge $Tokens.Count -or ($Verbs[$v] -split '\|') -notcontains $Tokens[$t].Value) { return -1 }
     }
-    return $false
+    return $k + 1 + $Verbs.Count
+}
+
+# Parses the options after $From: `--name value`, `--name=value`, `-n value`, `-nvalue` (short options that
+# take a value), and flags. $ValueOptions lists every option of the command that takes a value, so a value
+# that looks like an option (`--body "-F x"`) is consumed as a value, not parsed as an option.
+function Get-CommandOptions($Tokens, [int]$From, [string[]]$ValueOptions) {
+    $options = [System.Collections.Generic.List[object]]::new()
+    for ($k = $From; $k -lt $Tokens.Count; $k++) {
+        $v = $Tokens[$k].Value
+        if (-not $v.StartsWith('-') -or $v -eq '-' -or $v -eq '--') { continue }
+        if ($v.StartsWith('--') -and $v.Contains('=')) {
+            $eq = $v.IndexOf('=')
+            $options.Add([pscustomobject]@{ Name = $v.Substring(0, $eq); Value = (New-CommandToken $v.Substring($eq + 1) $Tokens[$k].Quoted $Tokens[$k].Dynamic) })
+            continue
+        }
+        if ($ValueOptions -ccontains $v) {
+            $value = if ($k + 1 -lt $Tokens.Count) { $Tokens[$k + 1] } else { $null }
+            $options.Add([pscustomobject]@{ Name = $v; Value = $value })
+            $k++
+            continue
+        }
+        if (-not $v.StartsWith('--') -and $v.Length -gt 2 -and $ValueOptions -ccontains $v.Substring(0, 2)) {
+            $options.Add([pscustomobject]@{ Name = $v.Substring(0, 2); Value = (New-CommandToken $v.Substring(2) $Tokens[$k].Quoted $Tokens[$k].Dynamic) })
+            continue
+        }
+        $options.Add([pscustomobject]@{ Name = $v; Value = $null })
+    }
+    return , $options
+}
+
+# Values of the named options, in order of appearance.
+function Get-OptionValues($Options, [string[]]$Names) {
+    return , @($Options | Where-Object { $Names -ccontains $_.Name -and $null -ne $_.Value } | ForEach-Object { $_.Value })
+}
+
+function Test-OptionPresent($Options, [string[]]$Names) {
+    return [bool]($Options | Where-Object { $Names -ccontains $_.Name })
 }
 
 # Tracks `cd` / `Set-Location` / `Push-Location` statements so relative paths resolve where the command runs.

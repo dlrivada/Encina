@@ -50,6 +50,8 @@ Set-Content (Join-Path $work 'debt-order.md') ($debt -replace '## Type', '## TMP
 Set-Content (Join-Path $work 'debt-case.md') ($debt -replace '## Expected Behavior', '## Expected behavior')
 Set-Content (Join-Path $work 'debt-quoted.md') ($debt -replace '(## Description\r?\n)d', "`$1d`n``````md`n## Related Issues`n``````")
 Set-Content (Join-Path $work 'free.md') "## Summary`nx`n## Proposed fix`ny"
+# A line starting with ``` whose info string contains a backtick is inline code, not a fence (CommonMark).
+Set-Content (Join-Path $work 'debt-infostring.md') ($debt -replace '(## Description\r?\n)d', "`$1`````` inline ``code`` ``````")
 Set-Content (Join-Path $work 'free-fenced.md') "Free form.`n``````md`n$($debt)`n``````"
 
 $cases = @(
@@ -79,6 +81,20 @@ $cases = @(
     @($attribution, 'Bash', "git commit -m `"`$(cat <<'EOF'`nfix: \`"quoted\`" (paren`nEOF`n)`"", 0, 'bash heredoc clean with quotes and paren'),
     @($attribution, 'PowerShell', "git commit -m @`"`nfix: x`n`n$trailer`n`"@", 2, 'PowerShell here-string message'),
     @($attribution, 'PowerShell', 'not json', 0, 'malformed payload'),
+    @($attribution, 'PowerShell', "git comm``it -m `"$trailer`"", 2, 'backtick-escaped verb'),
+    @($attribution, 'PowerShell', "git commit ``-m `"$trailer`"", 2, 'backtick-escaped option'),
+    @($attribution, 'PowerShell', "git commit ```n  -m `"$trailer`"", 2, 'line continuation'),
+    @($attribution, 'PowerShell', "& `"git`" commit -m `"$trailer`"", 2, 'call operator and quoted executable'),
+    @($attribution, 'PowerShell', "`"gh`" pr create -t t -b `"$trailer`"", 2, 'quoted gh executable'),
+    @($attribution, 'PowerShell', "& 'C:\Program Files\Git\cmd\git.exe' commit -m `"$trailer`"", 2, 'full path to git.exe'),
+    @($attribution, 'PowerShell', "Write-Output gh pr create -b `"$trailer`"", 0, 'gh only as an argument'),
+    @($attribution, 'PowerShell', "Write-Output git commit -m `"$trailer`"", 0, 'git only as an argument'),
+    @($attribution, 'PowerShell', "`$out = git commit -m `"$trailer`"", 2, 'assignment'),
+    @($attribution, 'PowerShell', "Write-Output (git commit -m `"$trailer`")", 2, 'inside a subexpression'),
+    @($attribution, 'Bash', "GIT_AUTHOR_NAME=x git commit -m `"$trailer`"", 2, 'Bash environment prefix'),
+    @($attribution, 'PowerShell', 'git commit -Fmsg-bad.txt', 2, 'attached short -F value'),
+    @($attribution, 'PowerShell', 'git commit --file=msg-bad.txt', 2, '--file= form'),
+    @($attribution, 'PowerShell', 'git commit "-F" msg-bad.txt', 2, 'quoted option name'),
 
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md', 0, 'DEBT complete'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-missing.md', 2, 'DEBT missing Root Cause'),
@@ -102,6 +118,16 @@ $cases = @(
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-quoted.md', 0, 'fenced header quoted in a valid body'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-case.md', 2, 'header case differs'),
     @($issue, 'PowerShell', 'gh issue list --label bug', 0, 'not issue create'),
+    @($issue, 'PowerShell', 'gh issue create "--title" "No prefix" --body-file debt-ok.md', 2, 'quoted --title'),
+    @($issue, 'PowerShell', 'gh issue create --title="No prefix" --body-file debt-ok.md', 2, '--title= with quoted value'),
+    @($issue, 'PowerShell', 'gh issue create -t"No prefix" -Fdebt-ok.md', 2, 'attached short options'),
+    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" -Ffree.md', 2, 'attached -F with a free-form body'),
+    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body "-F debt-ok.md"', 2, '-F as the body value'),
+    @($issue, 'PowerShell', '& "gh" issue create --title "No prefix" --body-file debt-ok.md', 2, 'quoted gh with call operator'),
+    @($issue, 'PowerShell', 'Write-Output gh issue create --title "No prefix" --body-file debt-ok.md', 0, 'gh only as an argument'),
+    @($issue, 'PowerShell', '$r = (gh issue create --title "No prefix" --body-file debt-ok.md)', 2, 'assignment of a subexpression'),
+    @($issue, 'PowerShell', "gh iss``ue create --title `"No prefix`" --body-file debt-ok.md", 2, 'backtick-escaped verb'),
+    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-infostring.md', 0, 'backtick in fence info string is not a fence'),
     @($issue, 'PowerShell', 'not json', 0, 'malformed payload')
 )
 
