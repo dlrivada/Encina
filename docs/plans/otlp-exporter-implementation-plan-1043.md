@@ -304,12 +304,17 @@ if (options.EnableOtlpExporter)
 - Unit tests cover: `EnableOtlpExporter=false` → no exporter registered (assertion via
   introspecting the `IServiceCollection`/`TracerProviderBuilder` state),
   `EnableOtlpExporter=true` → exporter registered, `ConfigureOtlpExporter` callback invoked
-  with the live `OtlpExporterOptions`, callback invoked **once per signal** (twice total).
+  with the live `OtlpExporterOptions`, callback invoked **once per signal** (three times total:
+  traces, metrics, logs).
 - Guard tests cover null-callback handling (with `EnableOtlpExporter=true`, a null callback
   must not throw — it just leaves the SDK defaults).
-- Integration tests cover: spans + metrics actually export to the collector (assert via the
-  collector's health check / received-data inspection if available, or simply that no
-  exporter exception is thrown during shutdown).
+- Integration tests cover: spans, metrics and log records actually export to the collector
+  (assert via the collector's health check / received-data inspection if available, or simply
+  that no exporter exception is thrown during shutdown).
+- Integration tests also cover the **collector-unavailable** path: with the endpoint pointing
+  at a closed port, the host starts, emits telemetry and shuts down without throwing, and the
+  export failure is visible only through the SDK's self-diagnostics (see the Resilience row
+  of the cross-cutting matrix for the documented behaviour).
 
 </details>
 
@@ -351,12 +356,13 @@ if (options.EnableOtlpExporter)
      ```csharp
      /// <summary>
      /// Gets or sets a value indicating whether the OpenTelemetry Protocol (OTLP) exporter
-     /// is registered for both traces and metrics.
+     /// is registered for traces, metrics, and logs.
      /// </summary>
      /// <value>
      /// Default is <c>false</c>. When set to <c>true</c>, <see cref="WithEncina"/> calls
-     /// <c>AddOtlpExporter</c> on both the <see cref="OpenTelemetry.Trace.TracerProviderBuilder"/>
-     /// and the <see cref="OpenTelemetry.Metrics.MeterProviderBuilder"/>.
+     /// <c>AddOtlpExporter</c> on the <see cref="OpenTelemetry.Trace.TracerProviderBuilder"/>,
+     /// the <see cref="OpenTelemetry.Metrics.MeterProviderBuilder"/> and the
+     /// <see cref="OpenTelemetry.Logs.LoggerProviderBuilder"/>.
      /// </value>
      /// <remarks>
      /// OTLP is the canonical wire format used by OpenTelemetry collectors, Jaeger,
@@ -391,7 +397,7 @@ if (options.EnableOtlpExporter)
      /// when <see cref="EnableOtlpExporter"/> is <c>true</c>.
      /// </value>
      /// <remarks>
-     /// The callback is invoked once per signal (once for traces, once for metrics)
+     /// The callback is invoked once per signal (once for traces, once for metrics, once for logs)
      /// with a fresh <see cref="OtlpExporterOptions"/> instance each time. To share
      /// configuration across signals, capture local variables in the lambda; do not
      /// store and reuse the supplied <see cref="OtlpExporterOptions"/> instance.
@@ -990,7 +996,7 @@ TASK:
    with tests for the new properties' defaults and assignment.
 2. Create tests/Encina.UnitTests/OpenTelemetry/WithEncinaOtlpExporterTests.cs with
    tests for: EnableOtlpExporter=false → no exporter, =true → exporter registered for
-   traces+metrics, callback invoked once per signal (twice total), null-callback safety.
+   traces+metrics+logs, callback invoked once per signal (three times total), null-callback safety.
 3. Update tests/Encina.UnitTests/OpenTelemetry/EncinaOpenTelemetryOptionsTests.cs
    default-values test to assert EnableOtlpExporter == false and ConfigureOtlpExporter == null.
 4. Add two new test methods to
@@ -1071,11 +1077,24 @@ Update [CHANGELOG.md](../../CHANGELOG.md) under `## [Unreleased]` → `### Added
   endpoint, protocol, headers, and batch settings.
 - **Dependency visibility**: `Encina.OpenTelemetry.csproj` drops `PrivateAssets="all"`
   from `OpenTelemetry.Exporter.OpenTelemetryProtocol` (now justified by the public
-  opt-in API). `Encina.Testing.WireMock.csproj` keeps `PrivateAssets="all"` — the
-  reference there exists purely for transitive version pinning.
-- Default behavior is unchanged: `EnableOtlpExporter = false` means no OTLP exporter
-  is registered and no extra package surface flows to consumers who don't opt in.
+  opt-in API). As a consequence `OpenTelemetry.Exporter.OpenTelemetryProtocol` becomes a
+  transitive dependency of every consumer of `Encina.OpenTelemetry`, whether or not they
+  opt in; this is required because `WithEncina` must be able to call `AddOtlpExporter`.
+  `Encina.Testing.WireMock.csproj` keeps `PrivateAssets="all"` — the reference there
+  exists purely for transitive version pinning.
+- Default behavior is unchanged at runtime: `EnableOtlpExporter = false` means no OTLP
+  exporter is registered and nothing is sent anywhere. The opt-in is a runtime switch, not
+  a packaging boundary.
 ```
+
+> **Design note (dependency surface).** `PrivateAssets="all"` keeps a package out of the
+> consumer's dependency graph; removing it is the only way to let `Encina.OpenTelemetry`
+> reference `AddOtlpExporter` at runtime without a separate package. The alternative — a new
+> `Encina.OpenTelemetry.Otlp` satellite package that owns the reference and the two options —
+> keeps the core package's graph unchanged but adds a package to maintain and document. The
+> implementer must pick one before Phase 1 and record it in ADR-026; the acceptance criteria
+> below describe the runtime contract and must not promise "no extra package surface" if the
+> in-package option is chosen.
 
 #### 3. ROADMAP.md ⏭️ Verify, no update expected
 
@@ -1098,7 +1117,7 @@ Update [src/Encina.OpenTelemetry/README.md](../../src/Encina.OpenTelemetry/READM
 
 - **Integration with Observability Platforms** section — add a new "OTLP (OpenTelemetry Protocol)" subsection between Jaeger and Prometheus:
 
-  ```markdown
+  ````markdown
   ### OTLP (OpenTelemetry Protocol)
 
   OTLP is the canonical wire format for OpenTelemetry collectors. Use it to ship
@@ -1123,7 +1142,7 @@ Update [src/Encina.OpenTelemetry/README.md](../../src/Encina.OpenTelemetry/READM
   The exporter respects the standard `OTEL_EXPORTER_OTLP_ENDPOINT`,
   `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_EXPORTER_OTLP_PROTOCOL` environment
   variables when no `ConfigureOtlpExporter` callback is supplied.
-  ```
+  ````
 
 #### 5. docs/features/*.md ✅ Required
 
@@ -1527,7 +1546,7 @@ Evaluation against the 12 transversal functions defined in
 | 3 | **Structured Logging** | ✅ Included (via #1048) | With the prerequisite #1048 wiring `WithLogging` in `WithEncina`, all Encina `[LoggerMessage]`-generated events (e.g., `ReshardingLogMessages` and future Encina log sources) flow through the OTel logger provider and are exported via OTLP when `EnableOtlpExporter = true`. Adding Encina-native `[LoggerMessage]` events around the OTLP wiring decision itself (e.g., `OtlpExporterEnabled`, `OtlpEndpointResolved`) would require registering a new EventId range — the existing 7000-7099 range used by `ReshardingLogMessages` is currently unregistered, tracked as [#1050](https://github.com/dlrivada/Encina/issues/1050). |
 | 4 | **Health Checks** | ⏭️ Deferred (tracked as [#1049](https://github.com/dlrivada/Encina/issues/1049)) | An `OtlpExporterHealthCheck` (TCP probe to the configured endpoint with a configurable timeout) would be valuable but is out of scope for this issue. Tracked separately under EPIC #888 for v0.19.0. |
 | 5 | **Validation** | ❌ N/A | Two new properties: a bool and a nullable delegate. Neither has a meaningful invalid state. OTLP-specific configuration (endpoint URL format, timeout > 0, header syntax) is validated by the `OtlpExporterOptions` SDK at exporter construction with clear error messages. |
-| 6 | **Resilience** | ❌ N/A | The OTLP exporter has built-in retry, timeout, and circuit-breaker semantics governed by the SDK's `BatchExportProcessorOptions` and the gRPC/HTTP transport layer. Wrapping it in Polly would conflict with the SDK's own retry pipeline and is explicitly discouraged by the OpenTelemetry .NET maintainers. |
+| 6 | **Resilience** | ❌ N/A (documented limitation) | The SDK does **not** provide a circuit breaker, and `BatchExportProcessorOptions` only controls batching (queue size, delay, batch size); it is not a retry policy. Effective behaviour when the collector is unavailable: each export attempt fails after `OtlpExporterOptions.TimeoutMilliseconds` (default 10 s), the batch is dropped, the failure is reported through the SDK self-diagnostics only, and the application is never blocked or faulted. Retry exists only as an experimental opt-in via `OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY=in_memory` or `disk`, which the plan neither enables nor documents as supported. Wrapping the exporter in Polly is not done because the SDK owns the export pipeline. The collector-unavailable integration test (Phase 2) pins this behaviour. |
 | 7 | **Distributed Locks** | ❌ N/A | Stateless feature. No shared resource to coordinate access to. |
 | 8 | **Transactions** | ❌ N/A | Stateless feature. No multi-operation atomicity to guarantee. |
 | 9 | **Idempotency** | ❌ N/A | Telemetry export is one-way (Encina → collector). The OTLP protocol itself handles duplicate-suppression at the collector via OpenTelemetry sampling and aggregation — out of Encina's domain. |
@@ -1549,8 +1568,9 @@ combination of #1048 (logs wiring) and this plan (OTLP for all three signals); t
 - [ ] **Prerequisite #1048 merged** — `WithLogging` is wired into `WithEncina(...)`
 - [ ] `EnableOtlpExporter=true` results in OTLP exporter being registered for **traces, metrics, AND logs**
 - [ ] `ConfigureOtlpExporter` callback is invoked with the live `OtlpExporterOptions` once per signal (3 times total)
-- [ ] Default (`false`) behavior is identical to today — no exporter registered, no extra package surface for consumers who don't opt in
-- [ ] `PrivateAssets="all"` removed from `Encina.OpenTelemetry`'s OTLP `PackageReference`
+- [ ] Default (`false`) behavior is identical to today at runtime — no exporter registered, nothing exported
+- [ ] Dependency-surface decision recorded in ADR-026: either `PrivateAssets="all"` removed from `Encina.OpenTelemetry`'s OTLP `PackageReference` (the OTLP package becomes a transitive dependency of all consumers) or a separate `Encina.OpenTelemetry.Otlp` package owns the reference
+- [ ] Collector-unavailable integration test passes (no exception surfaces, host shuts down cleanly)
 - [ ] Zero build warnings
 - [ ] PublicAPI tracked
 

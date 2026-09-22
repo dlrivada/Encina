@@ -57,9 +57,9 @@ Results are published to the **Coverage Dashboard**: [dlrivada.github.io/Encina/
 
 The dashboard shows:
 
-- Overall weighted coverage percentage
-- Per-category breakdown with pass/fail status
-- Per-package detail with per-test-type columns (Unit, Guard, Contract, Property, Integration)
+- Overall weighted coverage percentage (informational only; there is no project-wide target)
+- Per-category breakdown (informational only; categories have no targets of their own)
+- Per-package detail with per-test-type columns (Unit, Guard, Contract, Property, Integration) — this is the only gate: each package must reach its manifest target on every applicable flag
 - Coverage trend over time (historical data accumulated in `docs/coverage/data/history.json`)
 - Interactive sunburst distribution chart
 
