@@ -120,7 +120,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3918,
         Level = LogLevel.Error,
         Message = "Retry policy exhausted for {RequestType} after {MaxAttempts} attempts")]
     private static partial void LogRetryExhausted(
@@ -130,7 +130,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         Exception exception);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3919,
         Level = LogLevel.Warning,
         Message = "Retry {AttemptNumber}/{MaxAttempts} for {RequestType} after {Delay}ms due to exception")]
     private static partial void LogRetryAttemptException(
@@ -142,7 +142,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         Exception exception);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3920,
         Level = LogLevel.Warning,
         Message = "Retry {AttemptNumber}/{MaxAttempts} for {RequestType} after {Delay}ms due to error: {Error}")]
     private static partial void LogRetryAttemptError(

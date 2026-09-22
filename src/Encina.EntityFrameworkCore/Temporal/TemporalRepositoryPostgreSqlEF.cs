@@ -555,7 +555,7 @@ public sealed class PostgreSqlTemporalOptions
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 210,
+        EventId = 3056,
         Level = LogLevel.Debug,
         Message = "PostgreSQL Temporal query (AsOf): Entity={EntityType}, Id={EntityId}, AsOfUtc={AsOfUtc:O}")]
     public static partial void TemporalQueryAsOfPostgreSql(
@@ -565,7 +565,7 @@ internal static partial class Log
         DateTime asOfUtc);
 
     [LoggerMessage(
-        EventId = 211,
+        EventId = 3057,
         Level = LogLevel.Debug,
         Message = "PostgreSQL Temporal query (History): Entity={EntityType}, Id={EntityId}")]
     public static partial void TemporalQueryHistoryPostgreSql(
@@ -574,7 +574,7 @@ internal static partial class Log
         string entityId);
 
     [LoggerMessage(
-        EventId = 212,
+        EventId = 3058,
         Level = LogLevel.Debug,
         Message = "PostgreSQL Temporal query (Between): Entity={EntityType}, FromUtc={FromUtc:O}, ToUtc={ToUtc:O}")]
     public static partial void TemporalQueryBetweenPostgreSql(
@@ -584,7 +584,7 @@ internal static partial class Log
         DateTime toUtc);
 
     [LoggerMessage(
-        EventId = 213,
+        EventId = 3059,
         Level = LogLevel.Debug,
         Message = "PostgreSQL Temporal query (ListAsOf): Entity={EntityType}, AsOfUtc={AsOfUtc:O}")]
     public static partial void TemporalQueryListAsOfPostgreSql(

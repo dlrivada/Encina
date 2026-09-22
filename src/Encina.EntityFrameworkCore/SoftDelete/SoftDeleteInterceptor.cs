@@ -196,7 +196,7 @@ public sealed class SoftDeleteInterceptor : SaveChangesInterceptor
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 100,
+        EventId = 3050,
         Level = LogLevel.Debug,
         Message = "Soft delete converted: {SoftDeletedCount} entities soft-deleted by user {UserId}")]
     public static partial void SoftDeleteConverted(
@@ -205,7 +205,7 @@ internal static partial class Log
         string userId);
 
     [LoggerMessage(
-        EventId = 101,
+        EventId = 3051,
         Level = LogLevel.Warning,
         Message = "Failed to resolve user ID for soft delete tracking")]
     public static partial void FailedToResolveUserId(ILogger logger, Exception exception);

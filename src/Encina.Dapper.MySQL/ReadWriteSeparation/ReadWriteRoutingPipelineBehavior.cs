@@ -146,7 +146,7 @@ public sealed class ReadWriteRoutingPipelineBehavior<TRequest, TResponse> : IPip
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 7001,
+        EventId = 3450,
         Level = LogLevel.Debug,
         Message = "[{RequestType}] Setting database intent to {Intent} (CorrelationId: {CorrelationId})")]
     public static partial void SettingDatabaseIntent(

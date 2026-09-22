@@ -75,7 +75,7 @@ All observability features are inherited from `Encina.Security.Secrets`:
 | Health checks | `SecretsHealthCheck` | `ProviderHealthCheck = true` |
 | Access auditing | `AuditedSecretReaderDecorator` | `EnableAccessAuditing = true` |
 | Caching | `CachedSecretReaderDecorator` | `EnableCaching = true` (default) |
-| Provider logging | `Log.cs` (EventIds 210-218) | Always active |
+| Provider logging | `Log.cs` (EventIds 5250-5258) | Always active |
 
 ## Dependencies
 

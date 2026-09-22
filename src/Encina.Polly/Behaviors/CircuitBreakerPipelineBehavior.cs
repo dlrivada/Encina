@@ -125,7 +125,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3904,
         Level = LogLevel.Warning,
         Message = "Circuit breaker is open for {RequestType}. Request blocked.")]
     private static partial void LogCircuitBreakerOpen(
@@ -134,7 +134,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         Exception exception);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3905,
         Level = LogLevel.Error,
         Message = "Circuit breaker execution failed for {RequestType}")]
     private static partial void LogCircuitBreakerExecutionFailed(
@@ -143,7 +143,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         Exception exception);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3906,
         Level = LogLevel.Warning,
         Message = "Circuit breaker OPENED for {RequestType}. Break duration: {BreakDuration}s")]
     private static partial void LogCircuitBreakerStateOpened(
@@ -152,7 +152,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         int breakDuration);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3907,
         Level = LogLevel.Information,
         Message = "Circuit breaker CLOSED for {RequestType}. System recovered.")]
     private static partial void LogCircuitBreakerStateClosed(
@@ -160,7 +160,7 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         string requestType);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 3908,
         Level = LogLevel.Information,
         Message = "Circuit breaker HALF-OPEN for {RequestType}. Testing if system recovered...")]
     private static partial void LogCircuitBreakerStateHalfOpened(

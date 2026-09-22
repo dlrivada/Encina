@@ -155,7 +155,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
     }
 
     [LoggerMessage(
-        EventId = 100,
+        EventId = 3909,
         Level = LogLevel.Warning,
         Message = "Database circuit breaker is open for {RequestType} on provider '{ProviderName}'. Request blocked (fast path).")]
     private static partial void LogCircuitBreakerOpenFastPath(
@@ -164,7 +164,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
         string providerName);
 
     [LoggerMessage(
-        EventId = 101,
+        EventId = 3910,
         Level = LogLevel.Warning,
         Message = "Database circuit breaker tripped for {RequestType} on provider '{ProviderName}'.")]
     private static partial void LogCircuitBreakerTripped(
@@ -174,7 +174,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
         Exception exception);
 
     [LoggerMessage(
-        EventId = 102,
+        EventId = 3911,
         Level = LogLevel.Warning,
         Message = "Transient database error for {RequestType} on provider '{ProviderName}'.")]
     private static partial void LogTransientDatabaseError(
@@ -184,7 +184,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
         Exception exception);
 
     [LoggerMessage(
-        EventId = 103,
+        EventId = 3912,
         Level = LogLevel.Warning,
         Message = "Database circuit breaker OPENED for provider '{ProviderName}'. Break duration: {BreakDurationSeconds}s.")]
     private static partial void LogCircuitBreakerStateOpened(
@@ -193,7 +193,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
         double breakDurationSeconds);
 
     [LoggerMessage(
-        EventId = 104,
+        EventId = 3913,
         Level = LogLevel.Information,
         Message = "Database circuit breaker CLOSED for provider '{ProviderName}'. Database recovered.")]
     private static partial void LogCircuitBreakerStateClosed(
@@ -201,7 +201,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
         string providerName);
 
     [LoggerMessage(
-        EventId = 105,
+        EventId = 3914,
         Level = LogLevel.Information,
         Message = "Database circuit breaker HALF-OPEN for provider '{ProviderName}'. Testing if database recovered...")]
     private static partial void LogCircuitBreakerStateHalfOpened(

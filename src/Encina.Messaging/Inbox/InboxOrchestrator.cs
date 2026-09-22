@@ -331,37 +331,37 @@ public static class InboxErrorCodes
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 1,
+        EventId = 2812,
         Level = LogLevel.Warning,
         Message = "Missing IdempotencyKey for idempotent request {RequestType} (correlation: {CorrelationId})")]
     public static partial void MissingIdempotencyKey(ILogger logger, string requestType, string correlationId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 2813,
         Level = LogLevel.Debug,
         Message = "Processing idempotent request {RequestType} with MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void ProcessingIdempotentRequest(ILogger logger, string requestType, string messageId, string correlationId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 2814,
         Level = LogLevel.Debug,
         Message = "Returning cached response for MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void ReturningCachedResponse(ILogger logger, string messageId, string correlationId);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 2815,
         Level = LogLevel.Warning,
         Message = "Max retries ({MaxRetries}) exceeded for MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void MaxRetriesExceeded(ILogger logger, string messageId, int maxRetries, string correlationId);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 2816,
         Level = LogLevel.Debug,
         Message = "Processed and cached response for MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void ProcessedAndCachedMessage(ILogger logger, string messageId, string correlationId);
 
     [LoggerMessage(
-        EventId = 6,
+        EventId = 2817,
         Level = LogLevel.Error,
         Message = "Error processing message {MessageId} (correlation: {CorrelationId})")]
     public static partial void ErrorProcessingMessage(ILogger logger, Exception ex, string messageId, string correlationId);

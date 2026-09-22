@@ -699,7 +699,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 400,
+        EventId = 3201,
         Level = LogLevel.Debug,
         Message = "Temporal query (AsOf): Entity={EntityType}, Id={EntityId}, AsOfUtc={AsOfUtc:O}")]
     public static partial void TemporalQueryAsOf(
@@ -709,7 +709,7 @@ internal static partial class Log
         DateTime asOfUtc);
 
     [LoggerMessage(
-        EventId = 401,
+        EventId = 3202,
         Level = LogLevel.Debug,
         Message = "Temporal query (History): Entity={EntityType}, Id={EntityId}")]
     public static partial void TemporalQueryHistory(
@@ -718,7 +718,7 @@ internal static partial class Log
         string entityId);
 
     [LoggerMessage(
-        EventId = 402,
+        EventId = 3203,
         Level = LogLevel.Debug,
         Message = "Temporal query (Between): Entity={EntityType}, FromUtc={FromUtc:O}, ToUtc={ToUtc:O}")]
     public static partial void TemporalQueryBetween(
@@ -728,7 +728,7 @@ internal static partial class Log
         DateTime toUtc);
 
     [LoggerMessage(
-        EventId = 403,
+        EventId = 3204,
         Level = LogLevel.Debug,
         Message = "Temporal query (ListAsOf): Entity={EntityType}, AsOfUtc={AsOfUtc:O}")]
     public static partial void TemporalQueryListAsOf(

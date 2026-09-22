@@ -534,7 +534,7 @@ public sealed class TemporalRepositoryDapper<TEntity, TId> : ITemporalRepository
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 500,
+        EventId = 3401,
         Level = LogLevel.Debug,
         Message = "Temporal query (AsOf): Entity={EntityType}, Id={EntityId}, AsOfUtc={AsOfUtc:O}")]
     public static partial void TemporalQueryAsOf(
@@ -544,7 +544,7 @@ internal static partial class Log
         DateTime asOfUtc);
 
     [LoggerMessage(
-        EventId = 501,
+        EventId = 3402,
         Level = LogLevel.Debug,
         Message = "Temporal query (History): Entity={EntityType}, Id={EntityId}")]
     public static partial void TemporalQueryHistory(
@@ -553,7 +553,7 @@ internal static partial class Log
         string entityId);
 
     [LoggerMessage(
-        EventId = 502,
+        EventId = 3403,
         Level = LogLevel.Debug,
         Message = "Temporal query (Between): Entity={EntityType}, FromUtc={FromUtc:O}, ToUtc={ToUtc:O}")]
     public static partial void TemporalQueryBetween(
@@ -563,7 +563,7 @@ internal static partial class Log
         DateTime toUtc);
 
     [LoggerMessage(
-        EventId = 503,
+        EventId = 3404,
         Level = LogLevel.Debug,
         Message = "Temporal query (ListAsOf): Entity={EntityType}, AsOfUtc={AsOfUtc:O}")]
     public static partial void TemporalQueryListAsOf(

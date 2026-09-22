@@ -172,7 +172,7 @@ Per XACML 3.0 section 7.18: if an obligation handler fails or is missing, access
 
 - **Tracing**: `Encina.Security.ABAC` ActivitySource with `ABAC.Evaluate` spans
 - **Metrics**: 9 counters (`abac.evaluation.*`, `abac.obligation.*`, `abac.advice.*`) + 2 histograms (`abac.evaluation.duration`, `abac.obligation.duration`)
-- **Logging**: 23 structured log events (EventId 9000-9022) via `[LoggerMessage]` source generator
+- **Logging**: 52 structured log events (EventIds 9000-9071, `EventIdRanges.SecurityABAC`) via `[LoggerMessage]` source generator
 - **Health Check**: `encina-abac` with tags `encina`, `security`, `abac`, `ready`
 
 ## Documentation

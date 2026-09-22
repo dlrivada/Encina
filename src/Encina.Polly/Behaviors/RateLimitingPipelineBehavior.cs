@@ -120,7 +120,7 @@ public sealed partial class RateLimitingPipelineBehavior<TRequest, TResponse> : 
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3915,
         Level = LogLevel.Warning,
         Message = "Rate limit exceeded for {RequestType}. Current: {CurrentCount}/{CurrentLimit}. State: {State}. Retry after: {RetryAfterSeconds}s")]
     private static partial void LogRateLimitExceeded(
@@ -132,7 +132,7 @@ public sealed partial class RateLimitingPipelineBehavior<TRequest, TResponse> : 
         double retryAfterSeconds);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3916,
         Level = LogLevel.Debug,
         Message = "Rate limit acquired for {RequestType}. Current: {CurrentCount}/{CurrentLimit}. State: {State}")]
     private static partial void LogRateLimitAcquired(
@@ -143,7 +143,7 @@ public sealed partial class RateLimitingPipelineBehavior<TRequest, TResponse> : 
         string state);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3917,
         Level = LogLevel.Warning,
         Message = "Rate limiter transitioned to Throttled state for {RequestType}. Error rate: {ErrorRate:F1}%")]
     private static partial void LogStateTransitionToThrottled(

@@ -177,7 +177,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3500,
         Level = LogLevel.Debug,
         Message = "Invalidated cache for {RequestType} with pattern {Pattern} (CorrelationId: {CorrelationId})")]
     private static partial void LogCacheInvalidated(
@@ -187,7 +187,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         string correlationId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3501,
         Level = LogLevel.Debug,
         Message = "Broadcast invalidation for pattern {Pattern} on channel {Channel} (CorrelationId: {CorrelationId})")]
     private static partial void LogInvalidationBroadcast(
@@ -197,7 +197,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         string correlationId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3502,
         Level = LogLevel.Warning,
         Message = "Cache invalidation error for {RequestType} with pattern {Pattern}")]
     private static partial void LogInvalidationError(
@@ -207,7 +207,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         Exception exception);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3503,
         Level = LogLevel.Warning,
         Message = "Pub/Sub error broadcasting invalidation for pattern {Pattern} on channel {Channel}")]
     private static partial void LogPubSubError(

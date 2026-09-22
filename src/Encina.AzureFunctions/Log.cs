@@ -8,7 +8,7 @@ namespace Encina.AzureFunctions;
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 1,
+        EventId = 4750,
         Level = LogLevel.Debug,
         Message = "Function {FunctionName} execution starting (InvocationId: {InvocationId})")]
     public static partial void FunctionExecutionStarting(
@@ -17,7 +17,7 @@ internal static partial class Log
         string invocationId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 4751,
         Level = LogLevel.Debug,
         Message = "Function {FunctionName} execution completed (InvocationId: {InvocationId})")]
     public static partial void FunctionExecutionCompleted(
@@ -26,7 +26,7 @@ internal static partial class Log
         string invocationId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 4752,
         Level = LogLevel.Error,
         Message = "Function {FunctionName} execution failed (InvocationId: {InvocationId})")]
     public static partial void FunctionExecutionFailed(
@@ -36,7 +36,7 @@ internal static partial class Log
         Exception exception);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 4753,
         Level = LogLevel.Debug,
         Message = "Context enriched for function {FunctionName}: CorrelationId={CorrelationId}, UserId={UserId}, TenantId={TenantId}")]
     public static partial void ContextEnriched(
@@ -47,7 +47,7 @@ internal static partial class Log
         string tenantId);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 4754,
         Level = LogLevel.Information,
         Message = "Azure Functions health check completed: {Status}")]
     public static partial void HealthCheckCompleted(

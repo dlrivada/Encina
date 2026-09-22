@@ -110,19 +110,19 @@ public sealed partial class ConnectionWarmupHostedService : IHostedService
     private static partial class Log
     {
         [LoggerMessage(
-            EventId = 1,
+            EventId = 2942,
             Level = LogLevel.Information,
             Message = "Warming up {Count} database connections.")]
         public static partial void WarmupStarting(ILogger logger, int count);
 
         [LoggerMessage(
-            EventId = 2,
+            EventId = 2943,
             Level = LogLevel.Warning,
             Message = "Failed to warm up connection {Number}.")]
         public static partial void WarmupConnectionFailed(ILogger logger, int number, Exception exception);
 
         [LoggerMessage(
-            EventId = 3,
+            EventId = 2944,
             Level = LogLevel.Information,
             Message = "Connection warm-up completed: {WarmedUp}/{Total} connections established.")]
         public static partial void WarmupCompleted(ILogger logger, int warmedUp, int total);

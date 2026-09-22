@@ -134,43 +134,43 @@ internal sealed partial class PolicyCachePubSubHostedService : IHostedService
     // ── LoggerMessage Source Generators ─────────────────────────────
 
     [LoggerMessage(
-        EventId = 1, Level = LogLevel.Information,
+        EventId = 9065, Level = LogLevel.Information,
         Message = "ABAC policy PubSub subscription started on channel {Channel}")]
     private static partial void LogSubscriptionStarted(
         ILogger logger, string channel);
 
     [LoggerMessage(
-        EventId = 2, Level = LogLevel.Warning,
+        EventId = 9066, Level = LogLevel.Warning,
         Message = "ABAC policy PubSub subscription failed to start on channel {Channel}")]
     private static partial void LogSubscriptionError(
         ILogger logger, string channel, Exception exception);
 
     [LoggerMessage(
-        EventId = 3, Level = LogLevel.Information,
+        EventId = 9067, Level = LogLevel.Information,
         Message = "ABAC policy PubSub subscription stopped on channel {Channel}")]
     private static partial void LogSubscriptionStopped(
         ILogger logger, string channel);
 
     [LoggerMessage(
-        EventId = 4, Level = LogLevel.Warning,
+        EventId = 9068, Level = LogLevel.Warning,
         Message = "ABAC policy PubSub subscription stop error on channel {Channel}")]
     private static partial void LogSubscriptionStopError(
         ILogger logger, string channel, Exception exception);
 
     [LoggerMessage(
-        EventId = 5, Level = LogLevel.Debug,
+        EventId = 9069, Level = LogLevel.Debug,
         Message = "ABAC policy cache invalidation received for {EntityType}:{EntityId} (operation: {Operation}) on channel {Channel}")]
     private static partial void LogInvalidationReceived(
         ILogger logger, string entityType, string entityId, string operation, string channel);
 
     [LoggerMessage(
-        EventId = 6, Level = LogLevel.Debug,
+        EventId = 9070, Level = LogLevel.Debug,
         Message = "ABAC policy cache evicted by pattern {Pattern}")]
     private static partial void LogCacheEvicted(
         ILogger logger, string pattern);
 
     [LoggerMessage(
-        EventId = 7, Level = LogLevel.Warning,
+        EventId = 9071, Level = LogLevel.Warning,
         Message = "ABAC policy cache eviction error for {EntityType}:{EntityId}")]
     private static partial void LogCacheEvictionError(
         ILogger logger, string entityType, string entityId, Exception exception);

@@ -399,43 +399,43 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
     // ── LoggerMessage Source Generators ─────────────────────────────
 
     [LoggerMessage(
-        EventId = 1, Level = LogLevel.Debug,
+        EventId = 9058, Level = LogLevel.Debug,
         Message = "ABAC policy cache hit for {Operation} with key {CacheKey}")]
     private static partial void LogCacheHit(
         ILogger logger, string operation, string cacheKey);
 
     [LoggerMessage(
-        EventId = 2, Level = LogLevel.Warning,
+        EventId = 9059, Level = LogLevel.Warning,
         Message = "ABAC policy cache read error for {Operation} with key {CacheKey}")]
     private static partial void LogCacheError(
         ILogger logger, string operation, string cacheKey, Exception exception);
 
     [LoggerMessage(
-        EventId = 3, Level = LogLevel.Warning,
+        EventId = 9060, Level = LogLevel.Warning,
         Message = "ABAC policy cache write error for key {CacheKey}")]
     private static partial void LogCacheWriteError(
         ILogger logger, string cacheKey, Exception exception);
 
     [LoggerMessage(
-        EventId = 4, Level = LogLevel.Debug,
+        EventId = 9061, Level = LogLevel.Debug,
         Message = "ABAC policy cache invalidated for {EntityType}:{EntityId} (operation: {Operation})")]
     private static partial void LogCacheInvalidated(
         ILogger logger, string entityType, string entityId, string operation);
 
     [LoggerMessage(
-        EventId = 5, Level = LogLevel.Warning,
+        EventId = 9062, Level = LogLevel.Warning,
         Message = "ABAC policy cache invalidation error for key {CacheKey}")]
     private static partial void LogCacheInvalidationError(
         ILogger logger, string cacheKey, Exception exception);
 
     [LoggerMessage(
-        EventId = 6, Level = LogLevel.Debug,
+        EventId = 9063, Level = LogLevel.Debug,
         Message = "ABAC policy cache invalidation published for {EntityType}:{EntityId} to channel {Channel}")]
     private static partial void LogPubSubPublished(
         ILogger logger, string entityType, string entityId, string channel);
 
     [LoggerMessage(
-        EventId = 7, Level = LogLevel.Warning,
+        EventId = 9064, Level = LogLevel.Warning,
         Message = "ABAC policy PubSub publish error for {EntityType}:{EntityId} on channel {Channel}")]
     private static partial void LogPubSubError(
         ILogger logger, string entityType, string entityId, string channel, Exception exception);

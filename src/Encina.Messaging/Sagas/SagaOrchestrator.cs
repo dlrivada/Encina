@@ -602,67 +602,67 @@ public sealed class SagaOptions
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 201,
+        EventId = 2904,
         Level = LogLevel.Information,
         Message = "Saga {SagaId} started (type: {SagaType})")]
     public static partial void SagaStarted(ILogger logger, Guid sagaId, string sagaType);
 
     [LoggerMessage(
-        EventId = 202,
+        EventId = 2905,
         Level = LogLevel.Debug,
         Message = "Saga {SagaId} advanced to step {CurrentStep}")]
     public static partial void SagaAdvanced(ILogger logger, Guid sagaId, int currentStep);
 
     [LoggerMessage(
-        EventId = 203,
+        EventId = 2906,
         Level = LogLevel.Information,
         Message = "Saga {SagaId} completed successfully")]
     public static partial void SagaCompleted(ILogger logger, Guid sagaId);
 
     [LoggerMessage(
-        EventId = 204,
+        EventId = 2907,
         Level = LogLevel.Warning,
         Message = "Saga {SagaId} starting compensation from step {CurrentStep}: {ErrorMessage}")]
     public static partial void SagaCompensating(ILogger logger, Guid sagaId, int currentStep, string errorMessage);
 
     [LoggerMessage(
-        EventId = 205,
+        EventId = 2908,
         Level = LogLevel.Debug,
         Message = "Saga {SagaId} compensation step {CurrentStep}")]
     public static partial void SagaCompensationStep(ILogger logger, Guid sagaId, int currentStep);
 
     [LoggerMessage(
-        EventId = 206,
+        EventId = 2909,
         Level = LogLevel.Information,
         Message = "Saga {SagaId} compensation completed")]
     public static partial void SagaCompensated(ILogger logger, Guid sagaId);
 
     [LoggerMessage(
-        EventId = 207,
+        EventId = 2910,
         Level = LogLevel.Error,
         Message = "Saga {SagaId} failed: {ErrorMessage}")]
     public static partial void SagaFailed(ILogger logger, Guid sagaId, string errorMessage);
 
     [LoggerMessage(
-        EventId = 208,
+        EventId = 2911,
         Level = LogLevel.Warning,
         Message = "Saga {SagaId} not found")]
     public static partial void SagaNotFound(ILogger logger, Guid sagaId);
 
     [LoggerMessage(
-        EventId = 209,
+        EventId = 2912,
         Level = LogLevel.Warning,
         Message = "Saga {SagaId} is not running (status: {Status})")]
     public static partial void SagaNotRunning(ILogger logger, Guid sagaId, string status);
 
     [LoggerMessage(
-        EventId = 210,
+        EventId = 2913,
         Level = LogLevel.Warning,
         Message = "Saga {SagaId} timed out at step {CurrentStep}")]
     public static partial void SagaTimedOut(ILogger logger, Guid sagaId, int currentStep);
 
     [LoggerMessage(
-        EventId = 211,
+        EventId = 2914,
         Level = LogLevel.Information,
         Message = "Saga {SagaId} started with timeout at {TimeoutAtUtc} (type: {SagaType})")]
     public static partial void SagaStartedWithTimeout(ILogger logger, Guid sagaId, string sagaType, DateTime timeoutAtUtc);

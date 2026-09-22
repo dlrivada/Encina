@@ -154,7 +154,7 @@ public sealed partial class BulkheadPipelineBehavior<TRequest, TResponse> : IPip
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3900,
         Level = LogLevel.Warning,
         Message = "Bulkhead full for {RequestType}. Concurrent: {CurrentConcurrency}/{MaxConcurrency}. Queued: {QueuedCount}/{MaxQueued}. Request rejected.")]
     private static partial void LogBulkheadRejectedFull(
@@ -166,7 +166,7 @@ public sealed partial class BulkheadPipelineBehavior<TRequest, TResponse> : IPip
         int maxQueued);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3901,
         Level = LogLevel.Warning,
         Message = "Bulkhead queue timeout for {RequestType}. Concurrent: {CurrentConcurrency}/{MaxConcurrency}. Request rejected.")]
     private static partial void LogBulkheadRejectedTimeout(
@@ -176,7 +176,7 @@ public sealed partial class BulkheadPipelineBehavior<TRequest, TResponse> : IPip
         int maxConcurrency);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3902,
         Level = LogLevel.Debug,
         Message = "Bulkhead request cancelled for {RequestType}. Concurrent: {CurrentConcurrency}/{MaxConcurrency}.")]
     private static partial void LogBulkheadRejectedCancelled(
@@ -186,7 +186,7 @@ public sealed partial class BulkheadPipelineBehavior<TRequest, TResponse> : IPip
         int maxConcurrency);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3903,
         Level = LogLevel.Debug,
         Message = "Bulkhead permit acquired for {RequestType}. Concurrent: {CurrentConcurrency}/{MaxConcurrency}. Queued: {QueuedCount}.")]
     private static partial void LogBulkheadAcquired(

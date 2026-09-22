@@ -367,43 +367,43 @@ public sealed partial class HybridCacheProvider : ICacheProvider
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3650,
         Level = LogLevel.Debug,
         Message = "HybridCache hit for key: {Key}")]
     private static partial void LogCacheHit(ILogger logger, string key);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3651,
         Level = LogLevel.Debug,
         Message = "HybridCache miss for key: {Key}")]
     private static partial void LogCacheMiss(ILogger logger, string key);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3652,
         Level = LogLevel.Debug,
         Message = "HybridCache set for key: {Key} with expiration: {Expiration}")]
     private static partial void LogCacheSet(ILogger logger, string key, TimeSpan expiration);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3653,
         Level = LogLevel.Debug,
         Message = "HybridCache set for key: {Key} with sliding expiration: {SlidingExpiration}, absolute: {AbsoluteExpiration}")]
     private static partial void LogCacheSetSliding(ILogger logger, string key, TimeSpan slidingExpiration, TimeSpan? absoluteExpiration);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 3654,
         Level = LogLevel.Debug,
         Message = "HybridCache remove for key: {Key}")]
     private static partial void LogCacheRemove(ILogger logger, string key);
 
     [LoggerMessage(
-        EventId = 6,
+        EventId = 3655,
         Level = LogLevel.Debug,
         Message = "HybridCache remove by pattern: {Pattern}, removed {Count} keys")]
     private static partial void LogCacheRemovePattern(ILogger logger, string pattern, int count);
 
     [LoggerMessage(
-        EventId = 7,
+        EventId = 3656,
         Level = LogLevel.Debug,
         Message = "HybridCache remove by tag: {Tag}")]
     private static partial void LogCacheRemoveByTag(ILogger logger, string tag);

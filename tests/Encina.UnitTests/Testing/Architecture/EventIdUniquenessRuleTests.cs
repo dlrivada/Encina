@@ -1,7 +1,10 @@
 using System.Reflection;
 
 using Encina.Diagnostics;
+using Encina.Marten;
 using Encina.Testing.Architecture;
+
+using Microsoft.Extensions.Logging;
 
 namespace Encina.UnitTests.Testing.Architecture;
 
@@ -132,7 +135,7 @@ public sealed class EventIdUniquenessRuleTests
     [Fact]
     public void AssertEventIdsAreGloballyUnique_SingleAssembly_ReturnsNoViolations()
     {
-        // Arrange — a single assembly can't have cross-assembly duplicates
+        // Arrange — the core assembly declares every EventId once
         var assemblies = new[] { typeof(EventIdRanges).Assembly };
 
         // Act
@@ -142,9 +145,128 @@ public sealed class EventIdUniquenessRuleTests
         Assert.Empty(violations);
     }
 
+    [Fact]
+    public void AssertEventIdsAreGloballyUnique_DuplicateWithinOneAssembly_ReportsViolation()
+    {
+        // Arrange — DuplicateEventIdLogA and DuplicateEventIdLogB (below) share EventId 990001
+        // in this test assembly; SYSLIB1006 does not catch it because they are different classes.
+        var assemblies = new[] { typeof(DuplicateEventIdLogA).Assembly };
+
+        // Act
+        var violations = EventIdUniquenessRule.AssertEventIdsAreGloballyUnique(assemblies);
+
+        // Assert
+        var violation = Assert.Single(violations, v => v.StartsWith("EventId 990001 ", StringComparison.Ordinal));
+        Assert.Contains("within assembly", violation);
+        Assert.Contains(nameof(DuplicateEventIdLogA), violation);
+        Assert.Contains(nameof(DuplicateEventIdLogB), violation);
+    }
+
+    // ========================================================================
+    // AssertEveryLoggerMessageHasEventId
+    // ========================================================================
+
+    [Fact]
+    public void AssertEveryLoggerMessageHasEventId_NullAssemblies_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(null!));
+    }
+
+    [Fact]
+    public void AssertEveryLoggerMessageHasEventId_MethodWithoutEventId_ReportsIt()
+    {
+        // Arrange — MissingEventIdLog (below) declares [LoggerMessage] without an EventId
+        var assemblies = new[] { typeof(MissingEventIdLog).Assembly };
+
+        // Act
+        var violations = EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(assemblies);
+
+        // Assert
+        Assert.Contains(violations, v => v.Contains($"{nameof(MissingEventIdLog)}.{nameof(MissingEventIdLog.NoEventId)}", StringComparison.Ordinal));
+        Assert.DoesNotContain(violations, v => v.Contains(nameof(DuplicateEventIdLogA), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExtractEventIds_MethodWithoutEventId_IsNotReturned()
+    {
+        var eventIds = EventIdUniquenessRule.ExtractEventIds([typeof(MissingEventIdLog).Assembly]);
+
+        Assert.DoesNotContain(eventIds, e => e.TypeName.EndsWith(nameof(MissingEventIdLog), StringComparison.Ordinal));
+    }
+
     // ========================================================================
     // AssertEventIdsWithinRegisteredRanges
     // ========================================================================
+
+    [Fact]
+    public void AssertEventIdsWithinRegisteredRanges_AssemblyMappedToSeveralRanges_AcceptsIdsInAnyOfThem()
+    {
+        // Arrange — Encina.Marten's EventIds all lie in EventIdRanges.Marten; Sanitization is an extra, unused range
+        var assembly = typeof(MartenAggregateRepository<>).Assembly;
+        var mapping = new Dictionary<string, IReadOnlyList<string>>
+        {
+            [assembly.GetName().Name!] = [nameof(EventIdRanges.Sanitization), nameof(EventIdRanges.Marten)],
+        };
+
+        // Act
+        var violations = EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges([assembly], mapping);
+
+        // Assert
+        Assert.Empty(violations);
+    }
+
+    [Fact]
+    public void AssertEventIdsWithinRegisteredRanges_IdsOutsideEveryMappedRange_ReportsEachOne()
+    {
+        // Arrange
+        var assembly = typeof(MartenAggregateRepository<>).Assembly;
+        var mapping = new Dictionary<string, IReadOnlyList<string>>
+        {
+            [assembly.GetName().Name!] = [nameof(EventIdRanges.Sanitization)],
+        };
+        var eventIdCount = EventIdUniquenessRule.ExtractEventIds([assembly]).Count;
+
+        // Act
+        var violations = EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges([assembly], mapping);
+
+        // Assert
+        Assert.Equal(eventIdCount, violations.Count);
+        Assert.All(violations, v => Assert.Contains("'Sanitization' (1-99)", v));
+    }
+
+    [Fact]
+    public void AssertEventIdsWithinRegisteredRanges_UnknownRangeName_ReportsViolation()
+    {
+        // Arrange
+        var assembly = typeof(EventIdRanges).Assembly;
+        var mapping = new Dictionary<string, IReadOnlyList<string>>
+        {
+            [assembly.GetName().Name!] = [nameof(EventIdRanges.Sanitization), "NoSuchRange"],
+        };
+
+        // Act
+        var violations = EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges([assembly], mapping);
+
+        // Assert
+        var violation = Assert.Single(violations);
+        Assert.Contains("'NoSuchRange'", violation);
+        Assert.Contains("do not exist", violation);
+    }
+
+    [Fact]
+    public void AssertEventIdsWithinRegisteredRanges_EmptyRangeList_IsTreatedAsUnmapped()
+    {
+        // Arrange
+        var assembly = typeof(EventIdRanges).Assembly;
+        var mapping = new Dictionary<string, IReadOnlyList<string>> { [assembly.GetName().Name!] = [] };
+
+        // Act
+        var violations = EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges([assembly], mapping);
+
+        // Assert
+        Assert.Contains(violations, v => v.Contains("not mapped"));
+    }
 
     [Fact]
     public void AssertEventIdsWithinRegisteredRanges_NullAssemblies_ThrowsArgumentNullException()
@@ -153,7 +275,7 @@ public sealed class EventIdUniquenessRuleTests
         Assert.Throws<ArgumentNullException>(() =>
             EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(
                 null!,
-                new Dictionary<string, string>()));
+                new Dictionary<string, IReadOnlyList<string>>()));
     }
 
     [Fact]
@@ -171,7 +293,7 @@ public sealed class EventIdUniquenessRuleTests
     {
         // Arrange
         var assemblies = new[] { typeof(EventIdRanges).Assembly };
-        var mapping = new Dictionary<string, string>(); // empty — no mapping
+        var mapping = new Dictionary<string, IReadOnlyList<string>>(); // empty — no mapping
 
         // Act
         var violations = EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(
@@ -233,4 +355,25 @@ public sealed class EventIdUniquenessRuleTests
         Assert.Equal(expectedMin, match.Min);
         Assert.Equal(expectedMax, match.Max);
     }
+}
+
+/// <summary>Fixture: declares EventId 990001, also declared by <see cref="DuplicateEventIdLogB"/>.</summary>
+internal static partial class DuplicateEventIdLogA
+{
+    [LoggerMessage(EventId = 990001, Level = LogLevel.Debug, Message = "Duplicate fixture A")]
+    internal static partial void First(ILogger logger);
+}
+
+/// <summary>Fixture: a [LoggerMessage] method without an explicit EventId.</summary>
+internal static partial class MissingEventIdLog
+{
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Missing EventId fixture")]
+    internal static partial void NoEventId(ILogger logger);
+}
+
+/// <summary>Fixture: declares EventId 990001, also declared by <see cref="DuplicateEventIdLogA"/>.</summary>
+internal static partial class DuplicateEventIdLogB
+{
+    [LoggerMessage(EventId = 990001, Level = LogLevel.Debug, Message = "Duplicate fixture B")]
+    internal static partial void Second(ILogger logger);
 }

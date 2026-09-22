@@ -342,7 +342,7 @@ public sealed class EncinaArchitectureRulesBuilder
     /// Adds EventId uniqueness validation across all loaded assemblies.
     /// </summary>
     /// <remarks>
-    /// Validates that no two <c>[LoggerMessage]</c> attributes across different assemblies
+    /// Validates that no two <c>[LoggerMessage]</c> attributes, in the same assembly or in different ones,
     /// share the same EventId, and that no registered ranges in
     /// <see cref="EventIdRanges"/> overlap.
     /// </remarks>

@@ -243,7 +243,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 5000,
         Level = LogLevel.Warning,
         Message = "Failed to record audit entry for {RequestType}: {ErrorMessage}")]
     private static partial void LogAuditRecordingFailed(
@@ -252,7 +252,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
         string errorMessage);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 5001,
         Level = LogLevel.Warning,
         Message = "Exception while recording audit entry for {RequestType}")]
     private static partial void LogAuditRecordingException(

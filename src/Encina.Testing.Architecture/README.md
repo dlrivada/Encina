@@ -169,52 +169,60 @@ Validates that `[LoggerMessage]` EventId allocations are unique and within regis
 | Method | Description |
 |--------|-------------|
 | `ExtractEventIds(assemblies)` | Extracts all `[LoggerMessage]` EventIds via reflection |
-| `AssertEventIdsAreGloballyUnique(assemblies)` | No duplicate EventIds across all assemblies |
-| `AssertEventIdsWithinRegisteredRanges(assemblies, mapping)` | Every EventId falls within its assembly's registered range |
+| `AssertEveryLoggerMessageHasEventId(assemblies)` | Every `[LoggerMessage]` declares an explicit EventId (otherwise the generator hashes the method name) |
+| `AssertEventIdsAreGloballyUnique(assemblies)` | No duplicate EventIds, within one assembly or across assemblies |
+| `AssertEventIdsWithinRegisteredRanges(assemblies, mapping)` | Every EventId falls within one of the ranges mapped to its assembly (`IReadOnlyDictionary<string, IReadOnlyList<string>>`, assembly name → `EventIdRanges` field names) |
 | `AssertNoRangeOverlaps()` | No two registered ranges in `EventIdRanges` overlap |
 | `GenerateAllocationReport()` | Human-readable table showing range usage and free slots |
 
 **Usage:**
 
 ```csharp
+using System.Reflection;
+using Encina.Diagnostics;
 using Encina.Testing.Architecture;
+using Shouldly;
 
 public class EventIdTests
 {
-    [Fact]
-    public void EventIds_ShouldBeGloballyUnique()
+    // Every assembly that declares [LoggerMessage] methods.
+    private static readonly Assembly[] Assemblies =
+    [
+        typeof(Encina.Compliance.GDPR.GDPROptions).Assembly,
+        typeof(Encina.Messaging.OutboxMessage).Assembly,
+    ];
+
+    // Assembly name -> the EventIdRanges fields its EventIds may use (a package may own several).
+    private static readonly Dictionary<string, IReadOnlyList<string>> Ranges = new()
     {
-        var assemblies = new[]
-        {
-            typeof(Encina.Diagnostics.EventIdRanges).Assembly,
-            typeof(Encina.Messaging.OutboxMessage).Assembly,
-            // ... all assemblies with [LoggerMessage] usage
-        };
-
-        EventIdUniquenessRule.AssertEventIdsAreGloballyUnique(assemblies);
-    }
-
-    [Fact]
-    public void EventIds_ShouldBeWithinRegisteredRanges()
-    {
-        var mapping = new Dictionary<string, (int Min, int Max)>
-        {
-            ["Encina.Compliance.GDPR"] = EventIdRanges.ComplianceGDPR,
-            ["Encina.Messaging"] = EventIdRanges.MessagingOutbox,
-            // ... one entry per assembly
-        };
-
-        EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(assemblies, mapping);
-    }
+        ["Encina.Compliance.GDPR"] = [nameof(EventIdRanges.ComplianceGDPR)],
+        ["Encina.Messaging"] =
+        [
+            nameof(EventIdRanges.MessagingOutbox), nameof(EventIdRanges.MessagingInbox),
+            nameof(EventIdRanges.MessagingSaga), nameof(EventIdRanges.MessagingScheduling),
+            nameof(EventIdRanges.Messaging),
+        ],
+    };
 
     [Fact]
-    public void RegisteredRanges_ShouldNotOverlap()
-    {
-        EventIdUniquenessRule.AssertNoRangeOverlaps();
-    }
+    public void EveryLoggerMessage_DeclaresAnEventId() =>
+        EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(Assemblies).ShouldBeEmpty();
+
+    [Fact]
+    public void EventIds_AreUnique() =>
+        EventIdUniquenessRule.AssertEventIdsAreGloballyUnique(Assemblies).ShouldBeEmpty();
+
+    [Fact]
+    public void EventIds_AreWithinRegisteredRanges() =>
+        EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(Assemblies, Ranges).ShouldBeEmpty();
+
+    [Fact]
+    public void RegisteredRanges_DoNotOverlap() =>
+        EventIdUniquenessRule.AssertNoRangeOverlaps().ShouldBeEmpty();
 }
 ```
 
+Each method returns the list of violations; assert that it is empty. Encina applies these rules to its own assemblies in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
 See [ADR-021](../../docs/architecture/adr/021-eventid-uniqueness-enforcement.md) for the architectural decision behind this system.
 
 ## Builder API

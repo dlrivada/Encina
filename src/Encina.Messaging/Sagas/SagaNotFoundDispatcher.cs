@@ -77,32 +77,32 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
     private static partial class Log
     {
         [LoggerMessage(
-            EventId = 220,
+            EventId = 2899,
             Level = LogLevel.Debug,
             Message = "No saga not found handler registered for message type {MessageType}")]
         public static partial void NoSagaNotFoundHandler(ILogger logger, string messageType);
 
         [LoggerMessage(
-            EventId = 221,
+            EventId = 2900,
             Level = LogLevel.Debug,
             Message = "Invoking saga not found handler for {MessageType}, SagaId: {SagaId}")]
         public static partial void InvokingSagaNotFoundHandler(ILogger logger, string messageType, Guid sagaId);
 
         [LoggerMessage(
-            EventId = 222,
+            EventId = 2901,
             Level = LogLevel.Debug,
             Message = "Saga not found handler completed for {MessageType}, SagaId: {SagaId}, Action: {Action}")]
         public static partial void SagaNotFoundHandlerCompleted(
             ILogger logger, string messageType, Guid sagaId, SagaNotFoundAction action);
 
         [LoggerMessage(
-            EventId = 223,
+            EventId = 2902,
             Level = LogLevel.Warning,
             Message = "Saga not found handler cancelled for {MessageType}, SagaId: {SagaId}")]
         public static partial void SagaNotFoundHandlerCancelled(ILogger logger, string messageType, Guid sagaId);
 
         [LoggerMessage(
-            EventId = 224,
+            EventId = 2903,
             Level = LogLevel.Error,
             Message = "Saga not found handler failed for {MessageType}, SagaId: {SagaId}")]
         public static partial void SagaNotFoundHandlerFailed(
