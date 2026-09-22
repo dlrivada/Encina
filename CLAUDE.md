@@ -1240,17 +1240,25 @@ When configuring test projects or scripts:
 
 | Area | Range | Packages |
 |------|-------|----------|
-| Core | 1-99 | Sanitization |
+| Core | 1-199 | Sanitization (1-99), Encina core: mediator, streaming, sharding (100-199) |
 | DomainModeling | 1100-1699 | Repository, UoW, Bulk, Spec, SoftDelete, Audit |
 | Security Audit | 1700-1799 | Read Audit |
 | Infrastructure | 1800-1999 | Tenancy, Module Isolation |
-| Messaging | 2000-2499 | Outbox, Inbox, Saga, Scheduling, QueryCache, Encryption |
+| Messaging stores | 2000-2499 | Outbox, Inbox, Saga, Scheduling, QueryCache, Encryption |
 | Domain Events / ES | 2500-2799 | DomainEvents, AuditMarten, Marten (2600-2799) |
+| Messaging runtime / data access | 2800-3499 | Messaging (2800-2999), EF Core, MongoDB, ADO.NET ×3, Dapper ×3 |
+| Caching / locks | 3500-3899 | Caching, Memory, Redis, Hybrid, DistributedLock ×3 |
+| Resilience / scheduling adapters | 3900-4099 | Polly, Extensions.Resilience, Hangfire, Quartz |
+| Transports / API integrations | 4100-4699 | RabbitMQ, Kafka, NATS, MQTT, AzureServiceBus, AmazonSQS, Redis.PubSub, InMemory, gRPC, GraphQL, SignalR, Refit |
+| Serverless | 4700-4799 | AwsLambda, AzureFunctions |
+| CDC | 4800-4999 | Cdc, Cdc.SqlServer, Cdc.Debezium |
+| Security runtime | 5000-5399 | Security.Audit, Security.Secrets and its four providers |
+| Observability | 7000-7099 | OpenTelemetry |
 | Security | 8000-8099 | Security (8000-8009), PII (8010-8029), IdGen (8030-8099) |
 | Compliance | 8100-8949 | GDPR, Consent, DSR, LawfulBasis, Anonymization, CryptoShredding, Retention, DataResidency, BreachNotification, DPIA, PrivacyByDesign |
 | Security Extensions | 9000-9199 | ABAC, AntiTampering |
-| Compliance Extensions | 9200-9499 | NIS2, CrossBorderTransfer, ProcessorAgreements |
-| Reserved | 9500-9999 | Future modules |
+| Compliance Extensions | 9200-9699 | NIS2, CrossBorderTransfer, ProcessorAgreements, AIAct, Attestation |
+| Free | 200-1099, 5400-6999, 7100-7999, 8950-8999, 9700-9999 | Future modules |
 
 #### Allocation Workflow (When Adding Structured Logging to a Feature)
 
@@ -1275,10 +1283,12 @@ The `EventIdUniquenessRule` class in `Encina.Testing.Architecture` provides:
 
 | Method | Purpose |
 |--------|---------|
-| `AssertEventIdsAreGloballyUnique()` | No duplicate EventIds across all assemblies |
-| `AssertEventIdsWithinRegisteredRanges()` | Every EventId within its registered range |
+| `AssertEventIdsAreGloballyUnique()` | No duplicate EventIds, within one assembly or across assemblies |
+| `AssertEventIdsWithinRegisteredRanges()` | Every EventId within one of the ranges mapped to its assembly |
 | `AssertNoRangeOverlaps()` | No two registered ranges overlap |
 | `GenerateAllocationReport()` | Human-readable allocation table |
+
+`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` applies these rules to every shipped `Encina*` assembly. When a package starts logging, register its range **and** add the assembly to that test's `AssemblyRanges` map; the test fails otherwise. `LoggerMessage.Define` EventIds are not covered yet (#1125).
 
 ### Code Analysis
 

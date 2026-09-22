@@ -116,19 +116,19 @@ public interface IHasNotifications
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 110,
+        EventId = 2842,
         Level = LogLevel.Debug,
         Message = "Storing {Count} notifications in outbox for request {RequestType} (correlation: {CorrelationId})")]
     public static partial void StoringNotificationsInOutbox(ILogger logger, int count, string requestType, string correlationId);
 
     [LoggerMessage(
-        EventId = 111,
+        EventId = 2843,
         Level = LogLevel.Debug,
         Message = "Stored {Count} notifications in outbox (correlation: {CorrelationId})")]
     public static partial void StoredNotificationsInOutbox(ILogger logger, int count, string correlationId);
 
     [LoggerMessage(
-        EventId = 112,
+        EventId = 2844,
         Level = LogLevel.Debug,
         Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorMessage} (correlation: {CorrelationId})")]
     public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorMessage, string correlationId);

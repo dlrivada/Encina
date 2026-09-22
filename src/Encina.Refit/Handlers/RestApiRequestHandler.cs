@@ -114,43 +114,43 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
     #region Logging
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 4650,
         Level = LogLevel.Debug,
         Message = "Executing API call {RequestType} using {ApiClientType} (CorrelationId: {CorrelationId})")]
     private partial void LogExecutingApiCall(string requestType, string apiClientType, string correlationId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 4651,
         Level = LogLevel.Debug,
         Message = "API call {RequestType} using {ApiClientType} succeeded (CorrelationId: {CorrelationId})")]
     private partial void LogApiCallSucceeded(string requestType, string apiClientType, string correlationId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 4652,
         Level = LogLevel.Warning,
         Message = "API call {RequestType} using {ApiClientType} failed with status {StatusCode}: {Message} (CorrelationId: {CorrelationId})")]
     private partial void LogApiException(string requestType, string apiClientType, int statusCode, string message, string correlationId);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 4653,
         Level = LogLevel.Error,
         Message = "HTTP request {RequestType} using {ApiClientType} failed: {Message} (CorrelationId: {CorrelationId})")]
     private partial void LogHttpException(string requestType, string apiClientType, string message, string correlationId);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 4654,
         Level = LogLevel.Information,
         Message = "API request {RequestType} using {ApiClientType} was cancelled (CorrelationId: {CorrelationId})")]
     private partial void LogRequestCancelled(string requestType, string apiClientType, string correlationId);
 
     [LoggerMessage(
-        EventId = 6,
+        EventId = 4655,
         Level = LogLevel.Warning,
         Message = "API request {RequestType} using {ApiClientType} timed out (CorrelationId: {CorrelationId})")]
     private partial void LogRequestTimedOut(string requestType, string apiClientType, string correlationId);
 
     [LoggerMessage(
-        EventId = 7,
+        EventId = 4656,
         Level = LogLevel.Error,
         Message = "Unexpected exception in API call {RequestType} using {ApiClientType}: {Message} (CorrelationId: {CorrelationId})")]
     private partial void LogUnexpectedException(string requestType, string apiClientType, string message, string correlationId);

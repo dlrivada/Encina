@@ -209,25 +209,25 @@ public sealed partial class SqlServerDistributedLockProvider : IDistributedLockP
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3800,
         Level = LogLevel.Debug,
         Message = "Lock acquired on resource: {Resource} with lockId: {LockId}")]
     private static partial void LogLockAcquired(ILogger logger, string resource, string lockId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3801,
         Level = LogLevel.Debug,
         Message = "Lock released on resource: {Resource} with lockId: {LockId}")]
     internal static partial void LogLockReleased(ILogger logger, string resource, string lockId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3802,
         Level = LogLevel.Debug,
         Message = "Lock extended on resource: {Resource} by {Extension}")]
     private static partial void LogLockExtended(ILogger logger, string resource, TimeSpan extension);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3803,
         Level = LogLevel.Debug,
         Message = "Failed to acquire lock on resource: {Resource}")]
     private static partial void LogLockFailed(ILogger logger, string resource);

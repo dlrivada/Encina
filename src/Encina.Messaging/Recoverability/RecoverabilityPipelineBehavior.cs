@@ -431,77 +431,77 @@ public static class RecoverabilityErrorCodes
 internal static partial class RecoverabilityLog
 {
     [LoggerMessage(
-        EventId = 201,
+        EventId = 2861,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] {RequestType} succeeded after {AttemptCount} retries")]
     public static partial void SucceededAfterRetry(
         ILogger logger, string correlationId, string requestType, int attemptCount);
 
     [LoggerMessage(
-        EventId = 202,
+        EventId = 2862,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] {RequestType} transient error on attempt {Attempt}/{MaxAttempts}: {ErrorMessage}")]
     public static partial void TransientErrorOnAttempt(
         ILogger logger, string correlationId, string requestType, int attempt, int maxAttempts, string errorMessage);
 
     [LoggerMessage(
-        EventId = 203,
+        EventId = 2863,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} permanent error on attempt {Attempt}: {ErrorMessage}")]
     public static partial void PermanentErrorOnAttempt(
         ILogger logger, string correlationId, string requestType, int attempt, string errorMessage);
 
     [LoggerMessage(
-        EventId = 204,
+        EventId = 2864,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] {RequestType} transient exception on attempt {Attempt}/{MaxAttempts}")]
     public static partial void TransientExceptionOnAttempt(
         ILogger logger, Exception ex, string correlationId, string requestType, int attempt, int maxAttempts);
 
     [LoggerMessage(
-        EventId = 205,
+        EventId = 2865,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} permanent exception on attempt {Attempt}")]
     public static partial void PermanentExceptionOnAttempt(
         ILogger logger, Exception ex, string correlationId, string requestType, int attempt);
 
     [LoggerMessage(
-        EventId = 206,
+        EventId = 2866,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] {RequestType} immediate retries exhausted after {RetryCount} attempts")]
     public static partial void ImmediateRetriesExhausted(
         ILogger logger, string correlationId, string requestType, int retryCount);
 
     [LoggerMessage(
-        EventId = 207,
+        EventId = 2867,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] {RequestType} scheduling delayed retry {Attempt}/{MaxAttempts} in {Delay}")]
     public static partial void SchedulingDelayedRetry(
         ILogger logger, string correlationId, string requestType, int attempt, int maxAttempts, TimeSpan delay);
 
     [LoggerMessage(
-        EventId = 208,
+        EventId = 2868,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} permanent error detected: {ErrorMessage}")]
     public static partial void PermanentErrorDetected(
         ILogger logger, string correlationId, string requestType, string errorMessage);
 
     [LoggerMessage(
-        EventId = 209,
+        EventId = 2869,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} permanently failed after {TotalAttempts} attempts")]
     public static partial void MessagePermanentlyFailed(
         ILogger logger, string correlationId, string requestType, int totalAttempts);
 
     [LoggerMessage(
-        EventId = 210,
+        EventId = 2870,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} OnPermanentFailure callback failed")]
     public static partial void OnPermanentFailureCallbackFailed(
         ILogger logger, Exception ex, string correlationId, string requestType);
 
     [LoggerMessage(
-        EventId = 211,
+        EventId = 2871,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} failed to schedule delayed retry: {ErrorMessage}")]
     public static partial void SchedulingDelayedRetryFailed(

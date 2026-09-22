@@ -8,7 +8,7 @@ namespace Encina.AwsLambda;
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 1,
+        EventId = 4700,
         Level = LogLevel.Debug,
         Message = "Lambda function {FunctionName} execution starting (RequestId: {RequestId})")]
     public static partial void LambdaExecutionStarting(
@@ -17,7 +17,7 @@ internal static partial class Log
         string requestId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 4701,
         Level = LogLevel.Debug,
         Message = "Lambda function {FunctionName} execution completed (RequestId: {RequestId})")]
     public static partial void LambdaExecutionCompleted(
@@ -26,7 +26,7 @@ internal static partial class Log
         string requestId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 4702,
         Level = LogLevel.Error,
         Message = "Lambda function {FunctionName} execution failed (RequestId: {RequestId})")]
     public static partial void LambdaExecutionFailed(
@@ -36,7 +36,7 @@ internal static partial class Log
         Exception exception);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 4703,
         Level = LogLevel.Debug,
         Message = "Processing SQS batch with {MessageCount} messages")]
     public static partial void ProcessingSqsBatch(
@@ -44,7 +44,7 @@ internal static partial class Log
         int messageCount);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 4704,
         Level = LogLevel.Error,
         Message = "Failed to process SQS message {MessageId}")]
     public static partial void SqsMessageProcessingFailed(
@@ -53,7 +53,7 @@ internal static partial class Log
         Exception exception);
 
     [LoggerMessage(
-        EventId = 6,
+        EventId = 4705,
         Level = LogLevel.Debug,
         Message = "Processing EventBridge event {EventId} from source {Source}")]
     public static partial void ProcessingEventBridgeEvent(
@@ -62,7 +62,7 @@ internal static partial class Log
         string source);
 
     [LoggerMessage(
-        EventId = 7,
+        EventId = 4706,
         Level = LogLevel.Information,
         Message = "AWS Lambda health check completed: {Status}")]
     public static partial void HealthCheckCompleted(

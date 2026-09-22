@@ -391,89 +391,89 @@ public sealed class DelayedRetryProcessor : BackgroundService
 internal static partial class DelayedRetryProcessorLog
 {
     [LoggerMessage(
-        EventId = 230,
+        EventId = 2845,
         Level = LogLevel.Information,
         Message = "Delayed retry processor started")]
     public static partial void ProcessorStarted(ILogger logger);
 
     [LoggerMessage(
-        EventId = 231,
+        EventId = 2846,
         Level = LogLevel.Information,
         Message = "Delayed retry processor stopped")]
     public static partial void ProcessorStopped(ILogger logger);
 
     [LoggerMessage(
-        EventId = 232,
+        EventId = 2847,
         Level = LogLevel.Error,
         Message = "Error during delayed retry processing")]
     public static partial void ProcessingError(ILogger logger, Exception ex);
 
     [LoggerMessage(
-        EventId = 233,
+        EventId = 2848,
         Level = LogLevel.Warning,
         Message = "IDelayedRetryStore not configured - delayed retries disabled")]
     public static partial void StoreNotConfigured(ILogger logger);
 
     [LoggerMessage(
-        EventId = 234,
+        EventId = 2849,
         Level = LogLevel.Warning,
         Message = "IEncina not configured - delayed retries disabled")]
     public static partial void EncinaNotConfigured(ILogger logger);
 
     [LoggerMessage(
-        EventId = 235,
+        EventId = 2850,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] Processing delayed retry #{Attempt} for {RequestType}")]
     public static partial void ProcessingRetry(
         ILogger logger, string correlationId, string requestType, int attempt);
 
     [LoggerMessage(
-        EventId = 236,
+        EventId = 2851,
         Level = LogLevel.Warning,
         Message = "Unknown request type for delayed retry {MessageId}: {RequestType}")]
     public static partial void UnknownRequestType(ILogger logger, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 237,
+        EventId = 2852,
         Level = LogLevel.Warning,
         Message = "Failed to deserialize delayed retry {MessageId} of type {RequestType}")]
     public static partial void DeserializationFailed(ILogger logger, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 238,
+        EventId = 2853,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] Delayed retry #{Attempt} succeeded for {RequestType}")]
     public static partial void RetrySucceeded(
         ILogger logger, string correlationId, string requestType, int attempt);
 
     [LoggerMessage(
-        EventId = 239,
+        EventId = 2854,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] Scheduling next delayed retry #{Attempt}/{MaxAttempts} for {RequestType} in {Delay}")]
     public static partial void SchedulingNextRetry(
         ILogger logger, string correlationId, string requestType, int attempt, int maxAttempts, TimeSpan delay);
 
     [LoggerMessage(
-        EventId = 240,
+        EventId = 2855,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} permanently failed after {Attempts} delayed retries")]
     public static partial void PermanentFailure(
         ILogger logger, string correlationId, string requestType, int attempts);
 
     [LoggerMessage(
-        EventId = 241,
+        EventId = 2856,
         Level = LogLevel.Warning,
         Message = "IDelayedRetryScheduler not configured - cannot schedule next retry")]
     public static partial void SchedulerNotConfigured(ILogger logger);
 
     [LoggerMessage(
-        EventId = 242,
+        EventId = 2857,
         Level = LogLevel.Error,
         Message = "Exception processing delayed retry {MessageId} of type {RequestType}")]
     public static partial void ProcessingException(ILogger logger, Exception ex, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 243,
+        EventId = 2858,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} OnPermanentFailure callback failed")]
     public static partial void OnPermanentFailureCallbackFailed(

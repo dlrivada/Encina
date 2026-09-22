@@ -186,25 +186,25 @@ public sealed partial class MemoryDistributedLockProvider : IDistributedLockProv
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3556,
         Level = LogLevel.Debug,
         Message = "Lock acquired on resource: {Resource} with lockId: {LockId}")]
     private static partial void LogLockAcquired(ILogger logger, string resource, string lockId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3557,
         Level = LogLevel.Debug,
         Message = "Lock released on resource: {Resource} with lockId: {LockId}")]
     private static partial void LogLockReleased(ILogger logger, string resource, string lockId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3558,
         Level = LogLevel.Debug,
         Message = "Lock extended on resource: {Resource} by {Extension}")]
     private static partial void LogLockExtended(ILogger logger, string resource, TimeSpan extension);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3559,
         Level = LogLevel.Debug,
         Message = "Failed to acquire lock on resource: {Resource}")]
     private static partial void LogLockFailed(ILogger logger, string resource);

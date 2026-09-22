@@ -317,7 +317,7 @@ public sealed class ArchitectureGuardTests
     {
         Should.Throw<ArgumentNullException>(() =>
             EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(
-                null!, new Dictionary<string, string>()));
+                null!, new Dictionary<string, IReadOnlyList<string>>()));
     }
 
     [Fact]
@@ -325,7 +325,7 @@ public sealed class ArchitectureGuardTests
     {
         Should.Throw<ArgumentNullException>(() =>
             EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(
-                [], (IReadOnlyDictionary<string, string>)null!));
+                [], (IReadOnlyDictionary<string, IReadOnlyList<string>>)null!));
     }
 
     [Fact]

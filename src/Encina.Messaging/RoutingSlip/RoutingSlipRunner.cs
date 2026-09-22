@@ -246,97 +246,97 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
 internal static partial class RoutingSlipLog
 {
     [LoggerMessage(
-        EventId = 400,
+        EventId = 2872,
         Level = LogLevel.Information,
         Message = "Routing slip {RoutingSlipId} started (type: {SlipType}, initial steps: {StepCount})")]
     public static partial void Started(ILogger logger, Guid routingSlipId, string slipType, int stepCount);
 
     [LoggerMessage(
-        EventId = 401,
+        EventId = 2873,
         Level = LogLevel.Debug,
         Message = "Routing slip {RoutingSlipId} executing step {StepNumber}: {StepName}")]
     public static partial void StepExecuting(ILogger logger, Guid routingSlipId, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 402,
+        EventId = 2874,
         Level = LogLevel.Debug,
         Message = "Routing slip {RoutingSlipId} step {StepNumber} completed: {StepName}")]
     public static partial void StepCompleted(ILogger logger, Guid routingSlipId, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 403,
+        EventId = 2875,
         Level = LogLevel.Warning,
         Message = "Routing slip {RoutingSlipId} step {StepNumber} failed: {StepName} - {ErrorMessage}")]
     public static partial void StepFailed(ILogger logger, Guid routingSlipId, int stepNumber, string stepName, string errorMessage);
 
     [LoggerMessage(
-        EventId = 404,
+        EventId = 2876,
         Level = LogLevel.Information,
         Message = "Routing slip {RoutingSlipId} completed successfully ({StepsExecuted} steps, {Duration})")]
     public static partial void Completed(ILogger logger, Guid routingSlipId, int stepsExecuted, TimeSpan duration);
 
     [LoggerMessage(
-        EventId = 405,
+        EventId = 2877,
         Level = LogLevel.Warning,
         Message = "Routing slip {RoutingSlipId} was cancelled")]
     public static partial void Cancelled(ILogger logger, Guid routingSlipId);
 
     [LoggerMessage(
-        EventId = 406,
+        EventId = 2878,
         Level = LogLevel.Error,
         Message = "Routing slip {RoutingSlipId} failed with exception: {ErrorMessage}")]
     public static partial void Exception(ILogger logger, Guid routingSlipId, string errorMessage, Exception exception);
 
     [LoggerMessage(
-        EventId = 407,
+        EventId = 2879,
         Level = LogLevel.Debug,
         Message = "Routing slip {RoutingSlipId} step {StepName} modified itinerary ({StepsAdded} steps added)")]
     public static partial void StepsModified(ILogger logger, Guid routingSlipId, string stepName, int stepsAdded);
 
     [LoggerMessage(
-        EventId = 408,
+        EventId = 2880,
         Level = LogLevel.Debug,
         Message = "Routing slip {RoutingSlipId} executing completion handler")]
     public static partial void CompletionHandlerExecuting(ILogger logger, Guid routingSlipId);
 
     [LoggerMessage(
-        EventId = 409,
+        EventId = 2881,
         Level = LogLevel.Debug,
         Message = "Routing slip {RoutingSlipId} completion handler completed")]
     public static partial void CompletionHandlerCompleted(ILogger logger, Guid routingSlipId);
 
     [LoggerMessage(
-        EventId = 410,
+        EventId = 2882,
         Level = LogLevel.Information,
         Message = "Routing slip {RoutingSlipId} starting compensation ({StepCount} steps to compensate)")]
     public static partial void CompensationStarting(ILogger logger, Guid routingSlipId, int stepCount);
 
     [LoggerMessage(
-        EventId = 411,
+        EventId = 2883,
         Level = LogLevel.Debug,
         Message = "Step {StepNumber} ({StepName}) has no compensation defined")]
     public static partial void StepNoCompensation(ILogger logger, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 412,
+        EventId = 2884,
         Level = LogLevel.Debug,
         Message = "Compensating step {StepNumber}: {StepName}")]
     public static partial void StepCompensating(ILogger logger, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 413,
+        EventId = 2885,
         Level = LogLevel.Debug,
         Message = "Step {StepNumber} ({StepName}) compensation completed")]
     public static partial void StepCompensated(ILogger logger, int stepNumber, string stepName);
 
     [LoggerMessage(
-        EventId = 414,
+        EventId = 2886,
         Level = LogLevel.Error,
         Message = "Compensation failed for step {StepNumber} ({StepName}): {ErrorMessage}")]
     public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string errorMessage, Exception exception);
 
     [LoggerMessage(
-        EventId = 415,
+        EventId = 2887,
         Level = LogLevel.Information,
         Message = "Routing slip {RoutingSlipId} compensation completed")]
     public static partial void CompensationCompleted(ILogger logger, Guid routingSlipId);

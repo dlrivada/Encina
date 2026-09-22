@@ -608,50 +608,50 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
 internal static partial class QueryCacheLog
 {
     [LoggerMessage(
-        EventId = 200,
+        EventId = 3004,
         Level = LogLevel.Debug,
         Message = "Query cache hit for key '{CacheKey}'")]
     public static partial void CacheHit(ILogger logger, string cacheKey);
 
     [LoggerMessage(
-        EventId = 201,
+        EventId = 3005,
         Level = LogLevel.Debug,
         Message = "Query cache miss for key '{CacheKey}'")]
     public static partial void CacheMiss(ILogger logger, string cacheKey);
 
     [LoggerMessage(
-        EventId = 202,
+        EventId = 3006,
         Level = LogLevel.Debug,
         Message = "Query cache populated for key '{CacheKey}' with {RowCount} rows")]
     public static partial void CachePopulated(ILogger logger, string cacheKey, int rowCount);
 
     [LoggerMessage(
-        EventId = 203,
+        EventId = 3007,
         Level = LogLevel.Debug,
         Message = "Query cache invalidated for entity type '{EntityType}' using pattern '{Pattern}'")]
     public static partial void CacheInvalidated(ILogger logger, string entityType, string pattern);
 
     [LoggerMessage(
-        EventId = 204,
+        EventId = 3008,
         Level = LogLevel.Debug,
         Message = "Captured {Count} entity types for cache invalidation")]
     public static partial void CapturedEntityTypesForInvalidation(ILogger logger, int count);
 
     [LoggerMessage(
-        EventId = 205,
+        EventId = 3009,
         Level = LogLevel.Debug,
         Message = "Entity type '{EntityType}' is excluded from query caching")]
     public static partial void EntityTypeExcluded(ILogger logger, string entityType);
 
     [LoggerMessage(
-        EventId = 206,
+        EventId = 3010,
         Level = LogLevel.Warning,
         Message = "Query cache {Operation} failed for key '{Key}'")]
     public static partial void CacheOperationFailed(
         ILogger logger, string operation, string key, Exception exception);
 
     [LoggerMessage(
-        EventId = 207,
+        EventId = 3011,
         Level = LogLevel.Warning,
         Message = "Failed to resolve IRequestContext for query cache key generation")]
     public static partial void FailedToResolveRequestContext(ILogger logger, Exception exception);

@@ -511,7 +511,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3000,
         Level = LogLevel.Debug,
         Message = "Audit fields populated: {AddedCount} added, {ModifiedCount} modified by user {UserId}")]
     public static partial void AuditFieldsPopulated(
@@ -521,19 +521,19 @@ internal static partial class Log
         string userId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3001,
         Level = LogLevel.Warning,
         Message = "Failed to resolve user ID for audit tracking")]
     public static partial void FailedToResolveUserId(ILogger logger, Exception exception);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3002,
         Level = LogLevel.Debug,
         Message = "Audit entries persisted: {Count} entries logged to store")]
     public static partial void AuditEntriesPersisted(ILogger logger, int count);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3003,
         Level = LogLevel.Error,
         Message = "Failed to persist audit entries to store")]
     public static partial void FailedToPersistAuditEntries(ILogger logger, Exception exception);

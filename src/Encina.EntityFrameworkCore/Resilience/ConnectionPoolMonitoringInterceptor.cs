@@ -121,7 +121,7 @@ public sealed partial class ConnectionPoolMonitoringInterceptor : DbConnectionIn
     private static partial class Log
     {
         [LoggerMessage(
-            EventId = 1,
+            EventId = 3049,
             Level = LogLevel.Warning,
             Message = "Database connection failed.")]
         public static partial void ConnectionFailed(

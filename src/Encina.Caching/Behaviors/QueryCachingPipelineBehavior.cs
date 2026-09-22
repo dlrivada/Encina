@@ -193,7 +193,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3508,
         Level = LogLevel.Debug,
         Message = "Cache hit for {RequestType} with key {CacheKey} (CorrelationId: {CorrelationId})")]
     private static partial void LogCacheHit(
@@ -203,7 +203,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         string correlationId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3509,
         Level = LogLevel.Debug,
         Message = "Cache miss for {RequestType} with key {CacheKey} (CorrelationId: {CorrelationId})")]
     private static partial void LogCacheMiss(
@@ -213,7 +213,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         string correlationId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3510,
         Level = LogLevel.Debug,
         Message = "Cached {RequestType} with key {CacheKey} for {Duration}s (CorrelationId: {CorrelationId})")]
     private static partial void LogCacheSet(
@@ -224,7 +224,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         string correlationId);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3511,
         Level = LogLevel.Warning,
         Message = "Cache error for {RequestType} with key {CacheKey}")]
     private static partial void LogCacheError(

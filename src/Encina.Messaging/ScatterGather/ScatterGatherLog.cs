@@ -14,7 +14,7 @@ namespace Encina.Messaging.ScatterGather;
 internal static partial class ScatterGatherLog
 {
     [LoggerMessage(
-        EventId = 600,
+        EventId = 2915,
         Level = LogLevel.Information,
         Message = "Scatter-gather '{OperationName}' [{OperationId}] started with {ScatterCount} handlers (Strategy: {Strategy})")]
     public static partial void ExecutionStarted(
@@ -25,7 +25,7 @@ internal static partial class ScatterGatherLog
         GatherStrategy strategy);
 
     [LoggerMessage(
-        EventId = 601,
+        EventId = 2916,
         Level = LogLevel.Debug,
         Message = "Scatter-gather [{OperationId}] executing scatter handler '{HandlerName}'")]
     public static partial void ScatterExecuting(
@@ -34,7 +34,7 @@ internal static partial class ScatterGatherLog
         string handlerName);
 
     [LoggerMessage(
-        EventId = 602,
+        EventId = 2917,
         Level = LogLevel.Debug,
         Message = "Scatter-gather [{OperationId}] scatter handler '{HandlerName}' completed successfully in {Duration}")]
     public static partial void ScatterCompleted(
@@ -44,7 +44,7 @@ internal static partial class ScatterGatherLog
         TimeSpan duration);
 
     [LoggerMessage(
-        EventId = 603,
+        EventId = 2918,
         Level = LogLevel.Warning,
         Message = "Scatter-gather [{OperationId}] scatter handler '{HandlerName}' failed: {ErrorMessage}")]
     public static partial void ScatterFailed(
@@ -54,7 +54,7 @@ internal static partial class ScatterGatherLog
         string errorMessage);
 
     [LoggerMessage(
-        EventId = 604,
+        EventId = 2919,
         Level = LogLevel.Debug,
         Message = "Scatter-gather [{OperationId}] scatter handler '{HandlerName}' was cancelled")]
     public static partial void ScatterCancelled(
@@ -63,7 +63,7 @@ internal static partial class ScatterGatherLog
         string handlerName);
 
     [LoggerMessage(
-        EventId = 605,
+        EventId = 2920,
         Level = LogLevel.Debug,
         Message = "Scatter-gather [{OperationId}] quorum reached ({QuorumCount}/{ScatterCount}), cancelling remaining handlers")]
     public static partial void QuorumReached(
@@ -73,7 +73,7 @@ internal static partial class ScatterGatherLog
         int scatterCount);
 
     [LoggerMessage(
-        EventId = 606,
+        EventId = 2921,
         Level = LogLevel.Debug,
         Message = "Scatter-gather [{OperationId}] first result received from '{HandlerName}', cancelling remaining handlers")]
     public static partial void FirstResultReceived(
@@ -82,7 +82,7 @@ internal static partial class ScatterGatherLog
         string handlerName);
 
     [LoggerMessage(
-        EventId = 607,
+        EventId = 2922,
         Level = LogLevel.Debug,
         Message = "Scatter-gather [{OperationId}] executing gather handler with {ResultCount} results")]
     public static partial void GatherExecuting(
@@ -91,7 +91,7 @@ internal static partial class ScatterGatherLog
         int resultCount);
 
     [LoggerMessage(
-        EventId = 608,
+        EventId = 2923,
         Level = LogLevel.Debug,
         Message = "Scatter-gather [{OperationId}] gather handler completed successfully")]
     public static partial void GatherCompleted(
@@ -99,7 +99,7 @@ internal static partial class ScatterGatherLog
         Guid operationId);
 
     [LoggerMessage(
-        EventId = 609,
+        EventId = 2924,
         Level = LogLevel.Warning,
         Message = "Scatter-gather [{OperationId}] gather handler failed: {ErrorMessage}")]
     public static partial void GatherFailed(
@@ -108,7 +108,7 @@ internal static partial class ScatterGatherLog
         string errorMessage);
 
     [LoggerMessage(
-        EventId = 610,
+        EventId = 2925,
         Level = LogLevel.Information,
         Message = "Scatter-gather '{OperationName}' [{OperationId}] completed in {Duration} ({SuccessCount}/{ScatterCount} succeeded)")]
     public static partial void ExecutionCompleted(
@@ -120,7 +120,7 @@ internal static partial class ScatterGatherLog
         int scatterCount);
 
     [LoggerMessage(
-        EventId = 611,
+        EventId = 2926,
         Level = LogLevel.Warning,
         Message = "Scatter-gather [{OperationId}] was cancelled")]
     public static partial void ExecutionCancelled(
@@ -128,7 +128,7 @@ internal static partial class ScatterGatherLog
         Guid operationId);
 
     [LoggerMessage(
-        EventId = 612,
+        EventId = 2927,
         Level = LogLevel.Warning,
         Message = "Scatter-gather [{OperationId}] timed out after {Timeout}")]
     public static partial void ExecutionTimedOut(
@@ -137,7 +137,7 @@ internal static partial class ScatterGatherLog
         TimeSpan timeout);
 
     [LoggerMessage(
-        EventId = 613,
+        EventId = 2928,
         Level = LogLevel.Error,
         Message = "Scatter-gather [{OperationId}] failed with exception: {ErrorMessage}")]
     public static partial void ExecutionException(
@@ -147,7 +147,7 @@ internal static partial class ScatterGatherLog
         Exception exception);
 
     [LoggerMessage(
-        EventId = 614,
+        EventId = 2929,
         Level = LogLevel.Warning,
         Message = "Scatter-gather [{OperationId}] all scatter handlers failed")]
     public static partial void AllScattersFailed(
@@ -155,7 +155,7 @@ internal static partial class ScatterGatherLog
         Guid operationId);
 
     [LoggerMessage(
-        EventId = 615,
+        EventId = 2930,
         Level = LogLevel.Warning,
         Message = "Scatter-gather [{OperationId}] quorum not reached ({SuccessCount}/{QuorumCount} required)")]
     public static partial void QuorumNotReached(

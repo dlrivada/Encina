@@ -223,19 +223,19 @@ All metrics use the `Encina` meter. Available via `ShadowShardingMetrics`:
 
 ### Logs
 
-High-performance structured logging via `LoggerMessage` source generators (zero-allocation). EventId range: **700--749**.
+High-performance structured logging via `LoggerMessage` source generators (zero-allocation). EventIds **138-146**, inside `EventIdRanges.Core`.
 
 | EventId | Level | Message |
 |---------|-------|---------|
-| 700 | Warning | Shadow routing failed for shard key `{ShardKey}` |
-| 701 | Warning | Shadow routing mismatch: production=`{ProductionShardId}`, shadow=`{ShadowShardId}` |
-| 710 | Warning | Shadow write failed for command `{CommandType}` |
-| 711 | Warning | Shadow write timed out after `{TimeoutMs}`ms |
-| 720 | Warning | Shadow read discrepancy for query `{QueryType}` |
-| 721 | Warning | Shadow read failed for query `{QueryType}` |
-| 722 | Warning | Shadow discrepancy handler failed for query `{QueryType}` |
-| 730 | Information | Shadow sharding enabled with configuration summary |
-| 731 | Information | Shadow comparison summary with mismatch rate |
+| 138 | Warning | Shadow routing failed for shard key `{ShardKey}` |
+| 139 | Warning | Shadow routing mismatch: production=`{ProductionShardId}`, shadow=`{ShadowShardId}` |
+| 140 | Warning | Shadow write failed for command `{CommandType}` |
+| 141 | Warning | Shadow write timed out after `{TimeoutMs}`ms |
+| 142 | Warning | Shadow read discrepancy for query `{QueryType}` |
+| 143 | Warning | Shadow read failed for query `{QueryType}` |
+| 144 | Warning | Shadow discrepancy handler failed for query `{QueryType}` |
+| 145 | Information | Shadow sharding enabled with configuration summary |
+| 146 | Information | Shadow comparison summary with mismatch rate |
 
 ---
 

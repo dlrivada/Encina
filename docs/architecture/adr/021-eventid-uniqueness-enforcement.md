@@ -41,26 +41,36 @@ Automated enforcement via architecture tests:
 
 - **Location**: `src/Encina.Testing.Architecture/EventIdUniquenessRule.cs`
 - **Validations**:
-  - `AssertEventIdsAreGloballyUnique()` — No two `[LoggerMessage]` methods across all assemblies share the same EventId
-  - `AssertEventIdsWithinRegisteredRanges()` — Every EventId falls within its assembly's registered range
+  - `AssertEventIdsAreGloballyUnique()` — No two `[LoggerMessage]` methods share an EventId, whether in the same assembly or in different ones
+  - `AssertEventIdsWithinRegisteredRanges()` — Every EventId falls within one of the ranges mapped to its assembly (a package may own several)
   - `AssertNoRangeOverlaps()` — No two registered ranges overlap
   - `GenerateAllocationReport()` — Human-readable allocation table with usage statistics
+- **Solution-wide test**: `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` loads every shipped `Encina*` assembly from the test output and applies the three validations. Its `AssemblyRanges` field is the assembly → range-name map; a package that starts logging must be added there, and the test fails when a `src/` package with `[LoggerMessage]` methods is not scanned.
+- **Scope**: `[LoggerMessage]` attributes only. EventIds created with `LoggerMessage.Define(..., new EventId(n), ...)` leave no metadata to reflect on and are tracked by #1125.
 
 ### 3. Range Allocation Policy
 
 | Area | Range | Notes |
 |------|-------|-------|
-| Core | 1-99 | Sanitization |
+| Core | 1-199 | Sanitization (1-99), Encina core: mediator, streaming, sharding (100-199) |
 | DomainModeling | 1100-1699 | Repository, UoW, Bulk, Spec, SoftDelete, Audit |
 | Security Audit | 1700-1799 | Read audit |
 | Infrastructure | 1800-1999 | Tenancy, Module Isolation |
-| Messaging | 2000-2499 | Outbox, Inbox, Saga, Scheduling, QueryCache, Encryption |
-| Domain Events / ES | 2500-2699 | DomainEvents, AuditMarten |
+| Messaging stores | 2000-2499 | Outbox, Inbox, Saga, Scheduling, QueryCache, Encryption |
+| Domain Events / ES | 2500-2799 | DomainEvents, AuditMarten, Marten |
+| Messaging runtime and data access | 2800-3499 | Messaging (2800-2999), EF Core, MongoDB, ADO.NET ×3, Dapper ×3 |
+| Caching and locks | 3500-3899 | Caching, Caching.Memory, Caching.Redis, Caching.Hybrid, DistributedLock ×3 |
+| Resilience and scheduling adapters | 3900-4099 | Polly, Extensions.Resilience, Hangfire, Quartz |
+| Transports and API integrations | 4100-4699 | RabbitMQ, Kafka, NATS, MQTT, AzureServiceBus, AmazonSQS, Redis.PubSub, InMemory, gRPC, GraphQL, SignalR, Refit |
+| Serverless | 4700-4799 | AwsLambda, AzureFunctions |
+| Change data capture | 4800-4999 | Cdc, Cdc.SqlServer, Cdc.Debezium |
+| Security runtime | 5000-5399 | Security.Audit, Security.Secrets and its four providers |
+| Observability | 7000-7099 | OpenTelemetry |
 | Security | 8000-8099 | Security (8000-8009), PII (8010-8029), IdGen (8030-8099) |
 | Compliance | 8100-8949 | GDPR, Consent, DSR, LawfulBasis, Anonymization, CryptoShredding, Retention, DataResidency, BreachNotification, DPIA, PrivacyByDesign |
 | Security Extensions | 9000-9199 | ABAC, AntiTampering |
-| Compliance Extensions | 9200-9499 | NIS2, CrossBorderTransfer, ProcessorAgreements |
-| Reserved | 9500-9999 | Future modules |
+| Compliance Extensions | 9200-9699 | NIS2, CrossBorderTransfer, ProcessorAgreements, AIAct, Attestation |
+| Free | 200-1099, 5400-6999, 7100-7999, 8950-8999, 9700-9999 | Future modules |
 
 ### 4. Allocation Workflow for New Features
 
@@ -88,6 +98,16 @@ Automated enforcement via architecture tests:
 
 - If architecture tests are not run, collisions can still be introduced (mitigated by CI/CD enforcement)
 
+## Amendment (2026-09-22, #1120)
+
+The rule shipped with its own unit tests but no test applied it to the Encina assemblies, and `AssertEventIdsAreGloballyUnique` ignored duplicates inside one assembly. When the solution-wide test was added, it found that 45 of the 69 packages with `[LoggerMessage]` methods had EventIds outside any registered range: most transports, caching, locking, resilience, scheduling, CDC and provider packages used unregistered ids starting at 1. 115 EventIds were each used by several assemblies (up to 32 for the same id), and `Encina.Cdc` had seven duplicates inside the assembly. The fix:
+
+- `AssertEventIdsAreGloballyUnique` also reports duplicates within one assembly; `AssertEventIdsWithinRegisteredRanges` takes a list of ranges per assembly.
+- 44 ranges were registered (table above) and 754 EventIds were renumbered into them, one contiguous block per source file; ids already inside a range of their package were kept. `SecuritySecrets` moved from 8950-8999 to 5100-5199 because the package's 51 ids did not fit in 50 slots.
+- `EncinaEventIdAllocationTests` enforces the map on every build of `Encina.UnitTests`.
+
+EventIds are not a stable contract before 1.0; dashboards or alerts that filter on the old numbers must be updated.
+
 ## Related Issues
 
 - #828 — Initial EventIdRanges.cs creation
@@ -99,6 +119,9 @@ Automated enforcement via architecture tests:
 - #834 — Anonymization/CryptoShredding boundary fix
 - #835 — GDPR internal duplicates (resolved by #833)
 - EPIC #668 — Phase 4d: EventId Uniqueness Enforcement
+- #1120 — Solution-wide enforcement and renumbering (amendment above)
+- #1050 — OpenTelemetry range
+- #1125 — `LoggerMessage.Define` EventIds
 
 ## Date
 

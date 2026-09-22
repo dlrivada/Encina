@@ -13,13 +13,13 @@ namespace Encina.Testing.Architecture;
 /// <para>
 /// These rules complement the <c>[LoggerMessage]</c> source generator's built-in
 /// SYSLIB1006 diagnostic (which only checks duplicates within a single class) by
-/// enforcing uniqueness across assembly boundaries.
+/// enforcing uniqueness across classes and assembly boundaries.
 /// </para>
 /// <para>
 /// Three validations are provided:
 /// <list type="number">
-/// <item><description>Global uniqueness — no two assemblies share the same EventId</description></item>
-/// <item><description>Range compliance — each assembly's EventIds fall within its registered range</description></item>
+/// <item><description>Global uniqueness — no two methods share an EventId, whether in the same assembly or in different ones</description></item>
+/// <item><description>Range compliance — each assembly's EventIds fall within one of its registered ranges</description></item>
 /// <item><description>Range overlap detection — no two registered ranges overlap</description></item>
 /// </list>
 /// </para>
@@ -71,8 +71,9 @@ public static class EventIdUniquenessRule
     }
 
     /// <summary>
-    /// Validates that all <c>[LoggerMessage]</c> EventIds are globally unique
-    /// across the provided assemblies.
+    /// Validates that every <c>[LoggerMessage]</c> EventId in the provided assemblies
+    /// is declared by exactly one method, whether the duplicates live in the same
+    /// assembly or in different ones.
     /// </summary>
     /// <param name="assemblies">The assemblies to validate.</param>
     /// <returns>
@@ -90,14 +91,19 @@ public static class EventIdUniquenessRule
 
         var duplicates = eventIds
             .GroupBy(e => e.EventId)
-            .Where(g => g.Select(e => e.AssemblyName).Distinct().Count() > 1);
+            .Where(g => g.Count() > 1)
+            .OrderBy(g => g.Key);
 
         foreach (var group in duplicates)
         {
             var locations = string.Join(", ", group.Select(e =>
                 $"{e.AssemblyName}::{e.TypeName}.{e.MethodName}"));
+            var assemblyNames = group.Select(e => e.AssemblyName).Distinct().ToList();
+            var scope = assemblyNames.Count == 1
+                ? $"within assembly '{assemblyNames[0]}'"
+                : "across assemblies";
             violations.Add(
-                $"EventId {group.Key} is duplicated across assemblies: [{locations}]");
+                $"EventId {group.Key} is duplicated {scope}: [{locations}]");
         }
 
         return violations;
@@ -108,18 +114,20 @@ public static class EventIdUniquenessRule
     /// in <see cref="EventIdRanges"/>.
     /// </summary>
     /// <param name="assemblies">The assemblies to validate.</param>
-    /// <param name="assemblyToRangeName">
-    /// A mapping from assembly name to the <see cref="EventIdRanges"/> field name
-    /// that defines the allowed range for that assembly.
+    /// <param name="assemblyToRangeNames">
+    /// A mapping from assembly name to the <see cref="EventIdRanges"/> field names
+    /// that define the allowed ranges for that assembly. A package that owns several
+    /// sub-ranges (for example one per feature) lists all of them; an EventId is
+    /// compliant when it falls inside any of the listed ranges.
     /// </param>
-    /// <returns>A list of violations describing out-of-range EventIds.</returns>
+    /// <returns>A list of violations describing unmapped assemblies, unknown range names and out-of-range EventIds.</returns>
     /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public static IReadOnlyList<string> AssertEventIdsWithinRegisteredRanges(
         IReadOnlyList<Assembly> assemblies,
-        IReadOnlyDictionary<string, string> assemblyToRangeName)
+        IReadOnlyDictionary<string, IReadOnlyList<string>> assemblyToRangeNames)
     {
         ArgumentNullException.ThrowIfNull(assemblies);
-        ArgumentNullException.ThrowIfNull(assemblyToRangeName);
+        ArgumentNullException.ThrowIfNull(assemblyToRangeNames);
 
         var allRanges = EventIdRanges.GetAllRanges()
             .ToDictionary(r => r.Name, r => (r.Min, r.Max));
@@ -129,27 +137,31 @@ public static class EventIdUniquenessRule
 
         foreach (var group in eventIds.GroupBy(e => e.AssemblyName))
         {
-            if (!assemblyToRangeName.TryGetValue(group.Key, out var rangeName))
+            if (!assemblyToRangeNames.TryGetValue(group.Key, out var rangeNames) || rangeNames.Count == 0)
             {
                 violations.Add(
                     $"Assembly '{group.Key}' has {group.Count()} EventIds but is not mapped to any registered range.");
                 continue;
             }
 
-            if (!allRanges.TryGetValue(rangeName, out var range))
+            var unknown = rangeNames.Where(n => !allRanges.ContainsKey(n)).ToList();
+            if (unknown.Count > 0)
             {
                 violations.Add(
-                    $"Assembly '{group.Key}' is mapped to range '{rangeName}' which does not exist in EventIdRanges.");
+                    $"Assembly '{group.Key}' is mapped to range(s) '{string.Join("', '", unknown)}' which do not exist in EventIdRanges.");
                 continue;
             }
 
-            foreach (var entry in group)
+            var ranges = rangeNames.Select(n => (Name: n, allRanges[n].Min, allRanges[n].Max)).ToList();
+            var described = string.Join(", ", ranges.Select(r => $"'{r.Name}' ({r.Min}-{r.Max})"));
+
+            foreach (var entry in group.OrderBy(e => e.EventId))
             {
-                if (entry.EventId < range.Min || entry.EventId > range.Max)
+                if (!ranges.Any(r => entry.EventId >= r.Min && entry.EventId <= r.Max))
                 {
                     violations.Add(
                         $"EventId {entry.EventId} in {entry.AssemblyName}::{entry.TypeName}.{entry.MethodName} " +
-                        $"is outside registered range '{rangeName}' ({range.Min}-{range.Max}).");
+                        $"is outside its registered range(s) {described}.");
                 }
             }
         }

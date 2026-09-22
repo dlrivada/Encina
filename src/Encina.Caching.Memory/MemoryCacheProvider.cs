@@ -241,37 +241,37 @@ public sealed partial class MemoryCacheProvider : ICacheProvider
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3550,
         Level = LogLevel.Debug,
         Message = "Cache hit for key: {Key}")]
     private static partial void LogCacheHit(ILogger logger, string key);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3551,
         Level = LogLevel.Debug,
         Message = "Cache miss for key: {Key}")]
     private static partial void LogCacheMiss(ILogger logger, string key);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3552,
         Level = LogLevel.Debug,
         Message = "Cache set for key: {Key} with expiration: {Expiration}")]
     private static partial void LogCacheSet(ILogger logger, string key, TimeSpan expiration);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3553,
         Level = LogLevel.Debug,
         Message = "Cache set for key: {Key} with sliding expiration: {SlidingExpiration}, absolute: {AbsoluteExpiration}")]
     private static partial void LogCacheSetSliding(ILogger logger, string key, TimeSpan slidingExpiration, TimeSpan? absoluteExpiration);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 3554,
         Level = LogLevel.Debug,
         Message = "Cache remove for key: {Key}")]
     private static partial void LogCacheRemove(ILogger logger, string key);
 
     [LoggerMessage(
-        EventId = 6,
+        EventId = 3555,
         Level = LogLevel.Debug,
         Message = "Cache remove by pattern: {Pattern}, removed {Count} keys")]
     private static partial void LogCacheRemovePattern(ILogger logger, string pattern, int count);

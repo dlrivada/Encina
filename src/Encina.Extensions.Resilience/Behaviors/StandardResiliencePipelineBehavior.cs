@@ -110,37 +110,37 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
     #region Logging
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3950,
         Level = LogLevel.Debug,
         Message = "Executing request {RequestType} with standard resilience (CorrelationId: {CorrelationId})")]
     private partial void LogExecutingWithResilience(string requestType, string correlationId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3951,
         Level = LogLevel.Debug,
         Message = "Standard resilience succeeded for {RequestType} (CorrelationId: {CorrelationId})")]
     private partial void LogResilienceSucceeded(string requestType, string correlationId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3952,
         Level = LogLevel.Warning,
         Message = "Standard resilience returned error for {RequestType}: {ErrorMessage} (CorrelationId: {CorrelationId})")]
     private partial void LogResilienceReturnedError(string requestType, string errorMessage, string correlationId);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3953,
         Level = LogLevel.Error,
         Message = "Circuit breaker is open for {RequestType}: {Message} (CorrelationId: {CorrelationId})")]
     private partial void LogCircuitBreakerOpen(string requestType, string message, string correlationId);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 3954,
         Level = LogLevel.Warning,
         Message = "Request {RequestType} timed out (CorrelationId: {CorrelationId})")]
     private partial void LogTimeoutOccurred(string requestType, string correlationId);
 
     [LoggerMessage(
-        EventId = 6,
+        EventId = 3955,
         Level = LogLevel.Error,
         Message = "Standard resilience failed for {RequestType}: {ErrorMessage} (CorrelationId: {CorrelationId})")]
     private partial void LogResilienceFailed(string requestType, string errorMessage, string correlationId);

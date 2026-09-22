@@ -178,7 +178,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3504,
         Level = LogLevel.Warning,
         Message = "Idempotent request {RequestType} received without IdempotencyKey (CorrelationId: {CorrelationId})")]
     private static partial void LogMissingIdempotencyKey(
@@ -187,7 +187,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         string correlationId);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3505,
         Level = LogLevel.Information,
         Message = "Returning cached response for duplicate idempotent request {RequestType} with key {IdempotencyKey} (CorrelationId: {CorrelationId})")]
     private static partial void LogIdempotentDuplicate(
@@ -197,7 +197,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         string correlationId);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3506,
         Level = LogLevel.Debug,
         Message = "Stored idempotency result for {RequestType} with key {IdempotencyKey} (CorrelationId: {CorrelationId})")]
     private static partial void LogIdempotencyStored(
@@ -207,7 +207,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         string correlationId);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3507,
         Level = LogLevel.Warning,
         Message = "Idempotency cache error for {RequestType} with key {IdempotencyKey}")]
     private static partial void LogIdempotencyError(

@@ -11,48 +11,48 @@ namespace Encina.Cdc.Messaging;
 internal static partial class CdcMessagingLog
 {
     [LoggerMessage(
-        EventId = 130,
+        EventId = 4847,
         Level = LogLevel.Debug,
         Message = "Publishing CDC change notification for table '{TableName}' operation {Operation} with topic '{TopicName}'")]
     public static partial void PublishingChangeNotification(
         ILogger logger, string tableName, ChangeOperation operation, string topicName);
 
     [LoggerMessage(
-        EventId = 131,
+        EventId = 4848,
         Level = LogLevel.Debug,
         Message = "Published CDC change notification for table '{TableName}' operation {Operation}")]
     public static partial void PublishedChangeNotification(
         ILogger logger, string tableName, ChangeOperation operation);
 
     [LoggerMessage(
-        EventId = 132,
+        EventId = 4849,
         Level = LogLevel.Debug,
         Message = "CDC change event filtered out for table '{TableName}' operation {Operation}")]
     public static partial void ChangeEventFiltered(
         ILogger logger, string tableName, ChangeOperation operation);
 
     [LoggerMessage(
-        EventId = 133,
+        EventId = 4850,
         Level = LogLevel.Debug,
         Message = "Processing outbox CDC event for message type '{NotificationType}'")]
     public static partial void OutboxCdcProcessing(
         ILogger logger, string notificationType);
 
     [LoggerMessage(
-        EventId = 134,
+        EventId = 4851,
         Level = LogLevel.Debug,
         Message = "Published outbox CDC notification of type '{NotificationType}'")]
     public static partial void OutboxCdcPublished(
         ILogger logger, string notificationType);
 
     [LoggerMessage(
-        EventId = 135,
+        EventId = 4852,
         Level = LogLevel.Debug,
         Message = "Skipping outbox CDC event - already processed (ProcessedAtUtc is set)")]
     public static partial void OutboxCdcSkippedAlreadyProcessed(ILogger logger);
 
     [LoggerMessage(
-        EventId = 136,
+        EventId = 4853,
         Level = LogLevel.Warning,
         Message = "Failed to deserialize outbox CDC notification of type '{NotificationType}'")]
     public static partial void OutboxCdcDeserializationFailed(

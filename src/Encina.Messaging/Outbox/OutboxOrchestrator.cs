@@ -250,31 +250,31 @@ public static class OutboxErrorCodes
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 101,
+        EventId = 2837,
         Level = LogLevel.Debug,
         Message = "Message {MessageId} added to outbox (type: {NotificationType})")]
     public static partial void MessageAddedToOutbox(ILogger logger, Guid messageId, string notificationType);
 
     [LoggerMessage(
-        EventId = 102,
+        EventId = 2838,
         Level = LogLevel.Debug,
         Message = "Message {MessageId} processed successfully")]
     public static partial void MessageProcessed(ILogger logger, Guid messageId);
 
     [LoggerMessage(
-        EventId = 103,
+        EventId = 2839,
         Level = LogLevel.Warning,
         Message = "Unknown notification type for message {MessageId}: {NotificationType}")]
     public static partial void UnknownNotificationType(ILogger logger, Guid messageId, string notificationType);
 
     [LoggerMessage(
-        EventId = 104,
+        EventId = 2840,
         Level = LogLevel.Warning,
         Message = "Failed to deserialize message {MessageId} of type {NotificationType}")]
     public static partial void DeserializationFailed(ILogger logger, Guid messageId, string notificationType);
 
     [LoggerMessage(
-        EventId = 105,
+        EventId = 2841,
         Level = LogLevel.Error,
         Message = "Failed to process message {MessageId}")]
     public static partial void ProcessingFailed(ILogger logger, Exception ex, Guid messageId);

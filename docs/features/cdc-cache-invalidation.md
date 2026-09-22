@@ -287,7 +287,7 @@ When `UsePubSubBroadcast` is enabled, a health check (`CacheInvalidationSubscrib
 
 ### Logging
 
-16 structured log events (EventIds 150-165) covering:
+12 structured log events (EventIds 4800-4811, inside `EventIdRanges.Cdc`) covering:
 
 - Cache invalidation lifecycle (filtering, resolving, invalidating)
 - Pub/sub broadcast lifecycle (publishing, success, failure)

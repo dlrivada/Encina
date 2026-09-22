@@ -15,12 +15,12 @@ namespace Encina.Messaging;
 public static partial class MessagingLog
 {
     // =========================================================================
-    // Inbox Pipeline Behavior (EventIds 1-6)
+    // Inbox Pipeline Behavior (EventIds 2818-2823)
     // =========================================================================
 
     /// <summary>Logs when an idempotent request is received without a MessageId.</summary>
     [LoggerMessage(
-        EventId = 1,
+        EventId = 2818,
         Level = LogLevel.Warning,
         Message = "Idempotent request {RequestType} received without MessageId/IdempotencyKey (CorrelationId: {CorrelationId})")]
     public static partial void MissingIdempotencyKey(
@@ -30,7 +30,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when processing an idempotent request.</summary>
     [LoggerMessage(
-        EventId = 2,
+        EventId = 2819,
         Level = LogLevel.Debug,
         Message = "Processing idempotent request {RequestType} with MessageId {MessageId} (CorrelationId: {CorrelationId})")]
     public static partial void ProcessingIdempotentRequest(
@@ -41,7 +41,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when returning a cached response for a duplicate message.</summary>
     [LoggerMessage(
-        EventId = 3,
+        EventId = 2820,
         Level = LogLevel.Information,
         Message = "Returning cached response for duplicate message {MessageId} (CorrelationId: {CorrelationId})")]
     public static partial void ReturningCachedResponse(
@@ -51,7 +51,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when a message has exceeded max retries.</summary>
     [LoggerMessage(
-        EventId = 4,
+        EventId = 2821,
         Level = LogLevel.Warning,
         Message = "Message {MessageId} exceeded max retries ({MaxRetries}) (CorrelationId: {CorrelationId})")]
     public static partial void MaxRetriesExceeded(
@@ -62,7 +62,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when a message is successfully processed and cached.</summary>
     [LoggerMessage(
-        EventId = 5,
+        EventId = 2822,
         Level = LogLevel.Information,
         Message = "Successfully processed and cached message {MessageId} (CorrelationId: {CorrelationId})")]
     public static partial void ProcessedAndCachedMessage(
@@ -72,7 +72,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when an error occurs processing a message.</summary>
     [LoggerMessage(
-        EventId = 6,
+        EventId = 2823,
         Level = LogLevel.Error,
         Message = "Error processing message {MessageId} (CorrelationId: {CorrelationId})")]
     public static partial void ErrorProcessingMessage(
@@ -82,12 +82,12 @@ public static partial class MessagingLog
         string? correlationId);
 
     // =========================================================================
-    // Outbox Post Processor (EventIds 10-12)
+    // Outbox Post Processor (EventIds 2824-2826)
     // =========================================================================
 
     /// <summary>Logs when storing notifications in the outbox.</summary>
     [LoggerMessage(
-        EventId = 10,
+        EventId = 2824,
         Level = LogLevel.Debug,
         Message = "Storing {Count} notifications in outbox for request {RequestType} (CorrelationId: {CorrelationId})")]
     public static partial void StoringNotificationsInOutbox(
@@ -98,7 +98,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when notifications are stored in the outbox.</summary>
     [LoggerMessage(
-        EventId = 11,
+        EventId = 2825,
         Level = LogLevel.Information,
         Message = "Stored {Count} notifications in outbox (CorrelationId: {CorrelationId})")]
     public static partial void StoredNotificationsInOutbox(
@@ -108,7 +108,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when skipping outbox storage due to an error.</summary>
     [LoggerMessage(
-        EventId = 12,
+        EventId = 2826,
         Level = LogLevel.Debug,
         Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorMessage} (CorrelationId: {CorrelationId})")]
     public static partial void SkippingOutboxStorageDueToError(
@@ -118,19 +118,19 @@ public static partial class MessagingLog
         string? correlationId);
 
     // =========================================================================
-    // Outbox Processor (EventIds 20-26)
+    // Outbox Processor (EventIds 2827-2833)
     // =========================================================================
 
     /// <summary>Logs when the outbox processor is disabled.</summary>
     [LoggerMessage(
-        EventId = 20,
+        EventId = 2827,
         Level = LogLevel.Information,
         Message = "Outbox processor is disabled")]
     public static partial void OutboxProcessorDisabled(ILogger logger);
 
     /// <summary>Logs when the outbox processor starts.</summary>
     [LoggerMessage(
-        EventId = 21,
+        EventId = 2828,
         Level = LogLevel.Information,
         Message = "Outbox processor started. Interval: {Interval}, BatchSize: {BatchSize}")]
     public static partial void OutboxProcessorStarted(
@@ -140,7 +140,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when an error occurs processing outbox messages.</summary>
     [LoggerMessage(
-        EventId = 22,
+        EventId = 2829,
         Level = LogLevel.Error,
         Message = "Error processing outbox messages")]
     public static partial void ErrorProcessingOutboxMessages(
@@ -149,7 +149,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when processing pending outbox messages.</summary>
     [LoggerMessage(
-        EventId = 23,
+        EventId = 2830,
         Level = LogLevel.Debug,
         Message = "Processing {Count} pending outbox messages")]
     public static partial void ProcessingPendingOutboxMessages(
@@ -158,7 +158,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when an outbox message is processed.</summary>
     [LoggerMessage(
-        EventId = 24,
+        EventId = 2831,
         Level = LogLevel.Debug,
         Message = "Processed outbox message {MessageId} of type {NotificationType}")]
     public static partial void ProcessedOutboxMessage(
@@ -168,7 +168,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when an outbox message fails to process.</summary>
     [LoggerMessage(
-        EventId = 25,
+        EventId = 2832,
         Level = LogLevel.Warning,
         Message = "Failed to process outbox message {MessageId}. Retry {RetryCount}/{MaxRetries}. Next retry at {NextRetry}")]
     public static partial void FailedToProcessOutboxMessage(
@@ -181,7 +181,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs a summary of processed outbox messages.</summary>
     [LoggerMessage(
-        EventId = 26,
+        EventId = 2833,
         Level = LogLevel.Information,
         Message = "Processed {TotalCount} outbox messages (Success: {SuccessCount}, Failed: {FailureCount})")]
     public static partial void ProcessedOutboxMessages(
@@ -191,12 +191,12 @@ public static partial class MessagingLog
         int failureCount);
 
     // =========================================================================
-    // Transaction Pipeline Behavior (EventIds 30-32)
+    // Transaction Pipeline Behavior (EventIds 2834-2836)
     // =========================================================================
 
     /// <summary>Logs when a transaction is started.</summary>
     [LoggerMessage(
-        EventId = 30,
+        EventId = 2834,
         Level = LogLevel.Debug,
         Message = "Transaction started for {RequestType} (CorrelationId: {CorrelationId})")]
     public static partial void TransactionStarted(
@@ -206,7 +206,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when a transaction is committed.</summary>
     [LoggerMessage(
-        EventId = 31,
+        EventId = 2835,
         Level = LogLevel.Debug,
         Message = "Transaction committed for {RequestType} (CorrelationId: {CorrelationId})")]
     public static partial void TransactionCommitted(
@@ -216,7 +216,7 @@ public static partial class MessagingLog
 
     /// <summary>Logs when a transaction is rolled back.</summary>
     [LoggerMessage(
-        EventId = 32,
+        EventId = 2836,
         Level = LogLevel.Debug,
         Message = "Transaction rolled back for {RequestType} (CorrelationId: {CorrelationId})")]
     public static partial void TransactionRolledBack(

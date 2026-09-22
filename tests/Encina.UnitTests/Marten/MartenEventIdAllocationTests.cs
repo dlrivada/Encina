@@ -33,7 +33,7 @@ public sealed class MartenEventIdAllocationTests
     {
         var violations = EventIdUniquenessRule.AssertEventIdsWithinRegisteredRanges(
             [MartenAssembly],
-            new Dictionary<string, string> { [MartenAssembly.GetName().Name!] = nameof(EventIdRanges.Marten) });
+            new Dictionary<string, IReadOnlyList<string>> { [MartenAssembly.GetName().Name!] = [nameof(EventIdRanges.Marten)] });
 
         violations.ShouldBeEmpty();
     }

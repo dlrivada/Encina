@@ -169,8 +169,8 @@ Validates that `[LoggerMessage]` EventId allocations are unique and within regis
 | Method | Description |
 |--------|-------------|
 | `ExtractEventIds(assemblies)` | Extracts all `[LoggerMessage]` EventIds via reflection |
-| `AssertEventIdsAreGloballyUnique(assemblies)` | No duplicate EventIds across all assemblies |
-| `AssertEventIdsWithinRegisteredRanges(assemblies, mapping)` | Every EventId falls within its assembly's registered range |
+| `AssertEventIdsAreGloballyUnique(assemblies)` | No duplicate EventIds, within one assembly or across assemblies |
+| `AssertEventIdsWithinRegisteredRanges(assemblies, mapping)` | Every EventId falls within one of the ranges mapped to its assembly (`IReadOnlyDictionary<string, IReadOnlyList<string>>`, assembly name → `EventIdRanges` field names) |
 | `AssertNoRangeOverlaps()` | No two registered ranges in `EventIdRanges` overlap |
 | `GenerateAllocationReport()` | Human-readable table showing range usage and free slots |
 

@@ -175,31 +175,31 @@ public sealed partial class RedisPubSubProvider : IPubSubProvider
     }
 
     [LoggerMessage(
-        EventId = 1,
+        EventId = 3610,
         Level = LogLevel.Debug,
         Message = "Publishing to channel {Channel}: {Message}")]
     private static partial void LogPublish(ILogger logger, string channel, string message);
 
     [LoggerMessage(
-        EventId = 2,
+        EventId = 3611,
         Level = LogLevel.Debug,
         Message = "Subscribed to channel: {Channel}")]
     private static partial void LogSubscribe(ILogger logger, string channel);
 
     [LoggerMessage(
-        EventId = 3,
+        EventId = 3612,
         Level = LogLevel.Debug,
         Message = "Subscribed to pattern: {Pattern}")]
     private static partial void LogSubscribePattern(ILogger logger, string pattern);
 
     [LoggerMessage(
-        EventId = 4,
+        EventId = 3613,
         Level = LogLevel.Debug,
         Message = "Unsubscribed from channel: {Channel}")]
     private static partial void LogUnsubscribe(ILogger logger, string channel);
 
     [LoggerMessage(
-        EventId = 5,
+        EventId = 3614,
         Level = LogLevel.Debug,
         Message = "Unsubscribed from pattern: {Pattern}")]
     private static partial void LogUnsubscribePattern(ILogger logger, string pattern);
