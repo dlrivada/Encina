@@ -163,6 +163,39 @@ public sealed class EventIdUniquenessRuleTests
     }
 
     // ========================================================================
+    // AssertEveryLoggerMessageHasEventId
+    // ========================================================================
+
+    [Fact]
+    public void AssertEveryLoggerMessageHasEventId_NullAssemblies_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(null!));
+    }
+
+    [Fact]
+    public void AssertEveryLoggerMessageHasEventId_MethodWithoutEventId_ReportsIt()
+    {
+        // Arrange — MissingEventIdLog (below) declares [LoggerMessage] without an EventId
+        var assemblies = new[] { typeof(MissingEventIdLog).Assembly };
+
+        // Act
+        var violations = EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(assemblies);
+
+        // Assert
+        Assert.Contains(violations, v => v.Contains($"{nameof(MissingEventIdLog)}.{nameof(MissingEventIdLog.NoEventId)}", StringComparison.Ordinal));
+        Assert.DoesNotContain(violations, v => v.Contains(nameof(DuplicateEventIdLogA), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExtractEventIds_MethodWithoutEventId_IsNotReturned()
+    {
+        var eventIds = EventIdUniquenessRule.ExtractEventIds([typeof(MissingEventIdLog).Assembly]);
+
+        Assert.DoesNotContain(eventIds, e => e.TypeName.EndsWith(nameof(MissingEventIdLog), StringComparison.Ordinal));
+    }
+
+    // ========================================================================
     // AssertEventIdsWithinRegisteredRanges
     // ========================================================================
 
@@ -329,6 +362,13 @@ internal static partial class DuplicateEventIdLogA
 {
     [LoggerMessage(EventId = 990001, Level = LogLevel.Debug, Message = "Duplicate fixture A")]
     internal static partial void First(ILogger logger);
+}
+
+/// <summary>Fixture: a [LoggerMessage] method without an explicit EventId.</summary>
+internal static partial class MissingEventIdLog
+{
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Missing EventId fixture")]
+    internal static partial void NoEventId(ILogger logger);
 }
 
 /// <summary>Fixture: declares EventId 990001, also declared by <see cref="DuplicateEventIdLogA"/>.</summary>

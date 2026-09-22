@@ -41,7 +41,7 @@ Automated enforcement via architecture tests:
 
 - **Location**: `src/Encina.Testing.Architecture/EventIdUniquenessRule.cs`
 - **Validations**:
-  - `AssertEventIdsAreGloballyUnique()` — No two `[LoggerMessage]` methods share an EventId, whether in the same assembly or in different ones
+  - `AssertEveryLoggerMessageHasEventId()` — Every `[LoggerMessage]` declares an explicit EventId `[LoggerMessage]` methods share an EventId, whether in the same assembly or in different ones
   - `AssertEventIdsWithinRegisteredRanges()` — Every EventId falls within one of the ranges mapped to its assembly (a package may own several)
   - `AssertNoRangeOverlaps()` — No two registered ranges overlap
   - `GenerateAllocationReport()` — Human-readable allocation table with usage statistics
@@ -100,11 +100,11 @@ Automated enforcement via architecture tests:
 
 ## Amendment (2026-09-22, #1120)
 
-The rule shipped with its own unit tests but no test applied it to the Encina assemblies, and `AssertEventIdsAreGloballyUnique` ignored duplicates inside one assembly. When the solution-wide test was added, it found that 45 of the 69 packages with `[LoggerMessage]` methods had EventIds outside any registered range: most transports, caching, locking, resilience, scheduling, CDC and provider packages used unregistered ids starting at 1. 115 EventIds were each used by several assemblies (up to 32 for the same id), and `Encina.Cdc` had seven duplicates inside the assembly. The fix:
+The rule shipped with its own unit tests but no test applied it to the Encina assemblies, and `AssertEventIdsAreGloballyUnique` ignored duplicates inside one assembly. When the solution-wide test was added, it found that 45 of the 69 packages with `[LoggerMessage]` methods had EventIds outside any registered range: most transports, caching, locking, resilience, scheduling, CDC and provider packages used unregistered ids starting at 1. 115 EventIds were each used by several packages (one id by 33), eight were duplicated only inside one package (seven in `Encina.Cdc`, one in `Encina.Messaging`), and 13 `Encina.Messaging` dead-letter messages declared no EventId, so the source generator derived one from a hash of the method name. The fix:
 
-- `AssertEventIdsAreGloballyUnique` also reports duplicates within one assembly; `AssertEventIdsWithinRegisteredRanges` takes a list of ranges per assembly.
-- 44 ranges were registered (table above) and 754 EventIds were renumbered into them, one contiguous block per source file; ids already inside a range of their package were kept. `SecuritySecrets` moved from 8950-8999 to 5100-5199 because the package's 51 ids did not fit in 50 slots.
-- `EncinaEventIdAllocationTests` enforces the map on every build of `Encina.UnitTests`.
+- `AssertEventIdsAreGloballyUnique` also reports duplicates within one assembly; `AssertEventIdsWithinRegisteredRanges` takes a list of ranges per assembly; the new `AssertEveryLoggerMessageHasEventId` rejects `[LoggerMessage]` methods without an explicit EventId.
+- 44 ranges were registered (table above) and 754 EventIds were renumbered into them, one contiguous block per source file, after the ids the package already had in that range; ids already inside a range of their package were kept. The dead-letter messages received 2945-2957. `SecuritySecrets` moved from 8950-8999 to 5100-5199 because the package's 51 ids did not fit in 50 slots.
+- `EncinaEventIdAllocationTests` enforces the map on every run of `Encina.UnitTests`.
 
 EventIds are not a stable contract before 1.0; dashboards or alerts that filter on the old numbers must be updated.
 

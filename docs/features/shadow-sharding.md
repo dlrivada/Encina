@@ -341,7 +341,7 @@ Shadow errors are returned as `Either<EncinaError, string>.Left` from `RouteShad
 
 ### Shadow Write Timeouts
 
-**Symptom**: EventId 711 warnings in logs (`Shadow write timed out`).
+**Symptom**: EventId 141 warnings in logs (`Shadow write timed out`).
 
 **Cause**: The shadow topology is slower than `ShadowWriteTimeout` allows.
 
@@ -353,7 +353,7 @@ Shadow errors are returned as `Either<EncinaError, string>.Left` from `RouteShad
 
 ### Shadow Read Failures
 
-**Symptom**: EventId 721 warnings (`Shadow read failed`).
+**Symptom**: EventId 143 warnings (`Shadow read failed`).
 
 **Cause**: The shadow router encountered an error for a shard key that succeeds on production.
 
@@ -365,7 +365,7 @@ Shadow errors are returned as `Either<EncinaError, string>.Left` from `RouteShad
 
 ### Discrepancy Handler Errors
 
-**Symptom**: EventId 722 warnings (`Shadow discrepancy handler failed`).
+**Symptom**: EventId 144 warnings (`Shadow discrepancy handler failed`).
 
 **Cause**: The custom `DiscrepancyHandler` delegate threw an exception.
 
@@ -385,7 +385,7 @@ Yes. Set `ShadowRouterFactory` to create any `IShardRouter` implementation. For 
 
 **Q: What happens if the shadow topology is unavailable?**
 
-Nothing visible to users. Shadow failures are caught, logged (EventId 700/710/721), and discarded. Production routing continues normally.
+Nothing visible to users. Shadow failures are caught, logged (EventId 138/140/143), and discarded. Production routing continues normally.
 
 **Q: Can I shadow-test with compound shard keys?**
 
@@ -398,7 +398,7 @@ Monitor these signals over a sustained period (recommended: 48--72 hours at 100%
 - `routing_mismatches_total` is stable and understood
 - `write_total{outcome=failure}` is zero
 - `write_latency_diff_ms` and `read_latency_diff_ms` are within acceptable bounds
-- No EventId 700/710/721 warnings in logs
+- No EventId 138/140/143 warnings in logs
 
 ---
 

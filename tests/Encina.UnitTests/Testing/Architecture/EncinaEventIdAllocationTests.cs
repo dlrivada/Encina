@@ -107,6 +107,14 @@ public sealed class EncinaEventIdAllocationTests
     private static readonly Lazy<IReadOnlyList<Assembly>> EncinaAssemblies = new(LoadEncinaAssemblies);
 
     [Fact]
+    public void EveryLoggerMessage_DeclaresAnEventId()
+    {
+        var violations = EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(EncinaAssemblies.Value);
+
+        violations.ShouldBeEmpty(string.Join(Environment.NewLine, violations));
+    }
+
+    [Fact]
     public void EventIds_AreUniqueAcrossAndWithinAssemblies()
     {
         var violations = EventIdUniquenessRule.AssertEventIdsAreGloballyUnique(EncinaAssemblies.Value);

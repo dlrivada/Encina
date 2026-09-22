@@ -359,9 +359,9 @@ All observability features are inherited from the core `Encina.Security.Secrets`
 | **Health checks** | `SecretsHealthCheck` | `ProviderHealthCheck = true` |
 | **Access auditing** | `AuditedSecretReaderDecorator` | `EnableAccessAuditing = true` |
 | **Caching** | `CachedSecretReaderDecorator` | `EnableCaching = true` (default) |
-| **Provider logging** | `Log.cs` (EventIds 200-208) | Always active |
+| **Provider logging** | `Log.cs` (EventIds 5200-5208) | Always active |
 
-The satellite package provides its own structured logging via `LoggerMessage` source generators (EventIds 200-208) covering all provider-specific operations.
+The satellite package provides its own structured logging via `LoggerMessage` source generators (EventIds 5200-5208) covering all provider-specific operations.
 
 ---
 

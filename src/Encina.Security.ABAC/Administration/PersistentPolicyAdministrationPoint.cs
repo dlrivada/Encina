@@ -673,7 +673,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     }
 
     [LoggerMessage(
-        EventId = 9016,
+        EventId = 9056,
         Level = LogLevel.Warning,
         Message = "Failed to record audit entry for {Action} on {EntityType} '{EntityId}': {ErrorMessage}")]
     private static partial void LogAuditRecordingFailed(
@@ -684,7 +684,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         string errorMessage);
 
     [LoggerMessage(
-        EventId = 9017,
+        EventId = 9057,
         Level = LogLevel.Warning,
         Message = "Exception while recording audit entry for {Action} on {EntityType} '{EntityId}'")]
     private static partial void LogAuditRecordingException(

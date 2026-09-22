@@ -1283,7 +1283,7 @@ The `EventIdUniquenessRule` class in `Encina.Testing.Architecture` provides:
 
 | Method | Purpose |
 |--------|---------|
-| `AssertEventIdsAreGloballyUnique()` | No duplicate EventIds, within one assembly or across assemblies |
+| `AssertEveryLoggerMessageHasEventId()` | Every `[LoggerMessage]` declares an explicit EventId |
 | `AssertEventIdsWithinRegisteredRanges()` | Every EventId within one of the ranges mapped to its assembly |
 | `AssertNoRangeOverlaps()` | No two registered ranges overlap |
 | `GenerateAllocationReport()` | Human-readable allocation table |

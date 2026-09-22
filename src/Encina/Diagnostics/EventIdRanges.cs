@@ -11,7 +11,7 @@ namespace Encina.Diagnostics;
 /// <para>
 /// Allocation policy:
 /// <list type="bullet">
-/// <item>Each package gets a contiguous, non-overlapping range</item>
+/// <item>Each package gets one or more contiguous ranges; no two ranges overlap</item>
 /// <item>Ranges are grouped by functional area (core, messaging, security, compliance)</item>
 /// <item>New packages must register a free range via PR before using EventIds</item>
 /// <item>Use <see cref="GetAllRanges"/> to discover all registered allocations</item>

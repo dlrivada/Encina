@@ -37,8 +37,34 @@ public static class EventIdUniquenessRule
     {
         ArgumentNullException.ThrowIfNull(assemblies);
 
-        var results = new List<(string AssemblyName, string TypeName, string MethodName, int EventId)>();
+        return EnumerateLoggerMessages(assemblies)
+            .Where(m => m.EventId >= 0)
+            .ToList();
+    }
 
+    /// <summary>
+    /// Validates that every <c>[LoggerMessage]</c> method declares an explicit EventId.
+    /// </summary>
+    /// <remarks>
+    /// Without an EventId the source generator derives one from a hash of the method name, which lands
+    /// outside every registered range and is invisible to <see cref="ExtractEventIds"/>.
+    /// </remarks>
+    /// <param name="assemblies">The assemblies to validate.</param>
+    /// <returns>A list of violations, one per method without an explicit EventId.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="assemblies"/> is null.</exception>
+    public static IReadOnlyList<string> AssertEveryLoggerMessageHasEventId(IReadOnlyList<Assembly> assemblies)
+    {
+        ArgumentNullException.ThrowIfNull(assemblies);
+
+        return EnumerateLoggerMessages(assemblies)
+            .Where(m => m.EventId < 0)
+            .Select(m => $"{m.AssemblyName}::{m.TypeName}.{m.MethodName} has [LoggerMessage] without an EventId.")
+            .ToList();
+    }
+
+    private static IEnumerable<(string AssemblyName, string TypeName, string MethodName, int EventId)>
+        EnumerateLoggerMessages(IReadOnlyList<Assembly> assemblies)
+    {
         foreach (var assembly in assemblies)
         {
             var assemblyName = assembly.GetName().Name ?? assembly.FullName ?? "Unknown";
@@ -50,24 +76,16 @@ public static class EventIdUniquenessRule
                 // non-public members to discover all EventId allocations across the codebase.
                 foreach (var method in type.GetMethods(
                     BindingFlags.Public | BindingFlags.NonPublic |
-                    BindingFlags.Static | BindingFlags.Instance))
+                    BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly))
                 {
                     var attr = method.GetCustomAttribute<LoggerMessageAttribute>();
-                    if (attr is null || attr.EventId < 0)
+                    if (attr is not null)
                     {
-                        continue;
+                        yield return (assemblyName, type.FullName ?? type.Name, method.Name, attr.EventId);
                     }
-
-                    results.Add((
-                        assemblyName,
-                        type.FullName ?? type.Name,
-                        method.Name,
-                        attr.EventId));
                 }
             }
         }
-
-        return results;
     }
 
     /// <summary>
