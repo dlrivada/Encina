@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **DocRef citations for coverage** (#1092, SPEC-001). Documentation can cite live per-file, per-flag coverage with `cov:<Package>/<path>.cs` IDs and `covref-table` / `covref` markers, the same grammar mutation testing uses. `coverage-report.cs` emits `docref-index.json` on every CI Full run, keyed by the coverage manifests so an ID survives a partial run (`noData` per flag); `cov-docs-render.cs` expands the markers and builds `cited-by.json` in Publish Coverage; the coverage dashboard gains a "Cited In" column and `#pkg-<Package>` deep links; and a new `coverage-citations` job in `ci.yml` fails any pull request, docs-only included, that cites a file or field that does not exist. The coverage methodology documents the convention. Stale coverage manifests were removed (the two SQLite packages deleted by ADR-024 and two entries for files that no longer exist).
+
 ### Fixed
 
 - **Marten configurators registered through the Options pattern now run** (#1096). `Encina.Marten`, `Encina.Marten.GDPR` and `Encina.Audit.Marten` configure `StoreOptions` with `IConfigureOptions<StoreOptions>` (event metadata columns, upcasters, the crypto-shredding serializer, audit projections), but Marten applies only `IConfigureMarten` when it builds the store, so none of them executed. A bridge (`EncinaStoreOptionsConfigurator`, registered by `AddEncinaMartenStoreOptionsBridge()` from `AddEncinaMarten`, `AddEncinaMartenGdpr` and the audit registration) applies every `IConfigureOptions<StoreOptions>` and `IPostConfigureOptions<StoreOptions>` inside Marten's hook. The two `Encina.Marten` configurators are now registered with `TryAddEnumerable` instead of `TryAddSingleton`, which let only the first of them survive. Verified against a real PostgreSQL store built through DI.

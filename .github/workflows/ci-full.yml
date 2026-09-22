@@ -468,6 +468,26 @@ jobs:
         if: always()
         run: dotnet run .github/scripts/coverage-report.cs -- --output artifacts/coverage --input artifacts/test-results || true
 
+      # SPEC-001 (REQ-002): the coverage DocRef index is what documentation citations render from.
+      # The report step above tolerates failures so the job summary still appears; a missing index
+      # must not be silent, because publish-coverage would then keep serving a stale one.
+      - name: Verify coverage DocRef index
+        if: always()
+        run: |
+          INDEX=artifacts/coverage/docref-index.json
+          if [ ! -s "$INDEX" ]; then
+            echo "::error::coverage-report.cs did not produce $INDEX"
+            exit 1
+          fi
+          ENTRIES=$(jq 'length' "$INDEX")
+          NODATA=$(jq '[.[] | select(.noData)] | length' "$INDEX")
+          echo "Coverage DocRef index: $ENTRIES entries ($NODATA without data in this run)"
+          {
+            echo "### Coverage DocRef index"
+            echo ""
+            echo "$ENTRIES citable files, $NODATA without Cobertura data in this run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Post weighted coverage to job summary
         if: always()
         run: |

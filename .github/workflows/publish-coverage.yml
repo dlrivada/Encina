@@ -90,6 +90,20 @@ jobs:
           cp -f coverage-artifact/badge.svg _site/coverage/badge.svg 2>/dev/null || true
           cp -f coverage-artifact/badge.json _site/coverage/badge.json 2>/dev/null || true
 
+          # Coverage DocRef index (SPEC-001). Guard: an empty or missing candidate never
+          # replaces the index already on Pages (the overlay loop above does not fetch
+          # coverage, so fall back to the live copy explicitly).
+          if [ -s coverage-artifact/docref-index.json ] && [ "$(jq 'length' coverage-artifact/docref-index.json)" -gt 0 ]; then
+            cp -f coverage-artifact/docref-index.json _site/coverage/data/docref-index.json
+            echo "Coverage DocRef index: $(jq 'length' _site/coverage/data/docref-index.json) entries from the CI artifact"
+          elif curl -fsSL -o _site/coverage/data/docref-index.json \
+                 https://dlrivada.github.io/Encina/coverage/data/docref-index.json 2>/dev/null; then
+            echo "No usable DocRef index in the artifact; keeping the live Pages copy"
+          else
+            rm -f _site/coverage/data/docref-index.json
+            echo "No DocRef index in the artifact nor on Pages yet"
+          fi
+
           # Inject runId into the snapshot so history can reference raw artifacts
           RUN_ID="${{ github.event.workflow_run.id }}"
           if command -v jq &>/dev/null; then
@@ -127,19 +141,44 @@ jobs:
           echo "Coverage data updated. History entries:"
           cat _site/coverage/data/history.json | head -5
 
-      - name: Persist history.json back to repo
+      - name: Render covref markers in documentation + build cited-by.json
+        run: |
+          if [ ! -f _site/coverage/data/docref-index.json ]; then
+            echo "No coverage DocRef index available; skipping covref rendering"
+            exit 0
+          fi
+          # Scan docs/ AND src/ (per-package READMEs may cite coverage). The renderer writes
+          # cited-by.json next to the index it reads.
+          dotnet run .github/scripts/cov-docs-render.cs -- \
+            --docref-index _site/coverage/data/docref-index.json \
+            --docs-root docs \
+            --scan-roots src
+
+          # The Pages payload was copied from docs/ before rendering: refresh the rendered pages.
+          git diff --name-only -- docs | while read -r f; do
+            mkdir -p "_site/$(dirname "${f#docs/}")"
+            cp -f "$f" "_site/${f#docs/}"
+          done
+
+      - name: Persist history + docref-index + cited-by + rendered docs back to repo
         continue-on-error: true
         run: |
           cp -f _site/coverage/data/history.json docs/coverage/data/history.json
+          for file in docref-index.json cited-by.json; do
+            if [ -s "_site/coverage/data/$file" ]; then
+              cp -f "_site/coverage/data/$file" "docs/coverage/data/$file"
+            fi
+          done
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/coverage/data/history.json
+          git add docs/coverage/data/history.json docs/coverage/data/docref-index.json docs/coverage/data/cited-by.json 2>/dev/null || true
+          git add -u docs/ src/ 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "No history changes to commit"
+            echo "No coverage data or doc changes to commit"
           else
             ENTRIES=$(grep -c timestamp docs/coverage/data/history.json || echo 0)
-            git commit -m "chore: update coverage history ($ENTRIES entries)"
-            git push origin main || echo "Warning: Could not push history update (branch protection). History will be updated on next manual push."
+            git commit -m "chore: update coverage data + render covref citations ($ENTRIES history entries)"
+            git push origin main || echo "Warning: Could not push coverage update (branch protection). The repo copy will lag; Pages is authoritative."
           fi
 
       - name: Upload Pages artifact

@@ -207,8 +207,10 @@ The coverage pipeline has two distinct workflows with a specific coupling:
 5. **Archive the snapshot** with a timestamped filename `{YYYY-MM-DDTHHMMSSZ}.json` under `_site/coverage/data/`, preserving the full snapshot for future recalculation and audit.
 6. **Reconcile the history file.** Fetch `history.json` from the live Pages URL and compare the entry count with the local repo's version. The more complete of the two wins. This detours around a problem where branch protection can prevent the repo version from being updated promptly — Pages is the canonical live source.
 7. **Append the new entry** to `history.json` via `coverage-history.cs`.
-8. **Persist `history.json` back to the repo** with a bot commit (`continue-on-error: true` to tolerate branch protection rejections).
-9. **Upload the Pages artifact** and deploy to GitHub Pages.
+8. **Publish the DocRef index.** Copy `docref-index.json` from the artifact to `_site/coverage/data/`; an empty or missing candidate never replaces the copy already on Pages (see [DocRef convention](#docref-convention)).
+9. **Render the citations.** Run `cov-docs-render.cs` over `docs/` and `src/`, which expands the `covref` markers and writes `cited-by.json` next to the index; the rendered pages are refreshed in `_site`.
+10. **Persist history, index, `cited-by.json` and the rendered documents back to the repo** with a bot commit (`continue-on-error: true` to tolerate branch protection rejections; Pages stays authoritative when the push is refused).
+11. **Upload the Pages artifact** and deploy to GitHub Pages.
 
 ### The history file
 
@@ -225,6 +227,73 @@ The coverage pipeline has two distinct workflows with a specific coupling:
 | `perFlag` *(optional)* | Per-flag overall coverage for trend filtering (unit, guard, contract, property, integration) |
 
 The 100-entry cap is historically motivated — at one snapshot per successful CI Full run on `main`, it covers several months of history. For unbounded retention, the archived snapshot files and the raw CI artifacts are the sources of truth. The lightweight `history.json` exists for fast dashboard loading, not as the primary data store.
+
+## DocRef convention
+
+Documentation cites coverage through stable identifiers instead of hand-typed percentages, which drift (#1090). The convention mirrors the mutation and performance dashboards ([SPEC-001](../specifications/SPEC-001-coverage-docref-citations.md)):
+
+```text
+cov:<Package>/<path-in-package>.cs
+```
+
+Examples: `cov:Encina.Marten/MartenAggregateRepository.cs`, `cov:Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs`.
+
+The unit of citation is the **file**, with a per-flag breakdown: line-level citations would go stale on every commit.
+
+### The index
+
+`coverage-report.cs` writes `docref-index.json` next to the summary on every CI Full run, and Publish Coverage serves it at `coverage/data/docref-index.json`. The set of IDs comes from the **manifests**, not from which files produced Cobertura data in the run: every manifest entry with at least one applicable flag and an existing source file has an ID, so citations stay stable across partial runs. Each entry contains:
+
+| Field | Meaning |
+|-------|---------|
+| `package` | Package name (e.g. `Encina.Marten`) |
+| `path` | Source path from the repository root |
+| `coverage` | File-level obligations coverage (`metObligations / obligations`), over the flags that have data |
+| `obligations`, `metObligations` | Obligations counted for the file in this run |
+| `flags` | Applicable flags from the manifest, in the order unit, guard, contract, property, integration |
+| `noData` | `true` only when **no** applicable flag produced data for the file in this run |
+| `perFlag` | Per flag: `total`, `covered`, `coverage` (all `null` when that flag has no data), `target` (the package target from the manifest, or `null`) and `noData` |
+| `lastRun` | ISO timestamp of the report |
+| `dashboardUrl` | Deep link to the package row on the dashboard (`#pkg-<Package>`) |
+
+A flag has `noData: true` when the run produced no Cobertura data for the file under that flag (no report for the flag, or the file absent from it). Such a flag is left out of the file-level obligations, exactly as the package aggregation leaves it out.
+
+### Citation markers in documentation
+
+**Tables**, expanded by `cov-docs-render.cs`. The pattern is a glob over DocRef IDs:
+
+```html
+<!-- covref-table: cov:Encina.Marten/Projections/* -->
+(generated table — do not edit)
+<!-- /covref-table -->
+```
+
+**Inline values**, as `<id>:<field>`:
+
+```html
+Unit coverage of the aggregate repository:
+<!-- covref: cov:Encina.Marten/MartenAggregateRepository.cs:unit -->0/0 (target 38%)<!-- /covref -->.
+```
+
+Inline fields: `coverage`, `obligations` (`met/total`), `flags`, `lastRun`, and one per flag (`unit`, `guard`, `contract`, `property`, `integration`) rendered as `covered/total (target N%)`, or `no data`.
+
+Markers inside fenced code blocks are not expanded, and content outside marker blocks is never modified. A glob with no match or an unknown ID renders as a `⚠` line instead of breaking the Pages deploy.
+
+### Live example
+
+The inline projection pipeline fixed in #1095:
+
+<!-- covref-table: cov:Encina.Marten/Projections/* -->
+(generated on the next Publish Coverage run)
+<!-- /covref-table -->
+
+File-level coverage of `MartenAggregateRepository.cs` on the last CI Full run: <!-- covref: cov:Encina.Marten/MartenAggregateRepository.cs:coverage -->(generated on the next Publish Coverage run)<!-- /covref -->.
+
+### Cited-by index and the dangling-citation gate
+
+`cov-docs-render.cs` also writes `coverage/data/cited-by.json`, mapping each DocRef to the `file:line` locations that cite it (markers and prose mentions that exist in the index). The dashboard shows it in the **Cited In** column of the package table.
+
+A **dangling citation** (an ID that no longer exists, or a field outside the schema above) fails the `coverage-citations` job of `ci.yml` on every pull request, docs-only ones included. The gate runs `cov-docs-render.cs --check-dangling`, which validates IDs against the pull request's own manifests and `src/` tree and fields against the fixed schema; it needs neither coverage data nor GitHub Pages, so citing a file the same pull request adds passes and citing a file it deletes fails. Mentions inside inline code spans are treated as literal text, like fenced blocks.
 
 ## Recalculation: how methodology changes propagate to history
 
