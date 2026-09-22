@@ -135,12 +135,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         ProjectionOptions options)
     {
-        // Register core projection services
-        services.TryAddSingleton<ProjectionRegistry>();
-        services.TryAddSingleton<IProjectionManager, MartenProjectionManager>();
-
-        // Register read model repository (open generic)
-        services.TryAddScoped(typeof(IReadModelRepository<>), typeof(MartenReadModelRepository<>));
+        services.AddProjectionInfrastructure();
 
         // Register inline projection dispatcher if enabled
         if (options.UseInlineProjections)
@@ -152,19 +147,47 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers a projection with the projection registry.
+    /// Registers the projection services every projection needs: the registry (built from the
+    /// <see cref="IProjectionRegistrar"/> instances at first resolution), the projection manager
+    /// and the open-generic read model repository. Idempotent.
+    /// </summary>
+    private static void AddProjectionInfrastructure(this IServiceCollection services)
+    {
+        services.TryAddSingleton(static provider =>
+        {
+            var registry = new ProjectionRegistry();
+            foreach (var registrar in provider.GetServices<IProjectionRegistrar>())
+            {
+                registrar.Register(registry);
+            }
+
+            return registry;
+        });
+        services.TryAddSingleton<IProjectionManager, MartenProjectionManager>();
+        services.TryAddScoped(typeof(IReadModelRepository<>), typeof(MartenReadModelRepository<>));
+    }
+
+    /// <summary>
+    /// Registers a projection with the projection registry and makes it run inline.
     /// </summary>
     /// <typeparam name="TProjection">The projection type.</typeparam>
     /// <typeparam name="TReadModel">The read model type.</typeparam>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registering a projection is opting in to projections: this method also registers the
+    /// projection infrastructure (registry, manager, read model repositories) and the
+    /// <see cref="IInlineProjectionDispatcher"/>, so the aggregate repositories update
+    /// <typeparamref name="TReadModel"/> as part of every <c>SaveAsync</c>/<c>CreateAsync</c>.
+    /// <see cref="ProjectionOptions.Enabled"/> is not required; set
+    /// <see cref="ProjectionOptions.UseInlineProjections"/> to <c>false</c> to keep the
+    /// registration but stop the inline dispatch.
+    /// </para>
+    /// </remarks>
     /// <example>
     /// <code>
-    /// services.AddEncinaMarten(options =>
-    /// {
-    ///     options.Projections.Enabled = true;
-    /// });
-    ///
+    /// services.AddEncinaMarten();
     /// services.AddProjection&lt;OrderSummaryProjection, OrderSummary&gt;();
     /// </code>
     /// </example>
@@ -174,15 +197,19 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddProjectionInfrastructure();
+        services.TryAddScoped<IInlineProjectionDispatcher, MartenInlineProjectionDispatcher>();
+
         // Register the projection type
         services.TryAddScoped<TProjection>();
 
         // Register the specific read model repository
         services.TryAddScoped<IReadModelRepository<TReadModel>, MartenReadModelRepository<TReadModel>>();
 
-        // Add to registry - we need to do this at startup time
-        services.AddSingleton<IProjectionRegistrar>(sp =>
-            new ProjectionRegistrar<TProjection, TReadModel>());
+        // The registry picks every registrar up when it is first resolved. TryAddEnumerable keys on
+        // the implementation type, so registering the same pair twice cannot double-apply its handlers.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IProjectionRegistrar, ProjectionRegistrar<TProjection, TReadModel>>());
 
         return services;
     }

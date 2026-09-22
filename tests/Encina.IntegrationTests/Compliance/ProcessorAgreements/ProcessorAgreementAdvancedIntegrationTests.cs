@@ -303,7 +303,7 @@ public sealed class ProcessorAgreementAdvancedIntegrationTests
         requestContext.CorrelationId.Returns(Guid.NewGuid().ToString());
         services.AddScoped<IRequestContext>(_ => requestContext);
 
-        services.AddScoped<IRequestHandler<PipelineTestCommand, int>, PipelineTestHandler>();
+        services.AddScoped<IRequestHandler<ValidDpaPipelineTestCommand, int>, ValidDpaPipelineTestHandler>();
         services.AddScoped<IRequestHandler<NoPipelineTestCommand, int>, NoPipelineTestHandler>();
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
@@ -312,31 +312,25 @@ public sealed class ProcessorAgreementAdvancedIntegrationTests
             ValidateOnBuild = false
         });
 
-        // Register a processor and execute DPA
-        Guid processorId;
-        using (var scope = provider.CreateScope())
-        {
-            var ps = scope.ServiceProvider.GetRequiredService<IProcessorService>();
-            processorId = (await ps.RegisterProcessorAsync(
-                "PipelineProc", "DE", null, null, 0, SubProcessorAuthorizationType.Specific))
-                .Match(id => id, _ => throw new InvalidOperationException());
-        }
-
+        // Execute a DPA for the processor the command declares in [RequiresProcessor]: the pipeline
+        // behavior reads the id from the attribute, not from the request payload
+        var processorId = ValidDpaPipelineTestCommand.ProcessorId;
         using (var scope = provider.CreateScope())
         {
             var ds = scope.ServiceProvider.GetRequiredService<IDPAService>();
-            await ds.ExecuteDPAAsync(
+            var executed = await ds.ExecuteDPAAsync(
                 processorId, FullyCompliantTerms(), false,
                 ["processing"], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddYears(2));
+            executed.IsRight.ShouldBeTrue($"ExecuteDPAAsync should succeed: {executed}");
         }
 
         // Act — send command requiring processor validation
         using var actScope = provider.CreateScope();
         var encina = actScope.ServiceProvider.GetRequiredService<IEncina>();
-        var result = await encina.Send(new PipelineTestCommand(processorId.ToString()));
+        var result = await encina.Send(new ValidDpaPipelineTestCommand());
 
         // Assert — should succeed because DPA is valid
-        result.IsRight.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue($"the request should pass processor validation: {result}");
         result.IfRight(v => v.ShouldBe(42));
     }
 
@@ -575,6 +569,20 @@ public sealed class ProcessorAgreementAdvancedIntegrationTests
     private sealed class PipelineTestHandler : IRequestHandler<PipelineTestCommand, int>
     {
         public Task<Either<EncinaError, int>> Handle(PipelineTestCommand request, CancellationToken cancellationToken)
+            => Task.FromResult(Right<EncinaError, int>(42));
+    }
+
+    // Own processor id so the DPA this command needs never leaks into the "without DPA" test,
+    // which shares the same PostgreSQL container.
+    [RequiresProcessor(ProcessorId = "00000000-0000-0000-0000-000000000002")]
+    private sealed record ValidDpaPipelineTestCommand : IRequest<int>
+    {
+        public static readonly Guid ProcessorId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+    }
+
+    private sealed class ValidDpaPipelineTestHandler : IRequestHandler<ValidDpaPipelineTestCommand, int>
+    {
+        public Task<Either<EncinaError, int>> Handle(ValidDpaPipelineTestCommand request, CancellationToken cancellationToken)
             => Task.FromResult(Right<EncinaError, int>(42));
     }
 

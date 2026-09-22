@@ -493,6 +493,8 @@ public sealed class BreachNotificationAdvancedIntegrationTests
         {
             options.EnforcementMode = BreachDetectionEnforcementMode.Block;
             options.NotificationDeadlineHours = 48;
+            // Alert thresholds must stay below the deadline (the validator rejects the default 48h entry).
+            options.AlertAtHoursRemaining = [24, 12, 6, 1];
             options.AutoNotifyOnHighSeverity = true;
         });
 
