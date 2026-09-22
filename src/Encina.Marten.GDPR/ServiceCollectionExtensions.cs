@@ -114,6 +114,7 @@ public static class ServiceCollectionExtensions
 
         // Configure Marten to wrap the serializer with CryptoShredderSerializer
         services.AddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenCryptoShredding>();
+        services.AddEncinaMartenStoreOptionsBridge();
 
         // Conditional: health check
         if (optionsInstance.AddHealthCheck)
