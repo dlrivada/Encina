@@ -124,37 +124,37 @@ internal sealed partial class ConfigureMartenEventMetadata : IConfigureOptions<S
     private static partial class Log
     {
         [LoggerMessage(
-            EventId = 3210,
+            EventId = 2650,
             Level = LogLevel.Debug,
             Message = "Event metadata tracking is disabled")]
         public static partial void MetadataTrackingDisabled(ILogger logger);
 
         [LoggerMessage(
-            EventId = 3211,
+            EventId = 2651,
             Level = LogLevel.Debug,
             Message = "Correlation ID tracking enabled for event metadata")]
         public static partial void CorrelationIdEnabled(ILogger logger);
 
         [LoggerMessage(
-            EventId = 3212,
+            EventId = 2652,
             Level = LogLevel.Debug,
             Message = "Causation ID tracking enabled for event metadata")]
         public static partial void CausationIdEnabled(ILogger logger);
 
         [LoggerMessage(
-            EventId = 3213,
+            EventId = 2653,
             Level = LogLevel.Debug,
             Message = "Event headers storage enabled for custom metadata")]
         public static partial void HeadersEnabled(ILogger logger);
 
         [LoggerMessage(
-            EventId = 3214,
+            EventId = 2654,
             Level = LogLevel.Debug,
             Message = "Configured {HeaderCount} custom headers for event metadata")]
         public static partial void CustomHeadersConfigured(ILogger logger, int headerCount);
 
         [LoggerMessage(
-            EventId = 3215,
+            EventId = 2655,
             Level = LogLevel.Information,
             Message = "Event metadata tracking configured: CorrelationId={CorrelationIdEnabled}, CausationId={CausationIdEnabled}, Headers={HeadersEnabled}")]
         public static partial void MetadataTrackingConfigured(
