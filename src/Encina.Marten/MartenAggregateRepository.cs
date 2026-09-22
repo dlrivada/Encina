@@ -170,6 +170,11 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             // uncommitted events (RaiseEvent increments it), so it is exactly that number. If
             // another process appended to the stream since we loaded it, SaveChangesAsync throws
             // a concurrency exception that we catch below.
+            //
+            // Marten 9 defaults to EventAppendMode.QuickWithServerTimestamps. The expected-version
+            // check is still enforced under that default (a stale append fails with a concurrency
+            // exception and the stream keeps only the first writer's events); this is pinned by
+            // MartenAggregateRepositoryIntegrationTests.SaveAsync_StreamModifiedByAnotherSession_ReturnsConcurrencyConflict.
             _session.Events.Append(aggregate.Id, aggregate.Version, uncommittedEvents.ToArray());
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
