@@ -1,4 +1,8 @@
-## [Unreleased] - v0.13.0 - Security & Compliance
+## [Unreleased]
+
+_Nothing yet. The 0.13.0 checkpoint below closes the pre-1.0 consolidation; the next minor versions each close one 1.0 block (SPEC-000 DEC-005)._
+
+## [0.13.0] - 2026-09-22 - Security & Compliance
 
 ### Security
 
