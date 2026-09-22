@@ -151,6 +151,37 @@
     return;
   }
 
+  // ── Citations (SPEC-001): cov:<Package>/<path> → ["file:line", ...] ──
+  // Optional: the dashboard works without it (first publish, or cited-by.json missing).
+  let citedBy = {};
+  try {
+    const res = await fetch('data/cited-by.json');
+    citedBy = res.ok ? await res.json() : {};
+  } catch { citedBy = {}; }
+
+  // Every documentation location that cites any file of the package, de-duplicated.
+  function citationsForPackage(pkgName) {
+    const prefix = `cov:${pkgName}/`;
+    const locations = new Set();
+    for (const [docRef, locs] of Object.entries(citedBy)) {
+      if (docRef.startsWith(prefix)) for (const loc of locs) locations.add(loc);
+    }
+    return [...locations].sort();
+  }
+
+  function citationsHtml(locations) {
+    if (locations.length === 0) {
+      return '<span class="na" title="No documentation cites this package">—</span>';
+    }
+    return locations.map(loc => {
+      const colon = loc.lastIndexOf(':');
+      const file = colon > 0 ? loc.substring(0, colon) : loc;
+      const line = colon > 0 ? loc.substring(colon + 1) : '';
+      const url = `https://github.com/dlrivada/Encina/blob/main/${file}#L${line}`;
+      return `<a href="${url}" target="_blank" rel="noopener" title="${loc}">${file.split('/').pop()}:${line}</a>`;
+    }).join('<br>');
+  }
+
   // ── Overall ─────────────────────────────────────────────────────────
   const ts = new Date(data.timestamp);
   document.getElementById('timestamp').textContent =
@@ -296,6 +327,8 @@
       }
 
       const tr = document.createElement('tr');
+      // Anchor targeted by the dashboardUrl of every coverage DocRef (#pkg-<Package>).
+      tr.id = `pkg-${pkg.name}`;
       tr.innerHTML = `
         <td class="pkg-name" data-pkg="${pkg.name}">${pkg.name}</td>
         ${flagGroup('unit')}
@@ -306,12 +339,25 @@
         <td class="pct ${showLines ? (allFlagsMeetTarget ? 'flag-pass' : 'flag-fail') : ''}">${showLines ? Math.round(pkg.coverage * pkg.lines / 100).toLocaleString() : pkg.coverage + '%'}</td>
         <td class="${gapClass}">${showLines ? gapLines : gapStr}</td>
         <td>${barHtml(pkg.coverage, effectiveTarget, !allFlagsMeetTarget)}</td>
-        <td class="num">${pkg.lines.toLocaleString()}</td>`;
+        <td class="num">${pkg.lines.toLocaleString()}</td>
+        <td class="cited-in">${citationsHtml(citationsForPackage(pkg.name))}</td>`;
       pkgBody.appendChild(tr);
     }
   }
 
   renderPackages();
+
+  // Deep link from a covref table (dashboardUrl = .../coverage/#pkg-<Package>): the rows are
+  // rendered after load, so the browser's own anchor jump happened before they existed.
+  function scrollToHashedPackage() {
+    if (!location.hash.startsWith('#pkg-')) return;
+    const row = document.getElementById(decodeURIComponent(location.hash.substring(1)));
+    if (!row) return;
+    row.classList.add('pkg-highlight');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  scrollToHashedPackage();
+  window.addEventListener('hashchange', scrollToHashedPackage);
 
   // ── Untracked packages warning ────────────────────────────────────
   if (data.untrackedPackages?.length > 0) {

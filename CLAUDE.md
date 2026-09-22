@@ -166,7 +166,7 @@ Run: `dotnet run append-api.cs`
 
 > **Note**: Oracle was removed from pre-1.0 scope due to disproportionate maintenance cost. See [ADR-009](docs/architecture/adr/009-remove-oracle-provider-pre-1.0.md) for details. Oracle code is preserved in `.backup/oracle/` for potential future restoration.
 >
-> **Note**: SQLite was removed from the supported provider matrix. It lacks features required for production use (proper DateTime/DateTimeOffset handling, concurrent write access, distributed scenarios). Source packages (`Encina.ADO.Sqlite`, `Encina.Dapper.Sqlite`) remain in the codebase but are not tested or guaranteed.
+> **Note**: SQLite was removed from the supported provider matrix. It lacks features required for production use (proper DateTime/DateTimeOffset handling, concurrent write access, distributed scenarios). The SQLite packages were moved to `.backup/` ([ADR-024](docs/architecture/adr/024-remove-sqlite-provider-pre-1.0.md)) and are not built, tested or guaranteed.
 
 **When this rule applies:**
 
@@ -613,6 +613,8 @@ Maintain high-quality test coverage that balances thoroughness with development 
 3. **Coverage report** (`coverage-report.cs`): For each source file, counts coverable lines **per flag independently**. The number of coverable lines differs per flag because each test type exercises different code paths — POCO properties, infrastructure glue, business rules, and guard clauses have different coverability per test type. For a file with flags U+G+C, the obligations are A+B+C where A, B, C are the coverable lines for each flag (NOT the same value repeated). Example: a file might have 200 unit-coverable lines, 150 guard-coverable lines, and 80 contract-coverable lines = 430 total obligations.
 
 4. **Dashboard** (`dlrivada.github.io/Encina/coverage/`): Shows per-package per-flag coverage. A package is "green" only when ALL applicable flags reach their targets.
+
+5. **Citations** (SPEC-001): documentation never types coverage percentages by hand. It cites `cov:<Package>/<path>.cs` with `<!-- covref-table: glob -->` / `<!-- covref: id:field -->` markers, which `cov-docs-render.cs` expands on every Publish Coverage run from `coverage/data/docref-index.json`. The `coverage-citations` job of `ci.yml` fails a PR that cites a file or field that does not exist. Convention and fields: [coverage methodology, DocRef convention](docs/testing/coverage-measurement-methodology.md#docref-convention).
 
 **CRITICAL RULE — Tests must execute real package code:**
 

@@ -481,9 +481,35 @@ jobs:
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
   # by change detection, and fails only if a job it depends on failed or was cancelled.
+  # SPEC-001 (REQ-005): every cov: citation in docs/ and src/ must resolve against this tree's
+  # coverage manifests and source files. Runs on every PR, docs-only included, needs no build
+  # and no coverage data, and does not depend on GitHub Pages.
+  coverage-citations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Check coverage citations for dangling DocRefs
+        run: |
+          dotnet run .github/scripts/cov-docs-render.cs -- \
+            --check-dangling \
+            --docs-root docs \
+            --scan-roots src \
+            --manifest-dir .github/coverage-manifest \
+            --src-root src
+
   ci-result:
     name: ci-result
-    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers]
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, coverage-citations]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

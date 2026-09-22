@@ -10,6 +10,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 
@@ -482,6 +483,14 @@ File.WriteAllText(Path.Combine(outputDir, "encina-coverage-summary.json"),
     JsonSerializer.Serialize(jsonData, jsonOptions));
 Console.WriteLine($"  JSON:     {Path.Combine(outputDir, "encina-coverage-summary.json")}");
 
+// 2b. DocRef index for coverage citations (SPEC-001, REQ-002/REQ-003).
+//     IDs come from the manifests, not from the Cobertura output, so a file keeps its ID
+//     when a partial run produced no data for it; missing data is flagged with noData.
+var docRefIndex = BuildDocRefIndex(manifest, manifestTargets, coverageByFlag, DateTime.UtcNow.ToString("o"));
+File.WriteAllText(Path.Combine(outputDir, "docref-index.json"),
+    docRefIndex.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+Console.WriteLine($"  DocRef:   {Path.Combine(outputDir, "docref-index.json")} ({docRefIndex.Count} entries)");
+
 // 3. Badge JSON (shields.io endpoint format)
 var badgeColor = overallPct switch
 {
@@ -511,6 +520,96 @@ Console.WriteLine($"  HTML:     {Path.Combine(outputDir, "index.html")}");
 Console.WriteLine("\nDone.");
 
 // ─── Helper functions ────────────────────────────────────────────────────────
+
+// Builds docref-index.json: one entry per manifest file with at least one applicable flag,
+// keyed "cov:<Package>/<path-in-package>". Per flag, noData is true when the run produced no
+// Cobertura data for that file under that flag (no report for the flag, or the file absent
+// from it); such flags carry null totals and are excluded from the file-level obligations,
+// exactly as the package aggregation above excludes them. File-level noData is true only
+// when every applicable flag has noData.
+static JsonObject BuildDocRefIndex(
+    Dictionary<string, Dictionary<string, TestType>> manifest,
+    Dictionary<string, Dictionary<string, double>> manifestTargets,
+    Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag,
+    string lastRun)
+{
+    TestType[] flagOrder = [TestType.Unit, TestType.Guard, TestType.Contract, TestType.Property, TestType.Integration];
+    var index = new JsonObject();
+
+    foreach (var (package, files) in manifest.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+    {
+        manifestTargets.TryGetValue(package, out var targets);
+
+        foreach (var (key, applicable) in files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            if (applicable == TestType.None) continue;
+
+            var relPath = key.Replace('\\', '/');
+            var sourcePath = $"src/{package}/{relPath}";
+
+            // A manifest entry whose file no longer exists is stale, not citable (REQ-003).
+            if (!File.Exists(sourcePath)) continue;
+            var flags = new JsonArray();
+            var perFlag = new JsonObject();
+            int obligations = 0, met = 0;
+            var anyData = false;
+
+            foreach (var flag in flagOrder)
+            {
+                if (!applicable.HasFlag(flag)) continue;
+
+                var flagName = flag.ToString().ToLowerInvariant();
+                flags.Add(JsonValue.Create(flagName));
+                double? target = targets is not null && targets.TryGetValue(flagName, out var t) ? t : null;
+
+                if (coverageByFlag.TryGetValue(flag, out var flagData) &&
+                    flagData.TryGetValue(sourcePath, out var lines))
+                {
+                    var total = lines.Count;
+                    var covered = lines.Values.Count(h => h > 0);
+                    obligations += total;
+                    met += covered;
+                    anyData = true;
+                    perFlag[flagName] = new JsonObject
+                    {
+                        ["total"] = total,
+                        ["covered"] = covered,
+                        ["coverage"] = total > 0 ? Math.Round(covered * 100.0 / total, 2) : 0,
+                        ["target"] = target,
+                        ["noData"] = false
+                    };
+                }
+                else
+                {
+                    perFlag[flagName] = new JsonObject
+                    {
+                        ["total"] = null,
+                        ["covered"] = null,
+                        ["coverage"] = null,
+                        ["target"] = target,
+                        ["noData"] = true
+                    };
+                }
+            }
+
+            index[$"cov:{package}/{relPath}"] = new JsonObject
+            {
+                ["package"] = package,
+                ["path"] = sourcePath,
+                ["coverage"] = obligations > 0 ? Math.Round(met * 100.0 / obligations, 2) : 0,
+                ["obligations"] = obligations,
+                ["metObligations"] = met,
+                ["flags"] = flags,
+                ["noData"] = !anyData,
+                ["perFlag"] = perFlag,
+                ["lastRun"] = lastRun,
+                ["dashboardUrl"] = $"https://dlrivada.github.io/Encina/coverage/#pkg-{package}"
+            };
+        }
+    }
+
+    return index;
+}
 
 string FlagPct(PackageCoverage pkg, TestType flag)
 {
