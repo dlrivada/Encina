@@ -24,9 +24,10 @@
 
 ## Areas
 
-## Core pipeline and results
+### Core pipeline and results
 
 #### Decisions
+
 - High-priority duplicated files were centralized to reduce duplication from approximately 11% to 1.7%. (#20)
 - EncinaError details were changed from object? to IReadOnlyDictionary<string, object?> to improve type safety and maintainability before version 1.0. (#34)
 - Authorization is handled by integrating with ASP.NET Core infrastructure to add ROP semantics on top of native policies rather than replacing the existing system. (#356)
@@ -44,11 +45,13 @@
 - Core ID generation abstractions return Railway Oriented Programming types to handle errors consistently. (#638)
 
 #### Rules the project committed to
+
 - The IDomainService marker interface is defined identically to the specification in issue #377. (#473)
 - Time-dependent code must use an injected TimeProvider instead of direct DateTime.UtcNow calls to ensure deterministic testing. (#543)
 - Encina enforces Railway Oriented Programming by using Either<EncinaError, T> instead of exceptions for business logic failures. (#669, #671)
 
 #### Alternatives considered and rejected
+
 - Using Option<object> for empty details was rejected in favor of returning an empty dictionary for consistency. (#34)
 - Custom [AuthorizeRoles] and [AuthorizeClaim] attributes were rejected because they duplicate existing ASP.NET Core functionality and create a maintenance burden. (#356)
 - External policy engines like Casbin were rejected to avoid adding external dependencies and complexity. (#356)
@@ -57,13 +60,14 @@
 - Unreachable defensive throws in Either matches were replaced with direct casting or restructured MatchAsync calls. (#672, #675)
 
 #### Things learned the hard way
+
 - Guard clauses convert deep NullReferenceExceptions into earlier ArgumentNullExceptions at the call site. (#33)
 - LanguageExt's Match method does not allow null return values, which can cause crashes if a pipeline behavior returns Left before the handler executes. (#120)
 - Either<T1, T2> is not covariant, preventing direct assignment to Either<EncinaError, object> and requiring explicit property access. (#520)
 - IEncina.Send uses a single generic parameter, requiring reflection to match MakeGenericMethod with one type argument. (#520)
 - LanguageExt's Match method throws ResultIsNullException if a branch returns null, even for Left branches. (#674)
 
-## Messaging patterns and transports
+### Messaging patterns and transports
 
 #### Decisions
 
@@ -107,9 +111,10 @@
 - SQLite datetime format incompatibility can cause scheduled message reschedule tests to fail, requiring specific handling or skipping in property-based tests. (#9)
 - Scheduled messages could be stored but never executed because the ScheduledMessageProcessor background service was missing from the Encina.Messaging core. (#765)
 
-## Data access and database providers
+### Data access and database providers
 
 #### Decisions
+
 - Store implementations retain intentional duplication to maintain provider independence and avoid cross-provider dependencies. (#12)
 - Generic repositories use Railway Oriented Programming with `Either<EncinaError, T>` for functional error handling. (#279, #287)
 - Core repository abstractions reside in `Encina.DomainModeling`, separate from provider-specific implementations. (#279)
@@ -142,6 +147,7 @@
 - `TransactionPipelineBehavior` must use `DbConnection.OpenAsync` and `BeginTransactionAsync` instead of synchronous counterparts. (#794)
 
 #### Rules the project committed to
+
 - The Oracle provider is excluded from pre-1.0 scope, leaving 13 supported providers for this feature. (#286)
 - All 13 database providers must implement the connection pool monitoring and resilience abstractions. (#290)
 - A multi-provider rule requires all database features to be implemented across all supported providers to ensure parity. (#536)
@@ -149,6 +155,7 @@
 - Database provider implementations must use async overloads accepting `CancellationToken` to satisfy S6966. (#897)
 
 #### Alternatives considered and rejected
+
 - `TransactionScope` was rejected due to issues with async code and distributed transactions. (#281)
 - Event sourcing was rejected for simple soft delete scenarios due to significant added complexity. (#285)
 - Pessimistic locking was rejected in favor of optimistic concurrency to maintain throughput and avoid deadlocks. (#287)
@@ -166,6 +173,7 @@
 - Dapper DTO unused member warnings (S1144/S3459) are treated as false positives and suppressed rather than refactored. (#896)
 
 #### Things learned the hard way
+
 - Provider-specific SQL scripts must use native data types (e.g., `VARCHAR2`, `TEXT`) and syntax, as copy-pasting from SQL Server causes failures. (#2)
 - Oracle requires `BindByName = true` for ADO and Dapper stores to handle positional binding correctly. (#270)
 - Oracle stores GUIDs as `RAW(16)`, requiring specific byte array conversion for Dapper and ADO. (#270)
@@ -175,37 +183,45 @@
 - `IDbConnection.Open()` is the only blocking call in the codebase and causes ThreadPool starvation under high concurrency. (#794)
 
 #### Changes of direction
+
 - Research on cursor-based pagination was consolidated with implementation tracking in a separate issue to unify efforts. (#294)
 - SQLite was removed from the supported provider matrix before 1.0, invalidating SQLite-specific distributed lock implementations. (#608)
 - The CDC abstraction was implemented as `ICdcConnector` with `IAsyncEnumerable` streaming rather than the proposed `IChangeDataCapture` interface. (#621)
 - Oracle provider was removed from the pre-1.0 scope, reducing the provider count from 16 to 13 for testing purposes. (#537)
 
 #### No longer applicable
+
 - Types such as `SagaStatus` and `OutboxMessage` were moved from `Encina.Messaging` to `Encina.EntityFrameworkCore`, causing compilation errors in test helpers that referenced old namespaces. (#116)
 
-## Caching
+### Caching
 
 #### Decisions
+
 - Cache invalidation is automatic and targeted by extracting entity types from SQL commands. (#291)
 - Cache invalidation uses a generic IChangeEventHandler<JsonElement> to process CDC events without requiring typed entity registration for every table. (#632)
 - Secrets caching uses ICacheProvider with PubSub-based invalidation to ensure cross-instance consistency, replacing the previous IMemoryCache implementation. (#694)
 
 #### Rules the project committed to
+
 - Caching pipeline behaviors are centralized in Encina.Caching, with providers implementing only ICacheProvider interfaces. (#13)
 
 #### Alternatives considered and rejected
+
 - The third-party EFSecondLevelCache.Core library was rejected to avoid external dependencies and ensure integration with Encina abstractions. (#291)
 
 #### Things learned the hard way
+
 - ConcurrentDictionary.GetOrAlloc always allocates the factory delegate even on cache hits, so TryGetValue should be checked first on hot paths. (#49)
 - CDC table names do not always match EF Core CLR type names, requiring explicit table-to-entity-type mappings for cache key generation. (#632)
 
 #### No longer applicable
+
 - The project consolidated cache stampede prevention work into issue #266 rather than implementing the specific strategies proposed in #140. (#140)
 
-## Event sourcing and Marten
+### Event sourcing and Marten
 
 #### Decisions
+
 - Encina.EventStoreDB was deprecated and excluded from feature implementations in favor of Encina.Marten to leverage existing PostgreSQL infrastructure (#17, #321).
 - CQRS read-side abstractions were planned to support multi-provider integration including Marten and EventStoreDB (#36).
 - Event versioning will use an IEventUpcaster interface integrated with provider-specific versioning like Marten (#37).
@@ -224,22 +240,26 @@
 - Marten projections must inject dependencies via IDocumentOperations and constructor injection rather than IServiceProvider to pass validation (#949).
 
 #### Rules the project committed to
+
 - Event-sourced events must implement INotification to enable automatic publishing via the EventPublishingPipelineBehavior (#412).
 - InMemory stores are obsolete in event-sourced compliance modules and must be deleted, with unit tests mocking IAggregateRepository instead (#777).
 - InMemory retention stores must be deleted after event sourcing migration, and unit tests must mock IAggregateRepository via NSubstitute (#783).
 - InMemory DataResidency stores are obsolete and deleted, and tests must use Marten with PostgreSQL via Docker or Testcontainers for persistence validation (#784).
 
 #### Alternatives considered and rejected
+
 - EventStoreDB was rejected because it requires dedicated infrastructure and JavaScript projections, unlike Marten's native .NET support (#17).
 - Using Marten's AggregateBase for all scenarios was rejected because it is specific to event sourcing and lacks state-based persistence features (#370).
 - An external event store sidechannel was rejected because it adds complexity and diverges from the aggregate root pattern (#569).
 - Entity-based persistence across 13 providers was rejected for compliance modules because it cannot provide an immutable audit trail (#776).
 
 #### Things learned the hard way
+
 - Marten's AggregateStreamAsync does not increment AggregateBase.Version during replay, which causes concurrency errors if not manually synced (#818).
 - Unit tests calling projection.Create directly bypass Marten's projection graph validation, hiding invalid signature errors (#949).
 
 #### Changes of direction
+
 - Event Sourcing requires a Strategy pattern rather than a simple Orchestrator/Provider pattern due to fundamental differences between EventStoreDB and Marten (#15).
 - The project supports immutable domain models by preserving events during copy operations rather than requiring mutable entities (#569).
 - The Consent module was migrated to Marten event sourcing (#403).
@@ -250,7 +270,7 @@
 - The DPIA module was migrated to Marten event sourcing (#409).
 - The ProcessorAgreements module was migrated to Marten event sourcing (#410).
 
-## Validation
+### Validation
 
 #### Decisions
 
@@ -271,9 +291,10 @@
 - CustomValidationAttribute requires the target type to be public, so internal types will fail validation context enrichment tests. (#10)
 - A breaking change was introduced by removing specific validation behaviors from satellite packages, such as Encina.FluentValidation.ValidationPipelineBehavior. (#229)
 
-## Observability, health checks and logging
+### Observability, health checks and logging
 
 #### Decisions
+
 - The project mandates the use of LoggerMessage source generators for high-performance logging instead of standard extension method overloads. (#3)
 - Health checks are abstracted via IEncinaHealthCheck with a base class handling exceptions and specific checks for outbox, inbox, saga, and scheduling. (#35)
 - An adapter class maps IEncinaHealthCheck to the standard ASP.NET Core IHealthCheck interface for integration. (#35)
@@ -283,16 +304,19 @@
 - EventId collision prevention is handled by a central registry and architecture test rather than manual fixes. (#828, #829)
 
 #### Rules the project committed to
+
 - All infrastructure providers must support health checks with configurable timeouts and tags to allow for differentiated monitoring and alerting strategies. (#113)
 
 #### Alternatives considered and rejected
+
 - Roslyn Analyzers and Source Generators were rejected for EventId enforcement due to inability to share state or stability issues. (#829)
 
 #### Things learned the hard way
+
 - Log filtering by EventId is unreliable if modules share ranges, making production diagnostics ambiguous for overlapping IDs. (#828)
 - .NET 10 introduces ambiguous overloads for Counter.Add and Histogram.Record with KeyValuePair parameters, requiring explicit TagList or array wrappers. (#867)
 
-## Resilience
+### Resilience
 
 #### Decisions
 
@@ -305,9 +329,10 @@
 
 - Cached secrets are served from the last-known-good value when the vault is unavailable, bounded by a configurable MaxStaleDuration with a default of 1 hour. (#743)
 
-## Security and regulatory compliance
+### Security and regulatory compliance
 
 #### Decisions
+
 - Audit trail functionality is implemented in the existing Encina.Security.Audit package rather than a new Encina.Auditing package (#351).
 - Field encryption uses AES-256-GCM with the serialization format ENC:v1:{Algorithm}:{KeyId}:{Nonce}:{Tag}:{Ciphertext} (#396).
 - ISecretProvider was split into ISecretReader, ISecretWriter, and ISecretRotator to satisfy the Interface Segregation Principle for read-only providers (#400, #452).
@@ -332,6 +357,7 @@
 - The documented REST contract for HttpAttestationProvider requires POST /attest and GET /receipt/{attestationId} (#862).
 
 #### Rules the project committed to
+
 - Feature-specific stores must be placed in subfolders named after the feature, not the source package (#413).
 - NIS2 incident notification follows a 4-phase timeline: 24h early warning, 72h incident, interim on request, and 1mo final (#414).
 - EF Core audit storage uses a single implementation supporting all 4 SQL providers via IEncinaDbContext (#574).
@@ -340,6 +366,7 @@
 - Options classes exposing sensitive properties must use [JsonIgnore] and override ToString() to prevent leaks (#851).
 
 #### Alternatives considered and rejected
+
 - Event Sourcing was rejected as the primary audit mechanism because it is overkill for CRUD applications and requires architectural commitment (#395).
 - JWT was rejected for request integrity because it is designed for authentication and does not naturally include request path/method in the signature (#398).
 - Relying solely on Razor's built-in encoding was rejected because it does not cover API responses or database storage contexts (#399).
@@ -351,15 +378,17 @@
 - Using native IConfiguration secret providers was rejected because they only support reading secrets, lacking write, delete, or list capabilities (#603).
 
 #### Things learned the hard way
+
 - Using an ephemeral HMAC key in HashChainAttestationProvider causes silent evidence loss on process restart, so a startup warning is required (#902).
 
 #### No longer applicable
+
 - The PII package implements the IPiiMasker interface from the audit package to replace the default NullPiiMasker (#397).
 
-## Modules, tenancy and sharding
+### Modules, tenancy and sharding
 
-```markdown
 #### Decisions
+
 - Module lifecycle hooks execute in registration order for startup and in reverse (LIFO) order for shutdown. (#57)
 - Module-scoped behaviors are filtered by mapping handler types to owning modules via assembly association rather than direct registration. (#58)
 - Multi-tenancy is implemented via a dedicated Encina.Tenancy package for core abstractions and middleware. (#282)
@@ -384,6 +413,7 @@
 - Time-based sharding uses a four-tier lifecycle (Hot, Warm, Cold, Archived) with automatic transitions. (#650)
 
 #### Rules the project committed to
+
 - Reference table replication uses XxHash64 for deterministic content hashing to detect changes. (#639)
 - Cross-shard AVG aggregation must use two-phase logic (sum/count) to avoid mathematical errors from uneven shard sizes. (#640)
 - Sharded CDC position tracking must use a composite key of shardId and connectorId to prevent data loss. (#646)
@@ -392,6 +422,7 @@
 - Shadow writes must be fire-and-forget to ensure they never block or delay production responses. (#649)
 
 #### Alternatives considered and rejected
+
 - Row Level Security was considered but rejected for being database-specific and complex to manage. (#282)
 - Database-level sharding solutions like Citus or Vitess were rejected to maintain portability. (#289)
 - AutoMapper was rejected for ACLs because it handles property mapping but not the business logic and validation required for domain isolation. (#363)
@@ -401,25 +432,29 @@
 - Manual string concatenation for shard keys was rejected due to brittleness and lack of partial key routing. (#641)
 
 #### Things learned the hard way
+
 - Time-based shard boundary calculations must be ISO 8601-compliant to handle period rollovers correctly. (#650)
 
 #### No longer applicable
-- MySQL Module Isolation tests are skipped due to pending Pomelo v10 support for the database-per-module simulation. (#548)
-```
 
-## Web, APIs and cloud hosting
+- MySQL Module Isolation tests are skipped due to pending Pomelo v10 support for the database-per-module simulation. (#548)
+
+### Web, APIs and cloud hosting
 
 #### Decisions
+
 - API versioning is handled at the HTTP/Controller layer using Asp.Versioning rather than introducing version-aware routing for internal CQRS handlers. (#54)
 - Activity results are wrapped in a serializable type to ensure compatibility with Durable Functions JSON serialization constraints. (#61)
 - Cursor pagination uses a layered architecture to support both flat REST results and GraphQL Relay spec connections. (#336)
 
 #### Alternatives considered and rejected
+
 - A custom Encina.OpenApi package was rejected because .NET 10 native OpenAPI capabilities provide sufficient functionality without extra maintenance. (#48)
 
-## Testing and the quality system
+### Testing and the quality system
 
 #### Decisions
+
 - The project extended the existing Encina.Testing.Bogus package rather than creating a separate Encina.Testing.DataGeneration package for domain model faker support. (#161)
 - Encina.Testing.Testcontainers was designed with a minimal API surface that manages only container lifecycle and exposes connection strings. (#162)
 - Encina.Testing.WireMock was extended to include IAsyncLifetime implementation and an EncinaRefitMockFixture for Refit client testing. (#164)
@@ -452,6 +487,7 @@
 - Mutation testing runs all 17 source folders in parallel as a matrix job to ensure weekly data freshness for all shards. (#1028)
 
 #### Rules the project committed to
+
 - Messaging pattern test helpers must follow the Given/When/Then pattern established by AggregateTestBase. (#169)
 - Encina must use Shouldly for testing assertions to maintain a fully open-source friendly license. (#495)
 - Dogfooding refactors must replace direct assertions with EitherAssertions and manual setup with EncinaTestFixture. (#498)
@@ -462,6 +498,7 @@
 - Test projects must reference standardized Encina.Testing.* wrapper packages instead of raw libraries like FluentAssertions or Bogus. (#1023)
 
 #### Alternatives considered and rejected
+
 - PITest was rejected because it is Java-only and not applicable to .NET. (#172)
 - OpenAPI/Swagger validation was rejected as a standalone solution because static schemas miss runtime behavior and state-dependent responses. (#436)
 - Full migration to Aspire was rejected because it does not support Oracle, which is critical for enterprise customers. (#509)
@@ -469,6 +506,7 @@
 - Stryker perTest coverage analysis is unusable with xUnit v3 due to an upstream bug, forcing reliance on AllTests mode. (#962)
 
 #### Things learned the hard way
+
 - A .NET 10 JIT bug involving Conditional Escape Analysis causes CLR crashes with complex IAsyncEnumerable usage, fixable via the environment variable DOTNET_JitObjectStackAllocationConditionalEscape=0. (#5)
 - NSubstitute cannot verify calls to static LoggerMessage delegates, requiring the use of custom test loggers or side-effect verification. (#6)
 - The Encina.Testing.Verify package was already fully implemented with helpers like PrepareEither and EncinaErrorConverter before the related issue was closed. (#165)
@@ -485,17 +523,20 @@
 - Stryker.NET's 'solution' setting ignores the 'test-projects' allowlist, auto-discovering all test projects and causing phantom failures. (#957)
 
 #### Changes of direction
+
 - Integration tests for database features were required to use real databases via Testcontainers instead of justification documents. (#537)
 - Load testing scope was expanded from database features to core messaging, caching, and distributed locking, with specific brokers deferred to later milestones. (#550)
 
 #### No longer applicable
+
 - FsCheck 2.x APIs are not compatible with FsCheck 3.x, requiring migration or removal of legacy generator code. (#116)
 - MongoDB messaging store implementations exist in source but lacked integration test coverage, creating a parity gap with other providers. (#546)
 - MongoDB read/write separation testing requires a replica set infrastructure rather than a single node, unlike SQL providers. (#547)
 
-## CI, releases and repository process
+### CI, releases and repository process
 
 #### Decisions
+
 - A summary job named 'ci-result' aggregates CI outcomes, allowing branch protection to require a single check rather than all individual jobs. (#98)
 - GitHub Actions templates were selected over Azure DevOps to align with the broader user base of Encina contributors. (#173)
 - Domain vs Integration Events separation is consolidated into issue #312 as the primary tracking issue. (#470)
@@ -507,6 +548,7 @@
 - The 'Encina.Secrets.*' package family was identified as duplicates of 'Encina.Security.Secrets.*' and required cleanup to resolve naming conflicts. (#1089)
 
 #### Rules the project committed to
+
 - Load tests are excluded from the standard CI pipeline to prevent crashes caused by the upstream .NET 10 JIT bug. (#5)
 - Branch protection must apply to all users, including administrators, to ensure consistent enforcement of code quality and review requirements. (#98)
 - Required status checks in branch protection must accurately reflect existing CI workflow jobs to prevent blocking merges with non-existent or retired checks. (#98)
@@ -514,10 +556,12 @@
 - GitHub Actions workflow permissions must be scoped at the job level rather than workflow level for least privilege. (#896)
 
 #### Alternatives considered and rejected
+
 - A single mega-PR for all provider implementations was rejected due to its size making review difficult. (#536)
 - Using the full Encina.slnx for builds was rejected in favor of solution filters due to instability. (#496)
 
 #### Things learned the hard way
+
 - The SonarCloud quality gate can report as failed due to stale data if the build has been broken for an extended period. (#75)
 - Parallel MSBuild builds on the large Encina solution trigger intermittent Internal CLR error 0x80131506. (#496)
 - Missing PublicAPI.Unshipped.txt entries can hide compilation errors in dependent packages by preventing their build phase. (#867)
@@ -526,24 +570,29 @@
 - Projects can be intentionally excluded from the main solution file while still being built via ProjectReferences from test or integration projects. (#1089)
 
 #### Changes of direction
+
 - The comprehensive cross-cutting integration EPIC was superseded by smaller, milestone-specific EPICs (v0.13.5 through v0.19.0) to allow phased delivery. (#758)
 - Digital Omnibus preparation work is tracked under the v0.16.1 milestone Epic rather than a standalone issue. (#809)
 
 #### No longer applicable
+
 - The monolithic v0.13.0 security epic was split into per-milestone EPICs (v0.13.0, v0.13.4, v0.13.5, v0.13.6, v0.16.1, v0.16.2). (#668)
 - The issue was superseded by issue #820 which adopted proper project templates and labels. (#819)
 
-## Documentation and developer experience
+### Documentation and developer experience
 
 #### Decisions
+
 - The CLI tool is built using System.CommandLine 2.0.1 and Spectre.Console for argument parsing and output. (#47)
 - The project adopted a hybrid architecture where DocFX generates API references as flat HTML files that are integrated into the Jekyll-driven documentation site. (#91)
 - The project documentation site uses the just-the-docs Jekyll theme for navigation and layout. (#914)
 
 #### Rules the project committed to
+
 - DocFX configuration must explicitly exclude System and Microsoft namespaces and private members to prevent clutter and noise in the generated API reference. (#91)
 
 #### Things learned the hard way
+
 - Removing DocFX configuration for a Jekyll migration breaks the DocFX workflow if not explicitly reconfigured or removed, leaving the system in a state where no API docs are generated. (#91)
 - The ModuleArchitectureAnalyzer may detect false positive dependencies between file-scoped modules due to namespace proximity or implicit transitive dependencies. (#497)
 
