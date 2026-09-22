@@ -478,10 +478,7 @@ jobs:
   # CI-fast skips coverage to avoid partial data from skipped test jobs.
   # Coverage dashboard is updated only by CI Full (weekly/manual/release).
 
-  # Single required status check for branch protection (SPEC-000 DEC-006).
-  # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
-  # by change detection, and fails only if a job it depends on failed or was cancelled.
-  # SPEC-001 (REQ-005): every cov: citation in docs/ and src/ must resolve against this tree's
+  # SPEC-001 (REQ-005): every cov: citation in docs/, src/ and the root .md files must resolve against this tree's
   # coverage manifests and source files. Runs on every PR, docs-only included, needs no build
   # and no coverage data, and does not depend on GitHub Pages.
   coverage-citations:
@@ -507,6 +504,9 @@ jobs:
             --manifest-dir .github/coverage-manifest \
             --src-root src
 
+  # Single required status check for branch protection (SPEC-000 DEC-006).
+  # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
+  # by change detection, and fails only if a job it depends on failed or was cancelled.
   ci-result:
     name: ci-result
     needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, coverage-citations]

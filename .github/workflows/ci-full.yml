@@ -482,6 +482,12 @@ jobs:
           ENTRIES=$(jq 'length' "$INDEX")
           NODATA=$(jq '[.[] | select(.noData)] | length' "$INDEX")
           echo "Coverage DocRef index: $ENTRIES entries ($NODATA without data in this run)"
+          # The IDs come from the manifests, so an index where no file has data means the
+          # Cobertura collection failed, not that nothing is citable.
+          if [ "$ENTRIES" -eq "$NODATA" ]; then
+            echo "::error::Every entry of $INDEX has noData: no Cobertura report reached coverage-report.cs"
+            exit 1
+          fi
           {
             echo "### Coverage DocRef index"
             echo ""

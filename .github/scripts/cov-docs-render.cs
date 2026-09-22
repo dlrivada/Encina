@@ -1,32 +1,36 @@
-// cov-docs-render.cs — Auto-generate coverage tables in documentation
-//                      from the live coverage docref-index.json, replacing marker blocks.
+// cov-docs-render.cs — Coverage DocRef citations (SPEC-001): expands covref markers in documentation
+//                      from the live coverage docref-index.json, builds cited-by.json, and validates
+//                      citations without any index (--check-dangling).
 //
 // Usage:
-//   dotnet run .github/scripts/cov-docs-render.cs -- \
-//     --docref-index docs/coverage/data/docref-index.json \
-//     --docs-root docs \
-//     [--scan-roots .]   // additional roots to scan (e.g. src for per-package READMEs)
+//   Render (Publish Coverage):
+//     dotnet run .github/scripts/cov-docs-render.cs -- \
+//       --docref-index docs/coverage/data/docref-index.json \
+//       --docs-root docs [--scan-roots src] [--dry-run]
 //
-// Design notes (mirrors mut-docs-render.cs / perf-docs-render.cs — see coverage-measurement-methodology.md):
-// - Scans .md files under docs-root + scan-roots for marker blocks of the form:
-//     <!-- covref-table: cov:Encina/Sharding/Migrations/Strategies/* -->
-//     (existing content — will be replaced)
-//     <!-- /covref-table -->
-//   The pattern after "covref-table:" is a glob matched against DocRef IDs.
+//   Gate (ci.yml, every pull request):
+//     dotnet run .github/scripts/cov-docs-render.cs -- --check-dangling \
+//       --docs-root docs --scan-roots src \
+//       [--manifest-dir .github/coverage-manifest] [--src-root src]
 //
-// - Single-value inline markers:
-//     <!-- covref: cov:Encina/Sharding/.../Foo.cs:coverage -->
-//     (existing value — will be replaced)
-//     <!-- /covref -->
-//   This injects a single metric value inline in prose.
+// Markers (see docs/testing/coverage-measurement-methodology.md#docref-convention):
+//   <!-- covref-table: cov:Encina.Marten/Projections/* -->  (generated table)  <!-- /covref-table -->
+//   <!-- covref: cov:Encina.Marten/Foo.cs:coverage -->       (generated value)  <!-- /covref -->
+// Prose mentions such as "see cov:Encina.Marten/Foo.cs" are citations too (cited-by + gate).
 //
-// - Builds cited-by.json: reverse index DocRef -> citing locations
-//   (file:line). Includes citations from markers AND from free-form prose
-//   mentions like "see cov:Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs".
+// Scanned files: every .md under --docs-root and each --scan-roots entry, plus the .md files at the
+// repository root (README, CHANGELOG, CONTRIBUTING).
 //
-// - Hand-edited content OUTSIDE marker blocks is never touched.
-//
-// - coverage-report.cs generates docs/coverage/data/docref-index.json (SPEC-001).
+// Rules shared by render, cited-by and gate:
+// - Content inside fenced code blocks is literal. A fence closes only on the same character, at
+//   least as long as the opening run, with nothing after it (CommonMark), so ```` fences can hold
+//   ``` examples.
+// - Inline code spans (`...`) are literal too: markers and IDs quoted in them are neither
+//   expanded, cited nor validated.
+// - A marker block may not contain another covref opener: an unclosed opener is left untouched by
+//   the renderer (with a warning) and is an error for the gate, so hand-written text between an
+//   unclosed opener and a later closer is never swallowed (INV-001).
+// - Hand-edited content outside marker blocks is never modified.
 //
 // Requires: .NET 10+ (C# 14 file-based app)
 #pragma warning disable CA1305
@@ -58,273 +62,124 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--src-root" && i + 1 < args.Length) srcRoot = args[++i];
 }
 
-// ── Collect .md files from docs root and any extra scan roots ──────────────
+// ── Grammar ──────────────────────────────────────────────────────────────────
+// A block's body may not contain another covref opener (tempered token), so an unclosed opener
+// never pairs with a later block's closer.
+var tableBlockRegex = new Regex(
+    @"(?<open><!-- covref-table:\s*(?<pattern>[^\s]+)\s*-->)(?<body>(?:(?!<!--\s*covref).)*?)(?<close><!-- /covref-table -->)",
+    RegexOptions.Singleline | RegexOptions.Compiled);
+var inlineBlockRegex = new Regex(
+    @"(?<open><!-- covref:\s*(?<id>cov:[^\s:]+):(?<field>[A-Za-z]+)\s*-->)(?<body>(?:(?!<!--\s*/?covref).)*?)(?<close><!-- /covref -->)",
+    RegexOptions.Singleline | RegexOptions.Compiled);
+// Anything that looks like a covref marker, well-formed or not (used to find malformed ones).
+var anyMarkerRegex = new Regex(@"<!--\s*/?\s*covref", RegexOptions.Compiled);
+var proseRegex = new Regex(@"cov:[A-Za-z][A-Za-z0-9.]*/[A-Za-z0-9./_\-]+\.cs", RegexOptions.Compiled);
+
+// Scalar fields of an index entry (REQ-002) plus one per coverage flag.
+var allowedFields = new HashSet<string>(StringComparer.Ordinal)
+{
+    "package", "path", "coverage", "obligations", "metObligations", "flags", "noData", "lastRun", "dashboardUrl",
+    "unit", "guard", "contract", "property", "integration"
+};
+
+// ── Files ────────────────────────────────────────────────────────────────────
 var mdFiles = new List<string>();
-mdFiles.AddRange(Directory.GetFiles(docsRoot, "*.md", SearchOption.AllDirectories));
+if (Directory.Exists(docsRoot)) mdFiles.AddRange(Directory.GetFiles(docsRoot, "*.md", SearchOption.AllDirectories));
 foreach (var root in scanRoots)
 {
-    if (!Directory.Exists(root)) continue;
-    mdFiles.AddRange(Directory.GetFiles(root, "*.md", SearchOption.AllDirectories));
+    if (Directory.Exists(root)) mdFiles.AddRange(Directory.GetFiles(root, "*.md", SearchOption.AllDirectories));
 }
+mdFiles.AddRange(Directory.GetFiles(".", "*.md", SearchOption.TopDirectoryOnly));
+// Exclusions are matched on the path relative to the working directory, so running from a
+// checkout that itself lives under an excluded name (e.g. a .claude/worktrees/ folder) still works.
+string[] excludedSegments = ["node_modules", "bin", "obj", ".claude"];
 mdFiles = mdFiles
-    .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}node_modules{Path.DirectorySeparatorChar}"))
-    .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-    .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-    .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}.claude{Path.DirectorySeparatorChar}"))
-    .Distinct()
+    .Select(Path.GetFullPath)
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .Where(f => !RelPath(f).Split('/').Any(part => excludedSegments.Contains(part, StringComparer.Ordinal)))
     .OrderBy(f => f, StringComparer.Ordinal)
     .ToList();
 
-// ── Check-dangling mode: validate citations against the manifest ───────────
 if (checkDangling)
 {
-    var validIds = new HashSet<string>(StringComparer.Ordinal);
-
-    if (Directory.Exists(manifestDir))
-    {
-        foreach (var jsonFile in Directory.GetFiles(manifestDir, "*.json", SearchOption.TopDirectoryOnly))
-        {
-            var fileName = Path.GetFileName(jsonFile);
-            if (fileName == "defaults.json") continue;
-
-            JsonNode? node;
-            try
-            {
-                node = JsonNode.Parse(File.ReadAllText(jsonFile));
-            }
-            catch
-            {
-                continue;
-            }
-            if (node is not JsonObject obj) continue;
-
-            var package = obj["package"]?.GetValue<string>();
-            if (package is null) continue;
-
-            var filesObj = obj["files"] as JsonObject;
-            if (filesObj is null) continue;
-
-            foreach (var (key, fileNode) in filesObj)
-            {
-                if (fileNode is not JsonObject fileEntry) continue;
-
-                var testsArr = (fileEntry["override"] as JsonArray) ?? (fileEntry["defaultTests"] as JsonArray);
-                if (testsArr is null) continue;
-
-                bool applicable = false;
-                foreach (var t in testsArr)
-                {
-                    var v = t?.GetValue<string>();
-                    if (v is "unit" or "guard" or "contract" or "property" or "integration")
-                    {
-                        applicable = true;
-                        break;
-                    }
-                }
-                if (!applicable) continue;
-
-                var normalizedKey = key.Replace('\\', '/');
-                var filePath = Path.Combine(srcRoot, package, normalizedKey);
-                if (!File.Exists(filePath)) continue;
-
-                validIds.Add($"cov:{package}/{normalizedKey}");
-            }
-        }
-    }
-
-    var allowedFields = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "coverage", "obligations", "flags", "lastRun",
-        "unit", "guard", "contract", "property", "integration"
-    };
-
-    var checkTableRegex = new Regex(@"<!-- covref-table:\s*(?<pattern>[^\s]+)\s*-->", RegexOptions.Compiled);
-    var inlineFullRegex = new Regex(@"<!-- covref:\s*(?<id>[^\s:]+:[^\s:]+):(?<field>\w+)\s*-->", RegexOptions.Compiled);
-    var checkProseRegex = new Regex(@"cov:[A-Za-z][A-Za-z0-9.]*\/[A-Za-z0-9./_\-]+\.cs", RegexOptions.Compiled);
-
-    var errors = new List<string>();
-    int citationsChecked = 0;
-    int filesChecked = 0;
-
-    foreach (var file in mdFiles)
-    {
-        var relPath = Path.GetRelativePath(".", file).Replace('\\', '/');
-        var lines = File.ReadAllLines(file);
-        var inFence = false;
-        string? fenceMarker = null;
-
-        for (int lineNum = 0; lineNum < lines.Length; lineNum++)
-        {
-            var line = lines[lineNum];
-
-            var trimmed = line.TrimStart();
-            if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
-            {
-                var marker = trimmed.StartsWith("```", StringComparison.Ordinal) ? "```" : "~~~";
-                if (!inFence) { inFence = true; fenceMarker = marker; continue; }
-                if (marker == fenceMarker) { inFence = false; fenceMarker = null; continue; }
-            }
-            if (inFence) continue;
-
-            foreach (Match m in checkTableRegex.Matches(line))
-            {
-                citationsChecked++;
-                var pattern = m.Groups["pattern"].Value;
-                var glob = GlobToRegex(pattern);
-                bool matched = false;
-                foreach (var id in validIds)
-                {
-                    if (glob.IsMatch(id)) { matched = true; break; }
-                }
-                if (!matched)
-                    errors.Add($"{relPath}:{lineNum + 1}: covref-table pattern `{pattern}` matches no coverage DocRef");
-            }
-
-            foreach (Match m in inlineFullRegex.Matches(line))
-            {
-                citationsChecked++;
-                var id = m.Groups["id"].Value;
-                var field = m.Groups["field"].Value;
-                if (!validIds.Contains(id))
-                    errors.Add($"{relPath}:{lineNum + 1}: `{id}` is not a coverage DocRef (no manifest entry with applicable flags, or file missing under {srcRoot})");
-                if (!allowedFields.Contains(field))
-                    errors.Add($"{relPath}:{lineNum + 1}: `{field}` is not a coverage field");
-            }
-
-            if (!line.Contains("covref-table:") && !line.Contains("covref:"))
-            {
-                // Inline code spans are literal examples (like fenced blocks), not citations.
-                foreach (Match m in checkProseRegex.Matches(StripInlineCode(line)))
-                {
-                    citationsChecked++;
-                    if (!validIds.Contains(m.Value))
-                        errors.Add($"{relPath}:{lineNum + 1}: `{m.Value}` is not a coverage DocRef (no manifest entry with applicable flags, or file missing under {srcRoot})");
-                }
-            }
-        }
-        filesChecked++;
-    }
-
-    foreach (var err in errors)
-        Console.Error.WriteLine(err);
-
-    Console.WriteLine($"Checked {citationsChecked} citation(s) in {filesChecked} file(s): {errors.Count} dangling.");
-    return errors.Count > 0 ? 1 : 0;
+    return RunGate();
 }
 
-// ── Render mode: read the coverage DocRef index ─────────────────────────────
+// ── Render mode ──────────────────────────────────────────────────────────────
 if (!File.Exists(docrefIndexPath))
 {
     Console.Error.WriteLine($"DocRef index not found: {docrefIndexPath}");
     Console.Error.WriteLine("Run coverage-report.cs first to generate it.");
-    Environment.Exit(2);
+    return 2;
 }
 
 var indexJson = JsonNode.Parse(File.ReadAllText(docrefIndexPath)) as JsonObject ?? new JsonObject();
 Console.WriteLine($"Loaded {indexJson.Count} DocRef entries from {docrefIndexPath}");
 
-var tableMarkerRegex = new Regex(
-    @"(<!-- covref-table:\s*(?<pattern>[^\s]+)\s*-->).*?(<!-- /covref-table -->)",
-    RegexOptions.Singleline | RegexOptions.Compiled);
-
-var inlineMarkerRegex = new Regex(
-    @"(<!-- covref:\s*(?<id>[^\s:]+:[^\s:]+):(?<field>\w+)\s*-->).*?(<!-- /covref -->)",
-    RegexOptions.Singleline | RegexOptions.Compiled);
-
 int filesModified = 0, tablesGenerated = 0, inlinesGenerated = 0, warnings = 0;
+var citedBy = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
 foreach (var file in mdFiles)
 {
-    var content = File.ReadAllText(file);
-    var original = content;
+    var relPath = RelPath(file);
+    var original = File.ReadAllText(file);
+    var output = new StringBuilder();
 
-    // Skip markers inside fenced code blocks (```...```). We tokenize the
-    // file into runs of code-block / non-code-block, replace markers only
-    // in the latter, and stitch back together. This lets the methodology
-    // doc show example marker syntax in code fences without expansion.
-    content = ProcessOutsideCodeFences(content, segment =>
+    foreach (var segment in SplitSegments(original))
     {
-        segment = tableMarkerRegex.Replace(segment, match =>
+        if (segment.InFence)
         {
-            var pattern = match.Groups["pattern"].Value;
-            var table = GenerateTable(pattern, indexJson, file, ref warnings);
-            tablesGenerated++;
-            return $"{match.Groups[1].Value}\n{table}\n{match.Groups[2].Value}";
-        });
-        segment = inlineMarkerRegex.Replace(segment, match =>
-        {
-            var id = match.Groups["id"].Value;
-            var field = match.Groups["field"].Value;
-            var value = LookupInlineValue(id, field, indexJson, ref warnings);
-            inlinesGenerated++;
-            return $"{match.Groups[1].Value}{value}{match.Groups[2].Value}";
-        });
-        return segment;
-    });
+            output.Append(segment.Text);
+            continue;
+        }
 
+        // cited-by is built from the original text, before expansion, so line numbers are stable.
+        CollectCitations(segment, relPath);
+
+        foreach (var (line, _) in MalformedMarkers(segment))
+        {
+            warnings++;
+            Console.WriteLine($"  ⚠ {relPath}:{line}: malformed or unclosed covref marker left untouched");
+        }
+
+        // Matches are found on the masked text (inline code blanked, same length) and applied to the
+        // original from the end, so markers quoted in `code` are left alone.
+        var masked = MaskInlineCode(segment.Text);
+        var blocks = tableBlockRegex.Matches(masked).Cast<Match>()
+            .Select(m => (Match: m, IsTable: true))
+            .Concat(inlineBlockRegex.Matches(masked).Cast<Match>().Select(m => (Match: m, IsTable: false)))
+            .OrderByDescending(b => b.Match.Index);
+        var text = new StringBuilder(segment.Text);
+        foreach (var (match, isTable) in blocks)
+        {
+            string replacement;
+            if (isTable)
+            {
+                tablesGenerated++;
+                var table = GenerateTable(match.Groups["pattern"].Value, indexJson, file, ref warnings);
+                replacement = $"{match.Groups["open"].Value}\n{table}\n{match.Groups["close"].Value}";
+            }
+            else
+            {
+                inlinesGenerated++;
+                var value = LookupInlineValue(match.Groups["id"].Value, match.Groups["field"].Value, indexJson, ref warnings);
+                replacement = $"{match.Groups["open"].Value}{value}{match.Groups["close"].Value}";
+            }
+            text.Remove(match.Index, match.Length).Insert(match.Index, replacement);
+        }
+        output.Append(text);
+    }
+
+    var content = output.ToString();
     if (content != original)
     {
         filesModified++;
         if (dryRun)
-            Console.WriteLine($"  [dry-run] Would update: {file}");
+            Console.WriteLine($"  [dry-run] Would update: {relPath}");
         else
         {
             File.WriteAllText(file, content);
-            Console.WriteLine($"  Updated: {file}");
-        }
-    }
-}
-
-// ── Build cited-by.json ──────────────────────────────────────────────
-var citedBy = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-var tablePatternRegex = new Regex(@"<!-- covref-table:\s*(?<pattern>[^\s]+)\s*-->", RegexOptions.Compiled);
-var inlineIdRegex = new Regex(@"<!-- covref:\s*(?<id>cov:[a-zA-Z0-9./_\-]+):", RegexOptions.Compiled);
-// Free-form prose mentions: cov:<package>/<path-to>.cs
-var proseRefRegex = new Regex(@"cov:[A-Za-z][A-Za-z0-9.]*\/[A-Za-z0-9./_\-]+\.cs", RegexOptions.Compiled);
-
-foreach (var file in mdFiles)
-{
-    var relPath = Path.GetRelativePath(".", file).Replace('\\', '/');
-    var lines = File.ReadAllLines(file);
-    var inFence = false;
-    string? fenceMarker = null;
-    for (int lineNum = 0; lineNum < lines.Length; lineNum++)
-    {
-        var line = lines[lineNum];
-
-        // Track fenced code blocks — citations inside fences don't count.
-        var trimmed = line.TrimStart();
-        if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
-        {
-            var marker = trimmed.StartsWith("```", StringComparison.Ordinal) ? "```" : "~~~";
-            if (!inFence) { inFence = true; fenceMarker = marker; continue; }
-            if (marker == fenceMarker) { inFence = false; fenceMarker = null; continue; }
-        }
-        if (inFence) continue;
-
-        foreach (Match m in tablePatternRegex.Matches(line))
-        {
-            var pattern = m.Groups["pattern"].Value;
-            var glob = GlobToRegex(pattern);
-            foreach (var (id, _) in indexJson)
-            {
-                if (glob.IsMatch(id))
-                    AddCitation(citedBy, id, $"{relPath}:{lineNum + 1}");
-            }
-        }
-
-        foreach (Match m in inlineIdRegex.Matches(line))
-            AddCitation(citedBy, m.Groups["id"].Value, $"{relPath}:{lineNum + 1}");
-
-        // Prose references — capture even outside markers but skip lines that are markers themselves.
-        if (!line.Contains("covref-table:") && !line.Contains("covref:"))
-        {
-            foreach (Match m in proseRefRegex.Matches(line))
-            {
-                // Only count if it appears in our docref index — avoids matching arbitrary `cov:` strings.
-                if (indexJson.ContainsKey(m.Value))
-                    AddCitation(citedBy, m.Value, $"{relPath}:{lineNum + 1}");
-            }
+            Console.WriteLine($"  Updated: {relPath}");
         }
     }
 }
@@ -341,17 +196,229 @@ if (!string.IsNullOrEmpty(citedByDir))
         citedByJson[docRef] = arr;
     }
     var citedByPath = Path.Combine(citedByDir, "cited-by.json");
-    File.WriteAllText(citedByPath, citedByJson.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    if (!dryRun)
+        File.WriteAllText(citedByPath, citedByJson.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     Console.WriteLine($"cited-by index: {citedBy.Count} DocRef(s) with citations → {citedByPath}");
 }
 
 Console.WriteLine();
 Console.WriteLine($"Summary: {filesModified} file(s) modified, {tablesGenerated} table(s), {inlinesGenerated} inline(s), {warnings} warning(s)");
 if (warnings > 0)
-    Console.WriteLine("  ⚠ Some DocRefs were not found in the index. Check the generated tables for details.");
+    Console.WriteLine("  ⚠ Some citations could not be rendered. Run with --check-dangling for the exact locations.");
 
 return 0;
 
+// ── Local functions (capture the regexes, the index and the cited-by map) ─────
+
+void CollectCitations(Segment segment, string relPath)
+{
+    var masked = MaskInlineCode(segment.Text);
+    foreach (Match m in tableBlockRegex.Matches(masked))
+    {
+        var glob = GlobToRegex(m.Groups["pattern"].Value);
+        foreach (var (id, _) in indexJson)
+        {
+            if (glob.IsMatch(id)) AddCitation(citedBy, id, $"{relPath}:{segment.LineOf(m.Index)}");
+        }
+    }
+    foreach (Match m in inlineBlockRegex.Matches(masked))
+        AddCitation(citedBy, m.Groups["id"].Value, $"{relPath}:{segment.LineOf(m.Index)}");
+    foreach (var (line, id) in ProseMentions(segment))
+    {
+        if (indexJson.ContainsKey(id)) AddCitation(citedBy, id, $"{relPath}:{line}");
+    }
+}
+
+// Prose mentions outside marker blocks and inline code spans, with their line numbers.
+IEnumerable<(int Line, string Id)> ProseMentions(Segment segment)
+{
+    var text = MaskInlineCode(segment.Text);
+    text = BlankOut(text, tableBlockRegex);
+    text = BlankOut(text, inlineBlockRegex);
+    foreach (Match m in proseRegex.Matches(text))
+        yield return (segment.LineOf(m.Index), m.Value);
+}
+
+// Every covref-looking token that is not the opener or closer of a well-formed block.
+IEnumerable<(int Line, string Text)> MalformedMarkers(Segment segment)
+{
+    var masked = MaskInlineCode(segment.Text);
+    var accounted = new System.Collections.Generic.HashSet<int>();
+    foreach (Match m in tableBlockRegex.Matches(masked))
+    {
+        accounted.Add(m.Groups["open"].Index);
+        accounted.Add(m.Groups["close"].Index);
+    }
+    foreach (Match m in inlineBlockRegex.Matches(masked))
+    {
+        accounted.Add(m.Groups["open"].Index);
+        accounted.Add(m.Groups["close"].Index);
+    }
+    foreach (Match m in anyMarkerRegex.Matches(masked))
+    {
+        if (!accounted.Contains(m.Index))
+        {
+            var end = segment.Text.IndexOf('\n', m.Index);
+            var snippet = segment.Text[m.Index..(end < 0 ? segment.Text.Length : end)].Trim();
+            yield return (segment.LineOf(m.Index), snippet);
+        }
+    }
+}
+
+int RunGate()
+{
+    var validIds = LoadManifestIds(manifestDir, srcRoot);
+    var errors = new List<string>();
+    int citations = 0;
+
+    foreach (var file in mdFiles)
+    {
+        var relPath = RelPath(file);
+        foreach (var segment in SplitSegments(File.ReadAllText(file)))
+        {
+            if (segment.InFence) continue;
+
+            foreach (var (line, snippet) in MalformedMarkers(segment))
+            {
+                citations++;
+                errors.Add($"{relPath}:{line}: malformed or unclosed covref marker `{snippet}` (expected `<!-- covref-table: <glob> -->…<!-- /covref-table -->` or `<!-- covref: <id>:<field> -->…<!-- /covref -->`, opener on one line)");
+            }
+
+            var masked = MaskInlineCode(segment.Text);
+            foreach (Match m in tableBlockRegex.Matches(masked))
+            {
+                citations++;
+                var pattern = m.Groups["pattern"].Value;
+                var glob = GlobToRegex(pattern);
+                if (!validIds.Any(glob.IsMatch))
+                    errors.Add($"{relPath}:{segment.LineOf(m.Index)}: covref-table pattern `{pattern}` matches no coverage DocRef");
+            }
+
+            foreach (Match m in inlineBlockRegex.Matches(masked))
+            {
+                citations++;
+                var line = segment.LineOf(m.Index);
+                var id = m.Groups["id"].Value;
+                var field = m.Groups["field"].Value;
+                if (!validIds.Contains(id))
+                    errors.Add($"{relPath}:{line}: `{id}` is not a coverage DocRef (no manifest entry with applicable flags, or file missing under {srcRoot})");
+                if (!allowedFields.Contains(field))
+                    errors.Add($"{relPath}:{line}: `{field}` is not a coverage field (allowed: {string.Join(", ", allowedFields)})");
+            }
+
+            foreach (var (line, id) in ProseMentions(segment))
+            {
+                citations++;
+                if (!validIds.Contains(id))
+                    errors.Add($"{relPath}:{line}: `{id}` is not a coverage DocRef (no manifest entry with applicable flags, or file missing under {srcRoot})");
+            }
+        }
+    }
+
+    foreach (var err in errors)
+        Console.Error.WriteLine(err);
+    Console.WriteLine($"Checked {citations} citation(s) in {mdFiles.Count} file(s) against {validIds.Count} coverage DocRef(s): {errors.Count} error(s).");
+    return errors.Count > 0 ? 1 : 0;
+}
+
+// ── Static helpers ───────────────────────────────────────────────────────────
+
+static HashSet<string> LoadManifestIds(string manifestDir, string srcRoot)
+{
+    var ids = new HashSet<string>(StringComparer.Ordinal);
+    if (!Directory.Exists(manifestDir)) return ids;
+
+    foreach (var jsonFile in Directory.GetFiles(manifestDir, "*.json", SearchOption.TopDirectoryOnly))
+    {
+        if (Path.GetFileName(jsonFile) == "defaults.json") continue;
+        if (JsonNode.Parse(File.ReadAllText(jsonFile)) is not JsonObject obj) continue;
+        var package = obj["package"]?.GetValue<string>();
+        if (package is null || obj["files"] is not JsonObject files) continue;
+
+        foreach (var (key, node) in files)
+        {
+            if (node is not JsonObject entry) continue;
+            var tests = (entry["override"] as JsonArray) ?? (entry["defaultTests"] as JsonArray);
+            if (tests is null || !tests.Any(t => t?.GetValue<string>() is "unit" or "guard" or "contract" or "property" or "integration"))
+                continue;
+
+            var relPath = key.Replace('\\', '/');
+            if (File.Exists(Path.Combine(srcRoot, package, relPath)))
+                ids.Add($"cov:{package}/{relPath}");
+        }
+    }
+
+    return ids;
+}
+
+// Splits a document into alternating fenced / non-fenced segments, keeping every character.
+static List<Segment> SplitSegments(string content)
+{
+    var segments = new List<Segment>();
+    var lines = content.Split('\n');
+    var buffer = new StringBuilder();
+    var bufferStart = 1;
+    var inFence = false;
+    char fenceChar = '\0';
+    int fenceLength = 0;
+
+    void Flush(int nextLine)
+    {
+        if (buffer.Length > 0) segments.Add(new Segment(inFence, bufferStart, buffer.ToString()));
+        buffer.Clear();
+        bufferStart = nextLine;
+    }
+
+    for (int i = 0; i < lines.Length; i++)
+    {
+        var line = lines[i];
+        var lineText = i < lines.Length - 1 ? line + "\n" : line;
+        var trimmed = line.TrimStart().TrimEnd('\r');
+        var run = FenceRun(trimmed);
+
+        if (!inFence && run.Length >= 3)
+        {
+            Flush(i + 1);
+            inFence = true;
+            fenceChar = run.Char;
+            fenceLength = run.Length;
+            buffer.Append(lineText);
+            continue;
+        }
+
+        if (inFence && run.Length >= fenceLength && run.Char == fenceChar && trimmed[run.Length..].Trim().Length == 0)
+        {
+            buffer.Append(lineText);
+            Flush(i + 2);
+            inFence = false;
+            continue;
+        }
+
+        buffer.Append(lineText);
+    }
+
+    Flush(lines.Length + 1);
+    return segments;
+}
+
+static (char Char, int Length) FenceRun(string trimmed)
+{
+    if (trimmed.Length < 3 || (trimmed[0] != '`' && trimmed[0] != '~')) return ('\0', 0);
+    var c = trimmed[0];
+    var n = 0;
+    while (n < trimmed.Length && trimmed[n] == c) n++;
+    return n >= 3 ? (c, n) : ('\0', 0);
+}
+
+// Blanks inline code spans (same length, newlines kept): quoted markers and IDs are literal text.
+static string MaskInlineCode(string text) =>
+    Regex.Replace(text, "`[^`\n]*`", m => new string(' ', m.Length));
+
+// Replaces every match with spaces (newlines kept) so indexes and line numbers stay valid.
+static string BlankOut(string text, Regex regex) =>
+    regex.Replace(text, m => Regex.Replace(m.Value, "[^\n]", " "));
+
+static string RelPath(string file) => Path.GetRelativePath(".", file).Replace('\\', '/');
 
 static string GenerateTable(string pattern, JsonObject index, string sourceFile, ref int warnings)
 {
@@ -380,68 +447,24 @@ static string GenerateTable(string pattern, JsonObject index, string sourceFile,
     foreach (var (id, entry) in matches)
     {
         var path = entry["path"]?.GetValue<string>() ?? id;
-        var coverage = GetD(entry, "coverage");
-        var noData = GetB(entry, "noData");
-        var met = (int)GetD(entry, "metObligations");
-        var oblig = (int)GetD(entry, "obligations");
         var lastRun = entry["lastRun"]?.GetValue<string>() ?? "—";
-        var lastRunShort = lastRun.Length >= 10 ? lastRun.Substring(0, 10) : lastRun;
+        var lastRunShort = lastRun.Length >= 10 ? lastRun[..10] : lastRun;
         var dashUrl = entry["dashboardUrl"]?.GetValue<string>() ?? "";
         var anchorId = SanitizeAnchorId(id);
+        var flags = Flags(entry);
+        var perFlag = string.Join("; ", flags.Select(f => $"{f} {FlagValue(entry, f)}"));
 
-        var flagsArr = entry["flags"] as JsonArray;
-        var flags = new List<string>();
-        if (flagsArr is not null)
-            foreach (var f in flagsArr)
-            {
-                var s = f?.GetValue<string>();
-                if (s is not null) flags.Add(s);
-            }
-        var flagsStr = string.Join(", ", flags);
-
-        var coverageStr = noData ? "no data" : $"{coverage:F2}%";
-
-        var perFlagObj = entry["perFlag"] as JsonObject;
-        var perFlagParts = new List<string>();
-        foreach (var flag in flags)
-        {
-            var flagNode = perFlagObj?[flag];
-            var flagNoData = flagNode is JsonObject fo && GetB(fo, "noData");
-            if (flagNoData)
-            {
-                perFlagParts.Add($"{flag} no data");
-                continue;
-            }
-            var covered = flagNode is JsonObject fo2 ? GetD(fo2, "covered") : 0;
-            var total = flagNode is JsonObject fo3 ? GetD(fo3, "total") : 0;
-            var target = flagNode is JsonObject fo4 ? GetNullableD(fo4, "target") : null;
-            var part = $"{flag} {covered}/{total}";
-            if (target is not null)
-                part += $" (target {target.Value:0.##}%)";
-            perFlagParts.Add(part);
-        }
-        var perFlagStr = string.Join("; ", perFlagParts);
-
-        // Show the file path as link to dashboard. Add anchor for inbound links.
         var fileCell = string.IsNullOrEmpty(dashUrl)
             ? $"<a id=\"{anchorId}\"></a>`{path}`"
             : $"<a id=\"{anchorId}\"></a>[`{path}`]({dashUrl})";
 
-        sb.AppendLine($"| {fileCell} | {flagsStr} | {met}/{oblig} | {coverageStr} | {perFlagStr} | {lastRunShort} |");
+        sb.AppendLine($"| {fileCell} | {string.Join(", ", flags)} | {(int)GetD(entry, "metObligations")}/{(int)GetD(entry, "obligations")} | {CoverageValue(entry)} | {perFlag} | {lastRunShort} |");
     }
 
     var methodologyRel = ComputeRelativePath(sourceFile, "docs/testing/coverage-measurement-methodology.md");
     sb.AppendLine();
     sb.AppendLine($"*{matches.Count} file(s) matched `{pattern}`. Data from [coverage dashboard](https://dlrivada.github.io/Encina/coverage/). See [coverage-measurement-methodology.md]({methodologyRel}).*");
     return sb.ToString();
-}
-
-static string ComputeRelativePath(string sourceFile, string targetPath)
-{
-    var sourceDir = Path.GetDirectoryName(Path.GetFullPath(sourceFile)) ?? ".";
-    var targetFull = Path.GetFullPath(targetPath);
-    var rel = Path.GetRelativePath(sourceDir, targetFull);
-    return rel.Replace('\\', '/');
 }
 
 static string LookupInlineValue(string id, string field, JsonObject index, ref int warnings)
@@ -452,75 +475,51 @@ static string LookupInlineValue(string id, string field, JsonObject index, ref i
         return $"⚠ `{id}` not found";
     }
 
-    var allowed = new HashSet<string>(StringComparer.Ordinal)
+    switch (field)
     {
-        "coverage", "obligations", "flags", "lastRun",
-        "unit", "guard", "contract", "property", "integration"
-    };
-
-    if (!allowed.Contains(field))
-    {
-        warnings++;
-        return $"⚠ field `{field}` not found in `{id}`";
+        case "coverage":
+            return CoverageValue(entry);
+        case "obligations":
+            return $"{(int)GetD(entry, "metObligations")}/{(int)GetD(entry, "obligations")}";
+        case "metObligations":
+            return ((int)GetD(entry, "metObligations")).ToString(CultureInfo.InvariantCulture);
+        case "flags":
+            return string.Join(", ", Flags(entry));
+        case "noData":
+            return GetB(entry, "noData") ? "true" : "false";
+        case "package" or "path" or "lastRun" or "dashboardUrl":
+            return entry[field]?.GetValue<string>() ?? "—";
     }
 
-    if (field == "coverage")
-    {
-        var noData = GetB(entry, "noData");
-        if (noData) return "no data";
-        return $"{GetD(entry, "coverage"):F2}%";
-    }
+    if ((entry["perFlag"] as JsonObject)?[field] is JsonObject)
+        return FlagValue(entry, field);
 
-    if (field == "obligations")
-    {
-        var met = (int)GetD(entry, "metObligations");
-        var oblig = (int)GetD(entry, "obligations");
-        return $"{met}/{oblig}";
-    }
-
-    if (field == "flags")
-    {
-        var flagsArr = entry["flags"] as JsonArray;
-        var flags = new List<string>();
-        if (flagsArr is not null)
-            foreach (var f in flagsArr)
-            {
-                var s = f?.GetValue<string>();
-                if (s is not null) flags.Add(s);
-            }
-        return string.Join(", ", flags);
-    }
-
-    if (field == "lastRun")
-    {
-        return entry["lastRun"]?.GetValue<string>() ?? "—";
-    }
-
-    // flag name → perFlag lookup
-    var perFlagObj = entry["perFlag"] as JsonObject;
-    var flagNode = perFlagObj?[field];
-    if (flagNode is null)
-    {
-        warnings++;
-        return $"⚠ field `{field}` not found in `{id}`";
-    }
-    if (flagNode is not JsonObject fo)
-    {
-        warnings++;
-        return $"⚠ field `{field}` not found in `{id}`";
-    }
-    if (GetB(fo, "noData"))
-        return "no data";
-    var covered = GetD(fo, "covered");
-    var total = GetD(fo, "total");
-    var target = GetNullableD(fo, "target");
-    var part = $"{covered}/{total}";
-    if (target is not null)
-        part += $" (target {target.Value:0.##}%)";
-    return part;
+    warnings++;
+    return $"⚠ field `{field}` not found in `{id}`";
 }
 
-static string StripInlineCode(string line) => Regex.Replace(line, "`[^`]*`", string.Empty);
+static string CoverageValue(JsonObject entry)
+{
+    if (GetB(entry, "noData") || entry["coverage"] is null) return "no data";
+    return $"{GetD(entry, "coverage"):F2}%";
+}
+
+static string FlagValue(JsonObject entry, string flag)
+{
+    if ((entry["perFlag"] as JsonObject)?[flag] is not JsonObject f || GetB(f, "noData")) return "no data";
+    var value = $"{(int)GetD(f, "covered")}/{(int)GetD(f, "total")}";
+    var target = GetNullableD(f, "target");
+    return target is null ? value : $"{value} (target {target.Value:0.##}%)";
+}
+
+static List<string> Flags(JsonObject entry) =>
+    (entry["flags"] as JsonArray)?.Select(f => f?.GetValue<string>()).OfType<string>().ToList() ?? [];
+
+static string ComputeRelativePath(string sourceFile, string targetPath)
+{
+    var sourceDir = Path.GetDirectoryName(Path.GetFullPath(sourceFile)) ?? ".";
+    return Path.GetRelativePath(sourceDir, Path.GetFullPath(targetPath)).Replace('\\', '/');
+}
 
 static Regex GlobToRegex(string glob)
 {
@@ -549,81 +548,30 @@ static bool GetB(JsonObject obj, string key)
     try { return v.GetValue<bool>(); } catch { return false; }
 }
 
-static string SanitizeAnchorId(string docRef)
-{
-    return "covref-" + docRef.Replace(':', '-').Replace('/', '-').Replace('.', '-');
-}
+static string SanitizeAnchorId(string docRef) =>
+    "covref-" + docRef.Replace(':', '-').Replace('/', '-').Replace('.', '-');
 
 static void AddCitation(Dictionary<string, List<string>> citedBy, string docRef, string location)
 {
     if (!citedBy.TryGetValue(docRef, out var locs))
     {
-        locs = new List<string>();
+        locs = [];
         citedBy[docRef] = locs;
     }
     locs.Add(location);
 }
 
-/// <summary>
-/// Applies <paramref name="transform"/> to every region of the input that is
-/// NOT inside a fenced code block (lines wrapped by ``` or ~~~ fences).
-/// Code-fenced content is preserved unchanged so docs can show example
-/// marker syntax without triggering expansion.
-/// </summary>
-static string ProcessOutsideCodeFences(string input, Func<string, string> transform)
+/// <summary>A run of document text that is either inside or outside a fenced code block.</summary>
+sealed record Segment(bool InFence, int StartLine, string Text)
 {
-    var lines = input.Split('\n');
-    var sb = new StringBuilder();
-    var buffer = new StringBuilder();
-    var inFence = false;
-    string? fenceMarker = null;
-
-    void FlushBuffer()
+    /// <summary>1-based line number, in the whole document, of the character at <paramref name="index"/>.</summary>
+    public int LineOf(int index)
     {
-        if (buffer.Length == 0) return;
-        sb.Append(transform(buffer.ToString()));
-        buffer.Clear();
+        var line = StartLine;
+        for (int i = 0; i < index && i < Text.Length; i++)
+        {
+            if (Text[i] == '\n') line++;
+        }
+        return line;
     }
-
-    for (int i = 0; i < lines.Length; i++)
-    {
-        var line = lines[i];
-        var trimmed = line.TrimStart();
-        var isFence = trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal);
-
-        if (isFence)
-        {
-            var marker = trimmed.StartsWith("```", StringComparison.Ordinal) ? "```" : "~~~";
-            if (!inFence)
-            {
-                FlushBuffer();
-                inFence = true;
-                fenceMarker = marker;
-                sb.Append(line);
-                if (i < lines.Length - 1) sb.Append('\n');
-                continue;
-            }
-            else if (marker == fenceMarker)
-            {
-                inFence = false;
-                fenceMarker = null;
-                sb.Append(line);
-                if (i < lines.Length - 1) sb.Append('\n');
-                continue;
-            }
-        }
-
-        if (inFence)
-        {
-            sb.Append(line);
-            if (i < lines.Length - 1) sb.Append('\n');
-        }
-        else
-        {
-            buffer.Append(line);
-            if (i < lines.Length - 1) buffer.Append('\n');
-        }
-    }
-    FlushBuffer();
-    return sb.ToString();
 }

@@ -156,15 +156,25 @@
   let citedBy = {};
   try {
     const res = await fetch('data/cited-by.json');
-    citedBy = res.ok ? await res.json() : {};
+    const parsed = res.ok ? await res.json() : {};
+    citedBy = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch { citedBy = {}; }
+
+  // cited-by.json is data written by a CI job from repository files: escape it before it
+  // reaches innerHTML or an attribute.
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
 
   // Every documentation location that cites any file of the package, de-duplicated.
   function citationsForPackage(pkgName) {
     const prefix = `cov:${pkgName}/`;
     const locations = new Set();
     for (const [docRef, locs] of Object.entries(citedBy)) {
-      if (docRef.startsWith(prefix)) for (const loc of locs) locations.add(loc);
+      if (!docRef.startsWith(prefix) || !Array.isArray(locs)) continue;
+      for (const loc of locs) if (typeof loc === 'string') locations.add(loc);
     }
     return [...locations].sort();
   }
@@ -177,8 +187,9 @@
       const colon = loc.lastIndexOf(':');
       const file = colon > 0 ? loc.substring(0, colon) : loc;
       const line = colon > 0 ? loc.substring(colon + 1) : '';
-      const url = `https://github.com/dlrivada/Encina/blob/main/${file}#L${line}`;
-      return `<a href="${url}" target="_blank" rel="noopener" title="${loc}">${file.split('/').pop()}:${line}</a>`;
+      const url = `https://github.com/dlrivada/Encina/blob/main/${encodeURI(file)}#L${encodeURIComponent(line)}`;
+      const label = `${file.split('/').pop()}:${line}`;
+      return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" title="${escapeHtml(loc)}">${escapeHtml(label)}</a>`;
     }).join('<br>');
   }
 
@@ -350,8 +361,17 @@
   // Deep link from a covref table (dashboardUrl = .../coverage/#pkg-<Package>): the rows are
   // rendered after load, so the browser's own anchor jump happened before they existed.
   function scrollToHashedPackage() {
+    for (const previous of document.querySelectorAll('tr.pkg-highlight')) {
+      previous.classList.remove('pkg-highlight');
+    }
     if (!location.hash.startsWith('#pkg-')) return;
-    const row = document.getElementById(decodeURIComponent(location.hash.substring(1)));
+    let id;
+    try {
+      id = decodeURIComponent(location.hash.substring(1));
+    } catch {
+      return; // malformed escape in a hand-typed URL: ignore it rather than abort initialisation
+    }
+    const row = document.getElementById(id);
     if (!row) return;
     row.classList.add('pkg-highlight');
     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
