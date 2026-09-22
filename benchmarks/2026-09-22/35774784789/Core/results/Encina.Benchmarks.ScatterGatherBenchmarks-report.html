@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ScatterGatherBenchmarks-20260922-194007</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method              </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SingleHandler</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>2.812 &mu;s</td><td>0.0821 &mu;s</td><td>0.0488 &mu;s</td><td>1.00</td><td>0.02</td><td>0.0305</td><td>2.58 KB</td><td>1.00</td>
+</tr><tr><td>FiveHandlers_Parallel</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4.912 &mu;s</td><td>0.1427 &mu;s</td><td>0.0944 &mu;s</td><td>1.75</td><td>0.04</td><td>0.0458</td><td>4.16 KB</td><td>1.61</td>
+</tr><tr><td>FiveHandlers_Sequential</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.867 &mu;s</td><td>0.0854 &mu;s</td><td>0.0447 &mu;s</td><td>1.38</td><td>0.03</td><td>0.0381</td><td>3.16 KB</td><td>1.22</td>
+</tr><tr><td>TenHandlers_Quorum</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>5.819 &mu;s</td><td>0.4291 &mu;s</td><td>0.2838 &mu;s</td><td>2.07</td><td>0.10</td><td>0.0610</td><td>5.52 KB</td><td>2.14</td>
+</tr><tr><td>ThreeHandlers_WaitForFirst</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.455 &mu;s</td><td>0.0727 &mu;s</td><td>0.0433 &mu;s</td><td>1.23</td><td>0.03</td><td>0.0381</td><td>3.39 KB</td><td>1.32</td>
+</tr><tr><td>FiftyHandlers_Parallel</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>18.651 &mu;s</td><td>0.1032 &mu;s</td><td>0.0683 &mu;s</td><td>6.63</td><td>0.11</td><td>0.2136</td><td>19.69 KB</td><td>7.64</td>
+</tr><tr><td>SingleHandler</td><td>ShortRun</td><td>3</td><td>1</td><td>2.734 &mu;s</td><td>0.2255 &mu;s</td><td>0.0124 &mu;s</td><td>1.00</td><td>0.01</td><td>0.0305</td><td>2.58 KB</td><td>1.00</td>
+</tr><tr><td>FiveHandlers_Parallel</td><td>ShortRun</td><td>3</td><td>1</td><td>4.887 &mu;s</td><td>2.5562 &mu;s</td><td>0.1401 &mu;s</td><td>1.79</td><td>0.04</td><td>0.0458</td><td>4.16 KB</td><td>1.61</td>
+</tr><tr><td>FiveHandlers_Sequential</td><td>ShortRun</td><td>3</td><td>1</td><td>3.812 &mu;s</td><td>2.4136 &mu;s</td><td>0.1323 &mu;s</td><td>1.39</td><td>0.04</td><td>0.0381</td><td>3.16 KB</td><td>1.22</td>
+</tr><tr><td>TenHandlers_Quorum</td><td>ShortRun</td><td>3</td><td>1</td><td>5.693 &mu;s</td><td>1.6308 &mu;s</td><td>0.0894 &mu;s</td><td>2.08</td><td>0.03</td><td>0.0610</td><td>5.52 KB</td><td>2.14</td>
+</tr><tr><td>ThreeHandlers_WaitForFirst</td><td>ShortRun</td><td>3</td><td>1</td><td>3.424 &mu;s</td><td>0.0930 &mu;s</td><td>0.0051 &mu;s</td><td>1.25</td><td>0.01</td><td>0.0381</td><td>3.39 KB</td><td>1.32</td>
+</tr><tr><td>FiftyHandlers_Parallel</td><td>ShortRun</td><td>3</td><td>1</td><td>19.163 &mu;s</td><td>9.4890 &mu;s</td><td>0.5201 &mu;s</td><td>7.01</td><td>0.17</td><td>0.2136</td><td>19.69 KB</td><td>7.64</td>
+</tr></tbody></table>
+</body>
+</html>
