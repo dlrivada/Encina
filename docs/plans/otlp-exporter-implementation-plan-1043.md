@@ -344,7 +344,7 @@ if (options.EnableOtlpExporter)
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** [src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs](src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs):
+1. **Modify** [src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs](../../src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs):
    - Add `using OpenTelemetry.Exporter;` at the top of the file.
    - Add two properties after `EnableMessagingEnrichers`:
 
@@ -399,7 +399,7 @@ if (options.EnableOtlpExporter)
      public Action<OtlpExporterOptions>? ConfigureOtlpExporter { get; set; }
      ```
 
-2. **Update** [src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt](src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt):
+2. **Update** [src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt](../../src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt):
    - Add the four new public symbols (two properties × get/set):
 
      ```text
@@ -469,7 +469,7 @@ REFERENCE FILES:
    - If not, **stop and either wait for #1048 or implement the fallback** (traces + metrics
      only, with logs deferred as a follow-up issue).
 
-2. **Modify** [src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs](src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs):
+2. **Modify** [src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs](../../src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs):
    - Add `using OpenTelemetry.Exporter;` and `using OpenTelemetry.Logs;` at the top.
    - Inside `WithEncina(this OpenTelemetryBuilder builder, EncinaOpenTelemetryOptions? options = null)`,
      after the `WithLogging(...)` block (added by #1048), add:
@@ -559,7 +559,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** [src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj](src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj):
+1. **Modify** [src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj](../../src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj):
    - Replace line 24:
 
      ```xml
@@ -572,7 +572,7 @@ REFERENCE FILES:
      <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
      ```
 
-2. **Do NOT modify** [src/Encina.Testing.WireMock/Encina.Testing.WireMock.csproj](src/Encina.Testing.WireMock/Encina.Testing.WireMock.csproj):
+2. **Do NOT modify** [src/Encina.Testing.WireMock/Encina.Testing.WireMock.csproj](../../src/Encina.Testing.WireMock/Encina.Testing.WireMock.csproj):
    - The OTLP reference there exists purely for transitive version pinning (the package never
      consumes OTLP via public API; it's a fixtures-only test-helper package).
    - Add an inline XML comment documenting the rationale (so a future contributor doesn't
@@ -586,7 +586,7 @@ REFERENCE FILES:
 3. **Verify** with `dotnet restore`:
    - From the repo root, run `dotnet restore Encina.slnx`.
    - The OTLP package version stays pinned at 1.15.3 (per
-     [`Directory.Packages.props`](Directory.Packages.props)). No transitive downgrade warnings.
+     [`Directory.Packages.props`](../../Directory.Packages.props)). No transitive downgrade warnings.
 
 </details>
 
@@ -655,7 +655,7 @@ REFERENCE FILES:
      be valuable but is out of scope for this issue. If accepted as a follow-up, it would
      live in `Encina.OpenTelemetry/Health/OtlpExporterHealthCheck.cs` and follow the same
      `IEncinaHealthCheck` pattern as `SchemaDriftHealthCheck` /
-     [`ReshardingHealthCheck`](src/Encina.OpenTelemetry/Resharding/ReshardingHealthCheck.cs).
+     [`ReshardingHealthCheck`](../../src/Encina.OpenTelemetry/Resharding/ReshardingHealthCheck.cs).
    - **Resilience**: ❌ N/A — `OtlpExporterOptions` already exposes `TimeoutMilliseconds`,
      and the SDK's `BatchExportProcessorOptions` controls retry behavior at the OTLP layer.
      Wrapping the exporter in Polly would conflict with the SDK's own retry pipeline.
@@ -719,7 +719,7 @@ REFERENCE FILES:
 #### 5a. Unit Tests (`tests/Encina.UnitTests/OpenTelemetry/`)
 
 1. **Create** `EncinaOpenTelemetryOptionsOtlpTests.cs` (mirror the
-   [`EncinaOpenTelemetryOptionsEnableMessagingTests.cs`](tests/Encina.UnitTests/OpenTelemetry/EncinaOpenTelemetryOptionsEnableMessagingTests.cs)
+   [`EncinaOpenTelemetryOptionsEnableMessagingTests.cs`](../../tests/Encina.UnitTests/OpenTelemetry/EncinaOpenTelemetryOptionsEnableMessagingTests.cs)
    pattern):
 
    ```csharp
@@ -841,7 +841,7 @@ invocation, and null-callback safety.
 
 #### 5b. Guard Tests (`tests/Encina.GuardTests/Infrastructure/OpenTelemetry/`)
 
-1. **Update** [`ServiceCollectionExtensionsGuardTests.cs`](tests/Encina.GuardTests/Infrastructure/OpenTelemetry/ServiceCollectionExtensionsGuardTests.cs)
+1. **Update** [`ServiceCollectionExtensionsGuardTests.cs`](../../tests/Encina.GuardTests/Infrastructure/OpenTelemetry/ServiceCollectionExtensionsGuardTests.cs)
    with two new tests:
 
    ```csharp
@@ -885,7 +885,7 @@ is already covered by existing `ServiceCollectionExtensionsGuardTests`).
 #### 5c. Integration Tests (`tests/Encina.IntegrationTests/Observability/OpenTelemetry/`)
 
 1. **Create** `OtlpExporterIntegrationTests.cs` (mirror the
-   [`ConsoleExporterIntegrationTests.cs`](tests/Encina.IntegrationTests/Observability/OpenTelemetry/ConsoleExporterIntegrationTests.cs)
+   [`ConsoleExporterIntegrationTests.cs`](../../tests/Encina.IntegrationTests/Observability/OpenTelemetry/ConsoleExporterIntegrationTests.cs)
    pattern, gated by `[Trait("Category", "Integration")]` and `[Trait("Component", "OpenTelemetry")]`):
 
    ```csharp
@@ -1057,7 +1057,7 @@ Verify that every public symbol introduced by Phases 1-3 has full XML documentat
 
 #### 2. CHANGELOG.md ✅ Required
 
-Update [CHANGELOG.md](CHANGELOG.md) under `## [Unreleased]` → `### Added`:
+Update [CHANGELOG.md](../../CHANGELOG.md) under `## [Unreleased]` → `### Added`:
 
 ```markdown
 #### Encina.OpenTelemetry — OTLP Exporter Opt-In Wiring (#1043)
@@ -1079,13 +1079,13 @@ Update [CHANGELOG.md](CHANGELOG.md) under `## [Unreleased]` → `### Added`:
 
 #### 3. ROADMAP.md ⏭️ Verify, no update expected
 
-- **Audit**: open [`ROADMAP.md`](ROADMAP.md) lines 298-310 (the v0.19.0 — Observability & Resilience section).
+- **Audit**: open [`ROADMAP.md`](../../ROADMAP.md) lines 298-310 (the v0.19.0 — Observability & Resilience section).
 - **Verdict**: the v0.19.0 description lists "OpenTelemetry integration", "Metrics & Tracing", "Circuit Breaker patterns" at a feature-area level. OTLP wiring is **already implicitly covered** under "OpenTelemetry integration" — no per-issue enumeration in this section. **No update needed**.
 - **Document the verification** in the PR description ("Verified ROADMAP.md v0.19.0 entry — no update required, OTLP is implicit under OpenTelemetry integration").
 
 #### 4. Package README.md ✅ Required
 
-Update [src/Encina.OpenTelemetry/README.md](src/Encina.OpenTelemetry/README.md):
+Update [src/Encina.OpenTelemetry/README.md](../../src/Encina.OpenTelemetry/README.md):
 
 - **Configuration Options → EncinaOpenTelemetryOptions** table — add two rows:
 
@@ -1127,7 +1127,7 @@ Update [src/Encina.OpenTelemetry/README.md](src/Encina.OpenTelemetry/README.md):
 
 #### 5. docs/features/*.md ✅ Required
 
-Create a new feature page: [`docs/features/opentelemetry-otlp-exporter.md`](docs/features/opentelemetry-otlp-exporter.md).
+Create a new feature page: [`docs/features/opentelemetry-otlp-exporter.md`](../../docs/features/opentelemetry-otlp-exporter.md).
 
 Suggested structure (mirror existing observability-flavored pages such as `docs/features/cdc.md`):
 
@@ -1172,14 +1172,14 @@ Cross-link from `src/Encina.OpenTelemetry/README.md` → `docs/features/opentele
 
 #### 6. docs/INVENTORY.md ✅ Required (small enrichment)
 
-Update [`docs/INVENTORY.md`](docs/INVENTORY.md):
+Update [`docs/INVENTORY.md`](../../docs/INVENTORY.md):
 
 - **Line 2960**: enrich the `Encina.OpenTelemetry` row from `"Trazas y métricas | ✅ Completo"` to `"Trazas, métricas y logs (OTLP opt-in via #1043, logs vía #1048) | ✅ Completo"`.
 - **Optional**: if a new "OTLP Exporter" sub-feature row exists at the package-feature granularity, add it; otherwise the row enrichment above is sufficient (the change is opt-in, additive, and doesn't introduce new packages or modules).
 
 #### 7. docs/architecture/adr/*.md ✅ Required (new ADR-026)
 
-Create [`docs/architecture/adr/026-otlp-exporter-opt-in.md`](docs/architecture/adr/026-otlp-exporter-opt-in.md). The latest existing ADR is [`025-performance-measurement-infrastructure.md`](docs/architecture/adr/025-performance-measurement-infrastructure.md), so this becomes ADR-026.
+Create [`docs/architecture/adr/026-otlp-exporter-opt-in.md`](../../docs/architecture/adr/026-otlp-exporter-opt-in.md). The latest existing ADR is [`025-performance-measurement-infrastructure.md`](../../docs/architecture/adr/025-performance-measurement-infrastructure.md), so this becomes ADR-026.
 
 Why an ADR is justified despite the small code footprint:
 
@@ -1192,7 +1192,7 @@ Why an ADR is justified despite the small code footprint:
 
 Suggested ADR sections: **Status** (Accepted), **Context** (existing OTLP package was unused at API level after #1041), **Decision** (the four choices above), **Consequences** (positive: clean opt-in, justified dependency, three-signal symmetry; negative: WireMock divergence stays until #1051 resolves), **References** (#1041, #1043, #1048, #1049, #1050, #1051).
 
-Update [`docs/architecture/adr/index.md`](docs/architecture/adr/index.md) with the new entry.
+Update [`docs/architecture/adr/index.md`](../../docs/architecture/adr/index.md) with the new entry.
 
 #### 8. PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt ✅ Required (Unshipped only)
 
@@ -1211,11 +1211,11 @@ Update [`docs/architecture/adr/index.md`](docs/architecture/adr/index.md) with t
 
 #### 9. docs/releases/vX.Y.Z/ ⏭️ Conditional
 
-The current in-progress release folder is [`docs/releases/v0.13.0/`](docs/releases/v0.13.0/). This issue targets **v0.19.0** — that release folder does not yet exist (the latest tracked is v0.13.0).
+The current in-progress release folder is [`docs/releases/v0.13.0/`](../../docs/releases/v0.13.0/). This issue targets **v0.19.0** — that release folder does not yet exist (the latest tracked is v0.13.0).
 
 **Two paths**:
 
-- **Path A (preferred)**: when v0.19.0 starts assembly (per the EPIC #888 timeline), create [`docs/releases/v0.19.0/README.md`](docs/releases/v0.19.0/README.md) with an entry for OTLP wiring at that time. The CHANGELOG `[Unreleased]` entry from item #2 above gets moved into the release notes when the version is cut. **This is the standard release flow** — release notes are not authored issue-by-issue, they're aggregated at version-cut time.
+- **Path A (preferred)**: when v0.19.0 starts assembly (per the EPIC #888 timeline), create [`docs/releases/v0.19.0/README.md`](../../docs/releases/v0.19.0/README.md) with an entry for OTLP wiring at that time. The CHANGELOG `[Unreleased]` entry from item #2 above gets moved into the release notes when the version is cut. **This is the standard release flow** — release notes are not authored issue-by-issue, they're aggregated at version-cut time.
 - **Path B (only if release folder already exists at PR time)**: append an "Encina.OpenTelemetry — OTLP Exporter Opt-In (#1043)" sub-section to the existing v0.19.0/README.md, mirroring the v0.13.0 structure.
 
 **Action for this PR**: ensure the CHANGELOG entry from item #2 is complete and self-contained — it serves as the single source of truth until release notes are aggregated.
@@ -1259,7 +1259,7 @@ dotnet test --collect "XPlat Code Coverage" \
   --filter "FullyQualifiedName~OpenTelemetry"
 ```
 
-Coverage targets per [CLAUDE.md Testing Standards](CLAUDE.md#coverage-targets):
+Coverage targets per [CLAUDE.md Testing Standards](../../CLAUDE.md#coverage-targets):
 
 | Metric | Target |
 |--------|--------|
@@ -1518,7 +1518,7 @@ ACCEPTANCE CRITERIA (from issue #1043, expanded for Option B logs coverage):
 ## Cross-Cutting Integration Matrix
 
 Evaluation against the 12 transversal functions defined in
-[CLAUDE.md](CLAUDE.md#cross-cutting-integration-rule-mandatory) "Cross-Cutting Integration Rule":
+[CLAUDE.md](../../CLAUDE.md#cross-cutting-integration-rule-mandatory) "Cross-Cutting Integration Rule":
 
 | # | Function | Status | Notes |
 |---|----------|:------:|-------|
