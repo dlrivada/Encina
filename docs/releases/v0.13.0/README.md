@@ -1,7 +1,7 @@
 # v0.13.0 - Security & Compliance
 
 > **Milestone**: [v0.13.0 - Security & Compliance](https://github.com/dlrivada/Encina/milestone/10)
-> **Status**: In Progress
+> **Status**: Released 2026-09-22 as the pre-1.0 checkpoint (SPEC-000 DEC-005); remaining milestone items move to the 1.0 blocks
 
 This document captures the detailed implementation history for v0.13.0 (February-March 2026).
 
