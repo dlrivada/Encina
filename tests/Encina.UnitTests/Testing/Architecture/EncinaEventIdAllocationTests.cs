@@ -17,8 +17,11 @@ namespace Encina.UnitTests.Testing.Architecture;
 /// The assemblies are the <c>Encina*.dll</c> files in the test output directory, minus the test projects
 /// themselves. <c>Encina.UnitTests</c> references every <c>src/</c> package that declares <c>[LoggerMessage]</c>
 /// methods, directly or transitively, and <see cref="EveryPackageWithLoggerMessagesIsScanned"/> fails if one
-/// goes missing. EventIds created with <c>LoggerMessage.Define</c> / <c>new EventId(n)</c> are not attributes
-/// and are not seen by this test.
+/// goes missing. EventIds created with <c>LoggerMessage.Define(..., new EventId(n, ...), ...)</c> are
+/// constructor arguments, not attributes, so <see cref="EventIdUniquenessRule"/> cannot reflect on them; they
+/// are instead found by scanning <c>src/&lt;Package&gt;/**/*.cs</c> for <c>new EventId(&lt;literal&gt;</c>
+/// (see <see cref="DefinedEventIds"/>, <see cref="DefinedEventIds_LieInsideTheRangesMappedToTheirPackage"/>
+/// and <see cref="DefinedEventIds_DoNotCollideWithAnyOtherEventId"/>, #1125).
 /// </para>
 /// <para>
 /// When a package gains structured logging, register its range in <c>EventIdRanges.cs</c> and add the
@@ -38,6 +41,7 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.ADO.PostgreSQL"] = [nameof(EventIdRanges.ADOPostgreSQL)],
             ["Encina.ADO.SqlServer"] = [nameof(EventIdRanges.ADOSqlServer)],
             ["Encina.AmazonSQS"] = [nameof(EventIdRanges.AmazonSQS)],
+            ["Encina.AspNetCore"] = [nameof(EventIdRanges.AspNetCore)],
             ["Encina.Audit.Marten"] = [nameof(EventIdRanges.AuditMarten)],
             ["Encina.AwsLambda"] = [nameof(EventIdRanges.AwsLambda)],
             ["Encina.AzureFunctions"] = [nameof(EventIdRanges.AzureFunctions)],
@@ -49,9 +53,12 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.Cdc"] = [nameof(EventIdRanges.Cdc)],
             ["Encina.Cdc.Debezium"] = [nameof(EventIdRanges.CdcDebezium)],
             ["Encina.Cdc.SqlServer"] = [nameof(EventIdRanges.CdcSqlServer)],
+            ["Encina.Compliance.AIAct"] = [nameof(EventIdRanges.ComplianceAIAct)],
             ["Encina.Compliance.Anonymization"] = [nameof(EventIdRanges.ComplianceAnonymization)],
             ["Encina.Compliance.Attestation"] = [nameof(EventIdRanges.ComplianceAttestation)],
             ["Encina.Compliance.BreachNotification"] = [nameof(EventIdRanges.ComplianceBreachNotification)],
+            ["Encina.Compliance.Consent"] = [nameof(EventIdRanges.ComplianceConsent)],
+            ["Encina.Compliance.CrossBorderTransfer"] = [nameof(EventIdRanges.ComplianceCrossBorderTransfer)],
             ["Encina.Compliance.DataResidency"] = [nameof(EventIdRanges.ComplianceDataResidency)],
             ["Encina.Compliance.DataSubjectRights"] = [nameof(EventIdRanges.ComplianceDSR)],
             ["Encina.Compliance.DPIA"] = [nameof(EventIdRanges.ComplianceDPIA)],
@@ -77,6 +84,7 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.InMemory"] = [nameof(EventIdRanges.InMemory)],
             ["Encina.Kafka"] = [nameof(EventIdRanges.Kafka)],
             ["Encina.Marten"] = [nameof(EventIdRanges.Marten)],
+            ["Encina.Marten.GDPR"] = [nameof(EventIdRanges.MartenGDPRCryptoShredding)],
             ["Encina.Messaging"] = [nameof(EventIdRanges.MessagingOutbox), nameof(EventIdRanges.MessagingInbox), nameof(EventIdRanges.MessagingSaga), nameof(EventIdRanges.MessagingScheduling), nameof(EventIdRanges.Messaging)],
             ["Encina.Messaging.Encryption"] = [nameof(EventIdRanges.MessagingEncryption)],
             ["Encina.Messaging.Encryption.AwsKms"] = [nameof(EventIdRanges.MessagingEncryption)],
@@ -85,11 +93,13 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.MongoDB"] = [nameof(EventIdRanges.MongoDB)],
             ["Encina.MQTT"] = [nameof(EventIdRanges.MQTT)],
             ["Encina.NATS"] = [nameof(EventIdRanges.NATS)],
+            ["Encina.OpenTelemetry"] = [nameof(EventIdRanges.OpenTelemetry)],
             ["Encina.Polly"] = [nameof(EventIdRanges.Polly)],
             ["Encina.Quartz"] = [nameof(EventIdRanges.Quartz)],
             ["Encina.RabbitMQ"] = [nameof(EventIdRanges.RabbitMQ)],
             ["Encina.Redis.PubSub"] = [nameof(EventIdRanges.RedisPubSub)],
             ["Encina.Refit"] = [nameof(EventIdRanges.Refit)],
+            ["Encina.Security"] = [nameof(EventIdRanges.Security)],
             ["Encina.Security.ABAC"] = [nameof(EventIdRanges.SecurityABAC)],
             ["Encina.Security.AntiTampering"] = [nameof(EventIdRanges.SecurityAntiTampering)],
             ["Encina.Security.Audit"] = [nameof(EventIdRanges.SecurityAuditRead), nameof(EventIdRanges.SecurityAudit)],
@@ -102,9 +112,46 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.Security.Secrets.HashiCorpVault"] = [nameof(EventIdRanges.SecuritySecretsHashiCorpVault)],
             ["Encina.SignalR"] = [nameof(EventIdRanges.SignalR)],
             ["Encina.Tenancy"] = [nameof(EventIdRanges.Tenancy)],
+            ["Encina.Testing"] = [nameof(EventIdRanges.Testing)],
         };
 
     private static readonly Lazy<IReadOnlyList<Assembly>> EncinaAssemblies = new(LoadEncinaAssemblies);
+
+    /// <summary>
+    /// EventIds created with <c>LoggerMessage.Define(..., new EventId(n, ...), ...)</c>. They are constructor
+    /// arguments, not attributes, so they are read from the source: every <c>new EventId(&lt;literal&gt;</c> in
+    /// <c>src/&lt;Package&gt;/**/*.cs</c> outside comments.
+    /// </summary>
+    private static readonly Lazy<IReadOnlyList<(string Package, string Location, int EventId)>> DefinedEventIds = new(() =>
+    {
+        var srcRoot = Path.Combine(FindRepositoryRoot(), "src");
+        var pattern = new System.Text.RegularExpressions.Regex(@"new\s+EventId\s*\(\s*(?<id>\d+)\s*[,)]");
+        var result = new List<(string Package, string Location, int EventId)>();
+
+        foreach (var dir in Directory.EnumerateDirectories(srcRoot))
+        {
+            var package = Path.GetFileName(dir);
+            foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories).Where(f => !IsBuildOutput(f)))
+            {
+                var lines = File.ReadAllLines(file);
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    if (lines[i].TrimStart().StartsWith("//", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    foreach (System.Text.RegularExpressions.Match m in pattern.Matches(lines[i]))
+                    {
+                        var location = $"{Path.GetRelativePath(srcRoot, file).Replace('\\', '/')}:{i + 1}";
+                        result.Add((package!, location, int.Parse(m.Groups["id"].Value, System.Globalization.CultureInfo.InvariantCulture)));
+                    }
+                }
+            }
+        }
+
+        return result;
+    });
 
     [Fact]
     public void EveryLoggerMessage_DeclaresAnEventId()
@@ -146,11 +193,53 @@ public sealed class EncinaEventIdAllocationTests
             .Select(e => e.AssemblyName)
             .ToHashSet(StringComparer.Ordinal);
 
+        var withDefinedEventIds = DefinedEventIds.Value.Select(e => e.Package);
+        withEventIds.UnionWith(withDefinedEventIds);
+
         var stale = AssemblyRanges.Keys.Where(k => !withEventIds.Contains(k)).Order(StringComparer.Ordinal).ToList();
 
         stale.ShouldBeEmpty(
-            "These assemblies are mapped but declare no [LoggerMessage] EventIds in the test output: " +
+            "These assemblies are mapped but declare no [LoggerMessage] or LoggerMessage.Define EventIds: " +
             string.Join(", ", stale));
+    }
+
+    [Fact]
+    public void DefinedEventIds_LieInsideTheRangesMappedToTheirPackage()
+    {
+        var ranges = EventIdRanges.GetAllRanges().ToDictionary(r => r.Name, r => (r.Min, r.Max), StringComparer.Ordinal);
+        var violations = new List<string>();
+
+        foreach (var entry in DefinedEventIds.Value)
+        {
+            if (!AssemblyRanges.TryGetValue(entry.Package, out var names) || names.Count == 0)
+            {
+                violations.Add($"{entry.Location}: EventId {entry.EventId} in package '{entry.Package}', which has no entry in AssemblyRanges.");
+                continue;
+            }
+
+            if (!names.Any(n => ranges.TryGetValue(n, out var r) && entry.EventId >= r.Min && entry.EventId <= r.Max))
+            {
+                violations.Add($"{entry.Location}: EventId {entry.EventId} is outside the ranges of '{entry.Package}' ({string.Join(", ", names)}).");
+            }
+        }
+
+        violations.ShouldBeEmpty(string.Join(Environment.NewLine, violations));
+    }
+
+    [Fact]
+    public void DefinedEventIds_DoNotCollideWithAnyOtherEventId()
+    {
+        var attributeIds = EventIdUniquenessRule.ExtractEventIds(EncinaAssemblies.Value)
+            .Select(e => (e.EventId, Location: $"{e.AssemblyName}::{e.TypeName}.{e.MethodName}"));
+        var definedIds = DefinedEventIds.Value.Select(e => (e.EventId, e.Location));
+
+        var collisions = attributeIds.Concat(definedIds)
+            .GroupBy(e => e.EventId)
+            .Where(g => g.Count() > 1 && g.Any(e => DefinedEventIds.Value.Any(d => d.Location == e.Location)))
+            .Select(g => $"EventId {g.Key}: {string.Join(", ", g.Select(e => e.Location))}")
+            .ToList();
+
+        collisions.ShouldBeEmpty(string.Join(Environment.NewLine, collisions));
     }
 
     [Fact]

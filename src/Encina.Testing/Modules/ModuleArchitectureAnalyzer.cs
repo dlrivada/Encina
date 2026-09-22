@@ -39,19 +39,20 @@ public sealed class ModuleArchitectureAnalyzer
     private readonly Lazy<ModuleAnalysisResult> _analysisResult;
     private readonly ILogger<ModuleArchitectureAnalyzer>? _logger;
 
+    // Event IDs: 250-252 (see EventIdRanges.Testing)
     private static readonly Action<ILogger, string, string, Exception?> _failedToLoadTypes =
         LoggerMessage.Define<string, string>(LogLevel.Error,
-            new EventId(1001, nameof(ModuleArchitectureAnalyzer) + ".FailedToLoadTypes"),
+            new EventId(250, nameof(ModuleArchitectureAnalyzer) + ".FailedToLoadTypes"),
             "ModuleArchitectureAnalyzer: failed to load types for {SourceType} in assembly {Assembly} - LoaderExceptions");
 
     private static readonly Action<ILogger, string, string, string, string, string, Exception?> _loaderExceptionLog =
         LoggerMessage.Define<string, string, string, string, string>(LogLevel.Error,
-            new EventId(1002, nameof(ModuleArchitectureAnalyzer) + ".LoaderException"),
+            new EventId(251, nameof(ModuleArchitectureAnalyzer) + ".LoaderException"),
             "Loader exception in {Assembly} for type {SourceType}: {ExceptionType}: {Message}\n{StackTrace}");
 
     private static readonly Action<ILogger, string, string, string, string, string, Exception?> _analysisErrorLog =
         LoggerMessage.Define<string, string, string, string, string>(LogLevel.Error,
-            new EventId(1003, nameof(ModuleArchitectureAnalyzer) + ".AnalysisError"),
+            new EventId(252, nameof(ModuleArchitectureAnalyzer) + ".AnalysisError"),
             "ModuleArchitectureAnalyzer: error analyzing type {SourceType} in assembly {Assembly}: {ExceptionType}: {Message}\n{StackTrace}");
 
     /// <summary>

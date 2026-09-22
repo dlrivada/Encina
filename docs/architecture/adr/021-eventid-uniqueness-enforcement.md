@@ -46,13 +46,14 @@ Automated enforcement via architecture tests:
   - `AssertNoRangeOverlaps()` — No two registered ranges overlap
   - `GenerateAllocationReport()` — Human-readable allocation table with usage statistics
 - **Solution-wide test**: `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` loads every shipped `Encina*` assembly from the test output and applies the three validations. Its `AssemblyRanges` field is the assembly → range-name map; a package that starts logging must be added there, and the test fails when a `src/` package with `[LoggerMessage]` methods is not scanned.
-- **Scope**: `[LoggerMessage]` attributes only. EventIds created with `LoggerMessage.Define(..., new EventId(n), ...)` leave no metadata to reflect on and are tracked by #1125.
+- **Scope**: `[LoggerMessage]` attributes, reflected from the compiled assemblies, plus `LoggerMessage.Define(..., new EventId(n), ...)` allocations, found by scanning `src/<Package>/**/*.cs` for `new EventId(<literal>` outside comments (#1125). Both are checked for uniqueness and for falling inside the ranges registered for their package.
 
 ### 3. Range Allocation Policy
 
 | Area | Range | Notes |
 |------|-------|-------|
 | Core | 1-199 | Sanitization (1-99), Encina core: mediator, streaming, sharding (100-199) |
+| Web / testing integrations | 200-299 | AspNetCore (200-249), Testing (250-299) |
 | DomainModeling | 1100-1699 | Repository, UoW, Bulk, Spec, SoftDelete, Audit |
 | Security Audit | 1700-1799 | Read audit |
 | Infrastructure | 1800-1999 | Tenancy, Module Isolation |
@@ -70,7 +71,7 @@ Automated enforcement via architecture tests:
 | Compliance | 8100-8949 | GDPR, Consent, DSR, LawfulBasis, Anonymization, CryptoShredding, Retention, DataResidency, BreachNotification, DPIA, PrivacyByDesign |
 | Security Extensions | 9000-9199 | ABAC, AntiTampering |
 | Compliance Extensions | 9200-9699 | NIS2, CrossBorderTransfer, ProcessorAgreements, AIAct, Attestation |
-| Free | 200-1099, 5400-6999, 7100-7999, 8950-8999, 9700-9999 | Future modules |
+| Free | 300-1099, 5400-6999, 7100-7999, 8950-8999, 9700-9999 | Future modules |
 
 ### 4. Allocation Workflow for New Features
 

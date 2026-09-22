@@ -1,0 +1,1 @@
+- ADR-021's EventId uniqueness enforcement now also covers `LoggerMessage.Define` allocations (previously only `[LoggerMessage]` attributes were checked); `Encina.AspNetCore` and `Encina.Testing` gained registered EventId ranges (200-249 and 250-299) and their EventIds were renumbered into them.

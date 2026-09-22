@@ -79,16 +79,17 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
     private static readonly Type CommandOpenGeneric = typeof(ICommand<>);
 
     // High-performance logging delegates
+    // Event IDs: 200-201 (see EventIdRanges.AspNetCore)
     private static readonly Action<ILogger, string, string?, string?, Exception?> LogAuthorizationSucceeded =
         LoggerMessage.Define<string, string?, string?>(
             LogLevel.Debug,
-            new EventId(1, "AuthorizationSucceeded"),
+            new EventId(200, "AuthorizationSucceeded"),
             "Authorization succeeded for {RequestType}. Policy: {Policy}, UserId: {UserId}");
 
     private static readonly Action<ILogger, string, string?, string?, string, Exception?> LogAuthorizationDenied =
         LoggerMessage.Define<string, string?, string?, string>(
             LogLevel.Warning,
-            new EventId(2, "AuthorizationDenied"),
+            new EventId(201, "AuthorizationDenied"),
             "Authorization denied for {RequestType}. Policy: {Policy}, UserId: {UserId}, Reason: {Reason}");
 
     private readonly IAuthorizationService _authorizationService;

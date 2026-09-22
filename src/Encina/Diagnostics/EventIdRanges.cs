@@ -31,6 +31,16 @@ public static class EventIdRanges
     public static readonly (int Min, int Max) Core = (100, 199);
 
     // ═══════════════════════════════════════════════════════════════════════
+    // Web and testing integrations (200-299)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Encina.AspNetCore — authorization pipeline behavior.</summary>
+    public static readonly (int Min, int Max) AspNetCore = (200, 249);
+
+    /// <summary>Encina.Testing — module architecture analyzer diagnostics.</summary>
+    public static readonly (int Min, int Max) Testing = (250, 299);
+
+    // ═══════════════════════════════════════════════════════════════════════
     // DomainModeling (1100-1699)
     // ═══════════════════════════════════════════════════════════════════════
 
