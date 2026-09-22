@@ -10,6 +10,8 @@ This is the prompt the maintainer uses to turn a `[FEATURE]` issue into an imple
 
 Issue bodies themselves follow the templates in `.github/ISSUE_TEMPLATE/` (headers verbatim; see `CLAUDE.md`, "Issue Tracking & Project Documentation").
 
+Three lines differ from the maintainer's original wording, aligned with `CLAUDE.md` on 2026-09-22: the database provider count (10, SQLite is out of the matrix), the Event ID rule (register the range in `EventIdRanges.cs` first, ADR-021) and the test verification criterion (per-flag coverage targets from the manifest, not a single 85%).
+
 ---
 
 ```text
@@ -22,7 +24,7 @@ INSTRUCTIONS:
    - Read CLAUDE.md thoroughly — understand project philosophy, architecture, provider categories, testing standards, and naming conventions
    - Explore existing code in the area that corresponds to identify established patterns (interfaces, stores, behaviors, diagnostics, DI registrations)
    - Identify which provider category applies (see "Provider Applicability Matrix" and "Specialized Provider Categories" in CLAUDE.md):
-     - Database (13): ADO.NET ×4, Dapper ×4, EF Core ×4, MongoDB
+     - Database (10): ADO.NET ×3, Dapper ×3, EF Core ×3 (SqlServer, PostgreSQL, MySQL), MongoDB
      - Caching (8): Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB, Memcached
      - Messaging Transport (10+): RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, NATS, Redis.PubSub, MQTT, InMemory, gRPC, GraphQL
      - Distributed Lock (4+): InMemory, Redis, SqlServer, PostgreSQL...
@@ -33,7 +35,7 @@ INSTRUCTIONS:
      - Observability (1+): OpenTelemetry + exporters
      - Testing (12): Testing, Testing.Fakes, Testing.Respawn, etc.
      - Or none — some features are provider-independent
-   - Verify Event ID ranges already in use to avoid collisions (grep for EventId patterns in Diagnostics/ folders)
+   - Find the next free Event ID range in src/Encina/Diagnostics/EventIdRanges.cs (ADR-021: every range is registered there before use; grep Diagnostics/ folders for EventId patterns to confirm nothing unregistered collides)
    - Understand which existing modules the feature integrates with
    - Evaluate the feature against ALL 12 transversal functions defined in CLAUDE.md "Cross-Cutting Integration Rule" (Caching, OpenTelemetry, Structured Logging, Health Checks, Validation, Resilience, Distributed Locks, Transactions, Idempotency, Multi-Tenancy, Module Isolation, Audit Trail). For each, determine: ✅ Include in this implementation, ⏭️ Defer to separate issue, or ❌ N/A.
 2. PLAN STRUCTURE (all sections are mandatory):
@@ -113,7 +115,7 @@ INSTRUCTIONS:
       OBSERVABILITY PHASE (always present for non-trivial features):
       - ActivitySource named after the package
       - Meter with dimensional counters (Counter<long>) with tags
-      - [LoggerMessage] source generator with Event IDs in a new non-colliding range
+      - [LoggerMessage] source generator with Event IDs in a range registered first in src/Encina/Diagnostics/EventIdRanges.cs (ADR-021), packed sequentially, no gaps
       TESTING PHASE (always present, adapt scope to feature complexity):
       - Unit Tests: mocks, AAA pattern, fast execution
       - Guard Tests: ArgumentNullException for all public parameters
@@ -133,7 +135,7 @@ INSTRUCTIONS:
       - PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt — ensure all public symbols are tracked
       - docs/releases/vX.Y.Z/ — update release notes if applicable to a version
       - Build verification: dotnet build --configuration Release → 0 errors, 0 warnings
-      - Test verification: dotnet test → all pass, coverage target ≥85%
+      - Test verification: dotnet test → all pass; every coverage flag (unit, guard, contract, property, integration) reaches its own target in .github/coverage-manifest/{Package}.json (per-flag obligations model, no single percentage)
    d) RESEARCH
       - Table of relevant standards/specifications (GDPR articles, EIP patterns, cloud specs, etc.)
       - Table of existing Encina infrastructure to leverage (component, location, usage in this feature)
