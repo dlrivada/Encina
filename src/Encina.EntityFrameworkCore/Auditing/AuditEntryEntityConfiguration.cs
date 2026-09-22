@@ -117,12 +117,12 @@ public sealed class AuditEntryEntityConfiguration : IEntityTypeConfiguration<Aud
 
         // Filtered index on UserId for user activity tracking
         builder.HasIndex(x => x.UserId)
-            .HasFilter("UserId IS NOT NULL")
+            .HasFilter(IndexFilters.IsNotNull(nameof(AuditEntryEntity.UserId)))
             .HasDatabaseName("IX_SecurityAuditEntries_UserId");
 
         // Filtered index on TenantId for multi-tenant queries
         builder.HasIndex(x => x.TenantId)
-            .HasFilter("TenantId IS NOT NULL")
+            .HasFilter(IndexFilters.IsNotNull(nameof(AuditEntryEntity.TenantId)))
             .HasDatabaseName("IX_SecurityAuditEntries_TenantId");
 
         // Filtered index on CorrelationId for request correlation tracking

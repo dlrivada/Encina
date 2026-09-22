@@ -58,7 +58,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         }
         catch (DbUpdateException ex)
         {
-            return Left(ReadAuditErrors.StoreError("LogRead", ex.Message, ex));
+            return Left(ReadAuditErrors.StoreError("LogRead", StoreExceptionMessages.Describe(ex), ex));
         }
         catch (OperationCanceledException)
         {
@@ -218,7 +218,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         catch (DbUpdateException ex)
         {
             return Left<EncinaError, int>(
-                ReadAuditErrors.PurgeFailed(ex.Message, ex));
+                ReadAuditErrors.PurgeFailed(StoreExceptionMessages.Describe(ex), ex));
         }
         catch (OperationCanceledException)
         {
