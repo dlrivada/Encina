@@ -32,6 +32,7 @@ This document is **not permanently normative**. It is a routing hypothesis, to b
 - **Strengths with evidence:** no hallucination on verifiable data when tools are available (checked against `gh api`); correct reading of Encina's non-standard docs (mutation methodology, obligations coverage model).
 - **Limits with evidence:** (1) silently drops parts of multi-point instructions — enumerate every point and say "without omitting any"; (2) re-exploration loop on open-ended research (one session: ~968k tokens, 75 % in tool calls, no deliverable) — split into "investigate and write findings to a file" and "now write the deliverable, no more searching"; (3) speed is not the bottleneck, reliability over long sessions is — no unattended overnight batches until the opencode ≥ 1.18.31 loop fix is confirmed stable.
 - **Brief template:** one bounded task, numbered points, the exact output file path, the sources it may read, and the sentence "stop when the file is written". Claude (or the maintainer) verifies a sample by following the provenance links the brief requires.
+
 ## 3. Routing criterion
 
 Each role in the `AI-DEVELOPMENT-MODEL.md` §8 pipeline (`HISTORIAN → AUDITOR → SPECIFIER → ARCHITECT → HUMAN DECISION GATE → IMPLEMENTER → VERIFIER → ADVERSARIAL REVIEWER`) is evaluated on two axes:
