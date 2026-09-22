@@ -1,5 +1,7 @@
 using Encina.Compliance.ProcessorAgreements.Aggregates;
+using Encina.Compliance.ProcessorAgreements.ReadModels;
 using Encina.Marten;
+using Encina.Marten.Projections;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -22,6 +24,11 @@ public static class ProcessorAgreementsMartenExtensions
     /// <item><see cref="ProcessorAggregate"/> — Processor identity and sub-processor hierarchy lifecycle</item>
     /// <item><see cref="DPAAggregate"/> — Data Processing Agreement contractual lifecycle</item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// It also registers the inline projections that keep the <see cref="ProcessorReadModel"/> and
+    /// <see cref="DPAReadModel"/> read models (and their <see cref="IReadModelRepository{TReadModel}"/>)
+    /// in step with the event streams, so the processor and DPA services can query them.
     /// </para>
     /// <para>
     /// This method should be called alongside <see cref="ServiceCollectionExtensions.AddEncinaProcessorAgreements"/>
@@ -47,6 +54,9 @@ public static class ProcessorAgreementsMartenExtensions
 
         services.AddAggregateRepository<ProcessorAggregate>();
         services.AddAggregateRepository<DPAAggregate>();
+
+        services.AddProjection<ProcessorProjection, ProcessorReadModel>();
+        services.AddProjection<DPAProjection, DPAReadModel>();
 
         return services;
     }

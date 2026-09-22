@@ -1,3 +1,4 @@
+using System.Reflection;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,6 +53,15 @@ public interface IInlineProjectionDispatcher
 /// </summary>
 public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatcher
 {
+    // The read model type is only known at runtime, so the generic session calls go through
+    // these private helpers. Looking the methods up on our own type is deliberate: the Marten
+    // members (LoadAsync, Store, Delete) live on base interfaces of IDocumentSession, which
+    // Type.GetMethod does not search on an interface type.
+    private const BindingFlags HelperBinding = BindingFlags.Instance | BindingFlags.NonPublic;
+    private static readonly MethodInfo LoadHelper = typeof(MartenInlineProjectionDispatcher).GetMethod(nameof(LoadReadModelCoreAsync), HelperBinding)!;
+    private static readonly MethodInfo StoreHelper = typeof(MartenInlineProjectionDispatcher).GetMethod(nameof(StoreReadModelCoreAsync), HelperBinding)!;
+    private static readonly MethodInfo DeleteHelper = typeof(MartenInlineProjectionDispatcher).GetMethod(nameof(DeleteReadModelCoreAsync), HelperBinding)!;
+
     private readonly IDocumentSession _session;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MartenInlineProjectionDispatcher> _logger;
@@ -240,42 +250,41 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
         }
     }
 
-    private async Task<object?> LoadReadModelAsync(
+    private Task<object?> LoadReadModelAsync(
         Type readModelType,
         Guid id,
         CancellationToken cancellationToken)
     {
-        // Use reflection to call LoadAsync<T> on the session
-        var loadMethod = typeof(IDocumentSession).GetMethod(
-            nameof(IDocumentSession.LoadAsync),
-            [typeof(Guid), typeof(CancellationToken)]);
-
-        var genericLoadMethod = loadMethod!.MakeGenericMethod(readModelType);
-
-        var task = (Task)genericLoadMethod.Invoke(_session, [id, cancellationToken])!;
-        await task.ConfigureAwait(false);
-
-        var resultProperty = task.GetType().GetProperty("Result");
-        return resultProperty!.GetValue(task);
+        return (Task<object?>)LoadHelper.MakeGenericMethod(readModelType).Invoke(this, [id, cancellationToken])!;
     }
 
-    private async Task StoreReadModelAsync(object readModel, CancellationToken cancellationToken)
+    private Task StoreReadModelAsync(object readModel, CancellationToken cancellationToken)
     {
-        var storeMethod = typeof(IDocumentSession).GetMethod(nameof(IDocumentSession.Store))!;
-        var genericStoreMethod = storeMethod.MakeGenericMethod(readModel.GetType());
+        return (Task)StoreHelper.MakeGenericMethod(readModel.GetType()).Invoke(this, [readModel, cancellationToken])!;
+    }
 
-        genericStoreMethod.Invoke(_session, [new[] { readModel }]);
+    private Task DeleteReadModelAsync(Type readModelType, Guid id, CancellationToken cancellationToken)
+    {
+        return (Task)DeleteHelper.MakeGenericMethod(readModelType).Invoke(this, [id, cancellationToken])!;
+    }
+
+    private async Task<object?> LoadReadModelCoreAsync<TReadModel>(Guid id, CancellationToken cancellationToken)
+        where TReadModel : class
+    {
+        return await _session.LoadAsync<TReadModel>(id, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task StoreReadModelCoreAsync<TReadModel>(TReadModel readModel, CancellationToken cancellationToken)
+        where TReadModel : class
+    {
+        _session.Store(readModel);
         await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task DeleteReadModelAsync(Type readModelType, Guid id, CancellationToken cancellationToken)
+    private async Task DeleteReadModelCoreAsync<TReadModel>(Guid id, CancellationToken cancellationToken)
+        where TReadModel : class
     {
-        var deleteMethod = typeof(IDocumentSession).GetMethods()
-            .First(m => m.Name == nameof(IDocumentSession.Delete) && m.IsGenericMethod);
-
-        var genericDeleteMethod = deleteMethod.MakeGenericMethod(readModelType);
-
-        genericDeleteMethod.Invoke(_session, [id]);
+        _session.Delete<TReadModel>(id);
         await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 }

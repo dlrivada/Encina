@@ -142,6 +142,36 @@ public class MartenAggregateRepositoryTests
     }
 
     [Fact]
+    public async Task LoadAsync_StreamOfAnotherAggregateType_ReturnsAggregateNotFound()
+    {
+        // A stream whose events TestAggregate does not know: replay folds them as no-ops and never sets Id
+        var id = Guid.NewGuid();
+        _session.Events.FetchStreamAsync(id, version: 0, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns([new Event<ForeignEvent>(new ForeignEvent()) { Version = 1, StreamId = id }]);
+        var sut = CreateSut();
+
+        var result = await sut.LoadAsync(id);
+
+        result.IsLeft.ShouldBeTrue();
+        result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: err => err.Message.ShouldContain("does not belong to aggregate TestAggregate"));
+    }
+
+    [Fact]
+    public async Task LoadAsync_WithVersion_StreamOfAnotherAggregateType_ReturnsAggregateNotFound()
+    {
+        var id = Guid.NewGuid();
+        _session.Events.FetchStreamAsync(id, version: 1, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns([new Event<ForeignEvent>(new ForeignEvent()) { Version = 1, StreamId = id }]);
+        var sut = CreateSut();
+
+        var result = await sut.LoadAsync(id, 1);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task LoadAsync_ById_NullResult_ReturnsLeft()
     {
         var id = Guid.NewGuid();
@@ -455,6 +485,8 @@ public class MartenAggregateRepositoryTests
     }
 
     public sealed record TestEvent(Guid Id);
+
+    public sealed record ForeignEvent;
 
     // Custom exception types that match Marten's naming conventions
     private sealed class ConcurrencyTestException(string message) : Exception(message);

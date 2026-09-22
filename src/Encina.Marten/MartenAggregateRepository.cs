@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Encina.DomainModeling;
+using Encina.Marten.Projections;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging;
@@ -16,10 +17,18 @@ namespace Encina.Marten;
 /// instantiate it before replaying its event stream through <see cref="IAggregate.LoadFromHistory"/>.
 /// </typeparam>
 /// <remarks>
+/// <para>
 /// Event replay is done by Encina, not by Marten: the repository fetches the stream with
 /// <c>FetchStreamAsync</c> and lets the aggregate fold the events. This keeps aggregates
 /// provider-agnostic (a single <c>Apply(object)</c> switch) instead of requiring the
 /// per-event-type methods and <c>partial</c> classes that Marten's own aggregation needs.
+/// </para>
+/// <para>
+/// When an <see cref="IInlineProjectionDispatcher"/> is registered (see
+/// <c>AddProjection</c>), every successful <see cref="SaveAsync"/> and <see cref="CreateAsync"/>
+/// hands the persisted events to the inline projections so read models stay in step with the
+/// stream. See <see cref="InlineProjectionRelay"/> for the failure semantics.
+/// </para>
 /// </remarks>
 public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository<TAggregate>
     where TAggregate : class, IAggregate, new()
@@ -29,6 +38,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     private readonly ILogger<MartenAggregateRepository<TAggregate>> _logger;
     private readonly EncinaMartenOptions _options;
     private readonly EventMetadataEnrichmentService? _enrichmentService;
+    private readonly InlineProjectionRelay _projections;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MartenAggregateRepository{TAggregate}"/> class.
@@ -38,12 +48,16 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The configuration options.</param>
     /// <param name="enrichers">Optional collection of metadata enrichers.</param>
+    /// <param name="projectionDispatcher">Optional inline projection dispatcher; when present, saved events update the read models.</param>
+    /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
     public MartenAggregateRepository(
         IDocumentSession session,
         IRequestContext requestContext,
         ILogger<MartenAggregateRepository<TAggregate>> logger,
         IOptions<EncinaMartenOptions> options,
-        IEnumerable<IEventMetadataEnricher>? enrichers = null)
+        IEnumerable<IEventMetadataEnricher>? enrichers = null,
+        IInlineProjectionDispatcher? projectionDispatcher = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(requestContext);
@@ -54,6 +68,11 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         _requestContext = requestContext;
         _logger = logger;
         _options = options.Value;
+        _projections = new InlineProjectionRelay(
+            projectionDispatcher,
+            _options.Projections,
+            timeProvider ?? TimeProvider.System,
+            logger);
 
         // Create enrichment service if metadata tracking is enabled
         if (_options.Metadata.IsAnyMetadataEnabled())
@@ -89,6 +108,11 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             }
 
             var aggregate = Replay(events);
+
+            if (aggregate.Id != id)
+            {
+                return StreamDoesNotBelongToAggregate(id);
+            }
 
             Log.LoadedAggregate(_logger, typeof(TAggregate).Name, id, aggregate.Version);
 
@@ -132,6 +156,11 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             var aggregate = Replay(events);
 
+            if (aggregate.Id != id)
+            {
+                return StreamDoesNotBelongToAggregate(id);
+            }
+
             return Right<EncinaError, TAggregate>(aggregate); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
@@ -162,6 +191,10 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             Log.SavingEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
 
+            // Snapshot the events: UncommittedEvents is a live view that ClearUncommittedEvents empties.
+            var events = uncommittedEvents.ToArray();
+            var versionBeforeAppend = aggregate.Version - events.Length;
+
             // Enrich session with metadata before appending events
             _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
@@ -175,16 +208,22 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             // check is still enforced under that default (a stale append fails with a concurrency
             // exception and the stream keeps only the first writer's events); this is pinned by
             // MartenAggregateRepositoryIntegrationTests.SaveAsync_StreamModifiedByAnotherSession_ReturnsConcurrencyConflict.
-            _session.Events.Append(aggregate.Id, aggregate.Version, uncommittedEvents.ToArray());
+            _session.Events.Append(aggregate.Id, aggregate.Version, events);
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();
 
-            Log.SavedEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
+            Log.SavedEvents(_logger, events.Length, typeof(TAggregate).Name, aggregate.Id);
 
-            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
+            // The events are durable at this point; projections run after the commit
+            return await _projections.ProjectAsync(
+                typeof(TAggregate).Name,
+                aggregate.Id,
+                versionBeforeAppend,
+                events,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsConcurrencyException(ex))
         {
@@ -253,11 +292,14 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             Log.CreatingAggregate(_logger, typeof(TAggregate).Name, aggregate.Id, uncommittedEvents.Count);
 
+            // Snapshot the events: UncommittedEvents is a live view that ClearUncommittedEvents empties.
+            var events = uncommittedEvents.ToArray();
+
             // Enrich session with metadata before starting stream
             _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
             // Start a new stream
-            _session.Events.StartStream<TAggregate>(aggregate.Id, uncommittedEvents.ToArray());
+            _session.Events.StartStream<TAggregate>(aggregate.Id, events);
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -266,7 +308,13 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
 
             Log.CreatedAggregate(_logger, typeof(TAggregate).Name, aggregate.Id);
 
-            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
+            // The stream is durable at this point; projections run after the commit
+            return await _projections.ProjectAsync(
+                typeof(TAggregate).Name,
+                aggregate.Id,
+                versionBeforeAppend: 0,
+                events,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsStreamCollisionException(ex))
         {
@@ -298,6 +346,21 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         var aggregate = new TAggregate();
         aggregate.LoadFromHistory(events.Select(static e => e.Data));
         return aggregate;
+    }
+
+    /// <summary>
+    /// The stream exists but its events did not produce an aggregate with the requested identifier:
+    /// the stream belongs to another aggregate type (its events are unknown to <typeparamref name="TAggregate"/>
+    /// and were folded as no-ops), which Marten does not check on <c>FetchStreamAsync</c>.
+    /// </summary>
+    private Either<EncinaError, TAggregate> StreamDoesNotBelongToAggregate(Guid id)
+    {
+        Log.AggregateNotFound(_logger, typeof(TAggregate).Name, id);
+
+        return Left<EncinaError, TAggregate>( // NOSONAR S6966: LanguageExt Left is a pure function
+            EncinaErrors.Create(
+                MartenErrorCodes.AggregateNotFound,
+                $"Stream {id} does not belong to aggregate {typeof(TAggregate).Name}: replaying it did not yield an aggregate with that identifier."));
     }
 
     /// <summary>

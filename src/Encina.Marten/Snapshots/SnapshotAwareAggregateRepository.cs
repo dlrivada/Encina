@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Encina.DomainModeling;
+using Encina.Marten.Projections;
 using LanguageExt;
 using Marten;
 using Marten.Events;
@@ -25,6 +26,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
     private readonly AggregateSnapshotConfig _snapshotConfig;
     private readonly EventMetadataEnrichmentService? _enrichmentService;
     private readonly TimeProvider _timeProvider;
+    private readonly InlineProjectionRelay _projections;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SnapshotAwareAggregateRepository{TAggregate}"/> class.
@@ -36,6 +38,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
     /// <param name="options">The configuration options.</param>
     /// <param name="enrichers">Optional collection of metadata enrichers.</param>
     /// <param name="timeProvider">The time provider. If <c>null</c>, <see cref="TimeProvider.System"/> is used.</param>
+    /// <param name="projectionDispatcher">Optional inline projection dispatcher; when present, saved events update the read models.</param>
     public SnapshotAwareAggregateRepository(
         IDocumentSession session,
         ISnapshotStore<TAggregate> snapshotStore,
@@ -43,7 +46,8 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         ILogger<SnapshotAwareAggregateRepository<TAggregate>> logger,
         IOptions<EncinaMartenOptions> options,
         IEnumerable<IEventMetadataEnricher>? enrichers = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IInlineProjectionDispatcher? projectionDispatcher = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(snapshotStore);
@@ -58,6 +62,11 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         _options = options.Value;
         _snapshotConfig = _options.Snapshots.GetConfigFor<TAggregate>();
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _projections = new InlineProjectionRelay(
+            projectionDispatcher,
+            _options.Projections,
+            _timeProvider,
+            logger);
 
         // Create enrichment service if metadata tracking is enabled
         if (_options.Metadata.IsAnyMetadataEnabled())
@@ -154,24 +163,35 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
 
             Log.SavingEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
 
+            // Snapshot the events: UncommittedEvents is a live view that ClearUncommittedEvents empties.
+            var events = uncommittedEvents.ToArray();
+
             // Enrich session with metadata before appending events
             _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
-            // Append events to the stream
-            var expectedVersion = aggregate.Version - uncommittedEvents.Count;
-            _session.Events.Append(aggregate.Id, expectedVersion, uncommittedEvents.ToArray());
+            // Append with optimistic concurrency. Marten's expectedVersion is the stream version
+            // AFTER the append, which is exactly aggregate.Version (RaiseEvent already counted the
+            // uncommitted events); see MartenAggregateRepository for the pinning integration test.
+            var versionBeforeAppend = aggregate.Version - events.Length;
+            _session.Events.Append(aggregate.Id, aggregate.Version, events);
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();
 
-            Log.SavedEvents(_logger, uncommittedEvents.Count, typeof(TAggregate).Name, aggregate.Id);
+            Log.SavedEvents(_logger, events.Length, typeof(TAggregate).Name, aggregate.Id);
 
             // Check if we should create a snapshot
             await TryCreateSnapshotAsync(aggregate, cancellationToken).ConfigureAwait(false);
 
-            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
+            // The events are durable at this point; projections run after the commit
+            return await _projections.ProjectAsync(
+                typeof(TAggregate).Name,
+                aggregate.Id,
+                versionBeforeAppend,
+                events,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsConcurrencyException(ex))
         {
@@ -240,11 +260,14 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
 
             Log.CreatingAggregate(_logger, typeof(TAggregate).Name, aggregate.Id, uncommittedEvents.Count);
 
+            // Snapshot the events: UncommittedEvents is a live view that ClearUncommittedEvents empties.
+            var events = uncommittedEvents.ToArray();
+
             // Enrich session with metadata before starting stream
             _enrichmentService?.EnrichSession(_session, _requestContext, uncommittedEvents);
 
             // Start a new stream
-            _session.Events.StartStream<TAggregate>(aggregate.Id, uncommittedEvents.ToArray());
+            _session.Events.StartStream<TAggregate>(aggregate.Id, events);
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -253,7 +276,13 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
 
             Log.CreatedAggregate(_logger, typeof(TAggregate).Name, aggregate.Id);
 
-            return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
+            // The stream is durable at this point; projections run after the commit
+            return await _projections.ProjectAsync(
+                typeof(TAggregate).Name,
+                aggregate.Id,
+                versionBeforeAppend: 0,
+                events,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (IsStreamCollisionException(ex))
         {
@@ -309,6 +338,17 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
 
             var aggregate = new TAggregate();
             aggregate.LoadFromHistory(allEvents.Select(static e => e.Data));
+
+            if (aggregate.Id != id)
+            {
+                // The stream belongs to another aggregate type: its events were folded as no-ops.
+                Log.AggregateNotFound(_logger, typeof(TAggregate).Name, id);
+
+                return Left<EncinaError, TAggregate>( // NOSONAR S6966: LanguageExt Left is a pure function
+                    EncinaErrors.Create(
+                        MartenErrorCodes.AggregateNotFound,
+                        $"Stream {id} does not belong to aggregate {typeof(TAggregate).Name}: replaying it did not yield an aggregate with that identifier."));
+            }
 
             Log.LoadedAggregate(_logger, typeof(TAggregate).Name, id, aggregate.Version);
 

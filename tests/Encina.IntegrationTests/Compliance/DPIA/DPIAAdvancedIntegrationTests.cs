@@ -144,8 +144,9 @@ public sealed class DPIAAdvancedIntegrationTests
     [Fact]
     public async Task DPIAService_GetAssessment_ReturnsReadModelWithAllFieldsMapped()
     {
-        // Arrange — create and evaluate an assessment through the aggregate directly
-        var repo = CreateRepository<DPIAAggregate>();
+        // Arrange — build the assessment through the aggregate directly, then persist it through the
+        // DI-resolved repository so the inline projection produces the read model
+        using var provider = BuildServiceProvider();
         var id = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
 
@@ -174,10 +175,14 @@ public sealed class DPIAAdvancedIntegrationTests
 
         aggregate.Approve("dpo-proj", now.AddHours(1), now.AddDays(180));
 
-        await repo.CreateAsync(aggregate);
+        using (var writeScope = provider.CreateScope())
+        {
+            var repo = writeScope.ServiceProvider.GetRequiredService<IAggregateRepository<DPIAAggregate>>();
+            var created = await repo.CreateAsync(aggregate);
+            created.IsRight.ShouldBeTrue($"CreateAsync should succeed: {created}");
+        }
 
         // Act — query read model via service
-        using var provider = BuildServiceProvider();
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IDPIAService>();
         var getResult = await service.GetAssessmentAsync(id);
