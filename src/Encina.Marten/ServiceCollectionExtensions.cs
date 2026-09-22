@@ -44,6 +44,10 @@ public static class ServiceCollectionExtensions
 
         services.Configure(configure);
 
+        // Marten applies IConfigureMarten, not IConfigureOptions<StoreOptions>; the bridge makes
+        // every Encina configurator run when the store is built (#1096).
+        services.AddEncinaMartenStoreOptionsBridge();
+
         // Register the open generic aggregate repository
         services.TryAddScoped(typeof(IAggregateRepository<>), typeof(MartenAggregateRepository<>));
 
@@ -77,6 +81,30 @@ public static class ServiceCollectionExtensions
         {
             services.AddEventMetadata(options.Metadata);
         }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Makes Marten apply every <see cref="IConfigureOptions{TOptions}"/> and
+    /// <see cref="IPostConfigureOptions{TOptions}"/> registered for <see cref="StoreOptions"/>
+    /// when it builds the document store.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// Marten runs only <see cref="IConfigureMarten"/> services when it creates its
+    /// <see cref="StoreOptions"/>; the Options-pattern configurators Encina packages register
+    /// (event metadata, upcasters, crypto-shredding, audit projections) are ignored without this
+    /// bridge (issue #1096). <see cref="AddEncinaMarten(IServiceCollection)"/> calls it; packages
+    /// that configure Marten without <c>AddEncinaMarten</c> call it themselves. Safe to call more
+    /// than once.
+    /// </remarks>
+    public static IServiceCollection AddEncinaMartenStoreOptionsBridge(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureMarten, EncinaStoreOptionsConfigurator>());
 
         return services;
     }
@@ -189,7 +217,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<EventUpcasterRegistry>();
 
         // Configure Marten to use registered upcasters
-        services.TryAddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenEventVersioning>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<StoreOptions>, ConfigureMartenEventVersioning>());
 
         return services;
     }
@@ -205,7 +233,7 @@ public static class ServiceCollectionExtensions
         EventMetadataOptions options)
     {
         // Configure Marten to enable metadata columns
-        services.TryAddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenEventMetadata>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<StoreOptions>, ConfigureMartenEventMetadata>());
 
         // Register event metadata query service
         services.TryAddScoped<IEventMetadataQuery, MartenEventMetadataQuery>();

@@ -1,6 +1,8 @@
 ## [Unreleased]
 
-_Nothing yet. The 0.13.0 checkpoint below closes the pre-1.0 consolidation; the next minor versions each close one 1.0 block (SPEC-000 DEC-005)._
+### Fixed
+
+- **Marten configurators registered through the Options pattern now run** (#1096). `Encina.Marten`, `Encina.Marten.GDPR` and `Encina.Audit.Marten` configure `StoreOptions` with `IConfigureOptions<StoreOptions>` (event metadata columns, upcasters, the crypto-shredding serializer, audit projections), but Marten applies only `IConfigureMarten` when it builds the store, so none of them executed. A bridge (`EncinaStoreOptionsConfigurator`, registered by `AddEncinaMartenStoreOptionsBridge()` from `AddEncinaMarten`, `AddEncinaMartenGdpr` and the audit registration) applies every `IConfigureOptions<StoreOptions>` and `IPostConfigureOptions<StoreOptions>` inside Marten's hook. The two `Encina.Marten` configurators are now registered with `TryAddEnumerable` instead of `TryAddSingleton`, which let only the first of them survive. Verified against a real PostgreSQL store built through DI.
 
 ## [0.13.0] - 2026-09-22 - Security & Compliance
 

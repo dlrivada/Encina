@@ -1,6 +1,7 @@
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Health;
 using Encina.Audit.Marten.Projections;
+using Encina.Marten;
 using Encina.Security.Audit;
 
 using Marten;
@@ -119,6 +120,7 @@ public static class ServiceCollectionExtensions
 
         // Register Marten projection configuration (async projections + document indexes)
         services.AddSingleton<IConfigureOptions<StoreOptions>, ConfigureMartenAuditProjections>();
+        services.AddEncinaMartenStoreOptionsBridge();
 
         // Conditional: health check
         if (optionsInstance.AddHealthCheck)
