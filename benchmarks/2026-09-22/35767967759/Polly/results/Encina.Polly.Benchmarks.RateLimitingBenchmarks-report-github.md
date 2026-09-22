@@ -1,0 +1,29 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-IAMMPO : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+InvocationCount=1  UnrollFactor=1  
+
+```
+| Method                              | Job        | IterationCount | LaunchCount | WarmupCount | Mean       | Error        | StdDev      | Median     | Ratio | RatioSD | Allocated | Alloc Ratio |
+|------------------------------------ |----------- |--------------- |------------ |------------ |-----------:|-------------:|------------:|-----------:|------:|--------:|----------:|------------:|
+| RecordFailure                       | Job-IAMMPO | 15             | Default     | 5           |   166.2 ns |     69.08 ns |    61.24 ns |   137.5 ns |  0.10 |    0.04 |         - |        0.00 |
+| GetState                            | Job-IAMMPO | 15             | Default     | 5           |   448.1 ns |    685.08 ns |   572.07 ns |   222.5 ns |  0.27 |    0.33 |         - |        0.00 |
+| AcquireAndRecordSuccess_Combined    | Job-IAMMPO | 15             | Default     | 5           | 1,919.9 ns |    656.92 ns |   582.34 ns | 1,648.0 ns |  1.14 |    0.34 |     336 B |        0.76 |
+| AcquireAndRecordFailure_Combined    | Job-IAMMPO | 15             | Default     | 5           | 3,437.6 ns |    162.01 ns |   143.62 ns | 3,416.5 ns |  2.04 |    0.15 |     336 B |        0.76 |
+| AcquireAsync_WithAdaptiveThrottling | Job-IAMMPO | 15             | Default     | 5           | 3,123.6 ns |  1,144.36 ns | 1,070.44 ns | 3,554.5 ns |  1.85 |    0.63 |     440 B |        1.00 |
+| RecordSuccess                       | Job-IAMMPO | 15             | Default     | 5           |   200.3 ns |     31.43 ns |    26.24 ns |   201.5 ns |  0.12 |    0.02 |         - |        0.00 |
+| AcquireAsync_SimpleRateLimiting     | Job-IAMMPO | 15             | Default     | 5           | 1,692.1 ns |    147.44 ns |   115.11 ns | 1,637.5 ns |  1.00 |    0.09 |     440 B |        1.00 |
+|                                     |            |                |             |             |            |              |             |            |       |         |           |             |
+| RecordFailure                       | ShortRun   | 3              | 1           | 3           |   292.8 ns |  4,359.84 ns |   238.98 ns |   178.5 ns |  0.11 |    0.09 |         - |        0.00 |
+| GetState                            | ShortRun   | 3              | 1           | 3           |   971.8 ns | 22,603.98 ns | 1,239.00 ns |   303.5 ns |  0.36 |    0.44 |         - |        0.00 |
+| AcquireAndRecordSuccess_Combined    | ShortRun   | 3              | 1           | 3           | 3,306.0 ns | 35,144.23 ns | 1,926.37 ns | 2,543.0 ns |  1.22 |    0.79 |     336 B |        0.76 |
+| AcquireAndRecordFailure_Combined    | ShortRun   | 3              | 1           | 3           | 3,396.3 ns | 20,939.68 ns | 1,147.77 ns | 2,852.0 ns |  1.26 |    0.60 |     336 B |        0.76 |
+| AcquireAsync_WithAdaptiveThrottling | ShortRun   | 3              | 1           | 3           | 5,059.0 ns | 31,876.17 ns | 1,747.24 ns | 4,251.0 ns |  1.87 |    0.90 |     440 B |        1.00 |
+| RecordSuccess                       | ShortRun   | 3              | 1           | 3           |   962.8 ns | 22,544.45 ns | 1,235.74 ns |   301.5 ns |  0.36 |    0.44 |         - |        0.00 |
+| AcquireAsync_SimpleRateLimiting     | ShortRun   | 3              | 1           | 3           | 3,124.2 ns | 28,124.82 ns | 1,541.62 ns | 2,559.5 ns |  1.16 |    0.67 |     440 B |        1.00 |

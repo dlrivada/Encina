@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ContentRouterBenchmarks-20260922-184448</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SimpleRoute_SingleCondition</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,498.3 ns</td><td>21.20 ns</td><td>12.62 ns</td><td>1.00</td><td>0.01</td><td>0.0114</td><td>984 B</td><td>1.00</td>
+</tr><tr><td>ComplexRoute_FirstMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,109.1 ns</td><td>9.91 ns</td><td>5.90 ns</td><td>0.74</td><td>0.01</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ComplexRoute_DefaultFallback</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,111.9 ns</td><td>17.74 ns</td><td>11.73 ns</td><td>0.74</td><td>0.01</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ManyRoutes_FirstMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,565.0 ns</td><td>34.35 ns</td><td>22.72 ns</td><td>1.04</td><td>0.02</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>ManyRoutes_LateMatch</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,566.3 ns</td><td>37.64 ns</td><td>24.90 ns</td><td>1.05</td><td>0.02</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>BuildDefinition_Simple</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>336.8 ns</td><td>2.57 ns</td><td>1.34 ns</td><td>0.22</td><td>0.00</td><td>0.0067</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>BuildDefinition_Complex</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>578.8 ns</td><td>7.35 ns</td><td>4.37 ns</td><td>0.39</td><td>0.00</td><td>0.0153</td><td>1320 B</td><td>1.34</td>
+</tr><tr><td>SimpleRoute_SingleCondition</td><td>ShortRun</td><td>3</td><td>1</td><td>1,472.0 ns</td><td>747.26 ns</td><td>40.96 ns</td><td>1.00</td><td>0.03</td><td>0.0114</td><td>984 B</td><td>1.00</td>
+</tr><tr><td>ComplexRoute_FirstMatch</td><td>ShortRun</td><td>3</td><td>1</td><td>1,096.5 ns</td><td>131.47 ns</td><td>7.21 ns</td><td>0.75</td><td>0.02</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ComplexRoute_DefaultFallback</td><td>ShortRun</td><td>3</td><td>1</td><td>1,081.2 ns</td><td>97.10 ns</td><td>5.32 ns</td><td>0.73</td><td>0.02</td><td>0.0057</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>ManyRoutes_FirstMatch</td><td>ShortRun</td><td>3</td><td>1</td><td>1,515.1 ns</td><td>608.90 ns</td><td>33.38 ns</td><td>1.03</td><td>0.03</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>ManyRoutes_LateMatch</td><td>ShortRun</td><td>3</td><td>1</td><td>1,550.0 ns</td><td>74.12 ns</td><td>4.06 ns</td><td>1.05</td><td>0.03</td><td>0.0114</td><td>1024 B</td><td>1.04</td>
+</tr><tr><td>BuildDefinition_Simple</td><td>ShortRun</td><td>3</td><td>1</td><td>338.7 ns</td><td>8.40 ns</td><td>0.46 ns</td><td>0.23</td><td>0.01</td><td>0.0067</td><td>584 B</td><td>0.59</td>
+</tr><tr><td>BuildDefinition_Complex</td><td>ShortRun</td><td>3</td><td>1</td><td>584.3 ns</td><td>48.75 ns</td><td>2.67 ns</td><td>0.40</td><td>0.01</td><td>0.0153</td><td>1320 B</td><td>1.34</td>
+</tr></tbody></table>
+</body>
+</html>
