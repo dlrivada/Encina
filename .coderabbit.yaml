@@ -15,8 +15,12 @@ reviews:
   high_level_summary: true
   high_level_summary_placeholder: "@coderabbitai summary"
 
-  # Request changes workflow (auto-approve when issues resolved)
-  request_changes_workflow: true
+  # Request changes workflow: disabled. With it on, CodeRabbit submits a "changes requested"
+  # review that GitHub does not dismiss when the bot itself resolves its threads, so under the
+  # required-conversation-resolution rule on main it blocked auto-merge on #1093, #1098 and #1101
+  # until the maintainer dismissed it by hand. Findings still arrive as threads and are still
+  # answered and resolved one by one; only the blocking review state goes away.
+  request_changes_workflow: false
 
   # Review status (show in PR comments)
   review_status: true
