@@ -1,0 +1,1 @@
+- Fixed `IAuditStore.GetByEntityAsync` / `GetByUserAsync` on the PostgreSQL ADO.NET and Dapper providers throwing `42P08: could not determine data type of parameter` when the optional `entityId`, `fromUtc` or `toUtc` filter was `null`, by adding explicit `::text` / `::timestamp` casts to the reused nullable parameters in the generated SQL.

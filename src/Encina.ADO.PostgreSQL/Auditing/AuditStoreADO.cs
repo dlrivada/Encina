@@ -72,7 +72,7 @@ public sealed class AuditStoreADO : IAuditStore
                    ""Outcome"", ""ErrorMessage"", ""TimestampUtc"", ""StartedAtUtc"", ""CompletedAtUtc"",
                    ""IpAddress"", ""UserAgent"", ""RequestPayloadHash"", ""RequestPayload"", ""ResponsePayload"", ""Metadata""
             FROM ""{_tableName}""
-            WHERE ""EntityType"" = @EntityType AND (@EntityId IS NULL OR ""EntityId"" = @EntityId)
+            WHERE ""EntityType"" = @EntityType AND (@EntityId::text IS NULL OR ""EntityId"" = @EntityId)
             ORDER BY ""TimestampUtc"" DESC";
 
         _selectByUserSql = $@"
@@ -81,8 +81,8 @@ public sealed class AuditStoreADO : IAuditStore
                    ""IpAddress"", ""UserAgent"", ""RequestPayloadHash"", ""RequestPayload"", ""ResponsePayload"", ""Metadata""
             FROM ""{_tableName}""
             WHERE ""UserId"" = @UserId
-              AND (@FromUtc IS NULL OR ""TimestampUtc"" >= @FromUtc)
-              AND (@ToUtc IS NULL OR ""TimestampUtc"" <= @ToUtc)
+              AND (@FromUtc::timestamp IS NULL OR ""TimestampUtc"" >= @FromUtc)
+              AND (@ToUtc::timestamp IS NULL OR ""TimestampUtc"" <= @ToUtc)
             ORDER BY ""TimestampUtc"" DESC";
 
         _selectByCorrelationIdSql = $@"
