@@ -662,9 +662,13 @@ REFERENCE FILES:
      live in `Encina.OpenTelemetry/Health/OtlpExporterHealthCheck.cs` and follow the same
      `IEncinaHealthCheck` pattern as `SchemaDriftHealthCheck` /
      [`ReshardingHealthCheck`](../../src/Encina.OpenTelemetry/Resharding/ReshardingHealthCheck.cs).
-   - **Resilience**: ❌ N/A — `OtlpExporterOptions` already exposes `TimeoutMilliseconds`,
-     and the SDK's `BatchExportProcessorOptions` controls retry behavior at the OTLP layer.
-     Wrapping the exporter in Polly would conflict with the SDK's own retry pipeline.
+   - **Resilience**: ❌ N/A (documented limitation) — `OtlpExporterOptions` exposes
+     `TimeoutMilliseconds`; `BatchExportProcessorOptions` controls batching only (queue size,
+     delay, batch size), not retries. The SDK has no circuit breaker; retry exists only as the
+     experimental `OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY` switch, which this plan does not enable.
+     A failed export drops the batch and is visible only through SDK self-diagnostics. The
+     exporter is not wrapped in Polly because the SDK owns the export pipeline; the
+     collector-unavailable integration test pins this behaviour.
    - **Caching, Validation, Distributed Locks, Transactions, Idempotency, Multi-Tenancy,
      Module Isolation, Audit Trail**: ❌ All N/A — exporter wiring is configuration-only and
      does not touch domain data, request handling, or tenancy boundaries. Tenant context,
@@ -1523,8 +1527,12 @@ ACCEPTANCE CRITERIA (from issue #1043, expanded for Option B logs coverage):
 - EnableOtlpExporter=true results in OTLP exporter registered for traces, metrics, AND logs.
 - ConfigureOtlpExporter callback is invoked with the live OtlpExporterOptions, 3 times
   total (once per signal).
-- Default (false) behavior is identical to today — no exporter, no extra surface.
-- PrivateAssets="all" removed from Encina.OpenTelemetry's OTLP PackageReference.
+- Default (false) behavior is identical to today at runtime — no exporter registered,
+  nothing exported. The OTLP package still flows transitively if PrivateAssets="all" is
+  removed; the opt-in is a runtime switch, not a packaging boundary.
+- Dependency-surface decision recorded in ADR-026: PrivateAssets="all" removed from
+  Encina.OpenTelemetry's OTLP PackageReference, or a separate Encina.OpenTelemetry.Otlp
+  package owns the reference.
 - Zero build warnings.
 - PublicAPI.Unshipped.txt tracks all four new symbols.
 - Prerequisite #1048 (WithLogging in WithEncina) merged before the logs branch is wired.
