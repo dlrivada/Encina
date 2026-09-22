@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-ai-attribution.ps1\"",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-issue-template.ps1\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
