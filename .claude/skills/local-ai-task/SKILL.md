@@ -39,7 +39,7 @@ Save it under `artifacts/local-ai/briefs/<task>.md`. A brief that worked in earl
 dotnet run tools/ai/local-ai-ask.cs -- --task <name> --brief artifacts/local-ai/briefs/<name>.md --input <file> [--input <file>...] --out artifacts/local-ai/out/<name>.<ext>
 ```
 
-The script disables thinking per request and appends a line to `artifacts/local-ai/ledger.csv` with the prompt tokens, completion tokens, seconds and throughput. It exits 1 on any failure.
+The script disables thinking per request and appends a line to `artifacts/local-ai/ledger.csv` with the prompt tokens, completion tokens, seconds and throughput. It exits non-zero on any failure (1 for server or HTTP errors; an unhandled exit code for a missing or unreadable brief).
 
 ## 4. Review before use
 

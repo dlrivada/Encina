@@ -42,4 +42,6 @@ Wired in `.claude/settings.json` as `PreToolUse` hooks on the `Bash` and `PowerS
 | Hook | Blocks |
 |---|---|
 | `.claude/hooks/block-ai-attribution.ps1` | `git commit` and `gh pr create/edit` whose message, body or message file carries AI attribution (co-author trailers naming an AI, "generated with" lines) |
-| `.claude/hooks/check-issue-template.ps1` | `gh issue create` whose title lacks a template prefix, or whose body misses or reorders the template's `##` headers. It reads the templates at run time and allows calls whose title or body it cannot resolve |
+| `.claude/hooks/check-issue-template.ps1` | `gh issue create` whose title lacks a template prefix, or whose body misses or reorders the template's `##` headers. It reads the templates at run time and allows calls whose title or body it cannot resolve, and issues on other repositories |
+
+Both hooks read only the arguments of the `git` / `gh` statement itself, through the quote-aware tokenizer in `.claude/hooks/_command-text.ps1`, and let the call through if the hook itself fails. `pwsh -NoProfile -File .claude/hooks/tests/Test-Hooks.ps1` runs their regression suite; run it after changing a hook.

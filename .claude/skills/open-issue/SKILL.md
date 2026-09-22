@@ -26,7 +26,7 @@ Never use `[TECH-DEBT]`, `[TESTING]`, `[ARCHITECTURE]`, `[DECISION]`, `[REVIEW]`
 
 1. Read the template file in `.github/ISSUE_TEMPLATE/` now; do not work from memory.
 2. Keep every `##` header verbatim and in order. Fill every section; write "None" or "Not applicable" with a reason rather than dropping one.
-3. Tick the checkboxes that apply (`[x]`) and delete the template's HTML comments and placeholder text.
+3. Tick the checkboxes that apply (`[x]`) and replace the template's placeholder text.
 4. Be concrete: file paths with line numbers, the failing command or log excerpt, the rule or requirement broken (CLAUDE.md section, SPEC/ADR id).
 5. For a `[BUG]` whose cause is known, add a Root Cause paragraph under Additional Context.
 
