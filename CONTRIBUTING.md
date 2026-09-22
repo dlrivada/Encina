@@ -1,6 +1,6 @@
 # Contributing to Encina
 
-Thank you for your interest in contributing to Encina. This is a public repository — anyone can open issues, submit pull requests (via fork), and participate in discussions. This guide covers all ways to get involved.
+Thank you for your interest in contributing to Encina. This is a public repository — anyone can open issues, submit pull requests (via fork), and participate in discussions. This guide covers all ways to get involved. Before your first pull request, read the [contributor onboarding guide](docs/contributing/README.md): machine setup, repository map, how the pieces relate, the path from an idea to `main`, and the rules that will otherwise bite.
 
 ## Code of Conduct
 

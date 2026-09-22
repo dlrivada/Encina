@@ -557,7 +557,7 @@ Encina is in active development toward **1.0**. See [ROADMAP.md](ROADMAP.md) for
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and the [contributor onboarding guide](docs/contributing/README.md) to prepare your machine, learn where things live and follow a change from idea to `main`. The working method itself is described in [How Encina is built](docs/engineering/HOW-ENCINA-IS-BUILT.md).
 
 ## License
 
