@@ -1,0 +1,18 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+```
+| Method               | Mean       | Error       | StdDev    | Ratio  | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|--------------------- |-----------:|------------:|----------:|-------:|--------:|-------:|----------:|------------:|
+| CompareFilePositions |   3.074 ns |   0.5364 ns | 0.0294 ns |   0.51 |    0.01 |      - |         - |        0.00 |
+| CreateGtidPosition   |   6.034 ns |   2.3752 ns | 0.1302 ns |   1.00 |    0.03 | 0.0005 |      40 B |        1.00 |
+| FromBytes            | 656.089 ns | 140.9048 ns | 7.7235 ns | 108.77 |    2.34 | 0.0076 |     688 B |       17.20 |
+| ToBytes              | 763.852 ns |  75.6702 ns | 4.1477 ns | 126.64 |    2.47 | 0.0057 |     504 B |       12.60 |
