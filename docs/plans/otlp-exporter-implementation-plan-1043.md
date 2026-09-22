@@ -1127,7 +1127,7 @@ Update [src/Encina.OpenTelemetry/README.md](../../src/Encina.OpenTelemetry/READM
 
 #### 5. docs/features/*.md ✅ Required
 
-Create a new feature page: [`docs/features/opentelemetry-otlp-exporter.md`](../../docs/features/opentelemetry-otlp-exporter.md).
+Create a new feature page: `docs/features/opentelemetry-otlp-exporter.md` (to be created).
 
 Suggested structure (mirror existing observability-flavored pages such as `docs/features/cdc.md`):
 
@@ -1179,7 +1179,7 @@ Update [`docs/INVENTORY.md`](../../docs/INVENTORY.md):
 
 #### 7. docs/architecture/adr/*.md ✅ Required (new ADR-026)
 
-Create [`docs/architecture/adr/026-otlp-exporter-opt-in.md`](../../docs/architecture/adr/026-otlp-exporter-opt-in.md). The latest existing ADR is [`025-performance-measurement-infrastructure.md`](../../docs/architecture/adr/025-performance-measurement-infrastructure.md), so this becomes ADR-026.
+Create `docs/architecture/adr/026-otlp-exporter-opt-in.md` (to be created). The latest existing ADR is [`025-performance-measurement-infrastructure.md`](../../docs/architecture/adr/025-performance-measurement-infrastructure.md), so this becomes ADR-026.
 
 Why an ADR is justified despite the small code footprint:
 
@@ -1215,7 +1215,7 @@ The current in-progress release folder is [`docs/releases/v0.13.0/`](../../docs/
 
 **Two paths**:
 
-- **Path A (preferred)**: when v0.19.0 starts assembly (per the EPIC #888 timeline), create [`docs/releases/v0.19.0/README.md`](../../docs/releases/v0.19.0/README.md) with an entry for OTLP wiring at that time. The CHANGELOG `[Unreleased]` entry from item #2 above gets moved into the release notes when the version is cut. **This is the standard release flow** — release notes are not authored issue-by-issue, they're aggregated at version-cut time.
+- **Path A (preferred)**: when v0.19.0 starts assembly (per the EPIC #888 timeline), create `docs/releases/v0.19.0/README.md` (to be created) with an entry for OTLP wiring at that time. The CHANGELOG `[Unreleased]` entry from item #2 above gets moved into the release notes when the version is cut. **This is the standard release flow** — release notes are not authored issue-by-issue, they're aggregated at version-cut time.
 - **Path B (only if release folder already exists at PR time)**: append an "Encina.OpenTelemetry — OTLP Exporter Opt-In (#1043)" sub-section to the existing v0.19.0/README.md, mirroring the v0.13.0 structure.
 
 **Action for this PR**: ensure the CHANGELOG entry from item #2 is complete and self-contained — it serves as the single source of truth until release notes are aggregated.
