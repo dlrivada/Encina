@@ -28,11 +28,11 @@ on:
         required: false
         default: false
         type: boolean
-  # Phase 2.3 — Path filter triggers: on PR, only dispatch when files that
-  # could affect benchmark results change. The determine-matrix job further
-  # narrows execution to the benchmark projects whose source fingerprints
-  # actually differ from the last recorded run.
-  pull_request:
+  # Path-filtered trigger on push to main (not on pull requests): a PR that touched
+  # Directory.Packages.props used to start ~130 benchmark jobs and starve the runner
+  # pool for every other PR (#1097). The determine-matrix job still narrows execution
+  # to the benchmark projects whose source fingerprints differ from the last run.
+  push:
     branches: [main]
     paths:
       - 'src/**/*.cs'

@@ -24,7 +24,28 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v6
 
-            - name: Check markdown links
+            # Pull requests check internal links and anchors only (--offline): deterministic and
+            # seconds long. Third-party availability failed three PRs in one day with zero real
+            # broken links (#1097); the external scan runs on push to main, weekly and on dispatch.
+            - name: Check markdown links (internal only, pull requests)
+              if: github.event_name == 'pull_request'
+              uses: lycheeverse/lychee-action@v2
+              with:
+                  args: >-
+                      --verbose
+                      --no-progress
+                      --offline
+                      --config '.github/lychee.toml'
+                      'docs/**/*.md'
+                      '.github/**/*.md'
+                      'README.md'
+                      'CHANGELOG.md'
+                      'CONTRIBUTING.md'
+                      'ROADMAP.md'
+                  fail: true
+
+            - name: Check markdown links (full scan)
+              if: github.event_name != 'pull_request'
               uses: lycheeverse/lychee-action@v2
               with:
                   args: >-
