@@ -237,7 +237,7 @@ There is no date for 1.0. The first two days show why an estimate would be disho
 
 ## 7. How to replicate it
 
-A checklist for a new repository, in the order that worked here.
+This section is the conceptual checklist, in the order that worked here. It is deliberately short and it is not enough on its own: replicating the setup from a clean machine means installing and building a specific set of tools (the .NET SDK, Docker with the compose profiles, `gh`, llama.cpp with CUDA and a model, opencode, Claude Code) and copying or re-creating a set of home-made scripts (the coverage obligations report, the mutation sharding and history, the three DocRef renderers, the CI gate, the PR watcher, the local-AI ledger). The step-by-step guide with the exact commands, the files to copy from this repository and indicative times is a separate document, tracked as #1107; the contributor guide (#1103) covers the subset needed to work on Encina itself.
 
 1. **Write down what you will not lie about.** A rule that every metric in documentation must be cited from a machine-produced source, and the tooling to expand citations (section 4.4). Without it, every other measurement decays.
 2. **Define coverage as obligations.** One manifest per package declaring flags and targets per file; one script that computes per-flag coverage from per-flag reports; one dashboard that shows it. Ban reflection-only tests explicitly.
