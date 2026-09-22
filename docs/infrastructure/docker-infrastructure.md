@@ -84,8 +84,8 @@ docker compose --profile cloud up -d
 | **Azurite** | `mcr.microsoft.com/azure-storage/azurite:latest` | 10000-10002 | Azure Blob, Queue, Table | `cloud`, `full` |
 
 > **Note**: Azure Service Bus has no local emulator. Use Azure Service Bus for `Encina.AzureServiceBus` testing.
-> **Note**: Azure Key Vault has no local emulator. Use Azure Key Vault for `Encina.Secrets.AzureKeyVault` testing.
-> **Note**: Google Secret Manager has no local emulator. Use GCP for `Encina.Secrets.GoogleSecretManager` testing.
+> **Note**: Azure Key Vault has no local emulator. Use Azure Key Vault for `Encina.Security.Secrets.AzureKeyVault` testing.
+> **Note**: Google Secret Manager has no local emulator. Use GCP for `Encina.Security.Secrets.GoogleCloudSecretManager` testing.
 
 ### Observability
 
@@ -188,10 +188,10 @@ All services use development-only default credentials. Override with environment
 | `Encina.Caching.Valkey` | valkey | 6381 | ✅ |
 | `Encina.Caching.Dragonfly` | dragonfly | 6382 | ✅ |
 | `Encina.Caching.KeyDB` | keydb | 6383 | ✅ |
-| `Encina.Secrets.HashiCorpVault` | vault | 8200 | ✅ |
-| `Encina.Secrets.AWSSecretsManager` | localstack | 4566 | ✅ |
-| `Encina.Secrets.AzureKeyVault` | (no emulator) | - | ⚠️ Requires Azure |
-| `Encina.Secrets.GoogleSecretManager` | (no emulator) | - | ⚠️ Requires GCP |
+| `Encina.Security.Secrets.HashiCorpVault` | vault | 8200 | ✅ |
+| `Encina.Security.Secrets.AwsSecretsManager` | localstack | 4566 | ✅ |
+| `Encina.Security.Secrets.AzureKeyVault` | (no emulator) | - | ⚠️ Requires Azure |
+| `Encina.Security.Secrets.GoogleCloudSecretManager` | (no emulator) | - | ⚠️ Requires GCP |
 | `Encina.DistributedLock.Redis` | redis | 6379 | ✅ |
 | `Encina.DistributedLock.SqlServer` | sqlserver | 1433 | ✅ |
 

@@ -12,7 +12,7 @@ namespace Encina.Security.AntiTampering.Abstractions;
 /// key rotation scenarios where multiple keys coexist.
 /// </para>
 /// <para>
-/// This interface follows the same pattern as <c>Encina.Secrets.ISecretProvider</c>,
+/// This interface follows the same pattern as <c>Encina.Security.Secrets.ISecretReader</c>,
 /// enabling implementations backed by cloud secret managers (Azure Key Vault, AWS Secrets
 /// Manager, HashiCorp Vault) or simple in-memory stores for testing.
 /// </para>

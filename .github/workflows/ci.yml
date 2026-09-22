@@ -361,7 +361,8 @@ jobs:
           fail_ci_if_error: false
 
   # EF Core multi-provider integration tests
-  # Tests EF Core against all 4 database providers (Sqlite, SqlServer, PostgreSQL, MySQL)
+  # Tests EF Core against the 3 supported database providers (SqlServer, PostgreSQL, MySQL).
+  # SQLite was removed from the supported matrix (ADR-024).
   # to ensure LINQ translation and provider-specific behavior works correctly across providers.
   # MySQL tests are skipped until Pomelo.EntityFrameworkCore.MySql v10 is released.
   # Note: Oracle was removed from pre-1.0 scope (see ADR-009)
@@ -374,9 +375,6 @@ jobs:
       fail-fast: false
       matrix:
         database:
-          - name: Sqlite
-            # SQLite uses in-process database, no service container needed
-            trait: "Sqlite"
           - name: SqlServer
             trait: "SqlServer"
           - name: PostgreSQL
@@ -431,7 +429,6 @@ jobs:
       ConnectionStrings__SqlServer: "Server=localhost,1433;Database=encina_test;User Id=sa;Password=Encina_Test_123!;TrustServerCertificate=true"
       ConnectionStrings__PostgreSQL: "Host=localhost;Port=5432;Database=encina_test;Username=encina;Password=encina_test"
       ConnectionStrings__MySQL: "Server=localhost;Port=3306;Database=encina_test;User=root;Password=encina_test"
-      ConnectionStrings__Sqlite: "Data Source=encina_test.db"
 
     steps:
       - uses: actions/checkout@v6
@@ -476,3 +473,20 @@ jobs:
   # NOTE: Coverage reporting and Pack are in ci-full.yml only.
   # CI-fast skips coverage to avoid partial data from skipped test jobs.
   # Coverage dashboard is updated only by CI Full (weekly/manual/release).
+
+  # Single required status check for branch protection (SPEC-000 DEC-006).
+  # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
+  # by change detection, and fails only if a job it depends on failed or was cancelled.
+  ci-result:
+    name: ci-result
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report upstream job results
+        run: echo '${{ toJSON(needs) }}'
+
+      - name: Fail if any upstream job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
