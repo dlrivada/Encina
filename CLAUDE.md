@@ -123,6 +123,9 @@ Run: `dotnet run append-api.cs`
 - **No Legacy Code**: If we need to change something, we change it completely
 - **No Migration Paths**: Don't implement migration helpers or compatibility layers
 - **Clean Codebase**: Every line of code should serve a current purpose
+- **Time comes from `TimeProvider`**: production code never reads `DateTime.UtcNow` or `DateTimeOffset.UtcNow`; it takes `TimeProvider` by injection (an optional parameter defaulting to `TimeProvider.System` where a default is needed) so that time-dependent behaviour is deterministic in tests. Every store and repository implementation supports it (project history: #543, #667).
+- **Options that hold secrets never leak them**: any options class with a password, connection string, token or key marks the property `[JsonIgnore]` and overrides `ToString()` so that logging, serialization and diagnostics cannot print it (project history: #851).
+- **Database calls are asynchronous with a `CancellationToken`**: providers use `OpenAsync`, `BeginTransactionAsync`, `ExecuteNonQueryAsync` and their siblings, never the synchronous overloads; `IDbConnection.Open()` was the one blocking call in the codebase and caused thread-pool starvation under load (Sonar S6966; project history: #794, #897).
 
 ### Architecture Decisions
 
@@ -330,6 +333,11 @@ The 1.0 lock set is exactly the five rows marked ✅ (four production backends p
 - Snapshot handling
 - GDPR compliance (crypto-shredding)
 
+**Rules for event-sourced modules (project history: #777, #783, #784, #785, #949; ADR-019):**
+
+- Event-sourced compliance modules have no InMemory stores; unit tests mock `IAggregateRepository` (NSubstitute) and integration tests run against Marten on PostgreSQL through Testcontainers.
+- Marten projections take their dependencies through `IDocumentOperations` and constructor injection, never `IServiceProvider`. Unit tests that call `Create` directly bypass Marten's projection graph validation, so keep at least one test that registers each projection with a real store.
+
 ##### 7. Cloud/Serverless Providers (3 providers)
 
 | Provider | Platform | Triggers |
@@ -516,6 +524,10 @@ services.AddEncinaRepository<Order, OrderId>();
 - Examples: `OutboxStoreEF`, `InboxStoreEF`, `SagaStoreEF`
 - Never just `Store` or `Repository`
 
+#### Feature Folders
+
+- Feature-specific stores and helpers inside a provider package live in a subfolder named after the **feature** (`LawfulBasis/`, `Consent/`), not after the package that defines the abstraction (`GDPR/`) (project history: #413).
+
 ### Satellite Packages Philosophy
 
 #### Coherence Across Providers
@@ -701,6 +713,11 @@ Markers inside fenced code blocks are intentionally ignored by the renderer, so 
 - Testing implementation details (test behavior, not internals)
 - Using `Thread.Sleep` (prefer proper synchronization)
 - Hard-coding paths, dates, GUIDs when avoidable
+
+**Assertion and helper libraries** (project history: #429, #495, #1023):
+
+- Assertions use Shouldly through `Encina.Testing.Shouldly`; FluentAssertions is not used because of its commercial licence.
+- Test projects reference the `Encina.Testing.*` wrapper packages (Shouldly, Bogus, FsCheck, Verify, WireMock, Testcontainers, Fakes) rather than the raw libraries, so that the testing packages are dogfooded and a library change happens in one place.
 
 #### Docker Integration Testing
 
@@ -1346,11 +1363,14 @@ The `Microsoft.CodeAnalysis.PublicApiAnalyzers` package tracks public API change
   - ❌ Never add `🤖 Generated with Claude Code`
   - ❌ Never add any reference to AI assistance in commit messages
 - **Author**: All commits should appear as authored solely by the repository owner
+- **Workflow permissions per job**: GitHub Actions `permissions:` blocks are declared at job level, never at workflow level, so each job gets the least privilege it needs (Sonar S8264; project history: #896).
 
 ### Build Environment Known Issues
 
 > **Note**: After test consolidation (January 2026), the MSBuild CLR crash issue has been resolved.
 > The full solution `Encina.slnx` now builds without issues. Solution filters (`.slnf`) are no longer needed.
+>
+> `Directory.Build.rsp` keeps `-maxcpucount:1 -nodeReuse:false`: parallel MSBuild on this solution still triggers an intermittent internal CLR error (0x80131506). Load tests are excluded from the standard CI pipeline because an upstream .NET 10 JIT bug (conditional escape analysis with complex `IAsyncEnumerable` code) crashes the runtime; the workaround `DOTNET_JitObjectStackAllocationConditionalEscape=0` applies when running them locally (project history: #5, #496).
 
 ### Spanish/English
 

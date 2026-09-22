@@ -35,3 +35,8 @@ has_children: true
 | [023](023-coverage-strategy-codecov-sonarcloud.md) | Coverage Strategy (Codecov + SonarCloud) |
 | [024](024-remove-sqlite-provider-pre-1.0.md) | Remove SQLite Provider Pre-1.0 |
 | [025](025-performance-measurement-infrastructure.md) | Performance Measurement Infrastructure |
+| 026 | Reserved for the OTLP exporter opt-in decision (`docs/plans/otlp-exporter-implementation-plan-1043.md`, #1043) |
+| [027](027-marten-as-the-event-sourcing-provider.md) | Marten Is the Event-Sourcing Provider; EventStoreDB Deprecated |
+| [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events (Outbox only) |
+| [029](029-recoverability-error-classification.md) | Recoverability Error Classification |
+| [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
