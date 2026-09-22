@@ -527,6 +527,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: always() && needs.build.result == 'success'
+    # The tag push publishes to GitHub Packages; the default GITHUB_TOKEN is read-only, which is
+    # why v0.13.0's push failed with 403 (job-level permissions per CLAUDE.md, Sonar S8264).
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
