@@ -4,6 +4,8 @@
 
 This document defines the long-term engineering model we want to establish for the Encina repository.
 
+> Public counterpart: [`HOW-ENCINA-IS-BUILT.md`](HOW-ENCINA-IS-BUILT.md) explains the same method for readers outside the project, with the lessons and measurements collected while applying it (#1104).
+
 The objective is not merely to use AI to write code faster.
 
 The objective is to evolve Encina toward a **Specification-Driven, evidence-based, multi-agent development process** in which:
