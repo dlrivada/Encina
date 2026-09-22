@@ -27,13 +27,14 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v6
 
+            # build-mode none: CodeQL extracts C# from source without compiling the 105-project
+            # solution. The compiled analysis took ~36 min per pull request and was the critical
+            # path of every auto-merge (#1097); source-mode analysis needs no SDK or restore.
             - name: Initialize CodeQL
               uses: github/codeql-action/init@v4
               with:
                   languages: csharp
-
-            - name: Build solution
-              run: dotnet build Encina.slnx --configuration Release
+                  build-mode: none
 
             - name: Perform CodeQL Analysis
               uses: github/codeql-action/analyze@v4

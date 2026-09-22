@@ -65,6 +65,10 @@ jobs:
   # Build job - quality checks, build, and artifact creation
   build:
     needs: [changes]
+    # Docs-only pull requests skip the build and every test shard; ci-result treats skipped
+    # upstream jobs as success, so such a PR is green in minutes (#1097). Anything under src/,
+    # tests/, .github/ or the build props still runs the full fast tier.
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.tests-unit == 'true' || needs.changes.outputs.tests-integration == 'true' || needs.changes.outputs.tests-guard == 'true' || needs.changes.outputs.tests-contract == 'true' || needs.changes.outputs.tests-property == 'true' || needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
