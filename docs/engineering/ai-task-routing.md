@@ -24,6 +24,14 @@ This document is **not permanently normative**. It is a routing hypothesis, to b
 
 ---
 
+### 2.1 Verified setup and limits (maintainer's trials, consolidated 2026-09-22)
+
+- **Engine and model for delegated work:** `llama-server` (llama.cpp, CUDA) serving Qwen 3.8 27B `UD-Q4_K_XL`, OpenAI-compatible on `127.0.0.1:8080`, one request at a time (`-np 1`). Ollama cannot run Qwen's MTP layer, so it is only a fallback. Qwen 3.6 is faster (~80–100 tok/s vs ~60–70) but shallower: in a head-to-head on the same prompt only 3.8 found the `TESTING.md` coverage drift.
+- **Tuned flags:** `--spec-type draft-mtp --spec-draft-n-max 4` (empirical optimum: n=2 ~64, n=4 ~68, n=8 ~62 tok/s), `-c 49152` (safe VRAM margin; 65536 runs with <2 GB free), `-fa on -ctk q8_0 -ctv q8_0`, `--no-mmproj`, `--temp 1.0` for Qwen 3.8.
+- **Thinking must be disabled per request, via the API** (`chat_template_kwargs.enable_thinking=false` on llama-server, `reasoning_effort: none` on Ollama); template tricks do not work.
+- **Strengths with evidence:** no hallucination on verifiable data when tools are available (checked against `gh api`); correct reading of Encina's non-standard docs (mutation methodology, obligations coverage model).
+- **Limits with evidence:** (1) silently drops parts of multi-point instructions — enumerate every point and say "without omitting any"; (2) re-exploration loop on open-ended research (one session: ~968k tokens, 75 % in tool calls, no deliverable) — split into "investigate and write findings to a file" and "now write the deliverable, no more searching"; (3) speed is not the bottleneck, reliability over long sessions is — no unattended overnight batches until the opencode ≥ 1.18.31 loop fix is confirmed stable.
+- **Brief template:** one bounded task, numbered points, the exact output file path, the sources it may read, and the sentence "stop when the file is written". Claude (or the maintainer) verifies a sample by following the provenance links the brief requires.
 ## 3. Routing criterion
 
 Each role in the `AI-DEVELOPMENT-MODEL.md` §8 pipeline (`HISTORIAN → AUDITOR → SPECIFIER → ARCHITECT → HUMAN DECISION GATE → IMPLEMENTER → VERIFIER → ADVERSARIAL REVIEWER`) is evaluated on two axes:
