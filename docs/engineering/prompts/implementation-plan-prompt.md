@@ -126,7 +126,7 @@ INSTRUCTIONS:
       - Benchmark Tests: implement if hot paths exist, .md justification if not
       DOCUMENTATION PHASE (always last and all of this documents mandatory):
       - XML doc comments on all new public APIs (<summary>, <remarks>, <param>, <returns>, <example>)
-      - CHANGELOG.md — add entry under Unreleased section (### Added / ### Changed / ### Fixed)
+      - changelog.d/<issue>-<slug>.<section>.md — add a changelog fragment (section: added / changed / deprecated / removed / fixed / security); never edit CHANGELOG.md's Unreleased section directly (see changelog.d/README.md)
       - ROADMAP.md — update if milestone or planned feature is affected
       - Package README.md — update if package behavior changes or new package created
       - docs/features/*.md — feature-specific documentation (usage guide, configuration, examples)

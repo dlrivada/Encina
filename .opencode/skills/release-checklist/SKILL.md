@@ -43,7 +43,7 @@ Validates that Encina is ready for a tagged release. Covers build, tests, covera
 
 ### Documentation
 
-- [ ] CHANGELOG.md updated (Unreleased section)
+- [ ] All merged PRs since the last release added their changelog fragment under `changelog.d/`
 - [ ] ADRs created for architectural decisions
 - [ ] XML comments complete (no DocFX metadata warnings)
 - [ ] Version-specific docs in `docs/releases/vX.Y.Z/`
@@ -72,7 +72,7 @@ Validates that Encina is ready for a tagged release. Covers build, tests, covera
 ## Release Flow
 
 1. Merge feature branches to main
-2. Update CHANGELOG.md Unreleased section
+2. Run `dotnet run .github/scripts/changelog-fragments.cs -- --release <version> <yyyy-MM-dd> [title]` to fold the accumulated `changelog.d/` fragments into CHANGELOG.md and delete the folded files
 3. Run mutation tests
 4. Validate coverage dashboard (all green)
 5. Create version tag

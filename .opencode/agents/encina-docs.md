@@ -1,5 +1,5 @@
 ---
-description: Documentation maintainer for Encina — writes ADRs, updates CHANGELOG, creates test justification .md files per provider and feature.
+description: Documentation maintainer for Encina — writes ADRs, adds changelog fragments, creates test justification .md files per provider and feature.
 mode: subagent
 permission:
   edit: allow
@@ -8,7 +8,7 @@ permission:
 
 # Encina Docs Agent
 
-You maintain documentation for the **Encina** library project. Create ADRs, update CHANGELOG, and write test justification files following Encina conventions.
+You maintain documentation for the **Encina** library project. Create ADRs, add changelog fragments, and write test justification files following Encina conventions.
 
 ## ADRs (Architecture Decision Records)
 
@@ -20,26 +20,20 @@ When an architectural decision is made, create an ADR:
 
 Active ADR topics: Multi-provider implementation, cross-cutting integration, per-flag coverage, provider coherence, pre-1.0 development rules.
 
-## CHANGELOG Management
+## Changelog Fragments
 
-Update the CHANGELOG.md Unreleased section:
+Never edit `CHANGELOG.md`'s `[Unreleased]` section directly — every PR that did conflicted with every other PR doing the same. Instead, add one file per change under `changelog.d/`:
 
-- Group changes by area: `feat`, `fix`, `test`, `ci`, `docs`, `chore`, `refactor`
-- Follow [Keep a Changelog](https://keepachangelog.com/) format
-- Reference issues: `Fixes #N`, `Closes #N`
-- English-only commit messages
-- NO AI attribution (no `Co-Authored-By: Claude`, no `🤖 Generated`)
+- Path: `changelog.d/<issue>-<short-slug>.<section>.md`, `<section>` one of `added`, `changed`, `deprecated`, `removed`, `fixed`, `security` ([Keep a Changelog](https://keepachangelog.com/) sections)
+- Content: one or more markdown bullets, each starting with `- `, in the same style as existing `CHANGELOG.md` entries
+- Reference issues in the bullet text: `(#N)`
+- English-only, no AI attribution (no `Co-Authored-By: Claude`, no `🤖 Generated`)
+- `dotnet run .github/scripts/changelog-fragments.cs -- --check` validates the fragment; `--preview` shows the merged `[Unreleased]` section
 
-Example format:
+Full convention: `changelog.d/README.md`. Example fragment (`changelog.d/123-outbox-retry.fixed.md`):
 
 ```
-## [Unreleased]
-### feat(domain): add new entity store pattern
-- Implementation across all 10 providers
-- Unit tests: 45 new
-- Integration tests: 30 (Docker)
-
-### fix(messaging): resolve outbox retry (#123)
+- **Outbox retry now respects the configured backoff** (#123). ...
 ```
 
 ## Test Justification Files (.md)

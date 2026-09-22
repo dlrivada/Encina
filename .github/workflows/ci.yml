@@ -504,12 +504,31 @@ jobs:
             --manifest-dir .github/coverage-manifest \
             --src-root src
 
+  # Every fragment under changelog.d/ must have a valid name, section and bullet content
+  # (#1097). Runs on every PR, docs-only included, needs no build.
+  changelog-fragments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Check changelog fragments
+        run: dotnet run .github/scripts/changelog-fragments.cs -- --check
+
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
   # by change detection, and fails only if a job it depends on failed or was cancelled.
   ci-result:
     name: ci-result
-    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, coverage-citations]
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, coverage-citations, changelog-fragments]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
