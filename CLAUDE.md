@@ -1245,7 +1245,7 @@ When configuring test projects or scripts:
 | Security Audit | 1700-1799 | Read Audit |
 | Infrastructure | 1800-1999 | Tenancy, Module Isolation |
 | Messaging | 2000-2499 | Outbox, Inbox, Saga, Scheduling, QueryCache, Encryption |
-| Domain Events / ES | 2500-2699 | DomainEvents, AuditMarten |
+| Domain Events / ES | 2500-2799 | DomainEvents, AuditMarten, Marten (2600-2799) |
 | Security | 8000-8099 | Security (8000-8009), PII (8010-8029), IdGen (8030-8099) |
 | Compliance | 8100-8949 | GDPR, Consent, DSR, LawfulBasis, Anonymization, CryptoShredding, Retention, DataResidency, BreachNotification, DPIA, PrivacyByDesign |
 | Security Extensions | 9000-9199 | ABAC, AntiTampering |

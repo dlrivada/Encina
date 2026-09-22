@@ -89,7 +89,7 @@ public static class EventIdRanges
     public static readonly (int Min, int Max) MessagingEncryption = (2450, 2499);
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Domain Events & Event Sourcing (2500-2699)
+    // Domain Events & Event Sourcing (2500-2799)
     // ═══════════════════════════════════════════════════════════════════════
 
     /// <summary>Encina.DomainModeling — domain event operations.</summary>
@@ -97,6 +97,13 @@ public static class EventIdRanges
 
     /// <summary>Encina.Audit.Marten — event-sourced audit store.</summary>
     public static readonly (int Min, int Max) AuditMarten = (2550, 2599);
+
+    /// <summary>
+    /// Encina.Marten — aggregate repositories (2600-2616), event versioning (2617-2628),
+    /// snapshots (2629-2649), event metadata (2650-2663) and projections (2664-2700);
+    /// 2701-2799 free for the package.
+    /// </summary>
+    public static readonly (int Min, int Max) Marten = (2600, 2799);
 
     // ═══════════════════════════════════════════════════════════════════════
     // Security packages (8000-8099)
