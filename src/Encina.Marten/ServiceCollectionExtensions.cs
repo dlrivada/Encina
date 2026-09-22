@@ -88,7 +88,7 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddAggregateRepository<TAggregate>(this IServiceCollection services)
-        where TAggregate : class, IAggregate
+        where TAggregate : class, IAggregate, new()
     {
         ArgumentNullException.ThrowIfNull(services);
 

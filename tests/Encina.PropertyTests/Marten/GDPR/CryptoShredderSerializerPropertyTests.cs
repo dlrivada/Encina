@@ -14,6 +14,8 @@ using NSubstitute;
 
 using Weasel.Core;
 
+using ISerializer = Marten.ISerializer;
+
 namespace Encina.PropertyTests.Marten.GDPR;
 
 /// <summary>

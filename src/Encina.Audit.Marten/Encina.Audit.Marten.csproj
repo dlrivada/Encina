@@ -6,6 +6,9 @@
     <Description>Event-sourced IAuditStore implementation using Marten (PostgreSQL) with temporal crypto-shredding for compliance-grade audit trails. Provides immutable, append-only audit events with time-partitioned encryption keys that enable GDPR data minimization via key destruction while preserving event stream integrity for SOX/NIS2 compliance.</Description>
     <PackageTags>encina;marten;audit;event-sourcing;crypto-shredding;compliance;sox;nis2;gdpr;immutable;temporal-keys</PackageTags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: the JasperFx.Events source generator (Marten 9) emits public overrides (ApplyAsync, PublishedTypes) for partial EventProjection classes without XML docs.
+         Compiler diagnostics cannot be scoped to generated files via .editorconfig, so the warning is disabled for this project only. Hand-written members are still covered by DocFX (#1032). -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -42,7 +42,7 @@ namespace Encina.Audit.Marten.Projections;
 /// keys are loaded through the supplied <see cref="IDocumentOperations"/>.
 /// </para>
 /// </remarks>
-public sealed class AuditEntryProjection : EventProjection
+public sealed partial class AuditEntryProjection : EventProjection
 {
     private readonly string _shreddedPlaceholder;
     private readonly ILogger<AuditEntryProjection> _logger;

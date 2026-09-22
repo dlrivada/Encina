@@ -205,6 +205,16 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
         _keyProvider.GetOrCreateSubjectKeyAsync(id)
             .AsTask().GetAwaiter().GetResult();
 
+        // The generator may produce the same id more than once within a run and the provider
+        // keeps state across iterations, so the invariant is "rotation adds exactly one version"
+        // relative to the version active before rotating, not "the new version is 2".
+        var infoBefore = _keyProvider.GetSubjectInfoAsync(id)
+            .AsTask().GetAwaiter().GetResult();
+        if (infoBefore.IsLeft) return false;
+
+        int versionBefore = 0;
+        infoBefore.IfRight(i => versionBefore = i.ActiveKeyVersion);
+
         var rotateResult = _keyProvider.RotateSubjectKeyAsync(id)
             .AsTask().GetAwaiter().GetResult();
 
@@ -213,7 +223,7 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
         int newVersion = 0;
         rotateResult.IfRight(r => newVersion = r.NewVersion);
 
-        return newVersion == 2; // First key is v1, rotated key is v2
+        return newVersion == versionBefore + 1;
     }
 
     #endregion

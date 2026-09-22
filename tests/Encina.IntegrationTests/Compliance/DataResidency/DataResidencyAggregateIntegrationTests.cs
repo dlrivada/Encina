@@ -25,7 +25,7 @@ public sealed class DataResidencyAggregateIntegrationTests
         _fixture = fixture;
     }
 
-    private MartenAggregateRepository<T> CreateRepository<T>() where T : class, IAggregate
+    private MartenAggregateRepository<T> CreateRepository<T>() where T : class, IAggregate, new()
     {
         var session = _fixture.Store!.LightweightSession();
         var requestContext = Substitute.For<IRequestContext>();

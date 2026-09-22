@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -13,7 +14,11 @@ using Marten;
 
 using Microsoft.Extensions.Logging;
 
+using Npgsql;
+
 using Weasel.Core;
+
+using ISerializer = Marten.ISerializer;
 
 namespace Encina.Marten.GDPR;
 
@@ -156,6 +161,77 @@ public sealed class CryptoShredderSerializer : ISerializer
     }
 
     /// <inheritdoc />
+    public void WriteTo(IBufferWriter<byte> writer, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        {
+            _inner.WriteTo(writer, value);
+            return;
+        }
+
+        WriteWithEncryption(value, d => _inner.WriteTo(writer, d));
+    }
+
+    /// <inheritdoc />
+    public void WriteToCleanJson(IBufferWriter<byte> writer, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        {
+            _inner.WriteToCleanJson(writer, value);
+            return;
+        }
+
+        WriteWithEncryption(value, d => _inner.WriteToCleanJson(writer, d));
+    }
+
+    /// <inheritdoc />
+    public void WriteToJsonWithTypes(IBufferWriter<byte> writer, object value)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (!CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        {
+            _inner.WriteToJsonWithTypes(writer, value);
+            return;
+        }
+
+        WriteWithEncryption(value, d => _inner.WriteToJsonWithTypes(writer, d));
+    }
+
+    /// <inheritdoc />
+    public void WriteToParameter(DbParameter parameter, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(parameter);
+
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        {
+            _inner.WriteToParameter(parameter, value);
+            return;
+        }
+
+        WriteWithEncryption(value, d => _inner.WriteToParameter(parameter, d));
+    }
+
+    /// <inheritdoc />
+    public void WriteToParameter(NpgsqlParameter parameter, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(parameter);
+
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        {
+            _inner.WriteToParameter(parameter, value);
+            return;
+        }
+
+        WriteWithEncryption(value, d => _inner.WriteToParameter(parameter, d));
+    }
+
+    /// <inheritdoc />
     public T FromJson<T>(Stream stream)
     {
         var result = _inner.FromJson<T>(stream);
@@ -283,6 +359,20 @@ public sealed class CryptoShredderSerializer : ISerializer
             var elapsed = Stopwatch.GetElapsedTime(stopwatch);
             CryptoShreddingDiagnostics.EncryptionDuration.Record(elapsed.TotalMilliseconds);
         }
+    }
+
+    /// <summary>
+    /// Encrypts PII fields on the document, invokes a writer-based inner serialization
+    /// (buffer or parameter), then restores original values. Shares the encrypt/restore
+    /// pipeline of <see cref="SerializeWithEncryption"/>.
+    /// </summary>
+    private void WriteWithEncryption(object document, Action<object> innerWrite)
+    {
+        SerializeWithEncryption(document, d =>
+        {
+            innerWrite(d);
+            return string.Empty;
+        });
     }
 
     /// <summary>

@@ -1,0 +1,167 @@
+# SPEC-000 — Encina 1.0 Baseline and Release Scope
+
+| | |
+|---|---|
+| **Status** | 🟡 DRAFT — awaiting human decisions DEC-001 … DEC-006 |
+| **Author** | Specifier (Claude), from `docs/engineering/PHASE0-BASELINE.md` |
+| **Date** | 2026-09-21 |
+| **Evidence** | `PHASE0-BASELINE.md` (2026-09-21) |
+| **Supersedes** | — |
+
+> This specification implements nothing. Once the human decisions below are recorded and the status becomes **APPROVED**, it is the boundary of the Encina 1.0 project: work outside it is P2 by default. Requirements state *what* must be true for 1.0; they do not prescribe *how*. Design choices that arise while satisfying a requirement go through the ADR process (`AI-DEVELOPMENT-MODEL.md` §7).
+
+---
+
+## 1. Problem
+
+Encina has 110 projects, ~31,000 tests, 25 ADRs and 579 open issues, but no single statement of what "1.0" means. Different sources describe different products (README, ROADMAP, CHANGELOG, `src/`, the solution file), the quality dashboards are frozen because the build is broken, and the milestone plan on GitHub implies ten further feature releases before 1.0. Without an approved scope, every open issue is implicitly a 1.0 blocker and the release date is unbounded.
+
+## 2. Definition of 1.0
+
+Encina 1.0 is **the first stable, supported release of the product that exists today**: the same packages, the same public API surface, hardened, verified with reproducible evidence, documented well enough for a third party to adopt it, and released through a professional pipeline. It is not the release that contains every idea in the backlog.
+
+Consequences:
+
+- Breaking changes stop being free after 1.0. Anything that must break should break before.
+- Providers, transports and integrations not shipped in 1.0 are additive later; their absence is not a defect.
+- A quality claim that cannot be regenerated from CI is not made.
+
+## 3. Requirements
+
+Identifiers are stable. Each requirement has at least one acceptance criterion in §4 and a verification method in §8.
+
+### Scope and inventory
+
+- **REQ-001** There is exactly one authoritative list of the packages that ship in 1.0, and every other source (README, ROADMAP, INVENTORY, solution file, coverage manifests, CI) is derived from or checked against it.
+- **REQ-002** Every project under `src/` is either in the 1.0 package list, explicitly deferred (kept out of the solution with a recorded reason), or removed.
+- **REQ-003** No two packages provide the same capability under different names.
+- **REQ-004** Every provider-dependent feature in the 1.0 list declares which providers it supports and which are deferred, and the shipped set is coherent across providers (same interfaces, same options, same semantics).
+
+### Build and quality gates
+
+- **REQ-005** The solution builds from a clean clone in Release with zero warnings and zero NuGet audit findings at or above the severity threshold decided in DEC-004.
+- **REQ-006** All test projects in the 1.0 list run green in CI, with no test excluded from CI without an open issue naming it.
+- **REQ-007** Every package in the 1.0 list reaches its per-flag coverage targets as declared in its manifest, or its manifest is revised with a recorded justification before release.
+- **REQ-008** Mutation testing runs reproducibly, publishes per-file results with the exact tool versions, and documents its known limitations; no mutation-score threshold is a release blocker while upstream results are unreliable.
+- **REQ-009** Static analysis (CodeQL, and SonarCloud if DEC-006 keeps it) produces a current result with no open findings above the severity decided in DEC-004.
+- **REQ-010** Architecture tests, PublicAPI analyzers and EventId-range checks pass for every package in the 1.0 list.
+
+### Defects and security
+
+- **REQ-011** Every open `[BUG]` at approval time is either fixed or explicitly deferred with a recorded reason. Security-classified bugs cannot be deferred.
+- **REQ-012** Options that accept URLs, endpoints or connection strings validate scheme and host (SSRF class, #852) for every package in the 1.0 list.
+
+### Public API and documentation
+
+- **REQ-013** Every public type and member in the 1.0 list has XML documentation and appears in `PublicAPI.Shipped.txt` at release (the Unshipped files are empty after the release commit).
+- **REQ-014** The documentation site builds without errors; the warnings that remain are classified and either fixed or listed with justification.
+- **REQ-015** A third party can go from zero to a working request/handler with a database provider and one messaging pattern using only the published documentation (quickstart, fundamentals, providers overview, one complete example).
+- **REQ-016** Every quantitative performance claim in README, docs or ADRs cites a reproducible benchmark (DocRef) or is removed.
+- **REQ-017** `CHANGELOG.md` has a correct entry for 1.0 and the pre-1.0 history is consolidated according to DEC-005.
+
+### Release engineering
+
+- **REQ-018** Packages are produced by CI from a tagged commit, with deterministic build settings, SourceLink, license, readme and icon metadata, and are signed with build provenance at the level decided in DEC-004.
+- **REQ-019** Package identifiers are reserved on NuGet.org and the publish workflow is exercised end to end against a pre-release version before 1.0.
+- **REQ-020** The SDK version is pinned (`global.json`) and the repository's default branch is protected (no direct pushes, required checks) as decided in DEC-006.
+- **REQ-021** `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` and the issue/PR templates describe the actual 1.0 process.
+
+### Evidence
+
+- **REQ-022** The release candidate is accompanied by an evidence report generated from CI artifacts (build, tests per flag, coverage per flag, mutation, static analysis, API diff, SBOM, benchmark snapshot) rather than hand-typed numbers.
+- **REQ-023** An independent adversarial review of the release candidate is performed and its findings are resolved or deferred with reasons before the final human release decision.
+
+## 4. Acceptance criteria
+
+| AC | Requirement | Criterion |
+|---|---|---|
+| AC-001 | REQ-001 | A script in the repository produces the package list from `src/` and CI fails when README/ROADMAP/solution/manifests disagree with it. |
+| AC-002 | REQ-002 | `src/**/*.csproj` count equals solution count plus the deferred list; deferred projects live outside `src/` or are documented in an ADR. |
+| AC-003 | REQ-003 | Only one of `Encina.Secrets.*` / `Encina.Security.Secrets.*` exists (DEC-001). |
+| AC-004 | REQ-004 | Each feature in the list has a `Supported providers / Deferred providers` block in its spec or README, and contract tests cover the supported set. |
+| AC-005 | REQ-005 | `ci.yml` and `ci-full.yml` green on `main`; local `dotnet build -c Release` exits 0. |
+| AC-006 | REQ-006 | Zero `Skip=` without issue reference; #531 and #73 closed or re-scoped. |
+| AC-007 | REQ-007 | Coverage dashboard shows every 1.0 package green on all applicable flags; `latest.json` timestamp within the release week. |
+| AC-008 | REQ-008 | Mutation dashboard shows a completed 17-shard run within the release month; `Stryker-xUnit-v3.md` updated with the outcome of #1087. |
+| AC-009 | REQ-009 | CodeQL run within the release week with zero alerts ≥ threshold; Sonar per DEC-006. |
+| AC-010 | REQ-010 | `Encina.Testing.Architecture` rules and `EventIdUniquenessRule` pass in CI. |
+| AC-011 | REQ-011 | `gh issue list --label bug` at tag time returns only issues labelled `deferred-1.0` with a reason. |
+| AC-012 | REQ-012 | #852 closed; a guard/contract test exists per options class. |
+| AC-013 | REQ-013 | RS0016/RS0017 clean; all `PublicAPI.Unshipped.txt` empty after release commit. |
+| AC-014 | REQ-014 | `docs.yml` green; #1032 closed or its remaining warnings listed in the evidence report. |
+| AC-015 | REQ-015 | Quickstart (#81), fundamentals (#82), providers overview (#83) and example 01 (#87) published; a fresh-environment walkthrough recorded in the evidence report. |
+| AC-016 | REQ-016 | #927, #928, #929, #1090 closed; DocRef lint passes. |
+| AC-017 | REQ-017 | CHANGELOG top section is `## [1.0.0] - <date>`; pre-1.0 sections per DEC-005. |
+| AC-018 | REQ-018 | `release-on-milestone.yml` (or successor) packs, signs, attests and publishes; `Directory.Build.props` carries the metadata; #92, #93, #102 closed. |
+| AC-019 | REQ-019 | A `1.0.0-rc.1` is published to NuGet.org through the workflow; #100, #101 closed. |
+| AC-020 | REQ-020 | `global.json` present; branch protection screenshot/API output in the evidence report; #98 closed. |
+| AC-021 | REQ-021 | #95, #96, #97 closed. |
+| AC-022 | REQ-022 | `docs/releases/v1.0.0/evidence.md` generated by a script from CI artifacts. |
+| AC-023 | REQ-023 | Adversarial review report attached to the release PR with every finding dispositioned. |
+
+## 5. Constraints
+
+- .NET 10 only; C# 14; nullable enabled (`CLAUDE.md`).
+- The per-flag obligations coverage model is normative (`AI-DEVELOPMENT-MODEL.md` §3).
+- Provider coherence rules for database (10), caching, transports, locks and validation apply to whatever is in the 1.0 list (`CLAUDE.md`), with the actual set fixed by DEC-003.
+- Cross-cutting integration rule (ADR-018) applies to any new code written for 1.0.
+- EventId allocation via `EventIdRanges.cs` (ADR-021).
+- Existing quality infrastructure is orchestrated, not replaced (`ENCINA-1.0-RECONCILIATION.md` §11).
+- Scripting: PowerShell or C# file-based apps only (`CLAUDE.md`).
+
+## 6. Non-goals
+
+- New providers, transports, cloud integrations, AI/LLM features, source generators, hot reload, dashboards, EIP part 2, Aspire integration, modular-monolith features (milestones v0.14.0 – v0.20.1) — unless DEC-002 pulls a named item in.
+- Benchmarks and load tests for every package (v0.21.0); only critical paths (DEC-002 lists them).
+- Reaching a specific mutation score.
+- Closing every open issue.
+- Backward compatibility with any pre-1.0 version.
+
+## 7. Invariants
+
+- **INV-001** Nothing is claimed in public documentation that CI cannot regenerate.
+- **INV-002** No production change lands without a green `ci.yml`.
+- **INV-003** Every architectural choice made while satisfying a requirement is recorded as an ADR with alternatives and the human decision.
+- **INV-004** The P0 backlog only shrinks; adding to it requires a recorded reason referencing a requirement in this document.
+- **INV-005** Agents do not change this document; they propose changes as a PR to it with the human as approver.
+
+## 8. Verification
+
+| Requirement group | Method |
+|---|---|
+| Inventory (REQ-001–004) | Inventory script + CI drift check; contract tests per provider set. |
+| Build/quality gates (REQ-005–010) | `ci.yml`, `ci-full.yml`, `mutation-tests.yml`, `codeql.yml`, architecture tests; dashboards regenerated. |
+| Defects/security (REQ-011–012) | Issue tracker state at tag time; guard/contract tests. |
+| API/docs (REQ-013–017) | PublicAPI analyzers; `docs.yml`; DocRef lint; walkthrough in evidence report. |
+| Release (REQ-018–021) | Dry run against `1.0.0-rc.1`; workflow logs and NuGet.org listing in evidence report. |
+| Evidence (REQ-022–023) | Generated evidence report; adversarial review report. |
+
+## 9. Human decisions required
+
+These are Class C. Agents have presented the options; the maintainer decides. Once decided, each becomes a short ADR (or a line in this table with the decision and reason) and this document moves to APPROVED.
+
+| ID | Decision | Options presented | Agent recommendation | **Human decision** |
+|---|---|---|---|---|
+| **DEC-001** | Canonical package list and disposition of the 11 orphan projects (#1089), incl. `Encina.Secrets.*` vs `Encina.Security.Secrets.*` | (a) `Security.Secrets` canonical, delete `Secrets.*`; (b) the reverse; (c) keep both (rejected: REQ-003). AIAct/Consent: (a) add to solution and 1.0; (b) defer to `.backup/` like Oracle. Testing.*: add to solution. | (a) for Secrets (it is the one in the solution and CHANGELOG); Consent in 1.0 (GDPR core), AIAct deferred (regulation still evolving, 49 files unverified); Testing.* in. | *pending* |
+| **DEC-002** | Release scope: which, if any, `[FEATURE]` issues from v0.13.5 – v0.21.0 enter 1.0, and which "critical paths" get benchmarks | (a) none; (b) a named short list (e.g. distributed locks in Outbox/Inbox #713/#714, leader election #717, outbox atomicity ADO/Dapper #718/#719) because they close correctness gaps in shipped patterns; (c) whole milestones. | (b) with the four issues named, plus benchmarks only for mediator pipeline dispatch (#560) and messaging orchestrators (#561). | *pending* |
+| **DEC-003** | Provider set for 1.0 where `CLAUDE.md` and `src/` disagree: caching (Memcached absent), locks (PostgreSQL/MySQL absent), cloud (GCP absent) | (a) ship what exists and amend `CLAUDE.md` ("7 caches, 3 locks"); (b) implement the missing ones before 1.0. | (a). They are additive; implementing them is P2. | *pending* |
+| **DEC-004** | Severity thresholds: NuGet audit level that blocks the build, CodeQL/Sonar level that blocks release, SLSA level for provenance | Audit: block on ≥ moderate (current behaviour) vs ≥ high. Static: block on ≥ high. Provenance: SLSA L2 (#92) vs GitHub artifact attestations only. | Audit ≥ moderate (keep), static ≥ high, GitHub attestations + Sigstore signing (#93) which satisfies L2 in practice. | *pending* |
+| **DEC-005** | Versioning and CHANGELOG: go from 0.13.0-dev straight to 1.0.0-rc.1, or cut 0.13.0 first; how to consolidate the 2,621-line Unreleased section | (a) tag 0.13.0 now as "last pre-1.0", then rc; (b) skip to 1.0.0-rc.1 and fold Unreleased into a "0.13 → 1.0" section. | (a): it gives a checkpoint with the current CHANGELOG as is, and the 1.0 entry starts clean. | *pending* |
+| **DEC-006** | Process policy: keep SonarCloud (needs #75) or drop it in favour of CodeQL + analyzers; branch protection on `main` with required `ci.yml`; agents commit only via PR | (a) keep Sonar; (b) drop Sonar and remove the claim. Protection: on/off. | (b) unless the token is configured within Phase 1; protection on; PR-only for all agents. | *pending* |
+
+## 10. Traceability
+
+| Source | Requirements |
+|---|---|
+| `PHASE0-BASELINE.md` F-01 | REQ-005 |
+| F-02, F-03 | REQ-001, REQ-002, REQ-003 |
+| F-04, F-05, F-06 | REQ-007, REQ-008, REQ-009 |
+| F-07 | REQ-018, REQ-019, REQ-020 |
+| F-08 | §2, §6, DEC-002 |
+| F-09 | REQ-017, DEC-005 |
+| F-13 | REQ-011, REQ-012 |
+| F-14 | REQ-004, DEC-003 |
+| F-15 | REQ-016 |
+| F-16 | REQ-020, DEC-006 |
+| `ENCINA-1.0-RECONCILIATION.md` §6.1, `Stryker-xUnit-v3.md` §5 | REQ-008 |
+| `ENCINA-1.0-RECONCILIATION.md` §8 (EPIC #893) | REQ-018 – REQ-021 |

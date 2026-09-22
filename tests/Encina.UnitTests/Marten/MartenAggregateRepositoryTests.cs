@@ -1,5 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Marten;
+using JasperFx.Events;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging;
@@ -93,8 +94,8 @@ public class MartenAggregateRepositoryTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _session.Events.AggregateStreamAsync<TestAggregate>(
-            id, version: 3, timestamp: null, token: Arg.Any<CancellationToken>())
+        _session.Events.FetchStreamAsync(
+            id, version: 3, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var sut = CreateSut();
@@ -110,9 +111,9 @@ public class MartenAggregateRepositoryTests
     public async Task LoadAsync_WithVersion_NullResult_ReturnsLeft()
     {
         var id = Guid.NewGuid();
-        _session.Events.AggregateStreamAsync<TestAggregate>(
-            id, version: 2, timestamp: null, token: Arg.Any<CancellationToken>())
-            .Returns((TestAggregate?)null);
+        _session.Events.FetchStreamAsync(
+            id, version: 2, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<IEvent>());
 
         var sut = CreateSut();
         var result = await sut.LoadAsync(id, 2);
@@ -124,25 +125,29 @@ public class MartenAggregateRepositoryTests
     public async Task LoadAsync_WithVersion_Success_ReturnsAggregateAtVersion()
     {
         var id = Guid.NewGuid();
-        var aggregate = new TestAggregate { Id = id };
-        _session.Events.AggregateStreamAsync<TestAggregate>(
-            id, version: 5, timestamp: null, token: Arg.Any<CancellationToken>())
-            .Returns(aggregate);
+        _session.Events.FetchStreamAsync(
+            id, version: 5, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns(StreamOf(id, 5));
 
         var sut = CreateSut();
         var result = await sut.LoadAsync(id, 5);
 
         result.IsRight.ShouldBeTrue();
-        result.IfRight(a => a.Version.ShouldBe(5));
+        result.IfRight(a =>
+        {
+            a.Version.ShouldBe(5);
+            a.Id.ShouldBe(id);
+            a.UncommittedEvents.ShouldBeEmpty();
+        });
     }
 
     [Fact]
     public async Task LoadAsync_ById_NullResult_ReturnsLeft()
     {
         var id = Guid.NewGuid();
-        _session.Events.AggregateStreamAsync<TestAggregate>(
-            id, version: 0, timestamp: null, token: Arg.Any<CancellationToken>())
-            .Returns((TestAggregate?)null);
+        _session.Events.FetchStreamAsync(
+            id, version: 0, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<IEvent>());
 
         var sut = CreateSut();
         var result = await sut.LoadAsync(id);
@@ -151,11 +156,31 @@ public class MartenAggregateRepositoryTests
     }
 
     [Fact]
+    public async Task LoadAsync_ById_Success_ReplaysEventsAndSetsVersion()
+    {
+        var id = Guid.NewGuid();
+        _session.Events.FetchStreamAsync(
+            id, version: 0, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns(StreamOf(id, 3));
+
+        var sut = CreateSut();
+        var result = await sut.LoadAsync(id);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(a =>
+        {
+            a.Version.ShouldBe(3);
+            a.Id.ShouldBe(id);
+            a.UncommittedEvents.ShouldBeEmpty();
+        });
+    }
+
+    [Fact]
     public async Task LoadAsync_ById_ExceptionThrown_ReturnsLeft()
     {
         var id = Guid.NewGuid();
-        _session.Events.AggregateStreamAsync<TestAggregate>(
-            id, version: 0, timestamp: null, token: Arg.Any<CancellationToken>())
+        _session.Events.FetchStreamAsync(
+            id, version: 0, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Connection lost"));
 
         var sut = CreateSut();
@@ -202,7 +227,8 @@ public class MartenAggregateRepositoryTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        _session.Events.Received(1).Append(aggregate.Id, Arg.Any<object[]>());
+        // Expected version passed to Marten is the stream version AFTER the append (= aggregate.Version)
+        _session.Events.Received(1).Append(aggregate.Id, (long)aggregate.Version, Arg.Any<object[]>());
         await _session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -390,6 +416,18 @@ public class MartenAggregateRepositoryTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: err => err.Message.ShouldContain("Failed to create"));
+    }
+
+    /// <summary>Builds a fake Marten stream of <paramref name="count"/> events for <paramref name="id"/>.</summary>
+    private static List<IEvent> StreamOf(Guid id, int count)
+    {
+        var events = new List<IEvent>(count);
+        for (var i = 1; i <= count; i++)
+        {
+            events.Add(new Event<TestEvent>(new TestEvent(id)) { Version = i, StreamId = id });
+        }
+
+        return events;
     }
 
     // Test types

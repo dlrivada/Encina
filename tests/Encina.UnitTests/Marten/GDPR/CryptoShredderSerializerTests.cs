@@ -1,13 +1,17 @@
+using System.Buffers;
+using System.Data.Common;
 using Encina.Compliance.DataSubjectRights;
 using Encina.Marten.GDPR;
 using Encina.Marten.GDPR.Abstractions;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using NSubstitute;
 using Shouldly;
 using Weasel.Core;
 using static LanguageExt.Prelude;
+using ISerializer = Marten.ISerializer;
 
 namespace Encina.UnitTests.Marten.GDPR;
 
@@ -78,6 +82,16 @@ public sealed class CryptoShredderSerializerTests : IDisposable
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider
+            .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = "user-1",
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
 
         _mockInner.ToJson(Arg.Any<PiiEvent>())
             .Returns(ci =>
@@ -135,6 +149,301 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         // Assert — serializer created successfully with custom placeholder
         serializer.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void WriteTo_NullWriter_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => _sut.WriteTo(null!, evt));
+    }
+
+    [Fact]
+    public void WriteTo_NonPiiEvent_DelegatesToInner()
+    {
+        // Arrange
+        var writer = new ArrayBufferWriter<byte>();
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act
+        _sut.WriteTo(writer, evt);
+
+        // Assert
+        _mockInner.Received(1).WriteTo(writer, evt);
+    }
+
+    [Fact]
+    public void WriteTo_PiiEvent_EncryptsFieldAndRestoresOriginal()
+    {
+        // Arrange
+        var writer = new ArrayBufferWriter<byte>();
+        var evt = new PiiEvent { UserId = "user-1", Email = "test@example.com" };
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+
+        _mockKeyProvider
+            .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider
+            .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = "user-1",
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+
+        string? captured = null;
+        _mockInner
+            .When(x => x.WriteTo(Arg.Any<IBufferWriter<byte>>(), Arg.Any<PiiEvent>()))
+            .Do(ci => captured = ci.Arg<PiiEvent>().Email);
+
+        // Act
+        _sut.WriteTo(writer, evt);
+
+        // Assert
+        captured.ShouldNotBeNull();
+        captured.ShouldStartWith("{\"__enc\":true");
+        evt.Email.ShouldBe("test@example.com");
+    }
+
+    [Fact]
+    public void WriteToCleanJson_NullWriter_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => _sut.WriteToCleanJson(null!, evt));
+    }
+
+    [Fact]
+    public void WriteToCleanJson_NonPiiEvent_DelegatesToInner()
+    {
+        // Arrange
+        var writer = new ArrayBufferWriter<byte>();
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act
+        _sut.WriteToCleanJson(writer, evt);
+
+        // Assert
+        _mockInner.Received(1).WriteToCleanJson(writer, evt);
+    }
+
+    [Fact]
+    public void WriteToCleanJson_PiiEvent_EncryptsFieldAndRestoresOriginal()
+    {
+        // Arrange
+        var writer = new ArrayBufferWriter<byte>();
+        var evt = new PiiEvent { UserId = "user-1", Email = "test@example.com" };
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+
+        _mockKeyProvider
+            .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider
+            .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = "user-1",
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+
+        string? captured = null;
+        _mockInner
+            .When(x => x.WriteToCleanJson(Arg.Any<IBufferWriter<byte>>(), Arg.Any<PiiEvent>()))
+            .Do(ci => captured = ci.Arg<PiiEvent>().Email);
+
+        // Act
+        _sut.WriteToCleanJson(writer, evt);
+
+        // Assert
+        captured.ShouldNotBeNull();
+        captured.ShouldStartWith("{\"__enc\":true");
+        evt.Email.ShouldBe("test@example.com");
+    }
+
+    [Fact]
+    public void WriteToJsonWithTypes_NullValue_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var writer = new ArrayBufferWriter<byte>();
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => _sut.WriteToJsonWithTypes(writer, null!));
+    }
+
+    [Fact]
+    public void WriteToJsonWithTypes_NonPiiEvent_DelegatesToInner()
+    {
+        // Arrange
+        var writer = new ArrayBufferWriter<byte>();
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act
+        _sut.WriteToJsonWithTypes(writer, evt);
+
+        // Assert
+        _mockInner.Received(1).WriteToJsonWithTypes(writer, evt);
+    }
+
+    [Fact]
+    public void WriteToJsonWithTypes_PiiEvent_EncryptsFieldAndRestoresOriginal()
+    {
+        // Arrange
+        var writer = new ArrayBufferWriter<byte>();
+        var evt = new PiiEvent { UserId = "user-1", Email = "test@example.com" };
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+
+        _mockKeyProvider
+            .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider
+            .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = "user-1",
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+
+        string? captured = null;
+        _mockInner
+            .When(x => x.WriteToJsonWithTypes(Arg.Any<IBufferWriter<byte>>(), Arg.Any<PiiEvent>()))
+            .Do(ci => captured = ci.Arg<PiiEvent>().Email);
+
+        // Act
+        _sut.WriteToJsonWithTypes(writer, evt);
+
+        // Assert
+        captured.ShouldNotBeNull();
+        captured.ShouldStartWith("{\"__enc\":true");
+        evt.Email.ShouldBe("test@example.com");
+    }
+
+    [Fact]
+    public void WriteToParameter_DbParameter_NullParameter_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => _sut.WriteToParameter((DbParameter)null!, evt));
+    }
+
+    [Fact]
+    public void WriteToParameter_DbParameter_NonPiiEvent_DelegatesToInner()
+    {
+        // Arrange
+        var parameter = Substitute.For<DbParameter>();
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act
+        _sut.WriteToParameter(parameter, evt);
+
+        // Assert
+        _mockInner.Received(1).WriteToParameter(parameter, evt);
+    }
+
+    [Fact]
+    public void WriteToParameter_DbParameter_PiiEvent_EncryptsFieldAndRestoresOriginal()
+    {
+        // Arrange
+        var parameter = Substitute.For<DbParameter>();
+        var evt = new PiiEvent { UserId = "user-1", Email = "test@example.com" };
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+
+        _mockKeyProvider
+            .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider
+            .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = "user-1",
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+
+        string? captured = null;
+        _mockInner
+            .When(x => x.WriteToParameter(Arg.Any<DbParameter>(), Arg.Any<PiiEvent>()))
+            .Do(ci => captured = ci.Arg<PiiEvent>().Email);
+
+        // Act
+        _sut.WriteToParameter(parameter, evt);
+
+        // Assert
+        captured.ShouldNotBeNull();
+        captured.ShouldStartWith("{\"__enc\":true");
+        evt.Email.ShouldBe("test@example.com");
+    }
+
+    [Fact]
+    public void WriteToParameter_NpgsqlParameter_NonPiiEvent_DelegatesToInner()
+    {
+        // Arrange
+        var parameter = new NpgsqlParameter();
+        var evt = new NonPiiEvent { Id = "123", Timestamp = DateTimeOffset.UtcNow };
+
+        // Act
+        _sut.WriteToParameter(parameter, evt);
+
+        // Assert
+        _mockInner.Received(1).WriteToParameter(parameter, evt);
+    }
+
+    [Fact]
+    public void WriteToParameter_NpgsqlParameter_PiiEvent_EncryptsFieldAndRestoresOriginal()
+    {
+        // Arrange
+        var parameter = new NpgsqlParameter();
+        var evt = new PiiEvent { UserId = "user-1", Email = "test@example.com" };
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+
+        _mockKeyProvider
+            .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider
+            .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = "user-1",
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+
+        string? captured = null;
+        _mockInner
+            .When(x => x.WriteToParameter(Arg.Any<NpgsqlParameter>(), Arg.Any<PiiEvent>()))
+            .Do(ci => captured = ci.Arg<PiiEvent>().Email);
+
+        // Act
+        _sut.WriteToParameter(parameter, evt);
+
+        // Assert
+        captured.ShouldNotBeNull();
+        captured.ShouldStartWith("{\"__enc\":true");
+        evt.Email.ShouldBe("test@example.com");
     }
 
     // Test types

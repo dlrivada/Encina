@@ -1,6 +1,7 @@
 using Encina.DomainModeling;
 using Encina.Marten;
 using Encina.Marten.Snapshots;
+using JasperFx.Events;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging;
@@ -122,6 +123,73 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_NoSnapshot_EmptyStream_ReturnsLeft()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        _snapshotStore.GetLatestAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Option<Snapshot<TestSnapshotAggregate>>>(None));
+        _session.Events.FetchStreamAsync(id, version: 0, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<IEvent>>(System.Array.Empty<IEvent>()));
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.LoadAsync(id);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_NoSnapshot_ReplaysAllEvents()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        _snapshotStore.GetLatestAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Option<Snapshot<TestSnapshotAggregate>>>(None));
+        _session.Events.FetchStreamAsync(id, version: 0, timestamp: null, fromVersion: 0, token: Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<IEvent>>(CreateFakeEvents(id, 1, 2, 3)));
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.LoadAsync(id);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(a =>
+        {
+            a.Version.ShouldBe(3);
+            a.UncommittedEvents.ShouldBeEmpty();
+        });
+    }
+
+    [Fact]
+    public async Task LoadAsync_WithSnapshot_ReplaysOnlyEventsAfterSnapshot()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var state = new TestSnapshotAggregate { Id = id };
+        state.Version = 2;
+        var snapshot = new Snapshot<TestSnapshotAggregate>(id, 2, state, DateTime.UtcNow);
+        _snapshotStore.GetLatestAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Option<Snapshot<TestSnapshotAggregate>>>(Some(snapshot)));
+        _session.Events.FetchStreamAsync(id, version: 0, timestamp: null, fromVersion: 3, token: Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<IEvent>>(CreateFakeEvents(id, 3, 4)));
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.LoadAsync(id);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(a => a.Version.ShouldBe(4));
+        await _session.Events.Received(1).FetchStreamAsync(id, version: 0, timestamp: null, fromVersion: 3, token: Arg.Any<CancellationToken>());
     }
 
     // LoadAsync (by id + version) tests
@@ -449,6 +517,17 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+    }
+
+    private static List<IEvent> CreateFakeEvents(Guid id, params int[] versions)
+    {
+        return versions
+            .Select(version => (IEvent)new Event<TestSnapshotEvent>(new TestSnapshotEvent(id, $"event-{version}"))
+            {
+                Version = version,
+                StreamId = id
+            })
+            .ToList();
     }
 
     // Test types
