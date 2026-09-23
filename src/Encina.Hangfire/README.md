@@ -259,6 +259,8 @@ Hangfire marks a job as failed, and applies its retry policy, only when the job 
 
 Permanent and transient are decided by `Encina.Messaging.Recoverability.IErrorClassifier`: the registered implementation, or `DefaultErrorClassifier` when none is registered. The default classifier looks at the error's exception, then its code, then its message; register your own `IErrorClassifier` to classify your domain error codes.
 
+Only `EnqueueRequest` has an opt-in for keeping the response (`EnqueueRequestWithResult`, which enqueues `ExecuteAndReturnResultAsync`). `ScheduleRequestWithDelay`, `ScheduleRequestAt` and `AddOrUpdateRecurringRequest` always enqueue `ExecuteAsync`, so the response of a delayed, scheduled or recurring job is never stored in Hangfire.
+
 To stop Hangfire from retrying permanent failures, replace its global retry filter once at startup:
 
 ```csharp
