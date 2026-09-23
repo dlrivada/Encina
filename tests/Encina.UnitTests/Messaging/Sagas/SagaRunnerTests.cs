@@ -188,6 +188,72 @@ public sealed class SagaRunnerTests
 
     #endregion
 
+    #region RunAsync - Request Context Propagation
+
+    [Fact]
+    public async Task RunAsync_OutsideDispatch_StepsReceiveTenantLessContext()
+    {
+        // Arrange: a real accessor with no ambient context set, as when a background job
+        // invokes the saga directly instead of going through IEncina.Send/Publish/Stream.
+        var accessor = new RequestContextAccessor();
+        var orchestrator = CreateOrchestrator();
+        var logger = NullLogger<SagaRunner>.Instance;
+        var runner = new SagaRunner(orchestrator, accessor, logger);
+
+        IRequestContext? observedContext = null;
+        var definition = CreateDefinition(steps:
+        [
+            ("Step1", (data, context, _) =>
+            {
+                observedContext = context;
+                return ValueTask.FromResult(Right<EncinaError, TestData>(data));
+            })
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        observedContext.ShouldNotBeNull();
+        observedContext.TenantId.ShouldBeNull();
+        observedContext.UserId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_WithTenantSetOnAccessor_StepsReceiveThatTenant()
+    {
+        // Arrange: the ambient context carries a tenant, as when a dispatch set it before
+        // invoking the saga.
+        var accessor = new RequestContextAccessor
+        {
+            RequestContext = RequestContext.CreateForTest(tenantId: "tenant-42")
+        };
+        var orchestrator = CreateOrchestrator();
+        var logger = NullLogger<SagaRunner>.Instance;
+        var runner = new SagaRunner(orchestrator, accessor, logger);
+
+        IRequestContext? observedContext = null;
+        var definition = CreateDefinition(steps:
+        [
+            ("Step1", (data, context, _) =>
+            {
+                observedContext = context;
+                return ValueTask.FromResult(Right<EncinaError, TestData>(data));
+            })
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        observedContext.ShouldNotBeNull();
+        observedContext.TenantId.ShouldBe("tenant-42");
+    }
+
+    #endregion
+
     #region RunAsync - Step Failure and Compensation
 
     [Fact]

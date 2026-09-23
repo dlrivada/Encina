@@ -65,7 +65,10 @@ public sealed class SagaRunner : ISagaRunner
 
         // The ambient context set by IEncina.Send/Publish/Stream wins; a run started outside a
         // dispatch (a background job invoking the saga directly) gets a fresh context instead of
-        // a null one, since steps require a non-null IRequestContext.
+        // a null one, since steps require a non-null IRequestContext. That fallback context is
+        // anonymous: it carries no TenantId and no UserId, since RequestContext.Create() has no
+        // ambient dispatch to copy them from. Callers that need a tenant-scoped saga run outside a
+        // dispatch must set IRequestContextAccessor.RequestContext themselves before calling RunAsync.
         var requestContext = _requestContextAccessor.RequestContext ?? RequestContext.Create();
 
         // Start the saga
