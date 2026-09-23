@@ -1,11 +1,9 @@
 using Encina.DomainModeling;
 using LanguageExt;
 using Microsoft.Data.SqlClient;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
 using Npgsql;
-using Oracle.ManagedDataAccess.Client;
 
 namespace Encina.EntityFrameworkCore.BulkOperations;
 
@@ -23,8 +21,6 @@ namespace Encina.EntityFrameworkCore.BulkOperations;
 /// <item><description>SQL Server: Uses <see cref="BulkOperationsEFSqlServer{TEntity}"/> with SqlBulkCopy and TVPs</description></item>
 /// <item><description>PostgreSQL: Uses <see cref="BulkOperationsEFPostgreSql{TEntity}"/> with batched inserts and ON CONFLICT</description></item>
 /// <item><description>MySQL: Uses <see cref="BulkOperationsEFMySql{TEntity}"/> with batched inserts and ON DUPLICATE KEY UPDATE</description></item>
-/// <item><description>SQLite: Uses <see cref="BulkOperationsEFSqlite{TEntity}"/> with batched inserts and INSERT OR REPLACE</description></item>
-/// <item><description>Oracle: Uses <see cref="BulkOperationsEFOracle{TEntity}"/> with INSERT ALL and MERGE</description></item>
 /// </list>
 /// <para>
 /// Each provider implementation is optimized for its specific database engine, using native
@@ -101,11 +97,9 @@ public sealed class BulkOperationsEF<TEntity> : IBulkOperations<TEntity>
             SqlConnection => new BulkOperationsEFSqlServer<TEntity>(dbContext),
             NpgsqlConnection => new BulkOperationsEFPostgreSql<TEntity>(dbContext),
             MySqlConnection => new BulkOperationsEFMySql<TEntity>(dbContext),
-            SqliteConnection => new BulkOperationsEFSqlite<TEntity>(dbContext),
-            OracleConnection => new BulkOperationsEFOracle<TEntity>(dbContext),
             _ => throw new NotSupportedException(
                 $"Database provider '{connection.GetType().Name}' is not supported for bulk operations. " +
-                $"Supported providers: SQL Server, PostgreSQL, MySQL, SQLite, Oracle.")
+                $"Supported providers: SQL Server, PostgreSQL, MySQL.")
         };
     }
 }
