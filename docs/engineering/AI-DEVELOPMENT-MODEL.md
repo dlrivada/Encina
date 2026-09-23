@@ -786,6 +786,8 @@ A review of the 2026-09-22/24 sessions (about 20 PRs and 40 issues run by an orc
 
 1. **Model choice.** Workers run on Sonnet. The orchestrator switches a worker to Opus only when its brief states why: an unknown root cause or a design-heavy task. Most briefs are closed, and Sonnet executes them at a fraction of the cost.
 2. **Self-review before hand-off.** A worker whose change touches production code runs `adversarial-reviewer` on its own diff and fixes blockers and majors before it reports, so findings are fixed before the PR opens rather than through a review, fix, re-push and CI loop. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
+3. **Main-checkout guard.** Workers wrote into the main checkout three times, through relative paths in `[IO.File]` calls that .NET resolves against the process directory. The `block-main-checkout-writes` hook now denies, for the writing agents, any write or working-tree git command aimed at the main checkout rather than a worktree.
+4. **Edit tool only for source files.** A PowerShell `-replace` corrupted six files in #1159. Workers now edit repo source files only with the Edit and Write tools, and the same hook blocks `-replace`, `Set-Content`, `Out-File`, `[IO.File]` and redirection writes to them.
 
 ---
 

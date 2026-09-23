@@ -10,6 +10,7 @@ $attribution = Join-Path $hooks 'block-ai-attribution.ps1'
 $issue = Join-Path $hooks 'check-issue-template.ps1'
 $publish = Join-Path $hooks 'block-worker-publish.ps1'
 $spawn = Join-Path $hooks 'block-worker-spawn.ps1'
+$mainCheckout = Join-Path $hooks 'block-main-checkout-writes.ps1'
 
 $work = Join-Path ([IO.Path]::GetTempPath()) "encina-hook-tests-$PID"
 $sub = Join-Path $work 'sub dir'
@@ -171,6 +172,81 @@ $spawnCases = @(
     @('Adversarial-Reviewer', 2, 'subagent_type is case-sensitive')
 )
 
+# block-main-checkout-writes.ps1 runs against a fake project: $main is the main checkout, $wt a worktree.
+$main = Join-Path $work 'Encina'
+$wt = Join-Path $main '.claude\worktrees\w1'
+$outside = Join-Path $work 'outside'
+function ConvertTo-Msys([string]$Path) { '/' + $Path.Substring(0, 1).ToLowerInvariant() + $Path.Substring(2).Replace('\', '/') }
+$msysMain = ConvertTo-Msys $main
+$msysWt = ConvertTo-Msys $wt
+
+# tool, tool_input, cwd, expected, label[, CLAUDE_PROJECT_DIR (default $main)]
+$writeCases = @(
+    @('Write', @{ file_path = "$main\src\x.cs" }, $wt, 2, 'Write into the main checkout'),
+    @('Write', @{ file_path = "$wt\src\x.cs" }, $main, 0, 'Write into a worktree'),
+    @('Edit', @{ file_path = "$($main.Replace('\', '/'))/src/x.cs" }, $wt, 2, 'Edit with forward slashes into the main checkout'),
+    @('Edit', @{ file_path = "$($main.ToUpperInvariant())\SRC\X.CS" }, $wt, 2, 'Edit into the main checkout with different case'),
+    @('Edit', @{ file_path = "$($main.Replace('\', '/'))\src/x.cs" }, $wt, 2, 'Edit with mixed separators into the main checkout'),
+    @('Write', @{ file_path = "$($wt.ToUpperInvariant())\x.md" }, $main, 0, 'Write into a worktree with different case'),
+    @('Write', @{ file_path = "$($wt.Replace('\', '/'))/docs/x.md" }, $main, 0, 'Write into a worktree with forward slashes'),
+    @('Write', @{ file_path = "$outside\x.md" }, $main, 0, 'Write outside the project (temp)'),
+    @('NotebookEdit', @{ notebook_path = "$main\n.ipynb" }, $wt, 2, 'NotebookEdit into the main checkout'),
+    @('Write', @{ file_path = "$wt\..\..\..\src\x.cs" }, $wt, 2, 'Write escaping the worktree with ..'),
+    @('Write', @{ file_path = "$main\.claude\settings.json" }, $wt, 2, 'Write into the main .claude folder'),
+    @('Write', @{ file_path = "$($main)2\x.cs" }, $wt, 0, 'sibling folder sharing the prefix'),
+    @('Write', @{ file_path = 'src/x.cs' }, $main, 2, 'relative Write path from the main checkout'),
+    @('Write', @{ file_path = "$main\src\x.cs" }, $wt, 2, 'project dir is a worktree, target in main', $wt),
+    @('Write', @{ file_path = "$wt\src\x.cs" }, $wt, 0, 'project dir is a worktree, target in it', $wt),
+    @('Read', @{ file_path = "$main\src\x.cs" }, $wt, 0, 'Read is not a write'),
+
+    @('PowerShell', @{ command = "[IO.File]::WriteAllText('docs/x.txt', 'a')" }, $main, 2, 'relative [IO.File] write from the main checkout'),
+    @('PowerShell', @{ command = "[System.IO.File]::AppendAllText(`"docs\x.txt`", 'a')" }, $main, 2, 'relative [System.IO.File] append from the main checkout'),
+    @('PowerShell', @{ command = "[IO.File]::WriteAllText('docs/x.txt', 'a')" }, $wt, 0, 'relative [IO.File] write from a worktree'),
+    @('PowerShell', @{ command = "Set-Location '$wt'; [IO.File]::WriteAllText('x.txt', 'a')" }, $main, 2, '[IO.File] ignores Set-Location'),
+    @('PowerShell', @{ command = '[IO.File]::WriteAllText($path, $text)' }, $main, 0, '[IO.File] with a variable target'),
+    @('PowerShell', @{ command = 'Set-Content -Path notes.txt -Value x' }, $main, 2, 'Set-Content relative in the main checkout'),
+    @('PowerShell', @{ command = 'Set-Content -Path notes.txt -Value x' }, $wt, 0, 'Set-Content relative in a worktree'),
+    @('PowerShell', @{ command = "Set-Content '$main\notes.txt' x" }, $wt, 2, 'Set-Content absolute into the main checkout'),
+    @('PowerShell', @{ command = "Set-Location '$wt'; Set-Content notes.txt x" }, $main, 0, 'Set-Location into a worktree first'),
+    @('PowerShell', @{ command = 'Set-Location $wt; Set-Content notes.txt x' }, $main, 0, 'Set-Location to a variable (unknown directory)'),
+    @('PowerShell', @{ command = "'x' | Out-File out.txt" }, $main, 2, 'Out-File relative in the main checkout'),
+    @('PowerShell', @{ command = 'Get-Content a.txt > b.txt' }, $main, 2, '> redirection in the main checkout'),
+    @('PowerShell', @{ command = 'Get-Content a.txt >>b.txt' }, $main, 2, '>> attached redirection in the main checkout'),
+    @('PowerShell', @{ command = "Get-Content a.txt > '$outside\b.txt'" }, $main, 0, 'redirection outside the project'),
+    @('PowerShell', @{ command = 'git status 2>&1; Get-ChildItem > $null' }, $main, 0, '2>&1 and > $null are not writes'),
+    @('PowerShell', @{ command = "Copy-Item '$outside\a.txt' docs\a.txt" }, $main, 2, 'Copy-Item into the main checkout'),
+    @('PowerShell', @{ command = "Copy-Item docs\a.txt '$outside\a.txt'" }, $main, 0, 'Copy-Item out of the main checkout'),
+    @('PowerShell', @{ command = "Move-Item -Path '$wt\a.txt' -Destination '$main\a.txt'" }, $wt, 2, 'Move-Item -Destination into the main checkout'),
+    @('PowerShell', @{ command = 'New-Item -ItemType Directory scratch' }, $main, 2, 'New-Item relative in the main checkout'),
+    @('PowerShell', @{ command = 'New-Item -ItemType Directory -Force $dir' }, $main, 0, 'New-Item with a variable target'),
+    @('PowerShell', @{ command = 'git checkout -- src/x.cs' }, $main, 2, 'git checkout -- in the main checkout'),
+    @('PowerShell', @{ command = 'git restore src/x.cs' }, $main, 2, 'git restore in the main checkout'),
+    @('PowerShell', @{ command = 'git commit -m x' }, $main, 2, 'git commit in the main checkout'),
+    @('PowerShell', @{ command = "git -C '$wt' restore src/x.cs" }, $main, 0, 'git -C worktree restore'),
+    @('PowerShell', @{ command = "git -C '$wt' commit -m x" }, $main, 0, 'git -C worktree commit'),
+    @('PowerShell', @{ command = "git -C '$main' commit -m x" }, $wt, 2, 'git -C main checkout commit'),
+    @('PowerShell', @{ command = 'git status; git log --oneline -3; git diff; git stash list' }, $main, 0, 'read-only git in the main checkout'),
+    @('PowerShell', @{ command = 'Get-Content src\x.cs; Get-ChildItem -Recurse src' }, $main, 0, 'read-only commands in the main checkout'),
+    @('Bash', @{ command = 'echo x > notes.txt' }, $main, 2, 'Bash > in the main checkout'),
+    @('Bash', @{ command = 'cp /c/tmp/a.txt notes.txt' }, $main, 2, 'Bash cp into the main checkout'),
+    @('Bash', @{ command = "cd $msysWt && touch a.txt" }, $main, 0, 'Bash cd into a worktree (msys path) then touch'),
+    @('Bash', @{ command = "touch $msysMain/a.txt" }, $wt, 2, 'Bash touch into the main checkout (msys path)'),
+    @('PowerShell', @{ command = 'not json' }, $main, 0, 'malformed payload'),
+
+    @('PowerShell', @{ command = "(Get-Content '$wt\src\x.cs') -replace 'a','b' | Set-Content '$wt\src\x.cs'" }, $wt, 2, '-replace piped to Set-Content on a .cs'),
+    @('PowerShell', @{ command = "Set-Content -Path '$wt\docs\x.md' -Value y" }, $wt, 2, 'Set-Content on a .md in a worktree'),
+    @('PowerShell', @{ command = "[IO.File]::WriteAllText('$wt\src\x.cs', `$c)" }, $wt, 2, '[IO.File] write to a .cs in a worktree'),
+    @('PowerShell', @{ command = "'x' | Out-File '$wt\Directory.Build.props'" }, $wt, 2, 'Out-File on a .props'),
+    @('PowerShell', @{ command = "Get-ChildItem '$wt\src' -Filter *.cs | ForEach-Object { (Get-Content `$_.FullName -Raw) -replace 'a','b' | Set-Content `$_.FullName }" }, $wt, 2, '-replace loop over *.cs with a variable target'),
+    @('PowerShell', @{ command = "`$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t) # x.json" }, $wt, 2, '.Replace( with [IO.File] to a variable, .json named'),
+    @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
+    @('PowerShell', @{ command = "Set-Content '$outside\body.md' y" }, $wt, 0, 'source extension outside the project'),
+    @('PowerShell', @{ command = "Set-Content '$wt\notes.txt' y" }, $wt, 0, 'non-source extension in a worktree'),
+    @('PowerShell', @{ command = "`$c = 'x' -replace 'a','b'; Set-Content `$f `$c" }, $wt, 0, '-replace to a variable target, no source extension named'),
+    @('PowerShell', @{ command = "dotnet format '$wt\Encina.slnx' --verify-no-changes" }, $wt, 0, 'dotnet format is not a text write'),
+    @('Bash', @{ command = "echo x >> $msysWt/src/x.cs" }, $wt, 2, 'Bash >> to a .cs')
+)
+
 $failed = 0
 Push-Location $work
 try {
@@ -197,6 +273,19 @@ try {
         if (-not $ok -and $stderr) { "      $stderr" }
     }
 
+    foreach ($case in $writeCases) {
+        $tool, $toolInput, $caseCwd, $expected, $label, $caseProject = $case
+        $env:CLAUDE_PROJECT_DIR = if ($caseProject) { $caseProject } else { $main }
+        $json = if ($toolInput.command -eq 'not json') { 'not json' } else { @{ tool_name = $tool; cwd = $caseCwd; tool_input = $toolInput } | ConvertTo-Json -Compress }
+        $stderr = $json | pwsh -NoProfile -File $mainCheckout 2>&1
+        $code = $LASTEXITCODE
+        $ok = $code -eq $expected
+        if (-not $ok) { $failed++ }
+        "{0} [{1}, expected {2}] {3}: {4}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $expected, (Split-Path -Leaf $mainCheckout), $label
+        if (-not $ok -and $stderr) { "      $stderr" }
+    }
+    $env:CLAUDE_PROJECT_DIR = $repo
+
     $malformedStderr = 'not json' | pwsh -NoProfile -File $spawn 2>&1
     $malformedCode = $LASTEXITCODE
     $malformedOk = $malformedCode -eq 0
@@ -209,6 +298,6 @@ finally {
     Remove-Item -Recurse -Force $work
 }
 
-$totalCases = $cases.Count + $spawnCases.Count + 1
+$totalCases = $cases.Count + $spawnCases.Count + $writeCases.Count + 1
 "{0} cases, {1} failed" -f $totalCases, $failed
 exit ([int]($failed -gt 0))

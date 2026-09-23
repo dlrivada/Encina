@@ -67,4 +67,14 @@ Wired in `.claude/settings.json` as `PreToolUse` hooks on the `Bash` and `PowerS
 | `.claude/hooks/block-ai-attribution.ps1` | `git commit` and `gh pr create/edit/merge` whose message, body or message file carries AI attribution (co-author trailers naming an AI, "generated with" lines) |
 | `.claude/hooks/check-issue-template.ps1` | `gh issue create` whose title lacks a template prefix, or whose body misses or reorders the template's `##` headers. It reads the templates at run time and allows calls whose title or body it cannot resolve, and issues on other repositories |
 
-Both hooks read only the arguments of the `git` / `gh` statement itself, through the quote-aware tokenizer in `.claude/hooks/_command-text.ps1`, and let the call through if the hook itself fails. `pwsh -NoProfile -File .claude/hooks/tests/Test-Hooks.ps1` runs their regression suite; run it after changing a hook.
+Both hooks read only the arguments of the `git` / `gh` statement itself, through the quote-aware tokenizer in `.claude/hooks/_command-text.ps1`, and let the call through if the hook itself fails.
+
+Agent-scoped hooks are wired in the `hooks:` frontmatter of the agents that need them, so they apply only while that agent runs:
+
+| Hook | Agents | Blocks |
+|---|---|---|
+| `.claude/hooks/block-worker-publish.ps1` | `issue-worker`, `docs-writer`, `docs-reviewer` | `git push` and any git subcommand off the local allowlist, git aliases, `gh pr`/`gh issue` writes, mutating `gh api` calls |
+| `.claude/hooks/block-worker-spawn.ps1` | `issue-worker` | spawning any subagent other than `ci-diagnoser`, `mechanical-fixer`, `Explore` and `adversarial-reviewer` |
+| `.claude/hooks/block-main-checkout-writes.ps1` | `issue-worker`, `mechanical-fixer`, `docs-writer` | Write/Edit/NotebookEdit paths and shell writes (`Set-Content`, `Out-File`, `New-Item`, `Copy-Item`/`Move-Item` destination, `[IO.File]` writes, `>`/`>>`, and git commands that change the working tree) aimed at the main checkout instead of a worktree; and `-replace`/`Set-Content`/`Out-File`/`[IO.File]`/redirection writes to repo source files (`.cs`, `.csproj`, `.props`, `.targets`, `.json`, `.yml`, `.md`, `.slnx`), which go through the Edit tool (#1181) |
+
+Every hook lets the call through if the hook itself fails. `pwsh -NoProfile -File .claude/hooks/tests/Test-Hooks.ps1` runs their regression suite; run it after changing a hook.
