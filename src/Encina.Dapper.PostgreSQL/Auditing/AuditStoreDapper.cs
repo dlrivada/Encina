@@ -19,7 +19,7 @@ namespace Encina.Dapper.PostgreSQL.Auditing;
 /// <list type="bullet">
 /// <item><description>Double-quote identifier quoting (e.g., "EntityType")</description></item>
 /// <item><description>Native UUID support for Id column</description></item>
-/// <item><description>TIMESTAMPTZ for timezone-aware timestamps</description></item>
+/// <item><description>TIMESTAMP for <c>TimestampUtc</c>; TIMESTAMPTZ for the timezone-aware <c>StartedAtUtc</c>/<c>CompletedAtUtc</c> columns</description></item>
 /// <item><description>LIMIT/OFFSET for pagination</description></item>
 /// </list>
 /// </para>
@@ -71,7 +71,7 @@ public sealed class AuditStoreDapper : IAuditStore
                    ""Outcome"", ""ErrorMessage"", ""TimestampUtc"", ""StartedAtUtc"", ""CompletedAtUtc"",
                    ""IpAddress"", ""UserAgent"", ""RequestPayloadHash"", ""RequestPayload"", ""ResponsePayload"", ""Metadata""
             FROM ""{_tableName}""
-            WHERE ""EntityType"" = @EntityType AND (@EntityId IS NULL OR ""EntityId"" = @EntityId)
+            WHERE ""EntityType"" = @EntityType AND (@EntityId::text IS NULL OR ""EntityId"" = @EntityId)
             ORDER BY ""TimestampUtc"" DESC";
 
         _selectByUserSql = $@"
@@ -80,8 +80,8 @@ public sealed class AuditStoreDapper : IAuditStore
                    ""IpAddress"", ""UserAgent"", ""RequestPayloadHash"", ""RequestPayload"", ""ResponsePayload"", ""Metadata""
             FROM ""{_tableName}""
             WHERE ""UserId"" = @UserId
-              AND (@FromUtc IS NULL OR ""TimestampUtc"" >= @FromUtc)
-              AND (@ToUtc IS NULL OR ""TimestampUtc"" <= @ToUtc)
+              AND (@FromUtc::timestamp IS NULL OR ""TimestampUtc"" >= @FromUtc)
+              AND (@ToUtc::timestamp IS NULL OR ""TimestampUtc"" <= @ToUtc)
             ORDER BY ""TimestampUtc"" DESC";
 
         _selectByCorrelationIdSql = $@"
