@@ -785,6 +785,7 @@ Avoid duplicating information that is already correctly represented.
 A review of the 2026-09-22/24 sessions (about 20 PRs and 40 issues run by an orchestrator with one `issue-worker` per issue) changed the agent system as follows. Details live in `.claude/agents/README.md` and the agent definitions.
 
 1. **Model choice.** Workers run on Sonnet. The orchestrator switches a worker to Opus only when its brief states why: an unknown root cause or a design-heavy task. Most briefs are closed, and Sonnet executes them at a fraction of the cost.
+2. **Self-review before hand-off.** A worker whose change touches production code runs `adversarial-reviewer` on its own diff and fixes blockers and majors before it reports, so findings are fixed before the PR opens rather than through a review, fix, re-push and CI loop. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
 
 ---
 

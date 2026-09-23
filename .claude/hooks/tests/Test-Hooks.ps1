@@ -165,7 +165,10 @@ $spawnCases = @(
     @('claude', 2, 'unknown subagent_type is blocked'),
     @('ci-diagnoser', 0, 'ci-diagnoser is allowed'),
     @('mechanical-fixer', 0, 'mechanical-fixer is allowed'),
-    @('Explore', 0, 'Explore is allowed')
+    @('Explore', 0, 'Explore is allowed'),
+    @('adversarial-reviewer', 0, 'adversarial-reviewer is allowed (self-review)'),
+    @('docs-writer', 2, 'docs-writer is blocked'),
+    @('Adversarial-Reviewer', 2, 'subagent_type is case-sensitive')
 )
 
 $failed = 0

@@ -25,7 +25,7 @@ When to spawn which, from the experience of the first sessions:
 
 - `mechanical-fixer` for any change that is already decided (formatting, exclusions, thread replies with given text, renames), so the main session does not spend its tokens executing it.
 - `ci-diagnoser` when a failed job's cause is not visible in the first error lines.
-- `adversarial-reviewer` for every PR that touches gates, CI workflows or `.github/scripts`, and for any PR that merged without a CodeRabbit review (for example when CodeRabbit was rate limited).
+- `adversarial-reviewer` for every PR that touches gates, CI workflows or `.github/scripts`, and for any PR that merged without a CodeRabbit review (for example when CodeRabbit was rate limited). An `issue-worker` whose change touches production code also runs it on its own diff before reporting and fixes the blockers and majors, so the PR opens without them; this does not replace the orchestrator's PR-level review when CodeRabbit is rate limited.
 
 The equivalent definitions for the free local model (opencode) live in `.opencode/agents/`, for the roles that have one.
 

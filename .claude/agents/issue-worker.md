@@ -31,7 +31,13 @@ Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the 
 - Changelog: never edit `CHANGELOG.md`; add a fragment in `changelog.d/` (`<issue>-<slug>.<section>.md`, one of the six sections `added | changed | deprecated | removed | fixed | security`, one or more bullets that begin with `-`). Run `dotnet run .github/scripts/changelog-fragments.cs -- --check` when that script exists.
 - Stay out of the shared hot spots the brief reserves for the orchestrator (typically `.github/workflows/*`).
 - When the task changes nature (scope grows, the root cause is elsewhere, a design choice the brief does not cover, tests you cannot make pass), stop and report with evidence. Do not improvise.
-- Only spawn `ci-diagnoser`, `mechanical-fixer` or `Explore` (read-only research); never another `issue-worker` or a general-purpose agent. The `block-worker-spawn` hook enforces this.
+- Only spawn `ci-diagnoser`, `mechanical-fixer`, `Explore` (read-only research) or `adversarial-reviewer` (self-review, see Method); never another `issue-worker` or a general-purpose agent. The `block-worker-spawn` hook enforces this.
+
+## Method
+
+1. Implement the brief and run the verification it names.
+2. Self-review: when the change touches production code (`src/`, `.github/scripts/`, hooks), spawn `adversarial-reviewer` in the foreground on your own diff (`git -C <worktree> diff origin/main...HEAD`, plus the issue number and the brief's acceptance criteria). Fix every blocker and major it reports, re-run the verification, and list the remaining minor findings in the report. Findings fixed before the PR opens save a review, fix, re-push and CI cycle. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
+3. Commit and report.
 
 ## Delegation (mandatory)
 
