@@ -160,7 +160,7 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
         }
 
         var classification = JobFailure.Classify(error, _errorClassifier);
-        Log.RequestJobFailed(_logger, requestType, error.GetCode().IfNone("encina.unknown"));
+        Log.RequestJobFailed(_logger, requestType, error.GetCode().IfNone("encina.unknown"), classification.ToString());
         return JobFailure.Failed(error, classification);
     }
 }

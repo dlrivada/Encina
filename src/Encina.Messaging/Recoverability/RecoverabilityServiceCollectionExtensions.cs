@@ -70,6 +70,9 @@ public static class RecoverabilityServiceCollectionExtensions
         // Register delayed retry infrastructure if delayed retries are enabled
         if (options.EnableDelayedRetries)
         {
+            // DelayedRetryScheduler and DelayedRetryProcessor serialize the request payload
+            // through IMessageSerializer (so encryption applies to delayed-retry content).
+            services.TryAddDefaultMessageSerializer();
             services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
             services.AddHostedService<DelayedRetryProcessor>();
         }

@@ -6,6 +6,7 @@ using Encina.Cdc.Health;
 using Encina.Cdc.Messaging;
 using Encina.Cdc.Processing;
 using Encina.Cdc.Sharding;
+using Encina.Messaging;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -99,6 +100,9 @@ public static class ServiceCollectionExtensions
         // Register outbox CDC handler when enabled
         if (configuration.Options.UseOutboxCdc)
         {
+            // OutboxCdcHandler reads outbox content through the same IMessageSerializer that
+            // wrote it (so encrypted rows are decrypted); TryAdd keeps any existing registration.
+            services.TryAddDefaultMessageSerializer();
             services.AddScoped<OutboxCdcHandler>();
         }
 

@@ -144,6 +144,10 @@ public static class ServiceCollectionExtensions
         // idempotent when both are called).
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
+
         // Register the DbContext as DbContext (non-generic) for behaviors
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
 

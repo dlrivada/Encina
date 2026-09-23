@@ -15,8 +15,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 4001, Level = LogLevel.Information, Message = "Hangfire job completed successfully for request {RequestType}")]
     public static partial void RequestJobCompleted(ILogger logger, string requestType);
 
-    [LoggerMessage(EventId = 4002, Level = LogLevel.Error, Message = "Hangfire job failed for request {RequestType} with error code {ErrorCode}")]
-    public static partial void RequestJobFailed(ILogger logger, string requestType, string errorCode);
+    [LoggerMessage(EventId = 4002, Level = LogLevel.Error, Message = "Hangfire job failed for request {RequestType} with error code {ErrorCode} ({Classification})")]
+    public static partial void RequestJobFailed(ILogger logger, string requestType, string errorCode, string classification);
 
     [LoggerMessage(EventId = 4003, Level = LogLevel.Error, Message = "Unhandled exception in Hangfire job for request {RequestType}")]
     public static partial void RequestJobException(ILogger logger, Exception exception, string requestType);
@@ -31,8 +31,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 4006, Level = LogLevel.Error, Message = "Unhandled exception in Hangfire notification job for {NotificationType}")]
     public static partial void NotificationJobException(ILogger logger, Exception exception, string notificationType);
 
-    [LoggerMessage(EventId = 4007, Level = LogLevel.Error, Message = "Hangfire notification job failed for {NotificationType} with error code {ErrorCode}")]
-    public static partial void NotificationJobFailed(ILogger logger, string notificationType, string errorCode);
+    [LoggerMessage(EventId = 4007, Level = LogLevel.Error, Message = "Hangfire notification job failed for {NotificationType} with error code {ErrorCode} ({Classification})")]
+    public static partial void NotificationJobFailed(ILogger logger, string notificationType, string errorCode, string classification);
 
     // Cancellation
     [LoggerMessage(EventId = 4008, Level = LogLevel.Warning, Message = "Hangfire job for request {RequestType} was cancelled")]

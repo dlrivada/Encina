@@ -92,7 +92,7 @@ public sealed class HangfireNotificationJobAdapter<TNotification>
         }
 
         var classification = JobFailure.Classify(error, _errorClassifier);
-        Log.NotificationJobFailed(_logger, notificationType, error.GetCode().IfNone("encina.unknown"));
+        Log.NotificationJobFailed(_logger, notificationType, error.GetCode().IfNone("encina.unknown"), classification.ToString());
         return JobFailure.Failed(error, classification);
     }
 }

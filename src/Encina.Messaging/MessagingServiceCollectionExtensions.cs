@@ -65,9 +65,9 @@ public static class MessagingServiceCollectionExtensions
         // need it resolvable, since SagaRunner and other consumers require it.
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
-        // Register default message serializer (JSON with camelCase).
-        // Encina.Messaging.Encryption can decorate this with EncryptingMessageSerializer.
-        services.TryAddSingleton<IMessageSerializer, JsonMessageSerializer>();
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
 
         if (config.UseTransactions)
         {
@@ -195,9 +195,9 @@ public static class MessagingServiceCollectionExtensions
         // need it resolvable, since SagaRunner and other consumers require it.
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
-        // Register default message serializer (JSON with camelCase).
-        // Encina.Messaging.Encryption can decorate this with EncryptingMessageSerializer.
-        services.TryAddSingleton<IMessageSerializer, JsonMessageSerializer>();
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
 
         if (config.UseTransactions)
         {
@@ -261,6 +261,38 @@ public static class MessagingServiceCollectionExtensions
         {
             RegisterSoftDeleteServices(services, config);
         }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="JsonMessageSerializer"/> as the <see cref="IMessageSerializer"/>
+    /// unless a serializer is already registered.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Every component that persists or reads back a message payload (outbox post-processor
+    /// and orchestrator, inbox, saga and scheduler orchestrators, dead letter queue, delayed
+    /// retries, the CDC outbox handler) takes <see cref="IMessageSerializer"/> as a required
+    /// dependency. Each provider registration (ADO.NET, Dapper, EF Core, MongoDB) and each
+    /// standalone registration (dead letter queue, recoverability, CDC) calls this method so the
+    /// serializer is always resolvable, whichever provider the application uses.
+    /// </para>
+    /// <para>
+    /// The registration is a <c>TryAdd</c>, so it never replaces an existing one. That keeps
+    /// <c>AddEncinaMessageEncryption</c> (which decorates the serializer with
+    /// <c>EncryptingMessageSerializer</c>) effective in either order: called after the provider,
+    /// it wraps the <see cref="JsonMessageSerializer"/> registered here; called before, its own
+    /// registration is already present and this method does nothing.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection TryAddDefaultMessageSerializer(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton<IMessageSerializer, JsonMessageSerializer>();
 
         return services;
     }

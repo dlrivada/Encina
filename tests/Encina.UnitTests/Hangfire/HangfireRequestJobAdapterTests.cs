@@ -134,22 +134,29 @@ public class HangfireRequestJobAdapterTests
             .FirstOrDefault(r => r.Message.Contains("failed"));
         logEntry.ShouldNotBeNull();
         logEntry!.Message.ShouldContain("test.error");
+        logEntry.Message.ShouldContain("Transient");
         logEntry.Message.ShouldNotContain("patient-123");
         logEntry.Message.ShouldNotContain("Failure for subject");
     }
 
     [Fact]
-    public void ExecuteAsync_DefaultEntryPoint_ReturnTypeDoesNotExposeResponse()
+    public async Task ExecuteAsync_OnPermanentFailure_LogsPermanentClassification()
     {
-        // The default enqueue entry point must not persist the handler's response in
-        // Hangfire storage (#1173): its return type is plain Task, not
-        // Task<Either<EncinaError, TResponse>>, so Hangfire's job storage has nothing to
-        // serialize. ExecuteAndReturnResultAsync is the explicit, documented opt-in.
-        var method = typeof(HangfireRequestJobAdapter<TestRequest, TestResponse>)
-            .GetMethod(nameof(HangfireRequestJobAdapter<TestRequest, TestResponse>.ExecuteAsync));
+        // Arrange
+        var request = new TestRequest("test-data");
+        var error = EncinaErrors.Create("consent.missing", "No consent for subject 'patient-123'");
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
 
-        method.ShouldNotBeNull();
-        method!.ReturnType.ShouldBe(typeof(Task));
+        // Act
+        await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => _adapter.ExecuteAsync(request));
+
+        // Assert
+        var logEntry = _logger.Collector.GetSnapshot().SingleOrDefault(r => r.Id.Id == 4002);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Message.ShouldContain("consent.missing");
+        logEntry.Message.ShouldContain("Permanent");
+        logEntry.Message.ShouldNotContain("patient-123");
     }
 
     [Fact]

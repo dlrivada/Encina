@@ -98,7 +98,15 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
                     var serializeMethod = SerializeMethodCache.GetOrAdd(
                         notification.GetType(),
                         static t => SerializeMethodDefinition.MakeGenericMethod(t));
-                    var content = (string)serializeMethod.Invoke(_messageSerializer, [notification])!;
+                    // DoNotWrapExceptions: a serializer failure (e.g. an encryption failure from
+                    // EncryptingMessageSerializer) propagates as itself, not as a
+                    // TargetInvocationException wrapper.
+                    var content = (string)serializeMethod.Invoke(
+                        _messageSerializer,
+                        BindingFlags.DoNotWrapExceptions,
+                        binder: null,
+                        parameters: [notification],
+                        culture: null)!;
 
                     var outboxMessage = _messageFactory.Create(
                         Guid.NewGuid(),
@@ -115,7 +123,10 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
             },
             Left: error =>
             {
-                Log.SkippingOutboxStorageDueToError(_logger, notifications.Count, error.Message, context.CorrelationId);
+                // Only the error code is logged: EncinaError.Message may carry personal data
+                // (e.g. a data-subject id from compliance modules).
+                Log.SkippingOutboxStorageDueToError(
+                    _logger, notifications.Count, error.GetCode().IfNone("encina.unknown"), context.CorrelationId);
 
                 return Task.CompletedTask;
             });
@@ -153,6 +164,6 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2844,
         Level = LogLevel.Debug,
-        Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorMessage} (correlation: {CorrelationId})")]
-    public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorMessage, string correlationId);
+        Message = "Skipping outbox storage for {Count} notifications due to error code {ErrorCode} (correlation: {CorrelationId})")]
+    public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorCode, string correlationId);
 }

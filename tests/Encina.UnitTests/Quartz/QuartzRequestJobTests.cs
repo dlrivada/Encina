@@ -93,6 +93,7 @@ public class QuartzRequestJobTests
             .FirstOrDefault(r => r.Message.Contains("failed"));
         logEntry.ShouldNotBeNull();
         logEntry!.Message.ShouldContain("test.error");
+        logEntry.Message.ShouldContain("Transient");
         logEntry.Message.ShouldNotContain("patient-123");
         logEntry.Message.ShouldNotContain("Failure for subject");
     }
