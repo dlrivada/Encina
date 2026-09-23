@@ -486,7 +486,7 @@ Check applicable:
 - package README;
 - feature documentation;
 - inventory;
-- CHANGELOG;
+- changelog.d/ fragment (never CHANGELOG.md's Unreleased section directly — see changelog.d/README.md);
 - ROADMAP;
 - ADRs;
 - plans.

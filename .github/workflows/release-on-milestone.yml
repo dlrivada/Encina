@@ -43,6 +43,32 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify changelog was released for this version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          FRAGMENTS=$(find changelog.d -maxdepth 1 -type f ! -iname README.md 2>/dev/null || true)
+          if [ -n "$FRAGMENTS" ]; then
+            echo "ERROR: changelog.d/ still has pending fragments; run 'dotnet run .github/scripts/changelog-fragments.cs -- --release $VERSION <yyyy-MM-dd> [title]' before closing this milestone:" >&2
+            echo "$FRAGMENTS" >&2
+            exit 1
+          fi
+
+          # Plain prefix match via bash's own glob, not a regex, so the version's dots need no
+          # escaping (a literal "## [$VERSION] - " prefix, matching the C# script's own check).
+          FOUND_HEADING=0
+          while IFS= read -r line; do
+            case "$line" in
+              "## [$VERSION] - "*) FOUND_HEADING=1; break ;;
+            esac
+          done < CHANGELOG.md
+          if [ "$FOUND_HEADING" -ne 1 ]; then
+            echo "ERROR: CHANGELOG.md has no '## [$VERSION] - ' heading; run 'dotnet run .github/scripts/changelog-fragments.cs -- --release $VERSION <yyyy-MM-dd> [title]' before closing this milestone" >&2
+            exit 1
+          fi
+
+          echo "OK: CHANGELOG.md has a '## [$VERSION] - ' heading and changelog.d/ has no pending fragments"
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
