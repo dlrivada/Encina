@@ -52,9 +52,11 @@ public class SchedulingHealthCheck : EncinaHealthCheck
         if (dueResult.IsLeft)
         {
             var storeError = dueResult.LeftToArray()[0];
+            // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+            var errorCode = storeError.GetCode().IfNone("encina.unknown");
             return HealthCheckResult.Unhealthy(
-                $"Failed to query scheduling store: {storeError.Message}",
-                data: new Dictionary<string, object> { ["error"] = storeError.Message });
+                $"Failed to query scheduling store: {errorCode}",
+                data: new Dictionary<string, object> { ["error"] = errorCode });
         }
 
         var dueMessages = dueResult.Match(Right: msgs => msgs, Left: _ => Enumerable.Empty<IScheduledMessage>());

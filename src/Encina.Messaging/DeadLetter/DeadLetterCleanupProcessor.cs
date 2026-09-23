@@ -64,8 +64,10 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
                             DeadLetterLog.ExpiredMessagesCleanedUp(_logger, count);
                         }
                     },
+                    // Only the error code: EncinaError.Message can carry personal data (#1259 review).
                     Left: error => DeadLetterLog.CleanupError(
-                        _logger, new InvalidOperationException(error.Message)));
+                        _logger,
+                        new InvalidOperationException($"DLQ cleanup failed with error code {error.GetCode().IfNone("encina.unknown")}")));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

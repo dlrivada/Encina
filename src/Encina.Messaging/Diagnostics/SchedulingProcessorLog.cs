@@ -54,15 +54,17 @@ internal static partial class SchedulingProcessorLog
         ILogger logger,
         int processedCount);
 
-    /// <summary>Logs when a processing cycle fails at the store retrieval level.</summary>
+    /// <summary>
+    /// Logs when a processing cycle fails at the store retrieval level. Only the error code
+    /// is logged: <c>EncinaError.Message</c> can carry personal data (#1259 review).
+    /// </summary>
     [LoggerMessage(
         EventId = 2324,
         Level = LogLevel.Warning,
-        Message = "ScheduledMessageProcessor batch failed: [{ErrorCode}] {ErrorMessage}")]
+        Message = "ScheduledMessageProcessor batch failed: [{ErrorCode}]")]
     public static partial void BatchFailed(
         ILogger logger,
-        string errorCode,
-        string errorMessage);
+        string errorCode);
 
     /// <summary>Logs when a processing cycle throws an unhandled exception (safety net).</summary>
     [LoggerMessage(

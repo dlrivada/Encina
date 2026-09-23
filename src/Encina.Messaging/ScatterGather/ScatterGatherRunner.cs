@@ -392,7 +392,8 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
 
             result.Match(
                 Right: _ => ScatterGatherLog.ScatterCompleted(_logger, operationId, handler.Name, stopwatch.Elapsed),
-                Left: error => ScatterGatherLog.ScatterFailed(_logger, operationId, handler.Name, error.Message));
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                Left: error => ScatterGatherLog.ScatterFailed(_logger, operationId, handler.Name, error.GetCode().IfNone("encina.unknown")));
 
             return new ScatterExecutionResult<TResponse>(
                 handler.Name,
@@ -447,7 +448,8 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
 
             result.Match(
                 Right: _ => ScatterGatherLog.GatherCompleted(_logger, operationId),
-                Left: error => ScatterGatherLog.GatherFailed(_logger, operationId, error.Message));
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                Left: error => ScatterGatherLog.GatherFailed(_logger, operationId, error.GetCode().IfNone("encina.unknown")));
 
             return result;
         }

@@ -188,7 +188,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
             var result = await ReplayAsync(message.Id, cancellationToken);
             result.Match(
                 Right: r => results.Add(r),
-                Left: error => results.Add(ReplayResult.Failed(message.Id, error.Message)));
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                Left: error => results.Add(ReplayResult.Failed(message.Id, error.GetCode().IfNone(DeadLetterErrorCodes.ReplayFailed))));
         }
 
         var batchResult = new BatchReplayResult
