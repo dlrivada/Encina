@@ -5,7 +5,7 @@
 | **Status** | 🟢 APPROVED — maintainer approved the design on 2026-09-22 |
 | **Author** | Specifier (Claude) |
 | **Date** | 2026-09-22 |
-| **Tracking** | #1092 (milestone v0.18.0 — Documentation after the DEC-005 renumbering, `ai:local-candidate`) |
+| **Tracking** | #1092 (milestone v0.21.0 — Documentation after the DEC-005 renumbering, `ai:local-candidate`) |
 | **Implemented** | 2026-09-22 — see §10 for the amendments made during implementation |
 | **Evidence** | `.github/scripts/mut-docs-render.cs`, `perf-docs-render.cs`, `mutation-history.cs`, `coverage-report.cs`, `.github/workflows/publish-coverage.yml`, `publish-mutations.yml`, `ci-full.yml`, `docs/coverage/app.js`, `docs/mutations/app.js` (read 2026-09-22) |
 | **Supersedes** | — |
