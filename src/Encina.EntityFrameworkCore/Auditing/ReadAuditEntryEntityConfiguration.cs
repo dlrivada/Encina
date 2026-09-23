@@ -9,8 +9,8 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This configuration is provider-agnostic and supports SQLite, SQL Server,
-/// PostgreSQL, and MySQL through EF Core's database provider abstraction.
+/// This configuration is provider-agnostic and supports SQL Server, PostgreSQL, and MySQL
+/// through EF Core's database provider abstraction.
 /// </para>
 /// <para>
 /// <b>Table</b>: "ReadAuditEntries"
@@ -94,17 +94,17 @@ public sealed class ReadAuditEntryEntityConfiguration : IEntityTypeConfiguration
 
         // Filtered index on UserId for GDPR Art. 15 user access tracking
         builder.HasIndex(x => x.UserId)
-            .HasFilter("UserId IS NOT NULL")
+            .HasFilter(IndexFilters.IsNotNull(nameof(ReadAuditEntryEntity.UserId)))
             .HasDatabaseName("IX_ReadAuditEntries_UserId");
 
         // Filtered index on TenantId for multi-tenant access queries
         builder.HasIndex(x => x.TenantId)
-            .HasFilter("TenantId IS NOT NULL")
+            .HasFilter(IndexFilters.IsNotNull(nameof(ReadAuditEntryEntity.TenantId)))
             .HasDatabaseName("IX_ReadAuditEntries_TenantId");
 
         // Filtered index on CorrelationId for request correlation tracking
         builder.HasIndex(x => x.CorrelationId)
-            .HasFilter("CorrelationId IS NOT NULL")
+            .HasFilter(IndexFilters.IsNotNull(nameof(ReadAuditEntryEntity.CorrelationId)))
             .HasDatabaseName("IX_ReadAuditEntries_CorrelationId");
 
         // Index on AccessMethod for access vector analysis

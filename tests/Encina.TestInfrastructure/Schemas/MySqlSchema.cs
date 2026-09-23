@@ -430,5 +430,40 @@ public static class MySqlSchema
 
         using var command = new MySqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
+
+        // SecurityAuditEntries / ReadAuditEntries are created on demand by the EF Core audit integration tests
+        // (AuditTestDbContext), not by CreateSchemaAsync, so an unconditional DELETE would fail with "table
+        // doesn't exist" for every other test sharing this fixture's container. MySQL has no "DELETE ... IF
+        // EXISTS" syntax, so the guard is a dynamic prepared statement keyed off information_schema (#1128).
+        const string guardedDeleteSql = """
+            SET @encina_security_audit_exists := (
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = DATABASE() AND table_name = 'SecurityAuditEntries'
+            );
+            SET @encina_security_audit_sql := IF(
+                @encina_security_audit_exists > 0,
+                'DELETE FROM `SecurityAuditEntries`',
+                'DO 0'
+            );
+            PREPARE encina_security_audit_stmt FROM @encina_security_audit_sql;
+            EXECUTE encina_security_audit_stmt;
+            DEALLOCATE PREPARE encina_security_audit_stmt;
+
+            SET @encina_read_audit_exists := (
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = DATABASE() AND table_name = 'ReadAuditEntries'
+            );
+            SET @encina_read_audit_sql := IF(
+                @encina_read_audit_exists > 0,
+                'DELETE FROM `ReadAuditEntries`',
+                'DO 0'
+            );
+            PREPARE encina_read_audit_stmt FROM @encina_read_audit_sql;
+            EXECUTE encina_read_audit_stmt;
+            DEALLOCATE PREPARE encina_read_audit_stmt;
+            """;
+
+        using var guardedCommand = new MySqlCommand(guardedDeleteSql, connection);
+        await guardedCommand.ExecuteNonQueryAsync();
     }
 }

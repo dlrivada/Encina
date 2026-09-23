@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Encina.Security.Audit;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +16,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// <list type="bullet">
 /// <item><description>Immediate persistence via SaveChangesAsync for durability</description></item>
 /// <item><description>Optimized queries with proper indexing via <see cref="ReadAuditEntryEntityConfiguration"/></description></item>
-/// <item><description>Provider-agnostic support for SQLite, SQL Server, PostgreSQL, and MySQL</description></item>
+/// <item><description>Provider-agnostic support for SQL Server, PostgreSQL, and MySQL</description></item>
 /// <item><description>Full support for <see cref="ReadAuditQuery"/> with pagination</description></item>
 /// <item><description>Bulk delete via ExecuteDeleteAsync for efficient purge operations</description></item>
 /// </list>
@@ -58,7 +59,7 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         }
         catch (DbUpdateException ex)
         {
-            return Left(ReadAuditErrors.StoreError("LogRead", ex.Message, ex));
+            return Left(ReadAuditErrors.StoreError("LogRead", StoreExceptionMessages.Describe(ex), ex));
         }
         catch (OperationCanceledException)
         {
@@ -218,7 +219,14 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         catch (DbUpdateException ex)
         {
             return Left<EncinaError, int>(
-                ReadAuditErrors.PurgeFailed(ex.Message, ex));
+                ReadAuditErrors.PurgeFailed(StoreExceptionMessages.Describe(ex), ex));
+        }
+        catch (DbException ex)
+        {
+            // ExecuteDeleteAsync issues the DELETE directly, without EF Core's DbUpdateException wrapper,
+            // so the provider's own DbException (e.g. a missing table or a constraint violation) surfaces here (#1128).
+            return Left<EncinaError, int>(
+                ReadAuditErrors.PurgeFailed(StoreExceptionMessages.Describe(ex), ex));
         }
         catch (OperationCanceledException)
         {

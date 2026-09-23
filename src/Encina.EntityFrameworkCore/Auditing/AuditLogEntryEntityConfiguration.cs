@@ -8,7 +8,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This configuration is provider-agnostic and supports SQLite, SQL Server,
+/// This configuration is provider-agnostic and supports SQL Server,
 /// PostgreSQL, and MySQL through EF Core's database provider abstraction.
 /// </para>
 /// <para>
