@@ -109,6 +109,52 @@ result.Match(
     Left: error => Console.WriteLine($"Validation error: {error.Message}"));
 ```
 
+#### Partial Adequacy: US and Canada
+
+The US (EU-US Data Privacy Framework, Commission Implementing Decision (EU) 2023/1795) and Canada (PIPEDA) adequacy decisions are **partial** — they only cover, respectively, US organisations certified under the DPF and Canadian commercial organisations covered by PIPEDA. `Region.RequiresRecipientCertification` flags regions where this applies (`RegionRegistry.US` and `RegionRegistry.CA`).
+
+When `RequiresRecipientCertification` is `true`, `HasAdequacyDecision` alone does not make a transfer adequate. Callers must confirm the specific recipient's certification and pass that confirmation explicitly:
+
+```csharp
+// HasAdequacy: only treat the region as adequate once the recipient's certification is confirmed
+bool isAdequate = adequacyProvider.HasAdequacy(RegionRegistry.US, isRecipientCertified: true);
+
+// ValidateTransferAsync: same explicit confirmation
+var result = await validator.ValidateTransferAsync(
+    source: RegionRegistry.DE,
+    destination: RegionRegistry.US,
+    dataCategory: "healthcare-data",
+    isRecipientCertified: true,
+    cancellationToken);
+```
+
+Without `isRecipientCertified: true`, transfers to the US or Canada are treated as **not adequate** and fall back to SCCs, BCRs, or an Art. 49 derogation.
+
+`DataResidencyPipelineBehavior`, which enforces `[DataResidency(RequireAdequacyDecision = true)]` automatically, has no direct caller to pass `isRecipientCertified` to. It resolves certification through `IRecipientCertificationResolver` instead:
+
+```csharp
+public interface IRecipientCertificationResolver
+{
+    ValueTask<bool> IsCertifiedAsync(
+        Region destination,
+        string dataCategory,
+        CancellationToken cancellationToken = default);
+}
+```
+
+`AddEncinaDataResidency` registers `NullRecipientCertificationResolver` as the default (`TryAddSingleton`), which always answers `false` — **fail closed**: a US or Canada destination is treated as not adequate until the application registers its own resolver, for example backed by a DPF registry lookup or an internal certified-vendor list:
+
+```csharp
+services.AddSingleton<IRecipientCertificationResolver, DpfRegistryCertificationResolver>();
+
+services.AddEncinaDataResidency(options =>
+{
+    options.EnforcementMode = DataResidencyEnforcementMode.Block;
+});
+```
+
+> **Known risk**: the EU-US Data Privacy Framework adequacy decision is under appeal before the CJEU (case C-703/25 P). If the decision is annulled or narrowed, US transfers relying on DPF certification are no longer adequate under Art. 45; keep a fallback mechanism such as Standard Contractual Clauses ready.
+
 ### 5. Region Routing
 
 ```csharp

@@ -38,6 +38,7 @@ public sealed class HMACValidationPipelineBehaviorTests
         _options = new AntiTamperingOptions();
         _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
         _logger = Substitute.For<ILogger<HMACValidationPipelineBehavior<TestSignedCommand, Unit>>>();
+        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         _context = RequestContext.CreateForTest(userId: "user-1");
     }
 
@@ -110,18 +111,119 @@ public sealed class HMACValidationPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_NoHttpContext_PassesThrough()
+    public async Task Handle_NoHttpContext_FailsClosedByDefault()
     {
         // Arrange
         var sut = CreateSut();
         var request = new TestSignedCommand();
         _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+        var nextCalled = false;
+
+        RequestHandlerCallback<Unit> nextStep = () =>
+        {
+            nextCalled = true;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default));
+        };
 
         // Act
-        var result = await sut.Handle(request, _context, SuccessNextStep(), CancellationToken.None);
+        var result = await sut.Handle(request, _context, nextStep, CancellationToken.None);
 
         // Assert
+        result.IsLeft.ShouldBeTrue();
+        nextCalled.ShouldBeFalse();
+        var error = (EncinaError)result;
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.NoHttpContextCode);
+
+        // EventId 9107 (RejectedNoHttpContext) must be logged for this fail-closed path.
+        _logger.Received(1).Log(
+            LogLevel.Warning,
+            Arg.Is<EventId>(e => e.Id == 9107),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    [Fact]
+    public async Task Handle_NoHttpContext_WithAttributeOptOut_PassesThrough()
+    {
+        // Arrange
+        var requestSigner = Substitute.For<IRequestSigner>();
+        var nonceStore = Substitute.For<INonceStore>();
+        var logger = Substitute.For<ILogger<HMACValidationPipelineBehavior<TestSignedCommandSkippableWithoutHttpContext, Unit>>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        var sut = new HMACValidationPipelineBehavior<TestSignedCommandSkippableWithoutHttpContext, Unit>(
+            requestSigner, nonceStore, _httpContextAccessor, Options.Create(_options), _timeProvider, logger);
+
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        // Act
+        var result = await sut.Handle(
+            new TestSignedCommandSkippableWithoutHttpContext(),
+            _context,
+            SuccessNextStep(),
+            CancellationToken.None);
+
+        // Assert — validation is genuinely skipped: the signer and nonce store are never touched.
         result.IsRight.ShouldBeTrue();
+        await requestSigner.DidNotReceiveWithAnyArgs().VerifyAsync(default, default!, default!, default);
+        await nonceStore.DidNotReceiveWithAnyArgs().TryAddAsync(default!, default, default);
+
+        // EventId 9106 (SkippedNoHttpContext) must be logged, naming the attribute as the source.
+        logger.Received(1).Log(
+            LogLevel.Warning,
+            Arg.Is<EventId>(e => e.Id == 9106),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    [Fact]
+    public async Task Handle_NoHttpContext_WithGlobalOptOut_PassesThrough()
+    {
+        // Arrange
+        _options.SkipWhenNoHttpContext = true;
+        var sut = CreateSut();
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        // Act
+        var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
+
+        // Assert — validation is genuinely skipped: the signer and nonce store are never touched.
+        result.IsRight.ShouldBeTrue();
+        await _requestSigner.DidNotReceiveWithAnyArgs().VerifyAsync(default, default!, default!, default);
+        await _nonceStore.DidNotReceiveWithAnyArgs().TryAddAsync(default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_NoHttpContext_AttributeRejectOverridesGlobalSkip_FailsClosed()
+    {
+        // Arrange — the global option skips validation, but the attribute explicitly demands
+        // strict validation for this request type. The attribute must win.
+        var requestSigner = Substitute.For<IRequestSigner>();
+        var nonceStore = Substitute.For<INonceStore>();
+        var options = new AntiTamperingOptions { SkipWhenNoHttpContext = true };
+        var logger = Substitute.For<ILogger<HMACValidationPipelineBehavior<TestSignedCommandStrictWithoutHttpContext, Unit>>>();
+        var sut = new HMACValidationPipelineBehavior<TestSignedCommandStrictWithoutHttpContext, Unit>(
+            requestSigner, nonceStore, _httpContextAccessor, Options.Create(options), _timeProvider, logger);
+
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+        var nextCalled = false;
+
+        RequestHandlerCallback<Unit> nextStep = () =>
+        {
+            nextCalled = true;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default));
+        };
+
+        // Act
+        var result = await sut.Handle(
+            new TestSignedCommandStrictWithoutHttpContext(), _context, nextStep, CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        nextCalled.ShouldBeFalse();
+        var error = (EncinaError)result;
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.NoHttpContextCode);
     }
 
     #endregion
@@ -305,6 +407,12 @@ public sealed class HMACValidationPipelineBehaviorTests
 
     [RequireSignature]
     public sealed record TestSignedCommand : ICommand;
+
+    [RequireSignature(WhenNoHttpContext = HttpContextRequirement.Skip)]
+    public sealed record TestSignedCommandSkippableWithoutHttpContext : ICommand;
+
+    [RequireSignature(WhenNoHttpContext = HttpContextRequirement.Reject)]
+    public sealed record TestSignedCommandStrictWithoutHttpContext : ICommand;
 
     public sealed record TestPlainCommand : ICommand;
 

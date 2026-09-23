@@ -1,3 +1,5 @@
+using Encina.Compliance.DataResidency.Abstractions;
+
 namespace Encina.Compliance.DataResidency.Model;
 
 /// <summary>
@@ -89,6 +91,17 @@ public sealed record RegionGroup
     /// Per GDPR Article 45, data can be transferred to these countries without
     /// additional authorization. For a combined set of all freely-transferable
     /// destinations, combine this group with <see cref="EEAGroup"/>.
+    /// <para>
+    /// This group includes the United States and Canada, but their inclusion does not
+    /// mean every recipient in those countries is adequate: the United States is
+    /// adequate only for recipients certified under the EU-US Data Privacy Framework,
+    /// and Canada only for recipients that are commercial organisations subject to
+    /// PIPEDA. <see cref="RegionGroup.Contains"/> checks group membership only — it does
+    /// not resolve recipient certification. Callers must confirm the specific
+    /// recipient's certification status through
+    /// <see cref="IRecipientCertificationResolver"/> before treating a US or CA transfer as
+    /// adequate.
+    /// </para>
     /// </remarks>
     public static RegionGroup AdequateGroup { get; } = new()
     {

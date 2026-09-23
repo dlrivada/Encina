@@ -32,7 +32,7 @@ public class DefaultCrossBorderTransferValidatorPropertyTests
         {
             var sut = CreateValidator();
             var result = sut.ValidateTransferAsync(
-                region, region, "test-data", CancellationToken.None).AsTask().Result;
+                region, region, "test-data", cancellationToken: CancellationToken.None).AsTask().Result;
 
             return result.Match(
                 Right: r => r.IsAllowed,
@@ -57,7 +57,7 @@ public class DefaultCrossBorderTransferValidatorPropertyTests
             var (source, destination) = pair;
             var sut = CreateValidator();
             var result = sut.ValidateTransferAsync(
-                source, destination, "test-data", CancellationToken.None).AsTask().Result;
+                source, destination, "test-data", cancellationToken: CancellationToken.None).AsTask().Result;
 
             return result.Match(
                 Right: r => r.IsAllowed,
@@ -77,3 +77,4 @@ public class DefaultCrossBorderTransferValidatorPropertyTests
             NullLogger<DefaultCrossBorderTransferValidator>.Instance);
     }
 }
+

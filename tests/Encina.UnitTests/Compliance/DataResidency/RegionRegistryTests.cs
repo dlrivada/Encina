@@ -115,4 +115,34 @@ public class RegionRegistryTests
         RegionRegistry.CN.IsEU.ShouldBeFalse();
         RegionRegistry.CN.IsEEA.ShouldBeFalse();
     }
+
+    [Fact]
+    public void US_ShouldRequireRecipientCertification()
+    {
+        // The EU-US Data Privacy Framework (Commission Implementing Decision (EU) 2023/1795)
+        // only covers DPF-certified US recipients — see #1145.
+        RegionRegistry.US.HasAdequacyDecision.ShouldBeTrue();
+        RegionRegistry.US.RequiresRecipientCertification.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CA_ShouldRequireRecipientCertification()
+    {
+        // Canada's adequacy finding only covers commercial organisations subject to PIPEDA — see #1145.
+        RegionRegistry.CA.HasAdequacyDecision.ShouldBeTrue();
+        RegionRegistry.CA.RequiresRecipientCertification.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("JP")]
+    [InlineData("GB")]
+    [InlineData("CH")]
+    [InlineData("KR")]
+    [InlineData("NZ")]
+    public void WellKnownAdequacyRegions_ShouldNotRequireRecipientCertification(string code)
+    {
+        var region = RegionRegistry.GetByCode(code);
+        region.ShouldNotBeNull();
+        region!.RequiresRecipientCertification.ShouldBeFalse();
+    }
 }

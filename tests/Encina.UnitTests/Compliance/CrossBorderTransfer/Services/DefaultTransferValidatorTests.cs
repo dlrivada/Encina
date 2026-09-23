@@ -69,6 +69,60 @@ public class DefaultTransferValidatorTests
     }
 
     [Fact]
+    public async Task ValidateAsync_UsDestinationWithoutCertification_DoesNotUseAdequacyDecision()
+    {
+        // Arrange — TransferRequest.IsRecipientCertified defaults to false, so the DPF adequacy
+        // decision must not apply for an unconfirmed US recipient (see #1145).
+        var request = new TransferRequest
+        {
+            SourceCountryCode = "DE",
+            DestinationCountryCode = "US",
+            DataCategory = "personal-data"
+        };
+
+        var tiaNotFound = EncinaErrors.Create(code: "crossborder.tia_not_found", message: "Not found");
+
+        _adequacyProvider.HasAdequacy(Arg.Any<Region>(), false).Returns(false);
+        _transferService.IsTransferApprovedAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<LanguageExt.Either<EncinaError, bool>>(Right<EncinaError, bool>(false)));
+        _tiaService.GetTIAByRouteAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<LanguageExt.Either<EncinaError, TIAReadModel>>(Left<EncinaError, TIAReadModel>(tiaNotFound)));
+
+        // Act
+        var result = await _sut.ValidateAsync(request);
+
+        // Assert — no valid mechanism found, so the chain blocks rather than allowing via adequacy.
+        result.IsRight.ShouldBeTrue();
+        var outcome = result.Match(Right: o => o, Left: _ => throw new InvalidOperationException("Expected Right"));
+        outcome.IsAllowed.ShouldBeFalse();
+        outcome.Basis.ShouldBe(TransferBasis.Blocked);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_UsDestinationWithCertification_UsesDataPrivacyFrameworkBasis()
+    {
+        // Arrange
+        var request = new TransferRequest
+        {
+            SourceCountryCode = "DE",
+            DestinationCountryCode = "US",
+            DataCategory = "personal-data",
+            IsRecipientCertified = true
+        };
+
+        _adequacyProvider.HasAdequacy(Arg.Any<Region>(), true).Returns(true);
+
+        // Act
+        var result = await _sut.ValidateAsync(request);
+
+        // Assert — the US destination reports the DPF-specific basis, not the generic one.
+        result.IsRight.ShouldBeTrue();
+        var outcome = result.Match(Right: o => o, Left: _ => throw new InvalidOperationException("Expected Right"));
+        outcome.IsAllowed.ShouldBeTrue();
+        outcome.Basis.ShouldBe(TransferBasis.DataPrivacyFramework);
+    }
+
+    [Fact]
     public async Task ValidateAsync_ApprovedTransfer_ReturnsAllowed()
     {
         // Arrange

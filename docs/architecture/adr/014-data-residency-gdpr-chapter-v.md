@@ -303,3 +303,31 @@ Enforce residency via ASP.NET Core middleware instead of CQRS pipeline.
 - `Encina.Compliance.Retention` — Retention integration (retention policies may differ by region)
 - `Encina.Compliance.Consent` — Consent as a transfer legal basis (Art. 49(1)(a) derogation)
 - `Encina.Compliance.Anonymization` — Anonymized data is outside GDPR scope and exempt from Chapter V
+
+## Amendments
+
+### 2026-09-23 addendum (#1145)
+
+Adequacy decisions for the US (EU-US Data Privacy Framework, Commission Implementing Decision (EU) 2023/1795) and Canada (PIPEDA) are partial, not blanket — they only cover DPF-certified US organisations and PIPEDA-covered Canadian commercial organisations respectively. A transfer to an uncertified or out-of-scope recipient in either country is not adequate under Art. 45 and requires SCCs, BCRs, or an Art. 49 derogation instead.
+
+`Region.RequiresRecipientCertification` (`src/Encina.Compliance.DataResidency/Model/Region.cs`) models this distinction; it is `true` for `RegionRegistry.US` and `RegionRegistry.CA` and `false` for every other region. `IAdequacyDecisionProvider.HasAdequacy` and `ICrossBorderTransferValidator.ValidateTransferAsync` now take an explicit `isRecipientCertified` parameter that defaults to `false` (not adequate) until the caller confirms the specific recipient's certification or coverage. `Region.HasAdequacyDecision` being `true` is no longer sufficient on its own for these two regions.
+
+### 2026-09-23 addendum (#1155)
+
+The two pipeline behaviors that enforce residency and transfer compliance automatically — `DataResidencyPipelineBehavior<TRequest, TResponse>` and `Encina.Compliance.CrossBorderTransfer.Pipeline.TransferBlockingPipelineBehavior<TRequest, TResponse>` — have no caller to ask for `isRecipientCertified` the way `HasAdequacy` or `ValidateTransferAsync` do when invoked directly. They resolve it through a new abstraction, `IRecipientCertificationResolver` (`src/Encina.Compliance.DataResidency/Abstractions/IRecipientCertificationResolver.cs`):
+
+```csharp
+public interface IRecipientCertificationResolver
+{
+    ValueTask<bool> IsCertifiedAsync(
+        Region destination,
+        string dataCategory,
+        CancellationToken cancellationToken = default);
+}
+```
+
+Both `AddEncinaDataResidency` and `AddEncinaCrossBorderTransfer` register `NullRecipientCertificationResolver` as the default via `TryAddSingleton` — it always answers `false`. This keeps the pipeline behaviors **fail closed**: a partial-adequacy destination (US, Canada) is treated as not adequate until the application registers its own resolver (for example, backed by a DPF registry lookup or an internal certified-vendor list), consistent with `IAdequacyDecisionProvider` already treating an unconfirmed partial-adequacy region as not adequate.
+
+`TransferBasis` (`src/Encina.Compliance.CrossBorderTransfer/Model/TransferBasis.cs`) gains `DataPrivacyFramework`, a special case of `AdequacyDecision` limited to the EU-US Data Privacy Framework (Commission Implementing Decision (EU) 2023/1795): `DefaultTransferValidator` reports it instead of the generic `AdequacyDecision` when a US transfer is allowed because the recipient's DPF certification was confirmed. It does not apply to Canada/PIPEDA, which continues to report `AdequacyDecision`.
+
+**Known risk**: the DPF adequacy decision is under appeal before the CJEU (case C-703/25 P). If the decision is annulled or narrowed, `TransferBasis.DataPrivacyFramework` and any `IRecipientCertificationResolver` implementation backed by DPF certification stop being a valid basis for US transfers under Art. 45; applications relying on the DPF should keep a fallback mechanism (SCCs, Art. 46(2)(c)) ready to switch to. See the `Encina.Compliance.DataResidency` and `Encina.Compliance.CrossBorderTransfer` package READMEs and [`docs/features/cross-border-transfer.md`](../../features/cross-border-transfer.md) for the same note.

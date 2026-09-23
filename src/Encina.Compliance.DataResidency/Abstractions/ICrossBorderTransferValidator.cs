@@ -58,6 +58,14 @@ public interface ICrossBorderTransferValidator
     /// <param name="source">The source region from which data is being transferred.</param>
     /// <param name="destination">The destination region to which data would be transferred.</param>
     /// <param name="dataCategory">The data category being transferred (e.g., "personal-data", "healthcare-data").</param>
+    /// <param name="isRecipientCertified">
+    /// Whether the specific recipient in <paramref name="destination"/> is certified, or otherwise
+    /// in scope, under the legal instrument backing a partial adequacy decision (see
+    /// <see cref="Model.Region.RequiresRecipientCertification"/>; for example, DPF certification
+    /// for a US recipient, or PIPEDA coverage for a Canadian recipient). Ignored when the
+    /// destination's adequacy decision, if any, is not conditional on recipient certification.
+    /// Defaults to <c>false</c>.
+    /// </param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>
     /// A <see cref="TransferValidationResult"/> indicating whether the transfer is allowed,
@@ -84,5 +92,6 @@ public interface ICrossBorderTransferValidator
         Region source,
         Region destination,
         string dataCategory,
+        bool isRecipientCertified = false,
         CancellationToken cancellationToken = default);
 }

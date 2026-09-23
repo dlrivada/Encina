@@ -58,6 +58,7 @@ public sealed class DefaultCrossBorderTransferValidator : ICrossBorderTransferVa
         Region source,
         Region destination,
         string dataCategory,
+        bool isRecipientCertified = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -89,7 +90,7 @@ public sealed class DefaultCrossBorderTransferValidator : ICrossBorderTransferVa
         }
 
         // Step 3: Destination has adequacy decision (Art. 45)
-        if (_adequacyProvider.HasAdequacy(destination))
+        if (_adequacyProvider.HasAdequacy(destination, isRecipientCertified))
         {
             _logger.LogDebug(
                 "Transfer validation: '{Destination}' has adequacy decision — allowed (Art. 45)",

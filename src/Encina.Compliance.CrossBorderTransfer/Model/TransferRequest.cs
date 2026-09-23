@@ -71,4 +71,26 @@ public sealed record TransferRequest
     /// Supports the Encina module isolation cross-cutting function.
     /// </remarks>
     public string? ModuleId { get; init; }
+
+    /// <summary>
+    /// Whether the destination recipient is certified, or otherwise in scope, under the legal
+    /// instrument backing a partial adequacy decision for the destination country.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Some EU adequacy decisions only cover recipients that meet an additional condition rather
+    /// than the whole destination country: for example, the EU-US Data Privacy Framework only
+    /// covers US organisations certified under the DPF, and Canada's adequacy finding only covers
+    /// commercial organisations subject to PIPEDA (see
+    /// <c>Encina.Compliance.DataResidency.Model.Region.RequiresRecipientCertification</c>).
+    /// </para>
+    /// <para>
+    /// Set to <c>true</c> when the caller has confirmed the specific recipient meets that
+    /// condition (for example, the recipient's DPF certification is on file). Defaults to
+    /// <c>false</c>, which means a destination with a partial adequacy decision is treated as
+    /// not adequate and falls through to SCC/TIA/derogation checks. Ignored for destinations
+    /// whose adequacy decision, if any, is not conditional on recipient certification.
+    /// </para>
+    /// </remarks>
+    public bool IsRecipientCertified { get; init; }
 }

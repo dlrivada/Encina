@@ -71,5 +71,27 @@ public enum TransferBasis
     /// is in place for the destination country. The transfer must not proceed until a valid
     /// basis is established (e.g., SCC execution, adequacy decision, or approved derogation).
     /// </remarks>
-    Blocked = 4
+    Blocked = 4,
+
+    /// <summary>
+    /// Transfer authorized based on the EU-US Data Privacy Framework (Commission Implementing
+    /// Decision (EU) 2023/1795), a special case of an adequacy decision (Art. 45) limited to
+    /// DPF-certified US recipients.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unlike <see cref="AdequacyDecision"/>, which covers destinations with an unconditional
+    /// adequacy decision, this basis only applies when the specific recipient has confirmed DPF
+    /// certification (see <c>Encina.Compliance.DataResidency.Model.Region.RequiresRecipientCertification</c>
+    /// and <c>TransferRequest.IsRecipientCertified</c>). A transfer to a non-certified US
+    /// recipient is not covered by this basis and falls through to SCCs, BCRs, or a derogation.
+    /// </para>
+    /// <para>
+    /// The DPF adequacy decision is subject to an ongoing legal challenge before the CJEU
+    /// (case C-703/25 P). See the DataResidency and CrossBorderTransfer package READMEs and
+    /// <c>docs/features/cross-border-transfer.md</c> for the known-risk note and the
+    /// re-verification trigger if the decision is annulled or narrowed.
+    /// </para>
+    /// </remarks>
+    DataPrivacyFramework = 5
 }

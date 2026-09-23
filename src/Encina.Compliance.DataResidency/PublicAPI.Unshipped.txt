@@ -1,9 +1,9 @@
 #nullable enable
 Encina.Compliance.DataResidency.IAdequacyDecisionProvider
 Encina.Compliance.DataResidency.IAdequacyDecisionProvider.GetAdequateRegions() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.DataResidency.Model.Region!>!
-Encina.Compliance.DataResidency.IAdequacyDecisionProvider.HasAdequacy(Encina.Compliance.DataResidency.Model.Region! region) -> bool
+Encina.Compliance.DataResidency.IAdequacyDecisionProvider.HasAdequacy(Encina.Compliance.DataResidency.Model.Region! region, bool isRecipientCertified = false) -> bool
 Encina.Compliance.DataResidency.ICrossBorderTransferValidator
-Encina.Compliance.DataResidency.ICrossBorderTransferValidator.ValidateTransferAsync(Encina.Compliance.DataResidency.Model.Region! source, Encina.Compliance.DataResidency.Model.Region! destination, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DataResidency.Model.TransferValidationResult!>>
+Encina.Compliance.DataResidency.ICrossBorderTransferValidator.ValidateTransferAsync(Encina.Compliance.DataResidency.Model.Region! source, Encina.Compliance.DataResidency.Model.Region! destination, string! dataCategory, bool isRecipientCertified = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DataResidency.Model.TransferValidationResult!>>
 Encina.Compliance.DataResidency.IRegionContextProvider
 Encina.Compliance.DataResidency.IRegionContextProvider.GetCurrentRegionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DataResidency.Model.Region!>>
 Encina.Compliance.DataResidency.IRegionRouter
@@ -27,6 +27,8 @@ Encina.Compliance.DataResidency.Model.Region.IsEU.get -> bool
 Encina.Compliance.DataResidency.Model.Region.IsEU.init -> void
 Encina.Compliance.DataResidency.Model.Region.ProtectionLevel.get -> Encina.Compliance.DataResidency.Model.DataProtectionLevel
 Encina.Compliance.DataResidency.Model.Region.ProtectionLevel.init -> void
+Encina.Compliance.DataResidency.Model.Region.RequiresRecipientCertification.get -> bool
+Encina.Compliance.DataResidency.Model.Region.RequiresRecipientCertification.init -> void
 Encina.Compliance.DataResidency.Model.RegionGroup
 Encina.Compliance.DataResidency.Model.RegionGroup.Contains(Encina.Compliance.DataResidency.Model.Region! region) -> bool
 Encina.Compliance.DataResidency.Model.RegionGroup.Name.get -> string!
@@ -73,7 +75,7 @@ Encina.Compliance.DataResidency.Model.TransferValidationResult.Warnings.get -> S
 Encina.Compliance.DataResidency.Model.TransferValidationResult.Warnings.init -> void
 override Encina.Compliance.DataResidency.Model.Region.GetHashCode() -> int
 override Encina.Compliance.DataResidency.Model.Region.ToString() -> string!
-static Encina.Compliance.DataResidency.Model.Region.Create(string! code, string! country, bool isEU = false, bool isEEA = false, bool hasAdequacyDecision = false, Encina.Compliance.DataResidency.Model.DataProtectionLevel protectionLevel = Encina.Compliance.DataResidency.Model.DataProtectionLevel.Unknown) -> Encina.Compliance.DataResidency.Model.Region!
+static Encina.Compliance.DataResidency.Model.Region.Create(string! code, string! country, bool isEU = false, bool isEEA = false, bool hasAdequacyDecision = false, Encina.Compliance.DataResidency.Model.DataProtectionLevel protectionLevel = Encina.Compliance.DataResidency.Model.DataProtectionLevel.Unknown, bool requiresRecipientCertification = false) -> Encina.Compliance.DataResidency.Model.Region!
 static Encina.Compliance.DataResidency.Model.RegionGroup.AdequateGroup.get -> Encina.Compliance.DataResidency.Model.RegionGroup!
 static Encina.Compliance.DataResidency.Model.RegionGroup.EEAGroup.get -> Encina.Compliance.DataResidency.Model.RegionGroup!
 static Encina.Compliance.DataResidency.Model.RegionGroup.EUGroup.get -> Encina.Compliance.DataResidency.Model.RegionGroup!
@@ -171,10 +173,10 @@ Encina.Compliance.DataResidency.DataResidencyOptions.TrackDataLocations.set -> v
 Encina.Compliance.DataResidency.DefaultAdequacyDecisionProvider
 Encina.Compliance.DataResidency.DefaultAdequacyDecisionProvider.DefaultAdequacyDecisionProvider(Microsoft.Extensions.Options.IOptions<Encina.Compliance.DataResidency.DataResidencyOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataResidency.DefaultAdequacyDecisionProvider!>! logger) -> void
 Encina.Compliance.DataResidency.DefaultAdequacyDecisionProvider.GetAdequateRegions() -> System.Collections.Generic.IReadOnlyList<Encina.Compliance.DataResidency.Model.Region!>!
-Encina.Compliance.DataResidency.DefaultAdequacyDecisionProvider.HasAdequacy(Encina.Compliance.DataResidency.Model.Region! region) -> bool
+Encina.Compliance.DataResidency.DefaultAdequacyDecisionProvider.HasAdequacy(Encina.Compliance.DataResidency.Model.Region! region, bool isRecipientCertified = false) -> bool
 Encina.Compliance.DataResidency.DefaultCrossBorderTransferValidator
 Encina.Compliance.DataResidency.DefaultCrossBorderTransferValidator.DefaultCrossBorderTransferValidator(Encina.Compliance.DataResidency.IAdequacyDecisionProvider! adequacyProvider, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DataResidency.DataResidencyOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataResidency.DefaultCrossBorderTransferValidator!>! logger) -> void
-Encina.Compliance.DataResidency.DefaultCrossBorderTransferValidator.ValidateTransferAsync(Encina.Compliance.DataResidency.Model.Region! source, Encina.Compliance.DataResidency.Model.Region! destination, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DataResidency.Model.TransferValidationResult!>>
+Encina.Compliance.DataResidency.DefaultCrossBorderTransferValidator.ValidateTransferAsync(Encina.Compliance.DataResidency.Model.Region! source, Encina.Compliance.DataResidency.Model.Region! destination, string! dataCategory, bool isRecipientCertified = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DataResidency.Model.TransferValidationResult!>>
 Encina.Compliance.DataResidency.DefaultRegionContextProvider
 Encina.Compliance.DataResidency.DefaultRegionContextProvider.DefaultRegionContextProvider(Microsoft.Extensions.Options.IOptions<Encina.Compliance.DataResidency.DataResidencyOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataResidency.DefaultRegionContextProvider!>! logger) -> void
 Encina.Compliance.DataResidency.DefaultRegionContextProvider.GetCurrentRegionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Compliance.DataResidency.Model.Region!>>
@@ -195,7 +197,12 @@ Encina.Compliance.DataResidency.Attributes.NoCrossBorderTransferAttribute.DataCa
 Encina.Compliance.DataResidency.Attributes.NoCrossBorderTransferAttribute.Reason.get -> string?
 Encina.Compliance.DataResidency.Attributes.NoCrossBorderTransferAttribute.Reason.set -> void
 Encina.Compliance.DataResidency.DataResidencyPipelineBehavior<TRequest, TResponse>
-Encina.Compliance.DataResidency.DataResidencyPipelineBehavior<TRequest, TResponse>.DataResidencyPipelineBehavior(Encina.Compliance.DataResidency.IRegionContextProvider! regionContextProvider, Encina.Compliance.DataResidency.Abstractions.IResidencyPolicyService! residencyPolicyService, Encina.Compliance.DataResidency.ICrossBorderTransferValidator! transferValidator, Encina.Compliance.DataResidency.Abstractions.IDataLocationService! dataLocationService, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DataResidency.DataResidencyOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataResidency.DataResidencyPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.DataResidency.DataResidencyPipelineBehavior<TRequest, TResponse>.DataResidencyPipelineBehavior(Encina.Compliance.DataResidency.IRegionContextProvider! regionContextProvider, Encina.Compliance.DataResidency.Abstractions.IResidencyPolicyService! residencyPolicyService, Encina.Compliance.DataResidency.ICrossBorderTransferValidator! transferValidator, Encina.Compliance.DataResidency.Abstractions.IDataLocationService! dataLocationService, Encina.Compliance.DataResidency.IAdequacyDecisionProvider! adequacyProvider, Encina.Compliance.DataResidency.Abstractions.IRecipientCertificationResolver! certificationResolver, Microsoft.Extensions.Options.IOptions<Encina.Compliance.DataResidency.DataResidencyOptions!>! options, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Compliance.DataResidency.DataResidencyPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Compliance.DataResidency.Abstractions.IRecipientCertificationResolver
+Encina.Compliance.DataResidency.Abstractions.IRecipientCertificationResolver.IsCertifiedAsync(Encina.Compliance.DataResidency.Model.Region! destination, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+Encina.Compliance.DataResidency.NullRecipientCertificationResolver
+Encina.Compliance.DataResidency.NullRecipientCertificationResolver.NullRecipientCertificationResolver() -> void
+Encina.Compliance.DataResidency.NullRecipientCertificationResolver.IsCertifiedAsync(Encina.Compliance.DataResidency.Model.Region! destination, string! dataCategory, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
 Encina.Compliance.DataResidency.DataResidencyPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Compliance.DataResidency.DataResidencyOptions.AddPolicy(string! dataCategory, System.Action<Encina.Compliance.DataResidency.ResidencyPolicyBuilder!>! configure) -> Encina.Compliance.DataResidency.DataResidencyOptions!
 Encina.Compliance.DataResidency.DataResidencyOptions.AssembliesToScan.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!

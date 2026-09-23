@@ -105,6 +105,31 @@ HMAC-SHA256(SecretKey, "Method|Path|PayloadHash|Timestamp|Nonce")
 | `X-Nonce` | Nonce | Unique request ID |
 | `X-Key-Id` | Key ID | Signing key identifier |
 
+## Fail-Closed Behavior When There Is No HttpContext
+
+`[RequireSignature]` requests dispatched without an `HttpContext` — background jobs, message consumers, scheduled jobs, gRPC or SignalR handlers — have no HTTP headers to extract the signature, timestamp, and nonce from. The pipeline **fails closed by default**: the request is rejected with `antitampering.no_http_context` instead of silently skipping validation.
+
+If a request type is intentionally meant to run outside HTTP and does not need signature validation in that context, opt out explicitly:
+
+```csharp
+// Global opt-out for every request that reaches the pipeline without an HttpContext
+services.AddEncinaAntiTampering(options =>
+{
+    options.SkipWhenNoHttpContext = true;
+});
+
+// Per-request opt-out — wins over the global option in either direction
+[RequireSignature(WhenNoHttpContext = HttpContextRequirement.Skip)]
+public sealed record ProcessScheduledReminder(Guid ReminderId) : ICommand<Unit>;
+
+// Force strict, fail-closed validation for one request type even when the global
+// option skips validation for everything else
+[RequireSignature(WhenNoHttpContext = HttpContextRequirement.Reject)]
+public sealed record ProcessPaymentReminder(Guid ReminderId) : ICommand<Unit>;
+```
+
+`RequireSignatureAttribute.WhenNoHttpContext` is a tri-state `HttpContextRequirement` (`Inherit` by default, `Skip`, or `Reject`). An explicit attribute value always wins over `AntiTamperingOptions.SkipWhenNoHttpContext`; `Inherit` defers to the global option. Every use of either opt-out is logged as a warning (EventId 9106), naming which switch caused the skip; a fail-closed rejection is logged too (EventId 9107) and recorded through the same tracing/metrics path as every other validation failure.
+
 ## Error Codes
 
 | Code | Description |
@@ -115,6 +140,7 @@ HMAC-SHA256(SecretKey, "Method|Path|PayloadHash|Timestamp|Nonce")
 | `antitampering.timestamp_expired` | Request too old |
 | `antitampering.nonce_reused` | Replay attack detected |
 | `antitampering.nonce_missing` | Nonce header missing |
+| `antitampering.no_http_context` | `[RequireSignature]` request has no `HttpContext` to validate against (fail-closed) |
 
 ## Documentation
 

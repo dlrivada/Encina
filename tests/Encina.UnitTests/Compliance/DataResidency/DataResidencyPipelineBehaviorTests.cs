@@ -43,6 +43,8 @@ public class DataResidencyPipelineBehaviorTests
     private readonly IResidencyPolicyService _residencyPolicyService;
     private readonly ICrossBorderTransferValidator _transferValidator;
     private readonly IDataLocationService _dataLocationService;
+    private readonly IAdequacyDecisionProvider _adequacyProvider;
+    private readonly IRecipientCertificationResolver _certificationResolver;
 
     public DataResidencyPipelineBehaviorTests()
     {
@@ -50,6 +52,8 @@ public class DataResidencyPipelineBehaviorTests
         _residencyPolicyService = Substitute.For<IResidencyPolicyService>();
         _transferValidator = Substitute.For<ICrossBorderTransferValidator>();
         _dataLocationService = Substitute.For<IDataLocationService>();
+        _adequacyProvider = Substitute.For<IAdequacyDecisionProvider>();
+        _certificationResolver = Substitute.For<IRecipientCertificationResolver>();
 
         // Default: region resolves to Germany
         _regionContextProvider.GetCurrentRegionAsync(Arg.Any<CancellationToken>())
@@ -330,6 +334,35 @@ public class DataResidencyPipelineBehaviorTests
         error.Message.ShouldContain("Adequacy decision required");
     }
 
+    [Fact]
+    public async Task Handle_RequireAdequacyDecision_PartialAdequacyRegion_BlockMode_ReturnsError()
+    {
+        // Arrange — RegionRegistry.US has HasAdequacyDecision=true but
+        // RequiresRecipientCertification=true (DPF); this pipeline stage has no way to confirm
+        // recipient certification, so it must fail closed (see #1145).
+        _regionContextProvider.GetCurrentRegionAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Region>>(RegionRegistry.US));
+
+        _residencyPolicyService.IsAllowedAsync(
+                Arg.Any<string>(), Arg.Any<Region>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, bool>>(true));
+
+        var sut = CreateBehavior<AdequacyRequiredCommand>(
+            o => o.EnforcementMode = DataResidencyEnforcementMode.Block);
+
+        // Act
+        var result = await sut.Handle(
+            new AdequacyRequiredCommand(),
+            RequestContext.CreateForTest(),
+            NextStep(),
+            CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var error = (EncinaError)result;
+        error.Message.ShouldContain("Adequacy decision required");
+    }
+
     #endregion
 
     #region NoCrossBorderTransfer Attribute
@@ -436,6 +469,8 @@ public class DataResidencyPipelineBehaviorTests
             _residencyPolicyService,
             _transferValidator,
             _dataLocationService,
+            _adequacyProvider,
+            _certificationResolver,
             Options.Create(options),
             TimeProvider.System,
             NullLogger<DataResidencyPipelineBehavior<TRequest, Unit>>.Instance);

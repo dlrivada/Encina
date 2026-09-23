@@ -89,6 +89,39 @@ public sealed record Region : IEquatable<Region>
     public required bool HasAdequacyDecision { get; init; }
 
     /// <summary>
+    /// Whether the adequacy decision only covers recipients that are certified or otherwise
+    /// covered under the specific legal instrument the decision relies on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Some adequacy decisions are not blanket coverage of the whole destination country: they
+    /// apply only to organisations that opted into a certification scheme or fall under a
+    /// specific regulatory regime. Two examples currently in <see cref="RegionRegistry"/>:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>
+    /// <b>United States</b> — Commission Implementing Decision (EU) 2023/1795 (the EU-US Data
+    /// Privacy Framework) only covers transfers to US organisations certified under the DPF.
+    /// A transfer to a non-certified US recipient is not covered by this adequacy decision.
+    /// </description></item>
+    /// <item><description>
+    /// <b>Canada</b> — the Commission's adequacy finding is limited to recipients that are
+    /// commercial organisations subject to Canada's PIPEDA; it does not cover, for example,
+    /// federal government institutions or organisations outside PIPEDA's scope.
+    /// </description></item>
+    /// </list>
+    /// <para>
+    /// When this flag is <c>true</c>, <see cref="HasAdequacyDecision"/> alone does not make a
+    /// transfer adequate: callers must also confirm the recipient meets the certification or
+    /// scope requirement (for example, via <c>IAdequacyDecisionProvider.HasAdequacy</c> with an
+    /// explicit recipient-certified flag, or <c>TransferRequest.IsRecipientCertified</c> in
+    /// <c>Encina.Compliance.CrossBorderTransfer</c>). Without that confirmation, the transfer is
+    /// not adequate and needs SCCs, BCRs, or an Art. 49 derogation.
+    /// </para>
+    /// </remarks>
+    public bool RequiresRecipientCertification { get; init; }
+
+    /// <summary>
     /// The overall data protection level of this region.
     /// </summary>
     public required DataProtectionLevel ProtectionLevel { get; init; }
@@ -102,6 +135,10 @@ public sealed record Region : IEquatable<Region>
     /// <param name="isEEA">Whether the region is within the EEA.</param>
     /// <param name="hasAdequacyDecision">Whether the region has an EU adequacy decision.</param>
     /// <param name="protectionLevel">The data protection level of the region.</param>
+    /// <param name="requiresRecipientCertification">
+    /// Whether the adequacy decision only covers recipients certified or otherwise in scope
+    /// under the underlying legal instrument (see <see cref="RequiresRecipientCertification"/>).
+    /// </param>
     /// <returns>A new <see cref="Region"/> instance.</returns>
     public static Region Create(
         string code,
@@ -109,7 +146,8 @@ public sealed record Region : IEquatable<Region>
         bool isEU = false,
         bool isEEA = false,
         bool hasAdequacyDecision = false,
-        DataProtectionLevel protectionLevel = DataProtectionLevel.Unknown) =>
+        DataProtectionLevel protectionLevel = DataProtectionLevel.Unknown,
+        bool requiresRecipientCertification = false) =>
         new()
         {
             Code = code,
@@ -117,7 +155,8 @@ public sealed record Region : IEquatable<Region>
             IsEU = isEU,
             IsEEA = isEEA,
             HasAdequacyDecision = hasAdequacyDecision || isEU || isEEA,
-            ProtectionLevel = protectionLevel
+            ProtectionLevel = protectionLevel,
+            RequiresRecipientCertification = requiresRecipientCertification
         };
 
     /// <summary>

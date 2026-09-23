@@ -82,6 +82,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
     private readonly IResidencyPolicyService _residencyPolicyService;
     private readonly ICrossBorderTransferValidator _transferValidator;
     private readonly IDataLocationService _dataLocationService;
+    private readonly IAdequacyDecisionProvider _adequacyProvider;
+    private readonly IRecipientCertificationResolver _certificationResolver;
     private readonly DataResidencyOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DataResidencyPipelineBehavior<TRequest, TResponse>> _logger;
@@ -93,6 +95,16 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
     /// <param name="residencyPolicyService">Service for evaluating data residency policies.</param>
     /// <param name="transferValidator">Validator for cross-border data transfers.</param>
     /// <param name="dataLocationService">Service for recording data locations.</param>
+    /// <param name="adequacyProvider">
+    /// Provider for adequacy decision lookups by region, used instead of trusting the resolved
+    /// <see cref="Region"/> instance's own flags (which may be a caller-constructed, partially
+    /// populated region).
+    /// </param>
+    /// <param name="certificationResolver">
+    /// Resolver for whether the current region's recipient is certified under a partial adequacy
+    /// decision (e.g. DPF for the US, PIPEDA for Canada). Defaults to always answering
+    /// <c>false</c> (fail closed) unless the application registers its own implementation.
+    /// </param>
     /// <param name="options">Data residency configuration options.</param>
     /// <param name="timeProvider">Time provider for deterministic timestamps.</param>
     /// <param name="logger">Logger for structured diagnostic messages.</param>
@@ -101,6 +113,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         IResidencyPolicyService residencyPolicyService,
         ICrossBorderTransferValidator transferValidator,
         IDataLocationService dataLocationService,
+        IAdequacyDecisionProvider adequacyProvider,
+        IRecipientCertificationResolver certificationResolver,
         IOptions<DataResidencyOptions> options,
         TimeProvider timeProvider,
         ILogger<DataResidencyPipelineBehavior<TRequest, TResponse>> logger)
@@ -109,6 +123,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         ArgumentNullException.ThrowIfNull(residencyPolicyService);
         ArgumentNullException.ThrowIfNull(transferValidator);
         ArgumentNullException.ThrowIfNull(dataLocationService);
+        ArgumentNullException.ThrowIfNull(adequacyProvider);
+        ArgumentNullException.ThrowIfNull(certificationResolver);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
@@ -117,6 +133,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         _residencyPolicyService = residencyPolicyService;
         _transferValidator = transferValidator;
         _dataLocationService = dataLocationService;
+        _adequacyProvider = adequacyProvider;
+        _certificationResolver = certificationResolver;
         _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -260,20 +278,44 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             }
         }
 
-        // Check if an EU adequacy decision is required for the current region
-        if (info.RequireAdequacyDecision && !currentRegion.HasAdequacyDecision)
+        // Check if an EU adequacy decision is required for the current region. Adequacy and
+        // certification are read through IAdequacyDecisionProvider (which resolves the canonical
+        // registered region by code internally), not from currentRegion's own flags, since
+        // IRegionContextProvider implementations may return a partially populated Region. A
+        // partial adequacy decision (e.g. US DPF, Canada PIPEDA — see
+        // Region.RequiresRecipientCertification) only counts as adequate when
+        // IRecipientCertificationResolver confirms the recipient; with none registered, the
+        // answer is false and the check fails closed.
+        if (info.RequireAdequacyDecision)
         {
-            var error = DataResidencyErrors.CrossBorderTransferDenied(
-                currentRegion.Code, currentRegion.Code,
-                $"Adequacy decision required for data category '{dataCategory}' but region '{currentRegion.Code}' does not have one.");
+            var isCertified = await _certificationResolver
+                .IsCertifiedAsync(currentRegion, dataCategory, cancellationToken)
+                .ConfigureAwait(false);
 
-            _logger.LogWarning(
-                "Region '{RegionCode}' lacks adequacy decision required for data category '{DataCategory}'",
-                currentRegion.Code, dataCategory);
-
-            if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
+            if (!_adequacyProvider.HasAdequacy(currentRegion, isCertified))
             {
-                return Left<EncinaError, Unit>(error);
+                // If certification would have made this region adequate, the gap is the missing
+                // certification confirmation, not a missing adequacy decision altogether.
+                var certificationGap = !isCertified
+                    && _adequacyProvider.HasAdequacy(currentRegion, isRecipientCertified: true);
+
+                var reason = certificationGap
+                    ? $"Region '{currentRegion.Code}' has a partial adequacy decision that requires " +
+                      $"recipient certification (e.g. DPF for US, PIPEDA for CA), which was not confirmed " +
+                      $"for data category '{dataCategory}'."
+                    : $"Adequacy decision required for data category '{dataCategory}' but region '{currentRegion.Code}' does not have one.";
+
+                var error = DataResidencyErrors.CrossBorderTransferDenied(
+                    currentRegion.Code, currentRegion.Code, reason);
+
+                _logger.LogWarning(
+                    "Region '{RegionCode}' lacks a confirmed adequacy decision required for data category '{DataCategory}'",
+                    currentRegion.Code, dataCategory);
+
+                if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
+                {
+                    return Left<EncinaError, Unit>(error);
+                }
             }
         }
 

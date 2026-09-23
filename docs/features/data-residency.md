@@ -92,7 +92,9 @@ Request → [DataResidencyPipelineBehavior] (pre-handler validation)
                  |   +-- Failure + Warn mode → Proceed without validation
                  +-- Step 4: [DataResidency] → Check allowed regions via IDataResidencyPolicy
                  |   +-- Region not allowed + Block → Return error
-                 |   +-- Adequacy required but missing + Block → Return error
+                 |   +-- RequireAdequacyDecision=true → ask IRecipientCertificationResolver
+                 |   |   for a partial-adequacy region (US, CA), then IAdequacyDecisionProvider
+                 |   +-- Adequacy required but missing or not certified + Block → Return error
                  +-- Step 5: [NoCrossBorderTransfer] → Record constraint in audit trail
                  +-- Step 6: Call next handler
                  +-- Step 7: Record data location (on success, if TrackDataLocations enabled)
@@ -186,10 +188,15 @@ services.AddEncinaDataResidency(options =>
 ```csharp
 var validator = serviceProvider.GetRequiredService<ICrossBorderTransferValidator>();
 
+// The US adequacy decision (EU-US Data Privacy Framework) only covers DPF-certified
+// recipients. Pass `isRecipientCertified: true` when the destination organisation is
+// confirmed DPF-certified; otherwise the transfer is not adequate and falls through to
+// the SCC/BCR/derogation steps of the hierarchy.
 var result = await validator.ValidateTransferAsync(
     source: RegionRegistry.DE,
     destination: RegionRegistry.US,
     dataCategory: "personal-data",
+    isRecipientCertified: true,
     cancellationToken);
 
 result.Match(
@@ -295,19 +302,20 @@ var custom = Region.Create(
 | `Country` | `string` | ISO 3166-1 alpha-2 country code for the primary country |
 | `IsEU` | `bool` | Whether the region is within the European Union (27 member states) |
 | `IsEEA` | `bool` | Whether the region is within the European Economic Area (EU + IS, LI, NO) |
-| `HasAdequacyDecision` | `bool` | Whether the European Commission has issued an adequacy decision (Art. 45) |
+| `HasAdequacyDecision` | `bool` | Whether the European Commission has issued an adequacy decision (Art. 45) for the region. Some adequacy decisions are conditional rather than blanket — see `RequiresRecipientCertification` below. |
+| `RequiresRecipientCertification` | `bool` | Whether the adequacy decision only covers DPF-certified/PIPEDA-covered recipients (`true` for US, CA); `HasAdequacyDecision` alone is not sufficient when this is `true` |
 | `ProtectionLevel` | `DataProtectionLevel` | Overall data protection level: `High`, `Medium`, `Low`, or `Unknown` |
 
 Region equality is based on **case-insensitive `Code` comparison**. Two regions with the same code (regardless of case) are considered equal.
 
-When creating a region via `Region.Create`, if `isEU` or `isEEA` is `true`, `HasAdequacyDecision` is automatically set to `true`.
+When creating a region via `Region.Create`, if `isEU` or `isEEA` is `true`, `HasAdequacyDecision` is automatically set to `true`. `Region.Create` also accepts an optional `requiresRecipientCertification` parameter (defaults to `false`) for regions whose adequacy decision only covers a subset of recipients.
 
 ### DataProtectionLevel
 
 | Level | Description | Examples |
 |-------|-------------|---------|
 | `High` | Comprehensive data protection framework | EU/EEA, countries with adequacy decisions |
-| `Medium` | Partial or sector-specific protection | US (DPF), Brazil (LGPD), India (DPDP), Australia, Singapore |
+| `Medium` | Partial or sector-specific protection | US (DPF)¹, Brazil (LGPD), India (DPDP), Australia, Singapore |
 | `Low` | Limited data protection framework | China (PIPL) |
 | `Unknown` | Not assessed; treated as high-risk | Custom regions without evaluation |
 
@@ -322,7 +330,9 @@ AT, BE, BG, HR, CY, CZ, DK, EE, FI, FR, DE, GR, HU, IE, IT, LV, LT, LU, MT, NL, 
 IS (Iceland), LI (Liechtenstein), NO (Norway)
 
 **Countries with EU Adequacy Decisions (15):**
-AD (Andorra), AR (Argentina), CA (Canada), FO (Faroe Islands), GG (Guernsey), IL (Israel), IM (Isle of Man), JP (Japan), JE (Jersey), NZ (New Zealand), KR (Republic of Korea), CH (Switzerland), GB (United Kingdom), UY (Uruguay), US (United States -- DPF)
+AD (Andorra), AR (Argentina), CA (Canada)¹, FO (Faroe Islands), GG (Guernsey), IL (Israel), IM (Isle of Man), JP (Japan), JE (Jersey), NZ (New Zealand), KR (Republic of Korea), CH (Switzerland), GB (United Kingdom), UY (Uruguay), US (United States -- DPF)¹
+
+¹ The US and Canada adequacy decisions are conditional, not blanket: the EU-US Data Privacy Framework (Commission Implementing Decision (EU) 2023/1795) only covers DPF-certified US organisations, and Canada's adequacy finding only covers PIPEDA-covered commercial organisations. `RegionRegistry.US` and `RegionRegistry.CA` both set `Region.RequiresRecipientCertification = true` to reflect this; see [Cross-Border Transfer Validation](#cross-border-transfer-validation).
 
 **Major Non-Adequate Countries (5):**
 AU (Australia), BR (Brazil), CN (China), IN (India), SG (Singapore)
@@ -429,6 +439,8 @@ var result3 = await validator.ValidateTransferAsync(
 
 The `IAdequacyDecisionProvider` determines whether a region has an EU adequacy decision. The default implementation (`DefaultAdequacyDecisionProvider`) checks the `Region.HasAdequacyDecision` property and merges with any additional regions from `DataResidencyOptions.AdditionalAdequateRegions`.
 
+`HasAdequacy(Region region, bool isRecipientCertified = false)` takes an explicit `isRecipientCertified` parameter. For regions where `Region.RequiresRecipientCertification` is `true` (US, Canada), `HasAdequacyDecision` being `true` is not enough on its own: `HasAdequacy` returns `false` unless the caller also passes `isRecipientCertified: true` to confirm the specific recipient is DPF-certified (US) or PIPEDA-covered (Canada). For every other region, `isRecipientCertified` has no effect.
+
 ```csharp
 services.AddEncinaDataResidency(options =>
 {
@@ -438,6 +450,35 @@ services.AddEncinaDataResidency(options =>
             protectionLevel: DataProtectionLevel.High));
 });
 ```
+
+### IRecipientCertificationResolver
+
+Calling `ICrossBorderTransferValidator.ValidateTransferAsync` or `IAdequacyDecisionProvider.HasAdequacy` directly means the caller supplies `isRecipientCertified` explicitly, as in the examples above. `DataResidencyPipelineBehavior<TRequest, TResponse>`, which runs automatically for every `[DataResidency(RequireAdequacyDecision = true)]` request, has no such caller to ask — it resolves the current region's certification through `IRecipientCertificationResolver` instead:
+
+```csharp
+public interface IRecipientCertificationResolver
+{
+    ValueTask<bool> IsCertifiedAsync(
+        Region destination,
+        string dataCategory,
+        CancellationToken cancellationToken = default);
+}
+```
+
+The package registers `NullRecipientCertificationResolver` as the default (via `TryAddSingleton` in `AddEncinaDataResidency`), which always answers `false` — **fail closed**: a partial-adequacy region (US, Canada) is treated as not adequate until the application registers its own resolver, for example one backed by a DPF registry lookup or an internal certified-vendor list:
+
+```csharp
+services.AddSingleton<IRecipientCertificationResolver, DpfRegistryCertificationResolver>();
+
+services.AddEncinaDataResidency(options =>
+{
+    options.EnforcementMode = DataResidencyEnforcementMode.Block;
+});
+```
+
+When the pipeline behavior denies a request because certification was not confirmed, the error message distinguishes that case ("has a partial adequacy decision that requires recipient certification … which was not confirmed") from a region that has no adequacy decision at all.
+
+> **Known risk**: the EU-US Data Privacy Framework adequacy decision is under appeal before the CJEU (case C-703/25 P). If the decision is annulled or narrowed, `TransferBasis.DataPrivacyFramework` and every `IRecipientCertificationResolver` implementation backed by DPF certification stop being a valid basis for US transfers; applications should have a fallback mechanism (SCCs) ready. See [Cross-Border Transfer Validation](cross-border-transfer.md) for the equivalent resolver usage in `TransferBlockingPipelineBehavior`.
 
 ---
 
@@ -709,6 +750,11 @@ All operations return `Either<EncinaError, T>`:
 var policyService = serviceProvider.GetRequiredService<IDataResidencyPolicy>();
 
 var result = await policyService.IsAllowedAsync("healthcare-data", RegionRegistry.US, cancellationToken);
+// Note: IsAllowedAsync answers "is this region allowed for this data category under the
+// configured policy?" -- it does not evaluate recipient certification and takes no
+// `isRecipientCertified` parameter. This is a different question from "is this specific
+// transfer adequate under Art. 45?", which is answered by
+// ICrossBorderTransferValidator.ValidateTransferAsync (see above).
 
 result.Match(
     Right: isAllowed =>
