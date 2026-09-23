@@ -17,6 +17,14 @@ namespace Encina.Compliance.DataResidency.Model;
 /// United States (EU-US Data Privacy Framework).
 /// </para>
 /// <para>
+/// Two of these decisions are partial rather than blanket coverage of the whole country:
+/// <see cref="US"/> only covers DPF-certified recipients (Commission Implementing Decision
+/// (EU) 2023/1795), and <see cref="CA"/> only covers commercial organisations subject to
+/// PIPEDA. Both regions set <see cref="Region.RequiresRecipientCertification"/> to flag this;
+/// a transfer to an uncertified/out-of-scope recipient in either country is not adequate and
+/// needs SCCs, BCRs, or an Art. 49 derogation.
+/// </para>
+/// <para>
 /// For custom regions (e.g., private cloud zones, internal data centers), use
 /// <see cref="Region.Create"/> to create new instances with appropriate metadata.
 /// </para>
@@ -147,8 +155,13 @@ public static class RegionRegistry
     /// <summary>Argentina (AR) — EU adequacy decision.</summary>
     public static Region AR { get; } = Region.Create("AR", "AR", hasAdequacyDecision: true, protectionLevel: DataProtectionLevel.High);
 
-    /// <summary>Canada (CA) — EU adequacy decision (commercial organizations under PIPEDA).</summary>
-    public static Region CA { get; } = Region.Create("CA", "CA", hasAdequacyDecision: true, protectionLevel: DataProtectionLevel.High);
+    /// <summary>
+    /// Canada (CA) — EU adequacy decision limited to commercial organisations subject to PIPEDA.
+    /// Not adequate for recipients outside PIPEDA's scope (e.g. federal government institutions);
+    /// see <see cref="Region.RequiresRecipientCertification"/>.
+    /// </summary>
+    public static Region CA { get; } = Region.Create(
+        "CA", "CA", hasAdequacyDecision: true, protectionLevel: DataProtectionLevel.High, requiresRecipientCertification: true);
 
     /// <summary>Faroe Islands (FO) — EU adequacy decision.</summary>
     public static Region FO { get; } = Region.Create("FO", "FO", hasAdequacyDecision: true, protectionLevel: DataProtectionLevel.High);
@@ -183,8 +196,14 @@ public static class RegionRegistry
     /// <summary>Uruguay (UY) — EU adequacy decision.</summary>
     public static Region UY { get; } = Region.Create("UY", "UY", hasAdequacyDecision: true, protectionLevel: DataProtectionLevel.High);
 
-    /// <summary>United States (US) — EU adequacy decision (under EU-US Data Privacy Framework).</summary>
-    public static Region US { get; } = Region.Create("US", "US", hasAdequacyDecision: true, protectionLevel: DataProtectionLevel.Medium);
+    /// <summary>
+    /// United States (US) — EU adequacy decision under the EU-US Data Privacy Framework
+    /// (Commission Implementing Decision (EU) 2023/1795), limited to DPF-certified recipients.
+    /// A transfer to a non-certified US recipient is not covered; see
+    /// <see cref="Region.RequiresRecipientCertification"/>.
+    /// </summary>
+    public static Region US { get; } = Region.Create(
+        "US", "US", hasAdequacyDecision: true, protectionLevel: DataProtectionLevel.Medium, requiresRecipientCertification: true);
 
     // ---------------------------------------------------------------
     //  Major non-adequate countries — require SCCs, BCRs, or derogation

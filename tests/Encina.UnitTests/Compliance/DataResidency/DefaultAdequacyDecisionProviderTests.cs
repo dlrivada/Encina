@@ -67,6 +67,62 @@ public class DefaultAdequacyDecisionProviderTests
     }
 
     [Fact]
+    public void HasAdequacy_UsUncertifiedRecipient_ShouldReturnFalse()
+    {
+        // Arrange
+        var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
+
+        // Act & Assert — no certification confirmed: the DPF decision does not cover this recipient.
+        sut.HasAdequacy(RegionRegistry.US).ShouldBeFalse();
+        sut.HasAdequacy(RegionRegistry.US, isRecipientCertified: false).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void HasAdequacy_UsCertifiedRecipient_ShouldReturnTrue()
+    {
+        // Arrange
+        var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
+
+        // Act & Assert
+        sut.HasAdequacy(RegionRegistry.US, isRecipientCertified: true).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void HasAdequacy_CaNonCommercialRecipient_ShouldReturnFalse()
+    {
+        // Arrange
+        var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
+
+        // Act & Assert — Canada's adequacy finding only covers PIPEDA-covered commercial organisations.
+        sut.HasAdequacy(RegionRegistry.CA).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void HasAdequacy_CaCommercialRecipient_ShouldReturnTrue()
+    {
+        // Arrange
+        var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
+
+        // Act & Assert
+        sut.HasAdequacy(RegionRegistry.CA, isRecipientCertified: true).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void HasAdequacy_UsBareRegionConstructedByCode_ResolvesCanonicalRequirement()
+    {
+        // Arrange — mirrors how DefaultTransferValidator.CheckAdequacyDecision builds a Region
+        // from a bare country code, without the RequiresRecipientCertification metadata.
+        var sut = new DefaultAdequacyDecisionProvider(_options, _logger);
+        var bareUsRegion = Region.Create("US", "US");
+
+        // Act & Assert — the provider resolves the canonical registered US region by code and
+        // still requires certification, even though the caller's Region instance does not
+        // carry that metadata itself.
+        sut.HasAdequacy(bareUsRegion).ShouldBeFalse();
+        sut.HasAdequacy(bareUsRegion, isRecipientCertified: true).ShouldBeTrue();
+    }
+
+    [Fact]
     public void HasAdequacy_WithAdditionalAdequateRegion_ShouldReturnTrue()
     {
         // Arrange

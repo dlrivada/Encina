@@ -303,3 +303,11 @@ Enforce residency via ASP.NET Core middleware instead of CQRS pipeline.
 - `Encina.Compliance.Retention` — Retention integration (retention policies may differ by region)
 - `Encina.Compliance.Consent` — Consent as a transfer legal basis (Art. 49(1)(a) derogation)
 - `Encina.Compliance.Anonymization` — Anonymized data is outside GDPR scope and exempt from Chapter V
+
+## Amendments
+
+### 2026-09-23 addendum (#1145)
+
+Adequacy decisions for the US (EU-US Data Privacy Framework, Commission Implementing Decision (EU) 2023/1795) and Canada (PIPEDA) are partial, not blanket — they only cover DPF-certified US organisations and PIPEDA-covered Canadian commercial organisations respectively. A transfer to an uncertified or out-of-scope recipient in either country is not adequate under Art. 45 and requires SCCs, BCRs, or an Art. 49 derogation instead.
+
+`Region.RequiresRecipientCertification` (`src/Encina.Compliance.DataResidency/Model/Region.cs`) models this distinction; it is `true` for `RegionRegistry.US` and `RegionRegistry.CA` and `false` for every other region. `IAdequacyDecisionProvider.HasAdequacy` and `ICrossBorderTransferValidator.ValidateTransferAsync` now take an explicit `isRecipientCertified` parameter that defaults to `false` (not adequate) until the caller confirms the specific recipient's certification or coverage. `Region.HasAdequacyDecision` being `true` is no longer sufficient on its own for these two regions.

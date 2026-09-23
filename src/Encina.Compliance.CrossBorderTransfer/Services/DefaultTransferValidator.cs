@@ -136,7 +136,7 @@ internal sealed class DefaultTransferValidator : ITransferValidator
         // Create a Region from the destination country code to check adequacy
         var destinationRegion = Region.Create(request.DestinationCountryCode, request.DestinationCountryCode);
 
-        if (_adequacyProvider.HasAdequacy(destinationRegion))
+        if (_adequacyProvider.HasAdequacy(destinationRegion, request.IsRecipientCertified))
         {
             return TransferValidationOutcome.Allow(TransferBasis.AdequacyDecision);
         }

@@ -260,8 +260,11 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             }
         }
 
-        // Check if an EU adequacy decision is required for the current region
-        if (info.RequireAdequacyDecision && !currentRegion.HasAdequacyDecision)
+        // Check if an EU adequacy decision is required for the current region. A region whose
+        // adequacy decision only covers certified/in-scope recipients (e.g. US DPF, Canada
+        // PIPEDA — see Region.RequiresRecipientCertification) does not satisfy this check: this
+        // pipeline stage has no recipient-certification context to confirm, so it fails closed.
+        if (info.RequireAdequacyDecision && (!currentRegion.HasAdequacyDecision || currentRegion.RequiresRecipientCertification))
         {
             var error = DataResidencyErrors.CrossBorderTransferDenied(
                 currentRegion.Code, currentRegion.Code,

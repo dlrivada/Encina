@@ -153,6 +153,49 @@ public class DefaultCrossBorderTransferValidatorTests
     }
 
     [Fact]
+    public async Task ValidateTransferAsync_ToUsUncertifiedRecipient_ShouldNotUseAdequacyDecision()
+    {
+        // Arrange — no certification confirmed: the real provider would return false here, and
+        // this test verifies the validator forwards isRecipientCertified=false through to the
+        // adequacy check so a partial-adequacy region never wins step 3 without confirmation.
+        _adequacyProvider.HasAdequacy(RegionRegistry.US, false).Returns(false);
+
+        // Act
+        var result = await _sut.ValidateTransferAsync(RegionRegistry.DE, RegionRegistry.US, "data");
+
+        // Assert — falls through to step 4 (Medium protection level allows SCCs), not step 3.
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r =>
+            {
+                r.IsAllowed.ShouldBeTrue();
+                r.LegalBasis.ShouldBe(TransferLegalBasis.StandardContractualClauses);
+            },
+            Left: _ => { });
+    }
+
+    [Fact]
+    public async Task ValidateTransferAsync_ToUsCertifiedRecipient_ShouldUseAdequacyDecision()
+    {
+        // Arrange
+        _adequacyProvider.HasAdequacy(RegionRegistry.US, true).Returns(true);
+
+        // Act
+        var result = await _sut.ValidateTransferAsync(
+            RegionRegistry.DE, RegionRegistry.US, "data", isRecipientCertified: true);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        result.Match(
+            Right: r =>
+            {
+                r.IsAllowed.ShouldBeTrue();
+                r.LegalBasis.ShouldBe(TransferLegalBasis.AdequacyDecision);
+            },
+            Left: _ => { });
+    }
+
+    [Fact]
     public void Constructor_NullAdequacyProvider_ShouldThrow()
     {
         // Act

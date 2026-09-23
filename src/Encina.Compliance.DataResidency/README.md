@@ -109,6 +109,27 @@ result.Match(
     Left: error => Console.WriteLine($"Validation error: {error.Message}"));
 ```
 
+#### Partial Adequacy: US and Canada
+
+The US (EU-US Data Privacy Framework, Commission Implementing Decision (EU) 2023/1795) and Canada (PIPEDA) adequacy decisions are **partial** — they only cover, respectively, US organisations certified under the DPF and Canadian commercial organisations covered by PIPEDA. `Region.RequiresRecipientCertification` flags regions where this applies (`RegionRegistry.US` and `RegionRegistry.CA`).
+
+When `RequiresRecipientCertification` is `true`, `HasAdequacyDecision` alone does not make a transfer adequate. Callers must confirm the specific recipient's certification and pass that confirmation explicitly:
+
+```csharp
+// HasAdequacy: only treat the region as adequate once the recipient's certification is confirmed
+bool isAdequate = adequacyProvider.HasAdequacy(RegionRegistry.US, isRecipientCertified: true);
+
+// ValidateTransferAsync: same explicit confirmation
+var result = await validator.ValidateTransferAsync(
+    source: RegionRegistry.DE,
+    destination: RegionRegistry.US,
+    dataCategory: "healthcare-data",
+    isRecipientCertified: true,
+    cancellationToken);
+```
+
+Without `isRecipientCertified: true`, transfers to the US or Canada are treated as **not adequate** and fall back to SCCs, BCRs, or an Art. 49 derogation.
+
 ### 5. Region Routing
 
 ```csharp

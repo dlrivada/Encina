@@ -37,19 +37,28 @@ namespace Encina.Compliance.DataResidency;
 public interface IAdequacyDecisionProvider
 {
     /// <summary>
-    /// Determines whether the specified region has an EU adequacy decision.
+    /// Determines whether the specified region has an EU adequacy decision that covers the transfer.
     /// </summary>
     /// <param name="region">The region to check for adequacy status.</param>
+    /// <param name="isRecipientCertified">
+    /// Whether the specific recipient in <paramref name="region"/> is certified, or otherwise
+    /// in scope, under the legal instrument the region's adequacy decision relies on. Only
+    /// relevant when <see cref="Region.RequiresRecipientCertification"/> is <c>true</c> for the
+    /// resolved region (for example, DPF certification for the United States, or PIPEDA coverage
+    /// for Canada). Ignored for regions whose adequacy decision is not conditional on recipient
+    /// certification. Defaults to <c>false</c>, so a partial-adequacy region without an explicit
+    /// certification confirmation is treated as not adequate.
+    /// </param>
     /// <returns>
-    /// <c>true</c> if the region has an EU adequacy decision (per Art. 45) or is within
-    /// the EEA (where GDPR applies directly), <c>false</c> otherwise.
+    /// <c>true</c> if the region has an EU adequacy decision (per Art. 45) that covers this
+    /// transfer, or is within the EEA (where GDPR applies directly); <c>false</c> otherwise.
     /// </returns>
     /// <remarks>
     /// EEA member states (EU + Iceland, Liechtenstein, Norway) are implicitly considered
     /// adequate because GDPR applies directly within the EEA. Transfers between EEA
     /// countries do not constitute "international transfers" under GDPR Chapter V.
     /// </remarks>
-    bool HasAdequacy(Region region);
+    bool HasAdequacy(Region region, bool isRecipientCertified = false);
 
     /// <summary>
     /// Retrieves all regions that have an EU adequacy decision or are within the EEA.

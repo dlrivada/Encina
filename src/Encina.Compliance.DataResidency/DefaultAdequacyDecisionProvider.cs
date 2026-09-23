@@ -64,12 +64,36 @@ public sealed class DefaultAdequacyDecisionProvider : IAdequacyDecisionProvider
     }
 
     /// <inheritdoc />
-    public bool HasAdequacy(Region region)
+    public bool HasAdequacy(Region region, bool isRecipientCertified = false)
     {
         ArgumentNullException.ThrowIfNull(region);
 
-        // EEA countries have GDPR directly, adequacy countries have Art. 45 decisions
-        return region.IsEU || region.IsEEA || region.HasAdequacyDecision || _adequateRegions.Contains(region);
+        // EEA countries have GDPR directly.
+        if (region.IsEU || region.IsEEA)
+        {
+            return true;
+        }
+
+        // Prefer the canonical registered region's metadata (matched by code) when available,
+        // since callers sometimes construct a bare Region with only Code/Country set (e.g.
+        // DefaultTransferValidator.CheckAdequacyDecision). Region equality is code-based, so
+        // TryGetValue resolves to the registry's/options' fully-populated instance when one
+        // exists. Membership in the adequate set (built-in adequacy countries plus any
+        // caller-configured DataResidencyOptions.AdditionalAdequateRegions) counts as adequate
+        // even if the caller's own Region instance did not set HasAdequacyDecision itself.
+        if (_adequateRegions.TryGetValue(region, out var registered))
+        {
+            // A partial adequacy decision (e.g. US DPF, Canada PIPEDA) only covers
+            // certified/in-scope recipients. Without that confirmation, it is not adequate.
+            return !registered.RequiresRecipientCertification || isRecipientCertified;
+        }
+
+        if (!region.HasAdequacyDecision)
+        {
+            return false;
+        }
+
+        return !region.RequiresRecipientCertification || isRecipientCertified;
     }
 
     /// <inheritdoc />
