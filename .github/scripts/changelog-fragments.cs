@@ -153,21 +153,23 @@ if (mode == "check-unreleased-unchanged")
         return;
     }
 
-    var currentUnreleased = ExtractUnreleasedRaw(File.ReadAllText(changelogPath));
+    var currentUnreleased = NormalizeUnreleasedForComparison(ExtractUnreleasedRaw(File.ReadAllText(changelogPath)));
 
+    string mergeBase;
     string baseText;
     try
     {
-        baseText = RunGitShow(baseRef!, changelogPath);
+        mergeBase = RunGitMergeBase(baseRef!);
+        baseText = RunGitShow(mergeBase, changelogPath);
     }
     catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
     {
-        Console.Error.WriteLine($"ERROR: failed to read {changelogPath} from '{baseRef}': {ex.Message}");
+        Console.Error.WriteLine($"ERROR: failed to read {changelogPath} from the merge base of '{baseRef}': {ex.Message}");
         Environment.Exit(2);
         return;
     }
 
-    var baseUnreleased = ExtractUnreleasedRaw(baseText);
+    var baseUnreleased = NormalizeUnreleasedForComparison(ExtractUnreleasedRaw(baseText));
 
     if (!string.Equals(currentUnreleased, baseUnreleased, StringComparison.Ordinal))
     {
@@ -176,7 +178,7 @@ if (mode == "check-unreleased-unchanged")
         return;
     }
 
-    Console.WriteLine($"OK: '## [Unreleased]' section of {changelogPath} is unchanged relative to '{baseRef}'");
+    Console.WriteLine($"OK: '## [Unreleased]' section of {changelogPath} is unchanged relative to the merge base of '{baseRef}' ({mergeBase})");
     return;
 }
 
@@ -408,6 +410,39 @@ static string ExtractUnreleasedRaw(string text)
     var end = lines.FindIndex(start + 1, l => l.StartsWith("## [", StringComparison.Ordinal));
     if (end < 0) end = lines.Count;
     return string.Join("\n", lines.Skip(start).Take(end - start)).TrimEnd();
+}
+
+static string RunGitMergeBase(string baseRef)
+{
+    var psi = new System.Diagnostics.ProcessStartInfo("git")
+    {
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+    };
+    psi.ArgumentList.Add("merge-base");
+    psi.ArgumentList.Add(baseRef);
+    psi.ArgumentList.Add("HEAD");
+
+    using var proc = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException("failed to start git");
+    var stdout = proc.StandardOutput.ReadToEnd();
+    var stderr = proc.StandardError.ReadToEnd();
+    proc.WaitForExit();
+    if (proc.ExitCode != 0)
+        throw new InvalidOperationException(stderr.Trim().Length > 0 ? stderr.Trim() : $"git merge-base exited with code {proc.ExitCode}");
+    return stdout.Trim();
+}
+
+// Ignores the tooling's own pointer note (added independently of any real content change) plus
+// trailing whitespace per line and blank-line-only differences, so a PR that only adds the note
+// (or gets reformatted by whitespace) is not flagged as editing '## [Unreleased]'.
+static string NormalizeUnreleasedForComparison(string text)
+{
+    var normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal);
+    var lines = normalized.Split('\n')
+        .Select(l => l.TrimEnd())
+        .Where(l => l.Length > 0 && !l.StartsWith("> Pending changelog entries are added as fragments under", StringComparison.Ordinal));
+    return string.Join("\n", lines);
 }
 
 static string RunGitShow(string gitRef, string path)
