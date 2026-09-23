@@ -32,12 +32,11 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var result = await adapter.ExecuteAsync(request);
 
         // Assert
-        var value = result.ShouldBeSuccess();
-        value.ShouldBe("Processed: integration-test");
+        result.ShouldBe("Processed: integration-test");
     }
 
     [Fact]
-    public async Task Integration_ErrorFromHandler_ShouldReturnLeft()
+    public async Task Integration_ErrorFromHandler_ShouldThrowEncinaJobFailedException()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -52,11 +51,36 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var request = new TestRequest("error-test");
 
         // Act
-        var result = await adapter.ExecuteAsync(request);
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
+            adapter.ExecuteAsync(request));
 
         // Assert
-        var error = result.ShouldBeError();
-        error.Message.ShouldBe("Handler error");
+        // Hangfire only marks a job Failed (and retries it) when the job method throws. The
+        // exception carries the error code, never the error message (Hangfire persists it).
+        exception.ErrorCode.ShouldBe("handler.error");
+        exception.Message.ShouldNotContain("Handler error");
+    }
+
+    [Fact]
+    public async Task Integration_ValidationFailureFromHandler_ShouldThrowEncinaJobPermanentFailureException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddTransient<IRequestHandler<TestRequest, string>, ValidationFailingRequestHandler>();
+
+        var provider = services.BuildServiceProvider();
+        var encina = provider.GetRequiredService<IEncina>();
+        var logger = Substitute.For<ILogger<HangfireRequestJobAdapter<TestRequest, string>>>();
+
+        var adapter = new HangfireRequestJobAdapter<TestRequest, string>(encina, logger);
+
+        // Act
+        var exception = await Should.ThrowAsync<EncinaJobPermanentFailureException>(() =>
+            adapter.ExecuteAsync(new TestRequest("invalid")));
+
+        // Assert
+        exception.ErrorCode.ShouldBe("order.validation_failed");
     }
 
     [Fact]
@@ -75,11 +99,13 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // Act
-        var result = await adapter.ExecuteAsync(new TestRequest("cancel-test"), cts.Token);
-
-        // Assert
-        result.ShouldBeError();
+        // Act & Assert
+        // The handler observes the cancelled token, the dispatcher turns it into an
+        // encina.request.cancelled Left, and the adapter rethrows it as OperationCanceledException
+        // so Hangfire treats the job as interrupted (e.g. server shutdown), not as failed.
+        var exception = await Should.ThrowAsync<OperationCanceledException>(() =>
+            adapter.ExecuteAsync(new TestRequest("cancel-test"), cts.Token));
+        exception.CancellationToken.ShouldBe(cts.Token);
     }
 }
 
@@ -113,12 +139,19 @@ public sealed class CancellableRequestHandler : IRequestHandler<TestRequest, str
         TestRequest request,
         CancellationToken cancellationToken)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromResult(Left<EncinaError, string>(
-                EncinaErrors.Create("operation.cancelled", "Operation was cancelled")));
-        }
+        cancellationToken.ThrowIfCancellationRequested();
 
         return Task.FromResult(Right<EncinaError, string>($"Processed: {request.Data}"));
+    }
+}
+
+public sealed class ValidationFailingRequestHandler : IRequestHandler<TestRequest, string>
+{
+    public Task<Either<EncinaError, string>> Handle(
+        TestRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Left<EncinaError, string>(
+            EncinaErrors.Create("order.validation_failed", $"Order '{request.Data}' is invalid")));
     }
 }

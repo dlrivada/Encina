@@ -309,4 +309,14 @@ internal static partial class DSRLogMessages
         Level = LogLevel.Warning,
         Message = "DSR aggregate invalid state transition. RequestId={RequestId}, Operation={Operation}, ErrorMessage={ErrorMessage}")]
     internal static partial void DSRInvalidStateTransition(this ILogger logger, string requestId, string operation, string errorMessage);
+
+    /// <summary>
+    /// Subject ID of a [RestrictProcessing] request could not be resolved — the restriction check
+    /// fails closed (Block mode) or proceeds with a warning (Warn mode).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8349,
+        Level = LogLevel.Warning,
+        Message = "Subject ID of a [RestrictProcessing] request could not be resolved — restriction status unknown. RequestType={RequestType}, EnforcementMode={EnforcementMode}")]
+    internal static partial void RestrictedRequestSubjectIdMissing(this ILogger logger, string requestType, string enforcementMode);
 }

@@ -46,9 +46,21 @@ namespace Encina.Compliance.DataSubjectRights;
 /// </para>
 /// <para>
 /// <b>Subject ID extraction:</b> The behavior first attempts to read the property specified by
-/// <see cref="RestrictProcessingAttribute.SubjectIdProperty"/> via reflection. If no property
-/// is specified or the attribute is not <see cref="RestrictProcessingAttribute"/>, the behavior
-/// falls back to the registered <see cref="IDataSubjectIdExtractor"/>.
+/// <see cref="RestrictProcessingAttribute.SubjectIdProperty"/> via reflection, converting its value
+/// exactly like <see cref="DefaultDataSubjectIdExtractor"/> does (<see cref="string"/>,
+/// <see cref="Guid"/>, integer types, strongly-typed ids; an unsupported type throws
+/// <see cref="InvalidOperationException"/>). If no property is specified, the named property does not
+/// exist, or the attribute is not <see cref="RestrictProcessingAttribute"/>, the behavior uses the
+/// registered <see cref="IDataSubjectIdExtractor"/>.
+/// </para>
+/// <para>
+/// <b>Missing subject:</b> When no subject can be resolved for a request decorated with
+/// <see cref="RestrictProcessingAttribute"/>, the restriction status is unknown, so the behavior fails
+/// closed with <see cref="DSRErrors.SubjectIdMissingCode"/> in <see cref="DSREnforcementMode.Block"/>
+/// mode (and logs a warning in <see cref="DSREnforcementMode.Warn"/> mode). Set
+/// <see cref="DataSubjectRightsOptions.FailClosedOnMissingSubjectId"/> to <c>false</c> to skip the check
+/// instead. Requests that only carry <see cref="ProcessesPersonalDataAttribute"/> or
+/// <see cref="ProcessingActivityAttribute"/> skip the check when the subject is missing.
 /// </para>
 /// </remarks>
 /// <example>
@@ -142,9 +154,28 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
         // Step 3: Extract subject ID
         var subjectId = ExtractSubjectId(request, context, attrInfo);
 
-        // Step 4: If no subject ID — can't check restriction, proceed
+        // Step 4: If no subject ID — the restriction status is unknown. A [RestrictProcessing]
+        // request fails closed in Block mode (warns in Warn mode) unless the option opts out;
+        // requests only carrying the GDPR attributes skip the check.
         if (string.IsNullOrWhiteSpace(subjectId))
         {
+            if (attrInfo.IsRestrictProcessing && _options.FailClosedOnMissingSubjectId)
+            {
+                _logger.RestrictedRequestSubjectIdMissing(requestTypeName, _options.RestrictionEnforcementMode.ToString());
+                DataSubjectRightsDiagnostics.RecordFailed(activity, DSRErrors.SubjectIdMissingCode);
+
+                if (_options.RestrictionEnforcementMode == DSREnforcementMode.Block)
+                {
+                    DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
+                        new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "blocked_missing_subject"));
+                    return Left<EncinaError, TResponse>(DSRErrors.SubjectIdMissing(requestTypeName));
+                }
+
+                DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
+                    new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "warned_missing_subject"));
+                return await nextStep().ConfigureAwait(false);
+            }
+
             _logger.SubjectIdNotExtracted(requestTypeName);
             DataSubjectRightsDiagnostics.RecordSkipped(activity);
             DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
@@ -198,21 +229,27 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
 
     private string? ExtractSubjectId(TRequest request, IRequestContext context, RestrictionAttributeInfo attrInfo)
     {
-        // Priority 1: Explicit SubjectIdProperty from [RestrictProcessing] attribute
-        if (attrInfo.SubjectIdProperty is { Length: > 0 } propertyName)
+        // Priority 1: Explicit SubjectIdProperty from [RestrictProcessing] attribute. The value goes
+        // through the same conversion as DefaultDataSubjectIdExtractor (string, Guid, integer ids,
+        // strongly-typed ids). A property that exists but holds no subject (null, Guid.Empty, empty)
+        // is a missing subject: it must not fall through to the extractor, whose last resort is the
+        // authenticated caller (project history: #1149).
+        if (attrInfo.SubjectIdPropertyInfo is { } property)
         {
-            var property = typeof(TRequest).GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
-            if (property is not null)
-            {
-                var value = property.GetValue(request);
-                if (value is string stringValue && !string.IsNullOrWhiteSpace(stringValue))
-                {
-                    return stringValue;
-                }
-            }
+            return SubjectIdConversion.ToInvariantString(property.GetValue(request), property);
         }
 
-        // Priority 2: Fallback to registered IDataSubjectIdExtractor
+        // A SubjectIdProperty that names no public instance property is a configuration error: falling
+        // back to the extractor (and from there to the authenticated caller) would check the wrong subject.
+        if (attrInfo.ConfiguredSubjectIdProperty is { } missingProperty)
+        {
+            throw new InvalidOperationException(
+                $"[RestrictProcessing(SubjectIdProperty = \"{missingProperty}\")] on '{typeof(TRequest).FullName}' " +
+                $"names a property that does not exist. Declare a public instance property '{missingProperty}' " +
+                "on the request or fix the attribute.");
+        }
+
+        // Priority 2: Registered IDataSubjectIdExtractor (no explicit property configured)
         return _subjectIdExtractor.ExtractSubjectId(request, context);
     }
 
@@ -269,21 +306,44 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
             source = "ProcessingActivityAttribute";
 
         // SubjectIdProperty is only available from [RestrictProcessing]
-        var subjectIdProperty = restrictAttr?.SubjectIdProperty;
+        var configuredProperty = restrictAttr?.SubjectIdProperty is { Length: > 0 } propertyName
+            ? propertyName
+            : null;
+        var subjectIdProperty = configuredProperty is not null
+            ? requestType.GetProperty(configuredProperty, BindingFlags.Public | BindingFlags.Instance)
+            : null;
 
-        return new RestrictionAttributeInfo(subjectIdProperty, source);
+        // Keep the configured name only when it does not resolve, so extraction can report the
+        // configuration error at request time (throwing here would surface as a TypeInitializationException).
+        var unresolvedProperty = subjectIdProperty is null ? configuredProperty : null;
+
+        return new RestrictionAttributeInfo(subjectIdProperty, unresolvedProperty, restrictAttr is not null, source);
     }
 
     /// <summary>
     /// Cached attribute information for a request type's restriction-related declarations.
     /// </summary>
-    /// <param name="SubjectIdProperty">
-    /// The name of the property on the request that contains the data subject identifier,
-    /// or <c>null</c> when the <see cref="IDataSubjectIdExtractor"/> should be used.
-    /// Only populated from <see cref="RestrictProcessingAttribute.SubjectIdProperty"/>.
+    /// <param name="SubjectIdPropertyInfo">
+    /// The property on the request that contains the data subject identifier, or <c>null</c> when
+    /// the <see cref="IDataSubjectIdExtractor"/> should be used. Only resolved from
+    /// <see cref="RestrictProcessingAttribute.SubjectIdProperty"/>; <c>null</c> as well when the
+    /// named property does not exist on the request type.
+    /// </param>
+    /// <param name="ConfiguredSubjectIdProperty">
+    /// The <see cref="RestrictProcessingAttribute.SubjectIdProperty"/> name when it is configured but does
+    /// not resolve to a public instance property of the request type (a configuration error); otherwise
+    /// <c>null</c>.
+    /// </param>
+    /// <param name="IsRestrictProcessing">
+    /// <c>true</c> when the request carries <see cref="RestrictProcessingAttribute"/>, which makes a
+    /// missing subject fail closed (see <see cref="DataSubjectRightsOptions.FailClosedOnMissingSubjectId"/>).
     /// </param>
     /// <param name="Source">
     /// Describes which attribute triggered the restriction check (for diagnostics).
     /// </param>
-    private sealed record RestrictionAttributeInfo(string? SubjectIdProperty, string Source);
+    private sealed record RestrictionAttributeInfo(
+        PropertyInfo? SubjectIdPropertyInfo,
+        string? ConfiguredSubjectIdProperty,
+        bool IsRestrictProcessing,
+        string Source);
 }

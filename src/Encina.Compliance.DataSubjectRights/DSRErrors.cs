@@ -26,6 +26,12 @@ public static class DSRErrors
     /// <summary>Error code when a processing restriction is active for the data subject.</summary>
     public const string RestrictionActiveCode = "dsr.restriction_active";
 
+    /// <summary>
+    /// Error code when the data subject of a <see cref="RestrictProcessingAttribute"/> request cannot
+    /// be resolved and the restriction check fails closed.
+    /// </summary>
+    public const string SubjectIdMissingCode = "dsr.subject_id_missing";
+
     /// <summary>Error code when a data erasure operation fails.</summary>
     public const string ErasureFailedCode = "dsr.erasure_failed";
 
@@ -135,6 +141,31 @@ public static class DSRErrors
             details: new Dictionary<string, object?>
             {
                 [MetadataKeySubjectId] = subjectId,
+                [MetadataKeyStageDSR] = MetadataKeyStageDSR,
+                ["requirement"] = "article_18_2_restriction"
+            });
+
+    /// <summary>
+    /// Creates an error when the data subject of a request decorated with
+    /// <see cref="RestrictProcessingAttribute"/> cannot be resolved, so its restriction status
+    /// cannot be checked.
+    /// </summary>
+    /// <param name="requestType">The name of the request type whose subject is missing.</param>
+    /// <returns>An error indicating the restriction check failed closed.</returns>
+    /// <remarks>
+    /// Returned by <c>ProcessingRestrictionPipelineBehavior</c> in <see cref="DSREnforcementMode.Block"/>
+    /// mode when <see cref="DataSubjectRightsOptions.FailClosedOnMissingSubjectId"/> is <c>true</c>
+    /// (the default). Proceeding without a subject would process personal data whose restriction
+    /// status is unknown.
+    /// </remarks>
+    public static EncinaError SubjectIdMissing(string requestType) =>
+        EncinaErrors.Create(
+            code: SubjectIdMissingCode,
+            message: $"The data subject of request '{requestType}' could not be resolved, so its processing "
+                + "restriction status cannot be checked (Article 18). The request was blocked.",
+            details: new Dictionary<string, object?>
+            {
+                ["requestType"] = requestType,
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR,
                 ["requirement"] = "article_18_2_restriction"
             });

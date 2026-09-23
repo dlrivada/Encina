@@ -38,6 +38,30 @@ public sealed class HangfireNotificationJobAdapterIntegrationTests
     }
 
     [Fact]
+    public async Task Integration_ErrorFromHandler_ShouldThrowEncinaJobFailedException()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddTransient<INotificationHandler<TestNotification>, ErrorNotificationHandler>();
+
+        var provider = services.BuildServiceProvider();
+        var Encina = provider.GetRequiredService<IEncina>();
+        var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
+
+        var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
+        var notification = new TestNotification("error-test");
+
+        // Act & Assert
+        // Hangfire only marks a job Failed (and retries it) when the job method throws.
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
+            adapter.PublishAsync(notification));
+
+        exception.ErrorCode.ShouldNotBeNullOrWhiteSpace();
+        exception.Message.ShouldNotContain("Handler error");
+    }
+
+    [Fact]
     public async Task Integration_MultipleHandlers_ShouldInvokeAll()
     {
         // Arrange
@@ -85,5 +109,16 @@ public sealed class TestNotificationHandler : INotificationHandler<TestNotificat
     {
         _onHandle();
         return Task.FromResult(Right<EncinaError, Unit>(unit));
+    }
+}
+
+public sealed class ErrorNotificationHandler : INotificationHandler<TestNotification>
+{
+    public Task<Either<EncinaError, Unit>> Handle(
+        TestNotification notification,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Left<EncinaError, Unit>(
+            EncinaErrors.Create("handler.error", "Handler error")));
     }
 }

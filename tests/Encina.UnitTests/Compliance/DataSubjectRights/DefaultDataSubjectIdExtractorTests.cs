@@ -70,14 +70,16 @@ public class DefaultDataSubjectIdExtractorTests
     }
 
     [Fact]
-    public void ExtractSubjectId_WithBadPropertyAttribute_FallsBackToSubjectId()
+    public void ExtractSubjectId_WithBadPropertyAttribute_ThrowsInsteadOfFallingBack()
     {
+        // The configured property does not exist: neither the SubjectId property nor the caller is used.
         var request = new RequestWithBadProperty("subject-111");
         var context = Substitute.For<IRequestContext>();
+        context.UserId.Returns("caller");
 
-        var result = _sut.ExtractSubjectId(request, context);
+        var ex = Should.Throw<InvalidOperationException>(() => _sut.ExtractSubjectId(request, context));
 
-        result.ShouldBe("subject-111");
+        ex.Message.ShouldContain("NonExistentProperty");
     }
 
     [Fact]

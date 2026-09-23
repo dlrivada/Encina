@@ -224,13 +224,17 @@ services.AddEncinaMessaging(config =>
 
 **Error Classification**:
 
-The `DefaultErrorClassifier` automatically categorizes errors:
+The `DefaultErrorClassifier` looks at three things, in this order:
 
-| Classification | Exception Types | Behavior |
-|---------------|-----------------|----------|
-| **Transient** | `TimeoutException`, `HttpRequestException` (5xx), `IOException` | Retry immediately, then schedule delayed retries |
-| **Permanent** | `ArgumentException`, `ValidationException`, `HttpRequestException` (4xx) | Move directly to DLQ |
-| **Unknown** | Other exceptions | Treat as transient (configurable) |
+1. **Exception type** — the exception passed to `Classify`, then `EncinaError.Exception` (inner exceptions are followed).
+2. **Explicit error codes** — the error code is compared, exactly and case-insensitively, with two fixed lists. It is never matched by substring, so codes such as `saga.not_found`, `marten.aggregate_not_found` or `saga.invalid_status`, which can succeed on a later attempt, are not permanent because of their code.
+3. **Message patterns** — only when the error has no causing exception. A message built around an exception (for example the dispatcher's `encina.notification.exception` message, which names the handler type) is not used, so a handler called `CacheInvalidationHandler` does not make a failure permanent.
+
+| Classification | Exception types | Error codes | Message patterns | Behavior |
+|---------------|-----------------|-------------|------------------|----------|
+| **Transient** | `TimeoutException`, `TaskCanceledException`, `IOException`, `HttpRequestException` (5xx, 429, no status) | `encina.timeout`, `encina.ratelimit.exceeded` | "timeout", "unavailable", "connection", "network", "retry", "rate_limit", "throttle", "busy", "overload" | Retry immediately, then schedule delayed retries |
+| **Permanent** | `ArgumentException`, `InvalidOperationException`, `NotSupportedException`, `UnauthorizedAccessException`, `FormatException`, `HttpRequestException` (other 4xx) | missing or mismatched handler (`encina.handler.missing`, `encina.request.handler_missing`, `encina.request.handler_type_mismatch`, `encina.notification.missing_handle`), authorization (`encina.authorization.*`), validation (`Encina.guard.validation_failed`, `Repository.ValidationFailed`, `processor.validation_failed`, `gdpr.compliance_validation_failed`, `aiact.compliance_validation_failed`), consent (`consent.missing`, `consent.expired`, `consent.withdrawn`, `consent.requires_reconsent`, `consent.version_mismatch`), DSR (`dsr.restriction_active`, `dsr.subject_id_missing`, `dsr.identity_not_verified`) | "validation", "not_found", "unauthorized", "forbidden", "invalid", "bad_request" | Move directly to DLQ |
+| **Unknown** | Other exceptions | Any other code | No match, or the error has a causing exception | Treated as transient |
 
 **Custom Error Classifier**:
 

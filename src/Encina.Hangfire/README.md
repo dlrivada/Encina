@@ -12,7 +12,7 @@ Encina.Hangfire provides seamless integration between Encina's CQRS patterns and
 - **✅ Fire-and-Forget Jobs**: Enqueue requests and notifications for immediate background execution
 - **✅ Delayed Execution**: Schedule jobs to run at specific times or after delays
 - **✅ Recurring Jobs**: Set up CRON-based recurring request/notification execution
-- **✅ Automatic Retries**: Leverage Hangfire's built-in retry mechanism for failed jobs
+- **✅ Automatic Retries**: Leverage Hangfire's built-in retry mechanism for transient failures; permanent failures can skip retries (see [Failure Semantics and Retries](#failure-semantics-and-retries))
 - **✅ Request Context Preservation**: Maintain CorrelationId, UserId, and TenantId across job boundaries
 - **✅ Railway Oriented Programming**: Full support for `Either<EncinaError, T>` results
 - **✅ Dashboard Monitoring**: View job status, history, and failures in Hangfire Dashboard
@@ -233,9 +233,47 @@ var jobId = _backgroundJobs.EnqueueRequest<ProcessPaymentCommand, Receipt>(
     new ProcessPaymentCommand(paymentId, 100m));
 
 // In Hangfire Dashboard:
-// - Success: Receipt object serialized in job result
-// - Failure: EncinaError details logged, Hangfire retries job
+// - Success: the Receipt is the job result
+// - ValidationFailed: a permanent failure - the job throws EncinaJobPermanentFailureException
+//   and, with EncinaAutomaticRetry, goes straight to Failed without retries
+// - A timeout or an unavailable dependency: a transient failure - the job throws
+//   EncinaJobFailedException and Hangfire retries it
 ```
+
+### Failure Semantics and Retries
+
+Hangfire marks a job as failed, and applies its retry policy, only when the job method throws. The adapters therefore turn every `Left` result into an exception, choosing the type from the failure:
+
+| Handler outcome | Exception thrown | Hangfire default | With `UseEncinaAutomaticRetry` |
+|-----------------|------------------|------------------|--------------------------------|
+| `Right` | none (`ExecuteAsync` returns the response) | Succeeded | Succeeded |
+| Cancellation (any Encina `*.cancelled` code, e.g. `encina.request.cancelled` or `encina.handler.cancelled`) while the job's token is cancelled, e.g. server shutdown | `OperationCanceledException` | Interrupted, not failed (after a server shutdown the job is processed again) | Same |
+| Permanent failure (validation, not found, missing handler, missing or withdrawn consent, active processing restriction, authorization denied, ...) | `EncinaJobPermanentFailureException` | Retried (Hangfire retries every exception) | **Failed, no retries** |
+| Transient or unclassified failure (timeout, unavailable dependency, rate limit, ...) | `EncinaJobFailedException` | Retried | Retried |
+
+Permanent and transient are decided by `Encina.Messaging.Recoverability.IErrorClassifier`: the registered implementation, or `DefaultErrorClassifier` when none is registered. The default classifier looks at the error's exception, then its code, then its message; register your own `IErrorClassifier` to classify your domain error codes.
+
+To stop Hangfire from retrying permanent failures, replace its global retry filter once at startup:
+
+```csharp
+using Hangfire;
+using Encina.Hangfire;
+
+// Retries transient failures up to 5 times; permanent failures go straight to Failed.
+GlobalJobFilters.Filters.UseEncinaAutomaticRetry(attempts: 5);
+```
+
+`UseEncinaAutomaticRetry` removes every `AutomaticRetryAttribute` from the collection and adds `EncinaAutomaticRetry.Create(attempts)`, an `AutomaticRetryAttribute` whose `ExceptOn` contains `EncinaJobPermanentFailureException` (Hangfire's attribute is sealed, so Encina configures it instead of subclassing it). You can also build the filter yourself, for example to retry only transient Encina failures:
+
+```csharp
+GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
+{
+    Attempts = 3,
+    OnlyOn = [typeof(EncinaJobFailedException)]
+});
+```
+
+Hangfire stores the type, message and stack trace of every failed attempt. The exception `Message` of both Encina exceptions therefore contains only the error code and a generic text, never `EncinaError.Message`, which may carry personal data such as a data-subject id. The error code is also available as `ErrorCode` and in `Exception.Data["Encina.ErrorCode"]`, and the exception that caused the error, if any, is the `InnerException`. The full error message is written only to the application log.
 
 ### Continuation Jobs
 
@@ -251,7 +289,6 @@ var childJobId = BackgroundJob.ContinueJobWith<HangfireNotificationJobAdapter<Or
     parentJobId,
     adapter => adapter.PublishAsync(
         new OrderCreatedEvent(orderId),
-        null,
         default));
 ```
 
@@ -269,7 +306,6 @@ var batchId = BatchJob.StartNew(batch =>
         batch.Enqueue<HangfireRequestJobAdapter<ProcessOrderCommand, Result>>(
             adapter => adapter.ExecuteAsync(
                 new ProcessOrderCommand(orderId),
-                null,
                 default));
     }
 });
@@ -430,12 +466,12 @@ Use multiple queues for priority management:
 ```csharp
 // Critical jobs (payments, orders)
 BackgroundJob.Enqueue<HangfireRequestJobAdapter<ProcessPaymentCommand, Receipt>>(
-    adapter => adapter.ExecuteAsync(command, null, default),
+    adapter => adapter.ExecuteAsync(command, default),
     queue: "critical");
 
 // Low-priority jobs (reports, cleanup)
 BackgroundJob.Enqueue<HangfireRequestJobAdapter<GenerateReportCommand, Report>>(
-    adapter => adapter.ExecuteAsync(command, null, default),
+    adapter => adapter.ExecuteAsync(command, default),
     queue: "low");
 
 // Configure server to prioritize critical queue
@@ -579,7 +615,7 @@ app.MapHealthChecks("/health/scheduling", new HealthCheckOptions
 - ✅ Health checks
 - ⏳ Batch job helpers
 - ⏳ Job continuation builders
-- ⏳ Custom retry policies
+- ✅ Permanent vs transient failures (`EncinaAutomaticRetry`)
 
 ## Contributing
 

@@ -1,5 +1,7 @@
 using System.Reflection;
 
+using Encina.Compliance.GDPR;
+
 namespace Encina.Compliance.DataSubjectRights;
 
 /// <summary>
@@ -46,6 +48,32 @@ public sealed class DataSubjectRightsOptions
     /// </para>
     /// </remarks>
     public DSREnforcementMode RestrictionEnforcementMode { get; set; } = DSREnforcementMode.Block;
+
+    /// <summary>
+    /// Gets or sets whether a request decorated with <see cref="RestrictProcessingAttribute"/> whose
+    /// data subject cannot be resolved is blocked instead of skipping the restriction check.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When the subject id is missing (the subject-id property is <c>null</c>, <see cref="Guid.Empty"/>
+    /// or empty, or no property exists and <see cref="IRequestContext.UserId"/> is not set), the
+    /// restriction status of the data subject is unknown:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><c>true</c> (default): in <see cref="DSREnforcementMode.Block"/> mode the request fails
+    /// closed with <see cref="DSRErrors.SubjectIdMissingCode"/>; in <see cref="DSREnforcementMode.Warn"/>
+    /// mode a warning is logged and the request proceeds.</item>
+    /// <item><c>false</c>: the restriction check is skipped and the request proceeds (fail open).
+    /// Use it only when every restricted request is known to carry a subject by other means.</item>
+    /// </list>
+    /// <para>
+    /// Requests that only carry <see cref="ProcessesPersonalDataAttribute"/> or
+    /// <see cref="ProcessingActivityAttribute"/> (without <see cref="RestrictProcessingAttribute"/>)
+    /// never fail closed: those attributes do not declare a subject, so a missing subject skips the check.
+    /// Consent enforcement (<c>Encina.Compliance.Consent</c>) always fails closed on a missing subject.
+    /// </para>
+    /// </remarks>
+    public bool FailClosedOnMissingSubjectId { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether to register a DSR health check with <c>IHealthChecksBuilder</c>.

@@ -17,6 +17,15 @@ public class QuartzNotificationJobTests
     public QuartzNotificationJobTests()
     {
         _encina = Substitute.For<IEncina>();
+
+        // Publish succeeds by default: the job now inspects the Either it returns, and an
+        // unconfigured substitute would return a default (bottom) Either.
+#pragma warning disable CA2012 // Use ValueTasks correctly - required for NSubstitute mocking pattern
+        _encina.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<LanguageExt.Either<EncinaError, LanguageExt.Unit>>(
+                LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default)));
+#pragma warning restore CA2012
+
         _logger = new FakeLogger<QuartzNotificationJob<TestNotification>>();
         _job = new QuartzNotificationJob<TestNotification>(_encina, _logger);
         _context = Substitute.For<IJobExecutionContext>();

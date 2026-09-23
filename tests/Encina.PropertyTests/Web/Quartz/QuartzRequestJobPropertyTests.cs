@@ -69,7 +69,8 @@ public sealed class QuartzRequestJobPropertyTests
 
             // Act & Assert
             var exception = await Assert.ThrowsAsync<JobExecutionException>(() => job.Execute(context));
-            exception.Message.ShouldContain(expectedError.Message);
+            exception.Message.ShouldContain(expectedError.GetCode().IfNone(string.Empty));
+            exception.Message.ShouldNotContain(expectedError.Message);
         }
     }
 

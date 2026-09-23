@@ -209,7 +209,9 @@ public sealed class SchedulerOrchestrator
                     isRecurring: true,
                     cronExpression: cronExpression);
 
-                await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+                var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+                if (addResult.IsLeft)
+                    return (Either<EncinaError, Guid>)addResult.LeftToArray()[0];
 
                 Log.RecurringMessageScheduled(_logger, message.Id, requestType, cronExpression, nextExecution);
 

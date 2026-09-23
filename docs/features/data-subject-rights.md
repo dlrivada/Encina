@@ -259,6 +259,8 @@ public record SendMarketingEmailCommand(string SubjectId) : ICommand;
 
 The pipeline behavior also detects `[ProcessesPersonalData]` and `[ProcessingActivity]` attributes from the GDPR module, triggering restriction checks when any personal data attribute is present.
 
+The subject-id property can be a `string`, a `Guid`, an integer type, a strongly-typed id that implements `IFormattable`, or a wrapper (record struct, record class or struct) with a public `Value` property of one of those types. A `null`, `Guid.Empty` or empty value means the subject is missing; `0` is a valid id; any other type throws `InvalidOperationException` as a configuration error, and so does a `SubjectIdProperty` that names no public instance property of the request (the behavior never falls back to another property or to the caller in that case). When the subject of a `[RestrictProcessing]` request is missing, its restriction status is unknown, so the request fails closed with `dsr.subject_id_missing` in `Block` mode (a warning in `Warn` mode). Set `DataSubjectRightsOptions.FailClosedOnMissingSubjectId = false` to skip the check instead.
+
 ---
 
 ## DSR Request Lifecycle
