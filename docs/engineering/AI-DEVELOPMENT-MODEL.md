@@ -746,11 +746,11 @@ However, investigate whether its responsibilities should eventually be separated
 - `docs/plans/` — active plans.
 - `.claude/` — only `launch.json`, `settings.local.json` and transient worktrees. There is no `.claude/agents/` and no `AGENTS.md`.
 
-**Update (2026-09-23):** `.claude/agents/` now exists and holds the Claude Code subagent definitions (`pr-watcher`, `ci-diagnoser`, `mechanical-fixer`, `adversarial-reviewer`, `issue-worker`; see `.claude/agents/README.md`). This does not contradict the decision below: Claude Code sessions spawn subagents through `.claude/agents/`, the mechanism Claude Code itself reads, while opencode keeps its own equivalent role prompts in `.opencode/agents/` for the roles that have one. The two directories are the same layer (role prompts) read by two different tools, not a duplicated hierarchy.
+**Update (2026-09-23):** `.claude/agents/` now exists and holds the Claude Code subagent definitions (`pr-watcher`, `ci-diagnoser`, `mechanical-fixer`, `adversarial-reviewer`, `issue-worker`; see `.claude/agents/README.md`). This **supersedes**, for Claude Code subagents, the "decided target structure" below of putting new agent roles only in `.opencode/agents/` for both tools to read: Claude Code has no mechanism to load role prompts from `.opencode/agents/`, so a role that must run as a Claude Code subagent needs its own definition in `.claude/agents/`. Claude Code sessions spawn subagents through `.claude/agents/`, the mechanism Claude Code itself reads; opencode keeps its own equivalent role prompts in `.opencode/agents/`. A role that must run under both tools needs a definition in each directory — the two are the same layer (role prompts) read by two different tools, not a duplicated hierarchy, but they are no longer a single shared source file.
 
 ### Decided target structure
 
-The decision (2026-09-21) is to use a **tool-agnostic root file plus the existing opencode layout**, rather than a parallel `.claude/` hierarchy:
+The decision (2026-09-21) is to use a **tool-agnostic root file plus the existing opencode layout**, rather than a parallel `.claude/` hierarchy. As the Update note above records, this was superseded on 2026-09-23 for Claude Code subagents specifically: `.claude/agents/` is the parallel hierarchy Claude Code requires, because Claude Code cannot read `.opencode/agents/`. The rest of the layout below (AGENTS.md, `docs/specifications/`, the label routing) still stands:
 
 ```text
 AGENTS.md                      # tool-agnostic engineering rules; read natively by opencode, Codex, Cursor
@@ -770,7 +770,7 @@ docs/
 Consequences:
 
 - `AGENTS.md` is created during Phase 0 by extracting the tool-agnostic parts of `CLAUDE.md`, not by writing new content; `CLAUDE.md` keeps only what is specific to Claude Code (scripting policy exceptions, memory, etc.).
-- New agent roles go in `.opencode/agents/` so that both the local AI and Claude read the same role definition; Claude Code can be pointed at them from `CLAUDE.md`.
+- **Superseded 2026-09-23 for Claude Code subagents** (see the Update note above): new agent roles do not go in `.opencode/agents/` alone. Claude Code loads subagent definitions only from `.claude/agents/`; opencode loads them only from `.opencode/agents/`. A role that must run under both tools needs a definition in each directory — there is no single file both tools read.
 - Specifications live in `docs/specifications/` with the `SPEC-NNN` prefix. ADRs keep their own sequence in `docs/architecture/adr/`.
 - The GitHub labels `ai:local-candidate` and `ai:claude-required` exist (created 2026-09-21) and are the routing mechanism described in `ai-task-routing.md`.
 

@@ -22,9 +22,10 @@ You implement one issue of the Encina repository from the orchestrator's brief.
 - Tooling per `CLAUDE.md`: PowerShell or C# file-based scripts; no python, no bash scripting constructs.
 - Commit locally with clear English messages and no AI attribution. Never push, open or edit PRs, open or comment on issues.
 - Do not run the `pr-cycle` or `open-issue` skills; the orchestrator does. Report instead.
-- Changelog: never edit `CHANGELOG.md`; add a fragment in `changelog.d/` (`<issue>-<slug>.<section>.md`, one of the six sections `added | changed | deprecated | removed | fixed | security`, one or more `- ` bullets). Run `dotnet run .github/scripts/changelog-fragments.cs -- --check` when that script exists.
+- Changelog: never edit `CHANGELOG.md`; add a fragment in `changelog.d/` (`<issue>-<slug>.<section>.md`, one of the six sections `added | changed | deprecated | removed | fixed | security`, one or more bullets that begin with `-`). Run `dotnet run .github/scripts/changelog-fragments.cs -- --check` when that script exists.
 - Stay out of the shared hot spots the brief reserves for the orchestrator (typically `.github/workflows/*`).
 - When the task changes nature (scope grows, the root cause is elsewhere, a design choice the brief does not cover, tests you cannot make pass), stop and report with evidence. Do not improvise.
+- Only spawn `ci-diagnoser`, `mechanical-fixer` or read-only research agents; never spawn another `issue-worker`.
 
 ## Delegation (mandatory)
 

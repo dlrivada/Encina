@@ -140,7 +140,18 @@ $cases = @(
     @($publish, 'PowerShell', 'gh pr view 5', 0, 'gh pr view is allowed'),
     @($publish, 'PowerShell', 'gh issue view 5', 0, 'gh issue view is allowed'),
     @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api GET is allowed'),
-    @($publish, 'PowerShell', 'git log', 0, 'git log is allowed')
+    @($publish, 'PowerShell', 'git log', 0, 'git log is allowed'),
+    @($publish, 'PowerShell', 'git -c alias.publish=push publish', 2, 'git -c alias.publish=push publish'),
+    @($publish, 'PowerShell', 'git config alias.p push', 2, 'git config alias.p push'),
+    @($publish, 'PowerShell', 'git p', 2, 'git p (undefined alias, not on the allowlist)'),
+    @($publish, 'PowerShell', 'git send-pack origin', 2, 'git send-pack'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/issues/5/comments -f body=x', 2, 'gh api -f defaults to POST'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/issues --input body.json', 2, 'gh api --input defaults to POST'),
+    @($publish, 'PowerShell', 'git status', 0, 'git status is allowed'),
+    @($publish, 'PowerShell', 'git worktree list', 0, 'git worktree list is allowed'),
+    @($publish, 'PowerShell', 'git -C "dir x" log', 0, 'git -C quoted dir log is allowed'),
+    @($publish, 'PowerShell', 'gh api -X GET repos/o/r/pulls -f state=open', 0, 'gh api explicit GET with fields is allowed'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api with no method or fields is allowed')
 )
 
 $failed = 0
