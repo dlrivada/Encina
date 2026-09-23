@@ -86,6 +86,7 @@ public static class ServiceCollectionExtensions
 
         if (options.UseInbox)
         {
+            services.AddSingleton(options.InboxOptions);
             services.AddScoped<IInboxStore, InboxStoreMongoDB>();
             services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
             services.AddScoped<InboxOrchestrator>();
@@ -207,6 +208,7 @@ public static class ServiceCollectionExtensions
 
         if (options.UseInbox)
         {
+            services.AddSingleton(options.InboxOptions);
             services.AddScoped<IInboxStore, InboxStoreMongoDB>();
             services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
             services.AddScoped<InboxOrchestrator>();

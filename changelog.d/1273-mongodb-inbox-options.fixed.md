@@ -1,0 +1,1 @@
+- `AddEncinaMongoDB` (both overloads) now registers `InboxOptions` when `UseInbox` is enabled, matching the ADO.NET, Dapper and EF Core providers. Previously, resolving `InboxOrchestrator` from a MongoDB-backed service provider threw because `InboxOptions` was never added to the container (#1273).
