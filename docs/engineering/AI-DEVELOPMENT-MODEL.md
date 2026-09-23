@@ -746,6 +746,8 @@ However, investigate whether its responsibilities should eventually be separated
 - `docs/plans/` — active plans.
 - `.claude/` — only `launch.json`, `settings.local.json` and transient worktrees. There is no `.claude/agents/` and no `AGENTS.md`.
 
+**Update (2026-09-23):** `.claude/agents/` now exists and holds the Claude Code subagent definitions (`pr-watcher`, `ci-diagnoser`, `mechanical-fixer`, `adversarial-reviewer`, `issue-worker`; see `.claude/agents/README.md`). This does not contradict the decision below: Claude Code sessions spawn subagents through `.claude/agents/`, the mechanism Claude Code itself reads, while opencode keeps its own equivalent role prompts in `.opencode/agents/` for the roles that have one. The two directories are the same layer (role prompts) read by two different tools, not a duplicated hierarchy.
+
 ### Decided target structure
 
 The decision (2026-09-21) is to use a **tool-agnostic root file plus the existing opencode layout**, rather than a parallel `.claude/` hierarchy:
