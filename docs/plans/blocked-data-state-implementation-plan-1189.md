@@ -7,7 +7,7 @@
 > **Milestone**: v0.17.0 — Compliance Lifecycle
 > **Parent EPIC**: [#1186](https://github.com/dlrivada/Encina/issues/1186) — EU regulatory readiness (SPEC-002)
 > **Specification**: [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-005, AC-005, scenario S14; cross-cutting REQ-061 (AC-043) and REQ-062 (AC-044)
-> **Depends on**: [#1187](https://github.com/dlrivada/Encina/issues/1187) (P-01, retention floor; plan [retention-floor-implementation-plan-1187.md](retention-floor-implementation-plan-1187.md)); [#1248](https://github.com/dlrivada/Encina/issues/1248) (P-45, relational `IPersonalDataLocator`); PR [#1185](https://github.com/dlrivada/Encina/pull/1185) (ADR-031); a row-filter composition refactor (Phase 1 of this plan, or a separate `[REFACTOR]` issue, OD-3)
+> **Depends on**: [#1187](https://github.com/dlrivada/Encina/issues/1187) (P-01, retention floor; plan [retention-floor-implementation-plan-1187.md](retention-floor-implementation-plan-1187.md)); [#1248](https://github.com/dlrivada/Encina/issues/1248) (P-45, relational `IPersonalDataLocator`); PR [#1185](https://github.com/dlrivada/Encina/pull/1185) (ADR-031); a composable row-filter `[REFACTOR]` issue on the 10 providers, a prerequisite that must land BEFORE this plan (OD-3, settled 2026-09-23, issue to be opened)
 > **Related**: [#1188](https://github.com/dlrivada/Encina/issues/1188) (P-02, DSR erasure arbitration, the main caller), [#1191](https://github.com/dlrivada/Encina/issues/1191) (P-04, subject key store; crypto-shredding at period end), [#1239](https://github.com/dlrivada/Encina/issues/1239) (P-37, `IBlobStore` blocking hooks), [#1193](https://github.com/dlrivada/Encina/issues/1193) (P-05, read audit of disclosures), [#1225](https://github.com/dlrivada/Encina/issues/1225) (P-23, EF/Dapper and Marten consistency)
 
 ---
@@ -31,7 +31,7 @@ This plan adds a jurisdiction-neutral **blocked** state ("restriction with statu
 
 **Affected packages**: new `Encina.Compliance.Blocking`; `Encina.DomainModeling` (blockable marker, filter context); the 10 provider packages (`Encina.ADO.*`, `Encina.Dapper.*`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`); `Encina.Marten` (blocked streams); `Encina.Compliance.Retention` (disposition `Block`); `Encina.Compliance.DataSubjectRights` (blocking erasure strategy).
 
-**Provider category**: Database (10) plus Marten. Blocking touches repositories and specifications, so the Multi-Provider Implementation Rule applies; block records also live on the 10 providers (OD-1).
+**Provider category**: Database (10) plus Marten. Blocking touches repositories and specifications, so the Multi-Provider Implementation Rule applies; block records also live on the 10 providers plus Marten (OD-1, settled 2026-09-23). This deliberately departs from ADR-019 for this module, because blocking must commit in the same transaction as the application's own data; ADR-019 needs an addendum recording the exception (planned in Phase 10 alongside ADR-033).
 
 ---
 
@@ -42,11 +42,11 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 | Topic | Contract |
 |-------|----------|
 | **Who decides what** | Retention decides **when** (floor, maximum, anchor, hold). Blocking decides **how data is kept once it may no longer be processed** (hidden state, audited disclosure, secure copy, destruction). |
-| **Retention expiry with `ExpiryDisposition.Block`** | P-01 ships the enum member and rejects it at start-up while no `IBlockingService` is registered. This plan registers the service, and the sweep calls `IBlockingService.BlockAsync` with an entity-scoped target built from the ADR-031 `RetentionErasureTarget` (record id, entity id, category, tenant, module). On `Right`, the retention record moves to the new status `Blocked` through a new event `RetentionRecordBlocked(RecordId, BlockId, OccurredAtUtc)` added to `Encina.Compliance.Retention` by this plan (Phase 8). |
+| **Retention expiry with `ExpiryDisposition.Block`** | Per P-01 OD-7 (settled 2026-09-23), P-01 does not ship a `Block` member: this plan adds `ExpiryDisposition.Block` to `Encina.Compliance.Retention` itself, together with the start-up validation that rejects it while no `IBlockingService` is registered, and wires the retention sweep to call `IBlockingService.BlockAsync` with an entity-scoped target built from the ADR-031 `RetentionErasureTarget` (record id, entity id, category, tenant, module). On `Right`, the retention record moves to the new status `Blocked` through a new event `RetentionRecordBlocked(RecordId, BlockId, OccurredAtUtc)` added to `Encina.Compliance.Retention` by this plan (Phase 8). |
 | **A blocked record's retention clock** | Blocking neither stops nor resets the retention clock. `DestroyNotBeforeUtc = max(FloorEndsAtUtc, BlockedAtUtc + LimitationPeriod)`, with `FloorEndsAtUtc` read from P-01's `IRetentionFloorQuery`. A legal hold (retention's `ILegalHoldService`) suspends destruction; the destruction sweep re-checks both, fail closed, right before destroying. |
-| **Erasure request under a floor** | P-02 (#1188) refuses a category whose floor has not elapsed, with the grantable-after date from P-01. If the tenant's jurisdiction is configured to block (OD-4), P-02 then calls `IBlockingService.BlockAsync(reason: ErasureRefused or ErasureGranted)`, so the retained data becomes invisible (S14). The block's destruction date still honours the floor. |
+| **Erasure request under a floor** | P-02 (#1188) refuses a category whose floor has not elapsed, with the grantable-after date from P-01. Per OD-4 (settled 2026-09-23), whether the tenant's jurisdiction blocks depends on jurisdiction: for Spain every DSR erasure and every retention expiry blocks first (LOPDGDD art. 32.1, literal reading); a tenant with no jurisdiction configured does not block. Where blocking applies, P-02 calls `IBlockingService.BlockAsync(reason: ErasureRefused or ErasureGranted)`, so the retained data becomes invisible (S14). The block's destruction date still honours the floor. |
 | **After destruction** | For a block created by the retention sweep, destruction marks the linked retention records `Deleted` (`DataDeleted`), so the retention stream stays the authoritative disposal trail. |
-| **Anchor after blocking** | Whether a new retention anchor on a blocked entity and category (a returning patient) unblocks the data is open (OD-11 here, OD-2 in P-01). Until decided, the block stays and the anchor is only recorded. |
+| **Anchor after blocking** | Per OD-11 (settled 2026-09-23, shared with P-01 OD-2), a new retention anchor on a blocked entity and category (a returning patient) never unblocks the data automatically: the block stays, the anchor is only recorded, and unblocking happens only through the explicit unblock operation (OD-11). |
 | **Order of delivery** | P-01 lands first. |
 
 ---
@@ -89,7 +89,7 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 
 ### Rationale
 
-- The application maps each blockable entity type to one data category (`options.MapCategory("clinical", typeof(ClinicalNote), typeof(Episode))`). An entity type holding several categories must either be split or be blocked whole; the documentation says so (OD-2 asks the maintainer to confirm the trade-off).
+- The application maps each blockable entity type to one data category (`options.MapCategory("clinical", typeof(ClinicalNote), typeof(Episode))`). An entity type holding several categories must either be split or be blocked whole; the documentation says so. OD-2 (settled 2026-09-23) confirms row-level markers as the chosen granularity.
 - The data category is the same free-form string retention uses (ADR-031), not the DSR `PersonalDataCategory` enum; see OD-10 for a shared vocabulary.
 - The marker columns are application-owned schema. Encina provides the EF Core model convention, the SQL snippets per provider and the MongoDB field names; it does not own the application's tables.
 
@@ -113,7 +113,7 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 - The research for this plan found that filters do not compose on any provider: tenant and soft-delete filters live in separate repository classes on Dapper, ADO and MongoDB, and EF Core registers unnamed `HasQueryFilter` calls that replace each other on the same entity (`TenantDbContext.ApplyTenantQueryFilters` and `EntityConfigurationExtensions.ApplySoftDeleteQueryFilters`). The soft-delete builders on Dapper and ADO (`SoftDeleteSpecificationSqlBuilder`) are referenced by nothing.
 - Contract: `IRowFilter<TEntity>` exposes `bool AppliesTo(Type entityType)` and, per provider family, a fragment builder: `SqlRowFilterFragment Build(ISqlDialect dialect, string tableAlias)` (Dapper/ADO), `FilterDefinition<TEntity> Build()` (MongoDB), and for EF Core a named query filter registered by a model convention (`HasQueryFilter("Encina.Blocking", e => e.BlockedAtUtc == null)`; EF Core 10 named filters — verify the exact API against EF Core 10.0.12 during Phase 1).
 - `GetByIdAsync` stops writing inline SQL and goes through the builder, so every read path gets the same predicate.
-- Because the refactor also changes tenancy and soft delete, OD-3 asks whether it lands as Phase 1 of this issue or as a separate `[REFACTOR]` issue first. The plan is written so that Phase 1 can be lifted out unchanged.
+- Because the refactor also changes tenancy and soft delete, OD-3 (settled 2026-09-23) makes it its own `[REFACTOR]` issue (issue to be opened: composable row filters — `IRowFilter<TEntity>`, per-provider fragment builders, EF Core named query filters — replacing the tenant and soft-delete filter classes on the 10 providers), landing **before** this plan as a prerequisite rather than as Phase 1 here.
 
 </details>
 
@@ -128,7 +128,7 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 | **B) `IBlockRecordStore` on the 10 providers plus Marten; every state transition also writes an `AuditEntry` through `IAuditStore`** | Blocking works wherever the application's data lives; the block record and the row markers can be written in one database transaction; the audit trail (10 providers + Marten) carries the evidence | Not event-sourced; the history lives in the audit store rather than in a stream |
 | **C) Only audit entries, no block records** | Least code | Destruction scheduling and disclosure need a queryable current state |
 
-### Chosen Option: **B** (recommended; OD-1 asks the maintainer to confirm, since it departs from the ADR-019 pattern for a new compliance module)
+### Chosen Option: **B** (OD-1, settled 2026-09-23: confirmed, departing deliberately from the ADR-019 pattern for this module because blocking must commit in the same transaction as the application's own data; see the ADR-019 addendum noted under Provider category)
 
 ### Rationale
 
@@ -173,7 +173,7 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 
 ### Rationale
 
-- `DisclosureRequest(Guid BlockId, string Role, string Purpose, string CaseReference, string RequestedBy)`; `Role` must be in `BlockingOptions.ReleaseRoles` (for example `court`, `prosecutor`, `supervisory-authority`) and the current actor must hold it according to `IBlockingReleaseAuthorizer` (default: the role claim in `IRequestContext`; OD-7 covers role modelling).
+- `DisclosureRequest(Guid BlockId, string Role, string Purpose, string CaseReference, string RequestedBy)`; `Role` must be in `BlockingOptions.ReleaseRoles` (for example `court`, `prosecutor`, `supervisory-authority`) and the current actor must hold it according to `IBlockingReleaseAuthorizer` (default: the role claim in `IRequestContext`). Per OD-7 (settled 2026-09-23), release roles stay free-form strings checked against the actor's roles; ABAC (`Encina.Security.ABAC`) integration is optional and not required for this plan.
 - The filter predicate inside the scope becomes `BlockedAtUtc IS NULL OR BlockId = @disclosedBlockId`; nothing else is revealed.
 - `SensitiveDataAccessedNotification` is not reused (it is dead code in `Encina.Security.Audit`); the disclosure itself is the audit event.
 
@@ -214,7 +214,7 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 ### Rationale
 
 - Capture point: the `BlockingRepository` decorator's `UpdateAsync`/`UpdateRangeAsync` loads the current row inside the same unit of work and writes it to the vault before delegating the update; the DSR rectification handler goes through the same repository.
-- The vault payload may contain personal data; it is encrypted at rest when column encryption (P-46, #1250) is configured, and it is destroyed with the block. OD-9 asks the maintainer to confirm the vault approach.
+- The vault payload may contain personal data; it is encrypted at rest when column encryption (P-46, #1250) is configured, and it is destroyed with the block. OD-9 (settled 2026-09-23) confirms the blocked-version vault on the 10 providers and Marten as the approach.
 
 </details>
 
@@ -238,11 +238,11 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 
 ---
 
-## Implementation Phases
+## Prerequisite: Row-Filter Composition Refactor (separate `[REFACTOR]` issue, OD-3)
 
-### Phase 1: Row-Filter Composition on the 10 Providers (prerequisite)
+Per OD-3 (settled 2026-09-23), the composable row-filter refactor below is **not** Phase 1 of this plan. It is its own `[REFACTOR]` issue (issue to be opened: composable row filters replacing the tenant and soft-delete filter classes on the 10 providers) and must land and merge **before** work on this plan's phases starts, because Phase 5 (provider implementations) and Phase 7 (the blocking repository decorator) build directly on the filter contract it introduces. The task list below is kept here as the specification for that prerequisite issue; this plan's own phases are numbered starting at Phase 2 to avoid renumbering every cross-reference in this document.
 
-> **Goal**: One repository per provider with an ordered set of composable row filters; tenancy and soft delete become filters; EF Core uses named query filters. Can be lifted into a separate `[REFACTOR]` issue (OD-3).
+> **Goal**: One repository per provider with an ordered set of composable row filters; tenancy and soft delete become filters; EF Core uses named query filters.
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -257,11 +257,12 @@ The same contract appears in [retention-floor-implementation-plan-1187.md](reten
 </details>
 
 <details>
-<summary><strong>Prompt for AI Agents — Phase 1</strong></summary>
+<summary><strong>Prompt for AI Agents — Row-Filter Prerequisite</strong></summary>
 
 ```
-You are implementing Phase 1 of issue #1189 (SPEC-002 P-03): composable row filters on the 10 database
-providers (ADO.NET, Dapper x SqlServer/PostgreSQL/MySQL, EF Core, MongoDB).
+You are implementing the row-filter composition refactor that is a prerequisite for issue #1189 (SPEC-002
+P-03): composable row filters on the 10 database providers (ADO.NET, Dapper x SqlServer/PostgreSQL/MySQL,
+EF Core, MongoDB).
 
 CONTEXT:
 - Today each cross-cutting filter is a separate IFunctionalRepository implementation:
@@ -298,6 +299,10 @@ REFERENCE FILES:
 
 ---
 
+## Implementation Phases
+
+> Phase numbering starts at 2 because Phase 1 (row-filter composition) moved to the prerequisite section above (OD-3, settled 2026-09-23); the phases below are this plan's own scope.
+
 ### Phase 2: Core Model and Abstractions
 
 > **Goal**: The public contract of blocking.
@@ -313,7 +318,7 @@ REFERENCE FILES:
 
 #### New project `src/Encina.Compliance.Blocking/`
 
-4. **Project file** — `net10.0`; references `Encina`, `Encina.DomainModeling`, `Encina.Security.Audit` (for `IAuditStore`), `Encina.Compliance.Retention` (for `IRetentionFloorQuery`, `ILegalHoldService`, `CalendarPeriod`) — OD-6 covers whether Retention is referenced or reached through a port
+4. **Project file** — `net10.0`; references `Encina`, `Encina.DomainModeling`, `Encina.Security.Audit` (for `IAuditStore`), `Encina.Compliance.Retention` (for `ILegalHoldService`; `CalendarPeriod` itself comes from core `Encina`, P-01 OD-6). Per OD-6 (settled 2026-09-23), `Encina.Compliance.Blocking` references `Encina.Compliance.Retention` directly for the floor query and holds, and Retention exposes a port (`IRetentionFloorQuery`) that this plan's services consume; Blocking does not implement a port for Retention
 5. **Model/** — `BlockRecord` (sealed record, fields of design choice 4), `BlockState { Requested, Blocked, ReleasedForDestruction, Destroyed, DestructionFailed }`, `BlockReason { ErasureGranted, ErasureRefused, Rectification, RetentionExpired, Manual }`, `BlockTarget` (discriminated: `BySubject(subjectId, category)`, `ByEntity(entityType, entityId, category)`, `ByRows(IReadOnlyList<BlockedRowRef>)`), `BlockedRowRef(Type EntityType, string EntityId)`, `DisclosureRequest`, `SecureCopyResult(string Location, string Hash, string Algorithm)`, `DestructionMethod { Delete, CryptoShred, ApplicationPort }`
 6. **Abstractions/** —
    - `IBlockingService`: `BlockAsync(BlockRequest request, CancellationToken ct)` → `Either<EncinaError, BlockRecord>`; `IsBlockedAsync(string? tenantId, string subjectOrEntityId, string dataCategory, CancellationToken ct)` → `Either<EncinaError, bool>`; `OpenDisclosureAsync(DisclosureRequest request, CancellationToken ct)` → `Either<EncinaError, IAsyncDisposable>`; `CreateSecureCopyAsync(Guid blockId, CancellationToken ct)` → `Either<EncinaError, SecureCopyResult>`; `GetBlockAsync(Guid blockId, CancellationToken ct)`; `QueryBlocksAsync(BlockQuery query, CancellationToken ct)`
@@ -417,7 +422,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Disclosure** — `OpenDisclosureAsync`: validate role ∈ `ReleaseRoles`, purpose and case reference non-empty, `IBlockingReleaseAuthorizer` (default `ClaimsBlockingReleaseAuthorizer` checks the actor's roles in `IRequestContext`); write `AuditEntry(Action = "blocking.disclosed")` with role, purpose, case reference; set `IBlockedDataFilterContext.Disclose(blockId)`; set `IReadAuditContext.WithPurpose($"blocking-disclosure:{caseReference}")` so P-05 records every read with the purpose; the returned scope restores both on dispose
-2. **Secure copy (art. 32.4)** — `CreateSecureCopyAsync`: open an internal disclosure scope (role `system:secure-copy`, audited), read the blocked rows and vault versions, canonicalise to JSON (sorted keys, UTC ISO 8601), compute SHA-256, call `ISecureCopyWriter.WriteAsync`, record hash, algorithm and location on the block and in an audit entry, move the block to `ReleasedForDestruction` with `DestroyNotBeforeUtc = max(FloorEndsAtUtc, now)` (OD-8 on whether the floor still applies after a copy)
+2. **Secure copy (art. 32.4)** — `CreateSecureCopyAsync`: open an internal disclosure scope (role `system:secure-copy`, audited), read the blocked rows and vault versions, canonicalise to JSON (sorted keys, UTC ISO 8601), compute SHA-256, call `ISecureCopyWriter.WriteAsync`, record hash, algorithm and location on the block and in an audit entry, move the block to `ReleasedForDestruction` with `DestroyNotBeforeUtc = max(FloorEndsAtUtc, now)` (per OD-8, settled 2026-09-23, the retention floor still binds the original after a secure copy)
 3. **Destruction sweep** — `BlockDestructionService : BackgroundService` with `(IServiceScopeFactory, IOptions<BlockingOptions>, IDistributedLockProvider?, TimeProvider, ILogger)`; per cycle and per tenant: select due blocks, re-check hold and floor (fail closed), `IBlockedRowStore.DestroyAsync`, `IBlockedVersionVault.DestroyAsync`, optional `IBlockedDataDestroyer`, `Destroyed` with method and row counts, audit entry, notify retention (Phase 8); `DestructionFailed` on error, retried next cycle; cycle lock through `IDistributedLockProvider` when registered (warning logged once when not, for single-host deployments)
 
 </details>
@@ -564,7 +569,7 @@ REFERENCE FILES:
 
 1. **`src/Encina.Compliance.Blocking/Repositories/BlockingRepository<TEntity,TId>`** — provider-neutral decorator over `IFunctionalRepository<TEntity,TId>` for blockable entities: `DeleteAsync`/`DeleteRangeAsync` → `IBlockingService.BlockAsync(ByRows, reason: ErasureGranted)` when `BlockOnDelete` applies to the tenant's jurisdiction; `UpdateAsync`/`UpdateRangeAsync`/`UpdateImmutableAsync` → capture the previous version into `IBlockedVersionVault` under a `Rectification` block when `BlockOnRectification` applies; reads delegate unchanged (filtering is in the providers)
 2. **`AddBlockingRepository<TEntity,TId>()`** — decorates the registered `IFunctionalRepository`
-3. **`src/Encina.Compliance.DataSubjectRights/Erasure/BlockingErasureStrategy.cs`** — `IDataErasureStrategy` that groups located fields by entity and calls `IBlockingService.BlockAsync(ByRows)`; registered by `AddEncinaBlocking` with `Replace` (so it wins over the no-op `HardDeleteErasureStrategy` regardless of registration order) — OD-5 on whether this belongs to P-02 instead
+3. **`src/Encina.Compliance.DataSubjectRights/Erasure/BlockingErasureStrategy.cs`** — `IDataErasureStrategy` that groups located fields by entity and calls `IBlockingService.BlockAsync(ByRows)`; registered by `AddEncinaBlocking` with `Replace` (so it wins over the no-op `HardDeleteErasureStrategy` regardless of registration order). Per OD-5(b) (settled 2026-09-23), `BlockingErasureStrategy` belongs to this issue (P-03), not to P-02
 
 </details>
 
@@ -637,7 +642,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`BlockingOptions`** — `ReleaseRoles` (set), `LimitationPeriods` (`(jurisdiction, category) → CalendarPeriod`, no default: a blockable category without a period fails start-up validation; OD-5a), `BlockOnDelete` / `BlockOnRectification` / `BlockOnErasure` per jurisdiction, `CategoryMappings`, `DestructionInterval` (default 1 hour), `DestructionBatchSize` (default 100), `EnforcementMode` of the pipeline behavior (default `Block`), `AllowedDestructionMethods`, `AddHealthCheck`
+1. **`BlockingOptions`** — `ReleaseRoles` (set), `LimitationPeriods` (`(jurisdiction, category) → CalendarPeriod`, no default: a blockable category without a period fails start-up validation, per OD-5(a) settled 2026-09-23), `BlockOnDelete` / `BlockOnRectification` / `BlockOnErasure` per jurisdiction, `CategoryMappings`, `DestructionInterval` (default 1 hour), `DestructionBatchSize` (default 100), `EnforcementMode` of the pipeline behavior (default `Block`), `AllowedDestructionMethods`, `AddHealthCheck`
 2. **`BlockingOptionsValidator`** — periods, mappings, roles non-empty when blocking is on, `CryptoShred` rejected until a per-category key provider is registered
 3. **`AddEncinaBlocking(Action<BlockingOptions>)`** — service, behavior, locator adapter, authorizer, destruction hosted service, retention handler, DSR strategy replacement, health check
 4. **Caching** — on block and destruction: `ICacheProvider.RemoveByPatternAsync($"{QueryCacheOptions.KeyPrefix}:*:{entityType}:*")` for each blocked entity type (EF's `QueryCacheInterceptor` pattern, needed because Dapper/ADO writes bypass it), plus `BlockingOptions.CacheKeyPatterns` declared by the application; `IsBlockedAsync` results are not cached across requests
@@ -749,7 +754,7 @@ REFERENCE FILES:
 
 #### 11g. Benchmark Tests
 
-- `tests/Encina.BenchmarkTests/Encina.Benchmarks/Compliance/Blocking/BlockingFilterBenchmarks.cs` — SQL builder with 0, 1, 2 and 3 composed filters (the Phase 1 refactor touches the hot path of every repository query); or a `.md` justification if the maintainer prefers (OD-3)
+- `tests/Encina.BenchmarkTests/Encina.Benchmarks/Compliance/Blocking/BlockingFilterBenchmarks.cs` — SQL builder with 0, 1, 2 and 3 composed filters (the row-filter prerequisite refactor touches the hot path of every repository query); or a `.md` justification if the maintainer prefers
 
 </details>
 
@@ -790,7 +795,7 @@ REFERENCE FILES:
 2. `changelog.d/1189-blocked-data-state.added.md`; `changelog.d/1189-blocked-data-state.changed.md` (row-filter refactor, tenant-aware repository classes removed, DSR default strategy replaced when blocking is on)
 3. `src/Encina.Compliance.Blocking/README.md`; provider READMEs (Blocking section)
 4. `docs/features/blocked-data-state.md` — how blocking works, configuration, the column convention and SQL snippets per provider, the predicate helper and `WhereNotBlocked()` for application-written queries, disclosure, secure copy, destruction, interaction with retention and DSR; states plainly that queries the application writes itself are the application's part (REQ-005)
-5. ADR-033 (proposed) — composable row filters; blocking persistence on the 10 providers instead of Marten (OD-1); row-level granularity
+5. ADR-033 (proposed) — composable row filters; blocking persistence on the 10 providers plus Marten instead of Marten-only (OD-1, settled 2026-09-23); row-level granularity; plus an ADR-019 addendum recording the exception for this module
 6. `docs/INVENTORY.md`, `PublicAPI.Unshipped.txt` in every touched package
 7. `dotnet build Encina.slnx --configuration Release` → 0 warnings; `dotnet test` → all pass; every coverage flag at its manifest target
 
@@ -984,52 +989,63 @@ REFERENCE FILES:
 
 ## Migration Notes
 
-None for users (pre-1.0). Applications that adopt blocking add the two marker columns (or MongoDB fields) to their blockable tables; the plan ships the SQL snippets per provider and the EF convention. The Phase 1 refactor removes the tenant-aware repository classes; registration helpers keep their names so application code changes only where it referenced the classes directly.
+None for users (pre-1.0). Applications that adopt blocking add the two marker columns (or MongoDB fields) to their blockable tables; the plan ships the SQL snippets per provider and the EF convention. The row-filter prerequisite refactor removes the tenant-aware repository classes; registration helpers keep their names so application code changes only where it referenced the classes directly.
 
 ## Risks
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Phase 1 refactor touches every repository query on 10 providers | Regressions in tenancy isolation | Keep every existing tenancy test; add combination tests; consider a separate `[REFACTOR]` issue (OD-3) |
-| EF Core 10 named query filter API differs from the assumption | EF phase design changes | Verify in Phase 1 before building on it; fallback: one combined lambda per entity |
-| Row-level granularity blocks mixed-category rows whole | Over-blocking of data still needed | Documented; category mapping validation warns when an entity type is mapped to two categories (OD-2) |
+| Row-filter prerequisite touches every repository query on 10 providers | Regressions in tenancy isolation | Keep every existing tenancy test; add combination tests; delivered as its own `[REFACTOR]` issue (OD-3) so it can be reviewed and merged independently |
+| EF Core 10 named query filter API differs from the assumption | EF phase design changes | Verify in the prerequisite issue before building on it; fallback: one combined lambda per entity |
+| Row-level granularity blocks mixed-category rows whole | Over-blocking of data still needed | Documented; category mapping validation warns when an entity type is mapped to two categories (OD-2, settled 2026-09-23: row-level markers accepted) |
 | Application-written SQL forgets the predicate | Blocked data visible (the application's part) | Helper, EF extension, feature page, analyzer as a later idea; the reference scenario proves the pattern |
 | Destruction depends on the application's optional ports | Data outside Encina not destroyed | Health check shows overdue destructions; the port failure keeps the block `DestructionFailed` and retried |
-| Scope size (~190 files) | Long-running PR, hard review | Split into sub-issues along the phases (OD-12) |
+| Scope size (~190 files) | Long-running PR, hard review | Split into sub-issues along the phases (OD-12, settled 2026-09-23) |
 
 ---
 
-## Open Decisions for the Maintainer
+## Decisions (settled 2026-09-23)
 
-1. **OD-1 — Persistence of block records.** A store on the 10 providers plus Marten, with evidence in the audit trail (the plan's recommendation, so that blocking works where the application's data lives and in the same transaction), or an event-sourced `BlockAggregate` on Marten as ADR-019 does for the other compliance modules (PostgreSQL only)?
-2. **OD-2 — Granularity.** Row-level markers with a category-to-entity-type mapping, blocking mixed-category rows whole (the plan), or field-level blocking with a vault for field values?
-3. **OD-3 — Row-filter composition.** Land the composable-filter refactor of the 10 providers as Phase 1 of this issue, or as a separate `[REFACTOR]` issue first? It also fixes tenant and soft-delete filters that cannot combine today.
-4. **OD-4 — When blocking replaces deletion.** Per jurisdiction, does every DSR erasure and every retention expiry block first (the literal reading of LOPDGDD art. 32.1 for Spain), or only data retained after a refused erasure (the S14 wording)? What is the default for a tenant with no jurisdiction configured (the plan: no blocking unless configured)?
-5. **OD-5 — Limitation periods and the DSR strategy.** (a) No default limitation period, start-up failure when a blockable category has none (the plan), or a 5-year default (Código Civil art. 1964.2, [K])? (b) Does `BlockingErasureStrategy` belong to this issue or to P-02 (#1188)?
-6. **OD-6 — Dependency direction with Retention.** `Encina.Compliance.Blocking` references `Encina.Compliance.Retention` (for the floor query and holds) and Retention exposes a port that Blocking implements (the plan), or both talk through ports in a shared package?
-7. **OD-7 — Release roles.** Free-form role strings configured by the application and checked against the actor's roles (the plan), or a fixed enum of statutory roles (court, prosecutor, supervisory authority) plus custom ones? Should the check go through ABAC (`Encina.Security.ABAC`) instead of claims?
-8. **OD-8 — Floor after a secure copy.** Once an art. 32.4 secure copy exists, may the original be destroyed before the retention floor ends (the copy keeps the data), or does the floor still bind the original (the plan)?
-9. **OD-9 — Superseded versions.** A blocked-version vault on the 10 providers and Marten (the plan), temporal tables where available, or leave versions to the application?
-10. **OD-10 — Shared data-category vocabulary.** Retention (string), DSR (`PersonalDataCategory` enum), blocking (string) and read audit (P-05, string) name categories differently. Introduce one shared category type in core now, or map at each boundary?
-11. **OD-11 — Unblocking.** May blocked data ever be unblocked (a returning patient, a mistaken block), and if so by whom and with what audit? Linked to P-01 OD-2.
-12. **OD-12 — Delivery.** One issue as planned, or split into sub-issues (filters refactor; core and disclosure; providers; Marten; vault; retention and DSR wiring)?
+1. **OD-1 — Persistence of block records.** A store on the 10 providers plus Marten, with evidence in the audit trail, or an event-sourced `BlockAggregate` on Marten as ADR-019 does for the other compliance modules (PostgreSQL only)?
+   **Decision:** a store on the 10 providers plus Marten, with evidence in the audit trail. This deliberately departs from ADR-019 for this module, because blocking must commit in the same transaction as the application's own data; ADR-019 needs an addendum recording the exception (planned alongside ADR-033, Phase 10).
+2. **OD-2 — Granularity.** Row-level markers with a category-to-entity-type mapping, blocking mixed-category rows whole, or field-level blocking with a vault for field values?
+   **Decision:** row-level markers, as the plan implements.
+3. **OD-3 — Row-filter composition.** Land the composable-filter refactor of the 10 providers as Phase 1 of this issue, or as a separate `[REFACTOR]` issue first?
+   **Decision:** the composable row-filter refactor of the 10 providers becomes its own `[REFACTOR]` issue (issue to be opened) that lands **before** this plan, as a prerequisite. It has been removed from this plan's Phase 1 (see the "Prerequisite" section above); this plan's phases are numbered from Phase 2.
+4. **OD-4 — When blocking replaces deletion.** Per jurisdiction, does every DSR erasure and every retention expiry block first (the literal reading of LOPDGDD art. 32.1 for Spain), or only data retained after a refused erasure (the S14 wording)? What is the default for a tenant with no jurisdiction configured?
+   **Decision:** blocking depends on the jurisdiction. For Spain, every DSR erasure and every retention expiry blocks first (literal reading of LOPDGDD art. 32.1). A tenant with no jurisdiction configured does not block.
+5. **OD-5 — Limitation periods and the DSR strategy.** (a) No default limitation period, start-up failure when a blockable category has none, or a 5-year default (Código Civil art. 1964.2, [K])? (b) Does `BlockingErasureStrategy` belong to this issue or to P-02 (#1188)?
+   **Decision:** (a) no default limitation period; start-up fails when a blockable category has none, as the plan implements. (b) `BlockingErasureStrategy` belongs to this issue.
+6. **OD-6 — Dependency direction with Retention.** `Encina.Compliance.Blocking` references `Encina.Compliance.Retention` (for the floor query and holds) and Retention exposes a port that Blocking implements, or both talk through ports in a shared package?
+   **Decision:** Blocking references Retention, and Retention exposes a port that Blocking implements, as the plan implements.
+7. **OD-7 — Release roles.** Free-form role strings configured by the application and checked against the actor's roles, or a fixed enum of statutory roles plus custom ones? Should the check go through ABAC instead of claims?
+   **Decision:** free-form role strings checked against the actor's roles, as the plan implements. ABAC (`Encina.Security.ABAC`) integration is optional and not required.
+8. **OD-8 — Floor after a secure copy.** Once an art. 32.4 secure copy exists, may the original be destroyed before the retention floor ends, or does the floor still bind the original?
+   **Decision:** the retention floor still binds the original after a secure copy, as the plan implements.
+9. **OD-9 — Superseded versions.** A blocked-version vault on the 10 providers and Marten, temporal tables where available, or leave versions to the application?
+   **Decision:** a blocked-version vault on the 10 providers and Marten, as the plan implements.
+10. **OD-10 — Shared data-category vocabulary.** Retention (string), DSR (`PersonalDataCategory` enum), blocking (string) and read audit (P-05, string) name categories differently.
+    **Decision:** introduce one shared data-category type in core `Encina` now, used by Retention, DSR, Blocking and read audit. The migration of existing modules onto it is planned within this plan's phases or as a prerequisite issue (issue to be opened: migrate Retention, DSR and read audit's free-form category strings and the DSR `PersonalDataCategory` enum onto the shared core type).
+11. **OD-11 — Unblocking.** May blocked data ever be unblocked, and if so by whom and with what audit? Linked to P-01 OD-2.
+    **Decision:** unblocking is allowed only through an explicit operation, requiring a configured role and a mandatory reason, and writing an audit entry. It never happens automatically (including on a new retention anchor, P-01 OD-2).
+12. **OD-12 — Delivery.** One issue as planned, or split into sub-issues?
+    **Decision:** split into sub-issues (issues to be opened): core and disclosure; providers; Marten; vault; retention and DSR wiring. The row-filter refactor is already its own separate prerequisite issue under OD-3.
 
 ## Spec Gaps Found
 
-- REQ-005 blocks "data" by category, but relational storage is by row; a row mixing categories cannot be blocked for one category without field-level machinery (OD-2).
-- REQ-005 requires blocking "versions superseded by a rectification", but Encina keeps no previous versions except in the SQL Server and PostgreSQL temporal repositories (OD-9).
-- REQ-005 does not state whether, under LOPDGDD art. 32, every erasure blocks first or only refused or retained data does (OD-4); S14 describes only the latter.
+- REQ-005 blocks "data" by category, but relational storage is by row; a row mixing categories cannot be blocked for one category without field-level machinery (OD-2, resolved: row-level markers accepted, mixed-category rows blocked whole).
+- REQ-005 requires blocking "versions superseded by a rectification", but Encina keeps no previous versions except in the SQL Server and PostgreSQL temporal repositories (OD-9, resolved with the blocked-version vault).
+- REQ-005 does not state whether, under LOPDGDD art. 32, every erasure blocks first or only refused or retained data does (OD-4, resolved: jurisdiction-dependent, Spain blocks first).
 - REQ-005 assumes a working deletion path to replace, but DSR's default `HardDeleteErasureStrategy` deletes nothing, and no relational `IPersonalDataLocator` exists yet (P-45, #1248).
-- The repository layer has no filter composition: tenant and soft-delete filters live in separate repository classes on Dapper, ADO and MongoDB; the Dapper and ADO soft-delete builders are unused; EF Core's unnamed filters replace each other on an entity that is both tenant-scoped and soft-deletable (to be verified; if confirmed, a tenant filter can be lost, which is a defect of its own).
+- The repository layer has no filter composition: tenant and soft-delete filters live in separate repository classes on Dapper, ADO and MongoDB; the Dapper and ADO soft-delete builders are unused; EF Core's unnamed filters replace each other on an entity that is both tenant-scoped and soft-deletable (to be verified; if confirmed, a tenant filter can be lost, which is a defect of its own). Fixed by the OD-3 prerequisite issue.
 - `ISoftDeleteFilterContext`/`IIncludeDeleted` are set by `SoftDeleteQueryFilterBehavior` but read by nothing.
-- The data-category vocabulary differs across Retention, DSR, blocking and read audit (OD-10).
+- The data-category vocabulary differs across Retention, DSR, blocking and read audit (OD-10, resolved with a shared core type).
 - REQ-062 asks for a health check where a checkable dependency exists; the issue marked it N/A.
 
 ---
 
 ## Next Steps
 
-1. Review and approve this plan; decide OD-1 … OD-12
-2. Link it from issue #1189
-3. Decide OD-3 and OD-12 before starting; Phase 1 can begin in parallel with P-01
-4. One commit per phase; the final commit references `Fixes #1189`
+1. OD-1 … OD-12 are settled (2026-09-23); link this plan from issue #1189
+2. Open the prerequisite `[REFACTOR]` issue (OD-3) and the sub-issues of OD-12 and OD-10 before starting
+3. One commit per phase; the final commit references `Fixes #1189`
