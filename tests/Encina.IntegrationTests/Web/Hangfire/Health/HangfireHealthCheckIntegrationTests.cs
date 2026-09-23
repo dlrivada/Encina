@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Encina.Hangfire.Health;
 using Encina.Messaging.Health;
 using Hangfire;
@@ -11,19 +12,20 @@ namespace Encina.IntegrationTests.Web.Hangfire.Health;
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Scheduler", "Hangfire")]
-public sealed class HangfireHealthCheckIntegrationTests : IDisposable
+public sealed class HangfireHealthCheckIntegrationTests : IAsyncLifetime, IDisposable
 {
     private readonly ServiceProvider _serviceProvider;
     private readonly BackgroundJobServer _server;
+    private readonly InMemoryStorage _storage;
 
     public HangfireHealthCheckIntegrationTests()
     {
         var services = new ServiceCollection();
 
         // Configure Hangfire with in-memory storage
-        var storage = new InMemoryStorage();
-        GlobalConfiguration.Configuration.UseStorage(storage);
-        services.AddSingleton<JobStorage>(storage);
+        _storage = new InMemoryStorage();
+        GlobalConfiguration.Configuration.UseStorage(_storage);
+        services.AddSingleton<JobStorage>(_storage);
 
         _serviceProvider = services.BuildServiceProvider();
 
@@ -32,6 +34,27 @@ public sealed class HangfireHealthCheckIntegrationTests : IDisposable
         {
             ServerName = "TestServer"
         });
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        // BackgroundJobServer announces itself on a background thread; wait for it instead of racing the health check.
+        var deadline = Stopwatch.StartNew();
+        while (_storage.GetMonitoringApi().GetStatistics().Servers == 0)
+        {
+            if (deadline.Elapsed > TimeSpan.FromSeconds(10))
+            {
+                throw new InvalidOperationException("Hangfire BackgroundJobServer did not announce itself within 10 s.");
+            }
+
+            await Task.Delay(25);
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
+        return ValueTask.CompletedTask;
     }
 
     [Fact]
