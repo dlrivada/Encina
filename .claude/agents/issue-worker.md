@@ -60,4 +60,20 @@ Spawn `mechanical-fixer` in the foreground on your worktree and make no edits un
 
 ## Report
 
-End with: summary of changes (files), verification commands and their actual output, the delegation section, and any follow-up that should become an issue (described, not opened). Include token usage: each nested spawn's usage, and each local-AI ledger line (`artifacts/local-ai/ledger.csv` in the worktree), copied verbatim.
+End with: summary of changes (files), verification commands and their actual output, the self-review result (findings fixed, minor findings left), the delegation section, and the follow-up issue files. Include token usage: each nested spawn's usage, and each local-AI ledger line (`artifacts/local-ai/ledger.csv` in the worktree), copied verbatim.
+
+Follow-up issues: write each one as a complete issue file, never open it. The orchestrator then only runs `gh issue create` and keeps the long text out of its context.
+
+- Path: `<worktree>/artifacts/issues/<slug>.md` (git-ignored), written with the Write tool.
+- Body: the headers of `.github/ISSUE_TEMPLATE/<template>.md` verbatim and in order, every section filled, the applicable checkboxes ticked (`[x]`); read the template first (see the `open-issue` skill, §1–2).
+- Header: the file starts with this block, which the `open-issue` skill parses and strips:
+
+  ```text
+  <!-- issue
+  title: [DEBT] Specific title with the template prefix
+  labels: technical-debt, area-x
+  milestone: <milestone, or empty>
+  -->
+  ```
+
+- List the paths in the report with one line each (title and why). You may draft bodies in bulk with the `local-ai-task` skill; check every header and fact before you list the file.

@@ -789,6 +789,7 @@ A review of the 2026-09-22/24 sessions (about 20 PRs and 40 issues run by an orc
 3. **Main-checkout guard.** Workers wrote into the main checkout three times, through relative paths in `[IO.File]` calls that .NET resolves against the process directory. The `block-main-checkout-writes` hook now denies, for the writing agents, any write or working-tree git command aimed at the main checkout rather than a worktree.
 4. **Edit tool only for source files.** A PowerShell `-replace` corrupted six files in #1159. Workers now edit repo source files only with the Edit and Write tools, and the same hook blocks `-replace`, `Set-Content`, `Out-File`, `[IO.File]` and redirection writes to them.
 5. **Turn limits.** `mechanical-fixer` goes from 30 to 50 turns and `issue-worker` from 80 to 120. Both limits were hit, and every resume re-reads the context it had already paid for.
+6. **Issue bodies from workers.** Workers write each follow-up as a complete issue file in the template format under `artifacts/issues/` and list the paths; the orchestrator creates the issue from the file through the `open-issue` skill, so long issue texts stay out of its context.
 
 ---
 

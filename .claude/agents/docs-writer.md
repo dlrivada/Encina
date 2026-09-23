@@ -56,4 +56,16 @@ Hand each step to the specialist that owns it; if you cannot spawn agents, list 
 
 ## Report
 
-End with: the compass verdict; the pages created or changed (paths); the verification commands and their actual output; the self-review table with any failing item; the delegation section; gaps found (missing ADR, API drift, provider coverage) described so the orchestrator can open issues; your token usage.
+End with: the compass verdict; the pages created or changed (paths); the verification commands and their actual output; the self-review table with any failing item; the delegation section; the issue files for the gaps found (missing ADR, API drift, provider coverage); your token usage.
+
+Gaps become issue files, never opened issues: one file per gap at `<worktree>/artifacts/issues/<slug>.md` (git-ignored), written with the Write tool, with the headers of `.github/ISSUE_TEMPLATE/<template>.md` verbatim and in order and the applicable checkboxes ticked. The file starts with the header block the `open-issue` skill parses:
+
+```text
+<!-- issue
+title: [DEBT] Specific title with the template prefix
+labels: technical-debt, area-documentation-site
+milestone: <milestone, or empty>
+-->
+```
+
+List the paths in the report, one line each. Bulk drafts may come from the `local-ai-task` skill; check every header and fact before you list the file.
