@@ -92,7 +92,9 @@ Request → [DataResidencyPipelineBehavior] (pre-handler validation)
                  |   +-- Failure + Warn mode → Proceed without validation
                  +-- Step 4: [DataResidency] → Check allowed regions via IDataResidencyPolicy
                  |   +-- Region not allowed + Block → Return error
-                 |   +-- Adequacy required but missing + Block → Return error
+                 |   +-- RequireAdequacyDecision=true → ask IRecipientCertificationResolver
+                 |   |   for a partial-adequacy region (US, CA), then IAdequacyDecisionProvider
+                 |   +-- Adequacy required but missing or not certified + Block → Return error
                  +-- Step 5: [NoCrossBorderTransfer] → Record constraint in audit trail
                  +-- Step 6: Call next handler
                  +-- Step 7: Record data location (on success, if TrackDataLocations enabled)
@@ -448,6 +450,35 @@ services.AddEncinaDataResidency(options =>
             protectionLevel: DataProtectionLevel.High));
 });
 ```
+
+### IRecipientCertificationResolver
+
+Calling `ICrossBorderTransferValidator.ValidateTransferAsync` or `IAdequacyDecisionProvider.HasAdequacy` directly means the caller supplies `isRecipientCertified` explicitly, as in the examples above. `DataResidencyPipelineBehavior<TRequest, TResponse>`, which runs automatically for every `[DataResidency(RequireAdequacyDecision = true)]` request, has no such caller to ask — it resolves the current region's certification through `IRecipientCertificationResolver` instead:
+
+```csharp
+public interface IRecipientCertificationResolver
+{
+    ValueTask<bool> IsCertifiedAsync(
+        Region destination,
+        string dataCategory,
+        CancellationToken cancellationToken = default);
+}
+```
+
+The package registers `NullRecipientCertificationResolver` as the default (via `TryAddSingleton` in `AddEncinaDataResidency`), which always answers `false` — **fail closed**: a partial-adequacy region (US, Canada) is treated as not adequate until the application registers its own resolver, for example one backed by a DPF registry lookup or an internal certified-vendor list:
+
+```csharp
+services.AddSingleton<IRecipientCertificationResolver, DpfRegistryCertificationResolver>();
+
+services.AddEncinaDataResidency(options =>
+{
+    options.EnforcementMode = DataResidencyEnforcementMode.Block;
+});
+```
+
+When the pipeline behavior denies a request because certification was not confirmed, the error message distinguishes that case ("has a partial adequacy decision that requires recipient certification … which was not confirmed") from a region that has no adequacy decision at all.
+
+> **Known risk**: the EU-US Data Privacy Framework adequacy decision is under appeal before the CJEU (case C-703/25 P). If the decision is annulled or narrowed, `TransferBasis.DataPrivacyFramework` and every `IRecipientCertificationResolver` implementation backed by DPF certification stop being a valid basis for US transfers; applications should have a fallback mechanism (SCCs) ready. See [Cross-Border Transfer Validation](cross-border-transfer.md) for the equivalent resolver usage in `TransferBlockingPipelineBehavior`.
 
 ---
 

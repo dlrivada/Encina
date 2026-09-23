@@ -166,7 +166,7 @@ var transferResult = await approvedTransferService.ApproveTransferAsync(
     sourceCountryCode: "DE",
     destinationCountryCode: "US",
     dataCategory: "personal-data",
-    basis: TransferBasis.StandardContractualClauses,
+    basis: TransferBasis.SCCs,
     sccAgreementId: sccId,
     tiaId: tiaId,
     approvedBy: "dpo@example.com");
@@ -208,7 +208,9 @@ The `ITransferValidator` evaluates transfers through a cascading chain:
 
 ```
 1. Adequacy Decision (Art. 45)
-   ├── Country has EU adequacy decision? → ALLOWED (AdequacyDecision)
+   ├── Country has an unconditional EU adequacy decision? → ALLOWED (AdequacyDecision)
+   ├── Country has a partial adequacy decision (US, CA) and TransferRequest.IsRecipientCertified
+   |   is true? → ALLOWED (DataPrivacyFramework for US, AdequacyDecision for CA)
    └── No → continue
 
 2. Approved Transfer Check
@@ -216,7 +218,7 @@ The `ITransferValidator` evaluates transfers through a cascading chain:
    └── No → continue
 
 3. SCC Agreement Check (Art. 46)
-   ├── Valid SCC agreement for this route? → ALLOWED (StandardContractualClauses)
+   ├── Valid SCC agreement for this route? → ALLOWED (SCCs)
    └── No → continue
 
 4. TIA Check (Schrems II)
@@ -228,6 +230,37 @@ The `ITransferValidator` evaluates transfers through a cascading chain:
 ```
 
 The first matching mechanism determines the `TransferBasis`. If none applies, the transfer is blocked.
+
+### Partial Adequacy: US and Canada
+
+The US (EU-US Data Privacy Framework, Commission Implementing Decision (EU) 2023/1795) and Canada (PIPEDA) adequacy decisions are **partial**: they only cover, respectively, US organisations certified under the DPF and Canadian commercial organisations covered by PIPEDA. `Region.RequiresRecipientCertification` (`Encina.Compliance.DataResidency.Model.Region`) is `true` for `RegionRegistry.US` and `RegionRegistry.CA`.
+
+`TransferRequest.IsRecipientCertified` carries the confirmation into `ITransferValidator.ValidateAsync`: when `true`, and the destination has a partial adequacy decision, the transfer is allowed under Art. 45 (reported as `TransferBasis.DataPrivacyFramework` for the US, `TransferBasis.AdequacyDecision` for Canada); when `false` (the default), the destination is treated as not adequate and the chain falls through to the approved-transfer, SCC, and TIA steps.
+
+`TransferBlockingPipelineBehavior`, which enforces `[RequiresCrossBorderTransfer]` automatically, has no direct caller to set `IsRecipientCertified` from. It resolves the flag itself through `IRecipientCertificationResolver` (`Encina.Compliance.DataResidency.Abstractions`) before building the `TransferRequest`:
+
+```csharp
+public interface IRecipientCertificationResolver
+{
+    ValueTask<bool> IsCertifiedAsync(
+        Region destination,
+        string dataCategory,
+        CancellationToken cancellationToken = default);
+}
+```
+
+`AddEncinaCrossBorderTransfer` registers `NullRecipientCertificationResolver` as the default (`TryAddSingleton`), which always answers `false` — **fail closed**. Register your own implementation (for example, backed by a DPF registry lookup) before calling `AddEncinaCrossBorderTransfer` to let the pipeline behavior confirm certification automatically:
+
+```csharp
+services.AddSingleton<IRecipientCertificationResolver, DpfRegistryCertificationResolver>();
+
+services.AddEncinaCrossBorderTransfer(options =>
+{
+    options.EnforcementMode = CrossBorderTransferEnforcementMode.Block;
+});
+```
+
+> **Known risk**: the EU-US Data Privacy Framework adequacy decision is under appeal before the CJEU (case C-703/25 P). If the decision is annulled or narrowed, `TransferBasis.DataPrivacyFramework` stops being a valid basis for US transfers under Art. 45; applications relying on it should keep a fallback mechanism such as Standard Contractual Clauses (`TransferBasis.SCCs`) ready. See [ADR-014](../architecture/adr/014-data-residency-gdpr-chapter-v.md) and the `Encina.Compliance.DataResidency` package README for the same note.
 
 ---
 
@@ -243,15 +276,18 @@ Draft → RiskAssessed → PendingDPOReview → Approved/Rejected
 
 ### Risk Assessment
 
-The `ITIARiskAssessor` assigns risk scores based on destination country characteristics:
+The `ITIARiskAssessor` assigns risk scores based on destination country characteristics. `DefaultTIARiskAssessor` (`src/Encina.Compliance.CrossBorderTransfer/Services/DefaultTIARiskAssessor.cs`) implements a heuristic, lowest-to-highest ordering of factors rather than a fixed lookup table:
 
-| Country Category | Risk Score Range | Examples |
-|------------------|------------------|----------|
-| EU/EEA | 0.0 - 0.1 | DE, FR, NL |
-| Adequacy Decision | 0.1 - 0.3 | JP, NZ, KR |
-| Partial Adequacy | 0.3 - 0.5 | CA (PIPEDA) |
-| No Adequacy | 0.5 - 0.7 | US, IN, BR |
-| High Surveillance | 0.7 - 0.9 | CN, RU |
+| Factor | Effect on the score | Examples |
+|--------|---------------------|----------|
+| Country has an EU adequacy decision, confirmed via `IAdequacyDecisionProvider.HasAdequacy(region)` | Lowest — the assessment stops here | DE, FR, NL, JP, NZ, KR |
+| Country has a partial adequacy decision (US, CA) | Scored as **not** adequate: `DefaultTIARiskAssessor` calls `HasAdequacy` without confirming recipient certification, so it never reaches `isRecipientCertified: true` and US/CA fall through to the next factors, fail closed like the rest of the resolver-based checks in this package | US, CA |
+| No adequacy decision at all | Higher baseline than an adequate country | IN, BR |
+| Member of the Five Eyes / Nine Eyes / Fourteen Eyes intelligence-sharing alliances | Increases further, decreasing with alliance size | US, GB, CA (Five Eyes); DE, ES, IT (Fourteen Eyes) |
+| Known extensive government surveillance legislation | Highest bracket | CN, RU, IR |
+| Sensitive data category (GDPR Art. 9) | Adds a fixed increment on top of the above | health-data, genetic-data |
+
+Register a custom `ITIARiskAssessor` to replace this heuristic with your organization's own risk methodology, or one that consults `IRecipientCertificationResolver` before scoring US/CA transfers.
 
 ### Supplementary Measures
 
@@ -303,7 +339,7 @@ var result = await approvedTransferService.ApproveTransferAsync(
     sourceCountryCode: "DE",
     destinationCountryCode: "US",
     dataCategory: "personal-data",
-    basis: TransferBasis.StandardContractualClauses,
+    basis: TransferBasis.SCCs,
     sccAgreementId: sccId,
     tiaId: tiaId,
     approvedBy: "dpo@example.com",
