@@ -59,7 +59,7 @@ This plan makes read audit evidential:
 ### Rationale
 
 - The decorator audits `GetByIdAsync`, both `ListAsync`, `FirstOrDefaultAsync` and the three `GetPagedAsync`; `CountAsync` and `AnyAsync` expose no entity data and pass through (as today); writes pass through.
-- Whether the old `AuditedRepository`/`AuditedReadOnlyRepository` are removed (pre-1.0, no users) or kept for `ISoftDeleteRepository`/`ITemporalRepository` users is OD-1; the plan removes them and adds the decorator for `ITemporalRepository` only if the maintainer wants temporal reads audited.
+- Per OD-1 (settled 2026-09-23), the old `AuditedRepository`, `AuditedReadOnlyRepository` and `SensitiveDataAccessedNotification` are removed (pre-1.0, no users); no ADR is needed to record keeping both decorator families, since they are not kept.
 - Registration helper: `services.AddReadAuditedRepository<Patient, Guid>()` replaces the `IFunctionalRepository<Patient,Guid>` descriptor with a factory that wraps the previous one (no Scrutor dependency).
 
 </details>
@@ -101,7 +101,7 @@ This plan makes read audit evidential:
 ### Rationale
 
 - `ReadAuditEntityRegistration<TEntity>` holds `Func<TEntity, string?> SubjectAccessor`, `Func<TEntity, string?> EntityIdAccessor` (default `IEntity<TId>.Id.ToString()`), `string? DataCategory`, `ReadAuditFailureMode? FailureMode`, `PurposeEnforcement? PurposeEnforcement`.
-- Subject ids of any type (string, `Guid`, strongly-typed ids) are converted with the same rules as the DSR subject extractor of #1149 (`DefaultDataSubjectIdExtractor`), so a subject id reads the same in DSR, consent and read audit. P-06 (#1194) resolves subjects from requests and responses and should share the conversion; OD-3 asks whether to extract a shared `IDataSubjectIdConverter` into core now.
+- Subject ids of any type (string, `Guid`, strongly-typed ids) are converted with the same rules as the DSR subject extractor of #1149 (`DefaultDataSubjectIdExtractor`), so a subject id reads the same in DSR, consent and read audit. Per OD-3 (settled 2026-09-23), a shared `IDataSubjectIdConverter` is extracted into core `Encina` now, so that DSR (#1149), read audit (this plan) and query-level audit (P-06, #1194) convert subject ids identically.
 - `AuditReadsFor<TEntity>(double samplingRate)` stays for non-evidential auditing; the validator rejects a sampling rate below 1.0 for an entity type whose failure mode is `FailClosed` or whose category is special.
 
 </details>
@@ -122,8 +122,8 @@ This plan makes read audit evidential:
 ### Rationale
 
 - Order in the decorator: purpose check (reject before reading) → inner read → build entries from the returned entities → `LogReadsAsync` → return the data or `Left(read_audit.audit_write_failed)` in fail-closed mode.
-- EF Core: `ReadAuditStoreEF` writes through its own `DbContext` instance from `IDbContextFactory<TContext>` when one is registered (or a dedicated scope), never `SaveChangesAsync` on the application's context, so an audited read never commits the application's pending changes (OD-9 covers the registration requirement).
-- Default failure mode: `ReadAuditOptions.FailureMode = FailClosed` (SPEC-002 INV-005 and DEC-006: compliance-relevant behaviour fails closed unless an explicit, logged opt-out says otherwise); `FailOpen` is the opt-out, logged once at start-up. OD-4 asks the maintainer to confirm the default.
+- EF Core: `ReadAuditStoreEF` writes through its own `DbContext` instance from `IDbContextFactory<TContext>` when one is registered (or a dedicated scope), never `SaveChangesAsync` on the application's context, so an audited read never commits the application's pending changes. Per OD-9 (settled 2026-09-23), `IDbContextFactory<TContext>` is required for the EF read-audit store (the "dedicated scope" fallback described above is not used).
+- Default failure mode: `ReadAuditOptions.FailureMode = FailClosed` (SPEC-002 INV-005 and DEC-006: compliance-relevant behaviour fails closed unless an explicit, logged opt-out says otherwise); `FailOpen` is the opt-out, logged once at start-up. Per OD-4 (settled 2026-09-23), fail-closed by default is confirmed.
 - Fail-closed with the in-memory store outside the `Development` environment fails at start-up (`ReadAuditStartupValidator`), so evidence is never silently kept in memory.
 
 </details>
@@ -142,7 +142,7 @@ This plan makes read audit evidential:
 
 ### Rationale
 
-- `Reject` returns `Left(ReadAuditErrors.PurposeRequired(entityType, userId))` **before** the inner read, so no data is read without a declared purpose; the rejection is metered and logged (no entry is written, since nothing was read; OD-6 asks whether a refused attempt should also be recorded as an audit entry).
+- `Reject` returns `Left(ReadAuditErrors.PurposeRequired(entityType, userId))` **before** the inner read, so no data is read without a declared purpose; the rejection is metered and logged. Per OD-6 (settled 2026-09-23), a read rejected by purpose enforcement also records an audit entry of the attempt (no data read, but the refusal itself is evidenced), in addition to the log and the metric.
 - `IReadAuditContext.WithPurpose` remains the way to declare a purpose; P-03's disclosure scope sets it automatically.
 
 </details>
@@ -162,11 +162,11 @@ This plan makes read audit evidential:
 
 ### Rationale
 
-- `ReadAuditRetentionOptions`: `DefaultPeriod` (calendar period, default 365 days as today), `CategoryPeriods` (map), `SpecialCategories` (set; empty by default: which categories are special is the application's legal decision), `SpecialCategoryDefaultPeriod` (default **3 years**, calendar arithmetic; XML doc and README: "a documented recommendation, not a legal requirement").
+- `ReadAuditRetentionOptions`: `DefaultPeriod` (calendar period, default 365 days as today), `CategoryPeriods` (map), `SpecialCategories` (set; empty by default: which categories are special is the application's legal decision), `SpecialCategoryDefaultPeriod` (default **3 years**, calendar arithmetic; XML doc and README: "a documented recommendation, not a legal requirement"). Per OD-11 (settled 2026-09-23), per-category retention is a deployment-level default that each tenant may override, consistent with P-01 OD-4, and a tenant override may only lengthen the period, never shorten it.
 - New store method `PurgeEntriesAsync(ReadAuditPurgeCriteria criteria, CancellationToken)` with `OlderThanUtc`, `DataCategory` (exact) or `ExcludeCategories` (for the default bucket), `TenantId?`; the old `PurgeEntriesAsync(DateTimeOffset)` is removed.
 - `ReadAuditRetentionService` computes one cutoff per category from `TimeProvider` and purges each; entries without a category use the default bucket. Moving it to Encina scheduling stays with #767.
-- The period type: OD-7 asks whether P-01's `CalendarPeriod` moves to core `Encina` so that read audit (which does not reference Retention) uses the same type; otherwise read audit carries its own `(Years, Months, Days)` value.
-- Marten: purge is crypto-shredding of time-period keys (ADR-020). Per-category retention re-keys read-audit entries by `(category, period)` so that destroying the keys of one category's expired periods leaves other categories readable (OD-8).
+- The period type: per OD-7 (settled 2026-09-23), read audit uses P-01's `CalendarPeriod` from core `Encina` (P-01 OD-6) rather than carrying its own `(Years, Months, Days)` value.
+- Marten: purge is crypto-shredding of time-period keys (ADR-020). Per OD-8 (settled 2026-09-23), per-category retention re-keys read-audit entries by `(category, period)` so that destroying the keys of one category's expired periods leaves other categories readable.
 
 </details>
 
@@ -186,7 +186,7 @@ This plan makes read audit evidential:
 
 - `ReadAuditSubjectQuery(string? TenantId, string DataSubjectId, DateTimeOffset FromUtc, DateTimeOffset ToUtc, string? DataCategory = null, int PageNumber = 1, int PageSize = 100)`; `SubjectAccessRecord(DateTimeOffset AccessedAtUtc, string? UserId, string EntityType, string? EntityId, string? DataCategory, string? Purpose, ReadAccessMethod AccessMethod, string? CorrelationId)`; result `PagedResult<SubjectAccessRecord>`.
 - Tenant: `IReadAuditQueryService.GetAccessesForSubjectAsync(subjectId, fromUtc, toUtc, …)` takes the tenant from `IRequestContext` and fails closed (`Left(read_audit.tenant_required)`) when tenancy is on and there is none; the store method takes the tenant explicitly for background exports. Tenant filtering of the other existing queries is #798.
-- `DataSubjectId` storage: plaintext and indexed in the relational and document stores, like `EntityId` today; on Marten it is a read-model field (the event encrypts it with the entry's key, as it does `UserId`). OD-5 asks whether to store a keyed hash instead.
+- Per OD-5 (settled 2026-09-23), `DataSubjectId` is **not** stored in plaintext. It is stored as a keyed hash (HMAC with a per-tenant key), indexed in the relational and document stores in place of the plaintext `EntityId`-like column; on Marten the read-model field holds the same keyed hash. `GetAccessesForSubjectAsync` and every other subject-id query hash their input with the same per-tenant key before querying, so lookups still work without ever persisting or logging the plaintext subject id. This changes the store schema (a `DataSubjectIdHash` column instead of `DataSubjectId`), the stores, the tests and the threat model notes (Phase 12) accordingly.
 
 </details>
 
@@ -301,7 +301,7 @@ REFERENCE FILES:
    - A subject accessor that throws or returns null for a registered subject type: `Left(read_audit.subject_unresolved)` in fail-closed mode (no silent fallback, as #1149 requires for DSR), warning in fail-open mode
 2. **`ReadAuditRepositoryServiceCollectionExtensions.AddReadAuditedRepository<TEntity,TId>()`** (new) — decorates the registered `IFunctionalRepository<TEntity,TId>` and `IFunctionalReadRepository<TEntity,TId>`; throws at registration when no inner registration exists
 3. **`AuditedRepository.cs`, `AuditedReadOnlyRepository.cs`** — removed (OD-1)
-4. **`Notifications/SensitiveDataAccessedNotification.cs`** — removed (published by nothing), or published on fail-closed special-category reads if the maintainer prefers (listed under OD-1)
+4. **`Notifications/SensitiveDataAccessedNotification.cs`** — removed (published by nothing; OD-1, settled 2026-09-23)
 
 </details>
 
@@ -395,7 +395,7 @@ REFERENCE FILES:
 #### 5c. EF Core (`Auditing/ReadAuditStoreEF.cs`, `ReadAuditEntryEntityConfiguration.cs`)
 
 1. Properties and indexes as above (`HasFilter(IndexFilters.IsNotNull(...))` as fixed in #1128)
-2. Writes through a dedicated context (`IDbContextFactory<TContext>` when registered, otherwise a new scope), never `SaveChangesAsync` on the application's scoped `DbContext` (OD-9)
+2. Writes through a dedicated context obtained from `IDbContextFactory<TContext>` (required, OD-9 settled 2026-09-23), never `SaveChangesAsync` on the application's scoped `DbContext`
 3. `ModelBuilder.ApplyEncinaReadAudit()` extension so applications stop calling `ApplyConfiguration` by hand
 4. Requires #1135 (exception handling) to have merged, or includes its fix for the read-audit store
 
@@ -556,7 +556,7 @@ REFERENCE FILES:
 
 #### 8f. Load Tests
 
-- `tests/Encina.LoadTests/Security/Audit/ReadAudit/ReadAuditLoadTests.md` exists; update it: awaited writes change the latency profile of audited reads; justify, or add a small NBomber scenario for a paged read of 50 rows with fail-closed auditing (OD-10)
+- `tests/Encina.LoadTests/Security/Audit/ReadAudit/ReadAuditLoadTests.md` exists; update it: awaited writes change the latency profile of audited reads. Per OD-10 (settled 2026-09-23), no NBomber scenario is added; the updated `.md` justification plus the benchmark are enough
 
 #### 8g. Benchmark Tests
 
@@ -639,7 +639,7 @@ REFERENCE FILES:
 3. `src/Encina.Security.Audit/README.md` (the package has none today; #1203 tracks READMEs — coordinate so one PR writes it)
 4. [`docs/features/read-auditing.md`](../features/read-auditing.md) — replace the fire-and-forget diagram, document fail-closed, purpose modes, per-entity registration, the per-subject query, retention per category and the recommendation wording; the example `RetentionDays = 2555` goes
 5. `docs/INVENTORY.md`, `PublicAPI.Unshipped.txt` in every touched package
-6. No ADR needed unless OD-1 keeps both decorator families (then a short ADR records why)
+6. No ADR needed (OD-1, settled 2026-09-23, removes both decorator families rather than keeping either)
 7. `dotnet build Encina.slnx --configuration Release` → 0 warnings; `dotnet test` → all pass; every coverage flag at its target
 
 </details>
@@ -806,7 +806,7 @@ REFERENCE FILES:
 | ContractTests | ✅ | Same store contract on InMemory, 10 providers and Marten | Real instances |
 | PropertyTests | ✅ | Every returned id has an entry; category purge isolation | FsCheck |
 | IntegrationTests | ✅ | 10 providers and Marten; fail-closed end to end; two tenants | Marten test is new |
-| LoadTests | 📄 | Update `ReadAuditLoadTests.md` (or small NBomber scenario, OD-10) | Awaited writes |
+| LoadTests | 📄 | Update `ReadAuditLoadTests.md` (OD-10, settled 2026-09-23: no NBomber scenario) | Awaited writes |
 | BenchmarkTests | ✅ | Entry building for 1/50/500 entities | Replaces `ReadAuditBenchmarks.md` |
 
 ## Public API Changes
@@ -819,7 +819,8 @@ REFERENCE FILES:
 | `AuditedFunctionalRepository<TEntity,TId>`, `AuditedFunctionalReadRepository<TEntity,TId>`, `AddReadAuditedRepository<TEntity,TId>()`, `ModelBuilder.ApplyEncinaReadAudit()` | Added |
 | `IReadAuditStore.PurgeEntriesAsync(DateTimeOffset)` → `PurgeEntriesAsync(ReadAuditPurgeCriteria)` | Changed (breaking) |
 | `ReadAuditOptions.RequirePurpose` → `PurposeEnforcement`; `RetentionDays` → `Retention`; `BatchSize` removed | Changed / removed (breaking) |
-| `AuditedRepository<TEntity,TId>`, `AuditedReadOnlyRepository<TEntity,TId>`, `SensitiveDataAccessedNotification` | Removed (OD-1) |
+| `AuditedRepository<TEntity,TId>`, `AuditedReadOnlyRepository<TEntity,TId>`, `SensitiveDataAccessedNotification` | Removed (OD-1, settled 2026-09-23) |
+| `ReadAuditEntry.DataSubjectId` (plaintext) → `DataSubjectIdHash` (keyed hash) | Changed (breaking, OD-5, settled 2026-09-23) |
 | Provider registration of `IReadAuditStore` uses `Replace` | Changed (behaviour) |
 
 ## Migration Notes
@@ -831,44 +832,53 @@ None for users (pre-1.0). The read-audit tables gain three nullable columns and 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Awaited audit writes add latency to every audited read | Slower reads | Only registered entity types are audited; batch write per read; benchmark and load evidence (Phase 8) |
-| Fail-closed by default makes reads depend on the audit store | Outage of the store blocks clinical reads | Health check; explicit, logged fail-open opt-out; OD-4 |
+| Fail-closed by default makes reads depend on the audit store | Outage of the store blocks clinical reads | Health check; explicit, logged fail-open opt-out (OD-4, settled 2026-09-23) |
 | Unpaged `ListAsync` over large tables writes many entries | Large audit tables | Documented; per-category retention; paging recommended |
 | #1135 not merged | EF store exceptions escape | Include the read-audit part of the #1135 fix in Phase 5 if it has not merged |
 | S13 reads through a Dapper query handler, not a repository | AC-007's S13 cannot pass with this issue alone | P-06 (#1194) provides query-level audit; S13 passes when both land (spec gap below) |
-| Subject ids stored in plaintext | Audit store holds personal data | Same exposure as `EntityId` today; per-category retention; OD-5 offers keyed hashing |
 
 ---
 
-## Open Decisions for the Maintainer
+## Decisions (settled 2026-09-23)
 
-1. **OD-1 — Old decorators.** Remove `AuditedRepository`/`AuditedReadOnlyRepository` (they decorate interfaces no provider implements and nothing registers) and `SensitiveDataAccessedNotification` (published by nothing), as the plan does, or keep them for `ISoftDeleteRepository`/`ITemporalRepository` users and publish the notification on special-category reads?
-2. **OD-2 — Entry granularity.** One entry per returned entity in one batch (the plan), one entry per read with the ids in metadata, or one entry per data subject?
-3. **OD-3 — Subject declaration and sharing with P-06.** Fluent per-entity registration (the plan), attributes, or an entity interface? Extract a shared `IDataSubjectIdConverter` into core now, so that DSR (#1149), read audit (P-05) and query-level audit (P-06) convert subject ids identically?
-4. **OD-4 — Default failure mode.** Fail-closed by default with a logged fail-open opt-out (the plan, following INV-005 and DEC-006), or fail-open by default with fail-closed as an option (the wording of REQ-007: "an option makes the read fail")?
-5. **OD-5 — Storing the subject id.** Plaintext and indexed (the plan, like `EntityId` today), or a keyed hash (HMAC with a tenant key) so that the audit store holds no direct identifier and the query hashes its input?
-6. **OD-6 — Refused attempts.** When purpose enforcement rejects a read, record an audit entry of the attempt (no data read) or only log and meter it (the plan)?
+1. **OD-1 — Old decorators.** Remove `AuditedRepository`/`AuditedReadOnlyRepository` and `SensitiveDataAccessedNotification`, or keep them for `ISoftDeleteRepository`/`ITemporalRepository` users?
+   **Decision:** remove `AuditedRepository`, `AuditedReadOnlyRepository` and `SensitiveDataAccessedNotification`, as the plan implements.
+2. **OD-2 — Entry granularity.** One entry per returned entity in one batch, one entry per read with the ids in metadata, or one entry per data subject?
+   **Decision:** one entry per returned entity, written in one batch, as the plan implements.
+3. **OD-3 — Subject declaration and sharing with P-06.** Fluent per-entity registration, attributes, or an entity interface? Extract a shared `IDataSubjectIdConverter` into core now?
+   **Decision:** fluent per-entity registration, plus a shared `IDataSubjectIdConverter` extracted into core `Encina` now, as the plan implements.
+4. **OD-4 — Default failure mode.** Fail-closed by default with a logged fail-open opt-out, or fail-open by default with fail-closed as an option?
+   **Decision:** fail closed by default, with a logged fail-open opt-out, as the plan implements.
+5. **OD-5 — Storing the subject id.** Plaintext and indexed, or a keyed hash (HMAC with a tenant key)?
+   **Decision:** store the subject id as a keyed hash (HMAC with a per-tenant key), not plaintext. The query hashes its input. The stores, schema, tests and threat model notes are updated accordingly.
+6. **OD-6 — Refused attempts.** Record an audit entry of the attempt, or only log and meter it?
+   **Decision:** a read rejected by purpose enforcement records an audit entry of the attempt (no data read), in addition to the log and the metric.
 7. **OD-7 — Period type.** Move P-01's `CalendarPeriod` into core `Encina` so that read audit and blocking share it, or give read audit its own calendar-period value?
-8. **OD-8 — Marten per-category retention.** Re-key temporal keys by `(category, period)` (the plan), or purge Marten read-audit entries by deletion instead of crypto-shredding for per-category periods?
-9. **OD-9 — EF Core write context.** Require `IDbContextFactory<TContext>` for the EF read-audit store (clean, explicit), or create a dedicated scope per write (works without extra registration, costs a context per read)?
-10. **OD-10 — Load evidence.** Is a small NBomber scenario for fail-closed audited paged reads wanted, or is the updated `.md` justification plus the benchmark enough?
-11. **OD-11 — Retention per tenant.** Is per-category retention a deployment-level setting (the plan), or must each tenant (each practice is its own controller) be able to set its own periods?
+   **Decision:** use P-01's `CalendarPeriod` from core `Encina`.
+8. **OD-8 — Marten per-category retention.** Re-key temporal keys by `(category, period)`, or purge Marten read-audit entries by deletion instead of crypto-shredding for per-category periods?
+   **Decision:** re-key temporal keys by `(category, period)`, as the plan implements.
+9. **OD-9 — EF Core write context.** Require `IDbContextFactory<TContext>` for the EF read-audit store, or create a dedicated scope per write?
+   **Decision:** require `IDbContextFactory<TContext>` for the EF read-audit store, as the plan implements.
+10. **OD-10 — Load evidence.** A small NBomber scenario for fail-closed audited paged reads, or is the updated `.md` justification plus the benchmark enough?
+    **Decision:** no NBomber scenario. The updated `.md` justification plus the benchmark are enough.
+11. **OD-11 — Retention per tenant.** Is per-category retention a deployment-level setting, or must each tenant be able to set its own periods?
+    **Decision:** per-category retention is a deployment default that each tenant may override, only lengthening it, consistent with P-01 OD-4.
 
 ## Spec Gaps Found
 
 - REQ-007 speaks of "collection and paged reads" through repositories, but the read-audit decorators wrap `IRepository`/`IReadOnlyRepository`, which none of the 10 providers implement, and nothing registers them: today no read through Encina's provider repositories is audited. The plan adds the functional-repository decorator.
 - AC-007 lists S13 as passing, but S13 reads through a Dapper query handler (REQ-008, P-06 #1194), which repository audit does not see; S13 needs both P-05 and P-06.
 - REQ-007 does not address sampling (`AuditReadsFor<TEntity>(samplingRate)`), which is incompatible with evidence; the plan rejects sampling for evidential types.
-- REQ-007 does not say whether fail-closed is the default; INV-005 and DEC-006 suggest it is (OD-4).
-- REQ-007 does not consider that the subject id in the audit store is itself personal data (OD-5).
+- REQ-007 does not say whether fail-closed is the default; INV-005 and DEC-006 suggest it is (OD-4, resolved: fail closed).
+- REQ-007 does not consider that the subject id in the audit store is itself personal data (OD-5, resolved: keyed hash, not plaintext).
 - `ReadAuditStoreEF` saves through the application's scoped `DbContext` and the decorator writes concurrently with the caller: a defect beyond REQ-007 that this plan fixes (the changelog lists it under "fixed").
 - Provider registration order silently keeps the in-memory store when `AddEncinaReadAuditing` is called first (ADO and Dapper use `TryAdd`); fixed here.
-- The data-category vocabulary differs across Retention, DSR, blocking and read audit (see P-03 OD-10).
+- The data-category vocabulary differs across Retention, DSR, blocking and read audit (see P-03 OD-10, resolved with a shared core type).
 
 ---
 
 ## Next Steps
 
-1. Review and approve this plan; decide OD-1 … OD-11
-2. Link it from issue #1193
-3. Land #1135 first, or fold its read-audit part into Phase 5
-4. One commit per phase; the final commit references `Fixes #1193`
+1. OD-1 … OD-11 are settled (2026-09-23); link this plan from issue #1193
+2. Land #1135 first, or fold its read-audit part into Phase 5
+3. One commit per phase; the final commit references `Fixes #1193`
