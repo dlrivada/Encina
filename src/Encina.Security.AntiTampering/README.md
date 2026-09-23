@@ -105,6 +105,26 @@ HMAC-SHA256(SecretKey, "Method|Path|PayloadHash|Timestamp|Nonce")
 | `X-Nonce` | Nonce | Unique request ID |
 | `X-Key-Id` | Key ID | Signing key identifier |
 
+## Fail-Closed Behavior When There Is No HttpContext
+
+`[RequireSignature]` requests dispatched without an `HttpContext` — background jobs, message consumers, scheduled jobs, gRPC or SignalR handlers — have no HTTP headers to extract the signature, timestamp, and nonce from. The pipeline **fails closed by default**: the request is rejected with `antitampering.no_http_context` instead of silently skipping validation.
+
+If a request type is intentionally meant to run outside HTTP and does not need signature validation in that context, opt out explicitly:
+
+```csharp
+// Global opt-out for every request that reaches the pipeline without an HttpContext
+services.AddEncinaAntiTampering(options =>
+{
+    options.SkipWhenNoHttpContext = true;
+});
+
+// Per-request opt-out
+[RequireSignature(SkipWhenNoHttpContext = true)]
+public sealed record ProcessScheduledReminder(Guid ReminderId) : ICommand<Unit>;
+```
+
+Every use of either opt-out is logged as a warning so the exception is visible in operational logs.
+
 ## Error Codes
 
 | Code | Description |
@@ -115,6 +135,7 @@ HMAC-SHA256(SecretKey, "Method|Path|PayloadHash|Timestamp|Nonce")
 | `antitampering.timestamp_expired` | Request too old |
 | `antitampering.nonce_reused` | Replay attack detected |
 | `antitampering.nonce_missing` | Nonce header missing |
+| `antitampering.no_http_context` | `[RequireSignature]` request has no `HttpContext` to validate against (fail-closed) |
 
 ## Documentation
 

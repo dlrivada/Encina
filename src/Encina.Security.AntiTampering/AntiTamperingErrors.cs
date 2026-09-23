@@ -30,6 +30,9 @@ public static class AntiTamperingErrors
     /// <summary>Error code when the requested signing key cannot be found.</summary>
     public const string KeyNotFoundCode = "antitampering.key_not_found";
 
+    /// <summary>Error code when a signed request has no <see cref="Microsoft.AspNetCore.Http.HttpContext"/> to validate against.</summary>
+    public const string NoHttpContextCode = "antitampering.no_http_context";
+
     /// <summary>
     /// Creates an error when the HMAC signature does not match.
     /// </summary>
@@ -119,6 +122,24 @@ public static class AntiTamperingErrors
             details: new Dictionary<string, object?>
             {
                 ["keyId"] = keyId,
+                [MetadataKeyStage] = MetadataStageAntiTampering
+            });
+
+    /// <summary>
+    /// Creates an error when a request decorated with <c>[RequireSignature]</c> arrives with no
+    /// <see cref="Microsoft.AspNetCore.Http.HttpContext"/> available to extract signature headers from.
+    /// </summary>
+    /// <param name="requestType">The name of the request type that required a signature.</param>
+    /// <returns>An error indicating the request was rejected because no HTTP context was available.</returns>
+    public static EncinaError NoHttpContext(string requestType) =>
+        EncinaErrors.Create(
+            code: NoHttpContextCode,
+            message: $"Request '{requestType}' requires a signature but no HttpContext was available to validate it. " +
+                     "Fail closed by default; opt in explicitly via AntiTamperingOptions.SkipWhenNoHttpContext or " +
+                     "RequireSignatureAttribute.SkipWhenNoHttpContext if this request type is meant to run outside HTTP.",
+            details: new Dictionary<string, object?>
+            {
+                ["requestType"] = requestType,
                 [MetadataKeyStage] = MetadataStageAntiTampering
             });
 }

@@ -55,4 +55,26 @@ public sealed class RequireSignatureAttribute : Attribute
     /// </para>
     /// </remarks>
     public bool SkipReplayProtection { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this request type is allowed to bypass HMAC validation when
+    /// there is no <see cref="Microsoft.AspNetCore.Http.HttpContext"/> available.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is <c>false</c>: the pipeline fails closed and rejects the request when no
+    /// <see cref="Microsoft.AspNetCore.Http.HttpContext"/> is available to extract signature
+    /// headers from (background jobs, message consumers, scheduled jobs, gRPC/SignalR paths
+    /// without an HTTP context). This is the safe default for a security control the request
+    /// type explicitly opted into via <see cref="RequireSignatureAttribute"/>.
+    /// </para>
+    /// <para>
+    /// Set to <c>true</c> only when this specific request type is intentionally invoked outside
+    /// an HTTP pipeline (for example, replayed internally by a trusted background worker) and the
+    /// caller accepts running without signature verification in that case. Every use of this
+    /// opt-out is logged as a warning. The global <see cref="AntiTamperingOptions.SkipWhenNoHttpContext"/>
+    /// switch has the same effect for every request type; either one being <c>true</c> skips validation.
+    /// </para>
+    /// </remarks>
+    public bool SkipWhenNoHttpContext { get; set; }
 }

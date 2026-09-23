@@ -110,15 +110,63 @@ public sealed class HMACValidationPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_NoHttpContext_PassesThrough()
+    public async Task Handle_NoHttpContext_FailsClosedByDefault()
     {
         // Arrange
         var sut = CreateSut();
         var request = new TestSignedCommand();
         _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+        var nextCalled = false;
+
+        RequestHandlerCallback<Unit> nextStep = () =>
+        {
+            nextCalled = true;
+            return ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default));
+        };
 
         // Act
-        var result = await sut.Handle(request, _context, SuccessNextStep(), CancellationToken.None);
+        var result = await sut.Handle(request, _context, nextStep, CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        nextCalled.ShouldBeFalse();
+        var error = (EncinaError)result;
+        error.GetCode().IfNone("").ShouldBe(AntiTamperingErrors.NoHttpContextCode);
+    }
+
+    [Fact]
+    public async Task Handle_NoHttpContext_WithAttributeOptOut_PassesThrough()
+    {
+        // Arrange
+        var requestSigner = Substitute.For<IRequestSigner>();
+        var nonceStore = Substitute.For<INonceStore>();
+        var logger = Substitute.For<ILogger<HMACValidationPipelineBehavior<TestSignedCommandSkippableWithoutHttpContext, Unit>>>();
+        var sut = new HMACValidationPipelineBehavior<TestSignedCommandSkippableWithoutHttpContext, Unit>(
+            requestSigner, nonceStore, _httpContextAccessor, Options.Create(_options), _timeProvider, logger);
+
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        // Act
+        var result = await sut.Handle(
+            new TestSignedCommandSkippableWithoutHttpContext(),
+            _context,
+            SuccessNextStep(),
+            CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_NoHttpContext_WithGlobalOptOut_PassesThrough()
+    {
+        // Arrange
+        _options.SkipWhenNoHttpContext = true;
+        var sut = CreateSut();
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        // Act
+        var result = await sut.Handle(new TestSignedCommand(), _context, SuccessNextStep(), CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -305,6 +353,9 @@ public sealed class HMACValidationPipelineBehaviorTests
 
     [RequireSignature]
     public sealed record TestSignedCommand : ICommand;
+
+    [RequireSignature(SkipWhenNoHttpContext = true)]
+    public sealed record TestSignedCommandSkippableWithoutHttpContext : ICommand;
 
     public sealed record TestPlainCommand : ICommand;
 

@@ -1,0 +1,1 @@
+- `HMACValidationPipelineBehavior` now fails closed (rejects the request) when a `[RequireSignature]` request has no `HttpContext` available, instead of silently passing it through. Opt out explicitly via `AntiTamperingOptions.SkipWhenNoHttpContext` or `RequireSignatureAttribute.SkipWhenNoHttpContext`; every opt-out use is logged as a warning (#1155).

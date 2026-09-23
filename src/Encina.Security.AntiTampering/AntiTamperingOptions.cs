@@ -134,6 +134,29 @@ public sealed class AntiTamperingOptions
     public bool EnableMetrics { get; set; }
 
     /// <summary>
+    /// Gets or sets whether every <see cref="RequireSignatureAttribute"/>-decorated request is
+    /// allowed to bypass HMAC validation when there is no <see cref="Microsoft.AspNetCore.Http.HttpContext"/>
+    /// available.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Default is <c>false</c>: the pipeline fails closed and rejects a signed request when no
+    /// <see cref="Microsoft.AspNetCore.Http.HttpContext"/> is available (background jobs, message
+    /// consumers, scheduled jobs, gRPC/SignalR paths without an HTTP context). Skipping validation
+    /// outside HTTP must be an explicit decision, not a silent default, because it is a fail-open
+    /// path for a security control the request type opted into.
+    /// </para>
+    /// <para>
+    /// Set to <c>true</c> to skip validation globally whenever no <see cref="Microsoft.AspNetCore.Http.HttpContext"/>
+    /// is available, for example when the same request types genuinely run in background jobs or
+    /// tests without HTTP. Individual request types can opt out on their own via
+    /// <see cref="RequireSignatureAttribute.SkipWhenNoHttpContext"/> without changing this global
+    /// switch. Every skip is logged as a warning.
+    /// </para>
+    /// </remarks>
+    public bool SkipWhenNoHttpContext { get; set; }
+
+    /// <summary>
     /// Gets the test keys registered via <see cref="AddKey"/>.
     /// </summary>
     /// <remarks>

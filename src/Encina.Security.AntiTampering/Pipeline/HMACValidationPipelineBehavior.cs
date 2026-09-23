@@ -31,8 +31,14 @@ namespace Encina.Security.AntiTampering.Pipeline;
 /// </para>
 /// <para>
 /// Requests without <see cref="RequireSignatureAttribute"/> pass through without validation.
-/// When no <see cref="HttpContext"/> is available (non-HTTP scenarios), the behavior skips
-/// validation to allow the same request types to be used in background jobs or tests.
+/// When no <see cref="HttpContext"/> is available (non-HTTP scenarios) for a request that
+/// requires a signature, the behavior fails closed by default and rejects the request: a
+/// security control the request type opted into must not be silently bypassed just because
+/// it ran outside HTTP (background job, message consumer, scheduled job, gRPC/SignalR path).
+/// This can be relaxed explicitly, and only for the scenarios that need it, via
+/// <see cref="AntiTamperingOptions.SkipWhenNoHttpContext"/> (global) or
+/// <see cref="RequireSignatureAttribute.SkipWhenNoHttpContext"/> (per request type); every use
+/// of either opt-out is logged as a warning.
 /// </para>
 /// <para>
 /// When <see cref="AntiTamperingOptions.EnableTracing"/> is <c>true</c>, operations emit
@@ -121,15 +127,24 @@ public sealed class HMACValidationPipelineBehavior<TRequest, TResponse> : IPipel
             return await nextStep().ConfigureAwait(false);
         }
 
-        // 2. Get HTTP context — skip validation in non-HTTP scenarios
+        var requestTypeName = typeof(TRequest).Name;
+
+        // 2. Get HTTP context — fail closed by default when unavailable for a signed request
         var httpContext = _httpContextAccessor.HttpContext;
 
         if (httpContext is null)
         {
-            return await nextStep().ConfigureAwait(false);
-        }
+            if (_options.SkipWhenNoHttpContext || attribute.SkipWhenNoHttpContext)
+            {
+                AntiTamperingLogMessages.SkippedNoHttpContext(_logger, requestTypeName);
 
-        var requestTypeName = typeof(TRequest).Name;
+                return await nextStep().ConfigureAwait(false);
+            }
+
+            AntiTamperingLogMessages.RejectedNoHttpContext(_logger, requestTypeName);
+
+            return Left<EncinaError, TResponse>(AntiTamperingErrors.NoHttpContext(requestTypeName)); // NOSONAR S6966: LanguageExt Left is a pure function
+        }
 
         // Start parent activity for the entire validation flow
         Activity? activity = null;

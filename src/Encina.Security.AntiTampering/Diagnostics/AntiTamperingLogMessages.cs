@@ -54,4 +54,21 @@ internal static partial class AntiTamperingLogMessages
         Message = "Signing key not found: keyId={KeyId}")]
     internal static partial void KeyNotFound(
         ILogger logger, string keyId);
+
+    [LoggerMessage(
+        EventId = 9106,
+        Level = LogLevel.Warning,
+        Message = "Skipping HMAC validation for {RequestType}: no HttpContext available and the opt-out is enabled. " +
+                  "This request received no signature/replay verification.")]
+    internal static partial void SkippedNoHttpContext(
+        ILogger logger, string requestType);
+
+    [LoggerMessage(
+        EventId = 9107,
+        Level = LogLevel.Warning,
+        Message = "Rejected {RequestType}: [RequireSignature] requires a signature but no HttpContext was available. " +
+                  "Fail closed by default; use AntiTamperingOptions.SkipWhenNoHttpContext or " +
+                  "RequireSignatureAttribute.SkipWhenNoHttpContext to opt out explicitly.")]
+    internal static partial void RejectedNoHttpContext(
+        ILogger logger, string requestType);
 }
