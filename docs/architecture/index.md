@@ -11,6 +11,7 @@ Design decisions, patterns, and structural documentation for Encina.
 
 ## Key Documents
 
+- [About Encina's data-access providers](data-access-providers.md) — provider coherence, how to choose a family, what the compliance modules need
 - [About the request pipeline](request-pipeline.md) — Requests, handlers, behaviors, processors and the dispatch flow
 - [Patterns Guide](patterns-guide.md) — Design patterns and best practices
 - [Component Diagram](component-diagram.md) — High-level component architecture

@@ -40,6 +40,7 @@ has_children: true
 
 ## Database & Sharding
 
+- [Database Providers Reference](database-providers.md)
 - [Read/Write Separation](read-write-separation.md)
 - [Compound Shard Keys](compound-shard-keys.md)
 - [Shadow Sharding](shadow-sharding.md)
