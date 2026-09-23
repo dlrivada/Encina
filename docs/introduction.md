@@ -74,5 +74,6 @@ Encina fits a team that wants explicit error types in the handler signature and 
 
 ## Next steps
 
+- [Quickstart tutorial](tutorials/quickstart.md): build a console app that sends your first command and handles both tracks of the result.
 - [Architecture Decision Records](architecture/adr/index.md) record every design choice referenced above, and the ones that came after it.
 - [Features](features/index.md) indexes the reference documentation for outbox, inbox, sagas, scheduling and every other opt-in capability.
