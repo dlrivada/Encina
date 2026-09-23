@@ -309,17 +309,39 @@ public static class ServiceCollectionExtensions
     ///         if (beginResult.IsLeft) return beginResult;
     ///
     ///         var accounts = unitOfWork.Repository&lt;Account, Guid&gt;();
-    ///         var source = await accounts.GetByIdAsync(cmd.SourceId, ct);
-    ///         var target = await accounts.GetByIdAsync(cmd.TargetId, ct);
+    ///         var sourceResult = await accounts.GetByIdAsync(cmd.SourceId, ct);
+    ///         if (sourceResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return sourceResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         var targetResult = await accounts.GetByIdAsync(cmd.TargetId, ct);
+    ///         if (targetResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return targetResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         var source = sourceResult.Match(Right: a =&gt; a, Left: _ =&gt; throw new InvalidOperationException());
+    ///         var target = targetResult.Match(Right: a =&gt; a, Left: _ =&gt; throw new InvalidOperationException());
     ///
     ///         source.Debit(cmd.Amount);
     ///         target.Credit(cmd.Amount);
     ///
-    ///         var saveResult = await unitOfWork.SaveChangesAsync(ct);
-    ///         if (saveResult.IsLeft)
+    ///         // ADO.NET repositories persist immediately: each UpdateAsync call is its own write.
+    ///         var updateSourceResult = await accounts.UpdateAsync(source, ct);
+    ///         if (updateSourceResult.IsLeft)
     ///         {
     ///             await unitOfWork.RollbackAsync(ct);
-    ///             return saveResult.Map(_ =&gt; Unit.Default);
+    ///             return updateSourceResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         var updateTargetResult = await accounts.UpdateAsync(target, ct);
+    ///         if (updateTargetResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return updateTargetResult.Map(_ =&gt; Unit.Default);
     ///         }
     ///
     ///         return await unitOfWork.CommitAsync(ct);
