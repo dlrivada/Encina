@@ -133,12 +133,22 @@ internal sealed class DefaultTransferValidator : ITransferValidator
 
     private Option<TransferValidationOutcome> CheckAdequacyDecision(TransferRequest request)
     {
-        // Create a Region from the destination country code to check adequacy
-        var destinationRegion = Region.Create(request.DestinationCountryCode, request.DestinationCountryCode);
+        // Prefer the canonical registered region (by code) so RequiresRecipientCertification
+        // metadata (US DPF, Canada PIPEDA) is available even though the caller only supplies a
+        // country code.
+        var destinationRegion = RegionRegistry.GetByCode(request.DestinationCountryCode)
+            ?? Region.Create(request.DestinationCountryCode, request.DestinationCountryCode);
 
         if (_adequacyProvider.HasAdequacy(destinationRegion, request.IsRecipientCertified))
         {
-            return TransferValidationOutcome.Allow(TransferBasis.AdequacyDecision);
+            // The DPF basis is specific to the EU-US Data Privacy Framework; other partial
+            // adequacy decisions (e.g. Canada/PIPEDA) still report the generic AdequacyDecision.
+            var basis = destinationRegion.RequiresRecipientCertification
+                && string.Equals(destinationRegion.Code, "US", StringComparison.OrdinalIgnoreCase)
+                ? TransferBasis.DataPrivacyFramework
+                : TransferBasis.AdequacyDecision;
+
+            return TransferValidationOutcome.Allow(basis);
         }
 
         return Option<TransferValidationOutcome>.None;

@@ -1,4 +1,6 @@
 using Encina.Compliance.CrossBorderTransfer.Abstractions;
+using Encina.Compliance.DataResidency;
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Health;
 using Encina.Compliance.CrossBorderTransfer.Notifications;
 using Encina.Compliance.CrossBorderTransfer.Pipeline;
@@ -93,6 +95,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IApprovedTransferService, DefaultApprovedTransferService>();
         services.TryAddScoped<ITransferValidator, DefaultTransferValidator>();
         services.TryAddScoped<ITIARiskAssessor, DefaultTIARiskAssessor>();
+        services.TryAddSingleton<IRecipientCertificationResolver, NullRecipientCertificationResolver>();
 
         // Register pipeline behavior (Transient — must always be in pipeline)
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransferBlockingPipelineBehavior<,>));

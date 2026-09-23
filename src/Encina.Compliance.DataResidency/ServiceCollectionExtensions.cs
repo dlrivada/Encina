@@ -101,6 +101,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ICrossBorderTransferValidator, DefaultCrossBorderTransferValidator>();
         services.TryAddSingleton<IRegionContextProvider, DefaultRegionContextProvider>();
         services.TryAddSingleton<IAdequacyDecisionProvider, DefaultAdequacyDecisionProvider>();
+        services.TryAddSingleton<IRecipientCertificationResolver, NullRecipientCertificationResolver>();
         services.TryAddScoped<IRegionRouter, DefaultRegionRouter>();
 
         // Register pipeline behavior

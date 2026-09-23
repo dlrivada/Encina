@@ -196,6 +196,8 @@ public class DataResidencyPipelineBehaviorContractTests
         var policyService = Substitute.For<IResidencyPolicyService>();
         var transferValidator = Substitute.For<ICrossBorderTransferValidator>();
         var locationService = Substitute.For<IDataLocationService>();
+        var adequacyProvider = Substitute.For<IAdequacyDecisionProvider>();
+        var certificationResolver = Substitute.For<IRecipientCertificationResolver>();
 
         var options = Options.Create(new DataResidencyOptions
         {
@@ -208,7 +210,7 @@ public class DataResidencyPipelineBehaviorContractTests
 
         var behavior = new DataResidencyPipelineBehavior<TRequest, TResponse>(
             regionProvider, policyService, transferValidator, locationService,
-            options, timeProvider, logger);
+            adequacyProvider, certificationResolver, options, timeProvider, logger);
 
         return (behavior, regionProvider, policyService);
     }

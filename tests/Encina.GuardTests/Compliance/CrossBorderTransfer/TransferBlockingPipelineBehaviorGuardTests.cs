@@ -3,6 +3,7 @@
 using Encina.Compliance.CrossBorderTransfer;
 using Encina.Compliance.CrossBorderTransfer.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Pipeline;
+using Encina.Compliance.DataResidency.Abstractions;
 
 namespace Encina.GuardTests.Compliance.CrossBorderTransfer;
 
@@ -13,6 +14,7 @@ namespace Encina.GuardTests.Compliance.CrossBorderTransfer;
 public class TransferBlockingPipelineBehaviorGuardTests
 {
     private readonly ITransferValidator _validator = Substitute.For<ITransferValidator>();
+    private readonly IRecipientCertificationResolver _certificationResolver = Substitute.For<IRecipientCertificationResolver>();
     private readonly IOptions<CrossBorderTransferOptions> _options = Options.Create(new CrossBorderTransferOptions());
     private readonly ILogger<TransferBlockingPipelineBehavior<TestRequest, TestResponse>> _logger =
         NullLogger<TransferBlockingPipelineBehavior<TestRequest, TestResponse>>.Instance;
@@ -27,9 +29,21 @@ public class TransferBlockingPipelineBehaviorGuardTests
     public void Constructor_NullValidator_ThrowsArgumentNullException()
     {
         var act = () => new TransferBlockingPipelineBehavior<TestRequest, TestResponse>(
-            null!, _options, _logger, _serviceProvider);
+            null!, _certificationResolver, _options, _logger, _serviceProvider);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("validator");
+    }
+
+    /// <summary>
+    /// Verifies that the constructor throws ArgumentNullException when certificationResolver is null.
+    /// </summary>
+    [Fact]
+    public void Constructor_NullCertificationResolver_ThrowsArgumentNullException()
+    {
+        var act = () => new TransferBlockingPipelineBehavior<TestRequest, TestResponse>(
+            _validator, null!, _options, _logger, _serviceProvider);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("certificationResolver");
     }
 
     /// <summary>
@@ -39,7 +53,7 @@ public class TransferBlockingPipelineBehaviorGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new TransferBlockingPipelineBehavior<TestRequest, TestResponse>(
-            _validator, null!, _logger, _serviceProvider);
+            _validator, _certificationResolver, null!, _logger, _serviceProvider);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
@@ -51,7 +65,7 @@ public class TransferBlockingPipelineBehaviorGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new TransferBlockingPipelineBehavior<TestRequest, TestResponse>(
-            _validator, _options, null!, _serviceProvider);
+            _validator, _certificationResolver, _options, null!, _serviceProvider);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
@@ -63,7 +77,7 @@ public class TransferBlockingPipelineBehaviorGuardTests
     public void Constructor_NullServiceProvider_ThrowsArgumentNullException()
     {
         var act = () => new TransferBlockingPipelineBehavior<TestRequest, TestResponse>(
-            _validator, _options, _logger, null!);
+            _validator, _certificationResolver, _options, _logger, null!);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("serviceProvider");
     }

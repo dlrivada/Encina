@@ -8,6 +8,8 @@ using Encina.Compliance.CrossBorderTransfer.Attributes;
 using Encina.Compliance.CrossBorderTransfer.Diagnostics;
 using Encina.Compliance.CrossBorderTransfer.Errors;
 using Encina.Compliance.CrossBorderTransfer.Model;
+using Encina.Compliance.DataResidency.Abstractions;
+using Encina.Compliance.DataResidency.Model;
 using Encina.Modules.Isolation;
 
 using LanguageExt;
@@ -68,6 +70,7 @@ public sealed class TransferBlockingPipelineBehavior<TRequest, TResponse> : IPip
     private static readonly ConcurrentDictionary<(Type, string), PropertyInfo?> PropertyCache = new();
 
     private readonly ITransferValidator _validator;
+    private readonly IRecipientCertificationResolver _certificationResolver;
     private readonly CrossBorderTransferOptions _options;
     private readonly ILogger<TransferBlockingPipelineBehavior<TRequest, TResponse>> _logger;
     private readonly IModuleExecutionContext? _moduleContext;
@@ -77,21 +80,29 @@ public sealed class TransferBlockingPipelineBehavior<TRequest, TResponse> : IPip
     /// <see cref="TransferBlockingPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="validator">The transfer validator for checking GDPR Chapter V compliance.</param>
+    /// <param name="certificationResolver">
+    /// Resolver for whether the destination recipient is certified under a partial adequacy
+    /// decision (e.g. DPF for the US, PIPEDA for Canada). Defaults to always answering
+    /// <c>false</c> (fail closed) unless the application registers its own implementation.
+    /// </param>
     /// <param name="options">Cross-border transfer configuration options.</param>
     /// <param name="logger">Logger for structured transfer compliance logging.</param>
     /// <param name="serviceProvider">Service provider for resolving optional cross-cutting dependencies.</param>
     public TransferBlockingPipelineBehavior(
         ITransferValidator validator,
+        IRecipientCertificationResolver certificationResolver,
         IOptions<CrossBorderTransferOptions> options,
         ILogger<TransferBlockingPipelineBehavior<TRequest, TResponse>> logger,
         IServiceProvider serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(validator);
+        ArgumentNullException.ThrowIfNull(certificationResolver);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
         _validator = validator;
+        _certificationResolver = certificationResolver;
         _options = options.Value;
         _logger = logger;
         _moduleContext = serviceProvider.GetService<IModuleExecutionContext>();
@@ -162,13 +173,22 @@ public sealed class TransferBlockingPipelineBehavior<TRequest, TResponse> : IPip
         var moduleId = _moduleContext?.CurrentModule;
         var tenantId = context.TenantId;
 
+        // Resolve recipient certification for partial-adequacy destinations (e.g. US DPF,
+        // Canada PIPEDA). The resolver defaults to false (fail closed) unless the application
+        // registers its own IRecipientCertificationResolver implementation.
+        var destinationRegion = RegionRegistry.GetByCode(destination) ?? Region.Create(destination, destination);
+        var isRecipientCertified = destinationRegion.RequiresRecipientCertification
+            && await _certificationResolver.IsCertifiedAsync(destinationRegion, attribute.DataCategory, cancellationToken)
+                .ConfigureAwait(false);
+
         var transferRequest = new TransferRequest
         {
             SourceCountryCode = source ?? _options.DefaultSourceCountryCode,
             DestinationCountryCode = destination,
             DataCategory = attribute.DataCategory,
             TenantId = tenantId,
-            ModuleId = moduleId
+            ModuleId = moduleId,
+            IsRecipientCertified = isRecipientCertified
         };
 
         if (tenantId is not null)

@@ -5,6 +5,7 @@ using Encina.Compliance.CrossBorderTransfer.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Attributes;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.Pipeline;
+using Encina.Compliance.DataResidency.Abstractions;
 
 using LanguageExt;
 
@@ -137,8 +138,9 @@ public class TransferBlockingPipelineBehaviorContractTests
         where TRequest : IRequest<TResponse>
     {
         var logger = NullLogger<TransferBlockingPipelineBehavior<TRequest, TResponse>>.Instance;
+        var certificationResolver = Substitute.For<IRecipientCertificationResolver>();
         return new TransferBlockingPipelineBehavior<TRequest, TResponse>(
-            _validator, options, logger, _serviceProvider);
+            _validator, certificationResolver, options, logger, _serviceProvider);
     }
 
     #endregion

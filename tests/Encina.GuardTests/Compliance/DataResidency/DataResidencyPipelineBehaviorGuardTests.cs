@@ -22,6 +22,8 @@ public class DataResidencyPipelineBehaviorGuardTests
     private readonly IResidencyPolicyService _policyService = Substitute.For<IResidencyPolicyService>();
     private readonly ICrossBorderTransferValidator _transferValidator = Substitute.For<ICrossBorderTransferValidator>();
     private readonly IDataLocationService _locationService = Substitute.For<IDataLocationService>();
+    private readonly IAdequacyDecisionProvider _adequacyProvider = Substitute.For<IAdequacyDecisionProvider>();
+    private readonly IRecipientCertificationResolver _certificationResolver = Substitute.For<IRecipientCertificationResolver>();
     private readonly IOptions<DataResidencyOptions> _options = Options.Create(new DataResidencyOptions());
     private readonly TimeProvider _timeProvider = TimeProvider.System;
     private readonly Microsoft.Extensions.Logging.ILogger<DataResidencyPipelineBehavior<TestCommand, Unit>> _logger =
@@ -33,7 +35,7 @@ public class DataResidencyPipelineBehaviorGuardTests
     public void Constructor_NullRegionContextProvider_ThrowsArgumentNullException()
     {
         var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            null!, _policyService, _transferValidator, _locationService, _options, _timeProvider, _logger);
+            null!, _policyService, _transferValidator, _locationService, _adequacyProvider, _certificationResolver, _options, _timeProvider, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("regionContextProvider");
     }
 
@@ -41,7 +43,7 @@ public class DataResidencyPipelineBehaviorGuardTests
     public void Constructor_NullResidencyPolicyService_ThrowsArgumentNullException()
     {
         var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            _regionCtx, null!, _transferValidator, _locationService, _options, _timeProvider, _logger);
+            _regionCtx, null!, _transferValidator, _locationService, _adequacyProvider, _certificationResolver, _options, _timeProvider, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("residencyPolicyService");
     }
 
@@ -49,7 +51,7 @@ public class DataResidencyPipelineBehaviorGuardTests
     public void Constructor_NullTransferValidator_ThrowsArgumentNullException()
     {
         var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            _regionCtx, _policyService, null!, _locationService, _options, _timeProvider, _logger);
+            _regionCtx, _policyService, null!, _locationService, _adequacyProvider, _certificationResolver, _options, _timeProvider, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("transferValidator");
     }
 
@@ -57,15 +59,31 @@ public class DataResidencyPipelineBehaviorGuardTests
     public void Constructor_NullDataLocationService_ThrowsArgumentNullException()
     {
         var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            _regionCtx, _policyService, _transferValidator, null!, _options, _timeProvider, _logger);
+            _regionCtx, _policyService, _transferValidator, null!, _adequacyProvider, _certificationResolver, _options, _timeProvider, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("dataLocationService");
+    }
+
+    [Fact]
+    public void Constructor_NullAdequacyProvider_ThrowsArgumentNullException()
+    {
+        var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
+            _regionCtx, _policyService, _transferValidator, _locationService, null!, _certificationResolver, _options, _timeProvider, _logger);
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("adequacyProvider");
+    }
+
+    [Fact]
+    public void Constructor_NullCertificationResolver_ThrowsArgumentNullException()
+    {
+        var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
+            _regionCtx, _policyService, _transferValidator, _locationService, _adequacyProvider, null!, _options, _timeProvider, _logger);
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("certificationResolver");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            _regionCtx, _policyService, _transferValidator, _locationService, null!, _timeProvider, _logger);
+            _regionCtx, _policyService, _transferValidator, _locationService, _adequacyProvider, _certificationResolver, null!, _timeProvider, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
@@ -73,7 +91,7 @@ public class DataResidencyPipelineBehaviorGuardTests
     public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
     {
         var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            _regionCtx, _policyService, _transferValidator, _locationService, _options, null!, _logger);
+            _regionCtx, _policyService, _transferValidator, _locationService, _adequacyProvider, _certificationResolver, _options, null!, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
     }
 
@@ -81,7 +99,7 @@ public class DataResidencyPipelineBehaviorGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            _regionCtx, _policyService, _transferValidator, _locationService, _options, _timeProvider, null!);
+            _regionCtx, _policyService, _transferValidator, _locationService, _adequacyProvider, _certificationResolver, _options, _timeProvider, null!);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
@@ -93,7 +111,7 @@ public class DataResidencyPipelineBehaviorGuardTests
     public async Task Handle_NullRequest_ThrowsArgumentNullException()
     {
         var sut = new DataResidencyPipelineBehavior<TestCommand, Unit>(
-            _regionCtx, _policyService, _transferValidator, _locationService, _options, _timeProvider, _logger);
+            _regionCtx, _policyService, _transferValidator, _locationService, _adequacyProvider, _certificationResolver, _options, _timeProvider, _logger);
 
         var act = () => sut.Handle(
             null!,

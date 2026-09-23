@@ -5,6 +5,7 @@ using Encina.Compliance.CrossBorderTransfer.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Attributes;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.Pipeline;
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Modules.Isolation;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,7 @@ namespace Encina.UnitTests.Compliance.CrossBorderTransfer.Pipeline;
 public class TransferBlockingPipelineBehaviorTests
 {
     private readonly ITransferValidator _validator = Substitute.For<ITransferValidator>();
+    private readonly IRecipientCertificationResolver _certificationResolver = Substitute.For<IRecipientCertificationResolver>();
     private readonly IRequestContext _context = Substitute.For<IRequestContext>();
     private readonly IServiceProvider _serviceProvider = Substitute.For<IServiceProvider>();
 
@@ -39,7 +41,7 @@ public class TransferBlockingPipelineBehaviorTests
         var opts = Options.Create(options ?? new CrossBorderTransferOptions());
         var logger = NullLogger<TransferBlockingPipelineBehavior<TRequest, Unit>>.Instance;
         return new TransferBlockingPipelineBehavior<TRequest, Unit>(
-            _validator, opts, logger, _serviceProvider);
+            _validator, _certificationResolver, opts, logger, _serviceProvider);
     }
 
     private static RequestHandlerCallback<Unit> SuccessNext()

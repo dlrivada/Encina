@@ -99,7 +99,7 @@ public class DefaultTransferValidatorTests
     }
 
     [Fact]
-    public async Task ValidateAsync_UsDestinationWithCertification_UsesAdequacyDecision()
+    public async Task ValidateAsync_UsDestinationWithCertification_UsesDataPrivacyFrameworkBasis()
     {
         // Arrange
         var request = new TransferRequest
@@ -115,11 +115,11 @@ public class DefaultTransferValidatorTests
         // Act
         var result = await _sut.ValidateAsync(request);
 
-        // Assert
+        // Assert — the US destination reports the DPF-specific basis, not the generic one.
         result.IsRight.ShouldBeTrue();
         var outcome = result.Match(Right: o => o, Left: _ => throw new InvalidOperationException("Expected Right"));
         outcome.IsAllowed.ShouldBeTrue();
-        outcome.Basis.ShouldBe(TransferBasis.AdequacyDecision);
+        outcome.Basis.ShouldBe(TransferBasis.DataPrivacyFramework);
     }
 
     [Fact]
