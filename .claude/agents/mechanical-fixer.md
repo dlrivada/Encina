@@ -4,7 +4,7 @@ description: Applies a precisely specified, low-judgement change (formatting, a 
 model: sonnet
 effort: low
 tools: Bash, PowerShell, Read, Edit, Write, Grep, Glob
-maxTurns: 30
+maxTurns: 50
 color: green
 hooks:
   PreToolUse:

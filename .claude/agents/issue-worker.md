@@ -4,7 +4,7 @@ description: Implements one GitHub issue from a closed brief written by the orch
 model: sonnet
 effort: medium
 tools: Agent, Bash, PowerShell, Read, Edit, Write, Grep, Glob, Skill
-maxTurns: 80
+maxTurns: 120
 color: blue
 hooks:
   PreToolUse:
