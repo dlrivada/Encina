@@ -1,11 +1,10 @@
 using Encina.Compliance.CrossBorderTransfer.Abstractions;
-using Encina.Compliance.DataResidency;
-using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Health;
 using Encina.Compliance.CrossBorderTransfer.Notifications;
 using Encina.Compliance.CrossBorderTransfer.Pipeline;
 using Encina.Compliance.CrossBorderTransfer.Services;
-
+using Encina.Compliance.DataResidency;
+using Encina.Compliance.DataResidency.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
