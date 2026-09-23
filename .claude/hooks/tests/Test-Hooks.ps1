@@ -8,6 +8,8 @@ $hooks = Split-Path -Parent $PSScriptRoot
 $repo = Split-Path -Parent (Split-Path -Parent $hooks)
 $attribution = Join-Path $hooks 'block-ai-attribution.ps1'
 $issue = Join-Path $hooks 'check-issue-template.ps1'
+$publish = Join-Path $hooks 'block-worker-publish.ps1'
+$spawn = Join-Path $hooks 'block-worker-spawn.ps1'
 
 $work = Join-Path ([IO.Path]::GetTempPath()) "encina-hook-tests-$PID"
 $sub = Join-Path $work 'sub dir'
@@ -128,7 +130,40 @@ $cases = @(
     @($issue, 'PowerShell', '$r = (gh issue create --title "No prefix" --body-file debt-ok.md)', 2, 'assignment of a subexpression'),
     @($issue, 'PowerShell', "gh iss``ue create --title `"No prefix`" --body-file debt-ok.md", 2, 'backtick-escaped verb'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-infostring.md', 0, 'backtick in fence info string is not a fence'),
-    @($issue, 'PowerShell', 'not json', 0, 'malformed payload')
+    @($issue, 'PowerShell', 'not json', 0, 'malformed payload'),
+
+    @($publish, 'PowerShell', 'git push', 2, 'git push'),
+    @($publish, 'PowerShell', 'git -C dir push origin x', 2, 'git -C dir push'),
+    @($publish, 'PowerShell', 'gh pr create --title t --body-file msg-ok.txt', 2, 'gh pr create'),
+    @($publish, 'PowerShell', 'gh issue comment 5 -b x', 2, 'gh issue comment'),
+    @($publish, 'PowerShell', 'gh api -X POST repos/o/r/issues', 2, 'gh api -X POST'),
+    @($publish, 'PowerShell', 'git commit -m x', 0, 'git commit is allowed'),
+    @($publish, 'PowerShell', 'gh pr view 5', 0, 'gh pr view is allowed'),
+    @($publish, 'PowerShell', 'gh issue view 5', 0, 'gh issue view is allowed'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api GET is allowed'),
+    @($publish, 'PowerShell', 'git log', 0, 'git log is allowed'),
+    @($publish, 'PowerShell', 'git -c alias.publish=push publish', 2, 'git -c alias.publish=push publish'),
+    @($publish, 'PowerShell', 'git config alias.p push', 2, 'git config alias.p push'),
+    @($publish, 'PowerShell', 'git p', 2, 'git p (undefined alias, not on the allowlist)'),
+    @($publish, 'PowerShell', 'git send-pack origin', 2, 'git send-pack'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/issues/5/comments -f body=x', 2, 'gh api -f defaults to POST'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/issues --input body.json', 2, 'gh api --input defaults to POST'),
+    @($publish, 'PowerShell', 'git status', 0, 'git status is allowed'),
+    @($publish, 'PowerShell', 'git worktree list', 0, 'git worktree list is allowed'),
+    @($publish, 'PowerShell', 'git -C "dir x" log', 0, 'git -C quoted dir log is allowed'),
+    @($publish, 'PowerShell', 'gh api -X GET repos/o/r/pulls -f state=open', 0, 'gh api explicit GET with fields is allowed'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api with no method or fields is allowed')
+)
+
+# subagent_type, expected, label
+$spawnCases = @(
+    @('issue-worker', 2, 'issue-worker is blocked'),
+    @('general-purpose', 2, 'general-purpose is blocked'),
+    @($null, 2, 'missing subagent_type is blocked'),
+    @('claude', 2, 'unknown subagent_type is blocked'),
+    @('ci-diagnoser', 0, 'ci-diagnoser is allowed'),
+    @('mechanical-fixer', 0, 'mechanical-fixer is allowed'),
+    @('Explore', 0, 'Explore is allowed')
 )
 
 $failed = 0
@@ -144,11 +179,31 @@ try {
         "{0} [{1}, expected {2}] {3}: {4}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $expected, (Split-Path -Leaf $hook), $label
         if (-not $ok -and $stderr) { "      $stderr" }
     }
+
+    foreach ($case in $spawnCases) {
+        $subagentType, $expected, $label = $case
+        $toolInput = if ($null -eq $subagentType) { @{} } else { @{ subagent_type = $subagentType } }
+        $json = @{ tool_name = 'Agent'; cwd = $work; tool_input = $toolInput } | ConvertTo-Json -Compress
+        $stderr = $json | pwsh -NoProfile -File $spawn 2>&1
+        $code = $LASTEXITCODE
+        $ok = $code -eq $expected
+        if (-not $ok) { $failed++ }
+        "{0} [{1}, expected {2}] {3}: {4}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $expected, (Split-Path -Leaf $spawn), $label
+        if (-not $ok -and $stderr) { "      $stderr" }
+    }
+
+    $malformedStderr = 'not json' | pwsh -NoProfile -File $spawn 2>&1
+    $malformedCode = $LASTEXITCODE
+    $malformedOk = $malformedCode -eq 0
+    if (-not $malformedOk) { $failed++ }
+    "{0} [{1}, expected 0] {2}: {3}" -f ($(if ($malformedOk) { 'PASS' } else { 'FAIL' })), $malformedCode, (Split-Path -Leaf $spawn), 'malformed payload'
+    if (-not $malformedOk -and $malformedStderr) { "      $malformedStderr" }
 }
 finally {
     Pop-Location
     Remove-Item -Recurse -Force $work
 }
 
-"{0} cases, {1} failed" -f $cases.Count, $failed
+$totalCases = $cases.Count + $spawnCases.Count + 1
+"{0} cases, {1} failed" -f $totalCases, $failed
 exit ([int]($failed -gt 0))

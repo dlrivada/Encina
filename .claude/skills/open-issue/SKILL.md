@@ -7,6 +7,8 @@ description: Open a GitHub issue in dlrivada/Encina in the house format - the ri
 
 Every identified problem is either fixed now or recorded as an issue before moving on (CLAUDE.md, When to Create Issues). The `check-issue-template` hook blocks `gh issue create` calls that break the format below.
 
+Main session (orchestrator) only; an `issue-worker` reports instead of running this skill.
+
 ## 1. Pick the template
 
 | Situation | Template | Prefix |

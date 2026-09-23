@@ -1,6 +1,6 @@
 # Claude Code agent definitions
 
-Subagents the main Claude Code session can spawn for this repository, each pinned to the cheapest model and effort that does the job. The model tiers are chosen for cost (`docs/engineering/ai-task-routing.md`): free local AI for bulk mechanical work, Haiku for polling, Sonnet for bounded execution and diagnosis, Opus for adversarial judgement, and the main session's model only for specifying, deciding and the final gate.
+Subagents the main Claude Code session can spawn for this repository, each pinned to the cheapest model and effort that does the job. The model tiers are chosen for cost, shown in the table below: free local AI for bulk mechanical work, Haiku for polling, Sonnet for bounded execution and diagnosis, Opus for adversarial judgement, and the main session's model only for specifying, deciding and the final gate (task-routing rationale: `docs/engineering/ai-task-routing.md`).
 
 | Agent | Model / effort | Role | Writes? |
 |---|---|---|---|
@@ -23,7 +23,7 @@ When to spawn which, from the experience of the first sessions:
 - `ci-diagnoser` when a failed job's cause is not visible in the first error lines.
 - `adversarial-reviewer` for every PR that touches gates, CI workflows or `.github/scripts`, and for any PR that merged without a CodeRabbit review (for example when CodeRabbit was rate limited).
 
-The equivalent definitions for the free local model (opencode) live in `.opencode/agents/`.
+The equivalent definitions for the free local model (opencode) live in `.opencode/agents/`, for the roles that have one.
 
 ## Delegation (mandatory)
 
