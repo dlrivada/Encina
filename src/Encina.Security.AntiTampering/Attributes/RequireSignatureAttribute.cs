@@ -62,19 +62,22 @@ public sealed class RequireSignatureAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Default is <c>false</c>: the pipeline fails closed and rejects the request when no
-    /// <see cref="Microsoft.AspNetCore.Http.HttpContext"/> is available to extract signature
-    /// headers from (background jobs, message consumers, scheduled jobs, gRPC/SignalR paths
-    /// without an HTTP context). This is the safe default for a security control the request
-    /// type explicitly opted into via <see cref="RequireSignatureAttribute"/>.
+    /// Default is <see cref="HttpContextRequirement.Inherit"/>: the effective behavior comes from
+    /// the global <see cref="AntiTamperingOptions.SkipWhenNoHttpContext"/> switch, which defaults
+    /// to fail closed (reject the request) when no <see cref="Microsoft.AspNetCore.Http.HttpContext"/>
+    /// is available to extract signature headers from (background jobs, message consumers,
+    /// scheduled jobs, gRPC/SignalR paths without an HTTP context).
     /// </para>
     /// <para>
-    /// Set to <c>true</c> only when this specific request type is intentionally invoked outside
-    /// an HTTP pipeline (for example, replayed internally by a trusted background worker) and the
-    /// caller accepts running without signature verification in that case. Every use of this
-    /// opt-out is logged as a warning. The global <see cref="AntiTamperingOptions.SkipWhenNoHttpContext"/>
-    /// switch has the same effect for every request type; either one being <c>true</c> skips validation.
+    /// Set to <see cref="HttpContextRequirement.Skip"/> when this specific request type is
+    /// intentionally invoked outside an HTTP pipeline (for example, replayed internally by a
+    /// trusted background worker) and the caller accepts running without signature verification
+    /// in that case, even if the global switch does not skip validation. Set to
+    /// <see cref="HttpContextRequirement.Reject"/> to force strict, fail-closed validation for
+    /// this request type even when the global switch skips validation for everything else. An
+    /// explicit attribute value always wins over the global option. Every use of the skip is
+    /// logged as a warning, naming which switch (attribute or global option) caused it.
     /// </para>
     /// </remarks>
-    public bool SkipWhenNoHttpContext { get; set; }
+    public HttpContextRequirement WhenNoHttpContext { get; set; }
 }

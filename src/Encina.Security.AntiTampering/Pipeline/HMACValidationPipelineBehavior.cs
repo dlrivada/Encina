@@ -37,7 +37,7 @@ namespace Encina.Security.AntiTampering.Pipeline;
 /// it ran outside HTTP (background job, message consumer, scheduled job, gRPC/SignalR path).
 /// This can be relaxed explicitly, and only for the scenarios that need it, via
 /// <see cref="AntiTamperingOptions.SkipWhenNoHttpContext"/> (global) or
-/// <see cref="RequireSignatureAttribute.SkipWhenNoHttpContext"/> (per request type); every use
+/// <see cref="RequireSignatureAttribute.WhenNoHttpContext"/> (per request type); every use
 /// of either opt-out is logged as a warning.
 /// </para>
 /// <para>
@@ -129,24 +129,9 @@ public sealed class HMACValidationPipelineBehavior<TRequest, TResponse> : IPipel
 
         var requestTypeName = typeof(TRequest).Name;
 
-        // 2. Get HTTP context — fail closed by default when unavailable for a signed request
-        var httpContext = _httpContextAccessor.HttpContext;
-
-        if (httpContext is null)
-        {
-            if (_options.SkipWhenNoHttpContext || attribute.SkipWhenNoHttpContext)
-            {
-                AntiTamperingLogMessages.SkippedNoHttpContext(_logger, requestTypeName);
-
-                return await nextStep().ConfigureAwait(false);
-            }
-
-            AntiTamperingLogMessages.RejectedNoHttpContext(_logger, requestTypeName);
-
-            return Left<EncinaError, TResponse>(AntiTamperingErrors.NoHttpContext(requestTypeName)); // NOSONAR S6966: LanguageExt Left is a pure function
-        }
-
-        // Start parent activity for the entire validation flow
+        // Start parent activity for the entire validation flow. Started before the HttpContext
+        // check below so that the no-HttpContext rejection path also records tracing/metrics via
+        // Fail(), the same as every other validation failure.
         Activity? activity = null;
 
         if (_options.EnableTracing)
@@ -157,10 +142,29 @@ public sealed class HMACValidationPipelineBehavior<TRequest, TResponse> : IPipel
 
         var stopwatch = _options.EnableMetrics ? Stopwatch.StartNew() : null;
 
-        AntiTamperingLogMessages.SignatureValidationStarted(_logger, requestTypeName, attribute.KeyId ?? "(any)");
-
         try
         {
+            // 2. Get HTTP context — fail closed by default when unavailable for a signed request
+            var httpContext = _httpContextAccessor.HttpContext;
+
+            if (httpContext is null)
+            {
+                if (TryResolveSkipWhenNoHttpContext(attribute, out var skipSource))
+                {
+                    AntiTamperingLogMessages.SkippedNoHttpContext(_logger, requestTypeName, skipSource);
+
+                    return await nextStep().ConfigureAwait(false);
+                }
+
+                AntiTamperingLogMessages.RejectedNoHttpContext(_logger, requestTypeName);
+
+                return Fail(activity, stopwatch, requestTypeName, string.Empty,
+                    "no_http_context",
+                    AntiTamperingErrors.NoHttpContext(requestTypeName));
+            }
+
+            AntiTamperingLogMessages.SignatureValidationStarted(_logger, requestTypeName, attribute.KeyId ?? "(any)");
+
             // 3. Extract headers
             var headers = httpContext.Request.Headers;
 
@@ -415,6 +419,31 @@ public sealed class HMACValidationPipelineBehavior<TRequest, TResponse> : IPipel
         }
 
         AntiTamperingLogMessages.SignatureValidationFailed(_logger, keyId, reason, requestTypeName);
+    }
+
+    /// <summary>
+    /// Resolves whether validation should be skipped when no <see cref="HttpContext"/> is
+    /// available, and which switch made that decision. An explicit
+    /// <see cref="RequireSignatureAttribute.WhenNoHttpContext"/> value always wins over
+    /// <see cref="AntiTamperingOptions.SkipWhenNoHttpContext"/>.
+    /// </summary>
+    private bool TryResolveSkipWhenNoHttpContext(RequireSignatureAttribute attribute, out string source)
+    {
+        switch (attribute.WhenNoHttpContext)
+        {
+            case HttpContextRequirement.Skip:
+                source = "attribute";
+                return true;
+
+            case HttpContextRequirement.Reject:
+                source = "attribute";
+                return false;
+
+            case HttpContextRequirement.Inherit:
+            default:
+                source = "AntiTamperingOptions.SkipWhenNoHttpContext";
+                return _options.SkipWhenNoHttpContext;
+        }
     }
 
     /// <summary>

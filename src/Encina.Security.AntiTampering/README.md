@@ -118,12 +118,17 @@ services.AddEncinaAntiTampering(options =>
     options.SkipWhenNoHttpContext = true;
 });
 
-// Per-request opt-out
-[RequireSignature(SkipWhenNoHttpContext = true)]
+// Per-request opt-out — wins over the global option in either direction
+[RequireSignature(WhenNoHttpContext = HttpContextRequirement.Skip)]
 public sealed record ProcessScheduledReminder(Guid ReminderId) : ICommand<Unit>;
+
+// Force strict, fail-closed validation for one request type even when the global
+// option skips validation for everything else
+[RequireSignature(WhenNoHttpContext = HttpContextRequirement.Reject)]
+public sealed record ProcessPaymentReminder(Guid ReminderId) : ICommand<Unit>;
 ```
 
-Every use of either opt-out is logged as a warning so the exception is visible in operational logs.
+`RequireSignatureAttribute.WhenNoHttpContext` is a tri-state `HttpContextRequirement` (`Inherit` by default, `Skip`, or `Reject`). An explicit attribute value always wins over `AntiTamperingOptions.SkipWhenNoHttpContext`; `Inherit` defers to the global option. Every use of either opt-out is logged as a warning (EventId 9106), naming which switch caused the skip; a fail-closed rejection is logged too (EventId 9107) and recorded through the same tracing/metrics path as every other validation failure.
 
 ## Error Codes
 

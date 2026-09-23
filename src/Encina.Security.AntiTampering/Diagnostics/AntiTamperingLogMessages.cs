@@ -58,17 +58,17 @@ internal static partial class AntiTamperingLogMessages
     [LoggerMessage(
         EventId = 9106,
         Level = LogLevel.Warning,
-        Message = "Skipping HMAC validation for {RequestType}: no HttpContext available and the opt-out is enabled. " +
+        Message = "Skipping HMAC validation for {RequestType}: no HttpContext available and {Source} opted out. " +
                   "This request received no signature/replay verification.")]
     internal static partial void SkippedNoHttpContext(
-        ILogger logger, string requestType);
+        ILogger logger, string requestType, string source);
 
     [LoggerMessage(
         EventId = 9107,
         Level = LogLevel.Warning,
         Message = "Rejected {RequestType}: [RequireSignature] requires a signature but no HttpContext was available. " +
                   "Fail closed by default; use AntiTamperingOptions.SkipWhenNoHttpContext or " +
-                  "RequireSignatureAttribute.SkipWhenNoHttpContext to opt out explicitly.")]
+                  "RequireSignatureAttribute.WhenNoHttpContext to opt out explicitly.")]
     internal static partial void RejectedNoHttpContext(
         ILogger logger, string requestType);
 }

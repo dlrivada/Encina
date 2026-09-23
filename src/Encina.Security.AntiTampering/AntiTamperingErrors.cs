@@ -136,7 +136,7 @@ public static class AntiTamperingErrors
             code: NoHttpContextCode,
             message: $"Request '{requestType}' requires a signature but no HttpContext was available to validate it. " +
                      "Fail closed by default; opt in explicitly via AntiTamperingOptions.SkipWhenNoHttpContext or " +
-                     "RequireSignatureAttribute.SkipWhenNoHttpContext if this request type is meant to run outside HTTP.",
+                     "RequireSignatureAttribute.WhenNoHttpContext if this request type is meant to run outside HTTP.",
             details: new Dictionary<string, object?>
             {
                 ["requestType"] = requestType,

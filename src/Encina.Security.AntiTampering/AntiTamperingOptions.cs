@@ -150,7 +150,7 @@ public sealed class AntiTamperingOptions
     /// Set to <c>true</c> to skip validation globally whenever no <see cref="Microsoft.AspNetCore.Http.HttpContext"/>
     /// is available, for example when the same request types genuinely run in background jobs or
     /// tests without HTTP. Individual request types can opt out on their own via
-    /// <see cref="RequireSignatureAttribute.SkipWhenNoHttpContext"/> without changing this global
+    /// <see cref="RequireSignatureAttribute.WhenNoHttpContext"/> without changing this global
     /// switch. Every skip is logged as a warning.
     /// </para>
     /// </remarks>
