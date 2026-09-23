@@ -24,7 +24,8 @@ namespace Encina.Compliance.Retention.Diagnostics;
 /// <item><term>8550-8559</term><description>Retention policy</description></item>
 /// <item><term>8560-8569</term><description>Audit trail</description></item>
 /// <item><term>8570-8585</term><description>Event-sourced services</description></item>
-/// <item><term>8586-8599</term><description>Enforcement lifecycle outcomes</description></item>
+/// <item><term>8586-8587</term><description>Enforcement lifecycle outcomes</description></item>
+/// <item><term>8588-8599</term><description>Legal hold release outcomes</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -171,12 +172,12 @@ internal static partial class RetentionLogMessages
         Message = "No expired retention records found. Enforcement cycle complete")]
     internal static partial void RetentionNoExpiredRecords(this ILogger logger);
 
-    /// <summary>IDataErasureExecutor not registered — expired records cannot be erased; logged once per enforcement cycle.</summary>
+    /// <summary>IRetentionDataEraser not registered — expired records cannot be erased; logged once per enforcement cycle.</summary>
     [LoggerMessage(
         EventId = 8519,
         Level = LogLevel.Warning,
-        Message = "IDataErasureExecutor is not registered. Expired retention records are left expired, not erased and not marked deleted; they are counted as failed until an executor is registered")]
-    internal static partial void RetentionErasureExecutorMissing(this ILogger logger);
+        Message = "IRetentionDataEraser is not registered. Expired retention records are left expired, not erased and not marked deleted; they are counted as failed until an eraser is registered")]
+    internal static partial void RetentionDataEraserMissing(this ILogger logger);
 
     // ========================================================================
     // Auto-registration log messages (8520-8529)
@@ -355,12 +356,12 @@ internal static partial class RetentionLogMessages
         Message = "Failed to recalculate record statuses. EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
     internal static partial void RetentionRecordRecalculationFailed(this ILogger logger, string entityId, string errorMessage);
 
-    /// <summary>Data erasure failed for entity during enforcement.</summary>
+    /// <summary>Erasure of one data category of an entity failed during enforcement; the record is retried next cycle.</summary>
     [LoggerMessage(
         EventId = 8557,
         Level = LogLevel.Warning,
-        Message = "Data erasure failed. EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionErasureFailed(this ILogger logger, string entityId, string errorMessage);
+        Message = "Data erasure failed; record not marked deleted. EntityId={EntityId}, DataCategory={DataCategory}, ErrorMessage={ErrorMessage}")]
+    internal static partial void RetentionErasureFailed(this ILogger logger, string entityId, string dataCategory, string errorMessage);
 
     /// <summary>Exception during data erasure for entity.</summary>
     [LoggerMessage(
@@ -560,7 +561,7 @@ internal static partial class RetentionLogMessages
     internal static partial void RetentionCacheInvalidated(this ILogger logger, string cacheKey);
 
     // ========================================================================
-    // Enforcement lifecycle outcome log messages (8586-8599)
+    // Enforcement lifecycle outcome log messages (8586-8587)
     // ========================================================================
 
     /// <summary>Legal hold status could not be determined — the record is skipped (fail closed) and retried next cycle.</summary>
@@ -577,10 +578,36 @@ internal static partial class RetentionLogMessages
         Message = "Retention record state transition failed during enforcement. RecordId={RecordId}, Operation={Operation}, ErrorMessage={ErrorMessage}")]
     internal static partial void RetentionEnforcementTransitionFailed(this ILogger logger, Guid recordId, string operation, string errorMessage);
 
-    /// <summary>Data erasure completed with failed fields — the record is not marked deleted and is retried next cycle.</summary>
+    // ========================================================================
+    // Legal hold release outcome log messages (8588-8599)
+    // ========================================================================
+
+    /// <summary>
+    /// Releasing one retention record from a lifted legal hold failed — the record stays under legal hold
+    /// and <c>LiftHoldAsync</c> reports the failure so that a later call can retry it.
+    /// </summary>
     [LoggerMessage(
         EventId = 8588,
         Level = LogLevel.Warning,
-        Message = "Data erasure incomplete; record not marked deleted. EntityId={EntityId}, FieldsFailed={FieldsFailed}")]
-    internal static partial void RetentionErasureIncomplete(this ILogger logger, string entityId, int fieldsFailed);
+        Message = "Retention record could not be released from a lifted legal hold; it stays under legal hold until the lift is retried. HoldId={HoldId}, RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
+    internal static partial void LegalHoldRecordReleaseFailed(this ILogger logger, Guid holdId, Guid recordId, string entityId, string errorMessage);
+
+    /// <summary>
+    /// Whether other active holds remain on the entity could not be determined — no record is released (fail closed).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8589,
+        Level = LogLevel.Warning,
+        Message = "Could not determine whether other legal holds remain on the entity; its records stay under legal hold (fail closed). HoldId={HoldId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
+    internal static partial void LegalHoldOtherHoldsCheckFailed(this ILogger logger, Guid holdId, string entityId, string errorMessage);
+
+    /// <summary>
+    /// <c>LiftHoldAsync</c> was called for a hold that is already lifted — only the release of the entity's
+    /// held records is retried.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8590,
+        Level = LogLevel.Information,
+        Message = "Legal hold already lifted; retrying the release of the entity's held retention records. HoldId={HoldId}, EntityId={EntityId}")]
+    internal static partial void LegalHoldReleaseRetried(this ILogger logger, Guid holdId, string entityId);
 }

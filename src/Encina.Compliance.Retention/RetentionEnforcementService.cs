@@ -1,6 +1,5 @@
 using System.Diagnostics;
 
-using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
@@ -16,7 +15,7 @@ namespace Encina.Compliance.Retention;
 
 /// <summary>
 /// Background hosted service that periodically enforces retention policies by identifying
-/// expired data and delegating deletion to <see cref="IDataErasureExecutor"/> (optional).
+/// expired data and delegating its erasure to <see cref="IRetentionDataEraser"/> (optional).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,10 +28,11 @@ namespace Encina.Compliance.Retention;
 /// (active records past their expiry, and expired records left over by an earlier failed cycle).</description></item>
 /// <item><description>For each record, check legal holds via <see cref="ILegalHoldService.HasActiveHoldsAsync"/>.
 /// If the hold status cannot be determined, the record is skipped, logged and counted as failed (fail closed).</description></item>
-/// <item><description>For non-held records, mark the record expired, re-check legal holds, delegate erasure to
-/// <see cref="IDataErasureExecutor"/> and, only after a successful erasure, mark it deleted.
+/// <item><description>For non-held records, mark the record expired, re-check legal holds, ask
+/// <see cref="IRetentionDataEraser"/> to erase the data of the record's category for the record's entity
+/// (and nothing else) and, only after a successful erasure, mark it deleted.
 /// Any failed step is logged and counted as failed, never as deleted, and the record is retried on the next cycle.
-/// Without a registered <see cref="IDataErasureExecutor"/> nothing is erased: records stay expired, are counted
+/// Without a registered <see cref="IRetentionDataEraser"/> nothing is erased: records stay expired, are counted
 /// as failed and a warning is logged once per cycle.</description></item>
 /// <item><description>Publish <see cref="DataExpiringNotification"/> events for upcoming expirations.</description></item>
 /// </list>
@@ -132,7 +132,7 @@ public sealed class RetentionEnforcementService : BackgroundService
 
             var recordService = scope.ServiceProvider.GetRequiredService<IRetentionRecordService>();
             var legalHoldService = scope.ServiceProvider.GetRequiredService<ILegalHoldService>();
-            var erasureExecutor = scope.ServiceProvider.GetService<IDataErasureExecutor>();
+            var dataEraser = scope.ServiceProvider.GetService<IRetentionDataEraser>();
 
             _logger.RetentionEnforcementCycleStarting();
 
@@ -168,7 +168,7 @@ public sealed class RetentionEnforcementService : BackgroundService
             var recordsDeleted = 0;
             var recordsFailed = 0;
             var recordsUnderHold = 0;
-            var erasureExecutorMissingLogged = false;
+            var dataEraserMissingLogged = false;
 
             foreach (var record in expiredRecords)
             {
@@ -177,7 +177,7 @@ public sealed class RetentionEnforcementService : BackgroundService
                 try
                 {
                     outcome = await ProcessRecordAsync(
-                        record, recordService, legalHoldService, erasureExecutor, cancellationToken)
+                        record, recordService, legalHoldService, dataEraser, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -198,10 +198,10 @@ public sealed class RetentionEnforcementService : BackgroundService
                         recordsUnderHold++;
                         break;
                     case RecordOutcome.ErasureUnavailable:
-                        if (!erasureExecutorMissingLogged)
+                        if (!dataEraserMissingLogged)
                         {
-                            _logger.RetentionErasureExecutorMissing();
-                            erasureExecutorMissingLogged = true;
+                            _logger.RetentionDataEraserMissing();
+                            dataEraserMissingLogged = true;
                         }
 
                         recordsFailed++;
@@ -265,20 +265,22 @@ public sealed class RetentionEnforcementService : BackgroundService
     /// <list type="bullet">
     /// <item><description>Legal-hold lookup error (before marking expired or right before erasing): the record
     /// is skipped without erasure (fail closed).</description></item>
-    /// <item><description>No <see cref="IDataErasureExecutor"/> registered, erasure or <c>MarkDeleted</c> error:
+    /// <item><description>No <see cref="IRetentionDataEraser"/> registered, erasure or <c>MarkDeleted</c> error:
     /// the record stays <see cref="RetentionStatus.Expired"/> and is returned again by
     /// <see cref="IRetentionRecordService.GetExpiredRecordsAsync"/>.</description></item>
     /// </list>
     /// A hold found by the re-check right before erasure moves the record to
     /// <see cref="RetentionStatus.UnderLegalHold"/> and nothing is erased.
+    /// Erasure is scoped to the record: the eraser receives the record's entity and data category, so
+    /// the data of the entity's other categories, still within their own retention periods, is untouched.
     /// Records that reached <see cref="RetentionStatus.Deleted"/> are never returned again, so their
-    /// entities are not erased twice.
+    /// data is not erased twice.
     /// </remarks>
     private async ValueTask<RecordOutcome> ProcessRecordAsync(
         ReadModels.RetentionRecordReadModel record,
         IRetentionRecordService recordService,
         ILegalHoldService legalHoldService,
-        IDataErasureExecutor? erasureExecutor,
+        IRetentionDataEraser? dataEraser,
         CancellationToken cancellationToken)
     {
         // Legal hold check — fail closed: if the hold status is unknown, nothing is erased.
@@ -310,9 +312,9 @@ public sealed class RetentionEnforcementService : BackgroundService
             }
         }
 
-        // Without an executor nothing can be erased, so the record must never reach Deleted:
-        // it stays Expired, is counted as failed and is retried once an executor is registered.
-        if (erasureExecutor is null)
+        // Without an eraser nothing can be erased, so the record must never reach Deleted:
+        // it stays Expired, is counted as failed and is retried once an eraser is registered.
+        if (dataEraser is null)
         {
             return RecordOutcome.ErasureUnavailable;
         }
@@ -334,25 +336,25 @@ public sealed class RetentionEnforcementService : BackgroundService
             return await HoldRecordAsync(record, recordService, cancellationToken).ConfigureAwait(false);
         }
 
-        var erasureScope = new ErasureScope
+        // Erase only what this record governs: its category of data for its entity. Other records of
+        // the same entity (other categories, other retention periods) are not affected.
+        var target = new RetentionErasureTarget
         {
-            Reason = ErasureReason.NoLongerNecessary
+            RecordId = record.Id,
+            EntityId = record.EntityId,
+            DataCategory = record.DataCategory,
+            ExpiresAtUtc = record.ExpiresAtUtc,
+            TenantId = record.TenantId,
+            ModuleId = record.ModuleId
         };
 
-        var erasureResult = await erasureExecutor
-            .EraseAsync(record.EntityId, erasureScope, cancellationToken)
+        var erasureResult = await dataEraser
+            .EraseAsync(target, cancellationToken)
             .ConfigureAwait(false);
 
         if (erasureResult.IsLeft)
         {
-            _logger.RetentionErasureFailed(record.EntityId, ((EncinaError)erasureResult).Message);
-            return RecordOutcome.Failed;
-        }
-
-        var erasure = (ErasureResult)erasureResult;
-        if (erasure.FieldsFailed > 0)
-        {
-            _logger.RetentionErasureIncomplete(record.EntityId, erasure.FieldsFailed);
+            _logger.RetentionErasureFailed(record.EntityId, record.DataCategory, ((EncinaError)erasureResult).Message);
             return RecordOutcome.Failed;
         }
 
@@ -505,7 +507,7 @@ public sealed class RetentionEnforcementService : BackgroundService
         Failed,
 
         /// <summary>
-        /// No <see cref="IDataErasureExecutor"/> is registered: the record was left
+        /// No <see cref="IRetentionDataEraser"/> is registered: the record was left
         /// <see cref="RetentionStatus.Expired"/> without erasure and is counted as failed.
         /// </summary>
         ErasureUnavailable

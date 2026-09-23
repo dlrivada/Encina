@@ -139,28 +139,38 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         {
             var loadResult = await _repository.LoadAsync(holdId, cancellationToken);
 
-            return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
-                RightAsync: async aggregate =>
+            if (loadResult.IsLeft)
+            {
+                return RetentionErrors.HoldNotFound(holdId.ToString());
+            }
+
+            var aggregate = (LegalHoldAggregate)loadResult;
+
+            if (aggregate.IsActive)
+            {
+                var releasedAtUtc = _timeProvider.GetUtcNow();
+                aggregate.Lift(releasedByUserId, releasedAtUtc);
+                var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
+
+                if (saveResult.IsLeft)
                 {
-                    var releasedAtUtc = _timeProvider.GetUtcNow();
-                    aggregate.Lift(releasedByUserId, releasedAtUtc);
-                    var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
+                    return (EncinaError)saveResult;
+                }
 
-                    return await saveResult.MatchAsync<Either<EncinaError, Unit>>(
-                        RightAsync: async _ =>
-                        {
-                            _logger.LegalHoldLiftedES(holdId, releasedByUserId);
-                            RetentionDiagnostics.LegalHoldsReleasedTotal.Add(1);
-                            InvalidateCache(holdId);
+                _logger.LegalHoldLiftedES(holdId, releasedByUserId);
+                RetentionDiagnostics.LegalHoldsReleasedTotal.Add(1);
+                InvalidateCache(holdId);
+            }
+            else
+            {
+                // The hold was lifted by an earlier call whose record release did not complete:
+                // lifting it again only retries the release of the records still held.
+                _logger.LegalHoldReleaseRetried(holdId, aggregate.EntityId);
+            }
 
-                            // Cross-aggregate coordination: release records if no other active holds
-                            await CascadeReleaseToRecordsAsync(aggregate.EntityId, holdId, cancellationToken);
-
-                            return Unit.Default;
-                        },
-                        Left: error => error);
-                },
-                Left: _ => RetentionErrors.HoldNotFound(holdId.ToString()));
+            // Cross-aggregate coordination: release the entity's records if no other active hold remains.
+            // Any failure is returned, never swallowed, so that the caller can retry.
+            return await ReleaseRecordsAsync(aggregate.EntityId, holdId, cancellationToken);
         }
         catch (InvalidOperationException)
         {
@@ -336,61 +346,116 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
     }
 
     /// <summary>
-    /// Cascades a release to all retention records for the specified entity if no other active holds remain.
+    /// Releases the entity's held retention records after <paramref name="legalHoldId"/> was lifted,
+    /// unless another active hold still applies to the entity.
     /// </summary>
-    private async Task CascadeReleaseToRecordsAsync(
+    /// <remarks>
+    /// <para>
+    /// Fails closed: if whether another hold remains cannot be determined, no record is released and an
+    /// error is returned, because releasing records that another hold still protects would expose them
+    /// to erasure.
+    /// </para>
+    /// <para>
+    /// Every record is attempted even when an earlier one fails. The records that could not be released
+    /// stay <c>UnderLegalHold</c> (so they are not erased) and are listed in the returned
+    /// <see cref="RetentionErrors.HoldReleaseIncompleteCode"/> error; lifting the same hold again retries them.
+    /// </para>
+    /// </remarks>
+    private async ValueTask<Either<EncinaError, Unit>> ReleaseRecordsAsync(
         string entityId,
         Guid legalHoldId,
         CancellationToken cancellationToken)
     {
+        // Other active holds on the entity, excluding the one being lifted (whether or not its read
+        // model already reflects the lift).
+        Either<EncinaError, IReadOnlyList<LegalHoldReadModel>> otherHoldsResult;
         try
         {
-            // Check if there are other active holds for this entity
-            var activeHoldsResult = await _readModelRepository.QueryAsync(
-                q => q.Where(h => h.EntityId == entityId && h.IsActive),
+            otherHoldsResult = await _readModelRepository.QueryAsync(
+                q => q.Where(h => h.EntityId == entityId && h.IsActive && h.Id != legalHoldId),
                 cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            otherHoldsResult = RetentionErrors.ServiceError("GetOtherActiveHolds", ex);
+        }
 
-            var hasOtherHolds = activeHoldsResult.Match(
-                Right: holds => holds.Count > 0,
-                Left: _ => false);
+        if (otherHoldsResult.IsLeft)
+        {
+            var error = (EncinaError)otherHoldsResult;
+            _logger.LegalHoldOtherHoldsCheckFailed(legalHoldId, entityId, error.Message);
+            return RetentionErrors.HoldReleaseIncomplete(
+                legalHoldId, entityId, [], "whether other legal holds remain on the entity could not be determined");
+        }
 
-            if (hasOtherHolds)
-            {
-                _logger.LegalHoldOtherHoldsRemain(entityId);
-                return;
-            }
+        var otherHoldCount = otherHoldsResult.Match(Right: holds => holds.Count, Left: _ => 0);
+        if (otherHoldCount > 0)
+        {
+            _logger.LegalHoldOtherHoldsRemain(entityId);
+            return Unit.Default;
+        }
 
-            // No other active holds — release all held records for this entity
-            var recordsResult = await _recordReadModelRepository.QueryAsync(
+        // No other active hold: release every record of the entity that is still held.
+        Either<EncinaError, IReadOnlyList<RetentionRecordReadModel>> recordsResult;
+        try
+        {
+            recordsResult = await _recordReadModelRepository.QueryAsync(
                 q => q.Where(r =>
                     r.EntityId == entityId
                     && r.Status == Model.RetentionStatus.UnderLegalHold),
                 cancellationToken);
-
-            if (recordsResult.IsLeft)
-            {
-                var error = (EncinaError)recordsResult;
-                _logger.LegalHoldCascadeFailed(entityId, error.Message);
-                return;
-            }
-
-            var records = recordsResult.Match(
-                Right: r => r,
-                Left: _ => (IReadOnlyList<RetentionRecordReadModel>)[]);
-            var affectedCount = 0;
-            foreach (var record in records)
-            {
-                // Best-effort cascade — individual record release failures should not block the hold lift
-                await _retentionRecordService.ReleaseRecordAsync(record.Id, legalHoldId, cancellationToken);
-                affectedCount++;
-            }
-
-            _logger.RetentionCrossAggregateCascade(entityId, "Release", affectedCount);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LegalHoldCascadeFailed(entityId, ex.Message);
+            recordsResult = RetentionErrors.ServiceError("GetHeldRecords", ex);
         }
+
+        if (recordsResult.IsLeft)
+        {
+            var error = (EncinaError)recordsResult;
+            _logger.LegalHoldCascadeFailed(entityId, error.Message);
+            return RetentionErrors.HoldReleaseIncomplete(
+                legalHoldId, entityId, [], "the entity's held retention records could not be queried");
+        }
+
+        var records = recordsResult.Match(
+            Right: r => r,
+            Left: _ => (IReadOnlyList<RetentionRecordReadModel>)[]);
+        var failedRecordIds = new List<Guid>();
+
+        foreach (var record in records)
+        {
+            string? failure;
+            try
+            {
+                var releaseResult = await _retentionRecordService.ReleaseRecordAsync(
+                    record.Id, legalHoldId, cancellationToken);
+                failure = releaseResult.IsLeft ? ((EncinaError)releaseResult).Message : null;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failure = ex.Message;
+            }
+
+            if (failure is not null)
+            {
+                _logger.LegalHoldRecordReleaseFailed(legalHoldId, record.Id, entityId, failure);
+                failedRecordIds.Add(record.Id);
+            }
+        }
+
+        _logger.RetentionCrossAggregateCascade(entityId, "Release", records.Count - failedRecordIds.Count);
+
+        if (failedRecordIds.Count > 0)
+        {
+            return RetentionErrors.HoldReleaseIncomplete(
+                legalHoldId,
+                entityId,
+                failedRecordIds,
+                $"{failedRecordIds.Count} of {records.Count} retention record(s) could not be released");
+        }
+
+        return Unit.Default;
     }
 
     // ========================================================================

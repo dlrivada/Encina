@@ -394,13 +394,45 @@ public sealed class RetentionErrorsMetadataTests
             RetentionErrors.InvalidStateTransition(Guid.NewGuid(), "x"),
             RetentionErrors.ServiceError("x"),
             RetentionErrors.EventHistoryUnavailable(Guid.NewGuid()),
-            RetentionErrors.PipelineEntityIdNotFound("x")
+            RetentionErrors.PipelineEntityIdNotFound("x"),
+            RetentionErrors.HoldReleaseIncomplete(Guid.NewGuid(), "x", [], "y")
         };
 
         foreach (var error in errors)
         {
             error.GetCode().IsSome.ShouldBeTrue();
         }
+    }
+
+    #endregion
+
+    #region HoldReleaseIncomplete Metadata
+
+    [Fact]
+    public void HoldReleaseIncomplete_IncludesHoldEntityFailedRecordsAndReason()
+    {
+        var holdId = Guid.NewGuid();
+        var failed = new[] { Guid.NewGuid(), Guid.NewGuid() };
+
+        var error = RetentionErrors.HoldReleaseIncomplete(holdId, "customer-42", failed, "2 of 3 retention record(s) could not be released");
+        var details = error.GetDetails();
+
+        error.GetCode().Match(c => c, () => string.Empty).ShouldBe(RetentionErrors.HoldReleaseIncompleteCode);
+        details["holdId"].ShouldBe(holdId.ToString());
+        details["entityId"].ShouldBe("customer-42");
+        details["failedRecordIds"].ShouldBe(failed.Select(id => id.ToString()).ToArray());
+        details["reason"].ShouldBe("2 of 3 retention record(s) could not be released");
+        details.ShouldContainKey("retention_processing");
+        error.Message.ShouldContain(holdId.ToString());
+        error.Message.ShouldContain("customer-42");
+        error.Message.ShouldContain("lift the hold again");
+    }
+
+    [Fact]
+    public void HoldReleaseIncomplete_NullFailedRecordIds_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            RetentionErrors.HoldReleaseIncomplete(Guid.NewGuid(), "customer-42", null!, "reason"));
     }
 
     #endregion

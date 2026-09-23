@@ -1,4 +1,3 @@
-using Encina.Compliance.DataSubjectRights;
 using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Model;
@@ -27,26 +26,25 @@ public sealed class RetentionEnforcementServiceTests
     private const int CycleCompletedEventId = 8512;
     private const int LegalHoldCheckFailedEventId = 8586;
     private const int TransitionFailedEventId = 8587;
-    private const int ErasureIncompleteEventId = 8588;
     private const int ErasureFailedEventId = 8557;
-    private const int ErasureExecutorMissingEventId = 8519;
+    private const int DataEraserMissingEventId = 8519;
 
     private static readonly DateTimeOffset Now = new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
     private readonly IRetentionRecordService _recordService = Substitute.For<IRetentionRecordService>();
     private readonly ILegalHoldService _legalHoldService = Substitute.For<ILegalHoldService>();
-    private readonly IDataErasureExecutor _erasureExecutor = Substitute.For<IDataErasureExecutor>();
+    private readonly IRetentionDataEraser _dataEraser = Substitute.For<IRetentionDataEraser>();
     private readonly FakeLogger<RetentionEnforcementService> _logger = new();
     private readonly FakeTimeProvider _timeProvider = new(Now);
 
-    private IServiceScopeFactory CreateScopeFactory(bool withErasureExecutor = true, IEncina? encina = null)
+    private IServiceScopeFactory CreateScopeFactory(bool withDataEraser = true, IEncina? encina = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(_recordService);
         services.AddSingleton(_legalHoldService);
-        if (withErasureExecutor)
+        if (withDataEraser)
         {
-            services.AddSingleton(_erasureExecutor);
+            services.AddSingleton(_dataEraser);
         }
 
         if (encina is not null)
@@ -59,11 +57,11 @@ public sealed class RetentionEnforcementServiceTests
     }
 
     private RetentionEnforcementService CreateSut(
-        bool withErasureExecutor = true,
+        bool withDataEraser = true,
         bool publishNotifications = false,
         IEncina? encina = null) =>
         new(
-            CreateScopeFactory(withErasureExecutor, encina),
+            CreateScopeFactory(withDataEraser, encina),
             Options.Create(new RetentionOptions
             {
                 EnableAutomaticEnforcement = true,
@@ -101,17 +99,8 @@ public sealed class RetentionEnforcementServiceTests
     }
 
     private void GivenErasureSucceeds() =>
-        _erasureExecutor.EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, ErasureResult>(Erasure(fieldsFailed: 0)));
-
-    private static ErasureResult Erasure(int fieldsFailed) => new()
-    {
-        FieldsErased = 3,
-        FieldsRetained = 0,
-        FieldsFailed = fieldsFailed,
-        RetentionReasons = [],
-        Exemptions = []
-    };
+        _dataEraser.EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
 
     private (int Deleted, int Failed, int Held) LastCycleCounts()
     {
@@ -180,11 +169,118 @@ public sealed class RetentionEnforcementServiceTests
         Received.InOrder(() =>
         {
             _recordService.MarkExpiredAsync(record.Id, Arg.Any<CancellationToken>());
-            _erasureExecutor.EraseAsync("entity-1", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+            _dataEraser.EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-1"), Arg.Any<CancellationToken>());
             _recordService.MarkDeletedAsync(record.Id, Arg.Any<CancellationToken>());
         });
 #pragma warning restore CA2012
         LastCycleCounts().ShouldBe((1, 0, 0));
+    }
+
+    // ========================================================================
+    // Category-scoped erasure (#1160)
+    // ========================================================================
+
+    [Fact]
+    public async Task Cycle_EntityWithTwoCategories_OnlyExpiredCategoryIsErased()
+    {
+        // The same patient is tracked by two records: contact data (expired) and the clinical
+        // record (still within its retention period, so GetExpiredRecordsAsync does not return it).
+        var contact = new RetentionRecordReadModel
+        {
+            Id = Guid.NewGuid(),
+            EntityId = "patient-7",
+            DataCategory = "patient-contact",
+            ExpiresAtUtc = Now.AddDays(-1),
+            Status = RetentionStatus.Active
+        };
+        GivenExpiredRecords(contact);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.Received(1).EraseAsync(
+            Arg.Is<RetentionErasureTarget>(t => t.EntityId == "patient-7" && t.DataCategory == "patient-contact"),
+            Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(
+            Arg.Is<RetentionErasureTarget>(t => t.DataCategory != "patient-contact"),
+            Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkDeletedAsync(contact.Id, Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((1, 0, 0));
+    }
+
+    [Fact]
+    public async Task Cycle_TwoExpiredCategoriesOfOneEntity_EachErasedOnceWithItsOwnCategory()
+    {
+        var contact = Record("patient-8");
+        contact.DataCategory = "patient-contact";
+        var billing = Record("patient-8");
+        billing.DataCategory = "billing";
+        GivenExpiredRecords(contact, billing);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.Received(1).EraseAsync(
+            Arg.Is<RetentionErasureTarget>(t => t.RecordId == contact.Id && t.DataCategory == "patient-contact"),
+            Arg.Any<CancellationToken>());
+        await _dataEraser.Received(1).EraseAsync(
+            Arg.Is<RetentionErasureTarget>(t => t.RecordId == billing.Id && t.DataCategory == "billing"),
+            Arg.Any<CancellationToken>());
+        await _dataEraser.Received(2).EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((2, 0, 0));
+    }
+
+    [Fact]
+    public async Task Cycle_ErasureTarget_CarriesTheRecordScope()
+    {
+        var record = Record("entity-scoped");
+        record.DataCategory = "clinical-record";
+        record.TenantId = "tenant-a";
+        record.ModuleId = "module-b";
+        GivenExpiredRecords(record);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        RetentionErasureTarget? captured = null;
+#pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
+        _dataEraser.EraseAsync(Arg.Do<RetentionErasureTarget>(t => captured = t), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
+#pragma warning restore CA2012
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        captured.ShouldNotBeNull();
+        captured.ShouldBe(new RetentionErasureTarget
+        {
+            RecordId = record.Id,
+            EntityId = "entity-scoped",
+            DataCategory = "clinical-record",
+            ExpiresAtUtc = record.ExpiresAtUtc,
+            TenantId = "tenant-a",
+            ModuleId = "module-b"
+        });
+    }
+
+    [Fact]
+    public async Task Cycle_ErasureReturnsLeft_LogsEntityAndCategory()
+    {
+        var record = Record("entity-category-log");
+        record.DataCategory = "clinical-record";
+        GivenExpiredRecords(record);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        _dataEraser.EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaError.New("clinical store unavailable")));
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        var failure = _logger.Collector.GetSnapshot().Single(r => r.Id.Id == ErasureFailedEventId);
+        failure.GetStructuredStateValue("EntityId").ShouldBe("entity-category-log");
+        failure.GetStructuredStateValue("DataCategory").ShouldBe("clinical-record");
+        failure.GetStructuredStateValue("ErrorMessage").ShouldBe("clinical store unavailable");
     }
 
     [Fact]
@@ -199,13 +295,13 @@ public sealed class RetentionEnforcementServiceTests
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
         await _recordService.DidNotReceive().MarkExpiredAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await _erasureExecutor.Received(1).EraseAsync("entity-retry", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.Received(1).EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-retry"), Arg.Any<CancellationToken>());
         await _recordService.Received(1).MarkDeletedAsync(record.Id, Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((1, 0, 0));
     }
 
     [Fact]
-    public async Task Cycle_NoErasureExecutor_LeavesRecordsExpired_CountsAsFailed_WarnsOncePerCycle()
+    public async Task Cycle_NoDataEraser_LeavesRecordsExpired_CountsAsFailed_WarnsOncePerCycle()
     {
         var first = Record("entity-no-executor-1");
         var second = Record("entity-no-executor-2");
@@ -213,13 +309,13 @@ public sealed class RetentionEnforcementServiceTests
         GivenNoHolds();
         GivenTransitionsSucceed();
 
-        await CreateSut(withErasureExecutor: false).ExecuteEnforcementCycleAsync(CancellationToken.None);
+        await CreateSut(withDataEraser: false).ExecuteEnforcementCycleAsync(CancellationToken.None);
 
         await _recordService.Received(1).MarkExpiredAsync(first.Id, Arg.Any<CancellationToken>());
         await _recordService.Received(1).MarkExpiredAsync(second.Id, Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 2, 0));
-        var warnings = _logger.Collector.GetSnapshot().Where(r => r.Id.Id == ErasureExecutorMissingEventId).ToList();
+        var warnings = _logger.Collector.GetSnapshot().Where(r => r.Id.Id == DataEraserMissingEventId).ToList();
         warnings.Count.ShouldBe(1);
         warnings[0].Level.ShouldBe(Microsoft.Extensions.Logging.LogLevel.Warning);
     }
@@ -237,7 +333,7 @@ public sealed class RetentionEnforcementServiceTests
 
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 1, 0));
         LogCount(TransitionFailedEventId).ShouldBe(1);
@@ -250,8 +346,8 @@ public sealed class RetentionEnforcementServiceTests
         GivenExpiredRecords(record);
         GivenNoHolds();
         GivenTransitionsSucceed();
-        _erasureExecutor.EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, ErasureResult>(EncinaError.New("erasure store unavailable")));
+        _dataEraser.EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaError.New("erasure store unavailable")));
 
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
@@ -259,23 +355,6 @@ public sealed class RetentionEnforcementServiceTests
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 1, 0));
         LogCount(ErasureFailedEventId).ShouldBe(1);
-    }
-
-    [Fact]
-    public async Task Cycle_ErasureWithFailedFields_DoesNotMarkDeleted_CountsAsFailed()
-    {
-        var record = Record("entity-partial");
-        GivenExpiredRecords(record);
-        GivenNoHolds();
-        GivenTransitionsSucceed();
-        _erasureExecutor.EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, ErasureResult>(Erasure(fieldsFailed: 2)));
-
-        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
-
-        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        LastCycleCounts().ShouldBe((0, 1, 0));
-        LogCount(ErasureIncompleteEventId).ShouldBe(1);
     }
 
     [Fact]
@@ -288,8 +367,8 @@ public sealed class RetentionEnforcementServiceTests
         GivenTransitionsSucceed();
         GivenErasureSucceeds();
 #pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
-        _erasureExecutor.EraseAsync("entity-throws", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
-            .Returns<ValueTask<Either<EncinaError, ErasureResult>>>(_ => throw new InvalidOperationException("DB error"));
+        _dataEraser.EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-throws"), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException("DB error"));
 #pragma warning restore CA2012
 
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
@@ -334,10 +413,10 @@ public sealed class RetentionEnforcementServiceTests
                 Right<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(new[] { retried }));
         GivenNoHolds();
         GivenTransitionsSucceed();
-        _erasureExecutor.EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
+        _dataEraser.EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>())
             .Returns(
-                Left<EncinaError, ErasureResult>(EncinaError.New("transient failure")),
-                Right<EncinaError, ErasureResult>(Erasure(fieldsFailed: 0)));
+                Left<EncinaError, Unit>(EncinaError.New("transient failure")),
+                Right<EncinaError, Unit>(unit));
         var sut = CreateSut();
 
         await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
@@ -347,7 +426,7 @@ public sealed class RetentionEnforcementServiceTests
         LastCycleCounts().ShouldBe((1, 0, 0));
 
         await _recordService.Received(1).MarkExpiredAsync(record.Id, Arg.Any<CancellationToken>());
-        await _erasureExecutor.Received(2).EraseAsync("entity-flaky", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.Received(2).EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-flaky"), Arg.Any<CancellationToken>());
         await _recordService.Received(1).MarkDeletedAsync(record.Id, Arg.Any<CancellationToken>());
     }
 
@@ -368,7 +447,7 @@ public sealed class RetentionEnforcementServiceTests
         await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
         await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
 
-        await _erasureExecutor.Received(1).EraseAsync("entity-once", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.Received(1).EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-once"), Arg.Any<CancellationToken>());
         await _recordService.Received(1).MarkDeletedAsync(record.Id, Arg.Any<CancellationToken>());
     }
 
@@ -381,7 +460,7 @@ public sealed class RetentionEnforcementServiceTests
 
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -402,7 +481,7 @@ public sealed class RetentionEnforcementServiceTests
 
         await _recordService.Received(1).HoldRecordAsync(record.Id, Guid.Empty, Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkExpiredAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 0, 1));
     }
@@ -420,7 +499,7 @@ public sealed class RetentionEnforcementServiceTests
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
         await _recordService.DidNotReceive().MarkExpiredAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 1, 0));
         LogCount(LegalHoldCheckFailedEventId).ShouldBe(1);
@@ -440,11 +519,11 @@ public sealed class RetentionEnforcementServiceTests
         var sut = CreateSut();
 
         await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
 
         await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
 
-        await _erasureExecutor.Received(1).EraseAsync("entity-hold-retry", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.Received(1).EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-hold-retry"), Arg.Any<CancellationToken>());
         await _recordService.Received(1).MarkDeletedAsync(record.Id, Arg.Any<CancellationToken>());
     }
 
@@ -461,7 +540,7 @@ public sealed class RetentionEnforcementServiceTests
 
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 1, 0));
     }
 
@@ -480,7 +559,7 @@ public sealed class RetentionEnforcementServiceTests
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
         await _recordService.DidNotReceive().MarkExpiredAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 1, 0));
         LogCount(LegalHoldCheckFailedEventId).ShouldBe(1);
@@ -501,7 +580,7 @@ public sealed class RetentionEnforcementServiceTests
         await _legalHoldService.Received(2).HasActiveHoldsAsync("entity-hold-race", Arg.Any<CancellationToken>());
         await _recordService.Received(1).MarkExpiredAsync(record.Id, Arg.Any<CancellationToken>());
         await _recordService.Received(1).HoldRecordAsync(record.Id, Guid.Empty, Arg.Any<CancellationToken>());
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 0, 1));
     }
@@ -521,7 +600,7 @@ public sealed class RetentionEnforcementServiceTests
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
         await _recordService.Received(1).MarkExpiredAsync(record.Id, Arg.Any<CancellationToken>());
-        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 1, 0));
         LogCount(LegalHoldCheckFailedEventId).ShouldBe(1);
@@ -541,8 +620,8 @@ public sealed class RetentionEnforcementServiceTests
         GivenTransitionsSucceed();
         GivenErasureSucceeds();
 #pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
-        _erasureExecutor.EraseAsync("entity-timeout", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
-            .Returns<ValueTask<Either<EncinaError, ErasureResult>>>(_ => throw new TaskCanceledException("HTTP request timed out"));
+        _dataEraser.EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-timeout"), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new TaskCanceledException("HTTP request timed out"));
 #pragma warning restore CA2012
 
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
@@ -563,8 +642,8 @@ public sealed class RetentionEnforcementServiceTests
         GivenErasureSucceeds();
         using var cts = new CancellationTokenSource();
 #pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
-        _erasureExecutor.EraseAsync("entity-cancelled", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
-            .Returns<ValueTask<Either<EncinaError, ErasureResult>>>(_ =>
+        _dataEraser.EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-cancelled"), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ =>
             {
                 cts.Cancel();
                 throw new OperationCanceledException(cts.Token);
@@ -573,7 +652,7 @@ public sealed class RetentionEnforcementServiceTests
 
         await CreateSut().ExecuteEnforcementCycleAsync(cts.Token);
 
-        await _erasureExecutor.DidNotReceive().EraseAsync("entity-not-reached", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Is<RetentionErasureTarget>(t => t.EntityId == "entity-not-reached"), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         LogCount(CycleCompletedEventId).ShouldBe(0);
     }

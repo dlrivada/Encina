@@ -40,3 +40,4 @@ has_children: true
 | [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events (Outbox only) |
 | [029](029-recoverability-error-classification.md) | Recoverability Error Classification |
 | [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
+| [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |

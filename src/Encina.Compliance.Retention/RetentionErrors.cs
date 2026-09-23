@@ -49,6 +49,9 @@ public static class RetentionErrors
     /// <summary>Error code when a legal hold has already been released.</summary>
     public const string HoldAlreadyReleasedCode = "retention.hold_already_released";
 
+    /// <summary>Error code when a legal hold was lifted but not all of its retention records could be released.</summary>
+    public const string HoldReleaseIncompleteCode = "retention.hold_release_incomplete";
+
     /// <summary>Error code when the retention enforcement cycle fails.</summary>
     public const string EnforcementFailedCode = "retention.enforcement_failed";
 
@@ -199,6 +202,44 @@ public static class RetentionErrors
                 [MetadataKeyHoldId] = holdId,
                 [MetadataKeyStage] = MetadataKeyStage
             });
+
+    /// <summary>
+    /// Creates an error when a legal hold was lifted but some or all of the entity's retention records
+    /// could not be released from it.
+    /// </summary>
+    /// <param name="holdId">The identifier of the lifted hold.</param>
+    /// <param name="entityId">The identifier of the entity whose records stay under legal hold.</param>
+    /// <param name="failedRecordIds">
+    /// The records that could not be released. Empty when no record was attempted because the release
+    /// could not safely start (for example, whether other holds remain could not be determined).
+    /// </param>
+    /// <param name="reason">Why the release is incomplete.</param>
+    /// <returns>An error indicating the release of the hold's records is incomplete.</returns>
+    /// <remarks>
+    /// The hold itself stays lifted. The records listed stay <c>UnderLegalHold</c>, so nothing is erased,
+    /// and calling <c>ILegalHoldService.LiftHoldAsync</c> again for the same hold retries their release.
+    /// </remarks>
+    public static EncinaError HoldReleaseIncomplete(
+        Guid holdId,
+        string entityId,
+        IReadOnlyList<Guid> failedRecordIds,
+        string reason)
+    {
+        ArgumentNullException.ThrowIfNull(failedRecordIds);
+
+        return EncinaErrors.Create(
+            code: HoldReleaseIncompleteCode,
+            message: $"Legal hold '{holdId}' was lifted, but the retention records of entity '{entityId}' were not all released: {reason}. " +
+                     "They stay under legal hold; lift the hold again to retry the release.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyHoldId] = holdId.ToString(),
+                [MetadataKeyEntityId] = entityId,
+                ["failedRecordIds"] = failedRecordIds.Select(id => id.ToString()).ToArray(),
+                ["reason"] = reason,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+    }
 
     // --- Enforcement errors ---
 
