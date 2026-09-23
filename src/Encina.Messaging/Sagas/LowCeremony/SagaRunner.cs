@@ -17,26 +17,30 @@ namespace Encina.Messaging.Sagas.LowCeremony;
 public sealed class SagaRunner : ISagaRunner
 {
     private readonly SagaOrchestrator _orchestrator;
-    private readonly IRequestContext _requestContext;
+    private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<SagaRunner> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaRunner"/> class.
     /// </summary>
     /// <param name="orchestrator">The saga orchestrator for state management.</param>
-    /// <param name="requestContext">The request context.</param>
+    /// <param name="requestContextAccessor">
+    /// Accessor for the ambient request context. Every run resolves the current context (or a
+    /// fresh one when none is in flight) instead of capturing a snapshot at construction time,
+    /// since this runner is registered as scoped but may outlive the caller's own dispatch.
+    /// </param>
     /// <param name="logger">The logger.</param>
     public SagaRunner(
         SagaOrchestrator orchestrator,
-        IRequestContext requestContext,
+        IRequestContextAccessor requestContextAccessor,
         ILogger<SagaRunner> logger)
     {
         ArgumentNullException.ThrowIfNull(orchestrator);
-        ArgumentNullException.ThrowIfNull(requestContext);
+        ArgumentNullException.ThrowIfNull(requestContextAccessor);
         ArgumentNullException.ThrowIfNull(logger);
 
         _orchestrator = orchestrator;
-        _requestContext = requestContext;
+        _requestContextAccessor = requestContextAccessor;
         _logger = logger;
     }
 
@@ -58,6 +62,11 @@ public sealed class SagaRunner : ISagaRunner
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(initialData);
+
+        // The ambient context set by IEncina.Send/Publish/Stream wins; a run started outside a
+        // dispatch (a background job invoking the saga directly) gets a fresh context instead of
+        // a null one, since steps require a non-null IRequestContext.
+        var requestContext = _requestContextAccessor.RequestContext ?? RequestContext.Create();
 
         // Start the saga
         var startResult = await _orchestrator.StartAsync(
@@ -86,7 +95,7 @@ public sealed class SagaRunner : ISagaRunner
                 var step = definition.Steps[i];
                 Log.StepExecuting(_logger, sagaId, i + 1, step.Name);
 
-                var stepResult = await step.Execute(currentData, _requestContext, cancellationToken)
+                var stepResult = await step.Execute(currentData, requestContext, cancellationToken)
                     .ConfigureAwait(false);
 
                 if (stepResult.IsLeft)
@@ -99,7 +108,7 @@ public sealed class SagaRunner : ISagaRunner
                     Log.StepFailed(_logger, sagaId, i + 1, step.Name, error.Message);
 
                     // Run compensation for completed steps
-                    await CompensateAsync(definition, currentData, i - 1, cancellationToken)
+                    await CompensateAsync(definition, currentData, i - 1, requestContext, cancellationToken)
                         .ConfigureAwait(false);
 
                     // Mark saga as compensated
@@ -137,7 +146,7 @@ public sealed class SagaRunner : ISagaRunner
             Log.SagaCancelled(_logger, sagaId);
 
             // Run compensation for completed steps
-            await CompensateAsync(definition, currentData, stepsExecuted - 1, cancellationToken)
+            await CompensateAsync(definition, currentData, stepsExecuted - 1, requestContext, cancellationToken)
                 .ConfigureAwait(false);
 
             await _orchestrator.FailAsync(sagaId, "Operation was cancelled", CancellationToken.None)
@@ -150,7 +159,7 @@ public sealed class SagaRunner : ISagaRunner
             Log.SagaException(_logger, sagaId, ex.Message, ex);
 
             // Run compensation for completed steps
-            await CompensateAsync(definition, currentData, stepsExecuted - 1, CancellationToken.None)
+            await CompensateAsync(definition, currentData, stepsExecuted - 1, requestContext, CancellationToken.None)
                 .ConfigureAwait(false);
 
             await _orchestrator.FailAsync(sagaId, ex.Message, CancellationToken.None)
@@ -164,6 +173,7 @@ public sealed class SagaRunner : ISagaRunner
         BuiltSagaDefinition<TData> definition,
         TData data,
         int fromStep,
+        IRequestContext requestContext,
         CancellationToken cancellationToken)
         where TData : class, new()
     {
@@ -181,7 +191,7 @@ public sealed class SagaRunner : ISagaRunner
             try
             {
                 Log.StepCompensating(_logger, i + 1, step.Name);
-                await step.Compensate(data, _requestContext, cancellationToken).ConfigureAwait(false);
+                await step.Compensate(data, requestContext, cancellationToken).ConfigureAwait(false);
                 Log.StepCompensated(_logger, i + 1, step.Name);
             }
             catch (Exception ex)

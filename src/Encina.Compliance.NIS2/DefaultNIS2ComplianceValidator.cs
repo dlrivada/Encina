@@ -69,8 +69,10 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
             ? _serviceProvider.GetService<ICacheProvider>()
             : null;
 
-        // Build cache key — includes TenantId when multi-tenancy is active
-        var tenantId = _serviceProvider.GetService<IRequestContext>()?.TenantId;
+        // Build cache key — includes TenantId when multi-tenancy is active. The ambient context
+        // set by IEncina.Send/Publish/Stream is read at validation time, not captured at
+        // construction, since this validator is registered as a singleton.
+        var tenantId = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
         var cacheKey = tenantId is not null
             ? $"{CacheKeyPrefix}{tenantId}:{entityTypeName}:{sectorName}"
             : $"{CacheKeyPrefix}{entityTypeName}:{sectorName}";

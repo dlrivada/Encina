@@ -52,7 +52,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
 {
     private readonly IPolicyStore _store;
     private readonly IAuditStore? _auditStore;
-    private readonly IRequestContext? _requestContext;
+    private readonly IRequestContextAccessor? _requestContextAccessor;
     private readonly ILogger<PersistentPolicyAdministrationPoint> _logger;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -70,15 +70,17 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     /// Optional audit store for recording policy change events.
     /// When <c>null</c>, audit recording is disabled.
     /// </param>
-    /// <param name="requestContext">
-    /// Optional request context for resolving the actor (user ID) in audit entries.
-    /// When <c>null</c>, audit entries record the actor as <c>"system"</c>.
+    /// <param name="requestContextAccessor">
+    /// Optional accessor for the ambient request context, used to resolve the actor (user ID) in
+    /// audit entries at the moment each entry is recorded (this PAP is registered as a singleton,
+    /// so the context cannot be captured once at construction time). When <c>null</c>, or when no
+    /// context is in flight, audit entries record the actor as <c>"system"</c>.
     /// </param>
     public PersistentPolicyAdministrationPoint(
         IPolicyStore store,
         ILogger<PersistentPolicyAdministrationPoint> logger,
         IAuditStore? auditStore = null,
-        IRequestContext? requestContext = null)
+        IRequestContextAccessor? requestContextAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(logger);
@@ -86,7 +88,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         _store = store;
         _logger = logger;
         _auditStore = auditStore;
-        _requestContext = requestContext;
+        _requestContextAccessor = requestContextAccessor;
     }
 
     // ── PolicySet CRUD ──────────────────────────────────────────────
@@ -595,10 +597,11 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
             return;
         }
 
+        var requestContext = _requestContextAccessor?.RequestContext;
         var now = DateTimeOffset.UtcNow;
-        var userId = _requestContext?.UserId ?? "system";
-        var correlationId = _requestContext?.CorrelationId ?? Guid.NewGuid().ToString();
-        var tenantId = _requestContext?.TenantId;
+        var userId = requestContext?.UserId ?? "system";
+        var correlationId = requestContext?.CorrelationId ?? Guid.NewGuid().ToString();
+        var tenantId = requestContext?.TenantId;
 
         var metadata = new Dictionary<string, object?>
         {

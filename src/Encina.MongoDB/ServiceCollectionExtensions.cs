@@ -365,7 +365,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new FunctionalRepositoryMongoDB<TEntity, TId>(
                 collection, idProperty, requestContext, timeProvider);
@@ -437,7 +437,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new FunctionalRepositoryMongoDB<TEntity, TId>(
                 collection, idProperty, requestContext, timeProvider);
@@ -584,7 +584,7 @@ public static class ServiceCollectionExtensions
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
             var entityMapping = sp.GetRequiredService<ISoftDeleteEntityMapping<TEntity, TId>>();
             var softDeleteOptions = sp.GetRequiredService<SoftDeleteOptions>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>(
                 collection, entityMapping, softDeleteOptions, requestContext, timeProvider);
@@ -736,7 +736,7 @@ public static class ServiceCollectionExtensions
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
             var options = sp.GetRequiredService<MongoDbRepositoryOptions<TEntity, TId>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new BulkOperationsMongoDB<TEntity, TId>(
                 collection, options.IdProperty!, null, requestContext, timeProvider);

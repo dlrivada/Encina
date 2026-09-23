@@ -97,7 +97,7 @@ public static class ShardingServiceCollectionExtensions
             var connectionFactory = sp.GetRequiredService<IShardedConnectionFactory<NpgsqlConnection>>();
             var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryADO<TEntity, TId>>>();
 

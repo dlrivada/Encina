@@ -10,7 +10,7 @@ namespace Encina.GuardTests.Messaging.Sagas;
 public class SagaRunnerGuardTests
 {
     private readonly SagaOrchestrator _orchestrator;
-    private readonly IRequestContext _requestContext = Substitute.For<IRequestContext>();
+    private readonly IRequestContextAccessor _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
     private readonly ILogger<SagaRunner> _logger = NullLogger<SagaRunner>.Instance;
 
     public SagaRunnerGuardTests()
@@ -20,30 +20,31 @@ public class SagaRunnerGuardTests
             new SagaOptions(),
             NullLogger<SagaOrchestrator>.Instance,
             Substitute.For<ISagaStateFactory>());
+        _requestContextAccessor.RequestContext.Returns(Substitute.For<IRequestContext>());
     }
 
-    private SagaRunner CreateSut() => new(_orchestrator, _requestContext, _logger);
+    private SagaRunner CreateSut() => new(_orchestrator, _requestContextAccessor, _logger);
 
     #region Constructor Guards
 
     [Fact]
     public void Constructor_NullOrchestrator_ThrowsArgumentNullException()
     {
-        var act = () => new SagaRunner(null!, _requestContext, _logger);
+        var act = () => new SagaRunner(null!, _requestContextAccessor, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("orchestrator");
     }
 
     [Fact]
-    public void Constructor_NullRequestContext_ThrowsArgumentNullException()
+    public void Constructor_NullRequestContextAccessor_ThrowsArgumentNullException()
     {
         var act = () => new SagaRunner(_orchestrator, null!, _logger);
-        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContextAccessor");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new SagaRunner(_orchestrator, _requestContext, null!);
+        var act = () => new SagaRunner(_orchestrator, _requestContextAccessor, null!);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 

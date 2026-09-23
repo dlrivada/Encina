@@ -19,6 +19,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     private readonly IPolicyStore _store;
     private readonly IAuditStore _auditStore;
     private readonly IRequestContext _requestContext;
+    private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly PersistentPolicyAdministrationPoint _sut;
 
     public PersistentPolicyAdministrationPointAuditTests()
@@ -26,17 +27,19 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         _store = Substitute.For<IPolicyStore>();
         _auditStore = Substitute.For<IAuditStore>();
         _requestContext = Substitute.For<IRequestContext>();
+        _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
 
         _requestContext.UserId.Returns("test-user");
         _requestContext.CorrelationId.Returns("corr-123");
         _requestContext.TenantId.Returns("tenant-abc");
+        _requestContextAccessor.RequestContext.Returns(_requestContext);
 
         _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
                 Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
 
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        _sut = new PersistentPolicyAdministrationPoint(_store, logger, _auditStore, _requestContext);
+        _sut = new PersistentPolicyAdministrationPoint(_store, logger, _auditStore, _requestContextAccessor);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────

@@ -304,7 +304,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
         {
             var connection = sp.GetRequiredService<IDbConnection>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalRepositoryADO<TEntity, TId>(
@@ -369,7 +369,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
         {
             var connection = sp.GetRequiredService<IDbConnection>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalRepositoryADO<TEntity, TId>(

@@ -23,7 +23,7 @@ public sealed class AuditedSecretReaderDecorator : ISecretReader
 {
     private readonly ISecretReader _inner;
     private readonly IAuditStore _auditStore;
-    private readonly IRequestContext _requestContext;
+    private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly SecretsOptions _options;
     private readonly ILogger<AuditedSecretReaderDecorator> _logger;
 
@@ -32,25 +32,29 @@ public sealed class AuditedSecretReaderDecorator : ISecretReader
     /// </summary>
     /// <param name="inner">The inner secret reader to delegate to.</param>
     /// <param name="auditStore">The audit store for recording access entries.</param>
-    /// <param name="requestContext">The current request context for user information.</param>
+    /// <param name="requestContextAccessor">
+    /// Accessor for the ambient request context, read at the moment each audit entry is recorded
+    /// (this decorator is registered as a singleton, so the context cannot be captured once at
+    /// construction time).
+    /// </param>
     /// <param name="options">The secrets options controlling auditing behavior.</param>
     /// <param name="logger">The logger instance.</param>
     public AuditedSecretReaderDecorator(
         ISecretReader inner,
         IAuditStore auditStore,
-        IRequestContext requestContext,
+        IRequestContextAccessor requestContextAccessor,
         SecretsOptions options,
         ILogger<AuditedSecretReaderDecorator> logger)
     {
         ArgumentNullException.ThrowIfNull(inner);
         ArgumentNullException.ThrowIfNull(auditStore);
-        ArgumentNullException.ThrowIfNull(requestContext);
+        ArgumentNullException.ThrowIfNull(requestContextAccessor);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         _inner = inner;
         _auditStore = auditStore;
-        _requestContext = requestContext;
+        _requestContextAccessor = requestContextAccessor;
         _options = options;
         _logger = logger;
     }
@@ -110,12 +114,14 @@ public sealed class AuditedSecretReaderDecorator : ISecretReader
                 errorMessage = errorResult.Value.MatchUnsafe(Right: _ => (string?)null, Left: e => e.Message);
             }
 
+            var requestContext = _requestContextAccessor.RequestContext;
+
             var entry = new AuditEntry
             {
                 Id = Guid.NewGuid(),
-                CorrelationId = _requestContext.CorrelationId,
-                UserId = _requestContext.UserId,
-                TenantId = _requestContext.TenantId,
+                CorrelationId = requestContext?.CorrelationId ?? Guid.NewGuid().ToString(),
+                UserId = requestContext?.UserId,
+                TenantId = requestContext?.TenantId,
                 Action = action,
                 EntityType = "Secret",
                 EntityId = secretName,

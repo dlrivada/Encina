@@ -29,15 +29,15 @@ public sealed class SagaRunnerTests
     public void Constructor_WithNullOrchestrator_ThrowsArgumentNullException()
     {
         // Arrange
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
         var logger = NullLogger<SagaRunner>.Instance;
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new SagaRunner(null!, requestContext, logger));
+        Should.Throw<ArgumentNullException>(() => new SagaRunner(null!, requestContextAccessor, logger));
     }
 
     [Fact]
-    public void Constructor_WithNullRequestContext_ThrowsArgumentNullException()
+    public void Constructor_WithNullRequestContextAccessor_ThrowsArgumentNullException()
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
@@ -52,10 +52,10 @@ public sealed class SagaRunnerTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new SagaRunner(orchestrator, requestContext, null!));
+        Should.Throw<ArgumentNullException>(() => new SagaRunner(orchestrator, requestContextAccessor, null!));
     }
 
     [Fact]
@@ -63,11 +63,11 @@ public sealed class SagaRunnerTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
         var logger = NullLogger<SagaRunner>.Instance;
 
         // Act
-        var runner = new SagaRunner(orchestrator, requestContext, logger);
+        var runner = new SagaRunner(orchestrator, requestContextAccessor, logger);
 
         // Assert
         runner.ShouldNotBeNull();
@@ -421,9 +421,16 @@ public sealed class SagaRunnerTests
     private static SagaRunner CreateRunner()
     {
         var orchestrator = CreateOrchestrator();
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
         var logger = NullLogger<SagaRunner>.Instance;
-        return new SagaRunner(orchestrator, requestContext, logger);
+        return new SagaRunner(orchestrator, requestContextAccessor, logger);
+    }
+
+    private static IRequestContextAccessor CreateAccessor()
+    {
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+        return accessor;
     }
 
     private static BuiltSagaDefinition<TestData> CreateDefinition(

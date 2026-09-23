@@ -149,7 +149,7 @@ public static class ShardingServiceCollectionExtensions
         {
             var collectionFactory = sp.GetRequiredService<IShardedMongoCollectionFactory>();
             var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalShardedRepositoryMongoDB<TEntity, TId>(
@@ -218,7 +218,7 @@ public static class ShardingServiceCollectionExtensions
             var collectionFactory = sp.GetRequiredService<IShardedMongoCollectionFactory>();
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
             var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalShardedRepositoryMongoDB<TEntity, TId>(
