@@ -370,33 +370,15 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     }
 
     /// <summary>
-    /// Resolves the current <see cref="IRequestContext"/> from the service provider,
-    /// using reflection to avoid a hard dependency on <c>Encina.AspNetCore</c>.
+    /// Resolves the current <see cref="IRequestContext"/>: the ambient context held by <see cref="IRequestContextAccessor"/>
+    /// wins, a DI-registered one is only a fallback.
     /// </summary>
     private IRequestContext? ResolveRequestContext()
     {
         try
         {
-            // Direct resolution — works within Encina pipeline
-            var requestContext = _serviceProvider.GetService(typeof(IRequestContext)) as IRequestContext;
-            if (requestContext is not null)
-            {
-                return requestContext;
-            }
-
-            // Reflection-based resolution — works with ASP.NET Core middleware
-            var accessorType = Type.GetType("Encina.AspNetCore.IRequestContextAccessor, Encina.AspNetCore");
-            if (accessorType is not null)
-            {
-                var accessor = _serviceProvider.GetService(accessorType);
-                if (accessor is not null)
-                {
-                    var property = accessorType.GetProperty("RequestContext");
-                    return property?.GetValue(accessor) as IRequestContext;
-                }
-            }
-
-            return null;
+            return (_serviceProvider.GetService(typeof(IRequestContextAccessor)) as IRequestContextAccessor)?.RequestContext
+                ?? _serviceProvider.GetService(typeof(IRequestContext)) as IRequestContext;
         }
         catch (Exception ex)
         {

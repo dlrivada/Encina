@@ -229,27 +229,67 @@ public sealed class TenantResolutionMiddlewareTests
 
     #endregion
 
-    #region Null Context Accessor
+    #region No Ambient Context (#1147 review)
 
     [Fact]
-    public async Task InvokeAsync_NullRequestContext_ShouldNotThrow()
+    public async Task InvokeAsync_NoAmbientContext_CreatesOneWithTheTenantAndTheRequestCorrelationId()
     {
-        // Arrange
+        // Arrange - UseEncinaContext() did not run, so the accessor is empty.
         var resolver = Substitute.For<ITenantResolver>();
         resolver.Priority.Returns(100);
         resolver.ResolveAsync(Arg.Any<HttpContext>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<string?>("tenant-x"));
 
-        var middleware = CreateMiddleware(resolvers: [resolver]);
+        var accessor = new RequestContextAccessor();
+        accessor.RequestContext = null;
+        IRequestContext? seenByNext = null;
+        var middleware = new TenantResolutionMiddleware(
+            _ =>
+            {
+                seenByNext = accessor.RequestContext;
+                return Task.CompletedTask;
+            },
+            [resolver],
+            Options.Create(new TenancyOptions()),
+            Options.Create(new TenancyAspNetCoreOptions()),
+            _tenantStore);
         var context = CreateHttpContext();
-        var accessor = Substitute.For<IRequestContextAccessor>();
-        accessor.RequestContext.Returns((IRequestContext?)null);
+        context.TraceIdentifier = "trace-42";
 
         // Act
         await middleware.InvokeAsync(context, accessor);
 
-        // Assert: should not throw, just proceed
-        _nextCalled.ShouldBeTrue();
+        // Assert - the tenant reaches the rest of the pipeline instead of being dropped.
+        seenByNext.ShouldNotBeNull();
+        seenByNext.TenantId.ShouldBe("tenant-x");
+        seenByNext.CorrelationId.ShouldBe(System.Diagnostics.Activity.Current?.Id ?? "trace-42");
+        seenByNext.UserId.ShouldBeNull();
+        seenByNext.IdempotencyKey.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_NoAmbientContext_NoTenantResolved_LeavesTheAccessorEmpty()
+    {
+        // Arrange
+        var accessor = new RequestContextAccessor();
+        accessor.RequestContext = null;
+        IRequestContext? seenByNext = null;
+        var middleware = new TenantResolutionMiddleware(
+            _ =>
+            {
+                seenByNext = accessor.RequestContext;
+                return Task.CompletedTask;
+            },
+            [],
+            Options.Create(new TenancyOptions()),
+            Options.Create(new TenancyAspNetCoreOptions()),
+            _tenantStore);
+
+        // Act
+        await middleware.InvokeAsync(CreateHttpContext(), accessor);
+
+        // Assert
+        seenByNext.ShouldBeNull();
     }
 
     #endregion

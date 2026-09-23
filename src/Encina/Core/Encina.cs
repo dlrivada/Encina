@@ -21,10 +21,23 @@ namespace Encina;
 /// <param name="scopeFactory">Factory used to create scopes per operation.</param>
 /// <param name="logger">Optional logger for tracing and diagnostics.</param>
 /// <param name="notificationOptions">Optional notification dispatch options.</param>
+/// <param name="requestContextAccessor">
+/// Optional accessor for the ambient <see cref="IRequestContext"/>. When omitted, a
+/// <see cref="RequestContextAccessor"/> is used, which shares the process-wide ambient context.
+/// </param>
+/// <param name="timeProvider">
+/// Optional time source for the <see cref="IRequestContext.Timestamp"/> of the contexts the
+/// dispatcher creates (a fresh context, or the derived context of a nested dispatch). Defaults to
+/// <see cref="TimeProvider.System"/>.
+/// </param>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters",
+    Justification = "Pre-1.0: the explicit-context overloads mirror the ambient ones; the context parameter is required, so calls never become ambiguous.")]
 public sealed partial class Encina(
     IServiceScopeFactory scopeFactory,
     ILogger<Encina>? logger = null,
-    IOptions<NotificationDispatchOptions>? notificationOptions = null) : IEncina
+    IOptions<NotificationDispatchOptions>? notificationOptions = null,
+    IRequestContextAccessor? requestContextAccessor = null,
+    TimeProvider? timeProvider = null) : IEncina
 {
     private static readonly ConcurrentDictionary<(Type Request, Type Response), RequestHandlerBase> RequestHandlerCache = new();
     private static readonly ConcurrentDictionary<(Type Handler, Type Notification), Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>>> NotificationHandlerInvokerCache = new();
@@ -33,6 +46,8 @@ public sealed partial class Encina(
     internal readonly ILogger<Encina> _logger = logger ?? NullLogger<Encina>.Instance;
     internal readonly NotificationDispatchOptions _notificationOptions = notificationOptions?.Value ?? new NotificationDispatchOptions();
     internal readonly INotificationDispatchStrategy _dispatchStrategy = CreateDispatchStrategy(notificationOptions?.Value ?? new NotificationDispatchOptions());
+    internal readonly IRequestContextAccessor _requestContextAccessor = requestContextAccessor ?? new RequestContextAccessor();
+    internal readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     private static INotificationDispatchStrategy CreateDispatchStrategy(NotificationDispatchOptions options) =>
         options.Strategy switch
@@ -44,17 +59,41 @@ public sealed partial class Encina(
 
     /// <inheritdoc />
     public ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        => SendCore(request, explicitContext: null, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, IRequestContext context, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return SendCore(request, context, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+        where TNotification : INotification
+        => PublishCore(notification, explicitContext: null, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, IRequestContext context, CancellationToken cancellationToken = default)
+        where TNotification : INotification
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return PublishCore(notification, context, cancellationToken);
+    }
+
+    private ValueTask<Either<EncinaError, TResponse>> SendCore<TResponse>(IRequest<TResponse> request, IRequestContext? explicitContext, CancellationToken cancellationToken)
     {
         if (!EncinaRequestGuards.TryValidateRequest<TResponse>(request, out var error))
         {
             Log.NullRequest(_logger);
             return new ValueTask<Either<EncinaError, TResponse>>(error);
         }
-        return new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, cancellationToken));
+
+        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
+        return new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken));
     }
 
-    /// <inheritdoc />
-    public ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+    private ValueTask<Either<EncinaError, Unit>> PublishCore<TNotification>(TNotification notification, IRequestContext? explicitContext, CancellationToken cancellationToken)
         where TNotification : INotification
     {
         if (!EncinaRequestGuards.TryValidateNotification(notification, out var error))
@@ -62,7 +101,9 @@ public sealed partial class Encina(
             Log.NotificationNull(_logger);
             return new ValueTask<Either<EncinaError, Unit>>(error);
         }
-        return new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, cancellationToken));
+
+        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
+        return new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken));
     }
 
     private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<EncinaError, TResponse> outcome)
@@ -111,7 +152,7 @@ public sealed partial class Encina(
     {
         public abstract Type HandlerServiceType { get; }
         public abstract object? ResolveHandler(IServiceProvider provider);
-        public abstract Task<object> Handle(Encina Encina, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken);
+        public abstract Task<object> Handle(Encina Encina, object request, object handler, IRequestContext context, IServiceProvider provider, CancellationToken cancellationToken);
     }
 
     private sealed class RequestHandlerWrapper<TRequest, TResponse> : RequestHandlerBase
@@ -124,11 +165,10 @@ public sealed partial class Encina(
         public override object? ResolveHandler(IServiceProvider provider)
             => provider.GetService(HandlerType);
 
-        public override async Task<object> Handle(Encina Encina, object request, object handler, IServiceProvider provider, CancellationToken cancellationToken)
+        public override async Task<object> Handle(Encina Encina, object request, object handler, IRequestContext context, IServiceProvider provider, CancellationToken cancellationToken)
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IRequestHandler<TRequest, TResponse>)handler;
-            var context = RequestContext.Create();
             var pipelineBuilder = new PipelineBuilder<TRequest, TResponse>(typedRequest, typedHandler, context, cancellationToken);
             var pipeline = pipelineBuilder.Build(provider);
             var outcome = await pipeline().ConfigureAwait(false);

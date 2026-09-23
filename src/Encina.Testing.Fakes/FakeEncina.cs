@@ -37,6 +37,8 @@ namespace Encina.Testing.Fakes;
 /// fakeEncina.WasSent&lt;GetUserQuery&gt;().ShouldBeTrue();
 /// </code>
 /// </example>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters",
+    Justification = "Pre-1.0: implements the explicit-context overloads of IEncina; the context parameter is required, so calls never become ambiguous.")]
 public sealed class FakeEncina : IEncina
 {
     private readonly ConcurrentDictionary<Type, object> _responses = new();
@@ -48,7 +50,7 @@ public sealed class FakeEncina : IEncina
     private readonly object _lock = new();
 
     /// <summary>
-    /// Gets all requests that have been sent through <see cref="Send{TResponse}"/>.
+    /// Gets all requests that have been sent through <see cref="Send{TResponse}(IRequest{TResponse}, CancellationToken)"/>.
     /// </summary>
     public IReadOnlyList<object> SentRequests
     {
@@ -56,7 +58,7 @@ public sealed class FakeEncina : IEncina
     }
 
     /// <summary>
-    /// Gets all notifications that have been published through <see cref="Publish{TNotification}"/>.
+    /// Gets all notifications that have been published through <see cref="Publish{TNotification}(TNotification, CancellationToken)"/>.
     /// </summary>
     public IReadOnlyList<object> PublishedNotifications
     {
@@ -64,7 +66,7 @@ public sealed class FakeEncina : IEncina
     }
 
     /// <summary>
-    /// Gets all stream requests that have been sent through <see cref="Stream{TItem}"/>.
+    /// Gets all stream requests that have been sent through <see cref="Stream{TItem}(IStreamRequest{TItem}, CancellationToken)"/>.
     /// </summary>
     public IReadOnlyList<object> StreamRequests
     {
@@ -176,6 +178,49 @@ public sealed class FakeEncina : IEncina
         // No setup found - return a default error
         return new ValueTask<Either<EncinaError, TResponse>>(
             EncinaErrors.Create(EncinaErrorCodes.HandlerMissing, $"No handler configured for request type '{requestType.Name}'"));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The fake has no pipeline, so the context is only validated; the call is recorded and
+    /// answered exactly like <see cref="Send{TResponse}(IRequest{TResponse}, CancellationToken)"/>.
+    /// </remarks>
+    public ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(
+        IRequest<TResponse> request,
+        IRequestContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return Send(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The fake has no pipeline, so the context is only validated; the call is recorded and
+    /// answered exactly like <see cref="Publish{TNotification}(TNotification, CancellationToken)"/>.
+    /// </remarks>
+    public ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(
+        TNotification notification,
+        IRequestContext context,
+        CancellationToken cancellationToken = default)
+        where TNotification : INotification
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return Publish(notification, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The fake has no pipeline, so the context is only validated; the call is recorded and
+    /// answered exactly like <see cref="Stream{TItem}(IStreamRequest{TItem}, CancellationToken)"/>.
+    /// </remarks>
+    public IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(
+        IStreamRequest<TItem> request,
+        IRequestContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return Stream(request, cancellationToken);
     }
 
     /// <inheritdoc />

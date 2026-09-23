@@ -8,6 +8,10 @@ namespace Encina;
 /// <summary>
 /// Handles stream request dispatching by resolving handlers and building streaming pipelines.
 /// </summary>
+/// <remarks>
+/// The caller wraps the returned sequence with <see cref="AmbientRequestContext.Flow{T}"/> so that
+/// the request context stays the ambient context during every enumeration step.
+/// </remarks>
 internal static class StreamDispatcher
 {
     private static readonly ConcurrentDictionary<(Type Request, Type Item), StreamRequestHandlerBase> StreamHandlerCache = new();
@@ -15,6 +19,7 @@ internal static class StreamDispatcher
     public static async IAsyncEnumerable<Either<EncinaError, TItem>> ExecuteAsync<TItem>(
         Encina Encina,
         IStreamRequest<TItem> request,
+        IRequestContext context,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var requestType = request.GetType();
@@ -47,7 +52,7 @@ internal static class StreamDispatcher
         Encina.Log.ProcessingStreamRequest(Encina._logger, requestType.Name, handler.GetType().Name);
 
         var itemCount = 0;
-        await foreach (var item in handlerWrapper.Handle(Encina, request, handler, scope.ServiceProvider, cancellationToken).ConfigureAwait(false))
+        await foreach (var item in handlerWrapper.Handle(Encina, request, handler, context, scope.ServiceProvider, cancellationToken).ConfigureAwait(false))
         {
             itemCount++;
             // Unbox the item from object? back to TItem
@@ -71,6 +76,7 @@ internal static class StreamDispatcher
             Encina Encina,
             object request,
             object handler,
+            IRequestContext context,
             IServiceProvider provider,
             CancellationToken cancellationToken);
     }
@@ -87,12 +93,12 @@ internal static class StreamDispatcher
             Encina Encina,
             object request,
             object handler,
+            IRequestContext context,
             IServiceProvider provider,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var typedRequest = (TRequest)request;
             var typedHandler = (IStreamRequestHandler<TRequest, TItem>)handler;
-            var context = RequestContext.Create();
             var pipelineBuilder = new StreamPipelineBuilder<TRequest, TItem>(typedRequest, typedHandler, context, cancellationToken);
             var pipeline = pipelineBuilder.Build(provider);
 

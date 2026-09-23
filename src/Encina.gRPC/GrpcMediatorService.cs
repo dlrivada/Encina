@@ -77,7 +77,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             // IEncina.Send<TResponse> has 1 generic parameter (the response type)
             var sendMethod = typeof(IEncina)
                 .GetMethods()
-                .FirstOrDefault(m => m.Name == "Send" && m.GetGenericArguments().Length == 1);
+                .FirstOrDefault(m => m.Name == "Send" && m.GetGenericArguments().Length == 1 && m.GetParameters().Length == 2);
 
             if (sendMethod is null)
             {
@@ -177,7 +177,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             // IEncina.Publish<TNotification> returns ValueTask<Either<EncinaError, Unit>>
             var publishMethod = typeof(IEncina)
                 .GetMethods()
-                .FirstOrDefault(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1);
+                .FirstOrDefault(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1 && m.GetParameters().Length == 2);
 
             if (publishMethod is null)
             {

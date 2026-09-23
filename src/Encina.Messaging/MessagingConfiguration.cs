@@ -271,7 +271,7 @@ public sealed class MessagingConfiguration
     /// <para>
     /// When enabled, domain events raised by entities (via <see cref="Encina.DomainModeling.Entity{TId}.AddDomainEvent"/>
     /// or <see cref="Encina.DomainModeling.AggregateRoot{TId}.RaiseDomainEvent"/>) are automatically
-    /// dispatched through <see cref="IEncina.Publish{TNotification}"/> after SaveChanges completes.
+    /// dispatched through <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/> after SaveChanges completes.
     /// </para>
     /// <para>
     /// <b>Event Flow</b>:

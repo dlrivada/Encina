@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
         var resolvedAssemblies = configuration.Assemblies.ToArray();
 
         services.TryAddScoped<IEncina, Encina>();
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
         services.TryAddSingleton<IEncinaMetrics, EncinaMetrics>();
         services.TryAddSingleton<IFunctionalFailureDetector>(NullFunctionalFailureDetector.Instance);
 

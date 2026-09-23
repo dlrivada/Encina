@@ -34,7 +34,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </para>
 /// <para>
 /// <b>User Resolution</b>: The current user is resolved from <see cref="IRequestContext.UserId"/>
-/// via <c>IRequestContextAccessor</c>. If no user context is available, the user properties
+/// via <see cref="IRequestContextAccessor"/>. If no user context is available, the user properties
 /// are left as <c>null</c>.
 /// </para>
 /// </remarks>
@@ -259,29 +259,12 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     {
         try
         {
-            // Try to resolve IRequestContext from the service provider
-            // This works when the interceptor is invoked within an Encina pipeline
-            var requestContext = _serviceProvider.GetService<IRequestContext>();
-            if (requestContext is not null)
-            {
-                return requestContext.UserId;
-            }
-
-            // For ASP.NET Core applications, try to get context from accessor
-            // This pattern is used by EncinaContextMiddleware
-            var accessorType = Type.GetType("Encina.AspNetCore.IRequestContextAccessor, Encina.AspNetCore");
-            if (accessorType is not null)
-            {
-                var accessor = _serviceProvider.GetService(accessorType);
-                if (accessor is not null)
-                {
-                    var requestContextProperty = accessorType.GetProperty("RequestContext");
-                    var context = requestContextProperty?.GetValue(accessor) as IRequestContext;
-                    return context?.UserId;
-                }
-            }
-
-            return null;
+            // The ambient context that IEncina.Send/Publish/Stream (or EncinaContextMiddleware) set on
+            // the accessor wins; a DI-registered IRequestContext is only a fallback for hosts that
+            // register one by hand.
+            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
+                ?? _serviceProvider.GetService<IRequestContext>();
+            return requestContext?.UserId;
         }
         catch (Exception ex)
         {
@@ -392,7 +375,8 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     {
         try
         {
-            var requestContext = _serviceProvider.GetService<IRequestContext>();
+            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
+                ?? _serviceProvider.GetService<IRequestContext>();
             return requestContext?.CorrelationId;
         }
         catch

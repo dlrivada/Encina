@@ -70,9 +70,21 @@ public interface IRequestContext
     /// Idempotency key for duplicate detection.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>null</c> if idempotency is not applicable for this request.
     /// Used by idempotency behaviors to prevent duplicate processing of the same logical request.
     /// Typically extracted from HTTP headers (e.g., <c>Idempotency-Key</c>).
+    /// </para>
+    /// <para>
+    /// Only an <em>entry-point</em> dispatch carries the key: the first <c>Send</c>, <c>Publish</c>
+    /// or <c>Stream</c> of a flow, seeded from the context an entry point put on
+    /// <see cref="IRequestContextAccessor"/>, or any dispatch given an explicit context. A dispatch
+    /// nested inside another one (sent from a handler, a behavior, a notification handler, a domain
+    /// event handler or an EF Core interceptor) inherits the outer identity but <b>not</b> this key,
+    /// so it never collides with the outer request in the idempotency stores (see
+    /// <see cref="RequestContextDispatchExtensions.IsNestedDispatch"/>). A nested request that needs
+    /// its own deduplication is sent with an explicit context carrying its own key.
+    /// </para>
     /// </remarks>
     string? IdempotencyKey { get; }
 
@@ -89,8 +101,17 @@ public interface IRequestContext
     /// Request timestamp (UTC).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Captured when the context is created, represents the start of request processing.
     /// Useful for time-based logic, audit trails, and latency measurements.
+    /// </para>
+    /// <para>
+    /// The timestamp is per dispatch: an entry-point dispatch keeps the timestamp of the context it
+    /// was given (for an HTTP request, when <c>EncinaContextMiddleware</c> created it; for a dispatch
+    /// with no context at all, when <see cref="IEncina"/> created a fresh one), and every nested
+    /// dispatch gets a derived context stamped when that nested dispatch starts. <see cref="IEncina"/>
+    /// reads the time from the <see cref="TimeProvider"/> it was built with.
+    /// </para>
     /// </remarks>
     DateTimeOffset Timestamp { get; }
 

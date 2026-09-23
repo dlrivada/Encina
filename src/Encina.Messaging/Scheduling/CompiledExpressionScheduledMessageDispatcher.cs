@@ -15,8 +15,8 @@ namespace Encina.Messaging.Scheduling;
 /// <remarks>
 /// <para>
 /// <b>Performance</b>: After the first call per type, dispatch is a single virtual call
-/// through the cached compiled delegate plus one <see cref="IEncina.Send{TResponse}"/>
-/// or <see cref="IEncina.Publish{TNotification}"/> call. There is zero
+/// through the cached compiled delegate plus one <see cref="IEncina.Send{TResponse}(IRequest{TResponse}, CancellationToken)"/>
+/// or <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/> call. There is zero
 /// <see cref="MethodInfo.Invoke"/>, zero <c>dynamic</c>, and zero boxing of arguments at
 /// the dispatch site.
 /// </para>
@@ -129,7 +129,7 @@ public sealed class CompiledExpressionScheduledMessageDispatcher : IScheduledMes
     }
 
     /// <summary>
-    /// Builds a compiled delegate for <see cref="IEncina.Publish{TNotification}"/>.
+    /// Builds a compiled delegate for <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>.
     /// </summary>
     /// <remarks>
     /// Produces:
@@ -150,7 +150,8 @@ public sealed class CompiledExpressionScheduledMessageDispatcher : IScheduledMes
 
         // encina.Publish<TNotification>((TNotification)req, ct)
         var publishMethod = typeof(IEncina)
-            .GetMethod(nameof(IEncina.Publish))!
+            .GetMethods()
+            .Single(m => m.Name == nameof(IEncina.Publish) && m.GetParameters().Length == 2)
             .MakeGenericMethod(notificationType);
 
         var callPublish = Expression.Call(encinaParam, publishMethod, castRequest, ctParam);
@@ -163,7 +164,7 @@ public sealed class CompiledExpressionScheduledMessageDispatcher : IScheduledMes
     }
 
     /// <summary>
-    /// Builds a compiled delegate for <see cref="IEncina.Send{TResponse}"/> with
+    /// Builds a compiled delegate for <see cref="IEncina.Send{TResponse}(IRequest{TResponse}, CancellationToken)"/> with
     /// result mapping from <c>Either&lt;EncinaError, TResponse&gt;</c> to
     /// <c>Either&lt;EncinaError, Unit&gt;</c>.
     /// </summary>
@@ -187,7 +188,8 @@ public sealed class CompiledExpressionScheduledMessageDispatcher : IScheduledMes
 
         // encina.Send<TResponse>((IRequest<TResponse>)req, ct)
         var sendMethod = typeof(IEncina)
-            .GetMethod(nameof(IEncina.Send))!
+            .GetMethods()
+            .Single(m => m.Name == nameof(IEncina.Send) && m.GetParameters().Length == 2)
             .MakeGenericMethod(responseType);
 
         var callSend = Expression.Call(encinaParam, sendMethod, castRequest, ctParam);
@@ -222,8 +224,8 @@ public sealed class CompiledExpressionScheduledMessageDispatcher : IScheduledMes
     /// <c>Either&lt;EncinaError, Unit&gt;</c>. Referenced from the compiled expression
     /// tree via <see cref="System.Reflection.MethodInfo"/>.
     /// </summary>
-    /// <typeparam name="TResponse">The original response type from <see cref="IEncina.Send{TResponse}"/>.</typeparam>
-    /// <param name="sendTask">The task returned by <see cref="IEncina.Send{TResponse}"/>.</param>
+    /// <typeparam name="TResponse">The original response type from <see cref="IEncina.Send{TResponse}(IRequest{TResponse}, CancellationToken)"/>.</typeparam>
+    /// <param name="sendTask">The task returned by <see cref="IEncina.Send{TResponse}(IRequest{TResponse}, CancellationToken)"/>.</param>
     /// <returns>
     /// <c>Right(Unit.Default)</c> when the send succeeded (discards the response value),
     /// or the original <c>Left(EncinaError)</c> when it failed.

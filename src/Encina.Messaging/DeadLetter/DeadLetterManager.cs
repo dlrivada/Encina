@@ -93,7 +93,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
                 return EncinaError.New(error);
             }
 
-            // Get IEncina and replay using reflection
+            // Get IEncina to replay the request
             var encina = _serviceProvider.GetService(typeof(IEncina)) as IEncina;
             if (encina is null)
             {
@@ -103,8 +103,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
                 return EncinaError.New(error);
             }
 
-            // Use reflection to call the appropriate Send method
-            var replayResult = await ReplayRequestAsync(encina, request, requestType, messageId, cancellationToken);
+            // Replay through IEncina.Send, typed by the request's runtime type
+            var replayResult = await ReplayRequestAsync(encina, request, messageId, cancellationToken);
 
             await _store.MarkAsReplayedAsync(
                 messageId,
@@ -129,65 +129,28 @@ public sealed class DeadLetterManager : IDeadLetterManager
     private async Task<ReplayResult> ReplayRequestAsync(
         IEncina encina,
         object request,
-        Type requestType,
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        // Find IRequest<TResponse> interface to get the response type
-        var requestInterface = requestType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
-
-        if (requestInterface is null)
-        {
-            var error = $"Request type {requestType.Name} does not implement IRequest<TResponse>";
-            DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
-            return ReplayResult.Failed(messageId, error);
-        }
-
-        var responseType = requestInterface.GetGenericArguments()[0];
-
-        // Build the generic Send method: IEncina.Send<TResponse>(IRequest<TResponse>, CancellationToken)
-        var sendMethod = typeof(IEncina)
-            .GetMethods()
-            .FirstOrDefault(m =>
-                m.Name == "Send" &&
-                m.IsGenericMethod &&
-                m.GetGenericArguments().Length == 1 &&
-                m.GetParameters().Length == 2);
-
-        if (sendMethod is null)
-        {
-            var error = "Cannot find IEncina.Send method";
-            DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
-            return ReplayResult.Failed(messageId, error);
-        }
-
-        var genericSendMethod = sendMethod.MakeGenericMethod(responseType);
-
         try
         {
-            var resultTask = genericSendMethod.Invoke(encina, [request, cancellationToken]);
+            var outcome = await RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken).ConfigureAwait(false);
 
-            if (resultTask is null)
+            // A Left outcome is a failed replay: the request ran and its handler (or a behavior) failed.
+            if (outcome.IsLeft)
             {
-                var error = "Send method returned null";
+                var failure = outcome.Match(Right: _ => string.Empty, Left: error => error.Message);
+                var error = $"Replay failed: {failure}";
                 DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
                 return ReplayResult.Failed(messageId, error);
             }
 
-            // Await the ValueTask<Either<EncinaError, TResponse>>
-            await (dynamic)resultTask;
-
-            // Check if it's a Left (error) or Right (success)
-            // Since we can't easily inspect the Either result dynamically,
-            // we assume success if no exception was thrown
             DeadLetterLog.MessageReplayedSuccessfully(_logger, messageId);
             return ReplayResult.Succeeded(messageId);
         }
         catch (Exception ex)
         {
-            var innerException = ex.InnerException ?? ex;
-            var error = $"Replay failed: {innerException.Message}";
+            var error = $"Replay failed: {ex.Message}";
             DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
             return ReplayResult.Failed(messageId, error);
         }

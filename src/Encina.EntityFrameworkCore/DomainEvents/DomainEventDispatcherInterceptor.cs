@@ -21,7 +21,7 @@ namespace Encina.EntityFrameworkCore.DomainEvents;
 /// <item><description>Database changes are persisted</description></item>
 /// <item><description>This interceptor is invoked in <c>SavedChangesAsync</c></description></item>
 /// <item><description>Domain events are collected from all tracked entities</description></item>
-/// <item><description>Each event is published via <see cref="IEncina.Publish{TNotification}"/></description></item>
+/// <item><description>Each event is published via <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/></description></item>
 /// <item><description>Events are cleared from entities (if <see cref="DomainEventDispatcherOptions.ClearEventsAfterDispatch"/> is true)</description></item>
 /// </list>
 /// </para>

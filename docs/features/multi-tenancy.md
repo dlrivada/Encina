@@ -472,10 +472,13 @@ services.AddEncinaTenancyAspNetCore(options =>
 });
 
 // Add middleware to pipeline
-app.UseEncinaTenantResolution();
-app.UseAuthentication();
+app.UseAuthentication();     // claim-based resolution needs the authenticated user
+app.UseEncinaContext();      // optional (Encina.AspNetCore): user, correlation and idempotency key
+app.UseTenantResolution();   // adds the tenant to the ambient request context
 app.UseAuthorization();
 ```
+
+`UseTenantResolution()` sets the resolved tenant on the ambient `IRequestContext` held by `IRequestContextAccessor`, which `IEncina.Send`, `Publish` and `Stream` use to seed the pipeline. When `UseEncinaContext()` runs first, the tenant is added to its context; without it, the middleware creates a context holding the tenant and the request's correlation id, so the tenant always reaches the handlers.
 
 ### Custom Tenant Resolver
 

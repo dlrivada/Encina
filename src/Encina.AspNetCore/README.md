@@ -10,7 +10,7 @@ ASP.NET Core integration for Encina with Railway Oriented Programming support. T
 - ✅ **Request Context Enrichment** - Automatic extraction of CorrelationId, UserId, TenantId, and IdempotencyKey from HttpContext
 - ✅ **Authorization Pipeline Behavior** - CQRS-aware declarative authorization with `[Authorize]`, `[ResourceAuthorize]`, and auto-applied default policies
 - ✅ **RFC 7807 Problem Details** - Intelligent error mapping from `EncinaError` to standardized HTTP responses
-- ✅ **Thread-Safe Context Access** - AsyncLocal-based `IRequestContextAccessor` for safe context propagation
+- ✅ **Thread-Safe Context Access** - fills the AsyncLocal-based `IRequestContextAccessor` from `Encina` core, which `IEncina.Send`/`Publish`/`Stream` use to seed the `IRequestContext` every pipeline behavior receives
 - ✅ **Distributed Tracing** - Automatic correlation ID propagation and Activity integration
 - ✅ **.NET 10 Compatible** - Built with latest ASP.NET Core APIs
 
@@ -356,6 +356,27 @@ public class AuditService
 - Uses `AsyncLocal<T>` for safe context propagation across async calls
 - Isolated between concurrent requests
 - Null when accessed outside of request context
+
+**Nested dispatches (pre-1.0 behaviour):**
+
+The context set by `UseEncinaContext()` seeds the *first* `Send`, `Publish` or `Stream` of the HTTP request (the entry point) as-is, idempotency key included. A dispatch issued while another one is running (a handler that sends another command, publishes a notification or domain events, or enumerates a stream) gets a derived context instead:
+
+| Property | Nested dispatch |
+|---|---|
+| `CorrelationId`, `UserId`, `TenantId`, `Metadata` | Same as the outer dispatch |
+| `Timestamp` | When the nested dispatch starts (read from the `TimeProvider` given to `Encina`) |
+| `IdempotencyKey` | `null`; `context.IsNestedDispatch()` returns `true` |
+
+The key identifies the client's logical request, which the entry point's idempotency check already covers. Passing it on would make the inbox (`InboxPipelineBehavior`) or `DistributedIdempotencyPipelineBehavior` treat the nested command as a duplicate of the outer one; without a key, both behaviors let a nested idempotent request run. To deduplicate a nested request on its own, send it with an explicit context carrying its own key:
+
+```csharp
+await encina.Send(
+    new ReserveStockCommand(order.Id),
+    contextAccessor.RequestContext!.WithIdempotencyKey($"{order.Id}:reserve-stock"),
+    cancellationToken);
+```
+
+A context passed explicitly to `Send`, `Publish` or `Stream` is always used as-is.
 
 ## Configuration Options
 

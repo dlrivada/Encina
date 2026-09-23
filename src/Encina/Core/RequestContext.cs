@@ -63,12 +63,49 @@ public sealed class RequestContext : IRequestContext
     /// Timestamp is set to current UTC time.
     /// </para>
     /// </remarks>
-    public static IRequestContext Create() => new RequestContext
+    public static IRequestContext Create() => CreateAt(TimeProvider.System.GetUtcNow());
+
+    /// <summary>
+    /// Creates a new context stamped with <paramref name="timestamp"/>, with the correlation id taken
+    /// from <see cref="Activity.Current"/> or a new GUID.
+    /// </summary>
+    internal static IRequestContext CreateAt(DateTimeOffset timestamp) => new RequestContext
     {
         CorrelationId = Activity.Current?.Id ?? Guid.NewGuid().ToString("N"),
-        Timestamp = DateTimeOffset.UtcNow,
+        Timestamp = timestamp,
         Metadata = ImmutableDictionary<string, object?>.Empty
     };
+
+    /// <summary>
+    /// Creates the context of a dispatch nested inside another one.
+    /// </summary>
+    /// <param name="parent">The context of the outer dispatch.</param>
+    /// <param name="timestamp">When the nested dispatch starts.</param>
+    /// <returns>
+    /// A context with the parent's correlation id, user id, tenant id and metadata, stamped with
+    /// <paramref name="timestamp"/>, without an idempotency key, and marked as nested
+    /// (see <see cref="RequestContextDispatchExtensions.IsNestedDispatch"/>).
+    /// </returns>
+    /// <remarks>
+    /// The idempotency key identifies the entry point's logical request. Handing it to a nested
+    /// request would make the idempotency stores treat the nested request as a duplicate of (or as
+    /// in progress with) the outer one.
+    /// </remarks>
+    internal static IRequestContext ForNestedDispatch(IRequestContext parent, DateTimeOffset timestamp)
+    {
+        var metadata = parent.Metadata as ImmutableDictionary<string, object?>
+            ?? parent.Metadata.ToImmutableDictionary();
+
+        return new RequestContext
+        {
+            CorrelationId = parent.CorrelationId,
+            UserId = parent.UserId,
+            TenantId = parent.TenantId,
+            IdempotencyKey = null,
+            Timestamp = timestamp,
+            Metadata = metadata.SetItem(RequestContextDispatchExtensions.NestedDispatchKey, true)
+        };
+    }
 
     /// <summary>
     /// Creates a new context with specified correlation ID.

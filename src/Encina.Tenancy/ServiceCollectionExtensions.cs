@@ -103,7 +103,8 @@ public static class ServiceCollectionExtensions
                     "If using a custom ITenantStore, inject ITenantStore instead.");
         });
 
-        // Register tenant provider as scoped (depends on request context)
+        // Register tenant provider as scoped (reads the ambient request context from the core accessor)
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
         services.TryAddScoped<ITenantProvider, DefaultTenantProvider>();
 
         // Register connection options

@@ -212,6 +212,82 @@ public class QueryCacheInterceptorTests
 
     #endregion
 
+    #region Request Context Resolution Tests (#1147)
+
+    [Fact]
+    public void ReaderExecuting_WithAmbientRequestContextOnly_GeneratesATenantAwareKeyFromIt()
+    {
+        // Arrange
+        var ambient = RequestContext.CreateForTest(tenantId: "ambient-tenant");
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(ambient);
+        _serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+
+        var (interceptor, command, eventData) = ArrangeCacheMiss();
+
+        // Act
+        interceptor.ReaderExecuting(command, eventData, default);
+
+        // Assert
+        _keyGenerator.Received(1).Generate(command, eventData.Context!, ambient);
+    }
+
+    [Fact]
+    public void ReaderExecuting_WithAmbientAndRegisteredRequestContext_TheAmbientOneWins()
+    {
+        // Arrange
+        var ambient = RequestContext.CreateForTest(tenantId: "ambient-tenant");
+        var registered = RequestContext.CreateForTest(tenantId: "registered-tenant");
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(ambient);
+        _serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+        _serviceProvider.GetService(typeof(IRequestContext)).Returns(registered);
+
+        var (interceptor, command, eventData) = ArrangeCacheMiss();
+
+        // Act
+        interceptor.ReaderExecuting(command, eventData, default);
+
+        // Assert
+        _keyGenerator.Received(1).Generate(command, eventData.Context!, ambient);
+        _keyGenerator.DidNotReceive().Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>(), registered);
+    }
+
+    [Fact]
+    public void ReaderExecuting_WithAnEmptyAccessor_FallsBackToTheRegisteredRequestContext()
+    {
+        // Arrange
+        var registered = RequestContext.CreateForTest(tenantId: "registered-tenant");
+        var emptyAccessor = Substitute.For<IRequestContextAccessor>();
+        emptyAccessor.RequestContext.Returns((IRequestContext?)null);
+        _serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(emptyAccessor);
+        _serviceProvider.GetService(typeof(IRequestContext)).Returns(registered);
+
+        var (interceptor, command, eventData) = ArrangeCacheMiss();
+
+        // Act
+        interceptor.ReaderExecuting(command, eventData, default);
+
+        // Assert
+        _keyGenerator.Received(1).Generate(command, eventData.Context!, registered);
+    }
+
+    private (QueryCacheInterceptor Interceptor, DbCommand Command, CommandEventData EventData) ArrangeCacheMiss()
+    {
+        var interceptor = CreateInterceptor(options: new QueryCacheOptions { Enabled = true });
+        var command = Substitute.For<DbCommand>();
+        var eventData = CreateCommandEventData(Substitute.For<DbContext>());
+
+        _keyGenerator.Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>(), Arg.Any<IRequestContext>())
+            .Returns(new QueryCacheKey("tenant:key", ["Order"]));
+        _cacheProvider.GetAsync<CachedQueryResult>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<CachedQueryResult?>(null));
+
+        return (interceptor, command, eventData);
+    }
+
+    #endregion
+
     #region SaveChanges Invalidation Tests
 
     [Fact]

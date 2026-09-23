@@ -9,7 +9,7 @@ namespace Encina.Cdc.Messaging;
 
 /// <summary>
 /// Specialized CDC handler that watches the OutboxMessages table and republishes
-/// the original notifications via <see cref="IEncina.Publish{TNotification}"/>.
+/// the original notifications via <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -162,8 +162,10 @@ internal sealed class OutboxCdcHandler : IChangeEventHandler<JsonElement>
     {
         // Use reflection to call the generic Publish<TNotification> method
         // since we only have the runtime type
+        // Publish<TNotification>(TNotification, CancellationToken): the overload without an explicit context
         var publishMethod = typeof(IEncina)
-            .GetMethod(nameof(IEncina.Publish))!
+            .GetMethods()
+            .Single(m => m.Name == nameof(IEncina.Publish) && m.GetParameters().Length == 2)
             .MakeGenericMethod(notification.GetType());
 
         var task = (ValueTask<Either<EncinaError, Unit>>)publishMethod.Invoke(

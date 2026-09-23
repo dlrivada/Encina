@@ -113,7 +113,7 @@ public sealed class CdcConfiguration
 
     /// <summary>
     /// Enables the CDC-to-messaging bridge, which publishes captured change events
-    /// as <see cref="CdcChangeNotification"/> via <see cref="IEncina.Publish{TNotification}"/>.
+    /// as <see cref="CdcChangeNotification"/> via <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>.
     /// </summary>
     /// <param name="configure">Optional action to configure messaging bridge options.</param>
     /// <returns>This configuration instance for method chaining.</returns>

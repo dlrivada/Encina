@@ -28,6 +28,12 @@ namespace Encina.Caching;
 /// For durable idempotency with full audit trail, use the database-based Inbox pattern.
 /// For high-throughput scenarios where some idempotency loss is acceptable, use this.
 /// </para>
+/// <para>
+/// A request sent from inside another dispatch inherits no idempotency key (see
+/// <see cref="RequestContextDispatchExtensions.IsNestedDispatch"/>); without a key of its own it runs
+/// without an idempotency entry, covered by the entry point's one. To deduplicate it separately,
+/// send it with an explicit context that carries its own key.
+/// </para>
 /// </remarks>
 public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -79,6 +85,13 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
 
         // Get idempotency key from context
         var idempotencyKey = context.IdempotencyKey;
+        if (string.IsNullOrWhiteSpace(idempotencyKey) && context.IsNestedDispatch())
+        {
+            // A request sent from inside another dispatch without a key of its own: the key belongs
+            // to the entry point, whose idempotency check already covers this nested work.
+            return await nextStep().ConfigureAwait(false);
+        }
+
         if (string.IsNullOrWhiteSpace(idempotencyKey))
         {
             LogMissingIdempotencyKey(_logger, typeof(TRequest).Name, context.CorrelationId);
