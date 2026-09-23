@@ -1,0 +1,112 @@
+using Encina.Compliance.Retention.Model;
+
+using LanguageExt;
+
+namespace Encina.Compliance.Retention.Abstractions;
+
+/// <summary>
+/// Erases the data governed by one expired retention record: the data of one data category held by
+/// one entity.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="RetentionEnforcementService"/> calls this port for an expired record that is not under a
+/// legal hold and whose category is no longer retained by another record of the same entity (see below), and
+/// marks the record <see cref="RetentionStatus.Deleted"/> only after it returns <c>Right</c>. The application implements it because only the application knows where the data of a
+/// retention category lives and how it must be removed (row deletion, field nullification,
+/// anonymization, crypto-shredding, a call to another service).
+/// </para>
+/// <para>
+/// Implementations must:
+/// <list type="bullet">
+/// <item><description>Erase only the data of <see cref="RetentionErasureTarget.DataCategory"/> for
+/// <see cref="RetentionErasureTarget.EntityId"/>. Data of other categories of the same entity may still be
+/// within its own retention period.</description></item>
+/// <item><description>Return <c>Left</c> when any part of that data could not be erased. The record then
+/// stays <see cref="RetentionStatus.Expired"/> and is retried on the next enforcement cycle.</description></item>
+/// <item><description>Be idempotent: a retry may ask again for data that an earlier call already erased
+/// (for example when marking the record deleted failed after a successful erasure).</description></item>
+/// <item><description>Scope the erasure by <see cref="RetentionErasureTarget.TenantId"/> (and by
+/// <see cref="RetentionErasureTarget.ModuleId"/> when the application isolates modules). The enforcement
+/// service runs in a background scope with no ambient tenant, so tenant query filters, a tenant-resolved
+/// connection or <c>ITenantContext</c> do not apply by themselves: the implementation must establish the
+/// target's tenant scope explicitly. Entity identifiers are only unique within a tenant.</description></item>
+/// <item><description>Return <c>Left</c>, never <c>Right</c>, when it cannot establish that tenant scope (for
+/// example the tenant is unknown or its store cannot be resolved), so that nothing is erased in the wrong
+/// tenant and the record is retried.</description></item>
+/// </list>
+/// </para>
+/// <para>
+/// An entity can have several retention records in the same category (one per tracking call, for example one
+/// per clinical episode). The enforcement service calls this port only when no other record of the same
+/// entity, category, tenant and module is still retained, calls it once, and marks all those records deleted
+/// together; until then the expired records stay <see cref="RetentionStatus.Expired"/>. So one call erases the
+/// whole category for the entity, and implementations do not need to track individual records.
+/// </para>
+/// <para>
+/// Retention records are keyed by entity and retention category, which is why this port exists instead of
+/// reusing the data subject rights erasure executor of <c>Encina.Compliance.DataSubjectRights</c>: that
+/// executor erases by data subject and by <c>PersonalDataCategory</c>, and neither maps one-to-one onto a
+/// retention record. An implementation may still delegate to it when, in the application, the entity is
+/// the data subject and the retention category corresponds to a set of personal data categories.
+/// </para>
+/// <para>
+/// When no implementation is registered, the enforcement service erases nothing and never marks a
+/// record deleted: expired records stay <see cref="RetentionStatus.Expired"/> and are counted as failed.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public sealed class PatientDataEraser(AppDbContext db) : IRetentionDataEraser
+/// {
+///     public async ValueTask&lt;Either&lt;EncinaError, Unit&gt;&gt; EraseAsync(
+///         RetentionErasureTarget target, CancellationToken cancellationToken = default)
+///     {
+///         // A multi-tenant application: there is no ambient tenant in the background enforcement
+///         // scope, so scope every statement to target.TenantId, or refuse when it is missing.
+///         if (string.IsNullOrEmpty(target.TenantId))
+///         {
+///             return EncinaError.New($"Retention record '{target.RecordId}' has no tenant; refusing to erase.");
+///         }
+///
+///         switch (target.DataCategory)
+///         {
+///             case "patient-contact":
+///                 await db.PatientContacts
+///                     .IgnoreQueryFilters()
+///                     .Where(c =&gt; c.TenantId == target.TenantId &amp;&amp; c.PatientId == target.EntityId)
+///                     .ExecuteDeleteAsync(cancellationToken);
+///                 return Unit.Default;
+///
+///             case "clinical-record":
+///                 await db.ClinicalNotes
+///                     .IgnoreQueryFilters()
+///                     .Where(n =&gt; n.TenantId == target.TenantId &amp;&amp; n.PatientId == target.EntityId)
+///                     .ExecuteDeleteAsync(cancellationToken);
+///                 return Unit.Default;
+///
+///             default:
+///                 return EncinaError.New($"No eraser for retention category '{target.DataCategory}'.");
+///         }
+///     }
+/// }
+///
+/// services.AddScoped&lt;IRetentionDataEraser, PatientDataEraser&gt;();
+/// </code>
+/// </example>
+public interface IRetentionDataEraser
+{
+    /// <summary>
+    /// Erases the data of <see cref="RetentionErasureTarget.DataCategory"/> held by
+    /// <see cref="RetentionErasureTarget.EntityId"/>.
+    /// </summary>
+    /// <param name="target">The expired record's entity, data category and scoping identifiers.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>
+    /// <c>Right</c> when all the data of the category was erased (or was already gone); <c>Left</c> when
+    /// any of it could not be erased, in which case the record is retried on the next cycle.
+    /// </returns>
+    ValueTask<Either<EncinaError, Unit>> EraseAsync(
+        RetentionErasureTarget target,
+        CancellationToken cancellationToken = default);
+}

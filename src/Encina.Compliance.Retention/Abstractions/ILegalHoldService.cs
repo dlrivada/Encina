@@ -84,7 +84,12 @@ public interface ILegalHoldService
     /// <param name="holdId">The legal hold aggregate identifier.</param>
     /// <param name="releasedByUserId">Identifier of the user lifting the hold.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    /// <returns>Either an error or Unit on success.</returns>
+    /// <returns>
+    /// <c>Right</c> when the hold is lifted and every record it should release was released (or another
+    /// hold still protects them); otherwise an error. A
+    /// <see cref="RetentionErrors.HoldReleaseIncompleteCode"/> error means the hold is lifted but some
+    /// records are still under legal hold; its details list them under <c>failedRecordIds</c>.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// Once lifted, this hold no longer prevents deletion. If other active holds exist for the
@@ -94,6 +99,24 @@ public interface ILegalHoldService
     /// When no other active holds remain, affected retention records are released (cascading
     /// <c>RetentionRecordReleased</c> events). The enforcement service will re-evaluate
     /// the records during its next sweep.
+    /// </para>
+    /// <para>
+    /// The release fails closed and never reports a success it did not achieve: if whether another hold
+    /// remains cannot be determined, no record is released; if some records cannot be released, the others
+    /// are still released. In both cases the records not released stay <c>UnderLegalHold</c>, so nothing is
+    /// erased, and the call returns <see cref="RetentionErrors.HoldReleaseIncompleteCode"/>.
+    /// </para>
+    /// <para>
+    /// Calling this method again for a hold that is already lifted does not lift it twice: it retries the
+    /// release of the entity's records that are still held and returns <c>Right</c> once they are all
+    /// released. A record that an earlier call already released (even if a stale read model still lists it as
+    /// held) counts as released. Every released record's <c>RetentionRecordReleased</c> event carries
+    /// <paramref name="holdId"/>.
+    /// </para>
+    /// <para>
+    /// <paramref name="releasedByUserId"/> is required on every call, including retries: an empty or
+    /// whitespace value returns a <see cref="RetentionErrors.InvalidParameterCode"/> error and nothing is
+    /// lifted or released.
     /// </para>
     /// </remarks>
     ValueTask<Either<EncinaError, Unit>> LiftHoldAsync(

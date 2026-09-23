@@ -111,8 +111,15 @@ public interface IRetentionRecordService
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>Either an error or Unit on success.</returns>
     /// <remarks>
+    /// <para>
     /// The record's status is recalculated based on the current time relative to the expiration
     /// timestamp. The enforcement service will re-evaluate the record during its next sweep.
+    /// </para>
+    /// <para>
+    /// Idempotent: when the record is no longer under legal hold (an earlier release completed, or the
+    /// caller selected it from a stale read model) nothing is written and <c>Right</c> is returned. The
+    /// check uses the event-sourced aggregate, not the read model.
+    /// </para>
     /// </remarks>
     ValueTask<Either<EncinaError, Unit>> ReleaseRecordAsync(
         Guid recordId,

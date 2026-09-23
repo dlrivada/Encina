@@ -4,6 +4,7 @@ using System.Reflection;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
+using Encina.Modules;
 
 using LanguageExt;
 
@@ -170,7 +171,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
             foreach (var field in attrInfo.Fields)
             {
                 var recordResult = await TrackRetentionRecordAsync(
-                    response!, field, responseTypeName, cancellationToken).ConfigureAwait(false);
+                    response!, field, responseTypeName, context, cancellationToken).ConfigureAwait(false);
 
                 if (recordResult.IsLeft)
                 {
@@ -221,6 +222,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
         TResponse response,
         RetentionFieldInfo field,
         string responseTypeName,
+        IRequestContext context,
         CancellationToken cancellationToken)
     {
         // Resolve entity ID from the response
@@ -267,9 +269,19 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
             retentionPeriod = (TimeSpan)periodResult;
         }
 
-        // Track entity via the event-sourced record service (policyId = Guid.Empty for attribute-based)
+        // Track entity via the event-sourced record service (policyId = Guid.Empty for attribute-based).
+        // The tenant and module come from the request context: the enforcement service runs later in a
+        // background scope with no ambient tenant, so the record must carry them for the eraser to scope
+        // the erasure (see IRetentionDataEraser).
         var trackResult = await _recordService
-            .TrackEntityAsync(entityId, dataCategory, Guid.Empty, retentionPeriod, cancellationToken: cancellationToken)
+            .TrackEntityAsync(
+                entityId,
+                dataCategory,
+                Guid.Empty,
+                retentionPeriod,
+                tenantId: context?.TenantId,
+                moduleId: context?.GetModuleName(),
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         return trackResult.Match(

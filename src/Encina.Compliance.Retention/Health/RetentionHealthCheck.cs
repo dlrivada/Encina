@@ -20,6 +20,9 @@ namespace Encina.Compliance.Retention.Health;
 /// <item><description>The <see cref="IRetentionRecordService"/> is resolvable</description></item>
 /// <item><description>The <see cref="IRetentionPolicyService"/> is resolvable</description></item>
 /// <item><description>The <see cref="ILegalHoldService"/> is resolvable (optional, Degraded if missing)</description></item>
+/// <item><description>An <see cref="IRetentionDataEraser"/> is registered when
+/// <see cref="RetentionOptions.EnableAutomaticEnforcement"/> is on (Degraded if missing, because expired
+/// data would never be erased)</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -119,6 +122,23 @@ public sealed class RetentionHealthCheck : IHealthCheck
         {
             data["legalHoldServiceType"] = legalHoldService.GetType().Name;
             servicesVerified++;
+        }
+
+        // 5. Verify the data eraser when automatic enforcement is on: without it expired records are
+        //    never erased (they stay Expired and warning 8519 is logged every cycle).
+        if (options.EnableAutomaticEnforcement)
+        {
+            var dataEraser = scopedProvider.GetService<IRetentionDataEraser>();
+            data["dataEraserRegistered"] = dataEraser is not null;
+            if (dataEraser is null)
+            {
+                warnings.Add("IRetentionDataEraser is not registered while automatic enforcement is enabled. "
+                            + "Expired data is not erased until an eraser is registered.");
+            }
+            else
+            {
+                data["dataEraserType"] = dataEraser.GetType().Name;
+            }
         }
 
         _logger.RetentionHealthCheckCompleted(

@@ -83,6 +83,14 @@ internal static class RetentionDiagnostics
             description: "Total number of retention record deletion failures.");
 
     /// <summary>
+    /// Total expired retention records whose erasure was deferred because another record of the same
+    /// entity, data category, tenant and module is still retained.
+    /// </summary>
+    internal static readonly Counter<long> RecordsDeferredTotal =
+        Meter.CreateCounter<long>("retention.records.deferred.total",
+            description: "Total number of expired retention records whose erasure was deferred by a retained sibling record.");
+
+    /// <summary>
     /// Total legal holds applied, tagged with <c>retention.outcome</c>.
     /// </summary>
     internal static readonly Counter<long> LegalHoldsAppliedTotal =

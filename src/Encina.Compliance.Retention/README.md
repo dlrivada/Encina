@@ -14,7 +14,7 @@ GDPR Storage Limitation compliance for Encina. Provides declarative data retenti
 - **Fluent Policy Configuration** -- `AddPolicy()` builder API with `RetainForDays()`, `RetainForYears()`, `WithAutoDelete()`, `WithLegalBasis()`
 - **Three Enforcement Modes** -- `Block` (reject), `Warn` (log and proceed), `Disabled` (no-op)
 - **Expiration Alerts** -- Proactive notifications for data approaching retention deadline
-- **DSR Integration** -- Delegates physical erasure to `IDataErasureExecutor` from `Encina.Compliance.DataSubjectRights`
+- **Category-Scoped Erasure** -- Delegates physical erasure of each expired record to the application's `IRetentionDataEraser`, which erases only that record's data category for that entity
 - **Immutable Audit Trail** -- Every retention operation is recorded via `IRetentionAuditStore`
 - **Domain Notifications** -- `DataExpiringNotification`, `DataDeletedNotification`, `LegalHoldAppliedNotification`, `LegalHoldReleasedNotification`, `RetentionEnforcementCompletedNotification`
 - **Railway Oriented Programming** -- All operations return `Either<EncinaError, T>`, no exceptions
@@ -183,7 +183,6 @@ var expiring = await enforcer.GetExpiringDataAsync(TimeSpan.FromDays(30), cancel
 | `retention.record_already_exists` | A retention record already exists for the entity |
 | `retention.hold_not_found` | No legal hold found with the given identifier |
 | `retention.hold_already_active` | An active legal hold already exists for the entity |
-| `retention.hold_already_released` | The legal hold has already been released |
 | `retention.enforcement_failed` | The retention enforcement cycle failed |
 | `retention.deletion_failed` | Data deletion failed during enforcement |
 | `retention.store_error` | Retention persistence store operation failed |
@@ -259,33 +258,82 @@ services.AddEncinaRetention(options =>
 
 The health check (`encina-retention`) verifies:
 - `RetentionOptions` are configured
-- `IRetentionRecordStore` is resolvable
-- `IRetentionPolicyStore` is resolvable
-- `IRetentionEnforcer` is resolvable
-- `ILegalHoldStore` is resolvable (optional, Degraded if missing)
-- `IRetentionAuditStore` is resolvable when `TrackAuditTrail` is enabled
+- `IRetentionRecordService` is resolvable
+- `IRetentionPolicyService` is resolvable
+- `ILegalHoldService` is resolvable (optional, Degraded if missing)
+- An `IRetentionDataEraser` is registered when `EnableAutomaticEnforcement` is on (Degraded if missing, because expired data would never be erased)
 
 Tags: `encina`, `gdpr`, `retention`, `compliance`, `ready`
 
-## Integration with DataSubjectRights
+## Erasing Expired Data
 
-The Retention module integrates with `Encina.Compliance.DataSubjectRights` for physical data erasure. When the `RetentionEnforcementService` identifies expired records, it delegates actual deletion to `IDataErasureExecutor` (registered by the DSR module):
+Each retention record carries an entity and a data category, so one entity can have several records with different periods (for example a patient's contact data kept for one year and the clinical record kept for five). When a record expires, `RetentionEnforcementService` calls `IRetentionDataEraser.EraseAsync` with a `RetentionErasureTarget` (record id, entity id, data category, expiry, tenant and module) and marks the record `Deleted` only after it returns `Right`. The eraser must erase that category of data for that entity and nothing else; the entity's other categories are still within their own periods. The application implements it, because only the application knows where each category of data lives:
 
 ```csharp
-// Register both modules for full compliance
-services.AddEncinaDataSubjectRights(options =>
-{
-    options.RestrictionEnforcementMode = DSREnforcementMode.Block;
-});
-
-services.AddEncinaRetention(options =>
-{
-    options.EnforcementMode = RetentionEnforcementMode.Block;
-    options.EnableAutomaticEnforcement = true;
-});
+// Program.cs
+services.AddScoped<IRetentionDataEraser, PatientDataEraser>();
 ```
 
-If `IDataErasureExecutor` is not registered, the enforcer erases nothing and never marks a record deleted: expired records stay `Expired`, are counted as failed and a warning (EventId 8519) is logged once per enforcement cycle.
+```csharp
+// PatientDataEraser.cs
+public sealed class PatientDataEraser(AppDbContext db) : IRetentionDataEraser
+{
+    public async ValueTask<Either<EncinaError, Unit>> EraseAsync(
+        RetentionErasureTarget target, CancellationToken cancellationToken = default)
+    {
+        // A multi-tenant application: there is no ambient tenant in the background enforcement
+        // scope, so scope every statement to target.TenantId, or refuse when it is missing.
+        if (string.IsNullOrEmpty(target.TenantId))
+        {
+            return EncinaError.New($"Retention record '{target.RecordId}' has no tenant; refusing to erase.");
+        }
+
+        switch (target.DataCategory)
+        {
+            case "patient-contact":
+                await db.PatientContacts
+                    .IgnoreQueryFilters()
+                    .Where(c => c.TenantId == target.TenantId && c.PatientId == target.EntityId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                return Unit.Default;
+
+            case "clinical-record":
+                await db.ClinicalNotes
+                    .IgnoreQueryFilters()
+                    .Where(n => n.TenantId == target.TenantId && n.PatientId == target.EntityId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                return Unit.Default;
+
+            default:
+                return EncinaError.New($"No eraser for retention category '{target.DataCategory}'.");
+        }
+    }
+}
+```
+
+Return `Left` when any of the data could not be erased: the record stays `Expired` and the next cycle retries it, so the eraser must be idempotent.
+
+Scope the erasure by `target.TenantId` (and `target.ModuleId` when modules are isolated): the enforcement service runs in a background scope with no ambient tenant, so tenant query filters do not apply on their own. Return `Left`, never `Right`, when the tenant scope cannot be established. `RetentionValidationPipelineBehavior` records the request's tenant and module on each record.
+
+One entity can also have several records in the same category (one per tracking call, for example one per clinical episode). While another record of the same entity, category, tenant and module is still retained (`Active` within its period, or `UnderLegalHold`), an expired record stays `Expired` and nothing is erased (EventId 8591); when the last one expires, the category is erased once and all of them are marked `Deleted`.
+
+If no `IRetentionDataEraser` is registered, the enforcer erases nothing and never marks a record deleted: expired records stay `Expired`, are counted as failed and a warning (EventId 8519) is logged once per enforcement cycle.
+
+### Why not the data subject rights erasure executor
+
+`IDataErasureExecutor` from `Encina.Compliance.DataSubjectRights` erases by data subject and by `PersonalDataCategory`. A retention record identifies an entity (which is not necessarily a data subject) and a free-form retention category (which does not map one-to-one onto a `PersonalDataCategory`). Passing the entity id as a subject id and no category, as earlier versions did, erased every category of the entity when any one record expired (#1160). An eraser may still delegate to `IDataErasureExecutor` when, in your application, the entity is the data subject and you own the mapping from retention categories to personal data categories. See [ADR-031](../../docs/architecture/adr/031-retention-erasure-port.md).
+
+## Lifting Legal Holds
+
+`ILegalHoldService.LiftHoldAsync` lifts the hold and, when no other active hold remains on the entity, releases the entity's held records (`UnderLegalHold` → `Expired` or `Active`). It never reports a success it did not achieve:
+
+- If whether another hold remains cannot be determined, no record is released (fail closed) and the call returns `retention.hold_release_incomplete` (EventId 8589).
+- If some records cannot be released, the others still are; the call returns `retention.hold_release_incomplete` with the failed record ids in the error details under `failedRecordIds` (EventId 8588 per record).
+- Calling `LiftHoldAsync` again for the same hold does not lift it twice: it retries the release of the records still held (EventId 8590, with the id of the user who retried) and returns `Right` once they are all released.
+- A record already released counts as released even if a stale read model still lists it as held (`ReleaseRecordAsync` is idempotent, EventId 8593).
+- An empty `releasedByUserId` is rejected with `retention.invalid_parameter` on every call, retries included.
+
+Records that are not released stay `UnderLegalHold`, so the enforcement cycle never erases them.
 
 ## Testing
 
@@ -318,7 +366,7 @@ This package implements key GDPR requirements:
 |---------|-------------|----------------|
 | **5(1)(e)** | Storage limitation -- data kept no longer than necessary | `RetentionEnforcementService`, `[RetentionPeriod]`, `IRetentionPolicy` |
 | **5(2)** | Accountability -- demonstrate compliance | `IRetentionAuditStore`, `TrackAuditTrail` option |
-| **17(1)(a)** | Right to erasure when data no longer necessary | `IRetentionEnforcer.EnforceRetentionAsync`, `IDataErasureExecutor` integration |
+| **17(1)(a)** | Right to erasure when data no longer necessary | `RetentionEnforcementService`, `IRetentionDataEraser` (category-scoped) |
 | **17(3)(e)** | Legal claims exemption from erasure | `ILegalHoldManager`, `LegalHold`, `RetentionStatus.UnderLegalHold` |
 | **Recital 39** | Time limits for erasure or periodic review | `EnforcementInterval`, `AlertBeforeExpirationDays`, `GetExpiringDataAsync` |
 

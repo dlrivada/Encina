@@ -129,8 +129,8 @@ public sealed record RetentionRecordReleased(
 /// applicable, Article 17(1) right to erasure.
 /// </para>
 /// <para>
-/// Physical deletion is performed by the <c>IDataErasureExecutor</c> (from
-/// <c>Encina.Compliance.DataSubjectRights</c>) before this event is raised.
+/// Physical deletion of the record's data category for the entity is performed by the application's
+/// <see cref="Abstractions.IRetentionDataEraser"/> before this event is raised.
 /// </para>
 /// </remarks>
 /// <param name="RecordId">The retention record aggregate identifier.</param>

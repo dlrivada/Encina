@@ -518,3 +518,20 @@ static Encina.Compliance.Retention.RetentionErrors.ServiceError(string! operatio
 static Encina.Compliance.Retention.RetentionErrors.StoreError(string! operation, string! message, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Compliance.Retention.RetentionMartenExtensions.AddRetentionAggregates(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Encina.Compliance.Retention.ServiceCollectionExtensions.AddEncinaRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Compliance.Retention.RetentionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.Compliance.Retention.Abstractions.IRetentionDataEraser
+Encina.Compliance.Retention.Abstractions.IRetentionDataEraser.EraseAsync(Encina.Compliance.Retention.Model.RetentionErasureTarget! target, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Compliance.Retention.Model.RetentionErasureTarget
+Encina.Compliance.Retention.Model.RetentionErasureTarget.DataCategory.get -> string!
+Encina.Compliance.Retention.Model.RetentionErasureTarget.DataCategory.init -> void
+Encina.Compliance.Retention.Model.RetentionErasureTarget.EntityId.get -> string!
+Encina.Compliance.Retention.Model.RetentionErasureTarget.EntityId.init -> void
+Encina.Compliance.Retention.Model.RetentionErasureTarget.ExpiresAtUtc.get -> System.DateTimeOffset
+Encina.Compliance.Retention.Model.RetentionErasureTarget.ExpiresAtUtc.init -> void
+Encina.Compliance.Retention.Model.RetentionErasureTarget.ModuleId.get -> string?
+Encina.Compliance.Retention.Model.RetentionErasureTarget.ModuleId.init -> void
+Encina.Compliance.Retention.Model.RetentionErasureTarget.RecordId.get -> System.Guid
+Encina.Compliance.Retention.Model.RetentionErasureTarget.RecordId.init -> void
+Encina.Compliance.Retention.Model.RetentionErasureTarget.TenantId.get -> string?
+Encina.Compliance.Retention.Model.RetentionErasureTarget.TenantId.init -> void
+const Encina.Compliance.Retention.RetentionErrors.HoldReleaseIncompleteCode = "retention.hold_release_incomplete" -> string!
+static Encina.Compliance.Retention.RetentionErrors.HoldReleaseIncomplete(System.Guid holdId, string! entityId, System.Collections.Generic.IReadOnlyList<System.Guid>! failedRecordIds, string! reason) -> Encina.EncinaError

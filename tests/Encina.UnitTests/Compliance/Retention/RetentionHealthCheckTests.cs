@@ -99,6 +99,7 @@ public sealed class RetentionHealthCheckTests
         services.AddScoped(_ => Substitute.For<IRetentionRecordService>());
         services.AddScoped(_ => Substitute.For<IRetentionPolicyService>());
         services.AddScoped(_ => Substitute.For<ILegalHoldService>());
+        services.AddScoped(_ => Substitute.For<IRetentionDataEraser>());
         var provider = services.BuildServiceProvider();
         var sut = new RetentionHealthCheck(provider, NullLogger<RetentionHealthCheck>.Instance);
 
@@ -116,6 +117,7 @@ public sealed class RetentionHealthCheckTests
         services.AddScoped(_ => Substitute.For<IRetentionRecordService>());
         services.AddScoped(_ => Substitute.For<IRetentionPolicyService>());
         services.AddScoped(_ => Substitute.For<ILegalHoldService>());
+        services.AddScoped(_ => Substitute.For<IRetentionDataEraser>());
         var provider = services.BuildServiceProvider();
         var sut = new RetentionHealthCheck(provider, NullLogger<RetentionHealthCheck>.Instance);
 
@@ -133,6 +135,7 @@ public sealed class RetentionHealthCheckTests
         services.AddScoped(_ => Substitute.For<IRetentionRecordService>());
         services.AddScoped(_ => Substitute.For<IRetentionPolicyService>());
         services.AddScoped(_ => Substitute.For<ILegalHoldService>());
+        services.AddScoped(_ => Substitute.For<IRetentionDataEraser>());
         var provider = services.BuildServiceProvider();
         var sut = new RetentionHealthCheck(provider, NullLogger<RetentionHealthCheck>.Instance);
 
@@ -141,6 +144,60 @@ public sealed class RetentionHealthCheckTests
         result.Data.ShouldContainKey("recordServiceType");
         result.Data.ShouldContainKey("policyServiceType");
         result.Data.ShouldContainKey("legalHoldServiceType");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_AutomaticEnforcementWithoutDataEraser_ReturnsDegraded()
+    {
+        var services = new ServiceCollection();
+        services.Configure<RetentionOptions>(o => o.EnableAutomaticEnforcement = true);
+        services.AddScoped(_ => Substitute.For<IRetentionRecordService>());
+        services.AddScoped(_ => Substitute.For<IRetentionPolicyService>());
+        services.AddScoped(_ => Substitute.For<ILegalHoldService>());
+        var provider = services.BuildServiceProvider();
+        var sut = new RetentionHealthCheck(provider, NullLogger<RetentionHealthCheck>.Instance);
+
+        var result = await sut.CheckHealthAsync(CreateContext());
+
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("IRetentionDataEraser");
+        result.Data["dataEraserRegistered"].ShouldBe(false);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_AutomaticEnforcementDisabledWithoutDataEraser_ReturnsHealthy()
+    {
+        var services = new ServiceCollection();
+        services.Configure<RetentionOptions>(o => o.EnableAutomaticEnforcement = false);
+        services.AddScoped(_ => Substitute.For<IRetentionRecordService>());
+        services.AddScoped(_ => Substitute.For<IRetentionPolicyService>());
+        services.AddScoped(_ => Substitute.For<ILegalHoldService>());
+        var provider = services.BuildServiceProvider();
+        var sut = new RetentionHealthCheck(provider, NullLogger<RetentionHealthCheck>.Instance);
+
+        var result = await sut.CheckHealthAsync(CreateContext());
+
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldNotContainKey("dataEraserRegistered");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_AutomaticEnforcementWithDataEraser_ReportsEraserType()
+    {
+        var services = new ServiceCollection();
+        services.Configure<RetentionOptions>(o => o.EnableAutomaticEnforcement = true);
+        services.AddScoped(_ => Substitute.For<IRetentionRecordService>());
+        services.AddScoped(_ => Substitute.For<IRetentionPolicyService>());
+        services.AddScoped(_ => Substitute.For<ILegalHoldService>());
+        services.AddScoped(_ => Substitute.For<IRetentionDataEraser>());
+        var provider = services.BuildServiceProvider();
+        var sut = new RetentionHealthCheck(provider, NullLogger<RetentionHealthCheck>.Instance);
+
+        var result = await sut.CheckHealthAsync(CreateContext());
+
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data["dataEraserRegistered"].ShouldBe(true);
+        result.Data.ShouldContainKey("dataEraserType");
     }
 
     private static HealthCheckContext CreateContext() => new()
