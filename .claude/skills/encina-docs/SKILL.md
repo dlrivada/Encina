@@ -56,7 +56,7 @@ nav_order: 12           # optional; alphabetical when omitted
 
 Diátaxis' cycle, applied to Encina:
 
-1. **Choose** the page from the issue (documentation milestone `v0.18.0 — Documentation`: #80 to #86, #903 to #908, #90, #1032, #661; onboarding: #1102, #1103, #1104, #1107).
+1. **Choose** the page from the issue (documentation milestone `v0.21.0 — Documentation`: #80 to #86, #903 to #908, #90, #1032, #661; onboarding: #1102, #1103, #1104, #1107).
 2. **Assess** with the compass (`diataxis.md` §2). Write the verdict at the top of your working notes: quadrant, intended reader, what the page must let them do or know. For an existing page, mark each section with its quadrant; every section outside the page's quadrant is either moved, linked or deleted.
 3. **Decide** the single shape of the page. A feature that needs a tutorial, a how-to and an explanation becomes three pages that link to each other, not one page with three moods.
 4. **Do it.** Write, then verify (§5), then commit.
