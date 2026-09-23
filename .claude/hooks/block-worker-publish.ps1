@@ -38,7 +38,7 @@ try {
     # for either, or any other subcommand — is blocked. Tags are local; 'push' remains the only publish path.
     $allowedGitSubcommands = @(
         'add', 'am', 'apply', 'bisect', 'blame', 'branch', 'cat-file', 'check-ignore', 'checkout', 'cherry-pick',
-        'clean', 'commit', 'config', 'describe', 'diff', 'fetch', 'format-patch', 'grep', 'init', 'log',
+        'clean', 'clone', 'commit', 'config', 'describe', 'diff', 'fetch', 'format-patch', 'grep', 'init', 'log',
         'ls-files', 'ls-remote', 'ls-tree', 'merge', 'merge-base', 'mv', 'notes', 'pull', 'rebase', 'reflog',
         'remote', 'reset', 'restore', 'rev-list', 'rev-parse', 'revert', 'rm', 'shortlog', 'show', 'show-ref',
         'sparse-checkout', 'stash', 'status', 'submodule', 'switch', 'tag', 'version', 'worktree'
