@@ -116,7 +116,7 @@ public sealed class DeadLetterOrchestratorTests
     }
 
     [Fact]
-    public async Task AddAsync_WithException_IncludesExceptionDetails()
+    public async Task AddAsync_WithException_KeepsExceptionTypeButNotItsMessage()
     {
         // Arrange
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
@@ -131,12 +131,12 @@ public sealed class DeadLetterOrchestratorTests
 
         _messageFactory.Create(Arg.Is<DeadLetterData>(d =>
             d.RequestType == expectedRequestType &&
-            d.ErrorMessage == error.Message &&
+            d.ErrorMessage == "test.error" &&
             d.SourcePattern == sourcePattern &&
             d.TotalRetryAttempts == retryCount &&
             d.FirstFailedAtUtc == firstFailedAt &&
             d.ExceptionType == typeof(InvalidOperationException).FullName &&
-            d.ExceptionMessage == "Something went wrong"))
+            d.ExceptionMessage == null))
             .Returns(expectedMessage);
 
         // Act
@@ -146,12 +146,14 @@ public sealed class DeadLetterOrchestratorTests
         // Assert
         _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
             d.RequestType == expectedRequestType &&
-            d.ErrorMessage == error.Message &&
+            d.ErrorMessage == "test.error" &&
+            d.ErrorMessage != "Test error" &&
             d.SourcePattern == sourcePattern &&
             d.TotalRetryAttempts == retryCount &&
             d.FirstFailedAtUtc == firstFailedAt &&
             d.ExceptionType == typeof(InvalidOperationException).FullName &&
-            d.ExceptionMessage == "Something went wrong"));
+            d.ExceptionMessage == null &&
+            d.ExceptionMessage != "Something went wrong"));
     }
 
     [Fact]

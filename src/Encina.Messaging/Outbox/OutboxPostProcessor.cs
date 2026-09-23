@@ -1,6 +1,4 @@
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -21,11 +19,6 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     private readonly ILogger<OutboxPostProcessor<TRequest, TResponse>> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly IMessageSerializer _messageSerializer;
-
-    private static readonly MethodInfo SerializeMethodDefinition =
-        typeof(IMessageSerializer).GetMethod(nameof(IMessageSerializer.Serialize))!;
-
-    private static readonly ConcurrentDictionary<Type, MethodInfo> SerializeMethodCache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxPostProcessor{TRequest, TResponse}"/> class.
@@ -88,25 +81,10 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
                         ?? notification.GetType().Name;
 
                     // Serialize using the notification's runtime type (not the declared
-                    // INotification interface) so that all of its properties are captured,
-                    // matching the previous JsonSerializer.Serialize(obj, obj.GetType()) behavior,
-                    // and so that EncryptingMessageSerializer can read the [EncryptedMessage]
-                    // attribute off the concrete type. IMessageSerializer.Serialize<T> is generic,
-                    // so the closed method for the runtime type is built once via reflection
-                    // (a `dynamic` call here does NOT infer T from the runtime type reliably
-                    // across all interface implementations, so reflection is used instead).
-                    var serializeMethod = SerializeMethodCache.GetOrAdd(
-                        notification.GetType(),
-                        static t => SerializeMethodDefinition.MakeGenericMethod(t));
-                    // DoNotWrapExceptions: a serializer failure (e.g. an encryption failure from
-                    // EncryptingMessageSerializer) propagates as itself, not as a
-                    // TargetInvocationException wrapper.
-                    var content = (string)serializeMethod.Invoke(
-                        _messageSerializer,
-                        BindingFlags.DoNotWrapExceptions,
-                        binder: null,
-                        parameters: [notification],
-                        culture: null)!;
+                    // INotification interface) so that all of its properties are captured and
+                    // EncryptingMessageSerializer can read the [EncryptedMessage] attribute off the
+                    // concrete type; serializer failures propagate unwrapped.
+                    var content = _messageSerializer.SerializeAsRuntimeType(notification);
 
                     var outboxMessage = _messageFactory.Create(
                         Guid.NewGuid(),

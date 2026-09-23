@@ -35,8 +35,9 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
     /// <param name="messageSerializer">
     /// The message serializer used to persist the retried request payload, so that decorators
     /// such as <c>EncryptingMessageSerializer</c> apply to it too. Only the request payload
-    /// goes through this serializer; the recoverability context metadata (correlation id,
-    /// retry counters) continues to use plain JSON since it holds no business payload.
+    /// goes through this serializer; the recoverability context metadata (identifiers, retry
+    /// counters, request type name and the last error's code) is stored as plain JSON. It never
+    /// contains <c>EncinaError.Message</c>, which can carry personal data.
     /// </param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public DelayedRetryScheduler(
@@ -132,7 +133,9 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
             CorrelationId = context.CorrelationId,
             IdempotencyKey = context.IdempotencyKey,
             RequestTypeName = context.RequestTypeName,
-            LastErrorMessage = context.LastError?.Message
+            // Only the error code: EncinaError.Message can carry personal data, and this
+            // metadata is stored as plain JSON (#1259 review).
+            LastErrorCode = context.LastError is { } lastError ? lastError.GetCode().IfNone("encina.unknown") : null
         };
 
         return JsonSerializer.Serialize(serializableContext, JsonOptions);
@@ -151,7 +154,7 @@ internal sealed class SerializableRecoverabilityContext
     public string? CorrelationId { get; set; }
     public string? IdempotencyKey { get; set; }
     public string? RequestTypeName { get; set; }
-    public string? LastErrorMessage { get; set; }
+    public string? LastErrorCode { get; set; }
 }
 
 /// <summary>

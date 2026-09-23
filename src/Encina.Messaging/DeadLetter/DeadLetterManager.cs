@@ -121,7 +121,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         {
             DeadLetterLog.MessageReplayException(_logger, ex, messageId);
 
-            var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.Message}";
+            var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.GetType().FullName}";
             await _store.MarkAsReplayedAsync(messageId, $"Failed: {errorMessage}", cancellationToken);
             await _store.SaveChangesAsync(cancellationToken);
 
@@ -153,7 +153,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
         }
         catch (Exception ex)
         {
-            var error = $"Replay failed: {ex.Message}";
+            var innerException = ex.InnerException ?? ex;
+            var error = $"Replay failed: {innerException.GetType().FullName}";
             DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
             return ReplayResult.Failed(messageId, error);
         }

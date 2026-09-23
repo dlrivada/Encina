@@ -96,17 +96,20 @@ public sealed class DeadLetterOrchestrator
         ArgumentException.ThrowIfNullOrEmpty(context.SourcePattern);
 
         var requestType = typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name;
-        var requestContent = _messageSerializer.Serialize(request);
+        var requestContent = _messageSerializer.SerializeAsRuntimeType(request);
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var expiresAt = _options.RetentionPeriod.HasValue
             ? now.Add(_options.RetentionPeriod.Value)
             : (DateTime?)null;
 
+        // EncinaError.Message and Exception.Message can carry personal data (e.g. a data-subject
+        // id), so the record and the log keep only the error code and the exception type (#1274).
+        var errorCode = ErrorCodeOf(context.Error);
         var data = new DeadLetterData(
             Id: Guid.NewGuid(),
             RequestType: requestType,
             RequestContent: requestContent,
-            ErrorMessage: context.Error.Message,
+            ErrorMessage: errorCode,
             SourcePattern: context.SourcePattern,
             TotalRetryAttempts: context.TotalRetryAttempts,
             FirstFailedAtUtc: context.FirstFailedAtUtc,
@@ -114,7 +117,7 @@ public sealed class DeadLetterOrchestrator
             ExpiresAtUtc: expiresAt,
             CorrelationId: context.CorrelationId,
             ExceptionType: context.Exception?.GetType().FullName,
-            ExceptionMessage: context.Exception?.Message,
+            ExceptionMessage: null,
             ExceptionStackTrace: context.Exception?.StackTrace);
 
         var message = _messageFactory.Create(data);
@@ -132,7 +135,7 @@ public sealed class DeadLetterOrchestrator
             message.Id,
             requestType,
             context.SourcePattern,
-            context.Error.Message,
+            errorCode,
             context.TotalRetryAttempts,
             context.CorrelationId);
 
@@ -172,7 +175,26 @@ public sealed class DeadLetterOrchestrator
             ? now.Add(_options.RetentionPeriod.Value)
             : (DateTime?)null;
 
-        var message = _messageFactory.CreateFromFailedMessage(failedMessage, sourcePattern, expiresAt);
+        // The record is built here, not by the provider factory, so the request goes through
+        // IMessageSerializer (encryption applies, using the request's runtime type) and only the
+        // error code and exception type are kept (#1274).
+        var errorCode = ErrorCodeOf(failedMessage.Error);
+        var data = new DeadLetterData(
+            Id: Guid.NewGuid(),
+            RequestType: failedMessage.RequestType,
+            RequestContent: _messageSerializer.SerializeAsRuntimeType(failedMessage.Request),
+            ErrorMessage: errorCode,
+            SourcePattern: sourcePattern,
+            TotalRetryAttempts: failedMessage.TotalAttempts,
+            FirstFailedAtUtc: failedMessage.FirstAttemptAtUtc,
+            DeadLetteredAtUtc: now,
+            ExpiresAtUtc: expiresAt,
+            CorrelationId: failedMessage.CorrelationId,
+            ExceptionType: failedMessage.Exception?.GetType().FullName,
+            ExceptionMessage: null,
+            ExceptionStackTrace: failedMessage.Exception?.StackTrace);
+
+        var message = _messageFactory.Create(data);
 
         var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
         if (addResult.IsLeft)
@@ -187,7 +209,7 @@ public sealed class DeadLetterOrchestrator
             message.Id,
             message.RequestType,
             sourcePattern,
-            message.ErrorMessage,
+            errorCode,
             failedMessage.TotalAttempts,
             failedMessage.CorrelationId);
 
@@ -352,4 +374,6 @@ public sealed class DeadLetterOrchestrator
 
         return count;
     }
+
+    private static string ErrorCodeOf(EncinaError error) => error.GetCode().IfNone("encina.unknown");
 }

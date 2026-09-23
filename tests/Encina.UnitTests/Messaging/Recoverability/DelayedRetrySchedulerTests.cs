@@ -237,7 +237,8 @@ public sealed class DelayedRetrySchedulerTests
 
         // Assert
         capturedData.ShouldNotBeNull();
-        capturedData.ContextContent.ShouldContain("Test error message");
+        capturedData.ContextContent.ShouldContain("\"lastErrorCode\":\"TEST_ERROR\"");
+        capturedData.ContextContent.ShouldNotContain("Test error message");
     }
 
     #endregion

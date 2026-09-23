@@ -41,7 +41,7 @@ public sealed class OutboxProcessorProvidersTests
 
         await harness.Store.Received(1).MarkAsFailedAsync(
             message.Id,
-            "Rejected",
+            "handler.rejected",
             Now.UtcDateTime.AddSeconds(10),
             Arg.Any<CancellationToken>());
         await harness.Store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
@@ -56,7 +56,7 @@ public sealed class OutboxProcessorProvidersTests
 
         await harness.RunOneFailureAsync(provider, Options(maxRetries: 3));
 
-        await harness.Store.Received(1).MarkAsFailedAsync(message.Id, "Rejected", null, Arg.Any<CancellationToken>());
+        await harness.Store.Received(1).MarkAsFailedAsync(message.Id, "handler.rejected", null, Arg.Any<CancellationToken>());
         await harness.Store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
     }
 

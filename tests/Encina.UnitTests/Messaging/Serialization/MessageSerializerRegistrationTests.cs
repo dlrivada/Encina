@@ -251,9 +251,6 @@ public sealed class MessageSerializerRegistrationTests
     public sealed class ProbeDeadLetterMessageFactory : IDeadLetterMessageFactory
     {
         public IDeadLetterMessage Create(DeadLetterData data) => new FakeDeadLetterMessage { Id = data.Id };
-
-        public IDeadLetterMessage CreateFromFailedMessage(FailedMessage failedMessage, string sourcePattern, DateTime? expiresAtUtc) =>
-            new FakeDeadLetterMessage { SourcePattern = sourcePattern };
     }
 
     public sealed class ProbeDelayedRetryStore : IDelayedRetryStore

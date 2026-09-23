@@ -542,6 +542,11 @@ public sealed class SchedulerOrchestratorTests
         result.RightAsEnumerable().First().ShouldBe(0);
         await store.Received(1).MarkAsFailedAsync(
             messageId,
+            Arg.Is<string>(s => s == typeof(InvalidOperationException).FullName),
+            Arg.Any<DateTime?>(),
+            Arg.Any<CancellationToken>());
+        await store.DidNotReceive().MarkAsFailedAsync(
+            messageId,
             Arg.Is<string>(s => s.Contains("Callback failed")),
             Arg.Any<DateTime?>(),
             Arg.Any<CancellationToken>());

@@ -16,13 +16,13 @@ internal static partial class DeadLetterLog
     [LoggerMessage(
         EventId = 2945,
         Level = LogLevel.Warning,
-        Message = "Message {MessageId} added to DLQ. Type: {RequestType}, Source: {SourcePattern}, Error: {ErrorMessage}, Attempts: {TotalAttempts}, CorrelationId: {CorrelationId}")]
+        Message = "Message {MessageId} added to DLQ. Type: {RequestType}, Source: {SourcePattern}, ErrorCode: {ErrorCode}, Attempts: {TotalAttempts}, CorrelationId: {CorrelationId}")]
     public static partial void MessageAddedToDLQ(
         ILogger logger,
         Guid messageId,
         string requestType,
         string sourcePattern,
-        string errorMessage,
+        string errorCode,
         int totalAttempts,
         string? correlationId);
 

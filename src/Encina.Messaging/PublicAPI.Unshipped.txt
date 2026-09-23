@@ -152,7 +152,7 @@ static Encina.Messaging.MessagingLog.OutboxProcessorStarted(Microsoft.Extensions
 static Encina.Messaging.MessagingLog.ErrorProcessingOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
 static Encina.Messaging.MessagingLog.ProcessingPendingOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, int count) -> void
 static Encina.Messaging.MessagingLog.ProcessedOutboxMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Guid messageId, string! notificationType) -> void
-static Encina.Messaging.MessagingLog.FailedToProcessOutboxMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Exception? exception, System.Guid messageId, string! errorMessage, int retryCount, int maxRetries, System.DateTime? nextRetry) -> void
+static Encina.Messaging.MessagingLog.FailedToProcessOutboxMessage(Microsoft.Extensions.Logging.ILogger! logger, System.Exception? exception, System.Guid messageId, string! failureReason, int retryCount, int maxRetries, System.DateTime? nextRetry) -> void
 static Encina.Messaging.MessagingLog.ProcessedOutboxMessages(Microsoft.Extensions.Logging.ILogger! logger, int totalCount, int successCount, int failureCount) -> void
 static Encina.Messaging.MessagingLog.TransactionStarted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
 static Encina.Messaging.MessagingLog.TransactionCommitted(Microsoft.Extensions.Logging.ILogger! logger, string! requestType, string? correlationId) -> void
@@ -806,7 +806,7 @@ Encina.Messaging.Scheduling.CompiledExpressionScheduledMessageDispatcher.Compile
 Encina.Messaging.Scheduling.CompiledExpressionScheduledMessageDispatcher.DispatchAsync(System.Type! requestType, object! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Messaging.Scheduling.ScheduledMessageProcessor
 Encina.Messaging.Scheduling.ScheduledMessageProcessor.ScheduledMessageProcessor(System.IServiceProvider! serviceProvider, Encina.Messaging.Scheduling.SchedulingOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.Scheduling.ScheduledMessageProcessor!>! logger, System.TimeProvider? timeProvider = null) -> void
-static Encina.Messaging.MessagingLog.OutboxMessageRetriesExhausted(Microsoft.Extensions.Logging.ILogger! logger, System.Exception? exception, System.Guid messageId, string! notificationType, int retryCount, string! errorCode, string! errorMessage) -> void
+static Encina.Messaging.MessagingLog.OutboxMessageRetriesExhausted(Microsoft.Extensions.Logging.ILogger! logger, System.Exception? exception, System.Guid messageId, string! notificationType, int retryCount, string! errorCode, string! lastFailureReason) -> void
 Encina.Messaging.Outbox.OutboxOptions.MaxRetryDelay.get -> System.TimeSpan
 Encina.Messaging.Outbox.OutboxOptions.MaxRetryDelay.set -> void
 Encina.Messaging.Outbox.OutboxOptions.RetryJitterRatio.get -> double
@@ -829,8 +829,8 @@ Encina.Messaging.Outbox.OutboxOrchestrator.GetExhaustedCountAsync(System.Threadi
 Encina.Messaging.Outbox.OutboxOrchestrator.RequeueExhaustedAsync(System.Collections.Generic.IEnumerable<System.Guid>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
 Encina.Messaging.Outbox.OutboxOrchestrator.RequeueExhaustedAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
 static Encina.Messaging.MessagingLog.OutboxExhaustedMessagesRequeued(Microsoft.Extensions.Logging.ILogger! logger, int requeuedCount, string! requeueScope) -> void
-static Encina.Messaging.MessagingLog.OutboxBatchSaveFailed(Microsoft.Extensions.Logging.ILogger! logger, int messageCount, string! errorMessage) -> void
-static Encina.Messaging.MessagingLog.OutboxMessageOutcomeNotRecorded(Microsoft.Extensions.Logging.ILogger! logger, string! operation, System.Guid messageId, string! errorMessage) -> void
+static Encina.Messaging.MessagingLog.OutboxBatchSaveFailed(Microsoft.Extensions.Logging.ILogger! logger, int messageCount, string! errorCode) -> void
+static Encina.Messaging.MessagingLog.OutboxMessageOutcomeNotRecorded(Microsoft.Extensions.Logging.ILogger! logger, string! operation, System.Guid messageId, string! errorCode) -> void
 static Encina.Messaging.MessagingLog.OutboxBatchCancelled(Microsoft.Extensions.Logging.ILogger! logger, System.Guid messageId) -> void
 Encina.Messaging.DeadLetter.DeadLetterOrchestrator.DeadLetterOrchestrator(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.IDeadLetterMessageFactory! messageFactory, Encina.Messaging.DeadLetter.DeadLetterOptions! options, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterOrchestrator!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer, System.TimeProvider? timeProvider = null) -> void
 Encina.Messaging.DeadLetter.DeadLetterManager.DeadLetterManager(Encina.Messaging.DeadLetter.IDeadLetterStore! store, Encina.Messaging.DeadLetter.DeadLetterOrchestrator! orchestrator, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Messaging.DeadLetter.DeadLetterManager!>! logger, Encina.Messaging.Serialization.IMessageSerializer! messageSerializer) -> void

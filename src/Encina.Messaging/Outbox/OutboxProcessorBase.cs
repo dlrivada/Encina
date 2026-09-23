@@ -131,7 +131,10 @@ public abstract class OutboxProcessorBase : BackgroundService
         if (batchResult.IsLeft)
         {
             var error = batchResult.LeftToArray()[0];
-            MessagingLog.ErrorProcessingOutboxMessages(_logger, new InvalidOperationException(error.Message));
+            // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+            MessagingLog.ErrorProcessingOutboxMessages(
+                _logger,
+                new InvalidOperationException($"Fetching pending outbox messages failed with error code {error.GetCode().IfNone("encina.unknown")}"));
             return;
         }
 
@@ -148,7 +151,7 @@ public abstract class OutboxProcessorBase : BackgroundService
         {
             var error = saveResult.LeftToArray()[0];
             OutboxProcessorMetrics.Instance.RecordUnsavedBatch(result);
-            MessagingLog.OutboxBatchSaveFailed(_logger, result.Total, error.Message);
+            MessagingLog.OutboxBatchSaveFailed(_logger, result.Total, error.GetCode().IfNone("encina.unknown"));
             return;
         }
 

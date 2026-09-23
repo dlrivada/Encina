@@ -182,10 +182,14 @@ internal sealed class OutboxBatchProcessor
                     return MessageOutcome.Cancelled;
                 }
 
+                // Only the error code is stored and logged: EncinaError.Message can carry
+                // personal data such as a data-subject id (#1259 review).
                 return await FailAsync(
                     message,
-                    error.Message,
-                    error.Exception.MatchUnsafe(ex => ex, () => null),
+                    error.GetCode().IfNone("encina.unknown"),
+                    // No exception is attached for a Left: the error's exception carries
+                    // EncinaError.Message (EncinaErrors.FromException copies the cause's message).
+                    exception: null,
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -205,13 +209,16 @@ internal sealed class OutboxBatchProcessor
         }
         catch (Exception ex)
         {
-            return await FailAsync(message, ex.Message, ex, cancellationToken).ConfigureAwait(false);
+            // The exception message may carry personal data; store the exception type only.
+            return await FailAsync(message, ex.GetType().FullName ?? ex.GetType().Name, ex, cancellationToken).ConfigureAwait(false);
         }
     }
 
+    // failureReason is what is stored in ErrorMessage and logged: the EncinaError code, the
+    // exception type, or a fixed description. Never EncinaError.Message.
     private async Task<MessageOutcome> FailAsync(
         IOutboxMessage message,
-        string errorMessage,
+        string failureReason,
         Exception? exception,
         CancellationToken cancellationToken)
     {
@@ -219,7 +226,7 @@ internal sealed class OutboxBatchProcessor
 
         if (retryCount >= _options.MaxRetries)
         {
-            var exhaustedMark = await _store.MarkAsFailedAsync(message.Id, errorMessage, nextRetryAtUtc: null, cancellationToken)
+            var exhaustedMark = await _store.MarkAsFailedAsync(message.Id, failureReason, nextRetryAtUtc: null, cancellationToken)
                 .ConfigureAwait(false);
             if (exhaustedMark.IsLeft)
             {
@@ -233,7 +240,7 @@ internal sealed class OutboxBatchProcessor
                 message.NotificationType,
                 retryCount,
                 OutboxErrorCodes.MaxRetriesExceeded,
-                errorMessage);
+                failureReason);
 
             return MessageOutcome.Exhausted;
         }
@@ -246,7 +253,7 @@ internal sealed class OutboxBatchProcessor
             _jitterSource());
         var nextRetryAtUtc = AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
 
-        var failedMark = await _store.MarkAsFailedAsync(message.Id, errorMessage, nextRetryAtUtc, cancellationToken)
+        var failedMark = await _store.MarkAsFailedAsync(message.Id, failureReason, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
         if (failedMark.IsLeft)
         {
@@ -257,7 +264,7 @@ internal sealed class OutboxBatchProcessor
             _logger,
             exception,
             message.Id,
-            errorMessage,
+            failureReason,
             retryCount,
             _options.MaxRetries,
             nextRetryAtUtc);
@@ -268,7 +275,7 @@ internal sealed class OutboxBatchProcessor
     private MessageOutcome OutcomeNotRecorded(string operation, IOutboxMessage message, Either<EncinaError, Unit> result)
     {
         var error = result.LeftToArray()[0];
-        MessagingLog.OutboxMessageOutcomeNotRecorded(_logger, operation, message.Id, error.Message);
+        MessagingLog.OutboxMessageOutcomeNotRecorded(_logger, operation, message.Id, error.GetCode().IfNone("encina.unknown"));
         return MessageOutcome.StoreError;
     }
 
