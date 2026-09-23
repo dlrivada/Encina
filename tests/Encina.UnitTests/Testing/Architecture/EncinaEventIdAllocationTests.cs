@@ -18,10 +18,12 @@ namespace Encina.UnitTests.Testing.Architecture;
 /// themselves. <c>Encina.UnitTests</c> references every <c>src/</c> package that declares <c>[LoggerMessage]</c>
 /// methods, directly or transitively, and <see cref="EveryPackageWithLoggerMessagesIsScanned"/> fails if one
 /// goes missing. EventIds created with <c>LoggerMessage.Define(..., new EventId(n, ...), ...)</c> are
-/// constructor arguments, not attributes, so <see cref="EventIdUniquenessRule"/> cannot reflect on them; they
-/// are instead found by scanning <c>src/&lt;Package&gt;/**/*.cs</c> for <c>new EventId(&lt;literal&gt;</c>
-/// (see <see cref="DefinedEventIds"/>, <see cref="DefinedEventIds_LieInsideTheRangesMappedToTheirPackage"/>
-/// and <see cref="DefinedEventIds_DoNotCollideWithAnyOtherEventId"/>, #1125).
+/// constructor arguments, not attributes, so <see cref="EventIdUniquenessRule"/> cannot reflect on them:
+/// it scans <c>src/&lt;Package&gt;/**/*.cs</c> for literal <c>new EventId(&lt;n&gt;, ...)</c> allocations
+/// (lines starting with <c>//</c> are skipped) and requires one per <c>LoggerMessage.Define</c> call
+/// (see <see cref="DefinedEventIds"/>, <see cref="DefinedEventIds_LieInsideTheRangesMappedToTheirPackage"/>,
+/// <see cref="DefinedEventIds_DoNotCollideWithAnyOtherEventId"/> and
+/// <see cref="DefinedEventIds_CoverEveryLoggerMessageDefineCall"/>, #1125).
 /// </para>
 /// <para>
 /// When a package gains structured logging, register its range in <c>EventIdRanges.cs</c> and add the
@@ -119,13 +121,21 @@ public sealed class EncinaEventIdAllocationTests
 
     /// <summary>
     /// EventIds created with <c>LoggerMessage.Define(..., new EventId(n, ...), ...)</c>. They are constructor
-    /// arguments, not attributes, so they are read from the source: every <c>new EventId(&lt;literal&gt;</c> in
-    /// <c>src/&lt;Package&gt;/**/*.cs</c> outside comments.
+    /// arguments, not attributes, so they are read from the source: every literal <c>new EventId(&lt;n&gt;, ...)</c>
+    /// allocation in <c>src/&lt;Package&gt;/**/*.cs</c>, skipping lines that start with <c>//</c>.
     /// </summary>
+    /// <remarks>
+    /// The regex is matched against the whole file text (not line by line) so that <c>\s*</c> can span a line
+    /// break between <c>new EventId(</c> and the literal, e.g. a wrapped call. The line number is then computed
+    /// from the match's character index, and the line containing the <c>new</c> keyword is checked for a leading
+    /// <c>//</c> so commented-out allocations are still skipped.
+    /// </remarks>
     private static readonly Lazy<IReadOnlyList<(string Package, string Location, int EventId)>> DefinedEventIds = new(() =>
     {
         var srcRoot = Path.Combine(FindRepositoryRoot(), "src");
-        var pattern = new System.Text.RegularExpressions.Regex(@"new\s+EventId\s*\(\s*(?<id>\d+)\s*[,)]");
+        var pattern = new System.Text.RegularExpressions.Regex(
+            @"new\s+(?:Microsoft\.Extensions\.Logging\.)?EventId\s*\(\s*(?<id>\d+)",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
         var result = new List<(string Package, string Location, int EventId)>();
 
         foreach (var dir in Directory.EnumerateDirectories(srcRoot))
@@ -133,25 +143,47 @@ public sealed class EncinaEventIdAllocationTests
             var package = Path.GetFileName(dir);
             foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories).Where(f => !IsBuildOutput(f)))
             {
-                var lines = File.ReadAllLines(file);
-                for (var i = 0; i < lines.Length; i++)
+                var text = File.ReadAllText(file);
+                foreach (System.Text.RegularExpressions.Match m in pattern.Matches(text))
                 {
-                    if (lines[i].TrimStart().StartsWith("//", StringComparison.Ordinal))
+                    var (lineNumber, lineText) = LocateLine(text, m.Index);
+                    if (lineText.TrimStart().StartsWith("//", StringComparison.Ordinal))
                     {
                         continue;
                     }
 
-                    foreach (System.Text.RegularExpressions.Match m in pattern.Matches(lines[i]))
-                    {
-                        var location = $"{Path.GetRelativePath(srcRoot, file).Replace('\\', '/')}:{i + 1}";
-                        result.Add((package!, location, int.Parse(m.Groups["id"].Value, System.Globalization.CultureInfo.InvariantCulture)));
-                    }
+                    var location = $"{Path.GetRelativePath(srcRoot, file).Replace('\\', '/')}:{lineNumber}";
+                    result.Add((package!, location, int.Parse(m.Groups["id"].Value, System.Globalization.CultureInfo.InvariantCulture)));
                 }
             }
         }
 
         return result;
     });
+
+    /// <summary>
+    /// Finds the 1-based line number and full text of the line containing character <paramref name="index"/>.
+    /// </summary>
+    private static (int LineNumber, string LineText) LocateLine(string text, int index)
+    {
+        var lineStart = text.LastIndexOf('\n', Math.Max(index - 1, 0)) + 1;
+        var lineEnd = text.IndexOf('\n', index);
+        if (lineEnd < 0)
+        {
+            lineEnd = text.Length;
+        }
+
+        var lineNumber = 1;
+        for (var i = 0; i < lineStart; i++)
+        {
+            if (text[i] == '\n')
+            {
+                lineNumber++;
+            }
+        }
+
+        return (lineNumber, text[lineStart..lineEnd]);
+    }
 
     [Fact]
     public void EveryLoggerMessage_DeclaresAnEventId()
@@ -240,6 +272,52 @@ public sealed class EncinaEventIdAllocationTests
             .ToList();
 
         collisions.ShouldBeEmpty(string.Join(Environment.NewLine, collisions));
+    }
+
+    [Fact]
+    public void DefinedEventIds_CoverEveryLoggerMessageDefineCall()
+    {
+        var srcRoot = Path.Combine(FindRepositoryRoot(), "src");
+        var definePattern = new System.Text.RegularExpressions.Regex(
+            @"LoggerMessage\s*\.\s*Define\s*(<[^>]*>)?\s*\(",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var extractedCountByFile = DefinedEventIds.Value
+            .GroupBy(e => e.Location.Split(':')[0], StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+        var violations = new List<string>();
+
+        foreach (var dir in Directory.EnumerateDirectories(srcRoot))
+        {
+            foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories).Where(f => !IsBuildOutput(f)))
+            {
+                var defineCount = 0;
+                foreach (var line in File.ReadLines(file))
+                {
+                    var trimmed = line.TrimStart();
+                    if (trimmed.StartsWith("//", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    defineCount += definePattern.Count(line);
+                }
+
+                var relative = Path.GetRelativePath(srcRoot, file).Replace('\\', '/');
+                var extractedCount = extractedCountByFile.GetValueOrDefault(relative);
+
+                if (defineCount != extractedCount)
+                {
+                    violations.Add(
+                        $"{relative}: {defineCount} LoggerMessage.Define call(s) but {extractedCount} " +
+                        "literal new EventId(<n>, ...) allocation(s) were extracted; use a literal " +
+                        "'new EventId(<n>, ...)' for each Define call.");
+                }
+            }
+        }
+
+        violations.ShouldBeEmpty(string.Join(Environment.NewLine, violations));
     }
 
     [Fact]
