@@ -18,7 +18,7 @@
 //   dotnet run .github/scripts/changelog-fragments.cs -- --preview [--fragments-dir <dir>] [--changelog <file>]
 //   dotnet run .github/scripts/changelog-fragments.cs -- --release <version> <yyyy-MM-dd> [title] \
 //       [--fragments-dir <dir>] [--changelog <file>]
-//   dotnet run .github/scripts/changelog-fragments.cs -- --check-unreleased-unchanged <base-ref> [--changelog <file>]
+//   dotnet run .github/scripts/changelog-fragments.cs -- --check-unreleased-unchanged <base-ref> [--head <ref>] [--changelog <file>]
 //
 // --check      validates every fragment file (name, location, section and entry grammar);
 //              exit 1 on violation.
@@ -35,10 +35,15 @@
 //              fragment files that were folded in. Same content guarantee as --preview, plus:
 //              refuses an empty/whitespace version, a version that already has a "## [<version>]"
 //              section, and a merge that would produce an empty release section.
-// --check-unreleased-unchanged <base-ref>
-//              fails if the "## [Unreleased]" section of --changelog differs between <base-ref>
-//              and the working tree — used in CI to catch a PR that hand-edits Unreleased instead
-//              of adding a changelog.d/ fragment (the whole reason this tooling exists).
+// --check-unreleased-unchanged <base-ref> [--head <ref>]
+//              fails if the "## [Unreleased]" section of --changelog differs between the merge
+//              base of <base-ref> and --head (defaults to HEAD) and --head itself — used in CI to
+//              catch a PR that hand-edits Unreleased instead of adding a changelog.d/ fragment
+//              (the whole reason this tooling exists). Comparing against the merge base of --head
+//              rather than the working tree matters on `pull_request` triggers, where
+//              actions/checkout checks out the ephemeral merge commit (refs/pull/N/merge): HEAD
+//              there already contains main's newer Unreleased entries, so --head must point at
+//              the PR's real head commit (github.event.pull_request.head.sha), not HEAD.
 //
 // Ordering is deterministic: by section (Added, Changed, Deprecated, Removed, Fixed, Security),
 // then issue number, then file name. CHANGELOG.md's line endings and byte-order-mark are preserved.
@@ -59,6 +64,7 @@ string? releaseVersion = null;
 string? releaseDate = null;
 string? releaseTitle = null;
 string? baseRef = null;
+string? headRef = null;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -93,6 +99,15 @@ for (var i = 0; i < args.Length; i++)
             }
             baseRef = args[++i];
             break;
+        case "--head":
+            if (i + 1 >= args.Length)
+            {
+                Console.Error.WriteLine("ERROR: --head requires a value");
+                Environment.Exit(2);
+                return;
+            }
+            headRef = args[++i];
+            break;
         case "--fragments-dir":
             if (i + 1 >= args.Length)
             {
@@ -120,7 +135,7 @@ for (var i = 0; i < args.Length; i++)
 
 if (mode.Length == 0)
 {
-    Console.Error.WriteLine("Usage: changelog-fragments.cs (--check | --preview | --release <version> <yyyy-MM-dd> [title] | --check-unreleased-unchanged <base-ref>) [--fragments-dir <dir>] [--changelog <file>]");
+    Console.Error.WriteLine("Usage: changelog-fragments.cs (--check | --preview | --release <version> <yyyy-MM-dd> [title] | --check-unreleased-unchanged <base-ref> [--head <ref>]) [--fragments-dir <dir>] [--changelog <file>]");
     Environment.Exit(2);
     return;
 }
@@ -146,39 +161,35 @@ var nameRegex = new Regex(@"^(?<issue>[0-9]+)-(?<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\
 // ── --check-unreleased-unchanged: standalone, does not touch fragments ─────────────────────────
 if (mode == "check-unreleased-unchanged")
 {
-    if (!File.Exists(changelogPath))
-    {
-        Console.Error.WriteLine($"ERROR: changelog not found: {changelogPath}");
-        Environment.Exit(2);
-        return;
-    }
-
-    var currentUnreleased = NormalizeUnreleasedForComparison(ExtractUnreleasedRaw(File.ReadAllText(changelogPath)));
+    var effectiveHeadRef = headRef ?? "HEAD";
 
     string mergeBase;
     string baseText;
+    string headText;
     try
     {
-        mergeBase = RunGitMergeBase(baseRef!);
+        mergeBase = RunGitMergeBase(baseRef!, effectiveHeadRef);
         baseText = RunGitShow(mergeBase, changelogPath);
+        headText = RunGitShow(effectiveHeadRef, changelogPath);
     }
     catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
     {
-        Console.Error.WriteLine($"ERROR: failed to read {changelogPath} from the merge base of '{baseRef}': {ex.Message}");
+        Console.Error.WriteLine($"ERROR: failed to read {changelogPath} from the merge base of '{baseRef}' and '{effectiveHeadRef}': {ex.Message}");
         Environment.Exit(2);
         return;
     }
 
     var baseUnreleased = NormalizeUnreleasedForComparison(ExtractUnreleasedRaw(baseText));
+    var headUnreleased = NormalizeUnreleasedForComparison(ExtractUnreleasedRaw(headText));
 
-    if (!string.Equals(currentUnreleased, baseUnreleased, StringComparison.Ordinal))
+    if (!string.Equals(headUnreleased, baseUnreleased, StringComparison.Ordinal))
     {
         Console.Error.WriteLine($"ERROR: this change edits the '## [Unreleased]' section of {changelogPath} — add a fragment under changelog.d/ instead");
         Environment.Exit(1);
         return;
     }
 
-    Console.WriteLine($"OK: '## [Unreleased]' section of {changelogPath} is unchanged relative to the merge base of '{baseRef}' ({mergeBase})");
+    Console.WriteLine($"OK: '## [Unreleased]' section of {changelogPath} at '{effectiveHeadRef}' is unchanged relative to the merge base of '{baseRef}' ({mergeBase})");
     return;
 }
 
@@ -412,7 +423,7 @@ static string ExtractUnreleasedRaw(string text)
     return string.Join("\n", lines.Skip(start).Take(end - start)).TrimEnd();
 }
 
-static string RunGitMergeBase(string baseRef)
+static string RunGitMergeBase(string baseRef, string headRef)
 {
     var psi = new System.Diagnostics.ProcessStartInfo("git")
     {
@@ -422,7 +433,7 @@ static string RunGitMergeBase(string baseRef)
     };
     psi.ArgumentList.Add("merge-base");
     psi.ArgumentList.Add(baseRef);
-    psi.ArgumentList.Add("HEAD");
+    psi.ArgumentList.Add(headRef);
 
     using var proc = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException("failed to start git");
     var stdout = proc.StandardOutput.ReadToEnd();

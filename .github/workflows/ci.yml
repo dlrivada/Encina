@@ -532,7 +532,7 @@ jobs:
       # conflicts this tooling exists to avoid (#1097).
       - name: Check Unreleased section is unchanged
         if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release/')
-        run: dotnet run .github/scripts/changelog-fragments.cs -- --check-unreleased-unchanged ${{ github.event.pull_request.base.sha }}
+        run: dotnet run .github/scripts/changelog-fragments.cs -- --check-unreleased-unchanged ${{ github.event.pull_request.base.sha }} --head ${{ github.event.pull_request.head.sha }}
 
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
