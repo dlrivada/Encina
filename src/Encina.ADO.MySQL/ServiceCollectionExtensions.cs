@@ -6,6 +6,7 @@ using Encina.ADO.MySQL.Outbox;
 using Encina.ADO.MySQL.Repository;
 using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
+using Encina.ADO.MySQL.UnitOfWork;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
@@ -262,6 +263,62 @@ public static class ServiceCollectionExtensions
             return new FunctionalRepositoryADO<TEntity, TId>(
                 connection, mapping, requestContext, timeProvider);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Encina Unit of Work pattern with ADO.NET for MySQL/MariaDB.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IUnitOfWork"/> implemented by <see cref="UnitOfWorkADO"/>
+    /// with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// Requires an <see cref="IDbConnection"/> to be registered in the service collection,
+    /// typically via <see cref="AddEncinaADO(IServiceCollection, string, Action{MessagingConfiguration})"/>.
+    /// </para>
+    /// <para>
+    /// Entity mappings must be registered separately using
+    /// <see cref="AddEncinaRepository{TEntity, TId}(IServiceCollection, Action{EntityMappingBuilder{TEntity, TId}})"/>
+    /// for each entity type used with the Unit of Work.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaADO(connectionString, config => { });
+    ///
+    /// // Register entity mappings
+    /// services.AddEncinaRepository&lt;Order, Guid&gt;(mapping =&gt;
+    ///     mapping.ToTable("Orders")
+    ///            .HasId(o =&gt; o.Id)
+    ///            .MapProperty(o =&gt; o.CustomerId));
+    ///
+    /// // Add Unit of Work
+    /// services.AddEncinaUnitOfWork();
+    ///
+    /// // Usage in handler
+    /// public class TransferHandler(IUnitOfWork unitOfWork)
+    /// {
+    ///     public async Task HandleAsync(TransferCommand cmd, CancellationToken ct)
+    ///     {
+    ///         await unitOfWork.BeginTransactionAsync(ct);
+    ///         var accounts = unitOfWork.Repository&lt;Account, Guid&gt;();
+    ///         // ... operations ...
+    ///         await unitOfWork.CommitAsync(ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaUnitOfWork(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Only register if not already registered
+        services.TryAddScoped<IUnitOfWork, UnitOfWorkADO>();
 
         return services;
     }
