@@ -6,10 +6,13 @@
 # paste, shuf, unzip, basename, xxd, dd, and `bash -c` / `sh -c`.
 # Blocked in Bash only: find, cat, ls, sort, tee (in PowerShell they are aliases of Get-ChildItem-style
 # cmdlets or, for find, the Windows find.exe, which the policy does not target); statements that start with
-# for, while, until or if (loops and conditionals); and $( ... ) command substitution outside single quotes.
+# for, while, until, if, case or select (loops and conditionals) or run test, [ or [[ (conditions, as in
+# `test -f x && ...`); $( ... ) and backtick command substitution outside single quotes; and <( ... ) / >( ... )
+# process substitution outside quotes.
 #
 # Only the program a statement runs is checked (through the tokenizer in _command-text.ps1), so `git grep`,
-# `Select-String`, a word inside a string, or `--jq` filters pass. Bash pipes are not blocked.
+# `Select-String`, a word inside a string, a comment, a PowerShell hashtable key (`@{ head = 1 }`) or `--jq`
+# filters pass. Bash pipes are not blocked.
 # Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
 # (fail open).
 
@@ -56,13 +59,16 @@ try {
     }
 
     foreach ($tokens in (Split-CommandStatements -Text $command -Bash:$bash)) {
-        if ($bash -and -not $tokens[0].Quoted -and $tokens[0].Value -in 'for', 'while', 'until', 'if') {
-            Write-Block "the Bash construct '$($tokens[0].Value)'" 'the PowerShell tool (foreach / ForEach-Object, if (...) { })'
+        if ($bash -and -not $tokens[0].Quoted -and $tokens[0].Value -in 'for', 'while', 'until', 'if', 'case', 'select') {
+            Write-Block "the Bash construct '$($tokens[0].Value)'" 'the PowerShell tool (foreach / ForEach-Object, if (...) { }, switch)'
         }
 
         $k = Resolve-Executable $tokens
         if ($k -lt 0 -or $tokens[$k].Dynamic) { continue }
         $name = Get-ExecutableName $tokens[$k].Value
+        if ($bash -and -not $tokens[$k].Quoted -and $tokens[$k].Value -in 'test', '[', '[[') {
+            Write-Block "the Bash condition '$($tokens[$k].Value)'" 'the PowerShell tool (if (Test-Path ...) { })'
+        }
 
         if ($equivalents.ContainsKey($name)) { Write-Block "'$name'" $equivalents[$name] }
         if ($bash -and $bashOnly.ContainsKey($name)) { Write-Block "'$name' in Bash" $bashOnly[$name] }
@@ -71,18 +77,27 @@ try {
         }
     }
 
-    # $( ... ) command substitution in Bash, outside single quotes.
+    # Bash command substitution ($( ... ) and backticks) outside single quotes, and process substitution
+    # (<( ... ), >( ... )) outside any quotes. Comments are removed first.
     if ($bash) {
+        $text = Remove-CommandComments -Text $command -Bash
         $single = $false
         $double = $false
-        for ($i = 0; $i -lt $command.Length - 1; $i++) {
-            $c = $command[$i]
+        for ($i = 0; $i -lt $text.Length; $i++) {
+            $c = $text[$i]
+            $next = if ($i + 1 -lt $text.Length) { $text[$i + 1] } else { [char]0 }
             if ($single) { if ($c -eq "'") { $single = $false }; continue }
             if ($c -eq '\') { $i++; continue }
             if ($c -eq "'" -and -not $double) { $single = $true; continue }
             if ($c -eq '"') { $double = -not $double; continue }
-            if ($c -eq '$' -and $command[$i + 1] -eq '(') {
+            if ($c -eq '$' -and $next -eq '(') {
                 Write-Block 'Bash command substitution $( ... )' 'the PowerShell tool (a variable assignment, or a here-string for multi-line text)'
+            }
+            if ($c -eq '`') {
+                Write-Block 'Bash command substitution with backticks' 'the PowerShell tool (a variable assignment)'
+            }
+            if (-not $double -and $c -in '<', '>' -and $next -eq '(') {
+                Write-Block "Bash process substitution $c( ... )" 'the PowerShell tool (save each output to a variable or a file under artifacts/ first)'
             }
         }
     }

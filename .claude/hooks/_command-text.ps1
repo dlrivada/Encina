@@ -4,11 +4,98 @@
 # Understood: single and double quotes (PowerShell backtick and doubled-quote escapes; backslash escapes for
 # Bash), backtick escapes and line continuations outside quotes, PowerShell here-strings (@" "@, @' '@),
 # $( ... ) and ( ... ) subexpressions (their content is parsed as statements too), Bash heredocs inside
-# $( ... ), and the separators ; | || && newline { }. A token that depends on a variable or a subexpression is
+# $( ... ), comments (`# ...` at the start of a word, PowerShell `<# ... #>`; removed before anything else),
+# and the separators ; | || && newline { }. A token that depends on a variable or a subexpression is
 # marked Dynamic: its Value holds the literal text, which may still contain the words the hooks look for.
+# A token that contains a subexpression is also marked Subexpression: its value cannot be computed at all,
+# while a token that only uses variables may still be resolved by a hook that knows them ($env:X, $HOME).
 
-function New-CommandToken([string]$Value, [bool]$Quoted, [bool]$Dynamic) {
-    [pscustomobject]@{ Value = $Value; Quoted = $Quoted; Dynamic = $Dynamic }
+function New-CommandToken([string]$Value, [bool]$Quoted, [bool]$Dynamic, [bool]$Subexpression = $false) {
+    [pscustomobject]@{ Value = $Value; Quoted = $Quoted; Dynamic = $Dynamic; Subexpression = $Subexpression }
+}
+
+# Removes comments outside quotes, here-strings and heredocs: `#` at the start of a word up to the end of the
+# line (both shells; not Bash `${#x}` or `$#`), and PowerShell `<# ... #>` blocks. A `#` inside a word
+# (`a#b`) or inside quotes is kept. The text of a $( ... ) inside double quotes is copied as is.
+function Remove-CommandComments {
+    param([string]$Text, [switch]$Bash)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $n = $Text.Length
+    $i = 0
+    while ($i -lt $n) {
+        $c = $Text[$i]
+
+        if (-not $Bash -and $c -eq '@' -and $i + 2 -lt $n -and $Text[$i + 1] -in '"', "'" -and $Text[$i + 2] -in "`r", "`n") {
+            $close = [regex]::Match($Text.Substring($i + 2), "(?m)^$([regex]::Escape("$($Text[$i + 1])@"))")
+            $end = if ($close.Success) { $i + 2 + $close.Index + 2 } else { $n }
+            [void]$sb.Append($Text, $i, $end - $i)
+            $i = $end
+            continue
+        }
+
+        if ($Bash -and $c -eq '<' -and ($i -eq 0 -or $Text[$i - 1] -ne '<')) {
+            $heredoc = [regex]::Match($Text.Substring($i), '^<<-?\s*[''"]?(?<d>[A-Za-z_][A-Za-z0-9_]*)[''"]?')
+            if ($heredoc.Success) {
+                $delimiter = [regex]::Match($Text.Substring($i + $heredoc.Length), "(?m)^\s*$([regex]::Escape($heredoc.Groups['d'].Value))\s*$")
+                $end = if ($delimiter.Success) { $i + $heredoc.Length + $delimiter.Index + $delimiter.Length } else { $n }
+                [void]$sb.Append($Text, $i, $end - $i)
+                $i = $end
+                continue
+            }
+        }
+
+        if ($c -eq "'") {
+            $close = $Text.IndexOf("'", $i + 1)
+            $end = if ($close -lt 0) { $n } else { $close + 1 }
+            [void]$sb.Append($Text, $i, $end - $i)
+            $i = $end
+            continue
+        }
+
+        if ($c -eq '"') {
+            $j = $i + 1
+            while ($j -lt $n -and $Text[$j] -ne '"') {
+                if (($Text[$j] -eq '`' -and -not $Bash) -or ($Text[$j] -eq '\' -and $Bash)) { $j += 2; continue }
+                if ($Text[$j] -eq '$' -and $j + 1 -lt $n -and $Text[$j + 1] -eq '(') {
+                    $j = Skip-Subexpression $Text ($j + 1) ([System.Text.StringBuilder]::new())
+                    continue
+                }
+                $j++
+            }
+            $end = [Math]::Min($j + 1, $n)
+            [void]$sb.Append($Text, $i, $end - $i)
+            $i = $end
+            continue
+        }
+
+        if ((($c -eq '`' -and -not $Bash) -or ($c -eq '\' -and $Bash)) -and $i + 1 -lt $n) {
+            [void]$sb.Append($Text, $i, 2)
+            $i += 2
+            continue
+        }
+
+        if (-not $Bash -and $c -eq '<' -and $i + 1 -lt $n -and $Text[$i + 1] -eq '#') {
+            $close = $Text.IndexOf('#>', $i + 2)
+            $i = if ($close -lt 0) { $n } else { $close + 2 }
+            [void]$sb.Append(' ')
+            continue
+        }
+
+        if ($c -eq '#') {
+            $prev = if ($i -gt 0) { $Text[$i - 1] } else { ' ' }
+            $wordStart = $prev -in ' ', "`t", "`r", "`n", ';', '|', '&', '(', ')', '{', '}'
+            if ($prev -eq '{' -and $i -ge 2 -and $Text[$i - 2] -eq '$') { $wordStart = $false }
+            if ($wordStart) {
+                while ($i -lt $n -and $Text[$i] -notin "`r", "`n") { $i++ }
+                continue
+            }
+        }
+
+        [void]$sb.Append($c)
+        $i++
+    }
+    return $sb.ToString()
 }
 
 # Returns the index just past the ')' that closes the '(' at $Open, appending the text in between to $Sb.
@@ -50,6 +137,7 @@ function Test-LineContinuation([string]$Text, [int]$At, [bool]$Bash) {
 function Split-CommandStatements {
     param([string]$Text, [switch]$Bash, [int]$Depth = 0)
 
+    if ($Depth -eq 0) { $Text = Remove-CommandComments -Text $Text -Bash:$Bash }
     $statements = [System.Collections.Generic.List[object]]::new()
     $current = [System.Collections.Generic.List[object]]::new()
     $inner = [System.Collections.Generic.List[string]]::new()
@@ -77,6 +165,7 @@ function Split-CommandStatements {
         $sb = [System.Text.StringBuilder]::new()
         $quoted = $false
         $dynamic = $false
+        $subexpression = $false
         while ($i -lt $n) {
             $c = $Text[$i]
             if ($c -in ' ', "`t", ';', "`n", "`r", '|', '{', '}') { break }
@@ -94,6 +183,7 @@ function Split-CommandStatements {
                 [void]$sb.Append($Text, $bodyStart, $end - $bodyStart)
                 $quoted = $true
                 if ($q -eq '"' -and $sb.ToString() -match '\$[\w{(]') { $dynamic = $true }
+                if ($q -eq '"' -and $sb.ToString() -match '\$\(') { $subexpression = $true }
                 $i = if ($close.Success) { $end + 2 } else { $n }
                 continue
             }
@@ -127,6 +217,7 @@ function Split-CommandStatements {
                     }
                     if ($d -eq '$' -and $j + 1 -lt $n -and $Text[$j + 1] -eq '(') {
                         $dynamic = $true
+                        $subexpression = $true
                         $before = $sb.Length
                         $j = Skip-Subexpression $Text ($j + 1) $sb
                         $inner.Add($sb.ToString($before, $sb.Length - $before))
@@ -142,6 +233,7 @@ function Split-CommandStatements {
 
             if ($c -eq '(' -or ($c -eq '$' -and $i + 1 -lt $n -and $Text[$i + 1] -eq '(')) {
                 $dynamic = $true
+                $subexpression = $true
                 $open = if ($c -eq '$') { $i + 1 } else { $i }
                 $before = $sb.Length
                 $i = Skip-Subexpression $Text $open $sb
@@ -158,7 +250,7 @@ function Split-CommandStatements {
             [void]$sb.Append($c)
             $i++
         }
-        $current.Add((New-CommandToken $sb.ToString() $quoted $dynamic))
+        $current.Add((New-CommandToken $sb.ToString() $quoted $dynamic $subexpression))
     }
 
     if ($current.Count -gt 0) { $statements.Add($current) }
@@ -174,6 +266,8 @@ function Split-CommandStatements {
 
 # Index of the token that names the program a statement runs, skipping the PowerShell call and dot-source
 # operators, `$var =` assignments, Bash `NAME=value` prefixes and wrappers such as `sudo` or `env`.
+# Returns -1 for a PowerShell hashtable entry (`@{ head = 1 }` splits into the statement `head = 1`): a bare
+# word followed by `=` is a key, not a program.
 function Resolve-Executable($Tokens) {
     $k = 0
     while ($k -lt $Tokens.Count) {
@@ -182,6 +276,7 @@ function Resolve-Executable($Tokens) {
         if (-not $t.Quoted -and $t.Value -match '^\$[\w:]+$' -and $k + 1 -lt $Tokens.Count -and $Tokens[$k + 1].Value -eq '=') { $k += 2; continue }
         if (-not $t.Quoted -and $t.Value -match '^[A-Za-z_][A-Za-z0-9_]*=') { $k++; continue }
         if (-not $t.Quoted -and $t.Value -in 'sudo', 'time', 'env', 'exec', 'command', 'nohup') { $k++; continue }
+        if ($k + 1 -lt $Tokens.Count -and -not $Tokens[$k + 1].Quoted -and $Tokens[$k + 1].Value -eq '=') { return -1 }
         return $k
     }
     return -1
