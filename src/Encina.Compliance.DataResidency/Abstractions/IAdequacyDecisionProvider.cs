@@ -1,3 +1,4 @@
+using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Model;
 
 namespace Encina.Compliance.DataResidency;
@@ -74,7 +75,18 @@ public interface IAdequacyDecisionProvider
     /// - All EU member states (27 countries)
     /// - EEA-only countries (Iceland, Liechtenstein, Norway)
     /// - Third countries with EU adequacy decisions (e.g., Japan, South Korea, UK,
-    ///   Switzerland, Canada, New Zealand, United States under EU-US Data Privacy Framework)
+    ///   Switzerland, New Zealand)
+    /// </para>
+    /// <para>
+    /// The returned list also includes the United States and Canada, but their adequacy
+    /// decisions are partial, not blanket: the United States is adequate only for
+    /// recipients certified under the EU-US Data Privacy Framework, and Canada is
+    /// adequate only for recipients that are commercial organisations subject to
+    /// PIPEDA. A region appearing in this list is not sufficient on its own to treat a
+    /// transfer as adequate — callers must resolve the specific recipient's
+    /// certification status through <see cref="IRecipientCertificationResolver"/>
+    /// and pass it to <see cref="HasAdequacy(Region, bool)"/>, which fails closed
+    /// (treats the transfer as not adequate) when certification cannot be confirmed.
     /// </para>
     /// <para>
     /// Used by the <see cref="ICrossBorderTransferValidator"/> to determine whether a
