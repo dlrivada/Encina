@@ -790,6 +790,7 @@ A review of the 2026-09-22/24 sessions (about 20 PRs and 40 issues run by an orc
 4. **Edit tool only for source files.** A PowerShell `-replace` corrupted six files in #1159. Workers now edit repo source files only with the Edit and Write tools, and the same hook blocks `-replace`, `Set-Content`, `Out-File`, `[IO.File]` and redirection writes to them.
 5. **Turn limits.** `mechanical-fixer` goes from 30 to 50 turns and `issue-worker` from 80 to 120. Both limits were hit, and every resume re-reads the context it had already paid for.
 6. **Issue bodies from workers.** Workers write each follow-up as a complete issue file in the template format under `artifacts/issues/` and list the paths; the orchestrator creates the issue from the file through the `open-issue` skill, so long issue texts stay out of its context.
+7. **`worker-brief` skill.** The fixed part of every brief (worktree and absolute paths, no publishing, changelog fragments, verification, self-review, delegation, report format, model choice) lives in `.claude/skills/worker-brief/SKILL.md`; the orchestrator writes only the goal, scope, decisions and acceptance.
 
 ---
 

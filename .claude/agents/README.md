@@ -56,6 +56,7 @@ Procedures the main session loads on demand, in `.claude/skills/<name>/SKILL.md`
 | `open-issue` | Open an issue with the template prefix and the template's headers verbatim |
 | `implementation-plan` | Plan a `[FEATURE]` with `docs/engineering/prompts/implementation-plan-prompt.md` before coding |
 | `local-ai-task` | Delegate a bounded task to the local model with a brief, a ledger line and a review |
+| `worker-brief` | Write a worker's brief: the fixed protocol part copied as is (worktree, absolute paths, Edit tool only, no publishing, changelog fragment, verification by kind of change, self-review, delegation, report with issue files, model choice) plus the task's goal, scope, decisions and acceptance |
 | `encina-docs` | House rules for documentation: Diátaxis quadrants (`diataxis.md` in the skill folder), where each kind of page lives, front matter, cited figures, verification and the review checklist |
 
 ## Hooks
