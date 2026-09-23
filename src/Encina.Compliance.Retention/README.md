@@ -275,16 +275,29 @@ public sealed class PatientDataEraser(AppDbContext db) : IRetentionDataEraser
     public async ValueTask<Either<EncinaError, Unit>> EraseAsync(
         RetentionErasureTarget target, CancellationToken cancellationToken = default)
     {
+        // A multi-tenant application: there is no ambient tenant in the background enforcement
+        // scope, so scope every statement to target.TenantId, or refuse when it is missing.
+        if (string.IsNullOrEmpty(target.TenantId))
+        {
+            return EncinaError.New($"Retention record '{target.RecordId}' has no tenant; refusing to erase.");
+        }
+
         switch (target.DataCategory)
         {
             case "patient-contact":
-                await db.PatientContacts.Where(c => c.PatientId == target.EntityId)
+                await db.PatientContacts
+                    .IgnoreQueryFilters()
+                    .Where(c => c.TenantId == target.TenantId && c.PatientId == target.EntityId)
                     .ExecuteDeleteAsync(cancellationToken);
                 return Unit.Default;
+
             case "clinical-record":
-                await db.ClinicalNotes.Where(n => n.PatientId == target.EntityId)
+                await db.ClinicalNotes
+                    .IgnoreQueryFilters()
+                    .Where(n => n.TenantId == target.TenantId && n.PatientId == target.EntityId)
                     .ExecuteDeleteAsync(cancellationToken);
                 return Unit.Default;
+
             default:
                 return EncinaError.New($"No eraser for retention category '{target.DataCategory}'.");
         }
