@@ -27,7 +27,7 @@ This plan turns the retention policy into the shape that SPEC-002 REQ-001 requir
 
 **Standards**: GDPR Art. 5(1)(e) (storage limitation), Art. 5(2) (accountability), Art. 17(3)(b) and (e) (erasure exemptions); Ley 41/2002 art. 17.1 (at least 5 years from each discharge; longer regional periods); LGT and Código de Comercio art. 30 (tax and commercial retention, [K]/[S] per SPEC-002 §12 question 6).
 
-**Affected packages**: `Encina.Compliance.Retention` (all changes); `Encina.DomainModeling` (only if open decision OD-5 chooses the data-level immutable guard); `Encina.Compliance.DataSubjectRights` is **not** changed here (P-02 consumes the new query; after #1185 Retention no longer references it).
+**Affected packages**: `Encina.Compliance.Retention` (all changes); core `Encina` (new `Encina.Compliance` folder for the shared `CalendarPeriod` value type, OD-6, so that P-03 and P-05 can reference it without depending on `Encina.Compliance.Retention`); `Encina.Compliance.DataSubjectRights` is **not** changed here (P-02 consumes the new query; after #1185 Retention no longer references it). The data-level `IImmutableRecord` guard in `Encina.DomainModeling` (design choice 5, option B) is out of scope for P-01 (issue to be opened).
 
 **Provider category**: none of the 10 database providers. `Encina.Compliance.Retention` is event-sourced on Marten (PostgreSQL) and SPEC-002 DEC-008 (a) keeps the nine event-sourced compliance modules Marten-only in 1.0, as [ADR-019](../architecture/adr/019-compliance-event-sourcing-marten.md) states. Integration tests run against Marten on PostgreSQL through Testcontainers.
 
@@ -40,10 +40,10 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 | Topic | Contract |
 |-------|----------|
 | **Who decides what** | Retention decides **when** (floor, maximum, anchor, hold). Blocking decides **how data is kept once it may no longer be processed** (hidden state, audited disclosure, secure copy, destruction). |
-| **Expiry disposition** | P-01 replaces the unused `AutoDelete` flag with `ExpiryDisposition { Erase, Block, NotifyOnly }`. `Erase` calls the ADR-031 `IRetentionDataEraser`. `Block` hands the expired, non-held target to P-03's `IBlockingService` instead. P-01 ships the enum member and a start-up validation that rejects `Block` while no `IBlockingService` is registered; P-03 wires the call and adds the `RetentionRecordBlocked` event and the `Blocked` status. |
+| **Expiry disposition** | P-01 replaces the unused `AutoDelete` flag with `ExpiryDisposition { Erase, NotifyOnly }`. `Erase` calls the ADR-031 `IRetentionDataEraser`. Per OD-7 (settled 2026-09-23), P-01 does not ship a `Block` member or the start-up validation for it; P-03 adds `ExpiryDisposition.Block`, wires the call to `IBlockingService`, and adds the `RetentionRecordBlocked` event and the `Blocked` status. |
 | **A blocked record's retention clock** | Blocking neither stops nor resets the retention clock. The record keeps its anchor, floor end and maximum. P-03 computes the destruction date of a block as `max(FloorEndsAtUtc, BlockedAtUtc + LimitationPeriod)`, reading `FloorEndsAtUtc` from P-01's `IRetentionFloorQuery`. A legal hold suspends destruction of blocked data exactly as it suspends erasure. |
 | **Erasure request under a floor** | When a DSR erasure (P-02) meets a category whose floor has not elapsed, P-02 refuses that category with the Art. 17(3) exemption and the grantable-after date `FloorEndsAtUtc` from P-01; if the tenant's jurisdiction is configured for blocking (LOPDGDD art. 32), the refused category is blocked through P-03 instead of staying processable. The retention record stays under P-01's control; when its maximum elapses the sweep destroys the blocked data through P-03. |
-| **Anchor after blocking** | Whether a new anchor (a returning patient opens a new episode) on an entity and category that is blocked unblocks the data is an open decision (OD-2 here, OD-11 in P-03). Until decided, P-01 records the anchor and P-03 leaves the block in place. |
+| **Anchor after blocking** | A new anchor (a returning patient opens a new episode) on an entity and category that is blocked never unblocks the data automatically (P-03 OD-11, settled 2026-09-23): P-01 records the anchor and P-03 leaves the block in place; unblocking happens only through P-03's explicit unblock operation. |
 | **Order of delivery** | P-01 lands first. P-03 depends on `ExpiryDisposition.Block` and `IRetentionFloorQuery`. |
 
 ---
@@ -68,7 +68,7 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 - `CalendarPeriod.AddTo(DateTimeOffset anchorUtc, TimeZoneInfo zone)` converts the anchor to the zone's local date-time, adds years, then months, then days, and converts back to UTC. With `TimeZoneInfo.Utc` this is plain `DateTimeOffset` arithmetic.
 - The type replaces every `TimeSpan RetentionPeriod` in events, aggregates, read models, the builder and `[RetentionPeriod]` (pre-1.0, no compatibility layer). `RetainForYears(5)` becomes `new CalendarPeriod(Years: 5)`.
 - Validation: all components `>= 0`, at least one `> 0`; `CalendarPeriod.Zero` is not a valid policy period.
-- The name `CalendarPeriod` avoids a clash with `RetentionPeriodAttribute` (the issue sketch used `RetentionPeriod`; see OD-6).
+- The name `CalendarPeriod` avoids a clash with `RetentionPeriodAttribute` (the issue sketch used `RetentionPeriod`). Per OD-6 (settled 2026-09-23), the type lives in core `Encina` (a new `Encina.Compliance` folder, `src/Encina/Compliance/CalendarPeriod.cs`), not in `Encina.Compliance.Retention`, so that P-03 (blocking) and P-05 (read audit) reference it without depending on the Retention package.
 
 </details>
 
@@ -91,9 +91,10 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 - Invariant, enforced in `RetentionPolicyAggregate.Create/Update`: at least one of the two is present; when both are, `Maximum.AddTo(x) >= Minimum.AddTo(x)` for the policy's zone (checked against a fixed reference instant and against 29 February of a leap year).
 - `ExpiryDisposition` replaces `bool AutoDelete`, which the sweep never read:
   - `Erase`: the sweep calls `IRetentionDataEraser` (ADR-031) after the maximum.
-  - `Block`: the sweep hands the target to P-03's `IBlockingService` (wired by P-03; rejected at start-up until then).
   - `NotifyOnly`: the sweep marks the record expired and raises `DataExpiringNotification`/`RetentionRecordExpired`, erasing nothing (today's `AutoDelete = false` intent).
+  - Per OD-7 (settled 2026-09-23), P-01 does **not** ship a `Block` member: `ExpiryDisposition` has only `Erase` and `NotifyOnly` in this plan. P-03 adds `Block` together with `IBlockingService` when it lands.
 - The sweep never acts before the floor: the effective due date is `max(FloorEndsAtUtc, MaximumEndsAtUtc)`, so a misconfigured maximum shorter than the floor (impossible after validation, possible in replayed old streams) still cannot erase early.
+- `ExpiryDisposition` is defined as `{ Erase = 0, NotifyOnly = 1 }` in P-01 (Phase 1 renumbers accordingly); P-03 appends `Block = 2` when it lands.
 
 </details>
 
@@ -115,8 +116,8 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 - New events on the record stream: `RetentionRecordAnchored(RecordId, AnchorKind, AnchoredAtUtc, FloorEndsAtUtc?, MaximumEndsAtUtc?, OccurredAtUtc)` and `RetentionClockSuspended(RecordId, Reason, OccurredAtUtc)`.
 - `RetentionRecordTracked` no longer carries a computed `ExpiresAtUtc` for anchored policies: it carries `RequiresAnchor` and the policy snapshot (floor, maximum, disposition, immutability, zone id). Time-based policies (anchor = tracking time) anchor at tracking, so the existing behaviour is one case of the new model.
 - Re-anchoring is **monotonic**: an anchor earlier than the record's current anchor is refused with `retention.anchor_not_monotonic` (a floor never moves earlier). An anchor on a record under legal hold is recorded; the hold still wins.
-- "A new episode opens" is modelled as `SuspendClockAsync` (status `AwaitingAnchor`, floor not running) followed by the discharge anchor. Whether opening an episode must suspend the clock, or whether the clock keeps running from the previous discharge until the next anchor, is OD-2.
-- An anchor for an entity with no active record returns `retention.no_record_to_anchor` (a `Left`), so an ordering bug in the application is visible instead of silently lost. OD-8 covers subject-wide anchors (death).
+- "A new episode opens" is modelled as `SuspendClockAsync` (status `AwaitingAnchor`, floor not running) followed by the discharge anchor. Per OD-2 (settled 2026-09-23), opening a new episode suspends the clock until the next discharge anchor.
+- An anchor for an entity with no active record returns `retention.no_record_to_anchor` (a `Left`), so an ordering bug in the application is visible instead of silently lost. Per OD-8 (settled 2026-09-23), the anchor service supports both a subject-wide anchor (`AnchorSubjectAsync`, applying to every non-terminal record of every data category for the entity in one call, e.g. a death) and the per-(entity, category) anchor already described (`AnchorAsync`).
 
 </details>
 
@@ -136,8 +137,9 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 ### Rationale
 
 - `RetentionPolicyKey(string Jurisdiction, string DocumentType, string DataCategory)`; `Jurisdiction` and `DocumentType` accept the reserved value `RetentionPolicyKey.Any` (`"*"`).
-- Resolution for a tracking call in tenant T: `(T, J, D, C)` → `(T, J, *, C)` → `(T, *, D, C)` → `(T, *, *, C)` → the same four keys at deployment level (tenant `null`) → `RetentionOptions.DefaultPolicy` if configured → `Left(retention.no_policy_for_category)`. The first match wins; two active policies with the same full key are rejected at creation (`retention.policy_already_exists`), which the current `CreatePolicyAsync` does not check.
-- Where `J` and `D` come from at tracking time: `[RetentionPeriod(DataCategory = ..., DocumentType = ...)]` on the response gives `D`; `J` comes from `IRetentionJurisdictionResolver` (default: `RetentionOptions.DefaultJurisdiction`, overridable per tenant). The source of `J` is OD-3; the deployment/tenant layering is OD-4.
+- Resolution for a tracking call in tenant T: `(T, J, D, C)` → `(T, J, *, C)` → `(T, *, D, C)` → `(T, *, *, C)` → the same four keys at deployment level (tenant `null`) → `Left(retention.no_policy_for_category)`. Per OD-3 (settled 2026-09-23), there is no fallback to a `DefaultPolicy`: when no key in the chain matches, tracking is refused (fail closed) rather than silently applying a default. The first match wins; two active policies with the same full key are rejected at creation (`retention.policy_already_exists`), which the current `CreatePolicyAsync` does not check.
+- Where `J` and `D` come from at tracking time: `[RetentionPeriod(DataCategory = ..., DocumentType = ...)]` on the response gives `D`; `J` comes from `IRetentionJurisdictionResolver` (default: `RetentionOptions.DefaultJurisdiction`, overridable per tenant), per OD-3 (settled 2026-09-23).
+- Per OD-4 (settled 2026-09-23), code-configured (deployment-level, tenant `null`) policies are defaults every tenant may override, but a tenant policy may only **lengthen** the floor of the deployment-level policy for the same key, never shorten it. `RetentionPolicyAggregate.Create`/`Update` at the tenant level, and the options validator at start-up, reject a tenant floor shorter than the matching deployment-level floor with `retention.tenant_floor_below_deployment_floor`.
 - A policy applies to its data category only: the record carries its own category and the sweep erases through `IRetentionDataEraser` scoped to that category (ADR-031). P-01 adds the regression test that expiry of one category leaves the others untouched (AC-001, #1160).
 
 </details>
@@ -153,12 +155,12 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 | **B) A + a data-level guard: `IImmutableRecord` marker in `Encina.DomainModeling` and a provider-neutral `ImmutableRecordGuardRepository<TEntity,TId>` decorator over `IFunctionalRepository` that returns `Left` for `UpdateAsync`, `UpdateRangeAsync`, `UpdateImmutableAsync` and `DeleteAsync` | Enforced on all 10 providers without provider-specific code (one decorator) | Touches `Encina.DomainModeling`; deletion at the end of the period must bypass the guard (the eraser uses its own path) |
 | **C) Database triggers per provider** | Strongest guarantee | Provider-specific DDL on 10 providers for a Marten-only module; out of proportion |
 
-### Chosen Option: **A now, B proposed as OD-5**
+### Chosen Option: **A — retention-level immutability only, for now**
 
 ### Rationale
 
 - A: `RetentionPolicyCreated.Immutable` is snapshot onto each record. An immutable record rejects `Track` for the same entity and category a second time (`retention.immutable_record`), rejects policy re-application, and accepts `LinkCorrectionAsync(originalRecordId, correctiveEntityId)`, which tracks the corrective entity under the same policy and anchor and raises `RetentionRecordCorrected(RecordId, CorrectiveRecordId, CorrectiveEntityId, OccurredAtUtc)` on the original.
-- The acceptance criterion "an immutable-record class rejects updates and accepts a corrective record" is met at the retention level by A; whether Encina should also guard the application's own rows (B) is a scope decision for the maintainer (OD-5). REQ-006 (P-04, #1191) separately requires that immutable records never share a crypto-shredding key with erasable data; `IRetentionFloorQuery` exposes `IsImmutable` for that check.
+- The acceptance criterion "an immutable-record class rejects updates and accepts a corrective record" is met at the retention level by A. Per OD-5 (settled 2026-09-23), option B (the data-level `IImmutableRecord` guard over `IFunctionalRepository` on all 10 providers) is a follow-up, not part of this plan (issue to be opened: a provider-neutral decorator in `Encina.DomainModeling` that refuses `UpdateAsync`, `UpdateRangeAsync`, `UpdateImmutableAsync` and `DeleteAsync` for entities marked `IImmutableRecord`). REQ-006 (P-04, #1191) separately requires that immutable records never share a crypto-shredding key with erasable data; `IRetentionFloorQuery` exposes `IsImmutable` for that check.
 
 </details>
 
@@ -198,7 +200,7 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 
 ### Rationale
 
-- `RetentionPolicyReappliedToRecord(RecordId, PolicyId, PolicyVersion, FloorEndsAtUtc?, MaximumEndsAtUtc?, OccurredAtUtc)`. Re-application may lengthen a floor freely; shortening a floor below its current end requires `allowShortening: true` and logs a warning (the application's legal decision, SPEC-002 §2.1). Immutable records are never re-applied.
+- `RetentionPolicyReappliedToRecord(RecordId, PolicyId, PolicyVersion, FloorEndsAtUtc?, MaximumEndsAtUtc?, OccurredAtUtc)`. Re-application may lengthen a floor freely; shortening a floor below its current end requires `allowShortening: true` and logs a warning (the application's legal decision, SPEC-002 §2.1). Immutable records are never re-applied. Per OD-9 (settled 2026-09-23) this remains bounded by OD-4: even with `allowShortening: true`, `ReapplyPolicyAsync` never sets a floor below the tenant's deployment-level floor for the same key.
 - This replaces today's implicit behaviour (records copy `RetentionPeriod` at tracking and never change), which is already a snapshot but without a way to correct it.
 
 </details>
@@ -214,7 +216,7 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 <details>
 <summary><strong>Tasks</strong></summary>
 
-#### `src/Encina.Compliance.Retention/Model/`
+#### `src/Encina/Compliance/` (new folder in core `Encina`, OD-6)
 
 1. **`CalendarPeriod.cs`** — `public readonly record struct CalendarPeriod(int Years = 0, int Months = 0, int Days = 0)`
    - `public static CalendarPeriod Zero { get; }`, `public bool IsZero { get; }`
@@ -222,13 +224,17 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
    - `public static CalendarPeriod FromYears(int)`, `FromMonths(int)`, `FromDays(int)`
    - `public override string ToString()` → ISO 8601 duration (`P5Y`, `P1Y6M`)
    - `public static bool TryParse(string, out CalendarPeriod)` (ISO 8601 subset `PnYnMnD`) for configuration binding
+   - Lives in core `Encina` (not `Encina.Compliance.Retention`) so that P-03 (blocking) and P-05 (read audit) can reference it without depending on the Retention package; `Encina.Compliance.Retention` adds a project reference to core `Encina` (already present as the base package) and a `using Encina.Compliance;`.
+
+#### `src/Encina.Compliance.Retention/Model/`
+
 2. **`RetentionPolicyKey.cs`** — `public sealed record RetentionPolicyKey(string Jurisdiction, string DocumentType, string DataCategory)`; `public const string Any = "*"`; ordinal, case-sensitive comparison; guard clauses reject null/whitespace
-3. **`ExpiryDisposition.cs`** — `public enum ExpiryDisposition { Erase = 0, Block = 1, NotifyOnly = 2 }` (replaces `bool AutoDelete`)
+3. **`ExpiryDisposition.cs`** — `public enum ExpiryDisposition { Erase = 0, NotifyOnly = 1 }` (replaces `bool AutoDelete`; per OD-7, settled 2026-09-23, `Block` is not part of P-01 — P-03 appends `Block = 2` when it lands)
 4. **`RetentionAnchorKinds.cs`** — `public static class RetentionAnchorKinds` with well-known string constants `TrackingStart`, `EpisodeDischarge`, `FiscalYearEnd`, `SubjectDeath`; anchor kinds remain open strings
 5. **`EffectiveRetention.cs`**, **`EffectiveRetentionState.cs`** — as in design choice 6
 6. **`RetentionStatus.cs`** (modify) — add `AwaitingAnchor = 4` (P-03 later adds `Blocked = 5`); update XML docs of the lifecycle
 7. **`RetentionPolicyType.cs`** — **delete**: the policy type is now implied by `RequiresAnchor` and the anchor kind; `ConsentBased` had no implementation (pre-1.0, no `[Obsolete]`)
-8. **`PublicAPI.Unshipped.txt`** — add and remove symbols
+8. **`PublicAPI.Unshipped.txt`** — add and remove symbols in both `src/Encina/` (for `CalendarPeriod`) and `src/Encina.Compliance.Retention/`
 
 </details>
 
@@ -236,17 +242,21 @@ P-01 and P-03 meet at two points. Both plans state the same contract ([blocked-d
 <summary><strong>Prompt for AI Agents — Phase 1</strong></summary>
 
 ```
-You are implementing Phase 1 of issue #1187 (SPEC-002 P-01) in src/Encina.Compliance.Retention.
+You are implementing Phase 1 of issue #1187 (SPEC-002 P-01) in src/Encina and src/Encina.Compliance.Retention.
 
 CONTEXT:
 - .NET 10 / C# 14, nullable enabled, Railway Oriented Programming (Either<EncinaError, T>).
 - Pre-1.0: breaking changes are expected; no [Obsolete], no compatibility layers.
 - The module is event-sourced on Marten (ADR-019). Value types appear in persisted events, so keep them
   simple, immutable and serialisable by System.Text.Json (Marten's serializer).
+- CalendarPeriod lives in core Encina (Encina.Compliance namespace, src/Encina/Compliance/), not in
+  Encina.Compliance.Retention, because P-03 (blocking) and P-05 (read audit) also need it and must not take
+  a dependency on the Retention package for one value type (OD-6, settled 2026-09-23).
 
 TASK:
-Create CalendarPeriod, RetentionPolicyKey, ExpiryDisposition, RetentionAnchorKinds, EffectiveRetention and
-EffectiveRetentionState in Model/. Add RetentionStatus.AwaitingAnchor. Delete RetentionPolicyType and fix
+Create CalendarPeriod in src/Encina/Compliance/. Create RetentionPolicyKey, ExpiryDisposition,
+RetentionAnchorKinds, EffectiveRetention and EffectiveRetentionState in
+src/Encina.Compliance.Retention/Model/. Add RetentionStatus.AwaitingAnchor. Delete RetentionPolicyType and fix
 every reference (the hosted services hard-code TimeBased today).
 
 KEY RULES:
@@ -254,8 +264,10 @@ KEY RULES:
   convert back to UTC. 2024-02-29 + 1 year = 2025-02-28. Document DST resolution.
 - CalendarPeriod never reads the clock; callers pass instants obtained from TimeProvider.
 - ToString/TryParse use the ISO 8601 PnYnMnD subset.
+- ExpiryDisposition has exactly two members in this plan: Erase and NotifyOnly. Do not add Block (P-03's job).
 - XML docs on every public member; cite GDPR Art. 5(1)(e) and Ley 41/2002 art. 17.1 where relevant.
-- Update PublicAPI.Unshipped.txt (RS0016/RS0017 must be clean).
+- Update PublicAPI.Unshipped.txt for both src/Encina/ and src/Encina.Compliance.Retention/ (RS0016/RS0017 must
+  be clean).
 
 REFERENCE FILES:
 - src/Encina.Compliance.Retention/Model/RetentionStatus.cs
@@ -304,7 +316,9 @@ CONTEXT:
 - Aggregates derive from Encina.DomainModeling.AggregateBase, raise events with RaiseEvent and apply them in
   a switch in Apply(object). Events are sealed records implementing INotification.
 - Policies are resolved per tenant and key with the fallback chain:
-  (T,J,D,C) -> (T,J,*,C) -> (T,*,D,C) -> (T,*,*,C) -> same four with tenant null -> DefaultPolicy -> Left.
+  (T,J,D,C) -> (T,J,*,C) -> (T,*,D,C) -> (T,*,*,C) -> same four with tenant null -> Left (fail closed, no
+  DefaultPolicy fallback, OD-3). A tenant-level policy may only lengthen the deployment-level floor for the
+  same key, never shorten it (OD-4); Create/Update reject a shorter tenant floor.
 
 TASK:
 Reshape RetentionPolicyCreated/Updated, RetentionPolicyAggregate, RetentionPolicyReadModel/Projection,
@@ -464,13 +478,13 @@ REFERENCE FILES:
 1. **`RetentionEnforcementService.cs`** (modify, on top of PR #1185)
    - Select with `GetDueRecordsAsync`; `AwaitingAnchor` records are never selected
    - Before calling the eraser, call `IRetentionFloorQuery.EnsureErasableAsync` for (tenant, entity, category); a `Left` defers the record and increments `retention.erasure.refused_floor.total`
-   - `ExpiryDisposition.Erase` → `IRetentionDataEraser` (ADR-031, unchanged); `NotifyOnly` → `MarkExpired` + `DataExpiringNotification`, no erasure; `Block` → not reachable in P-01 (start-up validation), wired by P-03
+   - `ExpiryDisposition.Erase` → `IRetentionDataEraser` (ADR-031, unchanged); `NotifyOnly` → `MarkExpired` + `DataExpiringNotification`, no erasure. `Block` does not exist in P-01 (OD-7); P-03 adds the branch when it lands
    - Keep the ADR-031 sibling deferral and the #1158 cycle lock
 2. **`RetentionOptions.cs`** (modify)
-   - Remove `DefaultRetentionPeriod` (`TimeSpan?`); add `RetentionPolicyDefinition? DefaultPolicy`
+   - Remove `DefaultRetentionPeriod` (`TimeSpan?`); no replacement `DefaultPolicy` field (OD-3, settled 2026-09-23: no fallback policy, tracking is refused when no key matches)
    - Add `string? DefaultJurisdiction`, `IDictionary<string, string> TenantJurisdictions`, `string DefaultTimeZoneId = "UTC"`
    - `AddPolicy(RetentionPolicyKey key, Action<RetentionPolicyBuilder> configure)`; builder methods `WithMinimum(CalendarPeriod)`, `WithMaximum(CalendarPeriod)`, `AnchoredTo(string anchorKind)`, `WithDisposition(ExpiryDisposition)`, `Immutable()`, `InTimeZone(string)`, `WithReason`, `WithLegalBasis`; `RetainForDays/Years` and `RetainFor(TimeSpan)` are removed
-3. **`RetentionOptionsValidator.cs`** (modify) — period invariants, resolvable zones, no duplicate keys, `Block` requires a registered `IBlockingService` (checked by a start-up validator that has the service provider, `RetentionStartupValidator : IHostedService` or `IStartupFilter`-equivalent in the hosting model already used by the auto-registration hosted services)
+3. **`RetentionOptionsValidator.cs`** (modify) — period invariants, resolvable zones, no duplicate keys, and (OD-4, settled 2026-09-23) for every tenant-level policy, reject at start-up a `MinimumRetention` shorter than the deployment-level (`tenantId: null`) policy's `MinimumRetention` for the same key, with `retention.tenant_floor_below_deployment_floor`
 4. **`RetentionFluentPolicyHostedService.cs`, `RetentionAutoRegistrationHostedService.cs`** (modify) — create keyed policies; deployment-level policies have tenant `null`
 
 </details>
@@ -493,8 +507,12 @@ two policy hosted services as listed in the Phase 5 tasks.
 
 KEY RULES:
 - Never erase before the floor: call EnsureErasableAsync right before IRetentionDataEraser; Left defers.
-- NotifyOnly never erases. Block is rejected at start-up while no IBlockingService is registered.
+- NotifyOnly never erases. There is no Block disposition in this plan (OD-7): do not add it here.
 - Options: no TimeSpan periods remain; CalendarPeriod everywhere; ISO 8601 strings bind from configuration.
+- No DefaultPolicy fallback: when ResolvePolicyAsync's fallback chain finds nothing, tracking returns
+  Left(retention.no_policy_for_category) (OD-3).
+- A tenant-level policy can only lengthen the matching deployment-level floor, never shorten it (OD-4); enforce
+  this in RetentionOptionsValidator at start-up and wherever a tenant policy is created or updated at runtime.
 - Metrics and logs per Phase 8; no subject identifiers in tags or messages.
 
 REFERENCE FILES:
@@ -840,8 +858,9 @@ KEY PATTERNS:
 - Time only from TimeProvider; Apply() never reads the clock; events carry computed instants.
 - Fail closed: any uncertainty about floors or holds means "do not erase".
 - Every query and write is tenant-scoped; tenancy off = tenant null, zero configuration.
-- Interaction with P-03 (#1189): ExpiryDisposition.Block and IRetentionFloorQuery are the contract; blocking
-  never resets the retention clock; destruction date = max(FloorEndsAtUtc, BlockedAtUtc + LimitationPeriod).
+- Interaction with P-03 (#1189): IRetentionFloorQuery is the contract P-01 exposes; P-03 adds
+  ExpiryDisposition.Block itself (OD-7). Blocking never resets the retention clock; destruction date =
+  max(FloorEndsAtUtc, BlockedAtUtc + LimitationPeriod).
 
 REFERENCE FILES:
 - src/Encina.Compliance.Retention/ (whole package)
@@ -861,7 +880,7 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ✅ | `Retention.Anchor`, `Retention.FloorQuery` activities and five new counters (Phase 8); `encina.tenant_id` attribute; entity ids removed from tags |
 | 3 | Structured Logging | ✅ | `[LoggerMessage]` 8525–8529, 8531–8537 inside the registered `ComplianceRetention` range (ADR-021) |
 | 4 | Health Checks | ❌ | No new checkable dependency: Marten is covered by `MartenHealthCheck` and the existing `RetentionHealthCheck` (opt-in) already resolves the services |
-| 5 | Validation | ✅ | Options validator, aggregate invariants and a start-up check (`Block` needs `IBlockingService`) |
+| 5 | Validation | ✅ | Options validator, aggregate invariants and a start-up check that a tenant floor never undercuts the deployment-level floor (OD-4) |
 | 6 | Resilience | ❌ | No call to an external system; Marten calls are local and failures fail closed |
 | 7 | Distributed Locks | ❌ | Anchoring appends to one record stream per record (optimistic concurrency); the sweep's cycle lock is #1158 |
 | 8 | Transactions | ❌ | Each anchor is an append to one stream; a partial fan-out returns `Left` with the failed record ids and is safe to retry because anchors are monotonic and idempotent for the same instant |
@@ -878,7 +897,7 @@ REFERENCE FILES:
 |----------|:-------:|-------|
 | ADO.NET ×3, Dapper ×3, EF Core ×3, MongoDB | ❌ | `Encina.Compliance.Retention` has no relational or document stores since ADR-019; SPEC-002 DEC-008 (a) keeps it Marten-only in 1.0 |
 | Marten (PostgreSQL) | ✅ | Events, aggregates, projections and indexes; integration-tested through Testcontainers |
-| Data-level immutable guard (OD-5, option B only) | 10 providers via one decorator | Provider-neutral decorator over `IFunctionalRepository`; no provider-specific code |
+| Data-level immutable guard | out of scope (issue to be opened) | Per OD-5 (settled 2026-09-23), a provider-neutral decorator over `IFunctionalRepository` on all 10 providers is a follow-up, not part of P-01 |
 
 ## Test Matrix
 
@@ -918,21 +937,29 @@ None. Encina is pre-1.0 and has no users to migrate (CLAUDE.md). Event shapes ch
 | Anchors missing because the application never raises them | Data kept forever (`AwaitingAnchor`) | Metric of records awaiting an anchor older than a configurable age; health check degraded above a threshold (optional, `RetentionHealthCheck`) |
 | Legal holds are not tenant-scoped until #1249 | A hold in tenant A could defer erasure in tenant B (safe direction, never unsafe) | Document; switch the floor query to the tenant-aware lookup when #1249 merges |
 | Removing the entity id from telemetry reduces operability | Harder support diagnostics | Record ids are logged and can be looked up in Marten |
-| Scope of the immutable class (OD-5) | Expectation mismatch with AC-001 | Maintainer decision before Phase 3 |
 
 ---
 
-## Open Decisions for the Maintainer
+## Decisions (settled 2026-09-23)
 
-1. **OD-1 — Time zone of calendar arithmetic.** Add periods in UTC, or in a configured zone per policy (default `UTC`, with `Europe/Madrid` set by the application)? The plan implements a per-policy zone defaulting to UTC.
-2. **OD-2 — Episode semantics and anchors after blocking.** Does opening a new episode suspend the clock until the next discharge (the plan's default, `SuspendClockAsync`), or does the clock keep running from the previous discharge? And does a new anchor on a blocked entity and category unblock the data (shared with P-03 OD-11)?
-3. **OD-3 — Jurisdiction source at tracking time.** Options default plus per-tenant map (the plan's default), a resolver the application implements, or a value on each tracking call or attribute. What happens when no policy matches: fall back to `DefaultPolicy`, or refuse to track (fail closed)?
-4. **OD-4 — Deployment-level versus tenant-level policies.** Do code-configured policies apply to every tenant as defaults a tenant can override (the plan's default)? May a tenant policy set a shorter floor than the deployment-level one?
-5. **OD-5 — Scope of the immutable-record class.** Retention-level only (records frozen, corrections linked; the plan's default), or also a data-level guard in `Encina.DomainModeling` (`IImmutableRecord` plus a decorator over `IFunctionalRepository` that refuses updates and deletes on all 10 providers)?
-6. **OD-6 — Name and home of the period type.** `CalendarPeriod` (the plan) or `RetentionPeriod` as in the issue sketch, which collides with `RetentionPeriodAttribute` and the existing `RetentionPeriod` members? And should it live in core `Encina` instead of `Encina.Compliance.Retention`, so that read audit (P-05, which does not reference Retention) and blocking (P-03) share it (P-05 OD-7)?
-7. **OD-7 — `ExpiryDisposition.Block` before P-03.** Ship the member now with a start-up rejection until an `IBlockingService` exists (the plan), or add it only in P-03?
-8. **OD-8 — Subject-wide anchors.** Should an anchor such as a death apply to every category of an entity in one call, or stay per (entity, category) as the plan implements?
-9. **OD-9 — Policy changes after tracking.** Snapshot at tracking plus explicit `ReapplyPolicyAsync` (the plan), or records that follow the live policy? May re-application shorten a floor (the plan allows it only with `allowShortening: true` and a warning)?
+1. **OD-1 — Time zone of calendar arithmetic.** Add periods in UTC, or in a configured zone per policy (default `UTC`, with `Europe/Madrid` set by the application)?
+   **Decision:** per-policy time zone, `UTC` by default, as the plan implements.
+2. **OD-2 — Episode semantics and anchors after blocking.** Does opening a new episode suspend the clock until the next discharge, or does the clock keep running from the previous discharge? Does a new anchor on a blocked entity and category unblock the data (shared with P-03 OD-11)?
+   **Decision:** opening a new episode suspends the clock until the next discharge, as the plan implements. A new anchor never unblocks data automatically; unblocking happens only through P-03's explicit unblock operation (P-03 OD-11).
+3. **OD-3 — Jurisdiction source at tracking time and no-match behaviour.** Options default plus per-tenant map, a resolver the application implements, or a value on each tracking call or attribute. What happens when no policy matches: fall back to a default policy, or refuse to track (fail closed)?
+   **Decision:** options default plus a per-tenant map, as the plan implements. When no policy matches, refuse to track: fail closed with `retention.no_policy_for_category`, with no fallback to a `DefaultPolicy`.
+4. **OD-4 — Deployment-level versus tenant-level policies.** Do code-configured policies apply to every tenant as defaults a tenant can override? May a tenant policy set a shorter floor than the deployment-level one?
+   **Decision:** code-configured policies are deployment defaults a tenant may override, but a tenant may only **lengthen** a floor, never shorten it, enforced at start-up and on every policy change.
+5. **OD-5 — Scope of the immutable-record class.** Retention-level only, or also a data-level guard in `Encina.DomainModeling` (`IImmutableRecord` plus a decorator over `IFunctionalRepository` that refuses updates and deletes on all 10 providers)?
+   **Decision:** retention-level immutability only, for now. The data-level `IImmutableRecord` guard on the 10 providers is a follow-up (issue to be opened: a provider-neutral `ImmutableRecordGuardRepository<TEntity, TId>` decorator in `Encina.DomainModeling`).
+6. **OD-6 — Name and home of the period type.** `CalendarPeriod` or `RetentionPeriod`, and should it live in core `Encina` or `Encina.Compliance.Retention`?
+   **Decision:** name it `CalendarPeriod` and put it in core `Encina` (`Encina.Compliance` namespace), so that P-03 and P-05 can share it without depending on the Retention package.
+7. **OD-7 — `ExpiryDisposition.Block` before P-03.** Ship the member now with a start-up rejection until an `IBlockingService` exists, or add it only in P-03?
+   **Decision:** do not ship `ExpiryDisposition.Block` in P-01. It is added in P-03 together with `IBlockingService`; the start-up rejection logic described earlier in this plan is removed from P-01.
+8. **OD-8 — Subject-wide anchors.** Should an anchor such as a death apply to every category of an entity in one call, or stay per (entity, category)?
+   **Decision:** support both: a subject-wide anchor (applying to every category of the entity in one call) and a per (entity, category) anchor.
+9. **OD-9 — Policy changes after tracking.** Snapshot at tracking plus explicit `ReapplyPolicyAsync`, or records that follow the live policy? May re-application shorten a floor?
+   **Decision:** snapshot at tracking plus an explicit `ReapplyPolicyAsync`; shortening only with `allowShortening: true` and a warning, as the plan implements. It remains bounded by OD-4: re-application never sets a floor below the deployment-level floor.
 
 ## Spec Gaps Found
 
@@ -947,7 +974,6 @@ None. Encina is pre-1.0 and has no users to migrate (CLAUDE.md). Event shapes ch
 
 ## Next Steps
 
-1. Review and approve this plan; decide OD-1 … OD-9
-2. Link it from issue #1187
-3. Wait for PR #1185 before Phase 5
-4. One commit per phase; the final commit references `Fixes #1187`
+1. OD-1 … OD-9 are settled (2026-09-23); link this plan from issue #1187
+2. Wait for PR #1185 before Phase 5
+3. One commit per phase; the final commit references `Fixes #1187`
