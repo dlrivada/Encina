@@ -63,11 +63,11 @@ public sealed class OutboxRetryBackoffTests
     }
 
     [Fact]
-    public void OutboxOptions_Defaults_AreTenMinuteCapAndTwentyPercentJitter()
+    public void OutboxOptions_Defaults_AreOneHourCapAndTwentyPercentJitter()
     {
         var options = new OutboxOptions();
 
-        options.MaxRetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
+        options.MaxRetryDelay.ShouldBe(TimeSpan.FromHours(1));
         options.RetryJitterRatio.ShouldBe(0.2);
     }
 
@@ -109,7 +109,7 @@ public sealed class OutboxRetryBackoffTests
         var options = new OutboxOptions();
 
         Should.Throw<ArgumentOutOfRangeException>(() => options.MaxRetries = maxRetries);
-        options.MaxRetries.ShouldBe(3);
+        options.MaxRetries.ShouldBe(10);
     }
 
     [Theory]
@@ -130,7 +130,7 @@ public sealed class OutboxRetryBackoffTests
 
         Should.Throw<ArgumentOutOfRangeException>(() => options.BaseRetryDelay = TimeSpan.Zero);
         Should.Throw<ArgumentOutOfRangeException>(() => options.BaseRetryDelay = TimeSpan.FromSeconds(-1));
-        options.BaseRetryDelay.ShouldBe(TimeSpan.FromSeconds(5));
+        options.BaseRetryDelay.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
     [Fact]

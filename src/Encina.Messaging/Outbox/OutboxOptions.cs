@@ -36,10 +36,10 @@ public sealed class OutboxOptions
     /// <remarks>
     /// A message is fetched while its <see cref="IOutboxMessage.RetryCount"/> (the number of failed
     /// attempts) is less than <c>MaxRetries</c>. The failure that brings the count to <c>MaxRetries</c>
-    /// exhausts the message: it is not fetched again until it is requeued. With the default of 3, a
-    /// message is attempted at most 3 times.
+    /// exhausts the message: it is not fetched again until it is requeued. With the default of 10, a
+    /// message is attempted at most 10 times.
     /// </remarks>
-    /// <value>Default: 3</value>
+    /// <value>Default: 10</value>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is less than 1.</exception>
     public int MaxRetries
     {
@@ -49,13 +49,13 @@ public sealed class OutboxOptions
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
             field = value;
         }
-    } = 3;
+    } = 10;
 
     /// <summary>
     /// Gets or sets the base delay for exponential backoff retry strategy.
     /// </summary>
     /// <value>
-    /// Default: 5 seconds. The delay before the next attempt is
+    /// Default: 30 seconds. The delay before the next attempt is
     /// <c>min(BaseRetryDelay * 2^RetryCount, MaxRetryDelay)</c>, reduced by up to
     /// <see cref="RetryJitterRatio"/>, where <c>RetryCount</c> is the number of failures
     /// recorded before the current one (see <see cref="OutboxRetryBackoff"/>).
@@ -73,12 +73,12 @@ public sealed class OutboxOptions
             ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
             field = value;
         }
-    } = TimeSpan.FromSeconds(5);
+    } = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Gets or sets the upper bound of the retry delay, whatever the retry count.
     /// </summary>
-    /// <value>Default: 10 minutes.</value>
+    /// <value>Default: 1 hour.</value>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is negative.</exception>
     /// <remarks>
     /// It must be greater than or equal to <see cref="BaseRetryDelay"/>; the outbox processor and
@@ -93,7 +93,7 @@ public sealed class OutboxOptions
             ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
             field = value;
         }
-    } = TimeSpan.FromMinutes(10);
+    } = TimeSpan.FromHours(1);
 
     /// <summary>
     /// Gets or sets the fraction of the retry delay that is randomised, so that messages that

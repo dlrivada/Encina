@@ -21,6 +21,12 @@ namespace Encina.Messaging.Health;
 /// the result is the worse of the two statuses. Both counts are exact queries on the store, using
 /// <see cref="OutboxOptions.MaxRetries"/> to tell pending from exhausted messages.
 /// </para>
+/// <para>
+/// This check reports Degraded or Unhealthy for backlog or exhausted messages, but it is not tagged
+/// <c>ready</c> by default, so it does not affect readiness probes. To make it affect readiness, register
+/// it with the <c>ready</c> tag explicitly, e.g.
+/// <c>services.AddHealthChecks().AddCheck&lt;OutboxHealthCheck&gt;("encina-outbox", tags: ["ready"])</c>.
+/// </para>
 /// </remarks>
 public class OutboxHealthCheck : EncinaHealthCheck
 {
@@ -35,7 +41,7 @@ public class OutboxHealthCheck : EncinaHealthCheck
     /// <param name="outboxOptions">The outbox options; <see cref="OutboxOptions.MaxRetries"/> separates pending from exhausted messages.</param>
     /// <param name="options">Health check options.</param>
     public OutboxHealthCheck(IOutboxStore store, OutboxOptions outboxOptions, OutboxHealthCheckOptions? options = null)
-        : base("encina-outbox", ["ready", "database", "messaging"])
+        : base("encina-outbox", ["database", "messaging"])
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(outboxOptions);

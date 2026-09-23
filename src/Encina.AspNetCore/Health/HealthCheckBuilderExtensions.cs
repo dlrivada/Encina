@@ -31,6 +31,12 @@ public static class HealthCheckBuilderExtensions
     /// </summary>
     private static readonly string[] DefaultTags = ["encina", "ready"];
 
+    /// <summary>
+    /// Default tags for Encina health checks that must not affect readiness by default (e.g. the outbox check,
+    /// which reports Degraded/Unhealthy for backlog but should not take an instance out of rotation).
+    /// </summary>
+    private static readonly string[] DefaultTagsWithoutReady = ["encina"];
+
     // Common tag constants to avoid duplicate string literals
     private const string TagDatabase = "database";
     private const string TagMessaging = "messaging";
@@ -94,6 +100,11 @@ public static class HealthCheckBuilderExtensions
     /// <param name="tags">Additional tags to apply.</param>
     /// <param name="failureStatus">The failure status to use.</param>
     /// <returns>The health checks builder for chaining.</returns>
+    /// <remarks>
+    /// This check reports Degraded or Unhealthy for backlog or exhausted messages, but it is not tagged
+    /// <c>ready</c> by default, so it does not affect readiness probes. To make it affect readiness, pass
+    /// <c>tags: ["ready"]</c> explicitly.
+    /// </remarks>
     public static IHealthChecksBuilder AddEncinaOutbox(
         this IHealthChecksBuilder builder,
         string name = "encina-outbox",
@@ -103,7 +114,7 @@ public static class HealthCheckBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        var allTags = CombineTags(tags, "outbox", TagDatabase, TagMessaging);
+        var allTags = CombineTagsWithoutReady(tags, "outbox", TagDatabase, TagMessaging);
 
         builder.Add(new HealthCheckRegistration(
             name,
@@ -758,8 +769,14 @@ public static class HealthCheckBuilderExtensions
     }
 
     private static string[] CombineTags(IEnumerable<string>? additionalTags, params string[] baseTags)
+        => CombineTagsCore(DefaultTags, additionalTags, baseTags);
+
+    private static string[] CombineTagsWithoutReady(IEnumerable<string>? additionalTags, params string[] baseTags)
+        => CombineTagsCore(DefaultTagsWithoutReady, additionalTags, baseTags);
+
+    private static string[] CombineTagsCore(string[] defaultTags, IEnumerable<string>? additionalTags, string[] baseTags)
     {
-        var combinedTags = new List<string>(DefaultTags);
+        var combinedTags = new List<string>(defaultTags);
         combinedTags.AddRange(baseTags);
 
         if (additionalTags is not null)
