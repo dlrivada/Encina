@@ -9,6 +9,7 @@ has_children: true
 
 Practical guides for configuring and scaling Encina features.
 
+- [How to write a pipeline behavior](how-to-write-a-pipeline-behavior.md) — Write, register and order a custom `IPipelineBehavior`
 - [Health Checks Integration](health-checks.md) — Integrate Encina health checks with ASP.NET Core
 - [ID Generation Configuration](id-generation-configuration.md) — Configure multi-strategy ID generation
 - [ID Generation Scaling](id-generation-scaling.md) — Scale ID generation for distributed systems

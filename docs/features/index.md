@@ -69,6 +69,10 @@ has_children: true
 - [Message Encryption](message-encryption.md)
 - [Query Caching](query-caching.md)
 
+## Core
+
+- [Pipeline Behaviors](pipeline-behaviors.md)
+
 ## Other
 
 - [Multi-Tenancy](multi-tenancy.md)

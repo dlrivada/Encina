@@ -11,6 +11,7 @@ Design decisions, patterns, and structural documentation for Encina.
 
 ## Key Documents
 
+- [About the request pipeline](request-pipeline.md) — Requests, handlers, behaviors, processors and the dispatch flow
 - [Patterns Guide](patterns-guide.md) — Design patterns and best practices
 - [Component Diagram](component-diagram.md) — High-level component architecture
 - [Exception Handling Analysis](exception-handling-analysis.md)
