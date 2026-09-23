@@ -133,14 +133,14 @@ public sealed class RetentionEnforcementServiceTests
 
     private static RetentionRecordReadModel Episode(
         string entityId, RetentionStatus status, DateTimeOffset expiresAtUtc, string? tenantId = "tenant-1") => new()
-    {
-        Id = Guid.NewGuid(),
-        EntityId = entityId,
-        DataCategory = "clinical-record",
-        ExpiresAtUtc = expiresAtUtc,
-        Status = status,
-        TenantId = tenantId
-    };
+        {
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            DataCategory = "clinical-record",
+            ExpiresAtUtc = expiresAtUtc,
+            Status = status,
+            TenantId = tenantId
+        };
 
     // ========================================================================
     // Hosted-service behaviour
